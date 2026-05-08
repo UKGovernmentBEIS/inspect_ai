@@ -4,6 +4,7 @@
 - Grok: Support `reasoning_effort` for Grok 4 models.
 - Scoring: Don't retry samples interrupted by operator during scoring.
 - MCP: Raise `ToolError` when timeout error occurs in MCP tool call.
+- Eval Set: Fix retry log filename colliding with the failed log when both calls land in the same wall-clock second, which previously caused successful samples to be re-run instead of reused from the prior log.
 - Eval Logs: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent `IncompleteBody` errors during multipart uploads under concurrent flushes.
 - Bugfix: Fix bridged-tool result serialization to handle `list[ContentText]`.
 
@@ -23,7 +24,6 @@
 - Eval Set: `retry_immediate` now defaults to True. Pass `retry_immediate=False` (or `--no-retry-immediate`) to restore the previous batch-retry behavior.
 - Eval Set: `max_tasks` now defaults to the greater of 10 and the number of models being evaluated (was previously 4).
 - Eval Set: Roll forward `model_usage` and `role_usage` from previous log when performing retries (matches existing `eval-retry` behavior).
-- Eval Set: Fix retry log filename colliding with the failed log when both calls land in the same wall-clock second, which previously caused successful samples to be re-run instead of reused from the prior log.
 - Compaction: Account for redacted-reasoning input cost on providers that exclude it from `usage.input_tokens` (currently OpenAI Responses with `store=false` + `include=["reasoning.encrypted_content"]`).
 - Bugfix: Fix `ToolEvent.message_id` to reference the correct `ChatMessageTool` when multiple tool calls occur in one assistant turn.
 
