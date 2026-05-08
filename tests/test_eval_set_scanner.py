@@ -3192,6 +3192,40 @@ def test_scan_display_clears_stale_transcripts_snapshot_on_reattach() -> None:
         )
 
 
+def test_scan_display_strips_max_transcripts_from_options() -> None:
+    """`spec.options.max_transcripts` is stripped from the display copy.
+
+    `max_transcripts` is scout's worker-pool concurrency knob — only
+    meaningful for scout's standalone `scan_async` orchestration.
+    inspect_ai's eval_set dispatches scanners via `_scan_one` directly,
+    so the value has no effect on the run. Showing it in the panel
+    config line ("max_transcripts: 25") would be misleading.
+
+    Setting it to None on the display copy makes scout's
+    `scan_config_str` skip it via `model_dump(exclude_none=True)`.
+    """
+    from inspect_ai._eval.task.scan_display import get_state, reset_state
+
+    reset_state()
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+
+        state = get_state()
+        assert state.spec is not None
+        assert state.spec.options.max_transcripts is None, (
+            "expected max_transcripts stripped to None on display spec; "
+            f"got {state.spec.options.max_transcripts}"
+        )
+
+
 def test_scan_display_reset_clears_state() -> None:
     from inspect_ai._eval.task.scan_display import get_state, reset_state
 

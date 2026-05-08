@@ -15,6 +15,7 @@ from inspect_ai.log._log import EvalSample
 
 if TYPE_CHECKING:
     from inspect_scout import Scanner
+    from inspect_scout._scanspec import ScanSpec
 
 
 class EvalScannerConfig(BaseModel):
@@ -194,13 +195,6 @@ async def scan_init(
                 "log_dir / scan_id."
             )
         _invalidate_finalized_flag(scan_dir)
-        # the on-disk spec carries the prior run's `transcripts`
-        # snapshot — `scan_title` reads its length for the header. That
-        # snapshot won't refresh until this run finalizes, so during
-        # the run it's stale (e.g. shows "10 transcripts" while
-        # actually scanning 20). Strip it from the display copy; the
-        # progress bar's X/N still surfaces the live total.
-        display_spec = recorder.scan_spec.model_copy(update={"transcripts": None})
         # don't seed samples_completed — the resume-scan short-circuit
         # path calls `mark_completed` for each reused sample, so the
         # counter naturally reaches `samples_total` over the run
@@ -208,7 +202,7 @@ async def scan_init(
         # do whenever PreviousTask reuse can't match samples)
         set_active(
             scan_dir=scan_dir,
-            spec=display_spec,
+            spec=_display_spec(recorder.scan_spec),
             summary=await recorder.summary(),
         )
         return
@@ -226,9 +220,26 @@ async def scan_init(
     )
     set_active(
         scan_dir=scan_dir,
-        spec=spec,
+        spec=_display_spec(spec),
         summary=await recorder.summary(),
     )
+
+
+def _display_spec(spec: "ScanSpec") -> "ScanSpec":
+    """Strip fields from `spec` that aren't meaningful for the display.
+
+    `transcripts`: the on-disk snapshot from a prior finalize. Stale
+    during a fresh run — `scan_title` would read its length and show
+    e.g. "10 transcripts" while actually scanning 20. The progress
+    bar's X/N surfaces the live total instead.
+
+    `options.max_transcripts`: scout's worker-pool concurrency knob.
+    inspect_ai's eval_set dispatches scanners via `_scan_one` directly
+    instead of scout's process pool, so this value has no effect on
+    the run — showing it in the panel header is misleading.
+    """
+    options = spec.options.model_copy(update={"max_transcripts": None})
+    return spec.model_copy(update={"transcripts": None, "options": options})
 
 
 async def scan_eval_sample(
