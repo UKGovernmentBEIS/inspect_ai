@@ -8,7 +8,7 @@ from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.log._log import EvalPlan, EvalSample, EvalSampleSummary, EvalSpec
-from inspect_ai.log._pool import resolve_sample_events_data
+from inspect_ai.log._pool import rebind_sample_timelines, resolve_sample_events_data
 from inspect_ai.log._recorders.eval import (
     HEADER_JSON,
     JOURNAL_DIR,
@@ -107,7 +107,7 @@ async def read_flushed_sample(reader: AsyncZipReader, entry_name: str) -> EvalSa
     """
     data = await _read_member_json(reader, entry_name)
     sample = EvalSample.model_validate(data, context=get_deserializing_context())
-    return resolve_sample_events_data(sample)
+    return rebind_sample_timelines(resolve_sample_events_data(sample))
 
 
 async def _read_member_json(reader: AsyncZipReader, member: str) -> Any:

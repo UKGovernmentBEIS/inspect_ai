@@ -440,3 +440,62 @@ async def test_vllm_tokenize_sends_add_special_tokens_false() -> None:
     call_kwargs = mock_http.post.call_args
     payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
     assert payload["add_special_tokens"] is False
+
+
+# -- VLLMCompletionsAPI extra_body precedence tests --
+
+
+@pytest.mark.anyio
+async def test_vllm_completions_dedicated_field_wins_over_extra_body() -> None:
+    """Dedicated prompt_logprobs field takes precedence over extra_body.
+
+    Same precedence as the chat completions path
+    (test_completion_params_dedicated_field_wins_over_extra_body).
+    """
+    from inspect_ai.model._providers.vllm_completions import VLLMCompletionsAPI
+
+    config = GenerateConfig(
+        prompt_logprobs=1,
+        max_tokens=1,
+        extra_body={"prompt_logprobs": 10, "custom_key": "custom_value"},
+    )
+
+    # Create a minimal instance without calling __init__
+    api = VLLMCompletionsAPI.__new__(VLLMCompletionsAPI)
+    api.model_name = "test-model"
+
+    # Mock the client and hooks
+    mock_completion = MagicMock()
+    mock_completion.model = "test-model"
+    mock_completion.choices = []
+    mock_completion.usage = None
+    mock_completion.model_dump.return_value = {}
+
+    mock_client = MagicMock()
+    mock_client.completions = MagicMock()
+    mock_client.completions.create = AsyncMock(return_value=mock_completion)
+    api.client = mock_client
+
+    mock_hooks = MagicMock()
+    mock_hooks.start_request.return_value = "req-1"
+    mock_hooks.end_request.return_value = 0.1
+    api._http_hooks = mock_hooks
+
+    with (
+        patch.object(api, "service_model_name", return_value="test-model"),
+        patch.object(api, "_ensure_server_started", new_callable=AsyncMock),
+    ):
+        from inspect_ai.model._chat_message import ChatMessageUser
+
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="auto",
+            config=config,
+        )
+
+    call_kwargs = mock_client.completions.create.call_args.kwargs
+    # Dedicated config.prompt_logprobs=1 should override extra_body's 10
+    assert call_kwargs["extra_body"]["prompt_logprobs"] == 1
+    # Other extra_body keys are preserved
+    assert call_kwargs["extra_body"]["custom_key"] == "custom_value"

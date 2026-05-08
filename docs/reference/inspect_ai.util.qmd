@@ -43,6 +43,7 @@ description: Miscellaneous utility functions.
 
 ### span
 ### current_span_id
+### span_id_provider
 ### collect
 ### throttle
 ### background

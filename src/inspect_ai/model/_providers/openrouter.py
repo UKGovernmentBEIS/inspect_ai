@@ -110,6 +110,16 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         )
 
     @override
+    def collapse_system_messages(self) -> bool:
+        # Several OpenRouter inference providers (e.g. AkashML, Parasail)
+        # reject requests that contain more than one system message or any
+        # system message at a non-zero index, even though the OpenAI Chat
+        # Completions API itself is permissive. Coalesce adjacent system
+        # messages so the canonical request has a single leading system
+        # message regardless of which provider OpenRouter selects.
+        return True
+
+    @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         # Defer to the OpenAI-compatible base classifier (which handles 429 →
         # rate_limit and 5xx/timeouts → transient with header extraction).

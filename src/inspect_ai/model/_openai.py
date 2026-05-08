@@ -846,27 +846,18 @@ def chat_choices_from_openai(
     ]
 
 
-def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
-    """Parse prompt logprobs from a vLLM chat completions response.
+def parse_vllm_prompt_logprobs_raw(raw: list[Any]) -> Logprobs | None:
+    """Parse a vLLM prompt_logprobs list into a :class:`Logprobs` object.
 
-    vLLM places prompt_logprobs at the response top level (not inside choices).
-    Each position is a dict mapping token_id -> {decoded_token, logprob, rank}.
-    The first entry in each dict is always the actual prompt token (by vLLM's
-    insertion-order contract); subsequent entries are the top-N alternatives
-    (when prompt_logprobs > 1).  The rank field indicates the model's
-    prediction ranking (rank 1 = most likely), NOT which token is the actual
-    prompt token — the actual token may have a high rank if it was unlikely.
+    vLLM format: each position is either ``None`` (BOS) or a dict mapping
+    ``token_id -> {decoded_token, logprob, rank}``.  The first entry in
+    each dict is the actual prompt token (by vLLM's insertion-order
+    contract); subsequent entries are the top-N alternatives
+    (when ``prompt_logprobs > 1``).
+
+    This is the shared parsing logic used by both the chat completions
+    path (``_parse_prompt_logprobs``) and the ``vllm-completions`` provider.
     """
-    raw: list[Any] | None = None
-    # vLLM returns prompt_logprobs at the top level of the response
-    if hasattr(response, "prompt_logprobs") and response.prompt_logprobs is not None:
-        raw = response.prompt_logprobs
-    elif hasattr(response, "model_extra") and response.model_extra:
-        raw = response.model_extra.get("prompt_logprobs")
-
-    if not raw:
-        return None
-
     result: list[Logprob] = []
     for entry in raw:
         # First token has None logprob (no left context)
@@ -915,6 +906,59 @@ def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
                 top_logprobs=top_lps,
             )
         )
+    return Logprobs(content=result) if result else None
+
+
+def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
+    """Parse prompt logprobs from a vLLM chat completions response.
+
+    vLLM places prompt_logprobs at the response top level (not inside choices).
+    This function locates the raw list and delegates to
+    :func:`parse_vllm_prompt_logprobs_raw` for parsing.
+    """
+    raw: list[Any] | None = None
+    if hasattr(response, "prompt_logprobs") and response.prompt_logprobs is not None:
+        raw = response.prompt_logprobs
+    elif hasattr(response, "model_extra") and response.model_extra:
+        raw = response.model_extra.get("prompt_logprobs")
+
+    if not raw:
+        return None
+
+    return parse_vllm_prompt_logprobs_raw(raw)
+
+
+def parse_completion_logprobs(sdk_logprobs: Any) -> Logprobs | None:
+    """Parse ``/v1/completions`` logprobs into :class:`Logprobs`.
+
+    The completions endpoint returns logprobs as parallel arrays::
+
+        {
+            "tokens": [" Paris", "."],
+            "token_logprobs": [-0.595, -0.837],
+            "top_logprobs": [{" Paris": -0.595}, {".": -0.837}]
+        }
+
+    This differs from chat completions which uses a list of objects.
+    """
+    if sdk_logprobs is None:
+        return None
+
+    tokens = getattr(sdk_logprobs, "tokens", None)
+    token_logprobs = getattr(sdk_logprobs, "token_logprobs", None)
+    if not tokens or not token_logprobs:
+        return None
+
+    sdk_top = getattr(sdk_logprobs, "top_logprobs", None)
+
+    result: list[Logprob] = []
+    for i, (token, logprob) in enumerate(zip(tokens, token_logprobs)):
+        if logprob is None:
+            continue
+        top_lps: list[TopLogprob] | None = None
+        if sdk_top and i < len(sdk_top) and sdk_top[i]:
+            top_lps = [TopLogprob(token=t, logprob=lp) for t, lp in sdk_top[i].items()]
+        result.append(Logprob(token=token, logprob=logprob, top_logprobs=top_lps))
     return Logprobs(content=result) if result else None
 
 
