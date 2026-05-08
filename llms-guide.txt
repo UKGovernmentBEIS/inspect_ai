@@ -6698,7 +6698,7 @@ You can also use the `INSPECT_EVAL_LOG_IMAGES` environment variable to set a glo
 
 ## Overview
 
-Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5 Flash, Grok 3, and DeepSeek r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
+Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5 Flash, Grok, and DeepSeek r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
 
 In this article we’ll first cover the basics of [Reasoning Content](#reasoning-content) and [Reasoning Options](#reasoning-options), then cover the usage and options supported by various reasoning models.
 
@@ -6718,7 +6718,7 @@ The following reasoning options are available from the CLI and within [GenerateC
 
 | Option | Description | Default | Models |
 |----|----|----|----|
-| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`minimal`, `low`, `medium`, `high`, or `xhigh`) | `medium` | Anthropic Claude 4.6, OpenAI GPT-5 and o-series, Gemini 3+, Grok 3 |
+| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`minimal`, `low`, `medium`, `high`, or `xhigh`) | `medium` | Anthropic Claude 4.6, OpenAI GPT-5 and o-series, Gemini 3+, Grok 3+ |
 | `reasoning_tokens` | Maximum number of tokens to use for reasoning. | (none) | Claude 3.7+ and Gemini 2.5+ |
 | `reasoning_summary` | Provide summary of reasoning steps (`none`, `concise`, `detailed`, `auto`). Use “auto” to access the most detailed summarizer available for the current model. | (none) | OpenAI o-series |
 | `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto` | All models |
@@ -6729,7 +6729,7 @@ As you can see from above, models have different means of specifying the tokens 
  eval(
     task,
     model=["openai/o3-mini","anthropic/claude-3-7-sonnet-20250219"],
-    reasoning_effort="medium",  # openai, gemini 3+, claude 4.6+, and grok 3
+    reasoning_effort="medium",  # openai, gemini 3+, claude 4.6+, and grok
     reasoning_tokens=4096       # anthropic 3.7/4.x and gemini 2.5
  )
 ```
@@ -6849,17 +6849,15 @@ The most recent Gemini models also include support for including a reasoning sum
 
 Grok currently makes available several reasoning models:
 
-- `grok/grok-4`
+- `grok/grok-4.3`
 - `grok/grok-3`
 - `grok/grok-3-mini`
 
-You can condition the amount of reasoning done by Grok 3 using the \[`reasoning_effort`\]https://docs.x.ai/docs/guides/reasoning) option, which can be set to `low` or `high`.
+You can condition the amount of reasoning done by Grok 3 and Grok 4.3+ using the \[`reasoning_effort`\]https://docs.x.ai/docs/guides/reasoning) option, which can be set to `none`, `low` `medium`, or `high`.
 
 ``` bash
-inspect eval math.py --model grok/grok-3-mini --reasoning-effort high
+inspect eval math.py --model grok/grok-4.3 --reasoning-effort high
 ```
-
-Note that Grok 4 does not support the `--reasoning-effort` parameter so it is ignored if specified.
 
 ## DeepSeek-R1
 

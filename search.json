@@ -2666,32 +2666,39 @@
     "href": "CHANGELOG.html",
     "title": "Inspect",
     "section": "",
-    "text": "Inspect View: Fix extraneous console errors\nInspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.\nInspect View: Task samples - preserve sort and other state in VS Code."
+    "text": "Anthropic: Skip the top-level cache_control auto-caching field on Bedrock and Vertex where they are not supported.\nGrok: Forward tool_call_id in tool responses (parallel tool calling).\nGrok: Support reasoning_effort for Grok 4 models.\nScoring: Don’t retry samples interrupted by operator during scoring.\nMCP: Raise ToolError when timeout error occurs in MCP tool call.\nEval Set: Fix retry log filename colliding with the failed log when both calls land in the same wall-clock second, which previously caused successful samples to be re-run instead of reused from the prior log.\nEval Logs: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent IncompleteBody errors during multipart uploads under concurrent flushes.\nBugfix: Fix bridged-tool result serialization to handle list[ContentText]."
   },
   {
     "objectID": "CHANGELOG.html#may-2026",
     "href": "CHANGELOG.html#may-2026",
     "title": "Inspect",
     "section": "",
-    "text": "Inspect View: Fix extraneous console errors\nInspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.\nInspect View: Task samples - preserve sort and other state in VS Code."
+    "text": "Anthropic: Skip the top-level cache_control auto-caching field on Bedrock and Vertex where they are not supported.\nGrok: Forward tool_call_id in tool responses (parallel tool calling).\nGrok: Support reasoning_effort for Grok 4 models.\nScoring: Don’t retry samples interrupted by operator during scoring.\nMCP: Raise ToolError when timeout error occurs in MCP tool call.\nEval Set: Fix retry log filename colliding with the failed log when both calls land in the same wall-clock second, which previously caused successful samples to be re-run instead of reused from the prior log.\nEval Logs: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent IncompleteBody errors during multipart uploads under concurrent flushes.\nBugfix: Fix bridged-tool result serialization to handle list[ContentText]."
   },
   {
     "objectID": "CHANGELOG.html#may-2026-1",
     "href": "CHANGELOG.html#may-2026-1",
     "title": "Inspect",
-    "section": "0.3.218 (06 May 2026)",
-    "text": "0.3.218 (06 May 2026)\n\nGoogle: Support Gemini 3+ native web search and code execution alongside function tools.\nHuggingFace: Add trust_remote_code model argument (defaults to False).\nVLLM: New vllm-completions model provider that uses completions rather than chat endpoint.\nOpenRouter: Coalesce adjacent system messages before request.\nBedrock: Preserve maxTokens when reasoning effort is less than “high”.\nEval Set: retry_immediate now defaults to True. Pass retry_immediate=False (or --no-retry-immediate) to restore the previous batch-retry behavior.\nEval Set: max_tasks now defaults to the greater of 10 and the number of models being evaluated (was previously 4).\nEval Set: Roll forward model_usage and role_usage from previous log when performing retries (matches existing eval-retry behavior).\nCompaction: Account for redacted-reasoning input cost on providers that exclude it from usage.input_tokens (currently OpenAI Responses with store=false + include=[\"reasoning.encrypted_content\"]).\nBugfix: Fix ToolEvent.message_id to reference the correct ChatMessageTool when multiple tool calls occur in one assistant turn."
+    "section": "0.3.219 (06 May 2026)",
+    "text": "0.3.219 (06 May 2026)\n\nInspect View: Fix extraneous console errors\nInspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.\nInspect View: Task samples - preserve sort and other state in VS Code."
   },
   {
     "objectID": "CHANGELOG.html#may-2026-2",
     "href": "CHANGELOG.html#may-2026-2",
     "title": "Inspect",
-    "section": "0.3.217 (03 May 2026)",
-    "text": "0.3.217 (03 May 2026)\n\nAdd adaptive connections option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.\nAdd score on error option to score samples that error rather than failing the task (errors are still counted toward the fail_on_error threshold).\nAdd media_resolver() context manager for scoped URI resolution for media reading (images, audio, etc.).\nAdd download() and gdrive_download() helpers for fetching external files with SHA256 verification, caching, and transient-error retry. gdrive_download() requires the optional gdown dependency, installed via pip install inspect_ai[gdown].\nCompaction: Lock Compact handler against concurrent AgentBridge calls.\nCompaction: On stop_reason='model_length' in react() agent, force-compact before falling through to the overflow filter.\nAnalysis: Fix wrong working_time path in SampleSummary columns.\nAdd scorer and scorer_args to ScoreEvent"
+    "section": "0.3.218 (06 May 2026)",
+    "text": "0.3.218 (06 May 2026)\n\nGoogle: Support Gemini 3+ native web search and code execution alongside function tools.\nHuggingFace: Add trust_remote_code model argument (defaults to False).\nVLLM: New vllm-completions model provider that uses completions rather than chat endpoint.\nOpenRouter: Coalesce adjacent system messages before request.\nBedrock: Preserve maxTokens when reasoning effort is less than “high”.\nEval Set: retry_immediate now defaults to True. Pass retry_immediate=False (or --no-retry-immediate) to restore the previous batch-retry behavior.\nEval Set: max_tasks now defaults to the greater of 10 and the number of models being evaluated (was previously 4).\nEval Set: Roll forward model_usage and role_usage from previous log when performing retries (matches existing eval-retry behavior).\nCompaction: Account for redacted-reasoning input cost on providers that exclude it from usage.input_tokens (currently OpenAI Responses with store=false + include=[\"reasoning.encrypted_content\"]).\nBugfix: Fix ToolEvent.message_id to reference the correct ChatMessageTool when multiple tool calls occur in one assistant turn."
   },
   {
     "objectID": "CHANGELOG.html#may-2026-3",
     "href": "CHANGELOG.html#may-2026-3",
+    "title": "Inspect",
+    "section": "0.3.217 (03 May 2026)",
+    "text": "0.3.217 (03 May 2026)\n\nAdd adaptive connections option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.\nAdd score on error option to score samples that error rather than failing the task (errors are still counted toward the fail_on_error threshold).\nAdd media_resolver() context manager for scoped URI resolution for media reading (images, audio, etc.).\nAdd download() and gdrive_download() helpers for fetching external files with SHA256 verification, caching, and transient-error retry. gdrive_download() requires the optional gdown dependency, installed via pip install inspect_ai[gdown].\nCompaction: Lock Compact handler against concurrent AgentBridge calls.\nCompaction: On stop_reason='model_length' in react() agent, force-compact before falling through to the overflow filter.\nAnalysis: Fix wrong working_time path in SampleSummary columns.\nAdd scorer and scorer_args to ScoreEvent"
+  },
+  {
+    "objectID": "CHANGELOG.html#may-2026-4",
+    "href": "CHANGELOG.html#may-2026-4",
     "title": "Inspect",
     "section": "0.3.216 (01 May 2026)",
     "text": "0.3.216 (01 May 2026)\n\nOpenRouter: Escape signature attribute in  tag round-trip.\nLogging: Add sample id, epoch, and task name to log records.\nDocker: Skip docker pull for service images already present in the local Docker daemon.\nInspect View: Add score comparator with NaN filtering and regex-escaped property matching (#167)\nInspect View: Improve grid sorting with NaN values and fix sample column sizing (#166)\nInspect View: Make live-streaming message/call pool processing idempotent by entry id to prevent duplicated messages in API request views (#168)\nModel database: Fix incorrect input_tokens for gpt-5.4, gpt-5.4-pro, gpt-5.5, gpt-5.5-pro (was 778000, now 922000 = 1,050,000 context − 128,000 output)."
@@ -5709,7 +5716,7 @@
     "href": "reasoning.html",
     "title": "Reasoning",
     "section": "",
-    "text": "Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5 Flash, Grok 3, and DeepSeek r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.\nIn this article we’ll first cover the basics of Reasoning Content and Reasoning Options, then cover the usage and options supported by various reasoning models.",
+    "text": "Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5 Flash, Grok, and DeepSeek r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.\nIn this article we’ll first cover the basics of Reasoning Content and Reasoning Options, then cover the usage and options supported by various reasoning models.",
     "crumbs": [
       "User Guide",
       "Models",
@@ -5721,7 +5728,7 @@
     "href": "reasoning.html#overview",
     "title": "Reasoning",
     "section": "",
-    "text": "Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5 Flash, Grok 3, and DeepSeek r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.\nIn this article we’ll first cover the basics of Reasoning Content and Reasoning Options, then cover the usage and options supported by various reasoning models.",
+    "text": "Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5 Flash, Grok, and DeepSeek r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.\nIn this article we’ll first cover the basics of Reasoning Content and Reasoning Options, then cover the usage and options supported by various reasoning models.",
     "crumbs": [
       "User Guide",
       "Models",
@@ -5745,7 +5752,7 @@
     "href": "reasoning.html#reasoning-options",
     "title": "Reasoning",
     "section": "Reasoning Options",
-    "text": "Reasoning Options\nThe following reasoning options are available from the CLI and within GenerateConfig:\n\n\n\n\n\n\n\n\n\nOption\nDescription\nDefault\nModels\n\n\n\n\nreasoning_effort\nConstrains effort on reasoning for reasoning models (minimal, low, medium, high, or xhigh)\nmedium\nAnthropic Claude 4.6, OpenAI GPT-5 and o-series, Gemini 3+, Grok 3\n\n\nreasoning_tokens\nMaximum number of tokens to use for reasoning.\n(none)\nClaude 3.7+ and Gemini 2.5+\n\n\nreasoning_summary\nProvide summary of reasoning steps (none, concise, detailed, auto). Use “auto” to access the most detailed summarizer available for the current model.\n(none)\nOpenAI o-series\n\n\nreasoning_history\nInclude reasoning in message history sent to model (none, all, last, or auto)\nauto\nAll models\n\n\n\nAs you can see from above, models have different means of specifying the tokens to allocate for reasoning (reasoning_effort and reasoning_tokens). The two options don’t map precisely into each other, so if you are doing an evaluation with multiple reasoning models you should specify both. For example:\n eval(\n    task,\n    model=[\"openai/o3-mini\",\"anthropic/claude-3-7-sonnet-20250219\"],\n    reasoning_effort=\"medium\",  # openai, gemini 3+, claude 4.6+, and grok 3\n    reasoning_tokens=4096       # anthropic 3.7/4.x and gemini 2.5\n )\nThe reasoning_history option lets you control how much of the model’s previous reasoning is presented in the message history sent to generate(). The default is auto, which uses a provider-specific recommended default (normally all). Use last to not let the reasoning overwhelm the context window.",
+    "text": "Reasoning Options\nThe following reasoning options are available from the CLI and within GenerateConfig:\n\n\n\n\n\n\n\n\n\nOption\nDescription\nDefault\nModels\n\n\n\n\nreasoning_effort\nConstrains effort on reasoning for reasoning models (minimal, low, medium, high, or xhigh)\nmedium\nAnthropic Claude 4.6, OpenAI GPT-5 and o-series, Gemini 3+, Grok 3+\n\n\nreasoning_tokens\nMaximum number of tokens to use for reasoning.\n(none)\nClaude 3.7+ and Gemini 2.5+\n\n\nreasoning_summary\nProvide summary of reasoning steps (none, concise, detailed, auto). Use “auto” to access the most detailed summarizer available for the current model.\n(none)\nOpenAI o-series\n\n\nreasoning_history\nInclude reasoning in message history sent to model (none, all, last, or auto)\nauto\nAll models\n\n\n\nAs you can see from above, models have different means of specifying the tokens to allocate for reasoning (reasoning_effort and reasoning_tokens). The two options don’t map precisely into each other, so if you are doing an evaluation with multiple reasoning models you should specify both. For example:\n eval(\n    task,\n    model=[\"openai/o3-mini\",\"anthropic/claude-3-7-sonnet-20250219\"],\n    reasoning_effort=\"medium\",  # openai, gemini 3+, claude 4.6+, and grok\n    reasoning_tokens=4096       # anthropic 3.7/4.x and gemini 2.5\n )\nThe reasoning_history option lets you control how much of the model’s previous reasoning is presented in the message history sent to generate(). The default is auto, which uses a provider-specific recommended default (normally all). Use last to not let the reasoning overwhelm the context window.",
     "crumbs": [
       "User Guide",
       "Models",
@@ -5793,7 +5800,7 @@
     "href": "reasoning.html#grok",
     "title": "Reasoning",
     "section": "Grok",
-    "text": "Grok\nGrok currently makes available several reasoning models:\n\ngrok/grok-4\ngrok/grok-3\ngrok/grok-3-mini\n\nYou can condition the amount of reasoning done by Grok 3 using the [reasoning_effort]https://docs.x.ai/docs/guides/reasoning) option, which can be set to low or high.\ninspect eval math.py --model grok/grok-3-mini --reasoning-effort high\nNote that Grok 4 does not support the --reasoning-effort parameter so it is ignored if specified.",
+    "text": "Grok\nGrok currently makes available several reasoning models:\n\ngrok/grok-4.3\ngrok/grok-3\ngrok/grok-3-mini\n\nYou can condition the amount of reasoning done by Grok 3 and Grok 4.3+ using the [reasoning_effort]https://docs.x.ai/docs/guides/reasoning) option, which can be set to none, low medium, or high.\ninspect eval math.py --model grok/grok-4.3 --reasoning-effort high",
     "crumbs": [
       "User Guide",
       "Models",

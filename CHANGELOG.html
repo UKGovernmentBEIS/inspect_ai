@@ -141,6 +141,9 @@ ul.task-list li input[type="checkbox"] {
 </div>
       </div> <!-- /container-fluid -->
     </nav>
+  <div id="quarto-announcement" data-announcement-id="777e2582c6aa1cc26da9f1a1f5b55f88" class="alert alert-secondary hidden"><i class="bi bi-megaphone quarto-announcement-icon"></i><div class="quarto-announcement-content">
+<p>Announcing new releases of <strong>Petri</strong> and <strong>Bloom</strong>—automated alignment auditing built on Inspect. <a href="https://meridianlabs.ai/blog/posts/introducing-petri-3/">Learn more</a></p>
+</div><i class="bi bi-x-lg quarto-announcement-action"></i></div>
 </header>
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
@@ -151,10 +154,11 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#may-2026" id="toc-may-2026" class="nav-link active" data-scroll-target="#may-2026">0.3.219 (06 May 2026)</a></li>
-  <li><a href="#may-2026-1" id="toc-may-2026-1" class="nav-link" data-scroll-target="#may-2026-1">0.3.218 (06 May 2026)</a></li>
-  <li><a href="#may-2026-2" id="toc-may-2026-2" class="nav-link" data-scroll-target="#may-2026-2">0.3.217 (03 May 2026)</a></li>
-  <li><a href="#may-2026-3" id="toc-may-2026-3" class="nav-link" data-scroll-target="#may-2026-3">0.3.216 (01 May 2026)</a></li>
+  <li><a href="#may-2026" id="toc-may-2026" class="nav-link active" data-scroll-target="#may-2026">0.3.220 (08 May 2026)</a></li>
+  <li><a href="#may-2026-1" id="toc-may-2026-1" class="nav-link" data-scroll-target="#may-2026-1">0.3.219 (06 May 2026)</a></li>
+  <li><a href="#may-2026-2" id="toc-may-2026-2" class="nav-link" data-scroll-target="#may-2026-2">0.3.218 (06 May 2026)</a></li>
+  <li><a href="#may-2026-3" id="toc-may-2026-3" class="nav-link" data-scroll-target="#may-2026-3">0.3.217 (03 May 2026)</a></li>
+  <li><a href="#may-2026-4" id="toc-may-2026-4" class="nav-link" data-scroll-target="#may-2026-4">0.3.216 (01 May 2026)</a></li>
   <li><a href="#april-2026" id="toc-april-2026" class="nav-link" data-scroll-target="#april-2026">0.3.215 (30 April 2026)</a></li>
   <li><a href="#april-2026-1" id="toc-april-2026-1" class="nav-link" data-scroll-target="#april-2026-1">0.3.214 (29 April 2026)</a></li>
   <li><a href="#april-2026-2" id="toc-april-2026-2" class="nav-link" data-scroll-target="#april-2026-2">0.3.213 (27 April 2026)</a></li>
@@ -377,15 +381,28 @@ ul.task-list li input[type="checkbox"] {
 
 
 <section id="may-2026" class="level2">
-<h2 class="anchored" data-anchor-id="may-2026">0.3.219 (06 May 2026)</h2>
+<h2 class="anchored" data-anchor-id="may-2026">0.3.220 (08 May 2026)</h2>
+<ul>
+<li>Anthropic: Skip the top-level <code>cache_control</code> auto-caching field on Bedrock and Vertex where they are not supported.</li>
+<li>Grok: Forward <code>tool_call_id</code> in tool responses (parallel tool calling).</li>
+<li>Grok: Support <code>reasoning_effort</code> for Grok 4 models.</li>
+<li>Scoring: Don’t retry samples interrupted by operator during scoring.</li>
+<li>MCP: Raise <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolerror">ToolError</a></span> when timeout error occurs in MCP tool call.</li>
+<li>Eval Set: Fix retry log filename colliding with the failed log when both calls land in the same wall-clock second, which previously caused successful samples to be re-run instead of reused from the prior log.</li>
+<li>Eval Logs: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent <code>IncompleteBody</code> errors during multipart uploads under concurrent flushes.</li>
+<li>Bugfix: Fix bridged-tool result serialization to handle <code>list[ContentText]</code>.</li>
+</ul>
+</section>
+<section id="may-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026-1">0.3.219 (06 May 2026)</h2>
 <ul>
 <li>Inspect View: Fix extraneous console errors</li>
 <li>Inspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.</li>
 <li>Inspect View: Task samples - preserve sort and other state in VS Code.</li>
 </ul>
 </section>
-<section id="may-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="may-2026-1">0.3.218 (06 May 2026)</h2>
+<section id="may-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026-2">0.3.218 (06 May 2026)</h2>
 <ul>
 <li>Google: Support Gemini 3+ native web search and code execution alongside function tools.</li>
 <li>HuggingFace: Add <code>trust_remote_code</code> model argument (defaults to <code>False</code>).</li>
@@ -399,8 +416,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix <code>ToolEvent.message_id</code> to reference the correct <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessagetool">ChatMessageTool</a></span> when multiple tool calls occur in one assistant turn.</li>
 </ul>
 </section>
-<section id="may-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="may-2026-2">0.3.217 (03 May 2026)</h2>
+<section id="may-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026-3">0.3.217 (03 May 2026)</h2>
 <ul>
 <li>Add <a href="https://inspect.aisi.org.uk/models-concurrency.html#adaptive-connections">adaptive connections</a> option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.</li>
 <li>Add <a href="https://inspect.aisi.org.uk/handling-errors.html#scoring-errored-samples">score on error</a> option to score samples that error rather than failing the task (errors are still counted toward the <code>fail_on_error</code> threshold).</li>
@@ -412,8 +429,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Add <code>scorer</code> and <code>scorer_args</code> to ScoreEvent</li>
 </ul>
 </section>
-<section id="may-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="may-2026-3">0.3.216 (01 May 2026)</h2>
+<section id="may-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026-4">0.3.216 (01 May 2026)</h2>
 <ul>
 <li>OpenRouter: Escape signature attribute in <think> tag round-trip.</think></li>
 <li>Logging: Add sample id, epoch, and task name to log records.</li>
