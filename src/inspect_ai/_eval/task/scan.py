@@ -398,10 +398,7 @@ def _invalidate_finalized_flag(scan_dir: str) -> None:
     summary_path = UPath(scan_dir) / "_summary.json"
     if not summary_path.exists():
         return
-    try:
-        data = json.loads(summary_path.read_text())
-    except Exception:
-        return
+    data = json.loads(summary_path.read_text())
     if data.get("complete") is True:
         data["complete"] = False
         summary_path.write_text(json.dumps(data))
@@ -449,10 +446,7 @@ def _scan_finalized_clean(scan_dir: str) -> bool:
     summary_path = UPath(scan_dir) / "_summary.json"
     if not summary_path.exists():
         return False
-    try:
-        return bool(json.loads(summary_path.read_text()).get("complete"))
-    except Exception:
-        return False
+    return bool(json.loads(summary_path.read_text()).get("complete"))
 
 
 def scanned_transcripts_for_resume(
@@ -536,10 +530,7 @@ async def _cleanup_orphan_scan_rows(
         # row groups with differing dictionary states)
         parquet_path = UPath(scan_dir) / f"{name}.parquet"
         if parquet_path.exists():
-            try:
-                pf = pq.ParquetFile(parquet_path.as_posix())
-            except Exception:
-                continue
+            pf = pq.ParquetFile(parquet_path.as_posix())
             schema = pf.schema_arrow
             out_buf = pa.BufferOutputStream()
             writer = pq.ParquetWriter(
@@ -593,14 +584,10 @@ def _scanned_transcript_ids(scan_dir: str, scanner_name: str) -> set[str]:
     # encoded `scan_id` column. Same pattern as `_cleanup_orphan_scan_rows`.
     parquet_path = UPath(scan_dir) / f"{scanner_name}.parquet"
     if parquet_path.exists():
-        try:
-            pf = pq.ParquetFile(parquet_path.as_posix())
-            for i in range(pf.metadata.num_row_groups):
-                rg = pf.read_row_group(i, columns=["transcript_id"])
-                ids.update(t for t in rg.column("transcript_id").to_pylist() if t)
-        except Exception:
-            # absent or unreadable — buffer-only check still applies
-            pass
+        pf = pq.ParquetFile(parquet_path.as_posix())
+        for i in range(pf.metadata.num_row_groups):
+            rg = pf.read_row_group(i, columns=["transcript_id"])
+            ids.update(t for t in rg.column("transcript_id").to_pylist() if t)
 
     return ids
 
@@ -716,10 +703,7 @@ def print_scan_status(log_dir: str) -> None:
         return
     scan_dir = max(scan_dirs, key=lambda d: (d / "_summary.json").stat().st_mtime)
 
-    try:
-        status = run_coroutine(FileRecorder.status(str(scan_dir)))
-    except Exception:
-        return
+    status = run_coroutine(FileRecorder.status(str(scan_dir)))
 
     path = shlex.quote(pretty_path(str(scan_dir)))
     if status.complete:
