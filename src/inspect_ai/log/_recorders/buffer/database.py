@@ -165,13 +165,13 @@ class SampleBufferDatabase(SampleBuffer):
             else:
                 raise FileNotFoundError("Log database for '{location}' not found.")
 
-        # Per-sample pool indices for message/call dedup
-        self._msg_pools: dict[
-            tuple[str | int, int], tuple[list[ChatMessage], dict[str, int]]
-        ] = {}
-        self._call_pools: dict[
-            tuple[str | int, int], tuple[list[JsonValue], dict[str, int]]
-        ] = {}
+        # Per-sample hash → pool index map for message/call dedup.
+        # The full pool entries live in SQLite (message_pool / call_pool
+        # tables); these in-memory dicts only carry the index map needed
+        # to assign positions to new unique entries during the lifetime
+        # of the sample. Cleared in remove_samples and complete_sample.
+        self._msg_indices: dict[tuple[str | int, int], dict[str, int]] = {}
+        self._call_indices: dict[tuple[str | int, int], dict[str, int]] = {}
 
         # create sync filestore if log_shared
         self._sync_filestore = (
@@ -227,6 +227,14 @@ class SampleBufferDatabase(SampleBuffer):
                 (to_json_str_safe(summary), str(summary.id), summary.epoch),
             )
 
+        # Free per-sample dedup state once the sample is complete. SQL
+        # UPDATE above casts id to str for the column type; the in-memory
+        # dict keys preserve the original int|str form, matching how
+        # _condense_event populated them via (event.id, event.epoch).
+        key = (summary.id, summary.epoch)
+        self._msg_indices.pop(key, None)
+        self._call_indices.pop(key, None)
+
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         with self._get_connection(write=True) as conn:
             conn.execute(
@@ -243,10 +251,10 @@ class SampleBufferDatabase(SampleBuffer):
         if len(samples) == 0:
             return
 
-        # clear in-memory pool state
+        # clear in-memory index state
         for key in samples:
-            self._msg_pools.pop(key, None)
-            self._call_pools.pop(key, None)
+            self._msg_indices.pop(key, None)
+            self._call_indices.pop(key, None)
 
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
@@ -645,24 +653,24 @@ class SampleBufferDatabase(SampleBuffer):
             key = (event.id, event.epoch)
 
             # message pool
-            msg_pool, msg_index = self._msg_pools.get(key, ([], {}))
-            [condensed_event], msg_pool, msg_index, new_msgs = (
-                condense_model_event_inputs([event.event], msg_pool, msg_index)
+            msg_index = self._msg_indices.get(key, {})
+            [condensed_event], msg_index, new_msgs = condense_model_event_inputs(
+                [event.event], len(msg_index), msg_index
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
             for h, msg in new_msgs:
                 self._insert_message_pool_entry(conn, event.id, event.epoch, h, msg)
-            self._msg_pools[key] = (msg_pool, msg_index)
+            self._msg_indices[key] = msg_index
 
             # call pool
-            call_pool, call_index = self._call_pools.get(key, ([], {}))
-            [condensed_event], call_pool, call_index, new_calls = (
-                condense_model_event_calls([event.event], call_pool, call_index)
+            call_index = self._call_indices.get(key, {})
+            [condensed_event], call_index, new_calls = condense_model_event_calls(
+                [event.event], len(call_index), call_index
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
             for h, call_msg in new_calls:
                 self._insert_call_pool_entry(conn, event.id, event.epoch, h, call_msg)
-            self._call_pools[key] = (call_pool, call_index)
+            self._call_indices[key] = call_index
 
         return event
 
