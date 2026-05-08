@@ -282,9 +282,10 @@ def test_buffer_pool_refs_resolve_correctly(db: SampleBufferDatabase) -> None:
     db.log_events(
         [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_a, msg_b]))]
     )
-    # Turn 3: [A, B, C]
+    # Turn 3: [C, A, B] -- non-monotonic ordering forces refs to be resolved
+    # by index, not by reproducing the input position
     db.log_events(
-        [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_a, msg_b, msg_c]))]
+        [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_c, msg_a, msg_b]))]
     )
 
     data = db.get_sample_data("s1", 1)
@@ -297,7 +298,7 @@ def test_buffer_pool_refs_resolve_correctly(db: SampleBufferDatabase) -> None:
     expected_contents = [
         ["Hello"],
         ["Hello", "Hi there"],
-        ["Hello", "Hi there", "How are you?"],
+        ["How are you?", "Hello", "Hi there"],
     ]
     for i, ev in enumerate(data.events):
         event_dict = ev.event

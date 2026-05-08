@@ -173,6 +173,12 @@ class SampleBufferDatabase(SampleBuffer):
         self._msg_indices: dict[tuple[str | int, int], dict[str, int]] = {}
         self._call_indices: dict[tuple[str | int, int], dict[str, int]] = {}
 
+        # Tombstone for samples that completed and had their indices
+        # popped. _condense_event must not run for a key in this set: a
+        # late ModelEvent would silently restart the index at 0 and
+        # corrupt the SQLite-backed pool. Cleared in remove_samples.
+        self._completed_samples: set[tuple[str | int, int]] = set()
+
         # create sync filestore if log_shared
         self._sync_filestore = (
             SampleBufferFilestore(location, update_interval=log_shared)
@@ -227,13 +233,13 @@ class SampleBufferDatabase(SampleBuffer):
                 (to_json_str_safe(summary), str(summary.id), summary.epoch),
             )
 
-        # Free per-sample dedup state once the sample is complete. SQL
-        # UPDATE above casts id to str for the column type; the in-memory
-        # dict keys preserve the original int|str form, matching how
-        # _condense_event populated them via (event.id, event.epoch).
+        # SQL UPDATE above casts id to str for the column type, but the
+        # in-memory dict keys preserve the original int|str form to match
+        # the (event.id, event.epoch) keys used in _condense_event.
         key = (summary.id, summary.epoch)
         self._msg_indices.pop(key, None)
         self._call_indices.pop(key, None)
+        self._completed_samples.add(key)
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         with self._get_connection(write=True) as conn:
@@ -255,6 +261,7 @@ class SampleBufferDatabase(SampleBuffer):
         for key in samples:
             self._msg_indices.pop(key, None)
             self._call_indices.pop(key, None)
+            self._completed_samples.discard(key)
 
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
@@ -651,6 +658,12 @@ class SampleBufferDatabase(SampleBuffer):
         # message/call pool dedup for ModelEvents
         if isinstance(event.event, ModelEvent):
             key = (event.id, event.epoch)
+            if key in self._completed_samples:
+                raise RuntimeError(
+                    f"ModelEvent for sample {key} arrived after "
+                    "complete_sample; this would corrupt buffer DB pool "
+                    "indices."
+                )
 
             # message pool
             msg_index = self._msg_indices.get(key, {})

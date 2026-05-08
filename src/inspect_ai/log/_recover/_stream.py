@@ -200,7 +200,7 @@ def _write_sample_streaming(
                     condensed, call_index, new_calls = condense_model_event_calls(
                         condensed, len(call_pool), call_index
                     )
-                    call_pool.extend(msg for _, msg in new_calls)
+                    call_pool.extend(call_msg for _, call_msg in new_calls)
 
                     # Write condensed events to the stream
                     for ev in condensed:

@@ -92,7 +92,7 @@ def condense_events(
     condensed_events, _, new_msgs = condense_model_event_inputs(events, 0, {})
     message_pool: list[ChatMessage] = [msg for _, msg in new_msgs]
     condensed_events, _, new_calls = condense_model_event_calls(condensed_events, 0, {})
-    call_pool: list[JsonValue] = [msg for _, msg in new_calls]
+    call_pool: list[JsonValue] = [call_msg for _, call_msg in new_calls]
     return condensed_events, EventsData(messages=message_pool, calls=call_pool)
 
 
@@ -169,7 +169,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     )
     call_pool: list[JsonValue] = [
         *existing_calls,
-        *(msg for _, msg in new_calls),
+        *(call_msg for _, call_msg in new_calls),
     ]
     events_data = EventsData(messages=message_pool, calls=call_pool)
 

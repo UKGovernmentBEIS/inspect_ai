@@ -20,16 +20,9 @@ longer maintain or return the full pool list. They return only
 ``new_entries`` from this call. Callers that need the pool list as a
 data product (the ``.eval`` log writer in ``_condense.py`` and the
 recovery streamer in ``_recover/_stream.py``) rebuild it externally.
-The buffer DB (``_recorders/buffer/database.py``) does not need it —
+The buffer DB (``_recorders/buffer/database.py``) does not need it:
 pool entries are written to SQLite at insert time and never re-read
-in-process — and stores only the hash → index dict.
-
-The functions accept ``next_index: int`` as the position assigned to
-the first new unique message; this equals ``len(msg_index)`` for
-callers carrying an existing index, since index and pool grow in
-lockstep (one entry added to each per unique message). Future changes
-must preserve this invariant if they continue to derive ``next_index``
-from ``len(msg_index)``.
+in-process. It stores only the hash to index dict.
 """
 
 import json
