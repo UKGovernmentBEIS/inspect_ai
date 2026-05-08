@@ -1,9 +1,9 @@
-import json
 from logging import getLogger  # noqa: E402
 from typing import Any, Awaitable, Callable
 
 import anyio
 from pydantic import JsonValue
+from pydantic_core import to_json
 
 from inspect_ai.model._call_tools import get_tools_info
 from inspect_ai.tool._tools._code_execution import CodeExecutionProviders
@@ -144,9 +144,12 @@ def call_tool(
         tool_fn = server_tools[tool]
         result = await tool_fn(**arguments)
 
-        # MCP returns strings, so serialize if needed
+        # Plain strings are returned verbatim (the MCP `tools/call` text part
+        # carries them as-is). For anything else, use pydantic_core.to_json so
+        # Pydantic models (e.g. list[ContentText] from real MCP tools) are
+        # serialized correctly — json.dumps can't handle BaseModel.
         if isinstance(result, str):
             return result
-        return json.dumps(result)
+        return to_json(result).decode("utf-8")
 
     return execute
