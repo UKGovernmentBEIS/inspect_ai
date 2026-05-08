@@ -798,6 +798,49 @@ def test_print_scan_status_clean_run(
         assert "scout scan complete" not in out
 
 
+def test_print_scan_status_honors_scans_override(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`print_scan_status` finds the scan dir at `EvalScannerConfig.scans`.
+
+    Without forwarding the scanner config, `print_scan_status` looks
+    only at `<log_dir>/scans/` and would emit no message when the
+    output was redirected via `EvalScannerConfig.scans` (a documented
+    knob for sending scan output to a different filesystem, e.g. an
+    S3 bucket separate from the eval logs).
+    """
+    from inspect_ai import EvalScannerConfig
+    from inspect_ai._eval.task.scan import print_scan_status
+
+    with (
+        tempfile.TemporaryDirectory() as log_dir,
+        tempfile.TemporaryDirectory() as scans_dir,
+    ):
+        scanner = EvalScannerConfig(scanners=[echo_scanner()], scans=scans_dir)
+        eval_set(
+            tasks=Task(dataset=[Sample(input="q", target="t")], solver=generate()),
+            log_dir=log_dir,
+            scanner=scanner,
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        capsys.readouterr()
+
+        # default search path is `<log_dir>/scans/` which is empty
+        # because the override redirected output to `scans_dir` —
+        # without forwarding `scanner`, the message would be missing.
+        assert not (Path(log_dir) / "scans").exists() or not list(
+            (Path(log_dir) / "scans").iterdir()
+        )
+
+        print_scan_status(log_dir, scanner)
+        out = capsys.readouterr().out
+        assert "scan complete:" in out, (
+            f"expected scan-status message to find override location; got {out!r}"
+        )
+
+
 def test_print_scan_status_with_scan_errors(
     capsys: pytest.CaptureFixture[str],
 ) -> None:

@@ -692,7 +692,7 @@ def scan_context(
         run_coroutine(scan_finalize(scan_id=scan_id, log_dir=log_dir, scanner=scanner))
 
 
-def print_scan_status(log_dir: str) -> None:
+def print_scan_status(log_dir: str, scanner: "EvalScanners | None" = None) -> None:
     """Print the most recent scan dir's final status as plain text.
 
     Called from `eval` / `eval_set` after they have rendered their
@@ -704,20 +704,26 @@ def print_scan_status(log_dir: str) -> None:
     color — to keep the trailing summary unobtrusive.
 
     Picks the scan dir with the most recent `_summary.json` mtime
-    when a `log_dir` has multiple, so the message reflects the call
-    that just finished. No-op when no scan dir exists.
+    when the resolved scans location has multiple, so the message
+    reflects the call that just finished. No-op when no scan dir
+    exists.
+
+    `scanner` is forwarded so `EvalScannerConfig.scans` (the override
+    that redirects scan output to a different location, e.g. an S3
+    bucket) is honored — without it the search would look under
+    `<log_dir>/scans/` and miss the redirected dir entirely.
 
     Callers are responsible for ensuring there's a blank line of
     separation above this output — this function does not emit one.
     """
     import shlex
-    from pathlib import Path
 
     from inspect_scout._recorder.file import FileRecorder
+    from upath import UPath
 
     from inspect_ai._util.path import pretty_path
 
-    scans_dir = Path(log_dir) / "scans"
+    scans_dir = UPath(_scans_location(log_dir, scanner))
     if not scans_dir.exists():
         return
 

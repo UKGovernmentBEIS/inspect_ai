@@ -324,7 +324,7 @@ def eval(
         resolved_log_dir = absolute_file_path(
             log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
         )
-        print_scan_status(resolved_log_dir)
+        print_scan_status(resolved_log_dir, scanner)
 
     return result
 

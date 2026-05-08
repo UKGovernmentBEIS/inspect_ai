@@ -621,7 +621,7 @@ def eval_set(
         from inspect_ai._eval.task.scan import print_scan_status
 
         print()
-        print_scan_status(log_dir)
+        print_scan_status(log_dir, scanner)
 
     # update manifest
     write_log_dir_manifest(log_dir)
