@@ -47,6 +47,23 @@ class Manifest(BaseModel):
     segments: list[Segment] = Field(default_factory=list)
 
 
+def _find_sample(
+    manifest: Manifest, id: str | int, epoch: int
+) -> SampleManifest | None:
+    # `Sample.id` is `int | str` and the type as written round-trips through
+    # the manifest, so the manifest may carry either form. URL handlers always
+    # pass `id` as `str`; compare in string form so both directions match.
+    id_str = str(id)
+    return next(
+        (
+            s
+            for s in manifest.samples
+            if str(s.summary.id) == id_str and s.summary.epoch == epoch
+        ),
+        None,
+    )
+
+
 def segments_for_sample_cursor(
     manifest: Manifest,
     sample: SampleManifest,
@@ -186,14 +203,7 @@ class SampleBufferFilestore(SampleBuffer):
             Tuples of (segment_id, SampleData) for each successfully read
             segment, in segment-id order.
         """
-        sample = next(
-            (
-                s
-                for s in manifest.samples
-                if s.summary.id == id and s.summary.epoch == epoch
-            ),
-            None,
-        )
+        sample = _find_sample(manifest, id, epoch)
         if sample is None:
             return
 
@@ -267,14 +277,7 @@ class SampleBufferFilestore(SampleBuffer):
             return None
 
         # find this sample in the manifest
-        sample = next(
-            (
-                sample
-                for sample in manifest.samples
-                if sample.summary.id == id and sample.summary.epoch == epoch
-            ),
-            None,
-        )
+        sample = _find_sample(manifest, id, epoch)
         if sample is None:
             return None
 
@@ -358,14 +361,7 @@ class SampleBufferFilestore(SampleBuffer):
         if manifest is None:
             return None
 
-        sample = next(
-            (
-                s
-                for s in manifest.samples
-                if s.summary.id == id and s.summary.epoch == epoch
-            ),
-            None,
-        )
+        sample = _find_sample(manifest, id, epoch)
         if sample is None:
             return None
 

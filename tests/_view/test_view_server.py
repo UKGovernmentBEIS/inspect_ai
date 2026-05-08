@@ -231,8 +231,8 @@ def _create_sample_buffer(log_path: str) -> None:
     )
 
 
-def _create_sample_buffer_with_int_id(log_path: str, sample_id: int) -> None:
-    """Create a minimal sample buffer with an int sample id."""
+def _create_sample_buffer_with_id(log_path: str, sample_id: int | str) -> None:
+    """Create a minimal sample buffer that stores `sample_id` as written."""
     from inspect_ai.log._recorders.buffer.filestore import (
         Manifest,
         SampleBufferFilestore,
@@ -1296,11 +1296,11 @@ def test_api_pending_sample_data_urls_max_segments_exact_fit(
 def test_api_pending_sample_data_urls_numeric_id_stored_as_int(
     view_client: ViewTestClient,
 ) -> None:
-    # Sample.id is `int | str`; query strings are always str. The handler
-    # must coerce numeric ids so the manifest lookup matches.
+    # Sample.id is `int | str` and round-trips with whichever type was
+    # written; URL params are always str. The handler must match either.
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
-    _create_sample_buffer_with_int_id(full_path, sample_id=42)
+    _create_sample_buffer_with_id(full_path, sample_id=42)
 
     resp = view_client.request(
         "GET",
@@ -1311,6 +1311,27 @@ def test_api_pending_sample_data_urls_numeric_id_stored_as_int(
     body = resp.json()
     assert len(body["segments"]) == 1
     assert body["segments"][0]["member_name"] == "42_0.json"
+
+
+def test_api_pending_sample_data_urls_numeric_id_stored_as_str(
+    view_client: ViewTestClient,
+) -> None:
+    # Counterpart of the int case: when Sample.id was constructed from a
+    # numeric string, the manifest stores `"0"`. A naive `int(id)` coercion
+    # would miss this and 404, sending the client to the slow proxy path.
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer_with_id(full_path, sample_id="0")
+
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
+        "&id=0&epoch=0",
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert len(body["segments"]) == 1
+    assert body["segments"][0]["member_name"] == "0_0.json"
 
 
 def test_api_pending_sample_data_urls_tail_returns_last_n(
