@@ -121,7 +121,8 @@ class VLLMAPI(OpenAICompatibleAPI):
             - ``host`` (str): Host to bind the server to (default:
               ``"0.0.0.0"``).
             - ``configure_logging`` (bool): Enable fine-grained vLLM
-              logging (default: ``False``).
+              logging (default: follows Inspect console logging, enabled
+              when the Inspect log level is ``info`` or more verbose).
             - ``device`` / ``devices`` (str): GPU device(s) to run the
               server on, as used in ``CUDA_VISIBLE_DEVICES``. If
               ``tensor_parallel_size`` is not provided, it is set to the
@@ -274,7 +275,9 @@ class VLLMAPI(OpenAICompatibleAPI):
                 server_args.setdefault("max_lora_rank", server.max_lora_rank)
             os.environ["VLLM_ALLOW_RUNTIME_LORA_UPDATING"] = "True"
 
-        configure_logging = server_args.pop("configure_logging", False)
+        configure_logging = _configure_logging_enabled(
+            server_args.pop("configure_logging", None)
+        )
         os.environ[VLLM_CONFIGURE_LOGGING] = "1" if configure_logging else "0"
 
         server_args, env_vars = configure_devices(
@@ -535,6 +538,12 @@ def _is_dead_local_vllm_endpoint(ex: BaseException, base_url: str | None) -> boo
             return False
     except OSError:
         return True
+
+
+def _configure_logging_enabled(configure_logging: bool | None) -> bool:
+    if configure_logging is not None:
+        return configure_logging
+    return logger.isEnabledFor(logging.INFO)
 
 
 def mistral_message_reducer(
