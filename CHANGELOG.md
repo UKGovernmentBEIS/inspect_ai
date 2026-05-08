@@ -4,6 +4,7 @@
 - Grok: Support `reasoning_effort` for Grok 4 models.
 - Scoring: Don't retry samples interrupted by operator during scoring.
 - MCP: Raise `ToolError` when timeout error occurs in MCP tool call.
+- Eval Set: Fix retry log filename colliding with the failed log when both calls land in the same wall-clock second, which previously caused successful samples to be re-run instead of reused from the prior log.
 - Eval Logs: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent `IncompleteBody` errors during multipart uploads under concurrent flushes.
 - Bugfix: Fix bridged-tool result serialization to handle `list[ContentText]`.
 
