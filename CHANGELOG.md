@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.220 (08 May 2026)
 
 - Anthropic: Skip the top-level `cache_control` auto-caching field on Bedrock and Vertex where they are not supported.
 - Grok: Forward `tool_call_id` in tool responses (parallel tool calling).
