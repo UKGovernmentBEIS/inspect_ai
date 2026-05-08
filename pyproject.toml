@@ -95,6 +95,12 @@ norecursedirs = [
 ]
 log_level = "WARNING"
 
+[tool.mutmut]
+paths_to_mutate = ["src/inspect_ai/model/_generate_accounting.py"]
+tests_dir = ["tests/model/test_generate_accounting.py"]
+pytest_add_cli_args = ["-q"]
+also_copy = ["src/inspect_ai"]
+
 [tool.mypy]
 exclude = [
   "tests/test_package",

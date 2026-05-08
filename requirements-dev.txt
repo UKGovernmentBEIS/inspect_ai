@@ -7,6 +7,7 @@ google-genai>=1.69.0
 griffe>=2
 groq>=0.28.0
 huggingface_hub>=1.0.0
+hypothesis
 inspect_scout
 ipython
 jsonpath-ng
@@ -14,6 +15,7 @@ markdown
 mcp>=1.10.0
 mistralai>=2.0.0
 moto[server]>=5.1.5
+mutmut
 mypy>=1.17.0
 nbformat
 openai>=2.26.0
