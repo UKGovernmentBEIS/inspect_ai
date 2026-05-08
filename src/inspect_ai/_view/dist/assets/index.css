@@ -17854,35 +17854,49 @@ button._segment_13qph_10._compact_13qph_31 i {
   width: inherit;
   height: inherit;
 }
-._nameCell_90rs9_1 {
+._rowLink_37x2s_1 {
+  color: inherit;
+  text-decoration: none;
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._modelCell_90rs9_8 {
+._rowLink_37x2s_1:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+._nameCell_37x2s_15 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._modelCellPrimary_90rs9_15 {
+._modelCell_37x2s_22 {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+._modelCellPrimary_37x2s_29 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
 
-._scoreCell_90rs9_22 {
+._scoreCell_37x2s_36 {
   display: flex;
   align-items: center;
   font-size: 0.875rem;
   color: var(--bs-gray-600);
 }
 
-._multiScorerBadge_90rs9_29 {
+._multiScorerBadge_37x2s_43 {
   margin-left: 0.35rem;
   padding: 2px 0.45rem;
   border-radius: 0.5rem;
@@ -17894,30 +17908,30 @@ button._segment_13qph_10._compact_13qph_31 i {
   white-space: nowrap;
 }
 
-._error_90rs9_41 {
+._error_37x2s_55 {
   color: var(--bs-danger);
 }
 
-._started_90rs9_45 {
+._started_37x2s_59 {
   color: var(--bs-secondary);
 }
 
-._success_90rs9_49 {
+._success_37x2s_63 {
   color: var(--bs-success);
 }
 
-._cancelled_90rs9_53 {
+._cancelled_37x2s_67 {
   color: var(--bs-secondary);
 }
 
-._statusCell_90rs9_57 {
+._statusCell_37x2s_71 {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
 }
 
-._dateCell_90rs9_64 {
+._dateCell_37x2s_78 {
   display: flex;
   align-items: center;
   min-width: 0;

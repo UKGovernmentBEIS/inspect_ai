@@ -1,6 +1,19 @@
 ## Unreleased
 
-- Anthropic: Skip the top-level `cache_control` auto-caching field on Bedrock and Vertex, which [per Anthropic's docs](https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching) don't yet support it and reject the request with `cache_control: Extra inputs are not permitted`. Per-block cache breakpoints (system/tools/messages) are unaffected.
+- Anthropic: Skip the top-level `cache_control` auto-caching field on Bedrock and Vertex where they are not supported.
+- Grok: Forward `tool_call_id` in tool responses (parallel tool calling).
+- Grok: Support `reasoning_effort` for Grok 4 models.
+- Scoring: Don't retry samples interrupted by operator during scoring.
+- MCP: Raise `ToolError` when timeout error occurs in MCP tool call.
+- Eval Set: Fix retry log filename colliding with the failed log when both calls land in the same wall-clock second, which previously caused successful samples to be re-run instead of reused from the prior log.
+- Eval Logs: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent `IncompleteBody` errors during multipart uploads under concurrent flushes.
+- Bugfix: Fix bridged-tool result serialization to handle `list[ContentText]`.
+
+## 0.3.219 (06 May 2026)
+
+- Inspect View: Fix extraneous console errors
+- Inspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.
+- Inspect View: Task samples - preserve sort and other state in VS Code.
 
 ## 0.3.218 (06 May 2026)
 
