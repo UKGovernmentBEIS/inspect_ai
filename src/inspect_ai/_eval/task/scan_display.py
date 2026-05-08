@@ -54,13 +54,17 @@ def set_active(
     scan_dir: str,
     spec: "ScanSpec",
     summary: "Summary",
+    samples_completed: int = 0,
 ) -> None:
     """Register that a scan is active.
 
-    Called from scan_init once the
-    scan dir + spec are resolved (whether fresh or via attach). Sets
-    initial state so the display has something to render before the
-    first per-sample push.
+    Called from scan_init once the scan dir + spec are resolved
+    (whether fresh or via attach). Sets initial state so the display
+    has something to render before the first per-sample push.
+
+    `samples_completed` seeds the progress counter — pass the cumulative
+    scan-call count from a prior run when attaching, so the progress
+    bar reflects the work already done before this call started.
     """
     global _state
     with _lock:
@@ -68,7 +72,7 @@ def set_active(
             active=True,
             spec=spec,
             summary=summary,
-            samples_completed=_state.samples_completed,
+            samples_completed=samples_completed,
             scan_dir=scan_dir,
             scanners_seen=set(_state.scanners_seen),
         )
@@ -97,6 +101,30 @@ def push_results(*, summary: "Summary", scanner: str) -> None:
             samples_completed=_state.samples_completed + 1,
             scan_dir=_state.scan_dir,
             scanners_seen=scanners,
+        )
+
+
+def mark_completed(n: int) -> None:
+    """Bump `samples_completed` by `n` without changing the summary.
+
+    Called from the resume-scan short-circuit path: when a previously-
+    recorded transcript is reused (every scanner already has a row for
+    its tid), no real scan work happens but the (sample, scanner) pairs
+    still count toward this run's expected total. Without this, the
+    progress bar would only reflect new scans and stall short of 100%
+    on a clean resume.
+    """
+    global _state
+    with _lock:
+        if not _state.active:
+            return
+        _state = ScanDisplayState(
+            active=True,
+            spec=_state.spec,
+            summary=_state.summary,
+            samples_completed=_state.samples_completed + n,
+            scan_dir=_state.scan_dir,
+            scanners_seen=set(_state.scanners_seen),
         )
 
 

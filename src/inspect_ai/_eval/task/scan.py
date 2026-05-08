@@ -194,9 +194,21 @@ async def scan_init(
                 "log_dir / scan_id."
             )
         _invalidate_finalized_flag(scan_dir)
+        # the on-disk spec carries the prior run's `transcripts`
+        # snapshot — `scan_title` reads its length for the header. That
+        # snapshot won't refresh until this run finalizes, so during
+        # the run it's stale (e.g. shows "10 transcripts" while
+        # actually scanning 20). Strip it from the display copy; the
+        # progress bar's X/N still surfaces the live total.
+        display_spec = recorder.scan_spec.model_copy(update={"transcripts": None})
+        # don't seed samples_completed — the resume-scan short-circuit
+        # path calls `mark_completed` for each reused sample, so the
+        # counter naturally reaches `samples_total` over the run
+        # without overcounting when re-executions happen (which they
+        # do whenever PreviousTask reuse can't match samples)
         set_active(
             scan_dir=scan_dir,
-            spec=recorder.scan_spec,
+            spec=display_spec,
             summary=await recorder.summary(),
         )
         return
@@ -295,13 +307,17 @@ async def resume_scan_previous_sample(
     parallelism budget as the eval phase) and dispatches
     `scan_eval_sample`.
     """
+    from inspect_ai._eval.task.scan_display import mark_completed
+
     tid = eval_sample.uuid
-    if (
-        scanner is None
-        or not scanned_per_scanner
-        or tid is None
-        or all(tid in s for s in scanned_per_scanner.values())
-    ):
+    if scanner is None or not scanned_per_scanner or tid is None:
+        return
+    if all(tid in s for s in scanned_per_scanner.values()):
+        # every scanner already has this tid — no scan work needed.
+        # Bump the progress counter for the (sample, scanner) pairs
+        # that this skip represents so the bar reflects the work done
+        # in prior runs.
+        mark_completed(len(scanned_per_scanner))
         return
     async with sample_semaphore:
         await scan_eval_sample(
@@ -448,7 +464,10 @@ def scanned_transcripts_for_resume(
 
     Returned dict gates the per-sample resume-scan check in
     `task_run`: if a reused sample's `transcript_id` is in any
-    scanner's set, no new scan dispatch is needed.
+    scanner's set, the dispatch is short-circuited and the display's
+    progress counter is bumped via `mark_completed`. If a sample's tid
+    isn't in every scanner's set, `scan_eval_sample` is dispatched and
+    the display is updated via `push_results`.
 
     An empty dict means "skip the check entirely" and is returned
     when:
@@ -457,16 +476,17 @@ def scanned_transcripts_for_resume(
     - no `scan_id` is set;
     - the scan dir doesn't exist (no prior scan laid it down — or
       this call's `scan_init` will create it fresh, in which case the
-      caller's own per-sample dispatch already handles the work);
-    - the most recent prior call finalized cleanly (`_summary.json`'s
-      `complete=True`) — every logged sample already has a row, so
-      the per-sample check would be pure overhead.
+      caller's own per-sample dispatch already handles the work).
+
+    Note: even on a cleanly-finalized prior scan, we return the full
+    set — the membership check feeds the display's progress counter
+    via `mark_completed`, so we can't elide the read.
     """
     if scanner is None or scan_id is None:
         return {}
 
     scan_dir = _scan_dir(dirname(absolute_file_path(log_location)), scan_id, scanner)
-    if not exists(scan_dir) or _scan_finalized_clean(scan_dir):
+    if not exists(scan_dir):
         return {}
 
     return {
@@ -568,12 +588,16 @@ def _scanned_transcript_ids(scan_dir: str, scanner_name: str) -> set[str]:
         for p in sdir.glob("*.parquet"):
             ids.add(p.stem)
 
-    # post-sync compacted parquet
+    # post-sync compacted parquet — read row-group-by-row-group to avoid
+    # pyarrow's cross-row-group schema-merge error on scout's dictionary-
+    # encoded `scan_id` column. Same pattern as `_cleanup_orphan_scan_rows`.
     parquet_path = UPath(scan_dir) / f"{scanner_name}.parquet"
     if parquet_path.exists():
         try:
-            tbl = pq.read_table(parquet_path.as_posix(), columns=["transcript_id"])
-            ids.update(t for t in tbl.column("transcript_id").to_pylist() if t)
+            pf = pq.ParquetFile(parquet_path.as_posix())
+            for i in range(pf.metadata.num_row_groups):
+                rg = pf.read_row_group(i, columns=["transcript_id"])
+                ids.update(t for t in rg.column("transcript_id").to_pylist() if t)
         except Exception:
             # absent or unreadable — buffer-only check still applies
             pass

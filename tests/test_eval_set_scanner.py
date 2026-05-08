@@ -2876,30 +2876,31 @@ def test_scan_display_push_results_increments_count() -> None:
             display="none",
         )
 
-        # snapshot the state populated by the run, then drive
-        # additional pushes manually to verify the increment + summary
-        # replacement behavior
         snapshot = get_state()
         assert snapshot.spec is not None
         assert snapshot.scan_dir is not None
-        baseline = snapshot.samples_completed
 
         # construct a fresh Summary whose scanner counts differ — proves
-        # push_results replaces the summary rather than merging it
+        # push_results replaces the summary rather than merging it.
+        # explicit seed of `samples_completed=5` because set_active
+        # doesn't auto-preserve the prior counter — callers are
+        # responsible for passing the seed (see scan_init's prior-run
+        # seeding for the reattach case).
         new_summary = Summary(complete=False, scanners=["echo_scanner"])
         new_summary.scanners["echo_scanner"].scans = 99
         set_active(
             scan_dir=snapshot.scan_dir,
             spec=snapshot.spec,
             summary=new_summary,
+            samples_completed=5,
         )
 
         push_results(summary=new_summary, scanner="echo_scanner")
-        assert get_state().samples_completed == baseline + 1
+        assert get_state().samples_completed == 6
         assert get_state().summary is new_summary
 
         push_results(summary=new_summary, scanner="echo_scanner")
-        assert get_state().samples_completed == baseline + 2
+        assert get_state().samples_completed == 7
 
 
 def test_scan_display_push_drops_when_inactive() -> None:
@@ -2917,6 +2918,278 @@ def test_scan_display_push_drops_when_inactive() -> None:
     push_results(summary=summary, scanner="echo_scanner")
     assert get_state().active is False
     assert get_state().samples_completed == 0
+
+
+def test_scan_display_short_circuit_marks_completed_on_limit_increase() -> None:
+    """Resume-scan short-circuit calls `mark_completed` for reused samples.
+
+    When eval_set is rerun against an existing scan dir with a higher
+    `limit`, the prior run's samples are reused via PreviousTask (their
+    tids match the snapshot) and the resume-scan path short-circuits
+    them without firing `push_results`. Without `mark_completed`, the
+    progress counter would only reflect newly-scanned samples and stall
+    short of `samples_total`.
+
+    Mirrors the user-facing scenario: `--limit 3` then `--limit 5` on
+    the same dataset. samples_completed reaches 5 = 3 mark_completed
+    (reused) + 2 push_results (new), matching `samples_total = 5 × 1`.
+    """
+    from inspect_ai._eval.task.scan_display import get_state, reset_state
+
+    reset_state()
+
+    # dataset must stay the same length across runs — what changes is
+    # the eval_set `limit`, which slices it. eval_log_sample_source
+    # only reuses when `eval_log.eval.dataset.samples == len(dataset)`,
+    # so we keep the dataset at 10 and vary the limit.
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(10)],
+            solver=generate(),
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: limit 3 → 3 push_results
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            limit=3,
+            display="none",
+        )
+        assert get_state().samples_completed == 3
+
+        # run 2: limit 5 — the prior 3 samples reuse via PreviousTask
+        # and short-circuit (mark_completed × 3); samples 4 and 5 are
+        # new (push_results × 2). Total: 5, matching samples_total of
+        # 5 × 1 scanner.
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            limit=5,
+            display="none",
+        )
+        assert get_state().samples_completed == 5, (
+            "expected 3 mark_completed (reused) + 2 push_results (new) = 5; "
+            f"got {get_state().samples_completed}"
+        )
+
+
+def test_scan_display_no_overcount_on_re_execution() -> None:
+    """Re-executions don't double-count against `samples_total`.
+
+    When samples can't be reused via PreviousTask (e.g. a continue_on_fail
+    run where errored samples are re-executed with new uuids), the new
+    uuids aren't in the prior snapshot, so resume_scan_previous_sample
+    takes the dispatch branch (no `mark_completed`). `scan_eval_sample`
+    fires `push_results` for each scanner. samples_completed grows by
+    n_samples × n_scanners — never exceeds `samples_total` (would have
+    if we'd seeded from prior cumulative summary.scans).
+    """
+    from inspect_ai._eval.task.scan_display import get_state, reset_state
+
+    reset_state()
+
+    n = 3
+    fails_first_time = _first_attempt_fails()
+
+    def make_task():
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(n)],
+            solver=[fails_first_time, generate()],
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: every sample errors first attempt, gets logged + scanned
+        # then continue_on_fail records the fail. summary.scans = n.
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        assert get_state().samples_completed == n
+
+        # run 2: every errored sample re-executes with a new uuid. Old
+        # tids are orphans, new tids aren't in the snapshot, so
+        # resume_scan_previous_sample takes the dispatch branch (not the
+        # mark_completed short-circuit). push_results fires n times.
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            continue_on_fail=True,
+            display="none",
+        )
+        # exactly n pushes — not 2n (would happen if we still seeded
+        # with prior cumulative summary.scans) and not 0 (would happen
+        # if we never recorded re-executed samples)
+        assert get_state().samples_completed == n, (
+            f"expected {n} samples_completed from re-execution pushes only; "
+            f"got {get_state().samples_completed}"
+        )
+
+
+def test_scan_dir_preserves_reused_sample_rows_across_runs() -> None:
+    """A reused sample's parquet row carries forward — same timestamp.
+
+    When eval_set is rerun with a higher limit, samples already
+    completed in the prior run are reused via PreviousTask (their uuids
+    are preserved). The scanner-level resume short-circuit
+    (`resume_scan_previous_sample` → `mark_completed`) must NOT
+    re-record those samples — their existing parquet rows should carry
+    forward unchanged, with the same timestamp from the prior run.
+
+    This is the regression test for the case where reused samples were
+    re-scanned despite their tids being in the prior parquet,
+    introducing wasted LLM calls and overwriting the prior rows.
+    """
+    import pyarrow.parquet as pq
+
+    def make_task() -> Task:
+        # 10 samples in the dataset; limit will slice into it
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(10)],
+            solver=generate(),
+        )
+
+    def read_rows(path: UPath) -> dict[str, str]:
+        """Map transcript_id → timestamp by reading the parquet."""
+        pf = pq.ParquetFile(path.as_posix())
+        out: dict[str, str] = {}
+        for i in range(pf.metadata.num_row_groups):
+            tbl = pf.read_row_group(i, columns=["transcript_id", "timestamp"])
+            for tid, ts in zip(
+                tbl.column("transcript_id").to_pylist(),
+                tbl.column("timestamp").to_pylist(),
+            ):
+                if tid:
+                    out[tid] = ts
+        return out
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: limit 3 → 3 records, captured here as the prior set
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            limit=3,
+            display="none",
+        )
+        scan_dir = _scan_dir(log_dir)
+        prior_rows = read_rows(scan_dir / "echo_scanner.parquet")
+        assert len(prior_rows) == 3, f"expected 3 prior rows, got {len(prior_rows)}"
+
+        # run 2: limit 5 — samples 1-3 reuse via PreviousTask; their uuids
+        # match the prior snapshot, so resume_scan_previous_sample should
+        # short-circuit them (mark_completed only — no recorder.record).
+        # Samples 4-5 are fresh → 2 new records.
+        eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            limit=5,
+            display="none",
+        )
+        post_rows = read_rows(scan_dir / "echo_scanner.parquet")
+
+        # 5 distinct rows total
+        assert len(post_rows) == 5, (
+            f"expected 5 post-run rows, got {len(post_rows)}: "
+            f"{sorted(post_rows.keys())}"
+        )
+
+        # each prior tid is still present and its timestamp is unchanged.
+        # If reused samples were re-scanned, their timestamps would have
+        # been overwritten with run-2 timestamps (or the prior tids would
+        # be missing entirely, replaced by fresh records).
+        for tid, prior_ts in prior_rows.items():
+            assert tid in post_rows, (
+                f"prior tid {tid} missing after resume — was it overwritten "
+                f"by a re-execution with a new uuid? "
+                f"post_rows keys: {sorted(post_rows.keys())}"
+            )
+            assert post_rows[tid] == prior_ts, (
+                f"prior tid {tid} was re-recorded — timestamp changed "
+                f"from {prior_ts} to {post_rows[tid]}. The resume_scan "
+                f"short-circuit failed to skip a reused sample."
+            )
+
+        # exactly 2 NEW tids in the post-run set (samples 4 and 5)
+        new_tids = set(post_rows.keys()) - set(prior_rows.keys())
+        assert len(new_tids) == 2, (
+            f"expected 2 new tids from samples 4 and 5, got {len(new_tids)}"
+        )
+
+
+def test_scan_display_clears_stale_transcripts_snapshot_on_reattach() -> None:
+    """`spec.transcripts` is cleared from the display copy on reattach.
+
+    After the first run finalizes, `<scan_dir>/_scan.json` carries a
+    `transcripts` snapshot with the run's transcript ids. The next run's
+    `scan_init` reads that spec back via `recorder.attach`, but copies
+    it with `transcripts=None` for the display so `scan_title` doesn't
+    show a stale count while the new run is in progress.
+    """
+    from inspect_scout._scanspec import ScanSpec
+
+    from inspect_ai._eval.task.scan_display import get_state, reset_state
+
+    reset_state()
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # first run finalizes a snapshot to disk
+        eval_set(
+            tasks=_task(3),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+
+        # confirm on-disk snapshot is populated
+        scan_dir = _scan_dir(log_dir)
+        on_disk_spec = ScanSpec.model_validate_json(
+            (scan_dir / "_scan.json").read_text()
+        )
+        assert on_disk_spec.transcripts is not None
+        assert len(on_disk_spec.transcripts.transcript_ids) == 3
+
+        # second run reattaches; scan_init clears spec.transcripts on
+        # the display copy. After the second run, get_state().spec
+        # is what set_active stored at scan_init — should have
+        # transcripts=None even though the on-disk snapshot was
+        # refreshed by the second run's finalize.
+        eval_set(
+            tasks=_task(3),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+
+        state = get_state()
+        assert state.spec is not None
+        assert state.spec.transcripts is None, (
+            "expected display copy of spec to have transcripts=None on reattach; "
+            f"got transcripts={state.spec.transcripts}"
+        )
 
 
 def test_scan_display_reset_clears_state() -> None:
