@@ -4,6 +4,7 @@ See `design/eval-set-scanners.md` for the full design.
 """
 
 import contextlib
+import hashlib
 from collections.abc import Iterator, Sequence
 from typing import TYPE_CHECKING, Any, TypeAlias
 
@@ -11,7 +12,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.file import absolute_file_path, dirname, exists
+from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._log import EvalSample
+
+# Key used in `ScanSpec.metadata` to track inspect_ai-side scanner config
+# that isn't captured by scout's `ScannerSpec`. Compared at scan_init's
+# attach branch; mismatch raises `PrerequisiteError` so a config change
+# can't silently leave historical transcripts unscanned.
+_INSPECT_CONFIG_HASH_KEY = "__inspect_scan_config_hash__"
 
 if TYPE_CHECKING:
     from inspect_scout import Scanner
@@ -171,8 +179,6 @@ async def scan_init(
     from inspect_scout._scancontext import _spec_scanners
     from inspect_scout._scanspec import ScanOptions, ScanSpec
 
-    from inspect_ai._util.error import PrerequisiteError
-
     scanners_dict = _normalize_scanners(scanner)
     scan_dir = _scan_dir(log_dir, scan_id, scanner)
     recorder = FileRecorder()
@@ -183,17 +189,11 @@ async def scan_init(
 
     if exists(scan_dir):
         await recorder.attach(scan_dir, concurrent_writers=True)
-        existing_names = set(recorder.scan_spec.scanners.keys())
-        requested_names = set(scanners_dict.keys())
-        if existing_names != requested_names:
-            raise PrerequisiteError(
-                "Scanner set has changed from the prior run on this "
-                "log_dir.\n"
-                f"  Prior:     {sorted(existing_names)}\n"
-                f"  Requested: {sorted(requested_names)}\n"
-                "Either match the prior scanner set or use a different "
-                "log_dir / scan_id."
-            )
+        _verify_scanner_config_unchanged(
+            prior=recorder.scan_spec,
+            requested=scanner,
+            requested_scanners_dict=scanners_dict,
+        )
         _invalidate_finalized_flag(scan_dir)
         # don't seed samples_completed — the resume-scan short-circuit
         # path calls `mark_completed` for each reused sample, so the
@@ -207,13 +207,18 @@ async def scan_init(
         )
         return
 
+    # seed inspect_ai-side config hash into metadata so a future
+    # reattach can detect changes to filter / model / model_args /
+    # generate_config / model_roles / model_base_url
+    metadata = dict(_normalize_metadata(scanner) or {})
+    metadata[_INSPECT_CONFIG_HASH_KEY] = _scan_config_hash(scanner)
     spec = ScanSpec(
         scan_id=scan_id,
         scan_name=_normalize_scan_name(scanner),
         scanners=_spec_scanners(scanners_dict),
         options=ScanOptions(),
         tags=_normalize_tags(scanner),
-        metadata=_normalize_metadata(scanner),
+        metadata=metadata,
     )
     await recorder.init(
         spec, _scans_location(log_dir, scanner), concurrent_writers=True
@@ -814,6 +819,111 @@ def _install_scan_model_context(scanner: "EvalScanners | None") -> None:
 
     if kwargs:
         init_scan_model_context(**kwargs)
+
+
+def _verify_scanner_config_unchanged(
+    *,
+    prior: "ScanSpec",
+    requested: "EvalScanners | None",
+    requested_scanners_dict: "dict[str, Scanner[Any]]",
+) -> None:
+    """Raise `PrerequisiteError` if the scanner config differs from `prior`.
+
+    Three checks, ordered cheapest first:
+
+    1. Scanner names match. Adding or removing a scanner means the new
+       run wants different output than the scan dir holds.
+    2. Each scanner's `ScannerSpec` matches (params, version, file,
+       package_version). Same name + different code/params produces
+       different output for the same transcript.
+    3. Eval-set-level config hash matches (filter / model /
+       model_args / generate_config / model_roles / model_base_url).
+       These aren't in scout's `ScannerSpec`; a change to them affects
+       which transcripts get scanned or how, but would otherwise
+       silently reuse prior parquet rows.
+
+    Each check raises with a message naming the change and pointing
+    at the resolution (`log_dir` / `scan_id` swap).
+    """
+    from inspect_scout._scancontext import _spec_scanners
+
+    from inspect_ai._util.error import PrerequisiteError
+
+    existing_names = set(prior.scanners.keys())
+    requested_names = set(requested_scanners_dict.keys())
+    if existing_names != requested_names:
+        raise PrerequisiteError(
+            "Scanner set has changed from the prior run on this "
+            "log_dir.\n"
+            f"  Prior:     {sorted(existing_names)}\n"
+            f"  Requested: {sorted(requested_names)}\n"
+            "Either match the prior scanner set or use a different "
+            "log_dir / scan_id."
+        )
+
+    new_scanners = _spec_scanners(requested_scanners_dict)
+    for name in sorted(requested_names):
+        if prior.scanners[name] != new_scanners[name]:
+            raise PrerequisiteError(
+                f"Scanner '{name}' config has changed from the prior "
+                "run on this log_dir.\n"
+                f"  Prior:     {prior.scanners[name].model_dump(exclude_none=True)}\n"
+                f"  Requested: {new_scanners[name].model_dump(exclude_none=True)}\n"
+                "Use a different log_dir / scan_id to start fresh, or "
+                "revert the change."
+            )
+
+    prior_hash = (prior.metadata or {}).get(_INSPECT_CONFIG_HASH_KEY)
+    new_hash = _scan_config_hash(requested)
+    if prior_hash != new_hash:
+        raise PrerequisiteError(
+            "Eval-set-level scanner config (filter, model, "
+            "model_args, generate_config, model_roles, "
+            "model_base_url) has changed from the prior run on "
+            "this log_dir.\n"
+            "Use a different log_dir / scan_id to start fresh, or "
+            "revert the change."
+        )
+
+
+def _scan_config_hash(scanner: "EvalScanners | None") -> str:
+    """Hash inspect_ai-side scanner config that isn't in `ScannerSpec`.
+
+    Scout's `ScannerSpec` already captures per-scanner identity
+    (name, version, file, package_version, params); equality on those
+    is checked separately. This function covers the eval_set-level
+    fields that affect what gets scanned and how — filter, model,
+    model_args, generate_config, model_roles, model_base_url —
+    none of which round-trip through scout's spec.
+
+    Stable across runs of the same config so a no-op reattach doesn't
+    invalidate the prior scan. Excludes labels (`name`, `tags`,
+    `metadata`, `scans`) — changing those shouldn't force a rescan.
+
+    Non-EvalScannerConfig inputs (raw scanner list/dict) hash to a
+    canonical "no eval-side config" value, identical to passing an
+    EvalScannerConfig with all defaults.
+
+    `Model` instances passed for `model` / `model_roles[*]` are
+    coerced via `str()` first because `to_json_safe`'s fallback drops
+    non-serializable objects to None — losing the discriminator we
+    want to detect. `str(model)` produces "<api>/<name>", stable
+    across runs of the same model.
+    """
+    config = scanner if isinstance(scanner, EvalScannerConfig) else None
+    payload = {
+        "filter": _normalize_filters(scanner),
+        "model": str(config.model) if (config and config.model is not None) else None,
+        "model_base_url": config.model_base_url if config else None,
+        "model_args": config.model_args if config else None,
+        "generate_config": config.generate_config if config else None,
+        "model_roles": (
+            {k: str(v) for k, v in config.model_roles.items()}
+            if (config and config.model_roles)
+            else None
+        ),
+    }
+    return hashlib.sha256(to_json_safe(payload, indent=None)).hexdigest()
 
 
 def _normalize_filters(scanner: "EvalScanners | None") -> list[str]:

@@ -177,6 +177,20 @@ The connection-pool semaphore for the eval-side model API is shared with scanner
 
 `EvalScannerConfig.filter` is a SQL WHERE clause (or list of them) lifted from scout's `Transcripts.where(...)`. Where scout applies the filter at query time against its database, eval_set applies it per-sample inline before dispatching scanners. The semantics are identical: a sample whose transcript fields don't match is skipped — no parquet row, no entry in the snapshot, no scan attempt.
 
+## Scanner config verification on reattach
+
+When a second `eval_set` call lands on an existing scan dir, `scan_init` runs `_verify_scanner_config_unchanged` before doing anything else. Three checks, ordered cheapest first; any mismatch raises `PrerequisiteError`:
+
+1. **Scanner names** — set equality between prior `_scan.json`'s `scanners` keys and the new run's. Adding/removing a scanner means the new run wants different output than the scan dir holds.
+2. **Per-scanner `ScannerSpec` equality** — full equality on each scanner's `params`, `version`, `file`, `package_version`. Same name + different code/params produces different output for the same transcript; reusing the prior parquet rows would be wrong.
+3. **Eval-set-level config hash** — sha256 of `filter`, `model`, `model_args`, `generate_config`, `model_roles`, `model_base_url`. None of these are in scout's `ScannerSpec`. The hash is stashed in `ScanSpec.metadata[__inspect_scan_config_hash__]` at fresh-init and at every successful reattach.
+
+Why this matters: the `prior_scan_clean` short-circuit (see "Routing success-logs through `PreviousTask`") elides per-sample resume-scan work when the prior finalize was clean, on the assumption "every transcript already has a row." That's only true if the scanner config hasn't changed. Otherwise — the user's example, `filter="error != ''"` → no filter — previously-filtered-out transcripts would be silently left unscanned.
+
+Excluded from the hash by design: `name`, `tags`, `metadata`, `scans`. Those are labels/output-location, not behavior; users updating a tag shouldn't be forced to start fresh. The eval-level model (`eval_set(model=...)`) is also excluded — different model produces different transcript uuids, which already differentiate work in the scan dir naturally; capturing it in the hash would force a fresh `log_dir` for every model swap.
+
+Resolution surface: the error message names which check fired and points at the user's two options — different `log_dir`/`scan_id` for a fresh scan, or revert the change. No override flag; if someone needs one, they can ask.
+
 ## Scout-side changes that landed
 
 These accumulated as the design firmed up; all are merged in scout:

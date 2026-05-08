@@ -1786,7 +1786,11 @@ def test_tags_and_metadata_written_to_scan_spec() -> None:
         scan_dir = _scan_dir(log_dir)
         spec = json.loads((scan_dir / "_scan.json").read_text())
         assert spec["tags"] == tags
-        assert spec["metadata"] == metadata
+        # metadata carries an inspect_ai-managed hash key alongside the
+        # user's metadata — assert user-provided keys round-trip rather
+        # than full dict equality
+        for key, value in metadata.items():
+            assert spec["metadata"][key] == value
 
 
 def test_llm_scanner_inherits_eval_set_model_when_unspecified() -> None:
@@ -2129,6 +2133,369 @@ def test_scanner_resume_with_changed_scanner_set_fails_loudly() -> None:
             display="none",
         )
         assert success_3
+
+
+@scanner(messages="all", name="param_scanner")
+def param_scanner(target_word: str = "hello") -> Any:
+    """Scanner that takes a parameter — used in config-change tests."""
+
+    async def scan(transcript: Transcript) -> Result:
+        return Result(value=f"matched:{target_word}")
+
+    return scan
+
+
+def test_scanner_change_param_rejected() -> None:
+    """Same scanner name but different params is rejected on reattach.
+
+    `ScannerSpec.params` is part of scout's per-scanner identity. A
+    change there means the scanner will produce different output for
+    the same transcripts; reusing the prior parquet rows would be wrong.
+    """
+    from inspect_ai._util.error import PrerequisiteError
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=[param_scanner(target_word="hello")],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        with pytest.raises(PrerequisiteError, match="config has changed"):
+            eval_set(
+                tasks=_task(2),
+                log_dir=log_dir,
+                scanner=[param_scanner(target_word="goodbye")],
+                model="mockllm/model",
+                retry_attempts=0,
+                display="none",
+            )
+
+
+def test_scanner_change_version_rejected() -> None:
+    """A change to `ScannerSpec.version` (e.g. scanner code bump) rejected.
+
+    Mutates the on-disk spec to simulate a scanner version bump — the
+    user-visible scenario is a developer adding `version=N` to the
+    `@scanner` decorator. The check compares full `ScannerSpec`
+    equality so any version drift triggers it.
+    """
+    from inspect_ai._util.error import PrerequisiteError
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        scan_dir = _scan_dir(log_dir)
+        spec_path = scan_dir / "_scan.json"
+        spec = json.loads(spec_path.read_text())
+        spec["scanners"]["echo_scanner"]["version"] = 99
+        spec_path.write_text(json.dumps(spec))
+
+        with pytest.raises(PrerequisiteError, match="config has changed"):
+            eval_set(
+                tasks=_task(2),
+                log_dir=log_dir,
+                scanner=[echo_scanner()],
+                model="mockllm/model",
+                retry_attempts=0,
+                display="none",
+            )
+
+
+def test_scanner_change_filter_rejected() -> None:
+    """`EvalScannerConfig.filter` change is rejected — the user's repro.
+
+    Run 1 with filter="error != ''" and run 2 with no filter would
+    silently leave previously-filtered-out transcripts unscanned
+    because the prior_scan_clean path treats the prior run as
+    "everything done." Detecting the filter change forces a clean
+    error instead.
+    """
+    from inspect_ai import EvalScannerConfig
+    from inspect_ai._util.error import PrerequisiteError
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=EvalScannerConfig(
+                scanners=[echo_scanner()],
+                filter="error != ''",
+            ),
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        with pytest.raises(PrerequisiteError, match="Eval-set-level"):
+            eval_set(
+                tasks=_task(2),
+                log_dir=log_dir,
+                scanner=EvalScannerConfig(scanners=[echo_scanner()]),
+                model="mockllm/model",
+                retry_attempts=0,
+                display="none",
+            )
+
+
+def test_scanner_change_model_rejected() -> None:
+    """Scanner-side model override change is rejected on reattach."""
+    from inspect_ai import EvalScannerConfig
+    from inspect_ai._util.error import PrerequisiteError
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=EvalScannerConfig(
+                scanners=[echo_scanner()],
+                model="mockllm/model",
+            ),
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        with pytest.raises(PrerequisiteError, match="Eval-set-level"):
+            eval_set(
+                tasks=_task(2),
+                log_dir=log_dir,
+                scanner=EvalScannerConfig(
+                    scanners=[echo_scanner()],
+                    model="mockllm/other",
+                ),
+                model="mockllm/model",
+                retry_attempts=0,
+                display="none",
+            )
+
+
+def test_scanner_change_model_args_rejected() -> None:
+    """Scanner-side `model_args` change is rejected on reattach."""
+    from inspect_ai import EvalScannerConfig
+    from inspect_ai._util.error import PrerequisiteError
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=EvalScannerConfig(
+                scanners=[echo_scanner()],
+                model_args={"temperature": 0.0},
+            ),
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        with pytest.raises(PrerequisiteError, match="Eval-set-level"):
+            eval_set(
+                tasks=_task(2),
+                log_dir=log_dir,
+                scanner=EvalScannerConfig(
+                    scanners=[echo_scanner()],
+                    model_args={"temperature": 0.7},
+                ),
+                model="mockllm/model",
+                retry_attempts=0,
+                display="none",
+            )
+
+
+def test_scanner_change_generate_config_rejected() -> None:
+    """Scanner-side `generate_config` change is rejected on reattach."""
+    from inspect_ai import EvalScannerConfig
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai.model import GenerateConfig
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=EvalScannerConfig(
+                scanners=[echo_scanner()],
+                generate_config=GenerateConfig(temperature=0.0),
+            ),
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        with pytest.raises(PrerequisiteError, match="Eval-set-level"):
+            eval_set(
+                tasks=_task(2),
+                log_dir=log_dir,
+                scanner=EvalScannerConfig(
+                    scanners=[echo_scanner()],
+                    generate_config=GenerateConfig(temperature=0.5),
+                ),
+                model="mockllm/model",
+                retry_attempts=0,
+                display="none",
+            )
+
+
+def test_scanner_change_labels_only_accepted() -> None:
+    """Changing labels only (tags / metadata / scan name) is NOT rejected.
+
+    Tags, metadata, and `name` are intentionally excluded from the
+    config hash — they're labels, not behavior. A user re-running with
+    additional tags or updated metadata should not be forced to start
+    a fresh scan.
+    """
+    from inspect_ai import EvalScannerConfig
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=EvalScannerConfig(
+                scanners=[echo_scanner()],
+                tags=["a"],
+                metadata={"owner": "team-x"},
+                name="run-1",
+            ),
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        success_2, _ = eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=EvalScannerConfig(
+                scanners=[echo_scanner()],
+                tags=["a", "b", "extra"],
+                metadata={"owner": "team-y", "iteration": 2},
+                name="run-2",
+            ),
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        assert success_2
+
+
+def test_scanner_eval_level_model_change_accepted() -> None:
+    """Changing the eval-level model across runs is NOT rejected.
+
+    The eval-level model (the `model=` arg on `eval_set` / `eval`)
+    affects which transcripts get produced — each transcript has a
+    fresh uuid that already differentiates work in the scan dir.
+    Capturing it in the scanner config hash would force a fresh
+    log_dir for every model swap, which is wrong: the scan dir is
+    designed to accumulate rows from multiple models, each row tied
+    to the transcript it was produced from.
+
+    This is also a guard against someone "fixing" the hash to include
+    the eval-level model — that fix would break this case.
+    """
+    import pyarrow.parquet as pq
+
+    def make_task() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(3)],
+            solver=generate(),
+        )
+
+    def parquet_tids(scan_dir: UPath) -> set[str]:
+        pf = pq.ParquetFile((scan_dir / "echo_scanner.parquet").as_posix())
+        out: set[str] = set()
+        for i in range(pf.metadata.num_row_groups):
+            rg = pf.read_row_group(i, columns=["transcript_id"])
+            out.update(t for t in rg.column("transcript_id").to_pylist() if t)
+        return out
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: model A
+        success_1, _ = eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/a",
+            retry_attempts=0,
+            display="none",
+        )
+        assert success_1
+        scan_dir = _scan_dir(log_dir)
+        tids_after_run_1 = parquet_tids(scan_dir)
+        assert len(tids_after_run_1) == 3
+
+        # run 2: model B against the same log_dir. task_identifier
+        # differs (model is part of it), so the prior logs aren't
+        # reused; samples re-execute with fresh uuids and fresh scans
+        # land in the parquet alongside the prior rows.
+        # `log_dir_allow_dirty=True` lets the prior model-A log coexist
+        # with the model-B run — without it eval_set refuses on the
+        # mismatched task_identifier of the prior log file.
+        success_2, _ = eval_set(
+            tasks=make_task(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/b",
+            retry_attempts=0,
+            log_dir_allow_dirty=True,
+            display="none",
+        )
+        assert success_2
+
+        # the scan dir must still resolve to the same scan_id (same
+        # eval_set_id auto-detected from log_dir)
+        assert _scan_dir(log_dir) == scan_dir
+
+        tids_after_run_2 = parquet_tids(scan_dir)
+        # both runs' tids should be present, disjoint (fresh uuids per
+        # run), totaling 6 rows = 2 runs × 3 samples × 1 scanner
+        assert len(tids_after_run_2) == 6
+        assert tids_after_run_1.issubset(tids_after_run_2), (
+            "expected run 1's tids to carry forward; the eval-level model "
+            "change should not invalidate prior scan rows"
+        )
+        run_2_only = tids_after_run_2 - tids_after_run_1
+        assert len(run_2_only) == 3, (
+            f"expected 3 fresh tids from the model-B run; got {len(run_2_only)}"
+        )
+
+
+def test_scanner_unchanged_config_accepted() -> None:
+    """Reattach with byte-identical config succeeds (regression guard)."""
+    from inspect_ai import EvalScannerConfig
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        scanner = EvalScannerConfig(
+            scanners=[echo_scanner()],
+            filter="error = ''",
+            model="mockllm/model",
+            model_args={"temperature": 0.0},
+        )
+        eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=scanner,
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        # rebuild an equivalent config (a fresh object with the same
+        # values) — should compare equal across runs
+        scanner_2 = EvalScannerConfig(
+            scanners=[echo_scanner()],
+            filter="error = ''",
+            model="mockllm/model",
+            model_args={"temperature": 0.0},
+        )
+        success_2, _ = eval_set(
+            tasks=_task(2),
+            log_dir=log_dir,
+            scanner=scanner_2,
+            model="mockllm/model",
+            retry_attempts=0,
+            display="none",
+        )
+        assert success_2
 
 
 def test_scanner_partial_errors_recorded() -> None:
