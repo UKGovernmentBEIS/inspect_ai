@@ -1,3 +1,20 @@
+## Unreleased
+
+- Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
+- Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
+- Bugfix: Ensure that models don't share GenerateConfig instance via default get_model argument.
+
+## 0.3.220 (08 May 2026)
+
+- Anthropic: Skip the top-level `cache_control` auto-caching field on Bedrock and Vertex where they are not supported.
+- Grok: Forward `tool_call_id` in tool responses (parallel tool calling).
+- Grok: Support `reasoning_effort` for Grok 4 models.
+- Scoring: Don't retry samples interrupted by operator during scoring.
+- MCP: Raise `ToolError` when timeout error occurs in MCP tool call.
+- Eval Set: Fix retry log filename colliding with the failed log when both calls land in the same wall-clock second, which previously caused successful samples to be re-run instead of reused from the prior log.
+- Eval Logs: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent `IncompleteBody` errors during multipart uploads under concurrent flushes.
+- Bugfix: Fix bridged-tool result serialization to handle `list[ContentText]`.
+
 ## 0.3.219 (06 May 2026)
 
 - Inspect View: Fix extraneous console errors
