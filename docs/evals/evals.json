@@ -2846,7 +2846,7 @@
     ],
     "desc": "Evaluate models on 57 tasks including elementary mathematics, US history, computer science, law, and more.",
     "paper": "https://arxiv.org/abs/2009.03300",
-    "code": "inspect_evals/mmlu",
+    "code": "inspect_evals/mmlu_0_shot",
     "contributors": [
       "jjallaire",
       "domdomegg"
