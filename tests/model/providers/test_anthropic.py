@@ -456,6 +456,66 @@ async def test_anthropic_cache_marks_penultimate_block() -> None:
 
 
 @pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_name,expects_top_level_cache_control",
+    [
+        ("claude-sonnet-4-6", True),
+        ("bedrock/us.anthropic.claude-sonnet-4-6", False),
+        ("vertex/claude-sonnet-4-6@20250929", False),
+    ],
+)
+async def test_anthropic_top_level_cache_control_skipped_on_bedrock_vertex(
+    model_name: str, expects_top_level_cache_control: bool
+) -> None:
+    """Skip top-level cache_control on Bedrock/Vertex.
+
+    Per Anthropic's docs, top-level cache_control is only supported on the direct
+    Claude API and Azure AI Foundry; "support for Amazon Bedrock and Google Vertex
+    AI is coming later." Regression: the field was added in PR #3656 without
+    gating those services, breaking Anthropic-on-Bedrock with
+    `cache_control: Extra inputs are not permitted`.
+    ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
+    """
+    import os
+
+    os.environ.setdefault("AWS_REGION", "us-east-1")
+    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
+    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
+    os.environ.setdefault("ANTHROPIC_VERTEX_PROJECT_ID", "fake")
+    os.environ.setdefault("ANTHROPIC_VERTEX_REGION", "us-east5")
+
+    api = AnthropicAPI(model_name=model_name, api_key="test-key")
+
+    captured: dict[str, Any] = {}
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        captured.update(request)
+        return {}, ModelOutput.from_content(
+            model=api.service_model_name(), content="ok"
+        )
+
+    api._perform_request_and_continuations = fake_perform  # type: ignore[method-assign]
+
+    await api.generate(
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(cache_prompt=True),
+    )
+
+    assert ("cache_control" in captured) is expects_top_level_cache_control
+
+
+@pytest.mark.anyio
 @skip_if_no_anthropic
 async def test_anthropic_prompt_caching_changing_suffix() -> None:
     """Verify caching when only the last content block changes.
