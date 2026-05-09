@@ -1,8 +1,9 @@
 ## Unreleased
 
 - Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
-- Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
+- Model API: Cache lookup of openai and anthropic packages at sample initialization.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
+- Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
 - Bugfix: Ensure that models don't share GenerateConfig instance via default get_model argument.
 
 ## 0.3.220 (08 May 2026)
