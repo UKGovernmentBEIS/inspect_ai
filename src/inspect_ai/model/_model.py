@@ -1787,44 +1787,6 @@ def resolve_models(
     return [resolve_model(m) for m in model]
 
 
-def simple_input_messages(
-    input: list[ChatMessage],
-    fold_system_message: Callable[[str, str], str] | None = None,
-) -> list[ChatMessage]:
-    """Transform input messages into a format compatible with more simplistic chat APIs.
-
-    Collects up system messages and folds them into the first user message
-    (according to a passed in folding function). Also collapses consecutive
-    user messages (as many LLMs require an alternating structure)
-    """
-    # start by making a deep copy so our mutations don't propagate (e.g. end up in log)
-    input = deepcopy(input)
-
-    # aggregate system message from all system messages
-    system_message = " ".join(
-        [message.text for message in input if isinstance(message, ChatMessageSystem)]
-    ).strip()
-
-    # collect all non-system messages and collapse consecutive user messages
-    messages: list[ChatMessage] = collapse_consecutive_user_messages(
-        [message for message in input if not isinstance(message, ChatMessageSystem)]
-    )
-
-    # fold the system message into the first user message
-    first_user_message = next(
-        message for message in messages if isinstance(message, ChatMessageUser)
-    )
-    if fold_system_message:
-        first_user_message.text = fold_system_message(
-            first_user_message.text, system_message
-        )
-    else:
-        first_user_message.text = f"{system_message}\n\n{first_user_message.text}"
-
-    # all done!
-    return messages
-
-
 def resolve_reasoning_history(
     messages: list[ChatMessage],
     config: GenerateConfig,
