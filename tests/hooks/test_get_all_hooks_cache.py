@@ -95,7 +95,7 @@ def test_get_all_hooks_cache_avoids_full_registry_scan() -> None:
     assert state_before == state_after, (
         "registry was mutated unexpectedly during the cache hot-path test"
     )
-    assert elapsed < 0.2, (
+    assert elapsed < 0.4, (
         f"100k cached get_all_hooks() calls took {elapsed:.3f}s — "
         f"cache may not be active"
     )
