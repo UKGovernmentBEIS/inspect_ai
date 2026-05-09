@@ -1,3 +1,7 @@
+## Unreleased
+
+- Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
+
 ## 0.3.220 (08 May 2026)
 
 - Anthropic: Skip the top-level `cache_control` auto-caching field on Bedrock and Vertex where they are not supported.
