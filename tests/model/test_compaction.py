@@ -18,9 +18,21 @@ from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
-from inspect_ai.model._model import get_model
+from inspect_ai.model._model import Model, get_model
 from inspect_ai.model._trim import strip_citations
 from inspect_ai.tool import ToolInfo
+
+
+class ConsecutiveUserCompaction(CompactionSummary):
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        summary = ChatMessageUser(
+            content="summary",
+            id="summary",
+            metadata={"summary": True},
+        )
+        return [user_msg("input", "input"), summary], summary
 
 
 # Helper to create messages with IDs
@@ -840,6 +852,32 @@ async def test_force_compaction_skips_threshold() -> None:
         f"force=True should trigger compaction (trim with preserve=0.5); "
         f"got {len(result_forced)} vs {len(messages)} messages"
     )
+
+
+async def test_compaction_collapses_provider_required_consecutive_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Compacted input is stored already collapsed for providers that require it."""
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(model.api, "collapse_user_messages", lambda: True)
+
+    compact = compaction(
+        ConsecutiveUserCompaction(threshold=1_000_000),
+        prefix=[],
+        tools=None,
+        model=model,
+    )
+
+    result, summary = await compact.compact_input(
+        [user_msg("original", "original")], force=True
+    )
+
+    assert summary is None
+    assert len(result) == 1
+    assert isinstance(result[0], ChatMessageUser)
+    assert result[0].content == "input\nsummary"
+    assert result[0].metadata is not None
+    assert result[0].metadata.get("summary") is True
 
 
 # ==============================================================================
