@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
 - Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
 - Bugfix: Ensure that models don't share GenerateConfig instance via default get_model argument.
 
