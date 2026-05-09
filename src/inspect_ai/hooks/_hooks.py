@@ -276,6 +276,8 @@ class BeforeModelGenerate:
     """The generation configuration."""
     cache: Literal["write"] | None
     """Cache mode: 'write' if caching is enabled, None otherwise."""
+    attempt: int = 1
+    """1-based attempt number within the current generate call."""
     eval_set_id: str | None = None
     """The globally unique identifier for the eval set (if any)."""
     run_id: str | None = None
@@ -777,6 +779,7 @@ async def emit_before_model_generate(
     tool_choice: ToolChoice,
     config: GenerateConfig,
     cache: Literal["write"] | None,
+    attempt: int,
 ) -> None:
     from inspect_ai.log._samples import sample_active
 
@@ -789,6 +792,7 @@ async def emit_before_model_generate(
         tool_choice=tool_choice,
         config=config,
         cache=cache,
+        attempt=attempt,
         eval_set_id=active.eval_set_id if active else None,
         run_id=active.run_id if active else None,
         eval_id=active.eval_id if active else None,
