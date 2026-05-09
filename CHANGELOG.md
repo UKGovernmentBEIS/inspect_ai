@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
+- Bugfix: Ensure that models don't share GenerateConfig instance via default get_model argument.
 
 ## 0.3.220 (08 May 2026)
 

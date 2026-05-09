@@ -1563,7 +1563,7 @@ def get_model(
     role: str | None = None,
     required: bool = False,
     default: str | Model | None = None,
-    config: GenerateConfig = GenerateConfig(),
+    config: GenerateConfig | None = None,
     base_url: str | None = None,
     api_key: str | None = None,
     memoize: bool = True,
@@ -1615,6 +1615,8 @@ def get_model(
 
     """
     from inspect_ai.hooks._startup import init_hooks
+
+    config = config or GenerateConfig()
 
     # start with seeing if a model was passed
     if isinstance(model, Model):
@@ -1750,9 +1752,12 @@ def cached_model(key: str) -> Model | None:
 def resolve_models(
     model: str | Model | list[str] | list[Model] | None | NotGiven = NOT_GIVEN,
     model_base_url: str | None = None,
-    model_args: dict[str, Any] = dict(),
-    config: GenerateConfig = GenerateConfig(),
+    model_args: dict[str, Any] | None = None,
+    config: GenerateConfig | None = None,
 ) -> list[Model]:
+    model_args = model_args or {}
+    config = config or GenerateConfig()
+
     # resolve NotGiven to current INSPECT_EVAL_MODEL
     if isinstance(model, NotGiven):
         model = os.getenv("INSPECT_EVAL_MODEL", None)
