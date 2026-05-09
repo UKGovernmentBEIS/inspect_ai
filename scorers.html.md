@@ -340,6 +340,16 @@ Score(
 )
 ```
 
+`Score.value` may be any [Value](./reference/inspect_ai.scorer.html.md#value) that your metrics know how to interpret. Built-in correctness scorers use the constants `CORRECT` (`"C"`), `INCORRECT` (`"I"`), `PARTIAL` (`"P"`), and `NOANSWER` (`"N"`). The default `value_to_float()` converter used by metrics such as [accuracy()](./reference/inspect_ai.scorer.html.md#accuracy) maps these values to `1.0`, `0.0`, `0.5`, and `0.0` respectively. It also converts numeric values, numeric strings, and common boolean strings such as `"yes"` / `"no"` and `"true"` / `"false"`.
+
+You can return other strings, but aggregate metrics need a converter that understands them. For example:
+
+``` python
+from inspect_ai.scorer import accuracy, value_to_float
+
+accuracy(to_float=value_to_float(correct="pass", incorrect="fail"))
+```
+
 If you are extracting an answer from within a completion (e.g. looking for text using a regex pattern, looking at the beginning or end of the completion, etc.) you should strive to *always* return an `answer` as part of your [Score](./reference/inspect_ai.scorer.html.md#score), as this makes it much easier to understand the details of scoring when viewing the eval log file.
 
 #### Unscored Samples

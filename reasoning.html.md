@@ -183,4 +183,28 @@ Reasoning content from DeepSeek models is captured using either the `reasoning_c
 
 vLLM and SGLang both support reasoning outputs; however, the usage is often model dependant and requires additional configuration. See the [vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [SGLang](https://docs.sglang.ai/backend/separate_reasoning.html) documentation for details.
 
+For vLLM, configure the model’s reasoning parser with `-M` model arguments when Inspect starts the vLLM server. For example, Qwen3 reasoning output can be enabled for extraction as follows:
+
+``` bash
+inspect eval math.py --model vllm/Qwen/Qwen3-8B -M reasoning_parser=qwen3
+```
+
+Thinking mode is model-specific and is controlled separately from Inspect’s `--reasoning-effort` option. For models where vLLM exposes template switches such as `enable_thinking` or `thinking`, pass them as vLLM chat-template kwargs. To set a server-wide default for a server started by Inspect, use:
+
+``` bash
+inspect eval math.py --model vllm/Qwen/Qwen3-8B \
+  -M reasoning_parser=qwen3 \
+  -M default_chat_template_kwargs='{"enable_thinking": true}'
+```
+
+To override the template kwargs for individual requests, pass them through `extra_body`:
+
+``` bash
+inspect eval math.py --model vllm/Qwen/Qwen3-8B \
+  -M reasoning_parser=qwen3 \
+  -M extra_body='{"chat_template_kwargs": {"enable_thinking": true}}'
+```
+
+Open-weights reasoning models do not all support adjustable effort levels. In those cases, `--reasoning-effort` may have no effect even though a reasoning parser is required for vLLM to separate reasoning from the final answer.
+
 If the model already outputs its reasoning between `<think></think>` tags such as with the R1 models or through prompt engineering, then Inspect will capture it automatically without any additional configuration of vLLM or SGLang.
