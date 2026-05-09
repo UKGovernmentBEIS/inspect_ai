@@ -61,13 +61,13 @@ def main() -> None:
     if missing_category:
         print(
             f"\nerror: {len(missing_category)} harbor dataset(s) missing required "
-            f"'categories' in harbor_overrides.yml:",
+            f"'categories' in inspect_harbor's docs/overrides.yml:",
             file=sys.stderr,
         )
         for name in missing_category:
             print(f"  - {name}", file=sys.stderr)
         print(
-            "\nAdd a `categories: [...]` entry for each in docs/evals/harbor_overrides.yml.",
+            "\nAdd a `categories: [...]` entry for each in inspect_harbor's docs/overrides.yml.",
             file=sys.stderr,
         )
         sys.exit(1)
