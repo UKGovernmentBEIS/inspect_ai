@@ -1524,29 +1524,30 @@ def create_sample_semaphore(
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
 ) -> contextlib.AbstractAsyncContextManager[Any]:
-    from inspect_ai.util._concurrency import AdaptiveConcurrency, DynamicSampleLimiter
+    from inspect_ai.util._concurrency import (
+        DynamicSampleLimiter,
+        adaptive_active,
+        resolve_adaptive,
+    )
 
     if config.max_samples is not None:
-        # explicit max_samples wins silently — anticipating that adaptive_connections
-        # may become default-on, in which case warning when max_samples < adaptive.max
+        # explicit max_samples wins silently — under default-on
+        # adaptive_connections, warning when max_samples < adaptive.max
         # would fire for nearly every deliberate max_samples setting
         return anyio.Semaphore(config.max_samples)
-    elif (
-        generate_config.adaptive_connections
-        and generate_config.max_connections is None
-        and not generate_config.batch
+    elif adaptive_active(
+        generate_config.adaptive_connections,
+        generate_config.max_connections,
+        generate_config.batch,
     ):
         # adaptive: dynamic limiter that tracks the controller(s) — sample
         # concurrency grows with the controller's current limit so setup work
         # (sandboxes etc.) stays proportional to actual model concurrency.
         # Both explicit max_connections and batch mode silently override
         # adaptive (matches the precedence in Model._connection_concurrency).
-        adaptive = (
-            generate_config.adaptive_connections
-            if isinstance(generate_config.adaptive_connections, AdaptiveConcurrency)
-            else AdaptiveConcurrency()
+        return DynamicSampleLimiter(
+            resolve_adaptive(generate_config.adaptive_connections)
         )
-        return DynamicSampleLimiter(adaptive)
     else:
         # static path (existing behavior, unchanged)
         max_samples = (

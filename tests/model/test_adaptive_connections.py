@@ -51,12 +51,34 @@ def _capture_controller_during_generate() -> Callable[..., ModelOutput]:
 
 
 @pytest.mark.anyio
-async def test_adaptive_off_by_default() -> None:
-    """Without adaptive_connections, no controller is set during generate."""
+async def test_adaptive_on_by_default() -> None:
+    """`adaptive_connections` defaults to enabled — a controller is active.
+
+    `None` (the field default) resolves to `AdaptiveConcurrency()` defaults
+    via `resolve_adaptive`. To opt out, the user passes `False` explicitly.
+    """
     init_concurrency()
     fn = _capture_controller_during_generate()
     model = get_model("mockllm/model", custom_outputs=fn)
     await model.generate("hello")
+    captures = fn.captures  # type: ignore[attr-defined]
+    assert len(captures) == 1
+    controller, had_retry = captures[0]
+    assert controller is not None
+    assert had_retry is False
+    assert len(adaptive_controllers()) == 1
+
+
+@pytest.mark.anyio
+async def test_adaptive_explicit_false_disables() -> None:
+    """`adaptive_connections=False` is the explicit opt-out, no controller."""
+    init_concurrency()
+    fn = _capture_controller_during_generate()
+    model = get_model("mockllm/model", custom_outputs=fn)
+    await model.generate(
+        "hello",
+        config=GenerateConfig(adaptive_connections=False),
+    )
     captures = fn.captures  # type: ignore[attr-defined]
     assert captures == [(None, False)]
     assert adaptive_controllers() == []
@@ -249,11 +271,17 @@ def test_parse_adaptive_connections_cli_value_forms() -> None:
     # bool keywords (case-insensitive)
     assert _parse_adaptive_connections_cli("true") is True
     assert _parse_adaptive_connections_cli("TRUE") is True
-    assert _parse_adaptive_connections_cli("1") is True
     assert _parse_adaptive_connections_cli("yes") is True
     assert _parse_adaptive_connections_cli("false") is False
-    assert _parse_adaptive_connections_cli("0") is False
     assert _parse_adaptive_connections_cli("no") is False
+
+    # bare integer → max shorthand (int form, resolved later by resolve_adaptive)
+    assert _parse_adaptive_connections_cli("200") == 200
+    assert _parse_adaptive_connections_cli("50") == 50
+    # `1` and `0` are the integer shorthand, not bool aliases — users who want
+    # explicit bool should pass `true`/`false`
+    assert _parse_adaptive_connections_cli("1") == 1
+    assert _parse_adaptive_connections_cli("0") == 0
 
     # bounds shorthand
     result = _parse_adaptive_connections_cli("4-80")
@@ -538,3 +566,79 @@ async def test_count_tokens_no_concurrency_cap(monkeypatch) -> None:
     assert peak_in_flight > 10, (
         f"count_tokens appears capped at <=10 concurrent: peak in-flight = {peak_in_flight}"
     )
+
+
+# ---------- adaptive_active / resolve_adaptive helpers ----------
+
+
+def test_adaptive_active_predicate() -> None:
+    """Predicate matches precedence rules used by all three call sites.
+
+    `Model._connection_concurrency`, `create_sample_semaphore`, and
+    `eval_set`'s adaptive-active check should all behave identically.
+    """
+    from inspect_ai.util._concurrency import adaptive_active
+
+    # default-on (None resolves to adaptive)
+    assert adaptive_active(None, None, None) is True
+    assert adaptive_active(True, None, None) is True
+    assert adaptive_active(200, None, None) is True
+    assert adaptive_active(AdaptiveConcurrency(max=50), None, None) is True
+
+    # explicit False opts out
+    assert adaptive_active(False, None, None) is False
+
+    # explicit max_connections takes precedence
+    assert adaptive_active(True, 100, None) is False
+    assert adaptive_active(None, 100, None) is False
+
+    # batch=True (or any truthy batch config) takes precedence
+    assert adaptive_active(True, None, True) is False
+    assert adaptive_active(None, None, "any-truthy-batch-config") is False
+
+
+def test_resolve_adaptive_returns_concrete_AdaptiveConcurrency() -> None:
+    from inspect_ai.util._concurrency import resolve_adaptive
+
+    # None and True both produce default AdaptiveConcurrency
+    a = resolve_adaptive(None)
+    b = resolve_adaptive(True)
+    assert isinstance(a, AdaptiveConcurrency)
+    assert isinstance(b, AdaptiveConcurrency)
+    assert (a.min, a.start, a.max) == (b.min, b.start, b.max)
+
+    # int → max shorthand, with default min/start
+    c = resolve_adaptive(200)
+    assert isinstance(c, AdaptiveConcurrency)
+    assert c.max == 200
+
+    # explicit AdaptiveConcurrency passes through
+    custom = AdaptiveConcurrency(min=2, start=10, max=50)
+    d = resolve_adaptive(custom)
+    assert d is custom
+
+
+def test_default_max_is_100() -> None:
+    """`AdaptiveConcurrency()` defaults `max` to 100 (lowered from 200)."""
+    a = AdaptiveConcurrency()
+    assert a.max == 100
+
+
+@pytest.mark.anyio
+async def test_adaptive_int_shorthand_at_field_level() -> None:
+    """`GenerateConfig(adaptive_connections=N)` resolves to `max=N` adaptive."""
+    init_concurrency()
+    fn = _make_output_fn()
+    model = get_model("mockllm/model", custom_outputs=fn)
+    await model.generate(
+        "hello",
+        config=GenerateConfig(adaptive_connections=50),
+    )
+    ctrls = adaptive_controllers()
+    assert len(ctrls) == 1
+    # Controller's adaptive bound max should be 50 — the int shorthand.
+    # We can't easily inspect the bound directly, but starting concurrency
+    # should be the AdaptiveConcurrency() default `start=20` clamped to max=50.
+    # Easier: verify the controller exists at all (smoke test). The
+    # `resolve_adaptive` unit test above covers the value-level mapping.
+    assert ctrls[0].concurrency <= 50
