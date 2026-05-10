@@ -92,6 +92,11 @@ def registry_add(o: object, info: RegistryInfo) -> None:
     # add to registry
     _registry[registry_key(info.type, info.name)] = o
 
+    # bump version so caches keyed on registry contents (e.g. get_all_hooks)
+    # know to invalidate
+    global _registry_version
+    _registry_version += 1
+
 
 def registry_tag(
     type: Callable[..., Any],
@@ -511,6 +516,17 @@ def registry_key(type: RegistryType, name: str) -> str:
 REGISTRY_INFO = "__registry_info__"
 REGISTRY_PARAMS = "__registry_params__"
 _registry: dict[str, object] = {}
+
+# Monotonic counter bumped by `registry_add` on every mutation. Used by
+# consumers (e.g. `get_all_hooks`) to cache results derived from the registry
+# while invalidating automatically when new entries are added. Module-private
+# — read it via `registry_version()` if needed externally.
+_registry_version: int = 0
+
+
+def registry_version() -> int:
+    """Current registry version. Bumped on each `registry_add`."""
+    return _registry_version
 
 
 class RegistryDict(TypedDict):
