@@ -69,9 +69,17 @@ def tool_call_from_openai_computer_tool_call(
 def maybe_computer_use_tool(
     model_name: str, tool: ToolInfo
 ) -> ComputerToolParam | None:
+    # Only `gpt-5.4` and `gpt-5.4-mini` advertise native computer-use support;
+    # the `nano` variant does not. The substring check `"gpt-5.4" in model_name`
+    # would otherwise match `gpt-5.4-nano-*` and force the Responses API to send
+    # a `ComputerToolParam` the model rejects. See issue #3844.
     return (
         ComputerToolParam(type="computer")
-        if "gpt-5.4" in model_name and is_computer_tool_info(tool)
+        if (
+            "gpt-5.4" in model_name
+            and "nano" not in model_name
+            and is_computer_tool_info(tool)
+        )
         else None
     )
 
