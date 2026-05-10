@@ -392,8 +392,15 @@ class AnthropicAPI(ModelAPI):
             # prepare request params (assembled this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
 
-            # automatic caching for messages (system/tools use explicit breakpoints)
-            if cache_prompt:
+            # automatic caching for messages (system/tools use explicit breakpoints).
+            # Per Anthropic's docs, the top-level `cache_control` field is only
+            # supported on the direct Claude API and Azure AI Foundry (preview);
+            # "support for Amazon Bedrock and Google Vertex AI is coming later." On
+            # those services it is rejected as
+            # `cache_control: Extra inputs are not permitted`. Fall back to the
+            # per-block markers added in resolve_chat_input on those services.
+            # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
+            if cache_prompt and not (self.is_bedrock() or self.is_vertex()):
                 request["cache_control"] = {"type": "ephemeral"}
 
             # system messages and tools

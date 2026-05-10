@@ -94,7 +94,7 @@ A common misunderstanding is that "t-tests require the underlying data to be nor
 
 ## Perplexity {#perplexity}
 
-Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the `prompt_logprobs` configuration option, which is currently supported by the [vLLM](providers.qmd#vllm) provider.
+Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the `prompt_logprobs` configuration option, which is currently supported by the [vLLM](providers.qmd#vllm) and [SageMaker](providers.qmd#aws-sagemaker) providers (SageMaker requires a vLLM-backed endpoint).
 
 -   `perplexity()` scores all prompt tokens by computing per-token negative log-likelihood (NLL). This is used for full-text perplexity benchmarks (WikiText, C4) where the entire input is evaluated. It corresponds to the evaluation approach described in the [HuggingFace Transformers documentation](https://huggingface.co/docs/transformers/en/perplexity).
 
@@ -346,6 +346,16 @@ Score(
     answer=extracted, 
     explanation=state.output.completion
 )
+```
+
+`Score.value` may be any `Value` that your metrics know how to interpret. Built-in correctness scorers use the constants `CORRECT` (`"C"`), `INCORRECT` (`"I"`), `PARTIAL` (`"P"`), and `NOANSWER` (`"N"`). The default `value_to_float()` converter used by metrics such as `accuracy()` maps these values to `1.0`, `0.0`, `0.5`, and `0.0` respectively. It also converts numeric values, numeric strings, and common boolean strings such as `"yes"` / `"no"` and `"true"` / `"false"`.
+
+You can return other strings, but aggregate metrics need a converter that understands them. For example:
+
+``` python
+from inspect_ai.scorer import accuracy, value_to_float
+
+accuracy(to_float=value_to_float(correct="pass", incorrect="fail"))
 ```
 
 If you are extracting an answer from within a completion (e.g. looking for text using a regex pattern, looking at the beginning or end of the completion, etc.) you should strive to *always* return an `answer` as part of your `Score`, as this makes it much easier to understand the details of scoring when viewing the eval log file.
