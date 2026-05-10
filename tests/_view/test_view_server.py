@@ -201,7 +201,7 @@ def _create_sample_buffer(log_path: str) -> None:
                 data=SampleData(
                     events=[
                         EventData(
-                            id=0,
+                            id=1,
                             event_id="evt0",
                             sample_id="sample1",
                             epoch=0,
@@ -226,7 +226,7 @@ def _create_sample_buffer(log_path: str) -> None:
                     segments=[0],
                 )
             ],
-            segments=[Segment(id=0, last_event_id=0, last_attachment_id=0)],
+            segments=[Segment(id=0, last_event_id=1, last_attachment_id=0)],
         )
     )
 
@@ -252,7 +252,7 @@ def _create_sample_buffer_with_id(log_path: str, sample_id: int | str) -> None:
                 data=SampleData(
                     events=[
                         EventData(
-                            id=0,
+                            id=1,
                             event_id="evt0",
                             sample_id=str(sample_id),
                             epoch=0,
@@ -277,13 +277,18 @@ def _create_sample_buffer_with_id(log_path: str, sample_id: int | str) -> None:
                     segments=[0],
                 )
             ],
-            segments=[Segment(id=0, last_event_id=0, last_attachment_id=0)],
+            segments=[Segment(id=0, last_event_id=1, last_attachment_id=0)],
         )
     )
 
 
 def _create_multi_segment_sample_buffer(log_path: str, num_segments: int) -> None:
-    """Create a sample buffer with multiple segments, each with last_event_id=i."""
+    """Create a sample buffer with `num_segments` segments.
+
+    Segment `i` carries `last_event_id = i + 1` (SQL AUTOINCREMENT ids
+    start at 1) and zero entries on the other dimensions. Empty pool
+    dimensions use the writer's `0` sentinel.
+    """
     from inspect_ai.log._recorders.buffer.filestore import (
         Manifest,
         SampleBufferFilestore,
@@ -304,7 +309,7 @@ def _create_multi_segment_sample_buffer(log_path: str, num_segments: int) -> Non
                     data=SampleData(
                         events=[
                             EventData(
-                                id=i,
+                                id=i + 1,
                                 event_id=f"evt{i}",
                                 sample_id="sample1",
                                 epoch=0,
@@ -332,7 +337,7 @@ def _create_multi_segment_sample_buffer(log_path: str, num_segments: int) -> Non
             segments=[
                 Segment(
                     id=i,
-                    last_event_id=i,
+                    last_event_id=i + 1,
                     last_attachment_id=0,
                     last_message_pool_id=0,
                     last_call_pool_id=0,
@@ -743,8 +748,8 @@ def write_fake_eval_log_buffer(
     segments = [
         inspect_ai.log._recorders.buffer.filestore.Segment(
             id=i,
-            last_event_id=i,
-            last_attachment_id=i,
+            last_event_id=i + 1,
+            last_attachment_id=i + 1,
         )
         for i in range(num_segments)
     ]
@@ -1225,14 +1230,14 @@ def test_api_pending_sample_data_urls_prunes_by_cursor(
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
     _create_multi_segment_sample_buffer(full_path, num_segments=3)
-    # Segments are constructed with last_event_id=i and
-    # last_attachment_id=0, so only segment 2 has any dimension above
-    # the cursors below.
+    # Segments are constructed with last_event_id=i+1 and
+    # last_attachment_id=0, so only segment 2 (last_event_id=3) has any
+    # dimension above the cursors below.
     resp = view_client.request(
         "GET",
         f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
         "&id=sample1&epoch=0"
-        "&last-event-id=1&after-attachment-id=0"
+        "&last-event-id=2&after-attachment-id=0"
         "&after-message-pool-id=0&after-call-pool-id=0",
     )
     resp.raise_for_status()
