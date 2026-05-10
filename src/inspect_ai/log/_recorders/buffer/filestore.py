@@ -76,16 +76,22 @@ def segments_for_sample_cursor(
     """Return segments for `sample` that can contain data newer than the cursors.
 
     OR-logic across cursor types: a segment qualifies if any of its
-    last_*_id values exceeds the corresponding cursor. `None` is treated
-    as `-1` (no cursor yet). Over-inclusive by design; individual items
-    must be post-filtered by the caller.
+    last_*_id values exceeds the corresponding cursor. Over-inclusive
+    by design; individual items must be post-filtered by the caller.
+
+    Cursors are floored at 0 because SQL AUTOINCREMENT ids start at 1,
+    so a cursor of `None`, `-1`, or `0` are equivalent: "no items of
+    this type seen". A segment whose `last_*_id` is `0` (the writer's
+    "no items of this type in this segment" sentinel; pool dimensions
+    default to `0` per the Segment schema) then evaluates `0 > 0 = False`
+    and drops out. Without the floor the initial client cursor of `-1`
+    keeps every empty-pool segment qualifying forever, and the
+    streaming viewer loops within `max-segments`.
     """
-    after_event = after_event_id if after_event_id is not None else -1
-    after_attachment = after_attachment_id if after_attachment_id is not None else -1
-    after_message_pool = (
-        after_message_pool_id if after_message_pool_id is not None else -1
-    )
-    after_call_pool = after_call_pool_id if after_call_pool_id is not None else -1
+    after_event = max(0, after_event_id or 0)
+    after_attachment = max(0, after_attachment_id or 0)
+    after_message_pool = max(0, after_message_pool_id or 0)
+    after_call_pool = max(0, after_call_pool_id or 0)
 
     by_id = sorted(
         (s for s in manifest.segments if s.id in sample.segments),
