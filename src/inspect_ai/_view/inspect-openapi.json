@@ -15,7 +15,7 @@
             "type": "number"
           },
           "max": {
-            "default": 200,
+            "default": 100,
             "title": "Max",
             "type": "integer"
           },
@@ -4477,6 +4477,9 @@
             "anyOf": [
               {
                 "type": "boolean"
+              },
+              {
+                "type": "integer"
               },
               {
                 "$ref": "#/components/schemas/AdaptiveConcurrency"

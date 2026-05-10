@@ -31,7 +31,7 @@ def test_adaptive_connections_defaults() -> None:
     a = AdaptiveConcurrency()
     assert a.min == 4
     assert a.start == 20
-    assert a.max == 200
+    assert a.max == 100
     # advanced tuning fields default to documented values
     assert a.cooldown_seconds == 15.0
     assert a.decrease_factor == 0.8
@@ -150,6 +150,13 @@ def test_generate_config_round_trip_adaptive_advanced_fields() -> None:
 
 
 def test_generate_config_old_log_no_adaptive_connections_field() -> None:
+    """Old logs without the field deserialize cleanly with `None`.
+
+    The field default stays `None` after the default-on flip — the
+    behavior change is at the consumer site (`adaptive_active(None, ...)`
+    returns True), not at the field level. This test guards that we
+    don't break old-log compatibility by changing the field default.
+    """
     # simulate old log: dict without the new field
     cfg = GenerateConfig.model_validate({"max_connections": 20})
     assert cfg.adaptive_connections is None

@@ -318,6 +318,17 @@ class Hooks:
     Note that whenever hooks are called, they are wrapped in a try/except block to
     catch any exceptions that may occur. This is to ensure that a hook failure does not
     affect the overall execution of the eval. If a hook fails, a warning will be logged.
+
+    #### Ownership of hook event data
+
+    Event objects passed via ``on_sample_event`` and the ``EvalSample`` passed
+    via ``on_sample_end`` are owned by the framework. Hook implementations may
+    read these objects and may retain references for inspection, but **must
+    not mutate them in place**. The framework retains references to these
+    objects and may serialize, copy, or further transform them after the
+    hook returns; in-place mutation is undefined behavior. If a hook needs a
+    mutable working copy, call ``data.event.model_copy(deep=True)`` (or the
+    equivalent on the sample) inside the hook and operate on that copy.
     """
 
     def enabled(self) -> bool:
@@ -924,10 +935,39 @@ def override_api_key(env_var_name: str, value: str) -> str | None:
     return override_api_key_legacy(env_var_name, value)
 
 
+_hooks_cache: list[Hooks] = []
+_hooks_cache_state: tuple[int, int] = (-1, -1)
+
+
 def get_all_hooks() -> list[Hooks]:
-    """Get all registered hooks."""
-    results = registry_find(lambda info: info.type == "hooks")
-    return cast(list[Hooks], results)
+    """Get all registered hooks.
+
+    Cached against (registry_version, len(registry)): the first call (or
+    any call after the registry mutates) does the full `registry_find`
+    walk; subsequent calls with no change return the cached list directly.
+
+    The version counter is bumped by `registry_add`. The length is tracked
+    in addition so direct deletions from `_registry` (used by some tests)
+    also invalidate the cache — an add+delete sequence bumps both, a pure
+    delete changes only length, and a pure add changes both.
+
+    `_emit_to_all` calls this on every hook emission, and a typical eval
+    fires ~50 emissions per sample (one per Event, plus per-generate /
+    per-attempt / per-sample lifecycle hooks). The un-cached scan walks the
+    entire process-wide registry — Tasks, Solvers, Scorers, Models, etc. —
+    which dominates loop CPU at high concurrency.
+    """
+    from inspect_ai._util import registry as _registry_mod
+
+    global _hooks_cache, _hooks_cache_state
+    state = (_registry_mod._registry_version, len(_registry_mod._registry))
+    if state != _hooks_cache_state:
+        _hooks_cache = cast(
+            list[Hooks],
+            registry_find(lambda info: info.type == "hooks"),
+        )
+        _hooks_cache_state = state
+    return _hooks_cache
 
 
 async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> None:
