@@ -490,3 +490,51 @@ async def test_transient_retry_blocks_success_counting() -> None:
     assert len(ctrls) == 1
     # because each generate had a transient retry, none counted as a clean success
     assert ctrls[0].concurrency == 4
+
+
+# ---------- count_tokens has no per-model concurrency cap ----------
+
+
+@pytest.mark.anyio
+async def test_count_tokens_no_concurrency_cap(monkeypatch) -> None:
+    """`Model.count_tokens` is not capped — concurrent calls all run in parallel.
+
+    Historically there was a per-model `concurrency(...)` semaphore at limit
+    10 around `count_tokens`. It was removed because (a) the cost is O(delta)
+    via compaction's baseline mechanism, (b) `max_samples` already provides a
+    structural ceiling, (c) retries handle 429s symmetrically with generate,
+    and (d) provider count_tokens envelopes are wider than generate envelopes.
+
+    This guards against re-introducing such a cap. We monkey-patch the model
+    API's `count_tokens` to track peak in-flight calls; without a cap the
+    peak should reach (or near) the launched-task count, well above 10.
+    """
+    import anyio
+
+    from inspect_ai._util._async import tg_collect
+
+    init_concurrency()
+    model = get_model("mockllm/model")
+
+    in_flight = 0
+    peak_in_flight = 0
+
+    async def counting_count_tokens(self, input, config=None):
+        nonlocal in_flight, peak_in_flight
+        in_flight += 1
+        peak_in_flight = max(peak_in_flight, in_flight)
+        try:
+            await anyio.sleep(0.05)
+            return 1
+        finally:
+            in_flight -= 1
+
+    monkeypatch.setattr(type(model.api), "count_tokens", counting_count_tokens)
+
+    # Launch 50 concurrent count_tokens calls. With the old 10-cap, peak
+    # in-flight would max at 10. Without the cap, peak should be ~50.
+    await tg_collect([lambda: model.count_tokens("hello") for _ in range(50)])
+
+    assert peak_in_flight > 10, (
+        f"count_tokens appears capped at <=10 concurrent: peak in-flight = {peak_in_flight}"
+    )
