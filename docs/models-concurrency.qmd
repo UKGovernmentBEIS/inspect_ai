@@ -5,74 +5,68 @@ llms-description: Tuning model API connection limits, adaptive concurrency, and 
 
 ## Overview
 
-Model API rate limits typically constrain evaluation throughput more than anything else. Inspect manages this with per-model concurrency limits (a cap on in-flight requests to a given provider) plus automatic retry on rate-limit and transient errors.
+Connections to model APIs are the most fundamental unit of concurrency to manage. The main thing that limits model API concurrency is not local compute or network availability, but rather *rate limits* imposed by model API providers. Inspect manages this with per-model concurrency limits (a cap on in-flight requests to a given provider) plus automatic retry on rate-limits and transient errors.
 
-Two modes are available:
+Two modes are available for managing connections:
 
-- Static. Set a fixed `--max-connections` value. You need to know the right number for your tier.
+- **Adaptive**. Use `--adaptive-connections` to let Inspect tune the number, scaling up while the provider keeps up and backing off on rate-limit retries.
 
-- Adaptive. Use `--adaptive-connections` to let Inspect tune the number, scaling up while the provider keeps up and backing off on rate-limit retries.
+- **Static**. Set a fixed `--max-connections` value. You need to know the right number for your tier and workload.
 
-This page covers both modes, plus retry tuning and debugging. For other forms of parallelism (multiple tasks, sandbox containers, custom code), see [Parallelism](parallelism.qmd). For provider-side batch APIs, which run on a separate quota and use a different concurrency model, see [Batch Mode](models-batch.qmd).
+By default, adaptive concurrency is used with a maximum of 100 concurrent connections per model. This page covers using and customizing both modes, plus retry tuning and debugging.
 
-## Max Connections
-
-Connections to model APIs are the most fundamental unit of concurrency to manage. The main thing that limits model API concurrency is not local compute or network availability, but rather *rate limits* imposed by model API providers. Here we run an evaluation and set the maximum connections to 20:
-
-``` bash
-$ inspect eval --model openai/gpt-4 --max-connections 20
-```
-
-The default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get *worse* performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The "correct" max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.
-
-::: {.callout-note appearance="simple"}
-Note that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).
-:::
-
-## Rate Limits
-
-When you run an eval you'll see information reported on the current active connection usage as well as the number of HTTP retries that have occurred (Inspect will automatically retry on rate limits and other errors likely to be transient):
-
-![](images/rate-limit.png){fig-alt="The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results."}
-
-Here we've set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff), and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.
-
-You should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that you are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.
+For other forms of parallelism (multiple tasks, sandbox containers, custom code), see [Parallelism](parallelism.qmd).
 
 ## Adaptive Connections
 
-Use the `--adaptive-connections` option to automatically scale model concurrency to your available capacity. Adaptive connections starts at a moderate concurrency, grows while the provider keeps up, and backs off on rate-limit retries.
+Use the `--adaptive-connections` option to automatically scale model concurrency to your available capacity. Adaptive connections starts at 20 in-flight per model, grows up to the maximum while the provider keeps up, and backs off on rate-limit retries. Adaptive connections is on by default (with a maximum of 100), so the following commands are equivalent:
 
 ``` bash
-$ inspect eval --model openai/gpt-4o --adaptive-connections true
+inspect eval --model openai/gpt-5
+inspect eval --model openai/gpt-5 --adaptive-connections=100
 ```
 
-Adaptive connection works per-model, starting at 20 concurrent connections and attempting to scale up to 200. When adaptive connections is in effect, `max_samples` automatically tracks the controller's current limit (set an explicit `max_samples` to override this behavior).
+Adaptive connections are a new feature introduced in Inspect v0.3.217. If you previously used `--max-connections` we recommend migrating to `--adaptive-connections`, as you will ramp up to the same maximum concurrency with less exposure to exponential backoff from rate limits.
+
+::: {.callout-note}
+When adaptive connections is in effect, `max_samples` automatically tracks the controller's current limit. Set an explicit `max_samples` to override this behavior.
+:::
 
 ### Bounds Tuning
 
-Bounds (`min`, `start`, `max`) can be used to tune the behavior of adaptive connections: `start` is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), and `max` is the ceiling.
+Tune the bounds with `min`, `start`, and `max`: `start` is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), and `max` is the ceiling.
 
-Pass a string shorthand. `min-max` constrains the range (`start` defaults to 20, clamped into the range):
+Set `max` higher than where you expect the controller to settle, since it's a ceiling for the search, not a target. If you're seeing the controller pin at `max` without ever scaling down, you likely have headroom: raise `max` until you observe occasional rate-limit cuts, which is the controller's signal that it's operating at the edge of your tier.
+
+The simplest form of bounds tuning is a single integer setting just the maximum:
 
 ``` bash
-$ inspect eval --model openai/gpt-4o --adaptive-connections 4-80
+inspect eval --model openai/gpt-5 --adaptive-connections 50
+inspect eval --model openai/gpt-5 --adaptive-connections 200
+```
+
+`min-max` constrains the range (`start` defaults to 20, clamped into the range):
+
+``` bash
+inspect eval --model openai/gpt-5 --adaptive-connections 5-50
+inspect eval --model openai/gpt-5 --adaptive-connections 10-200
 ```
 
 `min-start-max` also sets the starting value:
 
 ``` bash
-$ inspect eval --model openai/gpt-4o --adaptive-connections 4-40-80
+inspect eval --model openai/gpt-5 --adaptive-connections 5-10-50
+inspect eval --model openai/gpt-5 --adaptive-connections 10-20-200
 ```
 
-In Python, pass `True` for defaults or an `AdaptiveConcurrency` to customize:
+In Python, pass `True` for defaults, `False` to disable adaptive (uses static `max_connections` instead), `int` to set the maximum, or an `AdaptiveConcurrency` to customize:
 
 ``` python
 from inspect_ai.util import AdaptiveConcurrency
 
 eval(
     "task.py",
-    model="openai/gpt-4o",
+    model="openai/gpt-5",
     adaptive_connections=AdaptiveConcurrency(min=4, max=80),
 )
 ```
@@ -102,7 +96,7 @@ from inspect_ai.util import AdaptiveConcurrency
 
 eval(
     "task.py",
-    model="openai/gpt-4o",
+    model="openai/gpt-5",
     adaptive_connections=AdaptiveConcurrency(
         min=4,
         max=80,
@@ -151,6 +145,27 @@ You can also view all of the HTTP requests for the current (or most recent) eval
 inspect trace http           # show all http requests
 inspect trace http --failed  # show only failed requests
 ```
+
+## Static Connections
+
+If you prefer a static limit for connections, use `--max-connections` rather than `--adaptive-connections`. For example:
+
+``` bash
+$ inspect eval --model openai/gpt-4 --max-connections 20
+```
+
+When both `--max-connections` and `--adaptive-connections` are set, the explicit `max_connections` value takes precedence and adaptive is disabled. To opt out of adaptive without picking a specific cap (the provider's default applies), pass `--adaptive-connections false`:
+
+``` bash
+inspect eval --model openai/gpt-4 --adaptive-connections false
+```
+
+[Batch mode](models-batch.qmd) likewise uses static concurrency regardless of `--adaptive-connections`.
+
+Increasing the max connections might yield better performance due to higher parallelism, however it might also result in *worse* performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The "correct" max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.
+
+Since it can be difficult to tune this value (especially across different times of day), you are generally much better off using [Adaptive Connections](#adaptive-connections) which will dynamically find the maximum throughput that can be supported.
+
 
 ## Learning More
 

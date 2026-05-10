@@ -1313,19 +1313,20 @@ class Model:
     ) -> AsyncIterator[None]:
         """Get the appropriate connection semaphore for this model instance."""
         from inspect_ai.util._concurrency import (
-            AdaptiveConcurrency,
             AdaptiveConcurrencyController,
             _active_controller,
             _request_had_retry,
             _request_was_cache_hit,
+            adaptive_active,
+            resolve_adaptive,
         )
 
         model_name = ModelName(self)
         key = f"Model{self.api.connection_key()}"
 
         # adaptive path: controller-managed CapacityLimiter. Two precedence
-        # rules — both silent — anticipating adaptive_connections becoming
-        # default-on, in which case any deliberate override must keep working:
+        # rules — both silent — keep deliberate overrides working under
+        # default-on adaptive:
         #   * Explicit max_connections wins (existing behavior).
         #   * Batch mode wins. Batch APIs run on a separate quota, the per-
         #     request concurrency model doesn't bind (DEFAULT_MAX_CONNECTIONS_BATCH
@@ -1333,16 +1334,10 @@ class Model:
         #     ContextVars don't propagate retry/success signals back to
         #     awaiting generates — so adaptive's success/retry accounting
         #     would be incorrect anyway. See docs/parallelism.qmd.
-        if (
-            config.adaptive_connections
-            and config.max_connections is None
-            and not config.batch
+        if adaptive_active(
+            config.adaptive_connections, config.max_connections, config.batch
         ):
-            adaptive = (
-                config.adaptive_connections
-                if isinstance(config.adaptive_connections, AdaptiveConcurrency)
-                else AdaptiveConcurrency()
-            )
+            adaptive = resolve_adaptive(config.adaptive_connections)
             async with concurrency(
                 name=str(model_name),
                 concurrency=adaptive.start,
