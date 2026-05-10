@@ -94,7 +94,7 @@ A common misunderstanding is that "t-tests require the underlying data to be nor
 
 ## Perplexity {#perplexity}
 
-Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the `prompt_logprobs` configuration option, which is currently supported by the [vLLM](providers.qmd#vllm) provider.
+Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the `prompt_logprobs` configuration option, which is currently supported by the [vLLM](providers.qmd#vllm) and [SageMaker](providers.qmd#aws-sagemaker) providers (SageMaker requires a vLLM-backed endpoint).
 
 -   `perplexity()` scores all prompt tokens by computing per-token negative log-likelihood (NLL). This is used for full-text perplexity benchmarks (WikiText, C4) where the entire input is evaluated. It corresponds to the evaluation approach described in the [HuggingFace Transformers documentation](https://huggingface.co/docs/transformers/en/perplexity).
 

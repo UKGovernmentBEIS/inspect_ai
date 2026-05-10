@@ -810,29 +810,31 @@ class Model:
                (e.g., reasoning parameters that affect token allocation).
         """
         config = self._resolve_config(config)
-        model_name = ModelName(self)
-        key = f"ModelCountTokens({self.api.connection_key()})"
-        async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
-            # retry handler for token counting
-            @retry(
-                **model_retry_config(
-                    self.api.model_name,
-                    self.config.max_retries,
-                    self.config.timeout,
-                    self.should_retry,
-                    self.before_retry,
-                    log_model_retry,
-                    report_sample_waiting_time,
-                    self.api.retry_wait(),
-                )
-            )
-            async def _count_tokens(
-                input: str | list[ChatMessage], config: GenerateConfig | None
-            ) -> int:
-                return await self.api.count_tokens(input, config)
 
-            # count tokens
-            return await _count_tokens(input, config)
+        # retry handler for token counting (429/timeouts retried with the
+        # same backoff and adaptive-controller signaling as `generate`).
+        # No per-model concurrency cap: count_tokens is O(delta) under the
+        # compaction baseline mechanism, max_samples already provides the
+        # structural ceiling, retries handle rate limits, and provider
+        # count_tokens envelopes are wider than generate envelopes.
+        @retry(
+            **model_retry_config(
+                self.api.model_name,
+                self.config.max_retries,
+                self.config.timeout,
+                self.should_retry,
+                self.before_retry,
+                log_model_retry,
+                report_sample_waiting_time,
+                self.api.retry_wait(),
+            )
+        )
+        async def _count_tokens(
+            input: str | list[ChatMessage], config: GenerateConfig | None
+        ) -> int:
+            return await self.api.count_tokens(input, config)
+
+        return await _count_tokens(input, config)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
@@ -1311,19 +1313,20 @@ class Model:
     ) -> AsyncIterator[None]:
         """Get the appropriate connection semaphore for this model instance."""
         from inspect_ai.util._concurrency import (
-            AdaptiveConcurrency,
             AdaptiveConcurrencyController,
             _active_controller,
             _request_had_retry,
             _request_was_cache_hit,
+            adaptive_active,
+            resolve_adaptive,
         )
 
         model_name = ModelName(self)
         key = f"Model{self.api.connection_key()}"
 
         # adaptive path: controller-managed CapacityLimiter. Two precedence
-        # rules — both silent — anticipating adaptive_connections becoming
-        # default-on, in which case any deliberate override must keep working:
+        # rules — both silent — keep deliberate overrides working under
+        # default-on adaptive:
         #   * Explicit max_connections wins (existing behavior).
         #   * Batch mode wins. Batch APIs run on a separate quota, the per-
         #     request concurrency model doesn't bind (DEFAULT_MAX_CONNECTIONS_BATCH
@@ -1331,16 +1334,10 @@ class Model:
         #     ContextVars don't propagate retry/success signals back to
         #     awaiting generates — so adaptive's success/retry accounting
         #     would be incorrect anyway. See docs/parallelism.qmd.
-        if (
-            config.adaptive_connections
-            and config.max_connections is None
-            and not config.batch
+        if adaptive_active(
+            config.adaptive_connections, config.max_connections, config.batch
         ):
-            adaptive = (
-                config.adaptive_connections
-                if isinstance(config.adaptive_connections, AdaptiveConcurrency)
-                else AdaptiveConcurrency()
-            )
+            adaptive = resolve_adaptive(config.adaptive_connections)
             async with concurrency(
                 name=str(model_name),
                 concurrency=adaptive.start,
