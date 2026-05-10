@@ -810,29 +810,31 @@ class Model:
                (e.g., reasoning parameters that affect token allocation).
         """
         config = self._resolve_config(config)
-        model_name = ModelName(self)
-        key = f"ModelCountTokens({self.api.connection_key()})"
-        async with concurrency(f"{model_name}_count_tokens", 10, key, visible=False):
-            # retry handler for token counting
-            @retry(
-                **model_retry_config(
-                    self.api.model_name,
-                    self.config.max_retries,
-                    self.config.timeout,
-                    self.should_retry,
-                    self.before_retry,
-                    log_model_retry,
-                    report_sample_waiting_time,
-                    self.api.retry_wait(),
-                )
-            )
-            async def _count_tokens(
-                input: str | list[ChatMessage], config: GenerateConfig | None
-            ) -> int:
-                return await self.api.count_tokens(input, config)
 
-            # count tokens
-            return await _count_tokens(input, config)
+        # retry handler for token counting (429/timeouts retried with the
+        # same backoff and adaptive-controller signaling as `generate`).
+        # No per-model concurrency cap: count_tokens is O(delta) under the
+        # compaction baseline mechanism, max_samples already provides the
+        # structural ceiling, retries handle rate limits, and provider
+        # count_tokens envelopes are wider than generate envelopes.
+        @retry(
+            **model_retry_config(
+                self.api.model_name,
+                self.config.max_retries,
+                self.config.timeout,
+                self.should_retry,
+                self.before_retry,
+                log_model_retry,
+                report_sample_waiting_time,
+                self.api.retry_wait(),
+            )
+        )
+        async def _count_tokens(
+            input: str | list[ChatMessage], config: GenerateConfig | None
+        ) -> int:
+            return await self.api.count_tokens(input, config)
+
+        return await _count_tokens(input, config)
 
     async def count_tool_tokens(self, tools: Sequence[ToolInfo]) -> int:
         """Count tokens for tool definitions.
