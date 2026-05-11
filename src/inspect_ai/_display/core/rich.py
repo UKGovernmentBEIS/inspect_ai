@@ -1,3 +1,4 @@
+import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Iterator
@@ -28,12 +29,20 @@ def rich_initialise(
     # default args
     display = display if display is not None else display_type()
     plain = plain if plain is not None else display_type_plain()
+    size_kwargs = _dumb_terminal_size_kwargs()
 
     # reflect ansi prefs
     if plain:
-        rich.reconfigure(no_color=True, force_terminal=False, force_interactive=False)
+        rich.reconfigure(
+            no_color=True,
+            force_terminal=False,
+            force_interactive=False,
+            **size_kwargs,
+        )
     elif rich_no_color(plain):
-        rich.reconfigure(no_color=True)
+        rich.reconfigure(no_color=True, **size_kwargs)
+    elif size_kwargs:
+        rich.reconfigure(**size_kwargs)
 
     # reflect display == none
     if display == "none":
@@ -58,6 +67,28 @@ def rich_initialise(
 
     Markdown.elements["fence"] = CustomCodeBlock
     Markdown.elements["code_block"] = CustomCodeBlock
+
+
+def _dumb_terminal_size_kwargs() -> dict[str, int]:
+    if os.environ.get("TERM") != "dumb":
+        return {}
+
+    columns = _positive_int_env("COLUMNS")
+    if columns is None:
+        return {}
+
+    return {
+        "width": columns,
+        "height": _positive_int_env("LINES") or 25,
+    }
+
+
+def _positive_int_env(name: str) -> int | None:
+    try:
+        value = int(os.environ[name])
+    except (KeyError, ValueError):
+        return None
+    return value if value > 0 else None
 
 
 @dataclass

@@ -59,6 +59,10 @@ class ToolInfo(BaseModel):
 
 
 def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
+    return _parse_tool_info_shared(func).model_copy(deep=True)
+
+
+def _described_tool_info(func: Callable[..., Any]) -> ToolInfo | None:
     # tool may already have registry attributes w/ tool info — these can be
     # updated at any time via set_tool_description / tool_with, so always
     # check them fresh (no caching for this path).
@@ -72,14 +76,20 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
             name=description.name,
             description=description.description,
             parameters=description.parameters,
-        ).model_copy(deep=True)
+        )
+    return None
+
+
+def _parse_tool_info_shared(func: Callable[..., Any]) -> ToolInfo:
+    described = _described_tool_info(func)
+    if described is not None:
+        return described
 
     # check cache for the expensive reflection/docstring work
-    # (callers mutate the result so we return a deep copy)
     func_id = id(func)
     cached = _tool_info_cache.get(func_id)
     if cached is not None and cached[0] is func:
-        return cached[1].model_copy(deep=True)
+        return cached[1]
 
     # get_type_hints requires a function, method, module, or class
     # For callable instances (objects with __call__),
@@ -153,7 +163,7 @@ def parse_tool_info(func: Callable[..., Any]) -> ToolInfo:
             info.description = f"{info.description}\n\nExamples\n\n{examples}"
 
     _tool_info_cache[func_id] = (func, info)
-    return info.model_copy(deep=True)
+    return info
 
 
 def parse_docstring(docstring: str | None, param_name: str) -> Dict[str, str]:

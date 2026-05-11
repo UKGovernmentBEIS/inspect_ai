@@ -342,6 +342,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             config = Config(
                 max_pool_connections=50,
                 retries={"max_attempts": 10, "mode": "adaptive"},
+                # Disable boto3 1.36+ default integrity checksums.
+                # The AwsChunkedWrapper body framing is buggy under
+                # concurrent multipart uploads and intermittently
+                # produces IncompleteBody from S3. See GH-3858.
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
                 **({"signature_version": UNSIGNED} if self._anonymous else {}),
             )
             self._s3_client = boto3.client(
@@ -371,6 +377,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         config = AioConfig(
             max_pool_connections=50,
             retries={"max_attempts": 10, "mode": "adaptive"},
+            # Disable boto3 1.36+ default integrity checksums.
+            # The AwsChunkedWrapper body framing is buggy under
+            # concurrent multipart uploads and intermittently
+            # produces IncompleteBody from S3. See GH-3858.
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
             **({"signature_version": UNSIGNED} if anonymous else {}),
         )
         return await session.client(

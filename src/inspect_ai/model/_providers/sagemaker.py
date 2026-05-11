@@ -51,6 +51,12 @@ SAGEMAKER_RETRY_ERROR_CODES = {
 
 # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint.html
 
+# NOTE: tokenize() is not implemented for SageMaker. The vLLM /tokenize
+# endpoint is not reachable through SageMaker's invoke_endpoint API — the
+# container only exposes chat/completion inference fields. Users of
+# target_perplexity() must provide num_target_tokens in sample metadata
+# rather than relying on auto-tokenization.
+
 
 class SagemakerAPI(ModelAPI):
     def __init__(
@@ -231,6 +237,8 @@ class SagemakerAPI(ModelAPI):
             request_body["logprobs"] = config.top_logprobs
         if self.prompt_logprobs is not None:
             request_body["prompt_logprobs"] = self.prompt_logprobs
+        elif config.prompt_logprobs is not None:
+            request_body["prompt_logprobs"] = config.prompt_logprobs
         if config.top_k is not None:
             request_body["top_k"] = config.top_k
         if config.stop_seqs is not None:
@@ -282,6 +290,16 @@ class SagemakerAPI(ModelAPI):
                 )
 
             model_output.choices[0].logprobs = Logprobs(content=content_logprobs)
+
+        # Parse prompt logprobs from completion response (vLLM returns them
+        # inside choices[0].prompt_logprobs as a list of dicts)
+        prompt_logprobs_data = choices[0].get("prompt_logprobs") if choices else None
+        if prompt_logprobs_data is not None:
+            from inspect_ai.model._openai import parse_vllm_prompt_logprobs_raw
+
+            model_output.choices[0].prompt_logprobs = parse_vllm_prompt_logprobs_raw(
+                prompt_logprobs_data
+            )
 
         model_call = ModelCall.create(request=request_body, response=output, time=0)
         return model_output, model_call
@@ -405,6 +423,7 @@ class SagemakerAPI(ModelAPI):
             ("top_logprobs", config.top_logprobs),
             ("best_of", config.best_of),
             ("reasoning_effort", config.reasoning_effort),
+            ("prompt_logprobs", config.prompt_logprobs),
         ]
 
         for param_name, param_value in optional_params:

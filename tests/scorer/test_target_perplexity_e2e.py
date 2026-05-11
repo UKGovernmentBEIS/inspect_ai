@@ -1,4 +1,4 @@
-"""End-to-end test for target_perplexity scorer using vLLM."""
+"""End-to-end test for target_perplexity scorer using vllm-completions provider."""
 
 import math
 
@@ -31,17 +31,16 @@ async def test_with_num_target_tokens_metadata() -> None:
 
     task = Task(
         dataset=MemoryDataset(samples=samples),
-        solver=generate(max_tokens=1, prompt_logprobs=1),
+        solver=generate(),
         scorer=target_perplexity(),
     )
 
     log = await eval_async(
         task,
-        model="vllm/EleutherAI/pythia-70m",
-        model_args=dict(
-            chat_template="{% for message in messages %}{{ message.content }}{% endfor %}",
-            device=0,
-        ),
+        model="vllm-completions/EleutherAI/pythia-70m",
+        model_args=dict(device=0),
+        max_tokens=1,
+        prompt_logprobs=1,
     )
 
     result = log[0].results
@@ -87,17 +86,16 @@ async def test_auto_tokenize_via_provider() -> None:
 
     task = Task(
         dataset=MemoryDataset(samples=samples),
-        solver=generate(max_tokens=1, prompt_logprobs=1),
+        solver=generate(),
         scorer=target_perplexity(),
     )
 
     log = await eval_async(
         task,
-        model="vllm/EleutherAI/pythia-70m",
-        model_args=dict(
-            chat_template="{% for message in messages %}{{ message.content }}{% endfor %}",
-            device=0,
-        ),
+        model="vllm-completions/EleutherAI/pythia-70m",
+        model_args=dict(device=0),
+        max_tokens=1,
+        prompt_logprobs=1,
     )
 
     assert log[0].samples is not None
@@ -128,17 +126,16 @@ async def test_default_fallback() -> None:
 
     task = Task(
         dataset=MemoryDataset(samples=samples),
-        solver=generate(max_tokens=1, prompt_logprobs=1),
+        solver=generate(),
         scorer=target_perplexity(),
     )
 
     log = await eval_async(
         task,
-        model="vllm/EleutherAI/pythia-70m",
-        model_args=dict(
-            chat_template="{% for message in messages %}{{ message.content }}{% endfor %}",
-            device=0,
-        ),
+        model="vllm-completions/EleutherAI/pythia-70m",
+        model_args=dict(device=0),
+        max_tokens=1,
+        prompt_logprobs=1,
     )
 
     assert log[0].samples is not None
@@ -166,17 +163,16 @@ async def test_multi_token_target() -> None:
 
     task = Task(
         dataset=MemoryDataset(samples=samples),
-        solver=generate(max_tokens=1, prompt_logprobs=1),
+        solver=generate(),
         scorer=target_perplexity(),
     )
 
     log = await eval_async(
         task,
-        model="vllm/EleutherAI/pythia-70m",
-        model_args=dict(
-            chat_template="{% for message in messages %}{{ message.content }}{% endfor %}",
-            device=0,
-        ),
+        model="vllm-completions/EleutherAI/pythia-70m",
+        model_args=dict(device=0),
+        max_tokens=1,
+        prompt_logprobs=1,
     )
 
     assert log[0].samples is not None
