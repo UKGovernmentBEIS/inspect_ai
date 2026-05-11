@@ -118,70 +118,9 @@ CACHE_HELP = "Policy for caching of model generations. Specify --cache to cache 
 BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
 
 
-def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
-    @click.option(
-        "--model",
-        type=str,
-        help="Model used to evaluate tasks.",
-        envvar="INSPECT_EVAL_MODEL",
-    )
-    @click.option(
-        "--model-base-url",
-        type=str,
-        help="Base URL for for model API",
-    )
-    @click.option(
-        "-M",
-        multiple=True,
-        type=str,
-        envvar="INSPECT_EVAL_MODEL_ARGS",
-        help="One or more native model arguments (e.g. -M arg=value)",
-    )
-    @click.option(
-        "--model-config",
-        type=str,
-        envvar="INSPECT_EVAL_MODEL_CONFIG",
-        help="YAML or JSON config file with model arguments.",
-    )
-    @click.option(
-        "--model-role",
-        multiple=True,
-        type=str,
-        envvar="INSPECT_EVAL_MODEL_ROLE",
-        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}"',
-    )
-    @click.option(
-        "-T",
-        multiple=True,
-        type=str,
-        envvar="INSPECT_EVAL_TASK_ARGS",
-        help="One or more task arguments (e.g. -T arg=value)",
-    )
-    @click.option(
-        "--task-config",
-        type=str,
-        envvar="INSPECT_EVAL_TASK_CONFIG",
-        help="YAML or JSON config file with task arguments.",
-    )
-    @click.option(
-        "--solver",
-        type=str,
-        envvar="INSPECT_EVAL_SOLVER",
-        help="Solver to execute (overrides task default solver)",
-    )
-    @click.option(
-        "-S",
-        multiple=True,
-        type=str,
-        envvar="INSPECT_EVAL_SOLVER_ARGS",
-        help="One or more solver arguments (e.g. -S arg=value)",
-    )
-    @click.option(
-        "--solver-config",
-        type=str,
-        envvar="INSPECT_EVAL_SOLVER_CONFIG",
-        help="YAML or JSON config file with solver arguments.",
-    )
+def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    """Click decorator: scanner CLI options shared by `eval` / `eval-set` / `eval-retry`."""
+
     @click.option(
         "--scanner",
         type=str,
@@ -279,6 +218,78 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SCAN_GENERATE_CONFIG",
         help="YAML or JSON config file with GenerateConfig for scanner model calls.",
     )
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
+
+
+def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    @click.option(
+        "--model",
+        type=str,
+        help="Model used to evaluate tasks.",
+        envvar="INSPECT_EVAL_MODEL",
+    )
+    @click.option(
+        "--model-base-url",
+        type=str,
+        help="Base URL for for model API",
+    )
+    @click.option(
+        "-M",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_MODEL_ARGS",
+        help="One or more native model arguments (e.g. -M arg=value)",
+    )
+    @click.option(
+        "--model-config",
+        type=str,
+        envvar="INSPECT_EVAL_MODEL_CONFIG",
+        help="YAML or JSON config file with model arguments.",
+    )
+    @click.option(
+        "--model-role",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_MODEL_ROLE",
+        help='Named model role with model name or YAML/JSON config, e.g. --model-role critic=openai/gpt-4o or --model-role grader="{model: mockllm/model, temperature: 0.5}"',
+    )
+    @click.option(
+        "-T",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_TASK_ARGS",
+        help="One or more task arguments (e.g. -T arg=value)",
+    )
+    @click.option(
+        "--task-config",
+        type=str,
+        envvar="INSPECT_EVAL_TASK_CONFIG",
+        help="YAML or JSON config file with task arguments.",
+    )
+    @click.option(
+        "--solver",
+        type=str,
+        envvar="INSPECT_EVAL_SOLVER",
+        help="Solver to execute (overrides task default solver)",
+    )
+    @click.option(
+        "-S",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SOLVER_ARGS",
+        help="One or more solver arguments (e.g. -S arg=value)",
+    )
+    @click.option(
+        "--solver-config",
+        type=str,
+        envvar="INSPECT_EVAL_SOLVER_CONFIG",
+        help="YAML or JSON config file with solver arguments.",
+    )
+    @scanner_options
     @click.option(
         "--tags",
         type=str,
@@ -1318,7 +1329,9 @@ def eval_exec(
     model_args = parse_cli_config(m, model_config)
 
     # resolve scanner spec
-    from ._scanner import resolve_cli_scanner
+    from inspect_ai._display.core.results import set_retry_args_suffix
+
+    from ._scanner import resolve_cli_scanner, serialize_scanner_cli_args
 
     eval_scanner = resolve_cli_scanner(
         scanner,
@@ -1334,6 +1347,27 @@ def eval_exec(
         scan_model_config=scan_model_config,
         scan_model_role=scan_model_role,
         scan_generate_config=scan_generate_config,
+    )
+
+    # preserve scanner flags on the suggested `eval-retry` command shown
+    # if a task interrupts — so a copy-paste resumes against the same
+    # scan dir with the same scanner config
+    set_retry_args_suffix(
+        serialize_scanner_cli_args(
+            scanner,
+            scanner_arg,
+            scans=scans,
+            scan_name=scan_name,
+            scan_tags=scan_tags,
+            scan_metadata=scan_metadata,
+            scan_filter=scan_filter,
+            scan_model=scan_model,
+            scan_model_base_url=scan_model_base_url,
+            scan_model_arg=scan_model_arg,
+            scan_model_config=scan_model_config,
+            scan_model_role=scan_model_role,
+            scan_generate_config=scan_generate_config,
+        )
     )
 
     # parse model roles
@@ -1608,7 +1642,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
         return None
 
 
-@click.command("eval-retry")
+@click.command("eval-retry", cls=EvalCommand)
 @click.argument("log_files", nargs=-1, required=True)
 @click.option(
     "--max-samples", type=int, help=MAX_SAMPLES_HELP, envvar="INSPECT_EVAL_MAX_SAMPLES"
@@ -1780,6 +1814,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
     help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
 )
+@scanner_options
 @common_options
 def eval_retry_command(
     log_files: tuple[str, ...],
@@ -1809,6 +1844,19 @@ def eval_retry_command(
     timeout: int | None,
     attempt_timeout: int | None,
     log_level_transcript: str,
+    scanner: str | None,
+    scanner_arg: tuple[str, ...] | None,
+    scans: str | None,
+    scan_name: str | None,
+    scan_tags: str | None,
+    scan_metadata: tuple[str, ...] | None,
+    scan_filter: tuple[str, ...] | None,
+    scan_model: str | None,
+    scan_model_base_url: str | None,
+    scan_model_arg: tuple[str, ...] | None,
+    scan_model_config: str | None,
+    scan_model_role: tuple[str, ...] | None,
+    scan_generate_config: str | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
@@ -1842,6 +1890,47 @@ def eval_retry_command(
     # parse adaptive_connections (str → bool | AdaptiveConcurrency)
     adaptive_connections_value = _parse_adaptive_connections_cli(adaptive_connections)
 
+    # resolve scanner spec (None unless --scanner was provided)
+    from inspect_ai._display.core.results import set_retry_args_suffix
+
+    from ._scanner import resolve_cli_scanner, serialize_scanner_cli_args
+
+    eval_scanner = resolve_cli_scanner(
+        scanner,
+        scanner_arg,
+        scans=scans,
+        scan_name=scan_name,
+        scan_tags=scan_tags,
+        scan_metadata=scan_metadata,
+        scan_filter=scan_filter,
+        scan_model=scan_model,
+        scan_model_base_url=scan_model_base_url,
+        scan_model_arg=scan_model_arg,
+        scan_model_config=scan_model_config,
+        scan_model_role=scan_model_role,
+        scan_generate_config=scan_generate_config,
+    )
+
+    # preserve scanner flags on any further `eval-retry` suggestion shown
+    # if this retry itself interrupts
+    set_retry_args_suffix(
+        serialize_scanner_cli_args(
+            scanner,
+            scanner_arg,
+            scans=scans,
+            scan_name=scan_name,
+            scan_tags=scan_tags,
+            scan_metadata=scan_metadata,
+            scan_filter=scan_filter,
+            scan_model=scan_model,
+            scan_model_base_url=scan_model_base_url,
+            scan_model_arg=scan_model_arg,
+            scan_model_config=scan_model_config,
+            scan_model_role=scan_model_role,
+            scan_generate_config=scan_generate_config,
+        )
+    )
+
     # retry
     eval_retry(
         retry_log_files,
@@ -1868,6 +1957,7 @@ def eval_retry_command(
         log_shared=log_shared,
         score=score,
         score_display=score_display,
+        scanner=eval_scanner,
         max_retries=max_retries,
         timeout=timeout,
         attempt_timeout=attempt_timeout,

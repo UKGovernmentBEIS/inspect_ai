@@ -146,7 +146,7 @@ The init/finalize bracket lives in a context manager `scan_context(scanner, scan
 
 In `task_run_sample`, after `log_sample` and before `emit_sample_end`:
 
-`scan_eval_sample` builds a `Transcript` from the `EvalSample`, applies the `EvalScannerConfig.filter` SQL clauses to skip non-matching samples, and dispatches each scanner via scout's `_scan_one`. Records to the buffer via an ephemeral `FileRecorder().attach(scan_dir, concurrent_writers=True)`.
+`scan_eval_sample` builds a `Transcript` from the `EvalSample`, applies the `EvalScannerConfig.filter` SQL clauses to skip non-matching samples, and dispatches each scanner via scout's `_scan_one`. Records to the buffer via an ephemeral `FileRecorder().attach(scan_dir)`. Concurrent ephemeral instances share the same in-memory `Summary` and lock through scout's `_buffer_states` cache (see [Concurrency](#concurrency)).
 
 ### Per-sample resume-scan (reuse path)
 
@@ -166,7 +166,7 @@ This routing must fire whether or not there are also pending/failed tasks in the
 
 Inspect_ai runs samples concurrently up to `max_samples`. Multiple `scan_eval_sample` calls overlap. Within each call, scanners dispatch sequentially in a simple loop — keeps scout's prompt-cache-warming "lead/follower" pattern intact (the savings only become positive at 3+ scanners per sample, so naive `tg_collect` would lose the benefit).
 
-The contended resource is scout's `_summary.json` (read-modify-write). `RecorderBuffer` accepts a `concurrent_writers=True` flag that wraps the read-modify-write in a per-buffer-dir `anyio.Lock`. inspect_ai opts in; scout's existing single-process and multi-process flows leave it off.
+The contended resource is scout's `_summary.json` (read-modify-write). `RecorderBuffer` shares a single `Summary` object and an `anyio.Lock` per buffer dir across every instance in the process (`_buffer_states`). Mutating the in-memory `Summary` under the lock and persisting it directly — no disk re-read on each record — keeps the read-modify-write race-free while costing only an uncontended-lock acquisition. `cleanup_buffer_dir` drops the cached entry so a future buffer for the same dir re-reads from disk.
 
 The connection-pool semaphore for the eval-side model API is shared with scanner-side calls when both sides are configured with the same model (e.g. `eval_set(model="X")` + `EvalScannerConfig(model="X")`). Scout's per-Model semaphore keys on `connection_key()` so calls from both sides queue through the same limit. With a distinct scan-side model — the recommended default since scanners are detached from the eval's model (see [Scan-side model](#scan-side-model)) — each side gets its own pool.
 
@@ -242,7 +242,7 @@ These accumulated as the design firmed up; all are merged in scout:
 
 1. `_scan_one` extracted from `_scan_async_inner`'s closure to a module-level function in `_scan.py`.
 2. `Scanners` type alias exported.
-3. `concurrent_writers: bool = False` kwarg on `RecorderBuffer.__init__` / `FileRecorder.init` / `FileRecorder.resume`. Wraps `_summary.json` read-modify-write in a per-buffer-dir `anyio.Lock`.
+3. `RecorderBuffer` now shares an in-memory `Summary` + `anyio.Lock` per buffer dir across every buffer instance in the process (`_buffer_states` cache). Concurrent ephemeral writers (inspect_ai's per-sample dispatch) coordinate through the lock without re-reading `_summary.json` on each record; `cleanup_buffer_dir` invalidates the cache.
 4. `scanner_table` dedupes by `transcript_id` between buffer files and `extra_inputs`. The buffer's per-transcript file is authoritative for its transcript_id; rows for the same id from `extra_inputs` (the previously-compacted parquet) are dropped. Without this, multi-call `sync` cycles double-count.
 
 ## Retry behavior

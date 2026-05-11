@@ -188,7 +188,7 @@ async def scan_init(
     reset_state()
 
     if exists(scan_dir):
-        await recorder.attach(scan_dir, concurrent_writers=True)
+        await recorder.attach(scan_dir)
         _verify_scanner_config_unchanged(
             prior=recorder.scan_spec,
             requested=scanner,
@@ -221,9 +221,7 @@ async def scan_init(
         tags=_normalize_tags(scanner),
         metadata=metadata,
     )
-    await recorder.init(
-        spec, _scans_location(log_dir, scanner), concurrent_writers=True
-    )
+    await recorder.init(spec, _scans_location(log_dir, scanner))
     set_active(
         scan_dir=scan_dir,
         spec=_display_spec(spec),
@@ -310,7 +308,7 @@ async def scan_eval_sample(
         except PrerequisiteError as e:
             raise _rewrap_no_model_error(name, e) from None
         recorder = FileRecorder()
-        await recorder.attach(scan_dir, concurrent_writers=True)
+        await recorder.attach(scan_dir)
         await recorder.record(info, name, reports, metrics=None)
         push_results(summary=await recorder.summary(), scanner=name)
 

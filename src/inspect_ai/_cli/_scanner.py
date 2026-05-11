@@ -88,6 +88,68 @@ def resolve_cli_scanner(
     return _apply_overrides(base, overrides)
 
 
+def serialize_scanner_cli_args(
+    scanner: str | None,
+    scanner_arg: tuple[str, ...] | None,
+    *,
+    scans: str | None = None,
+    scan_name: str | None = None,
+    scan_tags: str | None = None,
+    scan_metadata: tuple[str, ...] | None = None,
+    scan_filter: tuple[str, ...] | None = None,
+    scan_model: str | None = None,
+    scan_model_base_url: str | None = None,
+    scan_model_arg: tuple[str, ...] | None = None,
+    scan_model_config: str | None = None,
+    scan_model_role: tuple[str, ...] | None = None,
+    scan_generate_config: str | None = None,
+) -> str:
+    """Reconstruct the scanner CLI flags as a shell-quoted string.
+
+    Used to append the user's scanner setup onto the `inspect eval-retry`
+    command shown after an interrupted eval, so a copy-paste of the
+    suggested command resumes against the same scan dir with the same
+    scanner config.
+
+    Returns an empty string when no scanner is set (the only flag that
+    can carry scanner state on its own — `scan_*` overrides require
+    `--scanner` per `resolve_cli_scanner`'s validation).
+    """
+    import shlex
+
+    if not scanner:
+        return ""
+
+    parts: list[str] = ["--scanner", scanner]
+    for arg in scanner_arg or ():
+        parts += ["--scanner-arg", arg]
+
+    # singletons
+    for flag, value in (
+        ("--scans", scans),
+        ("--scan-name", scan_name),
+        ("--scan-tags", scan_tags),
+        ("--scan-model", scan_model),
+        ("--scan-model-base-url", scan_model_base_url),
+        ("--scan-model-config", scan_model_config),
+        ("--scan-generate-config", scan_generate_config),
+    ):
+        if value:
+            parts += [flag, value]
+
+    # repeatables
+    for flag, values in (
+        ("--scan-metadata", scan_metadata),
+        ("-F", scan_filter),
+        ("--scan-model-arg", scan_model_arg),
+        ("--scan-model-role", scan_model_role),
+    ):
+        for v in values or ():
+            parts += [flag, v]
+
+    return shlex.join(parts)
+
+
 def _resolve_base_scanner(
     scanner: str,
     scanner_arg: tuple[str, ...] | None,

@@ -942,7 +942,49 @@ def test_eval_set_prints_scan_status_from_api(
         assert "\n\n" in out
 
 
-def test_eval_set_retry_cleans_up_orphan_scans_at_finalize() -> None:
+def test_eval_retry_prints_scan_status_from_api(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """`eval_retry` prints the trailing scan-status line, like `eval`/`eval_set`.
+
+    Without this, a user retrying an interrupted eval that includes
+    scanners would lose the copy-pasteable `scan complete: <dir>` (or
+    `scout scan resume`/`complete` on errors) line that the original
+    `eval` printed.
+    """
+    from inspect_ai import eval, eval_retry
+
+    fails_first_time = _first_attempt_fails()
+
+    @task
+    def t() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, 3)],
+            solver=[fails_first_time, generate()],
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        log1 = eval(
+            tasks=t(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_on_error=0,
+            display="none",
+        )[0]
+        # drop everything the eval run wrote so we only capture retry's output
+        capsys.readouterr()
+
+        eval_retry(
+            log1,
+            scanner=[echo_scanner()],
+            log_dir=log_dir,
+            display="none",
+        )
+        out = capsys.readouterr().out
+        assert "scan complete:" in out
+        # path points at the same scan_id reused from the original run
+        assert f"scan_id={log1.eval.run_id}" in out
     """eval_set's retry path (tenacity, `retry_immediate=False`) is symmetric.
 
     With `retry_immediate=False` (the default), tenacity wraps
@@ -3183,6 +3225,102 @@ def hello_task() -> Task:
         assert spec["scan_name"] == "cli_e2e"
 
 
+def test_cli_eval_retry_command_with_scanner() -> None:
+    """End-to-end: `inspect eval-retry --scanner ...` resumes the scan dir.
+
+    Run `inspect eval` with a scanner against a flaky solver (first
+    attempt errors), then `inspect eval-retry` with the same scanner.
+    Verifies CLI argument plumbing all the way through and confirms the
+    same scan dir is reused (no fresh scan_id={new_run_id} dir).
+    """
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.eval import eval_command, eval_retry_command
+
+    task_body = """\
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import Generate, TaskState, generate, solver
+
+_seen: set = set()
+
+@solver
+def flaky_solver():
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        if state.sample_id in _seen:
+            return state
+        _seen.add(state.sample_id)
+        raise ValueError(f"first attempt for {state.sample_id}")
+    return solve
+
+@task
+def t() -> Task:
+    return Task(
+        dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, 4)],
+        solver=[flaky_solver(), generate()],
+    )
+"""
+    scanner_body = """\
+from inspect_scout import Result, Transcript, scanner
+
+@scanner(messages="all", name="cli_retry_scanner")
+def cli_retry_scanner():
+    async def scan(transcript: Transcript) -> Result:
+        return Result(value=f"ok:{transcript.transcript_id}")
+    return scan
+"""
+
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        Path("t.py").write_text(task_body)
+        Path("scanner.py").write_text(scanner_body)
+
+        # initial eval — some samples will error on first attempt
+        run1 = runner.invoke(
+            eval_command,
+            [
+                "t.py",
+                "--model",
+                "mockllm/model",
+                "--log-dir",
+                "logs",
+                "--scanner",
+                "scanner.py",
+                "--display",
+                "none",
+                "--no-fail-on-error",
+            ],
+        )
+        assert run1.exit_code == 0, f"eval failed: {run1.output}\n{run1.exception}"
+
+        scan_dir_before = _scan_dir("logs")
+        original_scan_id = scan_dir_before.name
+
+        # locate the .eval log to retry
+        log_files = list(Path("logs").glob("*.eval"))
+        assert len(log_files) == 1
+
+        # retry with the same scanner — must reuse the existing scan dir
+        run2 = runner.invoke(
+            eval_retry_command,
+            [
+                str(log_files[0]),
+                "--scanner",
+                "scanner.py",
+                "--display",
+                "none",
+            ],
+        )
+        assert run2.exit_code == 0, (
+            f"eval-retry failed: {run2.output}\n{run2.exception}"
+        )
+
+        # still exactly one scan dir, keyed on the original scan_id
+        scans = list((Path("logs") / "scans").iterdir())
+        assert len(scans) == 1
+        assert scans[0].name == original_scan_id
+
+
 # --- end CLI integration ----------------------------------------------------
 
 
@@ -3993,3 +4131,284 @@ def test_filter_safe_against_malicious_score_name() -> None:
 
     sample = _make_eval_sample(error="oops")
     assert _sample_matches_filters(sample, ["error != ''"])
+
+
+# --- eval_retry resume tests ------------------------------------------------
+#
+# `eval_retry` resumes scans against the original eval's scan dir
+# (`scan_id = eval_log.eval.eval_set_id or eval_log.eval.run_id`) and
+# uses the same `_verify_scanner_config_unchanged` check as eval_set
+# resume.
+
+
+def test_eval_retry_with_scanner_reuses_scan_dir() -> None:
+    """eval_retry with a scanner attaches to the original eval's scan dir.
+
+    Run `eval` with a scanner against a flaky solver (some samples error
+    on first attempt). Retry the resulting log with the same scanner.
+    The retry must reuse the same `scan_id={run_id}` dir — not create a
+    fresh one keyed on the retry's run_id.
+    """
+    from inspect_ai import eval, eval_retry
+
+    fails_first_time = _first_attempt_fails()
+
+    @task
+    def t() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, 4)],
+            solver=[fails_first_time, generate()],
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: eval with scanner. Some samples error first time.
+        log1 = eval(
+            tasks=t(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_on_error=0,
+            display="none",
+        )[0]
+        original_scan_id = log1.eval.run_id
+        original_scan_dir = _scan_dir(log_dir)
+        assert original_scan_dir.name == f"scan_id={original_scan_id}"
+
+        # retry: pass the same scanner. The closure's `seen` set lets
+        # the second attempts succeed.
+        log2 = eval_retry(
+            log1,
+            scanner=[echo_scanner()],
+            log_dir=log_dir,
+            display="none",
+        )[0]
+        # status should now be success — every sample's second attempt worked
+        assert log2.status == "success"
+
+        # exactly one scan dir, still keyed on the ORIGINAL run_id
+        scans = list((UPath(log_dir) / "scans").iterdir())
+        assert len(scans) == 1
+        assert scans[0].name == f"scan_id={original_scan_id}"
+
+        # final summary marks scan complete with all 3 samples scanned
+        summary = _read_summary(scans[0])
+        assert summary["complete"] is True
+        assert summary["scanners"]["echo_scanner"]["scans"] >= 3
+
+
+def test_eval_retry_rejects_changed_scanner_config() -> None:
+    """eval_retry with a different scanner raises `PrerequisiteError`.
+
+    Same resume contract as eval_set: scan_init's
+    `_verify_scanner_config_unchanged` runs before any samples and
+    refuses divergent configs. The original scan dir is untouched.
+    """
+    from inspect_ai import eval, eval_retry
+    from inspect_ai._util.error import PrerequisiteError
+
+    fails_first_time = _first_attempt_fails()
+
+    @task
+    def t() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, 3)],
+            solver=[fails_first_time, generate()],
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        # run 1: scanner_a
+        log1 = eval(
+            tasks=t(),
+            log_dir=log_dir,
+            scanner=[scanner_a()],
+            model="mockllm/model",
+            retry_on_error=0,
+            display="none",
+        )[0]
+        scan_dir = _scan_dir(log_dir)
+        a_rows_before = _read_parquet(scan_dir / "scanner_a.parquet").metadata.num_rows
+        spec_before = json.loads((scan_dir / "_scan.json").read_text())
+
+        # retry with scanner_b — must be rejected before any samples run
+        with pytest.raises(PrerequisiteError, match="Scanner set has changed"):
+            eval_retry(
+                log1,
+                scanner=[scanner_b()],
+                log_dir=log_dir,
+                display="none",
+            )
+
+        # scan dir untouched
+        assert (
+            _read_parquet(scan_dir / "scanner_a.parquet").metadata.num_rows
+            == a_rows_before
+        )
+        assert not (scan_dir / "scanner_b.parquet").exists()
+        assert json.loads((scan_dir / "_scan.json").read_text()) == spec_before
+
+
+def test_eval_retry_without_scanner_leaves_scan_dir_alone() -> None:
+    """eval_retry without --scanner doesn't touch the existing scan dir.
+
+    The retry still produces a new eval log, but no scan dispatch
+    happens — the prior scan dir's contents (rows, summary, errors)
+    are unchanged.
+    """
+    from inspect_ai import eval, eval_retry
+
+    fails_first_time = _first_attempt_fails()
+
+    @task
+    def t() -> Task:
+        return Task(
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(1, 3)],
+            solver=[fails_first_time, generate()],
+        )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        log1 = eval(
+            tasks=t(),
+            log_dir=log_dir,
+            scanner=[echo_scanner()],
+            model="mockllm/model",
+            retry_on_error=0,
+            display="none",
+        )[0]
+        scan_dir = _scan_dir(log_dir)
+        summary_before = _read_summary(scan_dir)
+        rows_before = _read_parquet(scan_dir / "echo_scanner.parquet").metadata.num_rows
+
+        # retry WITHOUT --scanner — same eval logic, no scanner work
+        eval_retry(log1, log_dir=log_dir, display="none")
+
+        # still exactly one scan dir
+        scans = list((UPath(log_dir) / "scans").iterdir())
+        assert len(scans) == 1
+
+        # scan dir unchanged — same summary, same row count
+        assert _read_summary(scans[0]) == summary_before
+        assert (
+            _read_parquet(scans[0] / "echo_scanner.parquet").metadata.num_rows
+            == rows_before
+        )
+
+
+def test_serialize_scanner_cli_args_round_trips_flags() -> None:
+    """`serialize_scanner_cli_args` rebuilds the CLI flags as a shell-safe string."""
+    from inspect_ai._cli._scanner import serialize_scanner_cli_args
+
+    out = serialize_scanner_cli_args(
+        "scanner.yaml",
+        ("k1=v1", "k2=v2"),
+        scans="s3://bucket/scans",
+        scan_name="my scan",  # space → must be quoted
+        scan_tags="a,b",
+        scan_metadata=("owner=ransom",),
+        scan_filter=("error != ''",),
+        scan_model="mockllm/scan",
+        scan_model_base_url=None,
+        scan_model_arg=("key=secret",),
+        scan_model_config=None,
+        scan_model_role=("grader=mockllm/g",),
+        scan_generate_config=None,
+    )
+    # core flags present in order, in a shell-safe form
+    assert out.startswith("--scanner scanner.yaml ")
+    assert "--scanner-arg k1=v1 --scanner-arg k2=v2" in out
+    assert "--scans s3://bucket/scans" in out
+    # spaces force quoting
+    assert "'my scan'" in out
+    # absent options aren't emitted
+    assert "--scan-model-base-url" not in out
+    assert "--scan-model-config" not in out
+
+    # shell-parse round-trip: the output decomposes back to the original
+    # flag values intact (covers tricky cases like the filter's embedded
+    # single quotes, which shlex.join double-quotes)
+    import shlex
+
+    tokens = shlex.split(out)
+    flag_pairs = [(tokens[i], tokens[i + 1]) for i in range(0, len(tokens), 2)]
+    filters = [v for f, v in flag_pairs if f == "-F"]
+    assert filters == ["error != ''"]
+    metadata = [v for f, v in flag_pairs if f == "--scan-metadata"]
+    assert metadata == ["owner=ransom"]
+    model_args = [v for f, v in flag_pairs if f == "--scan-model-arg"]
+    assert model_args == ["key=secret"]
+    roles = [v for f, v in flag_pairs if f == "--scan-model-role"]
+    assert roles == ["grader=mockllm/g"]
+
+
+def test_serialize_scanner_cli_args_empty_when_no_scanner() -> None:
+    """No `--scanner` → empty string (no flags need preserving)."""
+    from inspect_ai._cli._scanner import serialize_scanner_cli_args
+
+    assert serialize_scanner_cli_args(None, None) == ""
+
+
+def test_cli_eval_command_sets_retry_args_suffix() -> None:
+    """`inspect eval --scanner ...` populates the retry-args suffix.
+
+    The CLI captures scanner-related flags so the `task_interrupted`
+    panel's `inspect eval-retry ...` line can append them, letting a
+    user copy-paste-resume the same scan.
+    """
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.eval import eval_command
+    from inspect_ai._display.core.results import _retry_args_suffix
+
+    task_body = """\
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.solver import generate
+
+@task
+def t() -> Task:
+    return Task(
+        dataset=[Sample(input="hi", target="hi")],
+        solver=generate(),
+    )
+"""
+    scanner_body = """\
+from inspect_scout import Result, Transcript, scanner
+
+@scanner(messages="all", name="suffix_scanner")
+def suffix_scanner():
+    async def scan(transcript: Transcript) -> Result:
+        return Result(value="ok")
+    return scan
+"""
+
+    # baseline: no scanner → suffix is empty
+    _retry_args_suffix.set("")
+    runner = CliRunner()
+    with runner.isolated_filesystem():
+        Path("t.py").write_text(task_body)
+        Path("scanner.py").write_text(scanner_body)
+
+        result = runner.invoke(
+            eval_command,
+            [
+                "t.py",
+                "--model",
+                "mockllm/model",
+                "--log-dir",
+                "logs",
+                "--scanner",
+                "scanner.py",
+                "--scan-model",
+                "mockllm/scan-model",
+                "--scan-tags",
+                "x,y",
+                "--display",
+                "none",
+            ],
+        )
+        assert result.exit_code == 0, f"CLI failed: {result.output}\n{result.exception}"
+
+    # the CLI set the suffix during invocation; it persists in this process
+    suffix = _retry_args_suffix.get()
+    assert "--scanner scanner.py" in suffix
+    assert "--scan-model mockllm/scan-model" in suffix
+    assert "--scan-tags x,y" in suffix
