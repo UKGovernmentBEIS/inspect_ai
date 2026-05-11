@@ -19,7 +19,7 @@ from botocore.config import Config
 from typing_extensions import override
 
 from inspect_ai._util._async import current_async_backend
-from inspect_ai._util.file import FileInfo, file, filesystem
+from inspect_ai._util.file import FileInfo, file, filesystem, local_path
 
 
 class _BytesByteReceiveStream(ByteReceiveStream):
@@ -203,7 +203,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             fs = filesystem(filename)
             if fs.is_local():
                 # If local, use AnyIO's async/chunking file reading support
-                return _AnyIOFileByteReceiveStream(_local_path(filename), start, end)
+                return _AnyIOFileByteReceiveStream(local_path(filename), start, end)
             with file(filename, "rb") as f:
                 f.seek(start)
                 return _BytesByteReceiveStream(f.read(end - start))
@@ -342,6 +342,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             config = Config(
                 max_pool_connections=50,
                 retries={"max_attempts": 10, "mode": "adaptive"},
+                # Disable boto3 1.36+ default integrity checksums.
+                # The AwsChunkedWrapper body framing is buggy under
+                # concurrent multipart uploads and intermittently
+                # produces IncompleteBody from S3. See GH-3858.
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
                 **({"signature_version": UNSIGNED} if self._anonymous else {}),
             )
             self._s3_client = boto3.client(
@@ -371,6 +377,12 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         config = AioConfig(
             max_pool_connections=50,
             retries={"max_attempts": 10, "mode": "adaptive"},
+            # Disable boto3 1.36+ default integrity checksums.
+            # The AwsChunkedWrapper body framing is buggy under
+            # concurrent multipart uploads and intermittently
+            # produces IncompleteBody from S3. See GH-3858.
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
             **({"signature_version": UNSIGNED} if anonymous else {}),
         )
         return await session.client(
@@ -435,13 +447,6 @@ def s3_bucket_and_key(filename: str) -> tuple[str, str]:
 
 def is_s3_filename(filename: str) -> bool:
     return filename.startswith("s3://")
-
-
-def _local_path(filename: str) -> str:
-    """Convert a file:// URL to a local path, or return as-is."""
-    if filename.startswith("file://"):
-        return urlparse(filename).path
-    return filename
 
 
 _current_async_fs: ContextVar[AsyncFilesystem | None] = ContextVar(

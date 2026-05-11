@@ -30,14 +30,14 @@ from inspect_ai.tool import ToolChoice, ToolInfo
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI, log_model_retry
+from .._model import ModelAPI, RetryDecision, log_model_retry
 from .._model_call import ModelCall
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIAsyncHttpxClient,
     is_gpt_5_model,
     is_o_series_model,
-    openai_should_retry,
+    openai_classify_retry,
 )
 from .._openai_responses import (
     chat_messages_from_compact_response,
@@ -110,6 +110,18 @@ class OpenAIAPI(ModelAPI):
         self.safety_identifier: str | NotGiven = model_args.pop(
             "safety_identifier", NOT_GIVEN
         )
+
+        # OpenAI recommends preserving `phase` on replayed Responses API
+        # assistant messages:
+        # https://developers.openai.com/api/docs/guides/reasoning#phase-parameter
+        #
+        # Inspect already preserves API-returned phase metadata by default.
+        # This model arg only opts in to synthesizing phase for assistant
+        # messages that were constructed without one.
+        responses_phase = model_args.pop("responses_phase", False)
+        if not isinstance(responses_phase, bool):
+            raise ValueError("responses_phase must be a bool")
+        self.responses_phase: bool = responses_phase
 
         # call super
         super().__init__(
@@ -261,7 +273,7 @@ class OpenAIAPI(ModelAPI):
         except KeyError:
             enc = tiktoken.get_encoding("o200k_base")  # fallback
 
-        tokens = enc.encode(text)
+        tokens = enc.encode(text, disallowed_special=())
         return len(tokens)
 
     @override
@@ -305,7 +317,9 @@ class OpenAIAPI(ModelAPI):
         orphaned tool calls/outputs for per-message counting.
         """
         # Convert messages to OpenAI input format
-        input_items = await openai_responses_inputs(messages, self)
+        input_items = await openai_responses_inputs(
+            messages, self, synthesize_phase=self.responses_phase
+        )
 
         # Apply padding to handle orphaned tool calls for per-message counting
         padded_items = pad_tool_messages_for_token_counting(input_items)
@@ -328,6 +342,9 @@ class OpenAIAPI(ModelAPI):
             or (self.is_gpt_5() and not self.is_gpt_5_chat())
             or self.is_codex()
         )
+
+    def reasoning_only_fallback(self) -> bool:
+        return False
 
     def is_o_series(self) -> bool:
         return is_o_series_model(self.service_model_name())
@@ -423,6 +440,7 @@ class OpenAIAPI(ModelAPI):
                 prompt_cache_retention=self.prompt_cache_retention,
                 safety_identifier=self.safety_identifier,
                 responses_store=self.responses_store,
+                synthesize_phase=self.responses_phase,
                 model_info=self,
                 batcher=self._responses_batcher,
             )
@@ -452,17 +470,15 @@ class OpenAIAPI(ModelAPI):
         return f"openai/{self.service_model_name()}"
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, RateLimitError):
-            # Do not retry on these rate limit errors
-            # The quota exceeded one is related to monthly account quotas.
+            # quota-exceeded is a permanent monthly-quota error, not a transient
+            # rate limit — do not retry.
             if "You exceeded your current quota" in ex.message:
                 warn_once(logger, f"OpenAI quota exceeded, not retrying: {ex.message}")
-                return False
-            else:
-                return True
-        else:
-            return openai_should_retry(ex)
+                return RetryDecision.no()
+        decision = openai_classify_retry(ex)
+        return decision if decision is not None else RetryDecision.no()
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -474,6 +490,14 @@ class OpenAIAPI(ModelAPI):
     def connection_key(self) -> str:
         """Scope for enforcing max_connections (could also use endpoint)."""
         return str(self.api_key)
+
+    @override
+    def apply_redacted_reasoning_tokens_to_input(self) -> bool:
+        # Responses API with store=false + include=encrypted_content re-injects
+        # encrypted reasoning blocks on every turn but excludes them from
+        # usage.input_tokens. Compaction's threshold check needs the count
+        # added back. Chat Completions is unaffected.
+        return self.responses_api
 
     async def reasoning_summaries(self) -> bool:
         # validate that reasoning summaries are supported for this account
@@ -560,7 +584,9 @@ class OpenAIAPI(ModelAPI):
             )
 
         # Convert messages to OpenAI format
-        input_params = await openai_responses_inputs(input, self)
+        input_params = await openai_responses_inputs(
+            input, self, synthesize_phase=self.responses_phase
+        )
 
         # Call compact endpoint (note: compact() doesn't accept reasoning params)
         try:
@@ -591,7 +617,10 @@ class OpenAIAPI(ModelAPI):
 
         reasoning: Reasoning = {}
         if config.reasoning_effort is not None:
-            reasoning["effort"] = config.reasoning_effort
+            effort = (
+                config.reasoning_effort if config.reasoning_effort != "max" else "xhigh"
+            )
+            reasoning["effort"] = effort
         if config.reasoning_summary is not None and config.reasoning_summary != "none":
             reasoning["summary"] = config.reasoning_summary
 

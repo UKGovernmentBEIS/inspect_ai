@@ -16,6 +16,7 @@ from inspect_ai._util.version import verify_required_version
 from inspect_ai.model._openai import chat_choices_from_openai, model_output_from_openai
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_choice import ToolFunction
+from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS, json_schema_dump
 
 from .._chat_message import (
     ChatMessage,
@@ -25,7 +26,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
 
@@ -49,6 +50,12 @@ SAGEMAKER_RETRY_ERROR_CODES = {
 }
 
 # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint.html
+
+# NOTE: tokenize() is not implemented for SageMaker. The vLLM /tokenize
+# endpoint is not reachable through SageMaker's invoke_endpoint API — the
+# container only exposes chat/completion inference fields. Users of
+# target_perplexity() must provide num_target_tokens in sample metadata
+# rather than relying on auto-tokenization.
 
 
 class SagemakerAPI(ModelAPI):
@@ -106,6 +113,9 @@ class SagemakerAPI(ModelAPI):
             else str(completion_mode_val).lower() == "true"
         )
 
+        # Inference component name for multi-model endpoints
+        self.inference_component_name = model_args.get("inference_component_name")
+
         # prompt_logprobs for CPT models (vLLM-specific, not part of standard GenerateConfig)
         prompt_logprobs_val = model_args.get("prompt_logprobs")
         try:
@@ -129,19 +139,19 @@ class SagemakerAPI(ModelAPI):
         return DEFAULT_MAX_TOKENS
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
+        # Sagemaker's retryable codes are all infrastructure transients
+        # (container timeout, ServiceUnavailable, GatewayTimeout) — none are
+        # rate-limit signals — so they all classify as transient.
         if isinstance(ex, ClientError):
             error_code = ex.response.get("Error", {}).get("Code", "")
             status_code = ex.response.get("OriginalStatusCode", -1)
-
-            should_retry_ = (
+            if (
                 error_code == "ModelError"
                 and status_code in SAGEMAKER_RETRY_ERROR_CODES
-            )
-
-            return should_retry_
-        else:
-            return False
+            ):
+                return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -227,6 +237,8 @@ class SagemakerAPI(ModelAPI):
             request_body["logprobs"] = config.top_logprobs
         if self.prompt_logprobs is not None:
             request_body["prompt_logprobs"] = self.prompt_logprobs
+        elif config.prompt_logprobs is not None:
+            request_body["prompt_logprobs"] = config.prompt_logprobs
         if config.top_k is not None:
             request_body["top_k"] = config.top_k
         if config.stop_seqs is not None:
@@ -279,6 +291,16 @@ class SagemakerAPI(ModelAPI):
 
             model_output.choices[0].logprobs = Logprobs(content=content_logprobs)
 
+        # Parse prompt logprobs from completion response (vLLM returns them
+        # inside choices[0].prompt_logprobs as a list of dicts)
+        prompt_logprobs_data = choices[0].get("prompt_logprobs") if choices else None
+        if prompt_logprobs_data is not None:
+            from inspect_ai.model._openai import parse_vllm_prompt_logprobs_raw
+
+            model_output.choices[0].prompt_logprobs = parse_vllm_prompt_logprobs_raw(
+                prompt_logprobs_data
+            )
+
         model_call = ModelCall.create(request=request_body, response=output, time=0)
         return model_output, model_call
 
@@ -308,7 +330,9 @@ class SagemakerAPI(ModelAPI):
                 "function": {
                     "name": tool.name,
                     "description": tool.description,
-                    "parameters": tool.parameters.model_dump(exclude_none=True),
+                    "parameters": json_schema_dump(
+                        tool.parameters, exclude=JSON_SCHEMA_EXTENDED_FIELDS
+                    ),
                 },
             }
             for tool in tools
@@ -361,16 +385,20 @@ class SagemakerAPI(ModelAPI):
 
         # Add response schema
         if config.response_schema is not None:
+            json_schema_dict: dict[str, Any] = {
+                "name": config.response_schema.name,
+                "schema": json_schema_dump(
+                    config.response_schema.json_schema,
+                    exclude=JSON_SCHEMA_EXTENDED_FIELDS,
+                ),
+            }
+            if config.response_schema.description is not None:
+                json_schema_dict["description"] = config.response_schema.description
+            if config.response_schema.strict is not None:
+                json_schema_dict["strict"] = config.response_schema.strict
             request_body["response_format"] = {
                 "type": "json_schema",
-                "json_schema": {
-                    "name": config.response_schema.name,
-                    "schema": config.response_schema.json_schema.model_dump(
-                        exclude_none=True
-                    ),
-                    "description": config.response_schema.description,
-                    "strict": config.response_schema.strict,
-                },
+                "json_schema": json_schema_dict,
             }
 
         # Add extra body parameters
@@ -395,6 +423,7 @@ class SagemakerAPI(ModelAPI):
             ("top_logprobs", config.top_logprobs),
             ("best_of", config.best_of),
             ("reasoning_effort", config.reasoning_effort),
+            ("prompt_logprobs", config.prompt_logprobs),
         ]
 
         for param_name, param_value in optional_params:
@@ -417,15 +446,24 @@ class SagemakerAPI(ModelAPI):
         else:  # "auto" or any other value defaults to auto
             request_body["tool_choice"] = "auto"
 
+    def _build_invoke_kwargs(self, request_body: dict[str, Any]) -> dict[str, Any]:
+        """Build common kwargs for SageMaker endpoint invocation."""
+        kwargs: dict[str, Any] = {
+            "EndpointName": self.endpoint_name,
+            "ContentType": self.request_content_type,
+            "Accept": self.request_accept_type,
+            "Body": json.dumps(request_body),
+        }
+        if self.inference_component_name:
+            kwargs["InferenceComponentName"] = self.inference_component_name
+        return kwargs
+
     async def _invoke_endpoint(
         self, client: Any, request_body: dict[str, Any]
     ) -> bytes:
         """Invoke SageMaker endpoint and return response body bytes."""
         response = await client.invoke_endpoint(
-            EndpointName=self.endpoint_name,
-            ContentType=self.request_content_type,
-            Accept=self.request_accept_type,
-            Body=json.dumps(request_body),
+            **self._build_invoke_kwargs(request_body)
         )
         body: bytes = await response["Body"].read()
         return body
@@ -438,10 +476,7 @@ class SagemakerAPI(ModelAPI):
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/sagemaker-runtime/client/invoke_endpoint_with_response_stream.html
         """
         response = await client.invoke_endpoint_with_response_stream(
-            EndpointName=self.endpoint_name,
-            ContentType=self.request_content_type,
-            Accept=self.request_accept_type,
-            Body=json.dumps(request_body),
+            **self._build_invoke_kwargs(request_body)
         )
 
         # Process streaming response

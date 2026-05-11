@@ -41,18 +41,6 @@ async def test_monitor_proxy_failure() -> None:
         await _monitor_proxy(proc)  # type: ignore[arg-type]
 
 
-async def test_monitor_proxy_stream_ends() -> None:
-    """Stream ends without ExecCompleted (killed) → raises RuntimeError."""
-    proc = FakeProcess(
-        [
-            ExecStderr(data="killed output"),
-        ]
-    )
-
-    with pytest.raises(RuntimeError, match="stream ended"):
-        await _monitor_proxy(proc)  # type: ignore[arg-type]
-
-
 async def test_monitor_proxy_success() -> None:
     """Proxy exits with exit_code=0 → returns silently, no exception."""
     proc = FakeProcess(

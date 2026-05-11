@@ -19,3 +19,5 @@ check: ruff mypy
 .PHONY: test
 test:
 	pytest
+
+include docs/evals/inspect-evals.mk

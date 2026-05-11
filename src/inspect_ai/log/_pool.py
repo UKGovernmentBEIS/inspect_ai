@@ -2,10 +2,9 @@
 
 Design note — hash-based dedup
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Pool dedup keys on a murmur3 hash of the full sorted-keys JSON serialisation
-of each ChatMessage.  This is correct-by-construction: identical content
-always produces the same hash, and mutated content (even with a stale
-``msg.id``) produces a different hash.
+Pool dedup keys on a murmur3 hash of the sorted-keys JSON serialisation
+of each ChatMessage, excluding the ``id`` field so that messages with
+identical content but different UUIDs are treated as duplicates.
 
 The theoretical cost is O(N²) serialisations per sample (each of the N
 model events carries the full conversation history of ~N messages).
@@ -30,8 +29,13 @@ from ._log import EvalSample
 
 
 def _msg_hash(msg: ChatMessage) -> str:
-    """Compute a content hash for dedup keying."""
-    return mm3_hash(json.dumps(json.loads(msg.model_dump_json()), sort_keys=True))
+    """Compute a content hash for dedup keying.
+
+    Excludes the ``id`` field so that messages with identical content
+    but different UUIDs are treated as duplicates.
+    """
+    data = json.loads(msg.model_dump_json(exclude={"id"}))
+    return mm3_hash(json.dumps(data, sort_keys=True))
 
 
 def _build_msg_index(pool: list[ChatMessage]) -> dict[str, int]:
@@ -52,27 +56,38 @@ def _build_call_index(pool: list[JsonValue]) -> dict[str, int]:
 
 def condense_model_event_inputs(
     events: Sequence[Event],
-    message_pool: Sequence[ChatMessage],
+    next_index: int,
     msg_index: Mapping[str, int],
-) -> tuple[list[Event], list[ChatMessage]]:
+) -> tuple[list[Event], dict[str, int], list[tuple[str, ChatMessage]]]:
     """Replace ModelEvent.input with message_pool references.
 
-    Collects all messages from ModelEvent inputs into a message pool
-    and replaces each ModelEvent's input with range-encoded input_refs.
+    Assigns each unique ChatMessage a position starting at ``next_index``
+    and replaces ModelEvent inputs with range-encoded input_refs into a
+    pool. Callers that need the pool list must rebuild it from
+    ``new_entries`` (in order of appearance).
 
     See module docstring for the hash-based dedup strategy.
 
+    Args:
+        events: Events to condense.
+        next_index: The pool position assigned to the first new unique
+            message, typically the current pool length for callers carrying
+            an existing pool.
+        msg_index: Existing hash → pool-index map carried forward across
+            calls.
+
     Returns:
-        A tuple of (condensed events, message pool).
+        A tuple of (condensed events, updated index, new entries
+        appended this call as ``(hash, msg)`` pairs in pool-position
+        order).
     """
-    pool = list(message_pool)
     index = dict(msg_index)
     obj_id_cache: dict[int, str] = {}
+    new_entries: list[tuple[str, ChatMessage]] = []
     result: list[Event] = []
     for event in events:
         if isinstance(event, ModelEvent):
             if event.input_refs is not None and not event.input:
-                # Already condensed — preserve existing refs
                 result.append(event)
                 continue
             if event.input:
@@ -83,14 +98,14 @@ def condense_model_event_inputs(
                         obj_key, _msg_hash(msg)
                     )
                     if h not in index:
-                        index[h] = len(pool)
-                        pool.append(msg)
+                        index[h] = next_index + len(new_entries)
+                        new_entries.append((h, msg))
                     raw_indices.append(index[h])
                 event = event.model_copy(
                     update={"input": [], "input_refs": _compress_refs(raw_indices)}
                 )
         result.append(event)
-    return result, pool
+    return result, index, new_entries
 
 
 # Known keys for messages array in provider wire formats
@@ -144,21 +159,34 @@ def _expand_refs(
 
 def condense_model_event_calls(
     events: Sequence[Event],
-    call_pool: Sequence[JsonValue],
+    next_index: int,
     call_index: Mapping[str, int],
-) -> tuple[list[Event], list[JsonValue]]:
+) -> tuple[list[Event], dict[str, int], list[tuple[str, JsonValue]]]:
     """Replace call.request messages with call_pool references.
 
+    Assigns each unique call message a position starting at ``next_index``
+    and replaces ``event.call.request[<messages_key>]`` with range-encoded
+    ``call_refs``. Callers that need the pool list must rebuild it from
+    ``new_entries``.
+
+    Args:
+        events: Events to condense.
+        next_index: The pool position assigned to the first new unique
+            call message, typically the current pool length for callers
+            carrying an existing pool.
+        call_index: Existing hash → pool-index map.
+
     Returns:
-        A tuple of (condensed events, call pool).
+        A tuple of (condensed events, updated index, new entries
+        appended this call as ``(hash, msg)`` pairs in pool-position
+        order).
     """
-    pool = list(call_pool)
     index = dict(call_index)
+    new_entries: list[tuple[str, JsonValue]] = []
     result: list[Event] = []
     for event in events:
         if isinstance(event, ModelEvent) and event.call:
             if event.call.call_refs is not None:
-                # Already condensed — preserve existing refs
                 result.append(event)
                 continue
             msg_key = next(
@@ -170,8 +198,8 @@ def condense_model_event_calls(
                 for msg in msgs:
                     h = mm3_hash(json.dumps(msg, sort_keys=True))
                     if h not in index:
-                        index[h] = len(pool)
-                        pool.append(msg)
+                        index[h] = next_index + len(new_entries)
+                        new_entries.append((h, msg))
                     raw_indices.append(index[h])
                 new_request = {
                     k: v for k, v in event.call.request.items() if k != msg_key
@@ -185,7 +213,7 @@ def condense_model_event_calls(
                 )
                 event = event.model_copy(update={"call": new_call})
         result.append(event)
-    return result, pool
+    return result, index, new_entries
 
 
 def resolve_model_event_calls(
@@ -248,5 +276,22 @@ def resolve_sample_events_data(sample: EvalSample) -> EvalSample:
         update={
             "events": resolved_events,
             "events_data": None,
+        }
+    )
+
+
+def rebind_sample_timelines(sample: EvalSample) -> EvalSample:
+    """Rebind timelines to the sample's current event objects."""
+    if not sample.timelines:
+        return sample
+
+    from inspect_ai.event._timeline import timeline_dump, timeline_load
+
+    return sample.model_copy(
+        update={
+            "timelines": [
+                timeline_load(timeline_dump(timeline), sample.events)
+                for timeline in sample.timelines
+            ],
         }
     )

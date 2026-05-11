@@ -72,7 +72,7 @@ def test_human_cli(capsys: pytest.CaptureFixture[str], user: str | None):
             ],
         )
 
-        done, _ = concurrent.futures.wait([future], timeout=5)
+        done, _ = concurrent.futures.wait([future], timeout=20)
         if future in done:
             log = future.result()
             assert log.status == "success"

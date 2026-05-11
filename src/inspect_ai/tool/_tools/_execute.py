@@ -23,7 +23,7 @@ def code_viewer(
     return viewer
 
 
-@tool(viewer=code_viewer("bash", "cmd"))
+@tool(viewer=code_viewer("bash", "command"))
 def bash(
     timeout: int | None = None, user: str | None = None, sandbox: str | None = None
 ) -> Tool:
@@ -40,19 +40,19 @@ def bash(
       String with command output (stdout) or command error (stderr).
     """
 
-    async def execute(cmd: str) -> str:
+    async def execute(command: str) -> str:
         """
         Use this function to execute bash commands.
 
         Args:
-          cmd (str): The bash command to execute.
+          command: The bash command to execute.
 
         Returns:
           The output of the command.
         """
         # execute the command
         result = await sandbox_env(sandbox).exec(
-            cmd=["bash", "--login", "-c", cmd], timeout=timeout, user=user
+            cmd=["bash", "--login", "-c", command], timeout=timeout, user=user
         )
         # return output (including stderr if any)
         output = ""

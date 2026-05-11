@@ -1,644 +1,747 @@
-import { g as getDefaultExportFromCjs } from "./_commonjsHelpers.js";
-function _mergeNamespaces(n, m) {
-  for (var i = 0; i < m.length; i++) {
-    const e = m[i];
-    if (typeof e !== "string" && !Array.isArray(e)) {
-      for (const k in e) {
-        if (k !== "default" && !(k in n)) {
-          const d = Object.getOwnPropertyDescriptor(e, k);
-          if (d) {
-            Object.defineProperty(n, k, d.get ? d : {
-              enumerable: true,
-              get: () => e[k]
-            });
-          }
-        }
-      }
-    }
-  }
-  return Object.freeze(Object.defineProperty(n, Symbol.toStringTag, { value: "Module" }));
-}
-var liteDOMCp0aN3bP$2 = {};
-var hasRequiredLiteDOMCp0aN3bP;
-function requireLiteDOMCp0aN3bP() {
-  if (hasRequiredLiteDOMCp0aN3bP) return liteDOMCp0aN3bP$2;
-  hasRequiredLiteDOMCp0aN3bP = 1;
-  (function() {
-    var e, t, n, r, i, a, o, s, c, l = { 244: function(e2, t2, n2) {
-      var r2, i2 = this && this.__extends || (r2 = function(e3, t3) {
-        return r2 = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(e4, t4) {
-          e4.__proto__ = t4;
-        } || function(e4, t4) {
-          for (var n3 in t4) Object.prototype.hasOwnProperty.call(t4, n3) && (e4[n3] = t4[n3]);
-        }, r2(e3, t3);
-      }, function(e3, t3) {
-        if (typeof t3 != `function` && t3 !== null) throw TypeError(`Class extends value ` + String(t3) + ` is not a constructor or null`);
-        function n3() {
-          this.constructor = e3;
-        }
-        r2(e3, t3), e3.prototype = t3 === null ? Object.create(t3) : (n3.prototype = t3.prototype, new n3());
-      }), a2 = this && this.__assign || function() {
-        return a2 = Object.assign || function(e3) {
-          for (var t3, n3 = 1, r3 = arguments.length; n3 < r3; n3++) for (var i3 in t3 = arguments[n3]) Object.prototype.hasOwnProperty.call(t3, i3) && (e3[i3] = t3[i3]);
-          return e3;
-        }, a2.apply(this, arguments);
-      };
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.NodeMixin = t2.NodeMixinOptions = void 0;
-      var o2 = n2(77);
-      t2.NodeMixinOptions = { badCSS: true, badSizes: true }, t2.NodeMixin = function(e3, n3) {
-        var r3;
-        return n3 === void 0 && (n3 = {}), n3 = (0, o2.userOptions)((0, o2.defaultOptions)({}, t2.NodeMixinOptions), n3), r3 = (function(e4) {
-          function t3() {
-            var t4 = [...arguments], n4 = e4.call(this, t4[0]) || this, r4 = n4.constructor;
-            return n4.options = (0, o2.userOptions)((0, o2.defaultOptions)({}, r4.OPTIONS), t4[1]), n4;
-          }
-          return i2(t3, e4), t3.prototype.fontSize = function(t4) {
-            return n3.badCSS ? this.options.fontSize : e4.prototype.fontSize.call(this, t4);
-          }, t3.prototype.fontFamily = function(t4) {
-            return n3.badCSS ? this.options.fontFamily : e4.prototype.fontFamily.call(this, t4);
-          }, t3.prototype.nodeSize = function(r4, i3, a3) {
-            if (i3 === void 0 && (i3 = 1), a3 === void 0 && (a3 = null), !n3.badSizes) return e4.prototype.nodeSize.call(this, r4, i3, a3);
-            var o3 = this.textContent(r4), s2 = Array.from(o3.replace(t3.cjkPattern, ``)).length;
-            return [(Array.from(o3).length - s2) * this.options.cjkCharWidth + s2 * this.options.unknownCharWidth, this.options.unknownCharHeight];
-          }, t3.prototype.nodeBBox = function(t4) {
-            return n3.badSizes ? { left: 0, right: 0, top: 0, bottom: 0 } : e4.prototype.nodeBBox.call(this, t4);
-          }, t3;
-        })(e3), r3.OPTIONS = a2(a2({}, n3.badCSS ? { fontSize: 16, fontFamily: `Times` } : {}), n3.badSizes ? { cjkCharWidth: 1, unknownCharWidth: 0.6, unknownCharHeight: 0.8 } : {}), r3.cjkPattern = new RegExp([`[`, `ᄀ-ᅟ`, `〈〉`, `⺀-〾`, `぀-㉇`, `㉐-䶿`, `一-꓆`, `ꥠ-ꥼ`, `가-힣`, `豈-﫿`, `︐-︙`, `︰-﹫`, `！-｠￠-￦`, `𛀀-𛀁`, `🈀-🉑`, `𠀀-𿿽`, `]`].join(``), `gu`), r3;
-      };
-    }, 877: function(e2, t2, n2) {
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.LiteDocument = void 0;
-      var r2 = n2(946);
-      t2.LiteDocument = (function() {
-        function e3() {
-          this.root = new r2.LiteElement(`html`, {}, [this.head = new r2.LiteElement(`head`), this.body = new r2.LiteElement(`body`)]), this.type = ``;
-        }
-        return Object.defineProperty(e3.prototype, `kind`, { get: function() {
-          return `#document`;
-        }, enumerable: false, configurable: true }), e3;
-      })();
-    }, 946: function(e2, t2) {
-      var n2 = this && this.__assign || function() {
-        return n2 = Object.assign || function(e3) {
-          for (var t3, n3 = 1, r3 = arguments.length; n3 < r3; n3++) for (var i3 in t3 = arguments[n3]) Object.prototype.hasOwnProperty.call(t3, i3) && (e3[i3] = t3[i3]);
-          return e3;
-        }, n2.apply(this, arguments);
-      }, r2 = this && this.__read || function(e3, t3) {
-        var n3 = typeof Symbol == `function` && e3[Symbol.iterator];
-        if (!n3) return e3;
-        var r3, i3, a3 = n3.call(e3), o2 = [];
-        try {
-          for (; (t3 === void 0 || t3-- > 0) && !(r3 = a3.next()).done; ) o2.push(r3.value);
-        } catch (e4) {
-          i3 = { error: e4 };
-        } finally {
-          try {
-            r3 && !r3.done && (n3 = a3.return) && n3.call(a3);
-          } finally {
-            if (i3) throw i3.error;
-          }
-        }
-        return o2;
-      }, i2 = this && this.__spreadArray || function(e3, t3, n3) {
-        if (n3 || arguments.length === 2) for (var r3, i3 = 0, a3 = t3.length; i3 < a3; i3++) !r3 && i3 in t3 || (r3 ||= Array.prototype.slice.call(t3, 0, i3), r3[i3] = t3[i3]);
-        return e3.concat(r3 || Array.prototype.slice.call(t3));
-      }, a2 = this && this.__values || function(e3) {
-        var t3 = typeof Symbol == `function` && Symbol.iterator, n3 = t3 && e3[t3], r3 = 0;
-        if (n3) return n3.call(e3);
-        if (e3 && typeof e3.length == `number`) return { next: function() {
-          return e3 && r3 >= e3.length && (e3 = void 0), { value: e3 && e3[r3++], done: !e3 };
-        } };
-        throw TypeError(t3 ? `Object is not iterable.` : `Symbol.iterator is not defined.`);
-      };
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.LiteElement = void 0, t2.LiteElement = function(e3, t3, o2) {
-        var s2, c2;
-        t3 === void 0 && (t3 = {}), o2 === void 0 && (o2 = []), this.kind = e3, this.attributes = n2({}, t3), this.children = i2([], r2(o2), false);
-        try {
-          for (var l2 = a2(this.children), u2 = l2.next(); !u2.done; u2 = l2.next()) u2.value.parent = this;
-        } catch (e4) {
-          s2 = { error: e4 };
-        } finally {
-          try {
-            u2 && !u2.done && (c2 = l2.return) && c2.call(l2);
-          } finally {
-            if (s2) throw s2.error;
-          }
-        }
-        this.styles = null;
-      };
-    }, 6: function(e2, t2) {
-      var n2 = this && this.__read || function(e3, t3) {
-        var n3 = typeof Symbol == `function` && e3[Symbol.iterator];
-        if (!n3) return e3;
-        var r3, i2, a2 = n3.call(e3), o2 = [];
-        try {
-          for (; (t3 === void 0 || t3-- > 0) && !(r3 = a2.next()).done; ) o2.push(r3.value);
-        } catch (e4) {
-          i2 = { error: e4 };
-        } finally {
-          try {
-            r3 && !r3.done && (n3 = a2.return) && n3.call(a2);
-          } finally {
-            if (i2) throw i2.error;
-          }
-        }
-        return o2;
-      }, r2 = this && this.__spreadArray || function(e3, t3, n3) {
-        if (n3 || arguments.length === 2) for (var r3, i2 = 0, a2 = t3.length; i2 < a2; i2++) !r3 && i2 in t3 || (r3 ||= Array.prototype.slice.call(t3, 0, i2), r3[i2] = t3[i2]);
-        return e3.concat(r3 || Array.prototype.slice.call(t3));
-      };
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.LiteList = void 0, t2.LiteList = (function() {
-        function e3(e4) {
-          this.nodes = [], this.nodes = r2([], n2(e4), false);
-        }
-        return e3.prototype.append = function(e4) {
-          this.nodes.push(e4);
-        }, e3.prototype[Symbol.iterator] = function() {
-          var e4 = 0;
-          return { next: function() {
-            return e4 === this.nodes.length ? { value: null, done: true } : { value: this.nodes[e4++], done: false };
-          } };
-        }, e3;
-      })();
-    }, 246: function(e2, t2, n2) {
-      var r2 = this && this.__createBinding || (Object.create ? function(e3, t3, n3, r3) {
-        r3 === void 0 && (r3 = n3);
-        var i3 = Object.getOwnPropertyDescriptor(t3, n3);
-        i3 && !(`get` in i3 ? !t3.__esModule : i3.writable || i3.configurable) || (i3 = { enumerable: true, get: function() {
-          return t3[n3];
-        } }), Object.defineProperty(e3, r3, i3);
-      } : function(e3, t3, n3, r3) {
-        r3 === void 0 && (r3 = n3), e3[r3] = t3[n3];
-      }), i2 = this && this.__setModuleDefault || (Object.create ? function(e3, t3) {
-        Object.defineProperty(e3, `default`, { enumerable: true, value: t3 });
-      } : function(e3, t3) {
-        e3.default = t3;
-      }), a2 = this && this.__importStar || function(e3) {
-        if (e3 && e3.__esModule) return e3;
-        var t3 = {};
-        if (e3 != null) for (var n3 in e3) n3 !== `default` && Object.prototype.hasOwnProperty.call(e3, n3) && r2(t3, e3, n3);
-        return i2(t3, e3), t3;
-      }, o2 = this && this.__read || function(e3, t3) {
-        var n3 = typeof Symbol == `function` && e3[Symbol.iterator];
-        if (!n3) return e3;
-        var r3, i3, a3 = n3.call(e3), o3 = [];
-        try {
-          for (; (t3 === void 0 || t3-- > 0) && !(r3 = a3.next()).done; ) o3.push(r3.value);
-        } catch (e4) {
-          i3 = { error: e4 };
-        } finally {
-          try {
-            r3 && !r3.done && (n3 = a3.return) && n3.call(a3);
-          } finally {
-            if (i3) throw i3.error;
-          }
-        }
-        return o3;
-      }, s2 = this && this.__values || function(e3) {
-        var t3 = typeof Symbol == `function` && Symbol.iterator, n3 = t3 && e3[t3], r3 = 0;
-        if (n3) return n3.call(e3);
-        if (e3 && typeof e3.length == `number`) return { next: function() {
-          return e3 && r3 >= e3.length && (e3 = void 0), { value: e3 && e3[r3++], done: !e3 };
-        } };
-        throw TypeError(t3 ? `Object is not iterable.` : `Symbol.iterator is not defined.`);
-      };
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.LiteParser = t2.PATTERNS = void 0;
-      var c2, l2 = a2(n2(29)), u2 = n2(946), d2 = n2(735);
-      (function(e3) {
-        e3.TAGNAME = `[a-z][^\\s\\n>]*`, e3.ATTNAME = `[a-z][^\\s\\n>=]*`, e3.VALUE = `(?:'[^']*'|"[^"]*"|[^\\s\\n]+)`, e3.VALUESPLIT = `(?:'([^']*)'|"([^"]*)"|([^\\s\\n]+))`, e3.SPACE = `(?:\\s|\\n)+`, e3.OPTIONALSPACE = `(?:\\s|\\n)*`, e3.ATTRIBUTE = e3.ATTNAME + `(?:` + e3.OPTIONALSPACE + `=` + e3.OPTIONALSPACE + e3.VALUE + `)?`, e3.ATTRIBUTESPLIT = `(` + e3.ATTNAME + `)(?:` + e3.OPTIONALSPACE + `=` + e3.OPTIONALSPACE + e3.VALUESPLIT + `)?`, e3.TAG = `(<(?:` + e3.TAGNAME + `(?:` + e3.SPACE + e3.ATTRIBUTE + `)*` + e3.OPTIONALSPACE + `/?|/` + e3.TAGNAME + `|!--[^]*?--|![^]*?)(?:>|$))`, e3.tag = new RegExp(e3.TAG, `i`), e3.attr = new RegExp(e3.ATTRIBUTE, `i`), e3.attrsplit = new RegExp(e3.ATTRIBUTESPLIT, `i`);
-      })(c2 = t2.PATTERNS ||= {}), t2.LiteParser = (function() {
-        function e3() {
-        }
-        return e3.prototype.parseFromString = function(e4, t3, n3) {
-          n3 === void 0 && (n3 = null);
-          for (var r3 = n3.createDocument(), i3 = n3.body(r3), a3 = e4.replace(/<\?.*?\?>/g, ``).split(c2.tag); a3.length; ) {
-            var o3 = a3.shift(), s3 = a3.shift();
-            o3 && this.addText(n3, i3, o3), s3 && s3.charAt(s3.length - 1) === `>` && (s3.charAt(1) === `!` ? this.addComment(n3, i3, s3) : i3 = s3.charAt(1) === `/` ? this.closeTag(n3, i3, s3) : this.openTag(n3, i3, s3, a3));
-          }
-          return this.checkDocument(n3, r3), r3;
-        }, e3.prototype.addText = function(e4, t3, n3) {
-          return n3 = l2.translate(n3), e4.append(t3, e4.text(n3));
-        }, e3.prototype.addComment = function(e4, t3, n3) {
-          return e4.append(t3, new d2.LiteComment(n3));
-        }, e3.prototype.closeTag = function(e4, t3, n3) {
-          for (var r3 = n3.slice(2, n3.length - 1).toLowerCase(); e4.parent(t3) && e4.kind(t3) !== r3; ) t3 = e4.parent(t3);
-          return e4.parent(t3);
-        }, e3.prototype.openTag = function(e4, t3, n3, r3) {
-          var i3 = this.constructor.PCDATA, a3 = this.constructor.SELF_CLOSING, o3 = n3.match(/<(.*?)[\s\n>\/]/)[1].toLowerCase(), s3 = e4.node(o3), l3 = n3.replace(/^<.*?[\s\n>]/, ``).split(c2.attrsplit);
-          return (l3.pop().match(/>$/) || l3.length < 5) && (this.addAttributes(e4, s3, l3), e4.append(t3, s3), a3[o3] || n3.match(/\/>$/) || (i3[o3] ? this.handlePCDATA(e4, s3, o3, r3) : t3 = s3)), t3;
-        }, e3.prototype.addAttributes = function(e4, t3, n3) {
-          for (var r3 = this.constructor.CDATA_ATTR; n3.length; ) {
-            var i3 = o2(n3.splice(0, 5), 5), a3 = i3[1], s3 = i3[2], c3 = i3[3], u3 = i3[4], d3 = s3 || c3 || u3 || ``;
-            r3[a3] || (d3 = l2.translate(d3)), e4.setAttribute(t3, a3, d3);
-          }
-        }, e3.prototype.handlePCDATA = function(e4, t3, n3, r3) {
-          for (var i3 = [], a3 = `</` + n3 + `>`, o3 = ``; r3.length && o3 !== a3; ) i3.push(o3), i3.push(r3.shift()), o3 = r3.shift();
-          e4.append(t3, e4.text(i3.join(``)));
-        }, e3.prototype.checkDocument = function(e4, t3) {
-          var n3, r3, i3, a3, o3 = this.getOnlyChild(e4, e4.body(t3));
-          if (o3) {
-            try {
-              for (var c3 = s2(e4.childNodes(e4.body(t3))), l3 = c3.next(); !l3.done && (p = l3.value) !== o3; l3 = c3.next()) p instanceof d2.LiteComment && p.value.match(/^<!DOCTYPE/) && (t3.type = p.value);
-            } catch (e5) {
-              n3 = { error: e5 };
-            } finally {
-              try {
-                l3 && !l3.done && (r3 = c3.return) && r3.call(c3);
-              } finally {
-                if (n3) throw n3.error;
-              }
-            }
-            switch (e4.kind(o3)) {
-              case `html`:
-                try {
-                  for (var u3 = s2(o3.children), f = u3.next(); !f.done; f = u3.next()) {
-                    var p = f.value;
-                    switch (e4.kind(p)) {
-                      case `head`:
-                        t3.head = p;
-                        break;
-                      case `body`:
-                        t3.body = p;
-                    }
-                  }
-                } catch (e5) {
-                  i3 = { error: e5 };
-                } finally {
-                  try {
-                    f && !f.done && (a3 = u3.return) && a3.call(u3);
-                  } finally {
-                    if (i3) throw i3.error;
-                  }
-                }
-                t3.root = o3, e4.remove(o3), e4.parent(t3.body) !== o3 && e4.append(o3, t3.body), e4.parent(t3.head) !== o3 && e4.insert(t3.head, t3.body);
-                break;
-              case `head`:
-                t3.head = e4.replace(o3, t3.head);
-                break;
-              case `body`:
-                t3.body = e4.replace(o3, t3.body);
-            }
-          }
-        }, e3.prototype.getOnlyChild = function(e4, t3) {
-          var n3, r3, i3 = null;
-          try {
-            for (var a3 = s2(e4.childNodes(t3)), o3 = a3.next(); !o3.done; o3 = a3.next()) {
-              var c3 = o3.value;
-              if (c3 instanceof u2.LiteElement) {
-                if (i3) return null;
-                i3 = c3;
-              }
-            }
-          } catch (e5) {
-            n3 = { error: e5 };
-          } finally {
-            try {
-              o3 && !o3.done && (r3 = a3.return) && r3.call(a3);
-            } finally {
-              if (n3) throw n3.error;
-            }
-          }
-          return i3;
-        }, e3.prototype.serialize = function(e4, t3, n3) {
-          var r3 = this;
-          n3 === void 0 && (n3 = false);
-          var i3 = this.constructor.SELF_CLOSING, a3 = this.constructor.CDATA_ATTR, o3 = e4.kind(t3), s3 = e4.allAttributes(t3).map((function(e5) {
-            return e5.name + `="` + (a3[e5.name] ? e5.value : r3.protectAttribute(e5.value)) + `"`;
-          })).join(` `), c3 = this.serializeInner(e4, t3, n3);
-          return `<` + o3 + (s3 ? ` ` + s3 : ``) + (n3 && !c3 || i3[o3] ? n3 ? `/>` : `>` : `>${c3}</${o3}>`);
-        }, e3.prototype.serializeInner = function(e4, t3, n3) {
-          var r3 = this;
-          return n3 === void 0 && (n3 = false), this.constructor.PCDATA.hasOwnProperty(t3.kind) ? e4.childNodes(t3).map((function(t4) {
-            return e4.value(t4);
-          })).join(``) : e4.childNodes(t3).map((function(t4) {
-            var i3 = e4.kind(t4);
-            return i3 === `#text` ? r3.protectHTML(e4.value(t4)) : i3 === `#comment` ? t4.value : r3.serialize(e4, t4, n3);
-          })).join(``);
-        }, e3.prototype.protectAttribute = function(e4) {
-          return typeof e4 != `string` && (e4 = String(e4)), e4.replace(/"/g, `&quot;`);
-        }, e3.prototype.protectHTML = function(e4) {
-          return e4.replace(/&/g, `&amp;`).replace(/</g, `&lt;`).replace(/>/g, `&gt;`);
-        }, e3.SELF_CLOSING = { area: true, base: true, br: true, col: true, command: true, embed: true, hr: true, img: true, input: true, keygen: true, link: true, menuitem: true, meta: true, param: true, source: true, track: true, wbr: true }, e3.PCDATA = { option: true, textarea: true, fieldset: true, title: true, style: true, script: true }, e3.CDATA_ATTR = { style: true, datafld: true, datasrc: true, href: true, src: true, longdesc: true, usemap: true, cite: true, datetime: true, action: true, axis: true, profile: true, content: true, scheme: true }, e3;
-      })();
-    }, 735: function(e2, t2) {
-      var n2, r2 = this && this.__extends || (n2 = function(e3, t3) {
-        return n2 = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(e4, t4) {
-          e4.__proto__ = t4;
-        } || function(e4, t4) {
-          for (var n3 in t4) Object.prototype.hasOwnProperty.call(t4, n3) && (e4[n3] = t4[n3]);
-        }, n2(e3, t3);
-      }, function(e3, t3) {
-        if (typeof t3 != `function` && t3 !== null) throw TypeError(`Class extends value ` + String(t3) + ` is not a constructor or null`);
-        function r3() {
-          this.constructor = e3;
-        }
-        n2(e3, t3), e3.prototype = t3 === null ? Object.create(t3) : (r3.prototype = t3.prototype, new r3());
-      });
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.LiteComment = t2.LiteText = void 0;
-      var i2 = (function() {
-        function e3(e4) {
-          e4 === void 0 && (e4 = ``), this.value = e4;
-        }
-        return Object.defineProperty(e3.prototype, `kind`, { get: function() {
-          return `#text`;
-        }, enumerable: false, configurable: true }), e3;
-      })();
-      t2.LiteText = i2, t2.LiteComment = (function(e3) {
-        function t3() {
-          return e3 !== null && e3.apply(this, arguments) || this;
-        }
-        return r2(t3, e3), Object.defineProperty(t3.prototype, `kind`, { get: function() {
-          return `#comment`;
-        }, enumerable: false, configurable: true }), t3;
-      })(i2);
-    }, 492: function(e2, t2, n2) {
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.LiteWindow = void 0;
-      var r2 = n2(946), i2 = n2(877), a2 = n2(6), o2 = n2(246);
-      t2.LiteWindow = function() {
-        this.DOMParser = o2.LiteParser, this.NodeList = a2.LiteList, this.HTMLCollection = a2.LiteList, this.HTMLElement = r2.LiteElement, this.DocumentFragment = a2.LiteList, this.Document = i2.LiteDocument, this.document = new i2.LiteDocument();
-      };
-    }, 250: function(e2, t2, n2) {
-      var r2, i2 = this && this.__extends || (r2 = function(e3, t3) {
-        return r2 = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(e4, t4) {
-          e4.__proto__ = t4;
-        } || function(e4, t4) {
-          for (var n3 in t4) Object.prototype.hasOwnProperty.call(t4, n3) && (e4[n3] = t4[n3]);
-        }, r2(e3, t3);
-      }, function(e3, t3) {
-        if (typeof t3 != `function` && t3 !== null) throw TypeError(`Class extends value ` + String(t3) + ` is not a constructor or null`);
-        function n3() {
-          this.constructor = e3;
-        }
-        r2(e3, t3), e3.prototype = t3 === null ? Object.create(t3) : (n3.prototype = t3.prototype, new n3());
-      }), a2 = this && this.__assign || function() {
-        return a2 = Object.assign || function(e3) {
-          for (var t3, n3 = 1, r3 = arguments.length; n3 < r3; n3++) for (var i3 in t3 = arguments[n3]) Object.prototype.hasOwnProperty.call(t3, i3) && (e3[i3] = t3[i3]);
-          return e3;
-        }, a2.apply(this, arguments);
-      }, o2 = this && this.__values || function(e3) {
-        var t3 = typeof Symbol == `function` && Symbol.iterator, n3 = t3 && e3[t3], r3 = 0;
-        if (n3) return n3.call(e3);
-        if (e3 && typeof e3.length == `number`) return { next: function() {
-          return e3 && r3 >= e3.length && (e3 = void 0), { value: e3 && e3[r3++], done: !e3 };
-        } };
-        throw TypeError(t3 ? `Object is not iterable.` : `Symbol.iterator is not defined.`);
-      }, s2 = this && this.__read || function(e3, t3) {
-        var n3 = typeof Symbol == `function` && e3[Symbol.iterator];
-        if (!n3) return e3;
-        var r3, i3, a3 = n3.call(e3), o3 = [];
-        try {
-          for (; (t3 === void 0 || t3-- > 0) && !(r3 = a3.next()).done; ) o3.push(r3.value);
-        } catch (e4) {
-          i3 = { error: e4 };
-        } finally {
-          try {
-            r3 && !r3.done && (n3 = a3.return) && n3.call(a3);
-          } finally {
-            if (i3) throw i3.error;
-          }
-        }
-        return o3;
-      }, c2 = this && this.__spreadArray || function(e3, t3, n3) {
-        if (n3 || arguments.length === 2) for (var r3, i3 = 0, a3 = t3.length; i3 < a3; i3++) !r3 && i3 in t3 || (r3 ||= Array.prototype.slice.call(t3, 0, i3), r3[i3] = t3[i3]);
-        return e3.concat(r3 || Array.prototype.slice.call(t3));
-      };
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.liteAdaptor = t2.LiteAdaptor = t2.LiteBase = void 0;
-      var l2 = n2(857), u2 = n2(244), d2 = n2(877), f = n2(946), p = n2(735), m = n2(492), h = n2(246), g = n2(878), _ = (function(e3) {
-        function t3() {
-          var t4 = e3.call(this) || this;
-          return t4.parser = new h.LiteParser(), t4.window = new m.LiteWindow(), t4;
-        }
-        return i2(t3, e3), t3.prototype.parse = function(e4, t4) {
-          return this.parser.parseFromString(e4, t4, this);
-        }, t3.prototype.create = function(e4, t4) {
-          return new f.LiteElement(e4);
-        }, t3.prototype.text = function(e4) {
-          return new p.LiteText(e4);
-        }, t3.prototype.comment = function(e4) {
-          return new p.LiteComment(e4);
-        }, t3.prototype.createDocument = function() {
-          return new d2.LiteDocument();
-        }, t3.prototype.head = function(e4) {
-          return e4.head;
-        }, t3.prototype.body = function(e4) {
-          return e4.body;
-        }, t3.prototype.root = function(e4) {
-          return e4.root;
-        }, t3.prototype.doctype = function(e4) {
-          return e4.type;
-        }, t3.prototype.tags = function(e4, t4, n3) {
-          n3 === void 0 && (n3 = null);
-          var r3 = [], i3 = [];
-          if (n3) return i3;
-          for (var a3 = e4; a3; ) {
-            var o3 = a3.kind;
-            o3 !== `#text` && o3 !== `#comment` && (a3 = a3, o3 === t4 && i3.push(a3), a3.children.length && (r3 = a3.children.concat(r3))), a3 = r3.shift();
-          }
-          return i3;
-        }, t3.prototype.elementById = function(e4, t4) {
-          for (var n3 = [], r3 = e4; r3; ) {
-            if (r3.kind !== `#text` && r3.kind !== `#comment`) {
-              if ((r3 = r3).attributes.id === t4) return r3;
-              r3.children.length && (n3 = r3.children.concat(n3));
-            }
-            r3 = n3.shift();
-          }
-          return null;
-        }, t3.prototype.elementsByClass = function(e4, t4) {
-          for (var n3 = [], r3 = [], i3 = e4; i3; ) i3.kind !== `#text` && i3.kind !== `#comment` && (((i3 = i3).attributes.class || ``).trim().split(/ +/).includes(t4) && r3.push(i3), i3.children.length && (n3 = i3.children.concat(n3))), i3 = n3.shift();
-          return r3;
-        }, t3.prototype.getElements = function(e4, t4) {
-          var n3, r3, i3 = [], a3 = this.body(t4);
-          try {
-            for (var s3 = o2(e4), c3 = s3.next(); !c3.done; c3 = s3.next()) {
-              var l3 = c3.value;
-              if (typeof l3 == `string`) if (l3.charAt(0) === `#`) {
-                var u3 = this.elementById(a3, l3.slice(1));
-                u3 && i3.push(u3);
-              } else l3.charAt(0) === `.` ? i3 = i3.concat(this.elementsByClass(a3, l3.slice(1))) : l3.match(/^[-a-z][-a-z0-9]*$/i) && (i3 = i3.concat(this.tags(a3, l3)));
-              else Array.isArray(l3) ? i3 = i3.concat(l3) : l3 instanceof this.window.NodeList || l3 instanceof this.window.HTMLCollection ? i3 = i3.concat(l3.nodes) : i3.push(l3);
-            }
-          } catch (e5) {
-            n3 = { error: e5 };
-          } finally {
-            try {
-              c3 && !c3.done && (r3 = s3.return) && r3.call(s3);
-            } finally {
-              if (n3) throw n3.error;
-            }
-          }
-          return i3;
-        }, t3.prototype.contains = function(e4, t4) {
-          for (; t4 && t4 !== e4; ) t4 = this.parent(t4);
-          return !!t4;
-        }, t3.prototype.parent = function(e4) {
-          return e4.parent;
-        }, t3.prototype.childIndex = function(e4) {
-          return e4.parent ? e4.parent.children.findIndex((function(t4) {
-            return t4 === e4;
-          })) : -1;
-        }, t3.prototype.append = function(e4, t4) {
-          return t4.parent && this.remove(t4), e4.children.push(t4), t4.parent = e4, t4;
-        }, t3.prototype.insert = function(e4, t4) {
-          if (e4.parent && this.remove(e4), t4 && t4.parent) {
-            var n3 = this.childIndex(t4);
-            t4.parent.children.splice(n3, 0, e4), e4.parent = t4.parent;
-          }
-        }, t3.prototype.remove = function(e4) {
-          var t4 = this.childIndex(e4);
-          return t4 >= 0 && e4.parent.children.splice(t4, 1), e4.parent = null, e4;
-        }, t3.prototype.replace = function(e4, t4) {
-          var n3 = this.childIndex(t4);
-          return n3 >= 0 && (t4.parent.children[n3] = e4, e4.parent = t4.parent, t4.parent = null), t4;
-        }, t3.prototype.clone = function(e4) {
-          var t4 = this, n3 = new f.LiteElement(e4.kind);
-          return n3.attributes = a2({}, e4.attributes), n3.children = e4.children.map((function(e5) {
-            if (e5.kind === `#text`) return new p.LiteText(e5.value);
-            if (e5.kind === `#comment`) return new p.LiteComment(e5.value);
-            var r3 = t4.clone(e5);
-            return r3.parent = n3, r3;
-          })), n3;
-        }, t3.prototype.split = function(e4, t4) {
-          var n3 = new p.LiteText(e4.value.slice(t4));
-          return e4.value = e4.value.slice(0, t4), e4.parent.children.splice(this.childIndex(e4) + 1, 0, n3), n3.parent = e4.parent, n3;
-        }, t3.prototype.next = function(e4) {
-          var t4 = e4.parent;
-          if (!t4) return null;
-          var n3 = this.childIndex(e4) + 1;
-          return n3 >= 0 && n3 < t4.children.length ? t4.children[n3] : null;
-        }, t3.prototype.previous = function(e4) {
-          var t4 = e4.parent;
-          if (!t4) return null;
-          var n3 = this.childIndex(e4) - 1;
-          return n3 >= 0 ? t4.children[n3] : null;
-        }, t3.prototype.firstChild = function(e4) {
-          return e4.children[0];
-        }, t3.prototype.lastChild = function(e4) {
-          return e4.children[e4.children.length - 1];
-        }, t3.prototype.childNodes = function(e4) {
-          return c2([], s2(e4.children), false);
-        }, t3.prototype.childNode = function(e4, t4) {
-          return e4.children[t4];
-        }, t3.prototype.kind = function(e4) {
-          return e4.kind;
-        }, t3.prototype.value = function(e4) {
-          return e4.kind === `#text` ? e4.value : e4.kind === `#comment` ? e4.value.replace(/^<!(--)?((?:.|\n)*)\1>$/, `$2`) : ``;
-        }, t3.prototype.textContent = function(e4) {
-          var t4 = this;
-          return e4.children.reduce((function(e5, n3) {
-            return e5 + (n3.kind === `#text` ? n3.value : n3.kind === `#comment` ? `` : t4.textContent(n3));
-          }), ``);
-        }, t3.prototype.innerHTML = function(e4) {
-          return this.parser.serializeInner(this, e4);
-        }, t3.prototype.outerHTML = function(e4) {
-          return this.parser.serialize(this, e4);
-        }, t3.prototype.serializeXML = function(e4) {
-          return this.parser.serialize(this, e4, true);
-        }, t3.prototype.setAttribute = function(e4, t4, n3, r3) {
-          r3 === void 0 && (r3 = null), typeof n3 != `string` && (n3 = String(n3)), r3 && (t4 = r3.replace(/.*\//, ``) + `:` + t4.replace(/^.*:/, ``)), e4.attributes[t4] = n3, t4 === `style` && (e4.styles = null);
-        }, t3.prototype.getAttribute = function(e4, t4) {
-          return e4.attributes[t4];
-        }, t3.prototype.removeAttribute = function(e4, t4) {
-          delete e4.attributes[t4];
-        }, t3.prototype.hasAttribute = function(e4, t4) {
-          return e4.attributes.hasOwnProperty(t4);
-        }, t3.prototype.allAttributes = function(e4) {
-          var t4, n3, r3 = e4.attributes, i3 = [];
-          try {
-            for (var a3 = o2(Object.keys(r3)), s3 = a3.next(); !s3.done; s3 = a3.next()) {
-              var c3 = s3.value;
-              i3.push({ name: c3, value: r3[c3] });
-            }
-          } catch (e5) {
-            t4 = { error: e5 };
-          } finally {
-            try {
-              s3 && !s3.done && (n3 = a3.return) && n3.call(a3);
-            } finally {
-              if (t4) throw t4.error;
-            }
-          }
-          return i3;
-        }, t3.prototype.addClass = function(e4, t4) {
-          var n3 = (e4.attributes.class || ``).split(/ /);
-          n3.find((function(e5) {
-            return e5 === t4;
-          })) || (n3.push(t4), e4.attributes.class = n3.join(` `));
-        }, t3.prototype.removeClass = function(e4, t4) {
-          var n3 = (e4.attributes.class || ``).split(/ /), r3 = n3.findIndex((function(e5) {
-            return e5 === t4;
-          }));
-          r3 >= 0 && (n3.splice(r3, 1), e4.attributes.class = n3.join(` `));
-        }, t3.prototype.hasClass = function(e4, t4) {
-          return !!(e4.attributes.class || ``).split(/ /).find((function(e5) {
-            return e5 === t4;
-          }));
-        }, t3.prototype.setStyle = function(e4, t4, n3) {
-          e4.styles ||= new g.Styles(this.getAttribute(e4, `style`)), e4.styles.set(t4, n3), e4.attributes.style = e4.styles.cssText;
-        }, t3.prototype.getStyle = function(e4, t4) {
-          if (!e4.styles) {
-            var n3 = this.getAttribute(e4, `style`);
-            if (!n3) return ``;
-            e4.styles = new g.Styles(n3);
-          }
-          return e4.styles.get(t4);
-        }, t3.prototype.allStyles = function(e4) {
-          return this.getAttribute(e4, `style`);
-        }, t3.prototype.insertRules = function(e4, t4) {
-          e4.children = [this.text(t4.join(`
+//#region ../../node_modules/.pnpm/mathxyjax3@0.8.3/node_modules/mathxyjax3/dist/liteDOM-Cp0aN3bP.js
+(function() {
+	var e, t, n, r, i, a, o, s, c, l = {
+		244: function(e, t, n) {
+			var r, i = this && this.__extends || (r = function(e, t) {
+				return r = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(e, t) {
+					e.__proto__ = t;
+				} || function(e, t) {
+					for (var n in t) Object.prototype.hasOwnProperty.call(t, n) && (e[n] = t[n]);
+				}, r(e, t);
+			}, function(e, t) {
+				if (typeof t != `function` && t !== null) throw TypeError(`Class extends value ` + String(t) + ` is not a constructor or null`);
+				function n() {
+					this.constructor = e;
+				}
+				r(e, t), e.prototype = t === null ? Object.create(t) : (n.prototype = t.prototype, new n());
+			}), a = this && this.__assign || function() {
+				return a = Object.assign || function(e) {
+					for (var t, n = 1, r = arguments.length; n < r; n++) for (var i in t = arguments[n]) Object.prototype.hasOwnProperty.call(t, i) && (e[i] = t[i]);
+					return e;
+				}, a.apply(this, arguments);
+			};
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.NodeMixin = t.NodeMixinOptions = void 0;
+			var o = n(77);
+			t.NodeMixinOptions = {
+				badCSS: !0,
+				badSizes: !0
+			}, t.NodeMixin = function(e, n) {
+				var r;
+				return n === void 0 && (n = {}), n = (0, o.userOptions)((0, o.defaultOptions)({}, t.NodeMixinOptions), n), r = function(e) {
+					function t() {
+						var t = [...arguments], n = e.call(this, t[0]) || this, r = n.constructor;
+						return n.options = (0, o.userOptions)((0, o.defaultOptions)({}, r.OPTIONS), t[1]), n;
+					}
+					return i(t, e), t.prototype.fontSize = function(t) {
+						return n.badCSS ? this.options.fontSize : e.prototype.fontSize.call(this, t);
+					}, t.prototype.fontFamily = function(t) {
+						return n.badCSS ? this.options.fontFamily : e.prototype.fontFamily.call(this, t);
+					}, t.prototype.nodeSize = function(r, i, a) {
+						if (i === void 0 && (i = 1), a === void 0 && (a = null), !n.badSizes) return e.prototype.nodeSize.call(this, r, i, a);
+						var o = this.textContent(r), s = Array.from(o.replace(t.cjkPattern, ``)).length;
+						return [(Array.from(o).length - s) * this.options.cjkCharWidth + s * this.options.unknownCharWidth, this.options.unknownCharHeight];
+					}, t.prototype.nodeBBox = function(t) {
+						return n.badSizes ? {
+							left: 0,
+							right: 0,
+							top: 0,
+							bottom: 0
+						} : e.prototype.nodeBBox.call(this, t);
+					}, t;
+				}(e), r.OPTIONS = a(a({}, n.badCSS ? {
+					fontSize: 16,
+					fontFamily: `Times`
+				} : {}), n.badSizes ? {
+					cjkCharWidth: 1,
+					unknownCharWidth: .6,
+					unknownCharHeight: .8
+				} : {}), r.cjkPattern = new RegExp([
+					`[`,
+					`ᄀ-ᅟ`,
+					`〈〉`,
+					`⺀-〾`,
+					`぀-㉇`,
+					`㉐-䶿`,
+					`一-꓆`,
+					`ꥠ-ꥼ`,
+					`가-힣`,
+					`豈-﫿`,
+					`︐-︙`,
+					`︰-﹫`,
+					`！-｠￠-￦`,
+					`𛀀-𛀁`,
+					`🈀-🉑`,
+					`𠀀-𿿽`,
+					`]`
+				].join(``), `gu`), r;
+			};
+		},
+		877: function(e, t, n) {
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.LiteDocument = void 0;
+			var r = n(946);
+			t.LiteDocument = function() {
+				function e() {
+					this.root = new r.LiteElement(`html`, {}, [this.head = new r.LiteElement(`head`), this.body = new r.LiteElement(`body`)]), this.type = ``;
+				}
+				return Object.defineProperty(e.prototype, `kind`, {
+					get: function() {
+						return `#document`;
+					},
+					enumerable: !1,
+					configurable: !0
+				}), e;
+			}();
+		},
+		946: function(e, t) {
+			var n = this && this.__assign || function() {
+				return n = Object.assign || function(e) {
+					for (var t, n = 1, r = arguments.length; n < r; n++) for (var i in t = arguments[n]) Object.prototype.hasOwnProperty.call(t, i) && (e[i] = t[i]);
+					return e;
+				}, n.apply(this, arguments);
+			}, r = this && this.__read || function(e, t) {
+				var n = typeof Symbol == `function` && e[Symbol.iterator];
+				if (!n) return e;
+				var r, i, a = n.call(e), o = [];
+				try {
+					for (; (t === void 0 || t-- > 0) && !(r = a.next()).done;) o.push(r.value);
+				} catch (e) {
+					i = { error: e };
+				} finally {
+					try {
+						r && !r.done && (n = a.return) && n.call(a);
+					} finally {
+						if (i) throw i.error;
+					}
+				}
+				return o;
+			}, i = this && this.__spreadArray || function(e, t, n) {
+				if (n || arguments.length === 2) for (var r, i = 0, a = t.length; i < a; i++) !r && i in t || (r ||= Array.prototype.slice.call(t, 0, i), r[i] = t[i]);
+				return e.concat(r || Array.prototype.slice.call(t));
+			}, a = this && this.__values || function(e) {
+				var t = typeof Symbol == `function` && Symbol.iterator, n = t && e[t], r = 0;
+				if (n) return n.call(e);
+				if (e && typeof e.length == `number`) return { next: function() {
+					return e && r >= e.length && (e = void 0), {
+						value: e && e[r++],
+						done: !e
+					};
+				} };
+				throw TypeError(t ? `Object is not iterable.` : `Symbol.iterator is not defined.`);
+			};
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.LiteElement = void 0, t.LiteElement = function(e, t, o) {
+				var s, c;
+				t === void 0 && (t = {}), o === void 0 && (o = []), this.kind = e, this.attributes = n({}, t), this.children = i([], r(o), !1);
+				try {
+					for (var l = a(this.children), u = l.next(); !u.done; u = l.next()) u.value.parent = this;
+				} catch (e) {
+					s = { error: e };
+				} finally {
+					try {
+						u && !u.done && (c = l.return) && c.call(l);
+					} finally {
+						if (s) throw s.error;
+					}
+				}
+				this.styles = null;
+			};
+		},
+		6: function(e, t) {
+			var n = this && this.__read || function(e, t) {
+				var n = typeof Symbol == `function` && e[Symbol.iterator];
+				if (!n) return e;
+				var r, i, a = n.call(e), o = [];
+				try {
+					for (; (t === void 0 || t-- > 0) && !(r = a.next()).done;) o.push(r.value);
+				} catch (e) {
+					i = { error: e };
+				} finally {
+					try {
+						r && !r.done && (n = a.return) && n.call(a);
+					} finally {
+						if (i) throw i.error;
+					}
+				}
+				return o;
+			}, r = this && this.__spreadArray || function(e, t, n) {
+				if (n || arguments.length === 2) for (var r, i = 0, a = t.length; i < a; i++) !r && i in t || (r ||= Array.prototype.slice.call(t, 0, i), r[i] = t[i]);
+				return e.concat(r || Array.prototype.slice.call(t));
+			};
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.LiteList = void 0, t.LiteList = function() {
+				function e(e) {
+					this.nodes = [], this.nodes = r([], n(e), !1);
+				}
+				return e.prototype.append = function(e) {
+					this.nodes.push(e);
+				}, e.prototype[Symbol.iterator] = function() {
+					var e = 0;
+					return { next: function() {
+						return e === this.nodes.length ? {
+							value: null,
+							done: !0
+						} : {
+							value: this.nodes[e++],
+							done: !1
+						};
+					} };
+				}, e;
+			}();
+		},
+		246: function(e, t, n) {
+			var r = this && this.__createBinding || (Object.create ? function(e, t, n, r) {
+				r === void 0 && (r = n);
+				var i = Object.getOwnPropertyDescriptor(t, n);
+				i && !(`get` in i ? !t.__esModule : i.writable || i.configurable) || (i = {
+					enumerable: !0,
+					get: function() {
+						return t[n];
+					}
+				}), Object.defineProperty(e, r, i);
+			} : function(e, t, n, r) {
+				r === void 0 && (r = n), e[r] = t[n];
+			}), i = this && this.__setModuleDefault || (Object.create ? function(e, t) {
+				Object.defineProperty(e, `default`, {
+					enumerable: !0,
+					value: t
+				});
+			} : function(e, t) {
+				e.default = t;
+			}), a = this && this.__importStar || function(e) {
+				if (e && e.__esModule) return e;
+				var t = {};
+				if (e != null) for (var n in e) n !== `default` && Object.prototype.hasOwnProperty.call(e, n) && r(t, e, n);
+				return i(t, e), t;
+			}, o = this && this.__read || function(e, t) {
+				var n = typeof Symbol == `function` && e[Symbol.iterator];
+				if (!n) return e;
+				var r, i, a = n.call(e), o = [];
+				try {
+					for (; (t === void 0 || t-- > 0) && !(r = a.next()).done;) o.push(r.value);
+				} catch (e) {
+					i = { error: e };
+				} finally {
+					try {
+						r && !r.done && (n = a.return) && n.call(a);
+					} finally {
+						if (i) throw i.error;
+					}
+				}
+				return o;
+			}, s = this && this.__values || function(e) {
+				var t = typeof Symbol == `function` && Symbol.iterator, n = t && e[t], r = 0;
+				if (n) return n.call(e);
+				if (e && typeof e.length == `number`) return { next: function() {
+					return e && r >= e.length && (e = void 0), {
+						value: e && e[r++],
+						done: !e
+					};
+				} };
+				throw TypeError(t ? `Object is not iterable.` : `Symbol.iterator is not defined.`);
+			};
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.LiteParser = t.PATTERNS = void 0;
+			var c, l = a(n(29)), u = n(946), d = n(735);
+			(function(e) {
+				e.TAGNAME = `[a-z][^\\s\\n>]*`, e.ATTNAME = `[a-z][^\\s\\n>=]*`, e.VALUE = `(?:'[^']*'|"[^"]*"|[^\\s\\n]+)`, e.VALUESPLIT = `(?:'([^']*)'|"([^"]*)"|([^\\s\\n]+))`, e.SPACE = `(?:\\s|\\n)+`, e.OPTIONALSPACE = `(?:\\s|\\n)*`, e.ATTRIBUTE = e.ATTNAME + `(?:` + e.OPTIONALSPACE + `=` + e.OPTIONALSPACE + e.VALUE + `)?`, e.ATTRIBUTESPLIT = `(` + e.ATTNAME + `)(?:` + e.OPTIONALSPACE + `=` + e.OPTIONALSPACE + e.VALUESPLIT + `)?`, e.TAG = `(<(?:` + e.TAGNAME + `(?:` + e.SPACE + e.ATTRIBUTE + `)*` + e.OPTIONALSPACE + `/?|/` + e.TAGNAME + `|!--[^]*?--|![^]*?)(?:>|$))`, e.tag = new RegExp(e.TAG, `i`), e.attr = new RegExp(e.ATTRIBUTE, `i`), e.attrsplit = new RegExp(e.ATTRIBUTESPLIT, `i`);
+			})(c = t.PATTERNS ||= {}), t.LiteParser = function() {
+				function e() {}
+				return e.prototype.parseFromString = function(e, t, n) {
+					t === void 0 && (t = `text/html`), n === void 0 && (n = null);
+					for (var r = n.createDocument(), i = n.body(r), a = e.replace(/<\?.*?\?>/g, ``).split(c.tag); a.length;) {
+						var o = a.shift(), s = a.shift();
+						o && this.addText(n, i, o), s && s.charAt(s.length - 1) === `>` && (s.charAt(1) === `!` ? this.addComment(n, i, s) : i = s.charAt(1) === `/` ? this.closeTag(n, i, s) : this.openTag(n, i, s, a));
+					}
+					return this.checkDocument(n, r), r;
+				}, e.prototype.addText = function(e, t, n) {
+					return n = l.translate(n), e.append(t, e.text(n));
+				}, e.prototype.addComment = function(e, t, n) {
+					return e.append(t, new d.LiteComment(n));
+				}, e.prototype.closeTag = function(e, t, n) {
+					for (var r = n.slice(2, n.length - 1).toLowerCase(); e.parent(t) && e.kind(t) !== r;) t = e.parent(t);
+					return e.parent(t);
+				}, e.prototype.openTag = function(e, t, n, r) {
+					var i = this.constructor.PCDATA, a = this.constructor.SELF_CLOSING, o = n.match(/<(.*?)[\s\n>\/]/)[1].toLowerCase(), s = e.node(o), l = n.replace(/^<.*?[\s\n>]/, ``).split(c.attrsplit);
+					return (l.pop().match(/>$/) || l.length < 5) && (this.addAttributes(e, s, l), e.append(t, s), a[o] || n.match(/\/>$/) || (i[o] ? this.handlePCDATA(e, s, o, r) : t = s)), t;
+				}, e.prototype.addAttributes = function(e, t, n) {
+					for (var r = this.constructor.CDATA_ATTR; n.length;) {
+						var i = o(n.splice(0, 5), 5), a = i[1], s = i[2], c = i[3], u = i[4], d = s || c || u || ``;
+						r[a] || (d = l.translate(d)), e.setAttribute(t, a, d);
+					}
+				}, e.prototype.handlePCDATA = function(e, t, n, r) {
+					for (var i = [], a = `</` + n + `>`, o = ``; r.length && o !== a;) i.push(o), i.push(r.shift()), o = r.shift();
+					e.append(t, e.text(i.join(``)));
+				}, e.prototype.checkDocument = function(e, t) {
+					var n, r, i, a, o = this.getOnlyChild(e, e.body(t));
+					if (o) {
+						try {
+							for (var c = s(e.childNodes(e.body(t))), l = c.next(); !l.done && (p = l.value) !== o; l = c.next()) p instanceof d.LiteComment && p.value.match(/^<!DOCTYPE/) && (t.type = p.value);
+						} catch (e) {
+							n = { error: e };
+						} finally {
+							try {
+								l && !l.done && (r = c.return) && r.call(c);
+							} finally {
+								if (n) throw n.error;
+							}
+						}
+						switch (e.kind(o)) {
+							case `html`:
+								try {
+									for (var u = s(o.children), f = u.next(); !f.done; f = u.next()) {
+										var p = f.value;
+										switch (e.kind(p)) {
+											case `head`:
+												t.head = p;
+												break;
+											case `body`: t.body = p;
+										}
+									}
+								} catch (e) {
+									i = { error: e };
+								} finally {
+									try {
+										f && !f.done && (a = u.return) && a.call(u);
+									} finally {
+										if (i) throw i.error;
+									}
+								}
+								t.root = o, e.remove(o), e.parent(t.body) !== o && e.append(o, t.body), e.parent(t.head) !== o && e.insert(t.head, t.body);
+								break;
+							case `head`:
+								t.head = e.replace(o, t.head);
+								break;
+							case `body`: t.body = e.replace(o, t.body);
+						}
+					}
+				}, e.prototype.getOnlyChild = function(e, t) {
+					var n, r, i = null;
+					try {
+						for (var a = s(e.childNodes(t)), o = a.next(); !o.done; o = a.next()) {
+							var c = o.value;
+							if (c instanceof u.LiteElement) {
+								if (i) return null;
+								i = c;
+							}
+						}
+					} catch (e) {
+						n = { error: e };
+					} finally {
+						try {
+							o && !o.done && (r = a.return) && r.call(a);
+						} finally {
+							if (n) throw n.error;
+						}
+					}
+					return i;
+				}, e.prototype.serialize = function(e, t, n) {
+					var r = this;
+					n === void 0 && (n = !1);
+					var i = this.constructor.SELF_CLOSING, a = this.constructor.CDATA_ATTR, o = e.kind(t), s = e.allAttributes(t).map((function(e) {
+						return e.name + `="` + (a[e.name] ? e.value : r.protectAttribute(e.value)) + `"`;
+					})).join(` `), c = this.serializeInner(e, t, n);
+					return `<` + o + (s ? ` ` + s : ``) + (n && !c || i[o] ? n ? `/>` : `>` : `>${c}</${o}>`);
+				}, e.prototype.serializeInner = function(e, t, n) {
+					var r = this;
+					return n === void 0 && (n = !1), this.constructor.PCDATA.hasOwnProperty(t.kind) ? e.childNodes(t).map((function(t) {
+						return e.value(t);
+					})).join(``) : e.childNodes(t).map((function(t) {
+						var i = e.kind(t);
+						return i === `#text` ? r.protectHTML(e.value(t)) : i === `#comment` ? t.value : r.serialize(e, t, n);
+					})).join(``);
+				}, e.prototype.protectAttribute = function(e) {
+					return typeof e != `string` && (e = String(e)), e.replace(/"/g, `&quot;`);
+				}, e.prototype.protectHTML = function(e) {
+					return e.replace(/&/g, `&amp;`).replace(/</g, `&lt;`).replace(/>/g, `&gt;`);
+				}, e.SELF_CLOSING = {
+					area: !0,
+					base: !0,
+					br: !0,
+					col: !0,
+					command: !0,
+					embed: !0,
+					hr: !0,
+					img: !0,
+					input: !0,
+					keygen: !0,
+					link: !0,
+					menuitem: !0,
+					meta: !0,
+					param: !0,
+					source: !0,
+					track: !0,
+					wbr: !0
+				}, e.PCDATA = {
+					option: !0,
+					textarea: !0,
+					fieldset: !0,
+					title: !0,
+					style: !0,
+					script: !0
+				}, e.CDATA_ATTR = {
+					style: !0,
+					datafld: !0,
+					datasrc: !0,
+					href: !0,
+					src: !0,
+					longdesc: !0,
+					usemap: !0,
+					cite: !0,
+					datetime: !0,
+					action: !0,
+					axis: !0,
+					profile: !0,
+					content: !0,
+					scheme: !0
+				}, e;
+			}();
+		},
+		735: function(e, t) {
+			var n, r = this && this.__extends || (n = function(e, t) {
+				return n = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(e, t) {
+					e.__proto__ = t;
+				} || function(e, t) {
+					for (var n in t) Object.prototype.hasOwnProperty.call(t, n) && (e[n] = t[n]);
+				}, n(e, t);
+			}, function(e, t) {
+				if (typeof t != `function` && t !== null) throw TypeError(`Class extends value ` + String(t) + ` is not a constructor or null`);
+				function r() {
+					this.constructor = e;
+				}
+				n(e, t), e.prototype = t === null ? Object.create(t) : (r.prototype = t.prototype, new r());
+			});
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.LiteComment = t.LiteText = void 0;
+			var i = function() {
+				function e(e) {
+					e === void 0 && (e = ``), this.value = e;
+				}
+				return Object.defineProperty(e.prototype, `kind`, {
+					get: function() {
+						return `#text`;
+					},
+					enumerable: !1,
+					configurable: !0
+				}), e;
+			}();
+			t.LiteText = i, t.LiteComment = function(e) {
+				function t() {
+					return e !== null && e.apply(this, arguments) || this;
+				}
+				return r(t, e), Object.defineProperty(t.prototype, `kind`, {
+					get: function() {
+						return `#comment`;
+					},
+					enumerable: !1,
+					configurable: !0
+				}), t;
+			}(i);
+		},
+		492: function(e, t, n) {
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.LiteWindow = void 0;
+			var r = n(946), i = n(877), a = n(6), o = n(246);
+			t.LiteWindow = function() {
+				this.DOMParser = o.LiteParser, this.NodeList = a.LiteList, this.HTMLCollection = a.LiteList, this.HTMLElement = r.LiteElement, this.DocumentFragment = a.LiteList, this.Document = i.LiteDocument, this.document = new i.LiteDocument();
+			};
+		},
+		250: function(e, t, n) {
+			var r, i = this && this.__extends || (r = function(e, t) {
+				return r = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(e, t) {
+					e.__proto__ = t;
+				} || function(e, t) {
+					for (var n in t) Object.prototype.hasOwnProperty.call(t, n) && (e[n] = t[n]);
+				}, r(e, t);
+			}, function(e, t) {
+				if (typeof t != `function` && t !== null) throw TypeError(`Class extends value ` + String(t) + ` is not a constructor or null`);
+				function n() {
+					this.constructor = e;
+				}
+				r(e, t), e.prototype = t === null ? Object.create(t) : (n.prototype = t.prototype, new n());
+			}), a = this && this.__assign || function() {
+				return a = Object.assign || function(e) {
+					for (var t, n = 1, r = arguments.length; n < r; n++) for (var i in t = arguments[n]) Object.prototype.hasOwnProperty.call(t, i) && (e[i] = t[i]);
+					return e;
+				}, a.apply(this, arguments);
+			}, o = this && this.__values || function(e) {
+				var t = typeof Symbol == `function` && Symbol.iterator, n = t && e[t], r = 0;
+				if (n) return n.call(e);
+				if (e && typeof e.length == `number`) return { next: function() {
+					return e && r >= e.length && (e = void 0), {
+						value: e && e[r++],
+						done: !e
+					};
+				} };
+				throw TypeError(t ? `Object is not iterable.` : `Symbol.iterator is not defined.`);
+			}, s = this && this.__read || function(e, t) {
+				var n = typeof Symbol == `function` && e[Symbol.iterator];
+				if (!n) return e;
+				var r, i, a = n.call(e), o = [];
+				try {
+					for (; (t === void 0 || t-- > 0) && !(r = a.next()).done;) o.push(r.value);
+				} catch (e) {
+					i = { error: e };
+				} finally {
+					try {
+						r && !r.done && (n = a.return) && n.call(a);
+					} finally {
+						if (i) throw i.error;
+					}
+				}
+				return o;
+			}, c = this && this.__spreadArray || function(e, t, n) {
+				if (n || arguments.length === 2) for (var r, i = 0, a = t.length; i < a; i++) !r && i in t || (r ||= Array.prototype.slice.call(t, 0, i), r[i] = t[i]);
+				return e.concat(r || Array.prototype.slice.call(t));
+			};
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.liteAdaptor = t.LiteAdaptor = t.LiteBase = void 0;
+			var l = n(857), u = n(244), d = n(877), f = n(946), p = n(735), m = n(492), h = n(246), g = n(878), _ = function(e) {
+				function t() {
+					var t = e.call(this) || this;
+					return t.parser = new h.LiteParser(), t.window = new m.LiteWindow(), t;
+				}
+				return i(t, e), t.prototype.parse = function(e, t) {
+					return this.parser.parseFromString(e, t, this);
+				}, t.prototype.create = function(e, t) {
+					return t === void 0 && (t = null), new f.LiteElement(e);
+				}, t.prototype.text = function(e) {
+					return new p.LiteText(e);
+				}, t.prototype.comment = function(e) {
+					return new p.LiteComment(e);
+				}, t.prototype.createDocument = function() {
+					return new d.LiteDocument();
+				}, t.prototype.head = function(e) {
+					return e.head;
+				}, t.prototype.body = function(e) {
+					return e.body;
+				}, t.prototype.root = function(e) {
+					return e.root;
+				}, t.prototype.doctype = function(e) {
+					return e.type;
+				}, t.prototype.tags = function(e, t, n) {
+					n === void 0 && (n = null);
+					var r = [], i = [];
+					if (n) return i;
+					for (var a = e; a;) {
+						var o = a.kind;
+						o !== `#text` && o !== `#comment` && (a = a, o === t && i.push(a), a.children.length && (r = a.children.concat(r))), a = r.shift();
+					}
+					return i;
+				}, t.prototype.elementById = function(e, t) {
+					for (var n = [], r = e; r;) {
+						if (r.kind !== `#text` && r.kind !== `#comment`) {
+							if ((r = r).attributes.id === t) return r;
+							r.children.length && (n = r.children.concat(n));
+						}
+						r = n.shift();
+					}
+					return null;
+				}, t.prototype.elementsByClass = function(e, t) {
+					for (var n = [], r = [], i = e; i;) i.kind !== `#text` && i.kind !== `#comment` && (((i = i).attributes.class || ``).trim().split(/ +/).includes(t) && r.push(i), i.children.length && (n = i.children.concat(n))), i = n.shift();
+					return r;
+				}, t.prototype.getElements = function(e, t) {
+					var n, r, i = [], a = this.body(t);
+					try {
+						for (var s = o(e), c = s.next(); !c.done; c = s.next()) {
+							var l = c.value;
+							if (typeof l == `string`) if (l.charAt(0) === `#`) {
+								var u = this.elementById(a, l.slice(1));
+								u && i.push(u);
+							} else l.charAt(0) === `.` ? i = i.concat(this.elementsByClass(a, l.slice(1))) : l.match(/^[-a-z][-a-z0-9]*$/i) && (i = i.concat(this.tags(a, l)));
+							else Array.isArray(l) ? i = i.concat(l) : l instanceof this.window.NodeList || l instanceof this.window.HTMLCollection ? i = i.concat(l.nodes) : i.push(l);
+						}
+					} catch (e) {
+						n = { error: e };
+					} finally {
+						try {
+							c && !c.done && (r = s.return) && r.call(s);
+						} finally {
+							if (n) throw n.error;
+						}
+					}
+					return i;
+				}, t.prototype.contains = function(e, t) {
+					for (; t && t !== e;) t = this.parent(t);
+					return !!t;
+				}, t.prototype.parent = function(e) {
+					return e.parent;
+				}, t.prototype.childIndex = function(e) {
+					return e.parent ? e.parent.children.findIndex((function(t) {
+						return t === e;
+					})) : -1;
+				}, t.prototype.append = function(e, t) {
+					return t.parent && this.remove(t), e.children.push(t), t.parent = e, t;
+				}, t.prototype.insert = function(e, t) {
+					if (e.parent && this.remove(e), t && t.parent) {
+						var n = this.childIndex(t);
+						t.parent.children.splice(n, 0, e), e.parent = t.parent;
+					}
+				}, t.prototype.remove = function(e) {
+					var t = this.childIndex(e);
+					return t >= 0 && e.parent.children.splice(t, 1), e.parent = null, e;
+				}, t.prototype.replace = function(e, t) {
+					var n = this.childIndex(t);
+					return n >= 0 && (t.parent.children[n] = e, e.parent = t.parent, t.parent = null), t;
+				}, t.prototype.clone = function(e) {
+					var t = this, n = new f.LiteElement(e.kind);
+					return n.attributes = a({}, e.attributes), n.children = e.children.map((function(e) {
+						if (e.kind === `#text`) return new p.LiteText(e.value);
+						if (e.kind === `#comment`) return new p.LiteComment(e.value);
+						var r = t.clone(e);
+						return r.parent = n, r;
+					})), n;
+				}, t.prototype.split = function(e, t) {
+					var n = new p.LiteText(e.value.slice(t));
+					return e.value = e.value.slice(0, t), e.parent.children.splice(this.childIndex(e) + 1, 0, n), n.parent = e.parent, n;
+				}, t.prototype.next = function(e) {
+					var t = e.parent;
+					if (!t) return null;
+					var n = this.childIndex(e) + 1;
+					return n >= 0 && n < t.children.length ? t.children[n] : null;
+				}, t.prototype.previous = function(e) {
+					var t = e.parent;
+					if (!t) return null;
+					var n = this.childIndex(e) - 1;
+					return n >= 0 ? t.children[n] : null;
+				}, t.prototype.firstChild = function(e) {
+					return e.children[0];
+				}, t.prototype.lastChild = function(e) {
+					return e.children[e.children.length - 1];
+				}, t.prototype.childNodes = function(e) {
+					return c([], s(e.children), !1);
+				}, t.prototype.childNode = function(e, t) {
+					return e.children[t];
+				}, t.prototype.kind = function(e) {
+					return e.kind;
+				}, t.prototype.value = function(e) {
+					return e.kind === `#text` ? e.value : e.kind === `#comment` ? e.value.replace(/^<!(--)?((?:.|\n)*)\1>$/, `$2`) : ``;
+				}, t.prototype.textContent = function(e) {
+					var t = this;
+					return e.children.reduce((function(e, n) {
+						return e + (n.kind === `#text` ? n.value : n.kind === `#comment` ? `` : t.textContent(n));
+					}), ``);
+				}, t.prototype.innerHTML = function(e) {
+					return this.parser.serializeInner(this, e);
+				}, t.prototype.outerHTML = function(e) {
+					return this.parser.serialize(this, e);
+				}, t.prototype.serializeXML = function(e) {
+					return this.parser.serialize(this, e, !0);
+				}, t.prototype.setAttribute = function(e, t, n, r) {
+					r === void 0 && (r = null), typeof n != `string` && (n = String(n)), r && (t = r.replace(/.*\//, ``) + `:` + t.replace(/^.*:/, ``)), e.attributes[t] = n, t === `style` && (e.styles = null);
+				}, t.prototype.getAttribute = function(e, t) {
+					return e.attributes[t];
+				}, t.prototype.removeAttribute = function(e, t) {
+					delete e.attributes[t];
+				}, t.prototype.hasAttribute = function(e, t) {
+					return e.attributes.hasOwnProperty(t);
+				}, t.prototype.allAttributes = function(e) {
+					var t, n, r = e.attributes, i = [];
+					try {
+						for (var a = o(Object.keys(r)), s = a.next(); !s.done; s = a.next()) {
+							var c = s.value;
+							i.push({
+								name: c,
+								value: r[c]
+							});
+						}
+					} catch (e) {
+						t = { error: e };
+					} finally {
+						try {
+							s && !s.done && (n = a.return) && n.call(a);
+						} finally {
+							if (t) throw t.error;
+						}
+					}
+					return i;
+				}, t.prototype.addClass = function(e, t) {
+					var n = (e.attributes.class || ``).split(/ /);
+					n.find((function(e) {
+						return e === t;
+					})) || (n.push(t), e.attributes.class = n.join(` `));
+				}, t.prototype.removeClass = function(e, t) {
+					var n = (e.attributes.class || ``).split(/ /), r = n.findIndex((function(e) {
+						return e === t;
+					}));
+					r >= 0 && (n.splice(r, 1), e.attributes.class = n.join(` `));
+				}, t.prototype.hasClass = function(e, t) {
+					return !!(e.attributes.class || ``).split(/ /).find((function(e) {
+						return e === t;
+					}));
+				}, t.prototype.setStyle = function(e, t, n) {
+					e.styles ||= new g.Styles(this.getAttribute(e, `style`)), e.styles.set(t, n), e.attributes.style = e.styles.cssText;
+				}, t.prototype.getStyle = function(e, t) {
+					if (!e.styles) {
+						var n = this.getAttribute(e, `style`);
+						if (!n) return ``;
+						e.styles = new g.Styles(n);
+					}
+					return e.styles.get(t);
+				}, t.prototype.allStyles = function(e) {
+					return this.getAttribute(e, `style`);
+				}, t.prototype.insertRules = function(e, t) {
+					e.children = [this.text(t.join(`
 
 `) + `
 
-` + this.textContent(e4))];
-        }, t3.prototype.fontSize = function(e4) {
-          return 0;
-        }, t3.prototype.fontFamily = function(e4) {
-          return ``;
-        }, t3.prototype.nodeSize = function(e4, t4, n3) {
-          return [0, 0];
-        }, t3.prototype.nodeBBox = function(e4) {
-          return { left: 0, right: 0, top: 0, bottom: 0 };
-        }, t3;
-      })(l2.AbstractDOMAdaptor);
-      t2.LiteBase = _;
-      var v = (function(e3) {
-        function t3() {
-          return e3 !== null && e3.apply(this, arguments) || this;
-        }
-        return i2(t3, e3), t3;
-      })((0, u2.NodeMixin)(_));
-      t2.LiteAdaptor = v, t2.liteAdaptor = function(e3) {
-        return e3 === void 0 && (e3 = null), new v(null, e3);
-      };
-    }, 306: function(e2, t2) {
-      t2.q = void 0, t2.q = `3.2.2`;
-    }, 723: function(e2, t2) {
-      MathJax._.components.global.isObject, MathJax._.components.global.combineConfig, MathJax._.components.global.combineDefaults, t2.r8 = MathJax._.components.global.combineWithMathJax, MathJax._.components.global.MathJax;
-    }, 857: function(e2, t2) {
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.AbstractDOMAdaptor = MathJax._.core.DOMAdaptor.AbstractDOMAdaptor;
-    }, 29: function(e2, t2) {
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.options = MathJax._.util.Entities.options, t2.entities = MathJax._.util.Entities.entities, t2.add = MathJax._.util.Entities.add, t2.remove = MathJax._.util.Entities.remove, t2.translate = MathJax._.util.Entities.translate, t2.numeric = MathJax._.util.Entities.numeric;
-    }, 77: function(e2, t2) {
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.isObject = MathJax._.util.Options.isObject, t2.APPEND = MathJax._.util.Options.APPEND, t2.REMOVE = MathJax._.util.Options.REMOVE, t2.OPTIONS = MathJax._.util.Options.OPTIONS, t2.Expandable = MathJax._.util.Options.Expandable, t2.expandable = MathJax._.util.Options.expandable, t2.makeArray = MathJax._.util.Options.makeArray, t2.keys = MathJax._.util.Options.keys, t2.copy = MathJax._.util.Options.copy, t2.insert = MathJax._.util.Options.insert, t2.defaultOptions = MathJax._.util.Options.defaultOptions, t2.userOptions = MathJax._.util.Options.userOptions, t2.selectOptions = MathJax._.util.Options.selectOptions, t2.selectOptionsFromKeys = MathJax._.util.Options.selectOptionsFromKeys, t2.separateOptions = MathJax._.util.Options.separateOptions, t2.lookup = MathJax._.util.Options.lookup;
-    }, 878: function(e2, t2) {
-      Object.defineProperty(t2, `__esModule`, { value: true }), t2.Styles = MathJax._.util.Styles.Styles;
-    } }, u = {};
-    function d(e2) {
-      var t2 = u[e2];
-      if (t2 !== void 0) return t2.exports;
-      var n2 = u[e2] = { exports: {} };
-      return l[e2].call(n2.exports, n2, n2.exports, d), n2.exports;
-    }
-    e = d(723), t = d(306), n = d(250), r = d(877), i = d(946), a = d(6), o = d(246), s = d(735), c = d(492), MathJax.loader && MathJax.loader.checkVersion(`adaptors/liteDOM`, t.q, `adaptors`), (0, e.r8)({ _: { adaptors: { liteAdaptor: n, lite: { Document: r, Element: i, List: a, Parser: o, Text: s, Window: c } } } }), MathJax.startup && (MathJax.startup.registerConstructor(`liteAdaptor`, n.liteAdaptor), MathJax.startup.useAdaptor(`liteAdaptor`, true));
-  })();
-  return liteDOMCp0aN3bP$2;
-}
-var liteDOMCp0aN3bPExports = requireLiteDOMCp0aN3bP();
-const liteDOMCp0aN3bP = /* @__PURE__ */ getDefaultExportFromCjs(liteDOMCp0aN3bPExports);
-const liteDOMCp0aN3bP$1 = /* @__PURE__ */ _mergeNamespaces({
-  __proto__: null,
-  default: liteDOMCp0aN3bP
-}, [liteDOMCp0aN3bPExports]);
-export {
-  liteDOMCp0aN3bP$1 as l
-};
+` + this.textContent(e))];
+				}, t.prototype.fontSize = function(e) {
+					return 0;
+				}, t.prototype.fontFamily = function(e) {
+					return ``;
+				}, t.prototype.nodeSize = function(e, t, n) {
+					return t === void 0 && (t = 1), n === void 0 && (n = null), [0, 0];
+				}, t.prototype.nodeBBox = function(e) {
+					return {
+						left: 0,
+						right: 0,
+						top: 0,
+						bottom: 0
+					};
+				}, t;
+			}(l.AbstractDOMAdaptor);
+			t.LiteBase = _;
+			var v = function(e) {
+				function t() {
+					return e !== null && e.apply(this, arguments) || this;
+				}
+				return i(t, e), t;
+			}((0, u.NodeMixin)(_));
+			t.LiteAdaptor = v, t.liteAdaptor = function(e) {
+				return e === void 0 && (e = null), new v(null, e);
+			};
+		},
+		306: function(e, t) {
+			t.q = void 0, t.q = `3.2.2`;
+		},
+		723: function(e, t) {
+			MathJax._.components.global.isObject, MathJax._.components.global.combineConfig, MathJax._.components.global.combineDefaults, t.r8 = MathJax._.components.global.combineWithMathJax, MathJax._.components.global.MathJax;
+		},
+		857: function(e, t) {
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.AbstractDOMAdaptor = MathJax._.core.DOMAdaptor.AbstractDOMAdaptor;
+		},
+		29: function(e, t) {
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.options = MathJax._.util.Entities.options, t.entities = MathJax._.util.Entities.entities, t.add = MathJax._.util.Entities.add, t.remove = MathJax._.util.Entities.remove, t.translate = MathJax._.util.Entities.translate, t.numeric = MathJax._.util.Entities.numeric;
+		},
+		77: function(e, t) {
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.isObject = MathJax._.util.Options.isObject, t.APPEND = MathJax._.util.Options.APPEND, t.REMOVE = MathJax._.util.Options.REMOVE, t.OPTIONS = MathJax._.util.Options.OPTIONS, t.Expandable = MathJax._.util.Options.Expandable, t.expandable = MathJax._.util.Options.expandable, t.makeArray = MathJax._.util.Options.makeArray, t.keys = MathJax._.util.Options.keys, t.copy = MathJax._.util.Options.copy, t.insert = MathJax._.util.Options.insert, t.defaultOptions = MathJax._.util.Options.defaultOptions, t.userOptions = MathJax._.util.Options.userOptions, t.selectOptions = MathJax._.util.Options.selectOptions, t.selectOptionsFromKeys = MathJax._.util.Options.selectOptionsFromKeys, t.separateOptions = MathJax._.util.Options.separateOptions, t.lookup = MathJax._.util.Options.lookup;
+		},
+		878: function(e, t) {
+			Object.defineProperty(t, `__esModule`, { value: !0 }), t.Styles = MathJax._.util.Styles.Styles;
+		}
+	}, u = {};
+	function d(e) {
+		var t = u[e];
+		if (t !== void 0) return t.exports;
+		var n = u[e] = { exports: {} };
+		return l[e].call(n.exports, n, n.exports, d), n.exports;
+	}
+	e = d(723), t = d(306), n = d(250), r = d(877), i = d(946), a = d(6), o = d(246), s = d(735), c = d(492), MathJax.loader && MathJax.loader.checkVersion(`adaptors/liteDOM`, t.q, `adaptors`), (0, e.r8)({ _: { adaptors: {
+		liteAdaptor: n,
+		lite: {
+			Document: r,
+			Element: i,
+			List: a,
+			Parser: o,
+			Text: s,
+			Window: c
+		}
+	} } }), MathJax.startup && (MathJax.startup.registerConstructor(`liteAdaptor`, n.liteAdaptor), MathJax.startup.useAdaptor(`liteAdaptor`, !0));
+})();
+//#endregion
+
 //# sourceMappingURL=liteDOM-Cp0aN3bP.js.map

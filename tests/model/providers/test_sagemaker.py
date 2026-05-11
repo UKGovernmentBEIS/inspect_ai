@@ -127,7 +127,7 @@ class TestShouldRetry:
             {"Error": {"Code": "ModelError"}, "OriginalStatusCode": 503},
             "InvokeEndpoint",
         )
-        assert api.should_retry(ex) is True
+        assert api.should_retry(ex).retry is True
 
     def test_retry_on_504(self):
         api = _make_api()
@@ -135,7 +135,7 @@ class TestShouldRetry:
             {"Error": {"Code": "ModelError"}, "OriginalStatusCode": 504},
             "InvokeEndpoint",
         )
-        assert api.should_retry(ex) is True
+        assert api.should_retry(ex).retry is True
 
     def test_no_retry_on_400(self):
         api = _make_api()
@@ -143,7 +143,7 @@ class TestShouldRetry:
             {"Error": {"Code": "ModelError"}, "OriginalStatusCode": 400},
             "InvokeEndpoint",
         )
-        assert api.should_retry(ex) is False
+        assert api.should_retry(ex).retry is False
 
     def test_no_retry_on_non_model_error(self):
         api = _make_api()
@@ -151,11 +151,11 @@ class TestShouldRetry:
             {"Error": {"Code": "ValidationError"}, "OriginalStatusCode": 503},
             "InvokeEndpoint",
         )
-        assert api.should_retry(ex) is False
+        assert api.should_retry(ex).retry is False
 
     def test_no_retry_on_non_client_error(self):
         api = _make_api()
-        assert api.should_retry(RuntimeError("boom")) is False
+        assert api.should_retry(RuntimeError("boom")).retry is False
 
 
 # -- Request body building tests ---------------------------------------------
@@ -835,3 +835,379 @@ class TestStreamingMetadataTracking:
 
         assert model_output.completion == "World"
         assert model_output.stop_reason == "max_tokens"
+
+
+# -- InferenceComponentName tests --------------------------------------------
+
+
+class TestInferenceComponentName:
+    def test_default_none(self):
+        api = _make_api()
+        assert api.inference_component_name is None
+
+    def test_set_from_model_args(self):
+        api = _make_api(inference_component_name="my-ic")
+        assert api.inference_component_name == "my-ic"
+
+    @pytest.mark.anyio
+    async def test_non_streaming_passes_inference_component_name(self):
+        api = _make_api(inference_component_name="my-ic")
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE).encode("utf-8")
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        assert call_args.kwargs["InferenceComponentName"] == "my-ic"
+
+    @pytest.mark.anyio
+    async def test_non_streaming_omits_when_none(self):
+        api = _make_api()
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE).encode("utf-8")
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        assert "InferenceComponentName" not in call_args.kwargs
+
+    @pytest.mark.anyio
+    async def test_streaming_passes_inference_component_name(self):
+        api = _make_api(stream=True, inference_component_name="my-ic")
+
+        chunks = [
+            {
+                "id": "chatcmpl-123",
+                "created": 1700000000,
+                "model": "my-model",
+                "choices": [
+                    {"index": 0, "delta": {"content": "Hi"}, "finish_reason": "stop"}
+                ],
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 1,
+                    "total_tokens": 6,
+                },
+            },
+        ]
+
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint_with_response_stream.call_args
+        assert call_args.kwargs["InferenceComponentName"] == "my-ic"
+
+    @pytest.mark.anyio
+    async def test_streaming_omits_when_none(self):
+        api = _make_api(stream=True)
+
+        chunks = [
+            {
+                "id": "chatcmpl-123",
+                "created": 1700000000,
+                "model": "my-model",
+                "choices": [
+                    {"index": 0, "delta": {"content": "Hi"}, "finish_reason": "stop"}
+                ],
+                "usage": {
+                    "prompt_tokens": 5,
+                    "completion_tokens": 1,
+                    "total_tokens": 6,
+                },
+            },
+        ]
+
+        async def mock_event_stream():
+            for chunk in chunks:
+                yield {
+                    "PayloadPart": {
+                        "Bytes": f"data: {json.dumps(chunk)}".encode("utf-8")
+                    }
+                }
+
+        mock_client = AsyncMock()
+        mock_client.invoke_endpoint_with_response_stream = AsyncMock(
+            return_value={"Body": mock_event_stream()}
+        )
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint_with_response_stream.call_args
+        assert "InferenceComponentName" not in call_args.kwargs
+
+
+# -- Perplexity / prompt_logprobs tests --------------------------------------
+
+OPENAI_RESPONSE_WITH_PROMPT_LOGPROBS = {
+    "id": "chatcmpl-abc123",
+    "object": "chat.completion",
+    "created": 1700000000,
+    "model": "default",
+    "choices": [
+        {
+            "index": 0,
+            "message": {"role": "assistant", "content": "Hello"},
+            "finish_reason": "stop",
+        }
+    ],
+    "usage": {"prompt_tokens": 3, "completion_tokens": 1, "total_tokens": 4},
+    "prompt_logprobs": [
+        None,
+        {"101": {"decoded_token": "is", "logprob": -0.5, "rank": 1}},
+        {"102": {"decoded_token": "2", "logprob": -1.2, "rank": 1}},
+    ],
+}
+
+COMPLETION_RESPONSE_WITH_PROMPT_LOGPROBS = {
+    "id": "cmpl-abc123",
+    "object": "text_completion",
+    "created": 1700000000,
+    "model": "default",
+    "choices": [
+        {
+            "index": 0,
+            "text": "World",
+            "finish_reason": "stop",
+            "prompt_logprobs": [
+                None,
+                {"101": {"decoded_token": "is", "logprob": -0.4, "rank": 1}},
+                {"102": {"decoded_token": "great", "logprob": -0.9, "rank": 1}},
+            ],
+        }
+    ],
+    "usage": {"prompt_tokens": 3, "completion_tokens": 1, "total_tokens": 4},
+}
+
+
+class TestPromptLogprobsInSagemakerChatMode:
+    """Test that prompt_logprobs flows through the SageMaker chat mode pipeline."""
+
+    @pytest.mark.anyio
+    async def test_prompt_logprobs_in_request_body(self):
+        """prompt_logprobs from GenerateConfig appears in the request body."""
+        api = _make_api()
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE).encode("utf-8")
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0, prompt_logprobs=1)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        request_body = json.loads(call_args.kwargs["Body"])
+        assert request_body["prompt_logprobs"] == 1
+
+    @pytest.mark.anyio
+    async def test_prompt_logprobs_omitted_when_none(self):
+        """prompt_logprobs is not in request body when not set."""
+        api = _make_api()
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE).encode("utf-8")
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        request_body = json.loads(call_args.kwargs["Body"])
+        assert "prompt_logprobs" not in request_body
+
+    @pytest.mark.anyio
+    async def test_prompt_logprobs_parsed_from_response(self):
+        """prompt_logprobs from vLLM response are parsed into ChatCompletionChoice."""
+        api = _make_api()
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(OPENAI_RESPONSE_WITH_PROMPT_LOGPROBS).encode(
+                "utf-8"
+            )
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0, prompt_logprobs=1)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output = result[0]
+
+        assert len(model_output.choices) == 1
+        choice = model_output.choices[0]
+        assert choice.prompt_logprobs is not None
+        assert len(choice.prompt_logprobs.content) == 2
+        assert choice.prompt_logprobs.content[0].token == "is"
+        assert choice.prompt_logprobs.content[0].logprob == -0.5
+        assert choice.prompt_logprobs.content[1].token == "2"
+        assert choice.prompt_logprobs.content[1].logprob == -1.2
+
+
+class TestCompletionModePromptLogprobs:
+    @pytest.mark.anyio
+    async def test_completion_mode_uses_config_prompt_logprobs(self):
+        """config.prompt_logprobs is used when model_args prompt_logprobs is not set."""
+        api = _make_api(completion_mode=True)
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(COMPLETION_RESPONSE_WITH_PROMPT_LOGPROBS).encode(
+                "utf-8"
+            )
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0, prompt_logprobs=1)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        request_body = json.loads(call_args.kwargs["Body"])
+        assert request_body["prompt_logprobs"] == 1
+
+    @pytest.mark.anyio
+    async def test_completion_mode_model_args_takes_precedence(self):
+        """model_args prompt_logprobs takes precedence over config."""
+        api = _make_api(completion_mode=True, prompt_logprobs=5)
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(COMPLETION_RESPONSE_WITH_PROMPT_LOGPROBS).encode(
+                "utf-8"
+            )
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0, prompt_logprobs=1)
+
+        await api.generate(messages, [], "auto", config)
+
+        call_args = mock_client.invoke_endpoint.call_args
+        request_body = json.loads(call_args.kwargs["Body"])
+        assert request_body["prompt_logprobs"] == 5
+
+    @pytest.mark.anyio
+    async def test_completion_mode_parses_prompt_logprobs_from_response(self):
+        """Prompt logprobs from completion response are parsed into ChatCompletionChoice."""
+        api = _make_api(completion_mode=True)
+
+        mock_client = AsyncMock()
+        mock_body = AsyncMock()
+        mock_body.read = AsyncMock(
+            return_value=json.dumps(COMPLETION_RESPONSE_WITH_PROMPT_LOGPROBS).encode(
+                "utf-8"
+            )
+        )
+        mock_client.invoke_endpoint = AsyncMock(return_value={"Body": mock_body})
+
+        mock_ctx = AsyncMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_ctx.__aexit__ = AsyncMock(return_value=False)
+        api._create_client = MagicMock(return_value=mock_ctx)
+
+        messages = [ChatMessageUser(content="Hello")]
+        config = GenerateConfig(max_tokens=100, temperature=0, prompt_logprobs=1)
+
+        result = await api.generate(messages, [], "auto", config)
+        model_output = result[0]
+
+        assert model_output.choices[0].prompt_logprobs is not None
+        assert len(model_output.choices[0].prompt_logprobs.content) == 2
+        assert model_output.choices[0].prompt_logprobs.content[0].token == "is"
+        assert model_output.choices[0].prompt_logprobs.content[0].logprob == -0.4
+        assert model_output.choices[0].prompt_logprobs.content[1].token == "great"
+        assert model_output.choices[0].prompt_logprobs.content[1].logprob == -0.9

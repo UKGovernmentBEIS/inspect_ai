@@ -131,13 +131,8 @@ def test_stream_convert_preserves_log_updates(
 
 
 @pytest.mark.parametrize("stream", [True, False], ids=["stream", "no-stream"])
-def test_convert_applies_message_pool_dedup(
-    tmp_path: pathlib.Path,
-    stream: bool,
-    monkeypatch: pytest.MonkeyPatch,
-):
+def test_convert_applies_message_pool_dedup(tmp_path: pathlib.Path, stream: bool):
     """Converting a v2 .eval file should apply message pool dedup."""
-    monkeypatch.setenv("INSPECT_LOG_CONDENSE", "1")
     input_file = (
         _TESTS_DIR
         / "test_list_logs/2024-11-05T13-32-37-05-00_input-task_hxs4q9azL3ySGkjJirypKZ.eval"

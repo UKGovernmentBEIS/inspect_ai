@@ -97,14 +97,17 @@ async def sandboxenv_context(
         interrupted = False
         environments: dict[str, SandboxEnvironment] | None = None
         try:
-            # initialize sandbox environment,
+            # initialize sandbox environment
+            metadata = dict(sample.metadata) if sample.metadata else {}
+            metadata["__sample_id__"] = sample.id
+
             environments = await init_sandbox_environments_sample(
                 sandboxenv_type=sandboxenv_type,
                 task_name=registry_unqualified_name(task_name),
                 config=sandbox.config,
                 files=files,
                 setup=setup,
-                metadata=sample.metadata if sample.metadata else {},
+                metadata=metadata,
             )
 
             # run sample

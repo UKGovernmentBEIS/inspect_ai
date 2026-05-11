@@ -1,5 +1,6 @@
 ---
-title: inspect_ai
+reference: inspect_ai
+description: Tasks, evaluation, and scoring.
 ---
 
 ## Evaluation

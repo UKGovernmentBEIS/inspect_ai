@@ -1,6 +1,7 @@
 from inspect_ai import Task, eval, task
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.registry import (
+    extract_named_params,
     registry_create_from_dict,
     registry_info,
     registry_kwargs,
@@ -8,6 +9,12 @@ from inspect_ai._util.registry import (
     registry_value,
 )
 from inspect_ai.dataset import Sample
+from inspect_ai.model._compaction.auto import CompactionAuto
+from inspect_ai.model._compaction.edit import CompactionEdit
+from inspect_ai.model._compaction.native import CompactionNative
+from inspect_ai.model._compaction.summary import CompactionSummary
+from inspect_ai.model._compaction.trim import CompactionTrim
+from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.scorer import Metric, metric
 from inspect_ai.scorer._metric import SampleScore
 from inspect_ai.solver import Solver, solver, use_tools
@@ -111,3 +118,68 @@ def test_registry_kwargs() -> None:
         args["solver_dict"]["inner_solver"],
     ):
         assert isinstance(arg_solver, Solver)
+
+
+def _extract(fn, *args, **kwargs):
+    """Helper to call extract_named_params with apply_defaults=True."""
+    return extract_named_params(fn, True, *args, **kwargs)
+
+
+def test_repr_params_serialization() -> None:
+    """Test that objects with _repr_params_ are serialized as dicts, not class names."""
+
+    def my_solver(compaction: CompactionStrategy) -> None: ...
+
+    result = _extract(
+        my_solver, compaction=CompactionEdit(threshold=0.8, keep_tool_uses=5)
+    )
+
+    assert isinstance(result["compaction"], dict)
+    assert result["compaction"]["type"] == "edit"
+    assert result["compaction"]["threshold"] == 0.8
+    assert result["compaction"]["keep_tool_uses"] == 5
+    assert result["compaction"]["memory"] is True
+    assert result["compaction"]["keep_thinking_turns"] == 1
+    assert result["compaction"]["keep_tool_inputs"] is True
+    assert result["compaction"]["exclude_tools"] is None
+
+
+def test_repr_params_all_strategies() -> None:
+    """Test _repr_params_ for each CompactionStrategy subclass."""
+
+    def my_solver(compaction: CompactionStrategy) -> None: ...
+
+    # CompactionEdit
+    result = _extract(my_solver, compaction=CompactionEdit(threshold=0.7))
+    assert result["compaction"]["type"] == "edit"
+    assert result["compaction"]["threshold"] == 0.7
+    assert "keep_tool_uses" in result["compaction"]
+
+    # CompactionTrim
+    result = _extract(my_solver, compaction=CompactionTrim(threshold=0.6, preserve=0.5))
+    assert result["compaction"]["type"] == "trim"
+    assert result["compaction"]["threshold"] == 0.6
+    assert result["compaction"]["preserve"] == 0.5
+
+    # CompactionSummary
+    result = _extract(
+        my_solver,
+        compaction=CompactionSummary(threshold=0.85, instructions="Keep code"),
+    )
+    assert result["compaction"]["type"] == "summary"
+    assert result["compaction"]["threshold"] == 0.85
+    assert result["compaction"]["instructions"] == "Keep code"
+
+    # CompactionNative
+    result = _extract(
+        my_solver, compaction=CompactionNative(threshold=0.9, instructions="Be concise")
+    )
+    assert result["compaction"]["threshold"] == 0.9
+    assert result["compaction"]["instructions"] == "Be concise"
+
+    # CompactionAuto
+    result = _extract(
+        my_solver, compaction=CompactionAuto(threshold=0.75, memory="auto")
+    )
+    assert result["compaction"]["threshold"] == 0.75
+    assert result["compaction"]["memory"] == "auto"

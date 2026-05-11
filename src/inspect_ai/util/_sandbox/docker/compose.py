@@ -122,9 +122,6 @@ async def compose_check_running(
 
     if len(successful_services) > 0:
         if len(successful_services) != len(services):
-            unhealthy_services = services
-            for successful_service in successful_services:
-                unhealthy_services.remove(successful_service["Service"])
             return []
     else:
         return []
@@ -182,6 +179,15 @@ async def compose_pull(
         timeout=None,  # no timeout for pull
         capture_output=capture_output,
     )
+
+
+async def docker_image_exists_locally(image: str) -> bool:
+    """Check whether a docker image is already present in the local daemon."""
+    result = await subprocess(
+        ["docker", "image", "inspect", image],
+        capture_output=True,
+    )
+    return result.success
 
 
 async def compose_exec(

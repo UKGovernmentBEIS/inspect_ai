@@ -63,4 +63,4 @@ async def test_mistral_api_key():
 @pytest.mark.anyio
 @skip_if_no_together
 async def test_together_api_key():
-    await check_explicit_api_key("together/MiniMaxAI/MiniMax-M2.5", "TOGETHER_API_KEY")
+    await check_explicit_api_key("together/MiniMaxAI/MiniMax-M2.7", "TOGETHER_API_KEY")

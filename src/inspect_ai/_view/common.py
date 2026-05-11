@@ -4,6 +4,7 @@ import inspect
 import os
 import urllib.parse
 from collections.abc import AsyncIterable
+from functools import partial
 from io import BytesIO
 from logging import getLogger
 from typing import Any, AsyncIterator, Literal, Tuple, cast
@@ -12,9 +13,11 @@ import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
 from fsspec.asyn import AsyncFileSystem  # type: ignore
 from fsspec.core import split_protocol  # type: ignore
+from pydantic import BaseModel
 from s3fs import S3FileSystem  # type: ignore
 from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai._view.azure import (
     azure_warning_hint,
@@ -30,6 +33,9 @@ from inspect_ai.log._file import (
     log_files_from_ls,
     read_eval_log_async,
 )
+from inspect_ai.log._recorders.buffer.buffer import sample_buffer
+from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
+from inspect_ai.log._recorders.buffer.types import PendingSampleUrls, SegmentRef
 
 logger = getLogger(__name__)
 
@@ -56,11 +62,29 @@ def normalize_uri(uri: str) -> str:
         return f"file://{path}"
 
 
-def get_log_dir(log_dir: str) -> dict[str, Any]:
-    response = dict(
-        log_dir=aliased_path(log_dir),
-    )
-    return response
+class LogDirResponse(BaseModel):
+    log_dir: str
+
+
+class LogHandle(BaseModel):
+    name: str
+    mtime: float | None = None
+    task: str | None = None
+    task_id: str | None = None
+
+
+class LogFilesResponse(BaseModel):
+    response_type: Literal["incremental", "full"]
+    files: list[LogHandle]
+
+
+class LogListingResponse(BaseModel):
+    log_dir: str
+    files: list[LogHandle]
+
+
+def get_log_dir(log_dir: str) -> LogDirResponse:
+    return LogDirResponse(log_dir=aliased_path(log_dir))
 
 
 async def get_log_files(
@@ -69,7 +93,7 @@ async def get_log_files(
     fs_options: dict[str, Any],
     mtime: float,
     file_count: int,
-) -> dict[str, Any]:
+) -> LogFilesResponse:
     # list logs
     logs = await list_eval_logs_async(
         log_dir=request_log_dir, recursive=recursive, fs_options=fs_options
@@ -106,13 +130,12 @@ def log_files_response(
     logs: list[EvalLogInfo],
     response_type: Literal["incremental", "full"],
     base_log_dir: str | None = None,
-) -> dict[str, Any]:
-    response = dict(
+) -> LogFilesResponse:
+    return LogFilesResponse(
         response_type=response_type,
         files=[
-            dict(
+            LogHandle(
                 name=_normalize_listing_name(base_log_dir, log.name),
-                size=log.size,
                 mtime=log.mtime,
                 task=log.task,
                 task_id=log.task_id,
@@ -120,7 +143,6 @@ def log_files_response(
             for log in logs
         ],
     )
-    return response
 
 
 async def get_log_file(file: str, header_only_param: str | None) -> bytes:
@@ -155,38 +177,96 @@ async def get_log_size(log_file: str) -> int:
     return info.size
 
 
+class LogInfo(BaseModel):
+    size: int
+    direct_url: str | None = None
+
+
+async def get_direct_url(path: str) -> str | None:
+    """Return a presigned URL for `path` if it's on S3, else None.
+
+    Swallows exceptions from the presigning path (returns None and logs a
+    warning); callers must assume any S3 path can still land `None` here.
+    """
+    fs = filesystem(path)
+    if not fs.is_s3():
+        return None
+    try:
+        connection = async_connection(path)
+        # _url is the async variant of url() (fsspec convention)
+        url: str = await connection._url(path, expires=3600)
+        return url
+    except Exception:
+        logger.warning(
+            f"Failed to generate presigned URL for {path}",
+            exc_info=True,
+        )
+        return None
+
+
+async def build_pending_sample_urls(
+    file: str,
+    id: str,
+    epoch: int,
+    after_event_id: int | None,
+    after_attachment_id: int | None,
+    after_message_pool_id: int | None,
+    after_call_pool_id: int | None,
+    max_segments: int | None,
+    tail: bool = False,
+) -> PendingSampleUrls | None:
+    """Build the `/pending-sample-data-urls` response, or None for 404.
+
+    Returns None when the buffer is not filestore-backed (in-process database
+    buffer for a running eval, not yet synced), the manifest is missing, or
+    the requested sample is not in the manifest. Callers map None to 404.
+    """
+    buffer = sample_buffer(file)
+    if not isinstance(buffer, SampleBufferFilestore):
+        return None
+
+    pending = buffer.get_pending_segments(
+        id,
+        epoch,
+        after_event_id=after_event_id,
+        after_attachment_id=after_attachment_id,
+        after_message_pool_id=after_message_pool_id,
+        after_call_pool_id=after_call_pool_id,
+        max_segments=max_segments,
+        tail=tail,
+    )
+    if pending is None:
+        return None
+
+    direct_urls = await tg_collect(
+        [partial(get_direct_url, seg.path) for seg in pending.segments]
+    )
+    refs = [
+        SegmentRef(id=seg.id, member_name=seg.member_name, direct_url=url)
+        for seg, url in zip(pending.segments, direct_urls)
+    ]
+
+    return PendingSampleUrls(
+        segments=refs,
+        complete=pending.complete,
+        has_more=pending.has_more,
+    )
+
+
 async def get_log_info(
     log_file: str,
     generate_direct_url: bool = False,
-) -> dict[str, Any]:
+) -> LogInfo:
     """Return file size and optionally a direct URL for the log file.
 
     Args:
         log_file: Path to the log file.
         generate_direct_url: If True and the file is on S3, include a
             presigned URL in the response.
-
-    Returns:
-        Dict with "size" (int) and optionally "direct_url" (str).
     """
     size = await get_log_size(log_file)
-    result: dict[str, Any] = {"size": size}
-
-    if generate_direct_url:
-        fs = filesystem(log_file)
-        if fs.is_s3():
-            try:
-                connection = async_connection(log_file)
-                # _url is the async variant of url() (fsspec convention)
-                url: str = await connection._url(log_file, expires=3600)
-                result["direct_url"] = url
-            except Exception:
-                logger.warning(
-                    f"Failed to generate presigned URL for {log_file}",
-                    exc_info=True,
-                )
-
-    return result
+    direct_url = await get_direct_url(log_file) if generate_direct_url else None
+    return LogInfo(size=size, direct_url=direct_url)
 
 
 async def delete_log(log_file: str) -> None:
@@ -274,7 +354,7 @@ async def stream_log_bytes(
 
 async def get_logs(
     request_log_dir: str, recursive: bool, fs_options: dict[str, Any]
-) -> dict[str, Any] | None:
+) -> LogListingResponse | None:
     # if the log_dir contains the path to a specific file
     # then just return that file
     if is_log_file(request_log_dir, [".json"]):
@@ -291,13 +371,12 @@ async def get_logs(
     return get_log_listing(logs, request_log_dir)
 
 
-def get_log_listing(logs: list[EvalLogInfo], log_dir: str) -> dict[str, Any]:
-    listing = dict(
+def get_log_listing(logs: list[EvalLogInfo], log_dir: str) -> LogListingResponse:
+    return LogListingResponse(
         log_dir=aliased_path(log_dir),
         files=[
-            dict(
+            LogHandle(
                 name=normalize_azure_listing_name(log_dir, log.name),
-                size=log.size,
                 mtime=log.mtime,
                 task=log.task,
                 task_id=log.task_id,
@@ -305,7 +384,6 @@ def get_log_listing(logs: list[EvalLogInfo], log_dir: str) -> dict[str, Any]:
             for log in logs
         ],
     )
-    return listing
 
 
 def _normalize_listing_name(log_dir: str | None, name: str) -> str:

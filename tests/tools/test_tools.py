@@ -166,7 +166,7 @@ def check_tools_force(model: Model, **model_args) -> None:
 
 @skip_if_no_openai
 def test_openai_tools():
-    check_tools("openai/gpt-4")
+    check_tools("openai/gpt-4o")
 
 
 @skip_if_no_openai

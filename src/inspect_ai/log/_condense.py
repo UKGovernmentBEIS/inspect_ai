@@ -1,4 +1,5 @@
 import json
+from collections.abc import MutableMapping
 from functools import lru_cache
 from logging import getLogger
 from typing import (
@@ -10,7 +11,7 @@ from typing import (
 from pydantic import JsonValue, TypeAdapter
 from typing_extensions import TypedDict
 
-from inspect_ai._util.constants import BASE_64_DATA_REMOVED, log_condense_enabled
+from inspect_ai._util.constants import BASE_64_DATA_REMOVED
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -88,8 +89,10 @@ def condense_events(
     Returns:
         Tuple of (condensed events, events data containing message and call pools).
     """
-    condensed_events, message_pool = condense_model_event_inputs(events, [], {})
-    condensed_events, call_pool = condense_model_event_calls(condensed_events, [], {})
+    condensed_events, _, new_msgs = condense_model_event_inputs(events, 0, {})
+    message_pool: list[ChatMessage] = [msg for _, msg in new_msgs]
+    condensed_events, _, new_calls = condense_model_event_calls(condensed_events, 0, {})
+    call_pool: list[JsonValue] = [call_msg for _, call_msg in new_calls]
     return condensed_events, EventsData(messages=message_pool, calls=call_pool)
 
 
@@ -144,25 +147,31 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     events_fn = events_attachment_fn(attachments, log_images)
     messages_fn = messages_attachment_fn(attachments, log_images)
     context = WalkContext(message_cache={}, only_core=False)
-
     condensed_events = walk_events(sample.events, events_fn, context)
 
-    events_data: EventsData | None = None
-    if log_condense_enabled():
-        existing = sample.events_data
-        existing_msgs = existing["messages"] if existing else []
-        existing_calls = existing["calls"] if existing else []
+    # condense events
+    existing = sample.events_data
+    existing_msgs = existing["messages"] if existing else []
+    existing_calls = existing["calls"] if existing else []
 
-        msg_index = _build_msg_index(existing_msgs)
-        condensed_events, message_pool = condense_model_event_inputs(
-            condensed_events, existing_msgs, msg_index
-        )
+    msg_index = _build_msg_index(existing_msgs)
+    condensed_events, _, new_msgs = condense_model_event_inputs(
+        condensed_events, len(existing_msgs), msg_index
+    )
+    message_pool: list[ChatMessage] = [
+        *existing_msgs,
+        *(msg for _, msg in new_msgs),
+    ]
 
-        call_index = _build_call_index(existing_calls)
-        condensed_events, call_pool = condense_model_event_calls(
-            condensed_events, existing_calls, call_index
-        )
-        events_data = EventsData(messages=message_pool, calls=call_pool)
+    call_index = _build_call_index(existing_calls)
+    condensed_events, _, new_calls = condense_model_event_calls(
+        condensed_events, len(existing_calls), call_index
+    )
+    call_pool: list[JsonValue] = [
+        *existing_calls,
+        *(call_msg for _, call_msg in new_calls),
+    ]
+    events_data = EventsData(messages=message_pool, calls=call_pool)
 
     return sample.model_copy(
         update={
@@ -177,7 +186,7 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
 
 def condense_event(
     event: Event,
-    attachments: dict[str, str],
+    attachments: MutableMapping[str, str],
     log_images: bool = True,
     context: WalkContext | None = None,
 ) -> Event:
@@ -188,7 +197,7 @@ def condense_event(
 
 
 def events_attachment_fn(
-    attachments: dict[str, str], log_images: bool = True
+    attachments: MutableMapping[str, str], log_images: bool = True
 ) -> Callable[[str], str]:
     create_attachment = attachment_fn(attachments)
 
@@ -206,7 +215,7 @@ def events_attachment_fn(
 
 
 def messages_attachment_fn(
-    attachments: dict[str, str], log_images: bool = True
+    attachments: MutableMapping[str, str], log_images: bool = True
 ) -> Callable[[str], str]:
     create_attachment = attachment_fn(attachments)
 
@@ -224,7 +233,7 @@ def messages_attachment_fn(
     return fn
 
 
-def attachment_fn(attachments: dict[str, str]) -> Callable[[str], str]:
+def attachment_fn(attachments: MutableMapping[str, str]) -> Callable[[str], str]:
     def create_attachment(text: str) -> str:
         hash = mm3_hash(text)
         attachments[hash] = text
@@ -299,7 +308,7 @@ def resolve_sample_attachments(
 
 
 def attachments_content_fn(
-    log_images: bool, max_length: int, attachments: dict[str, str]
+    log_images: bool, max_length: int, attachments: MutableMapping[str, str]
 ) -> Callable[[str], str]:
     def create_attachment(text: str) -> str:
         hash = mm3_hash(text)
@@ -485,11 +494,28 @@ def walk_json_value(
     if isinstance(value, str):
         return content_fn(value)
     elif isinstance(value, list):
-        return [walk_json_value(v, content_fn, context) for v in value]
+        return walk_json_list(value, content_fn, context)
     elif isinstance(value, dict):
         return walk_json_dict(value, content_fn, context)
     else:
         return value
+
+
+def walk_json_list(
+    value: list[JsonValue],
+    content_fn: Callable[[str], str],
+    context: WalkContext,
+) -> list[JsonValue]:
+    walked_list: list[JsonValue] | None = None
+
+    for i, v in enumerate(value):
+        walked = walk_json_value(v, content_fn, context)
+        if walked is not v:
+            if walked_list is None:
+                walked_list = list(value)
+            walked_list[i] = walked
+
+    return walked_list if walked_list is not None else value
 
 
 def walk_json_dict(
@@ -497,13 +523,16 @@ def walk_json_dict(
     content_fn: Callable[[str], str],
     context: WalkContext,
 ) -> dict[str, JsonValue]:
-    updates: dict[str, JsonValue] = {}
+    walked_dict: dict[str, JsonValue] | None = None
+
     for k, v in value.items():
-        updates[k] = walk_json_value(v, content_fn, context)
-    if updates:
-        value = value.copy()
-        value.update(updates)
-    return value
+        walked = walk_json_value(v, content_fn, context)
+        if walked is not v:
+            if walked_dict is None:
+                walked_dict = value.copy()
+            walked_dict[k] = walked
+
+    return walked_dict if walked_dict is not None else value
 
 
 def walk_input(

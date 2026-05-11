@@ -107,7 +107,10 @@ def gemini_action_from_tool_call(
     elif action == "type":
         text = str(arguments.get("text", ""))
         x, y = _normalize_coordinate(arguments.get("coordinate", [0, 0]))
-        return "type_text_at", {"text": text, "x": x, "y": y}
+        result: dict[str, object] = {"text": text, "x": x, "y": y}
+        if "press_enter" in arguments:
+            result["press_enter"] = bool(arguments["press_enter"])
+        return "type_text_at", result
 
     elif action == "scroll":
         direction = str(arguments.get("scroll_direction", "down"))
@@ -161,7 +164,12 @@ def _parse_gemini_action(name: str, args: dict[str, object]) -> dict[str, object
     elif name == "type_text_at":
         x, y = _denormalize_coordinate(args)
         text = str(args.get("text", ""))
-        return {"action": "type", "text": text, "coordinate": [x, y]}
+        return {
+            "action": "type",
+            "text": text,
+            "coordinate": [x, y],
+            "press_enter": bool(args.get("press_enter", True)),
+        }
 
     elif name == "hover_at":
         x, y = _denormalize_coordinate(args)

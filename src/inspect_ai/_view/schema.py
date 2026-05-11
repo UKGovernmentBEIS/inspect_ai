@@ -1,65 +1,108 @@
+"""Generate TypeScript types from inspect_ai Python models.
+
+Generates OpenAPI schema and TypeScript types:
+  EvalLog → inspect-openapi.json → openapi-typescript → generated.ts
+
+Usage:
+    python src/inspect_ai/_view/schema.py
+"""
+
 import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Any
 
-from inspect_ai._eval.evalset import EvalSet
-from inspect_ai.log import EvalLog
+from pydantic import RootModel
+
+from inspect_ai._util.citation import Citation as _Citation
+from inspect_ai._view._openapi import build_openapi_schema
+from inspect_ai._view.fastapi_server import view_server_app
+from inspect_ai.event._event import Event as _Event
+from inspect_ai.model import ChatMessage as _ChatMessage
+from inspect_ai.model import Content as _Content
+from inspect_ai.tool._tool_choice import ToolChoice as _ToolChoice
+
+# RootModel wrappers give stable schema names to type aliases (unions, literals)
+# that would otherwise be inlined with auto-generated, unstable names. The class
+# name becomes the key in components/schemas. Original types are imported with _
+# prefix aliases above to free up the bare names.
+# See design/type-generation-pipeline.md.
+
+
+class Content(RootModel[_Content]):
+    pass
+
+
+class ChatMessage(RootModel[_ChatMessage]):
+    pass
+
+
+class Event(RootModel[_Event]):
+    pass
+
+
+class Citation(RootModel[_Citation]):
+    pass
+
+
+class ToolChoice(RootModel[_ToolChoice]):
+    pass
+
 
 VIEW_DIR = Path(__file__).parent
-APP_DIR = os.path.abspath((VIEW_DIR / "ts-mono" / "apps" / "inspect").as_posix())
+TS_MONO_DIR = os.path.abspath((VIEW_DIR / "ts-mono").as_posix())
+OUTPUT_PATH = VIEW_DIR / "inspect-openapi.json"
 
 
-def sync_view_schema() -> None:
-    """Generate a JSON schema and Typescript types for EvalLog.
+def _generate_new() -> None:
+    """Generate OpenAPI schema and TypeScript types for inspect_ai.
 
-    This is useful for keeping log file viewer JS development
-    in sync w/ Python development
+    Uses the real server app (which has response_model on typed endpoints)
+    plus stub endpoints for RootModel wrappers that give stable names to
+    unions and literals.
+
+    See design/type-generation-pipeline.md for the full pipeline docs.
     """
-    # export schema file
-    schema_path = VIEW_DIR / "log-schema.json"
+    app = view_server_app()
+    app.title = "inspect_ai types"
+    app.version = "0.1.0"
 
-    with open(schema_path, "w", encoding="utf-8") as f:
-        # make everything required
-        eval_set = EvalSet.model_json_schema()
-        schema = EvalLog.model_json_schema()
-        defs: dict[str, Any] = schema["$defs"]
+    # Stub endpoints for RootModel wrappers — not served by the real API.
 
-        # Add EvalSetInfo to definitions and reference it in root schema
-        defs["EvalSetInfo"] = eval_set
-        if "$defs" in eval_set:
-            defs.update(eval_set["$defs"])
+    @app.get("/content")
+    def _content() -> Content:
+        raise NotImplementedError
 
-        # Add optional EvalSetInfo reference to root schema for TypeScript generation
-        if "properties" not in schema:
-            schema["properties"] = {}
-        schema["properties"]["eval_set_info"] = {
-            "anyOf": [{"$ref": "#/$defs/EvalSetInfo"}, {"type": "null"}],
-            "default": None,
-        }
+    @app.get("/chat-message")
+    def _chat_message() -> ChatMessage:
+        raise NotImplementedError
 
-        for key in defs.keys():
-            defs[key] = schema_to_strict(defs[key])
-        f.write(json.dumps(schema, indent=2))
+    @app.get("/event")
+    def _event() -> Event:
+        raise NotImplementedError
+
+    @app.get("/citation")
+    def _citation() -> Citation:
+        raise NotImplementedError
+
+    @app.get("/tool-choice")
+    def _tool_choice() -> ToolChoice:
+        raise NotImplementedError
+
+    schema = build_openapi_schema(app)
+
+    with OUTPUT_PATH.open("w") as f:
+        json.dump(schema, f, indent=2, sort_keys=True)
         f.write("\n")
 
-        # generate types w/ json-schema-to-typescript
-        subprocess.run(
-            ["pnpm", "types:generate"],
-            cwd=APP_DIR,
-            check=True,
-        )
+    print(f"Wrote {OUTPUT_PATH.relative_to(VIEW_DIR.parent.parent.parent)}")
 
-
-def schema_to_strict(schema: dict[str, Any]) -> dict[str, Any]:
-    properties = schema.get("properties", None)
-    if properties:
-        schema["required"] = list(properties.keys())
-        schema["additionalProperties"] = False
-
-    return schema
+    subprocess.run(
+        ["pnpm", "--filter", "@tsmono/inspect-common", "types:generate"],
+        cwd=TS_MONO_DIR,
+        check=True,
+    )
 
 
 if __name__ == "__main__":
-    sync_view_schema()
+    _generate_new()

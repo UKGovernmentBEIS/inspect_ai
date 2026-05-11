@@ -32,6 +32,97 @@ grok:
       versions:
         grok-4-fast-non-reasoning-latest:
           snapshot: latest
+    grok-4-1-fast-non-reasoning:
+      display_name: "Grok 4.1 Fast Non-Reasoning"
+      release_date: 2025-11-19
+      knowledge_cutoff_date: 2024-11-01
+      context_length: 2000000
+      reasoning: False
+      versions:
+        grok-4-1-fast-non-reasoning-latest:
+          snapshot: latest
+    grok-4-1-fast-reasoning:
+      display_name: "Grok 4.1 Fast Reasoning"
+      release_date: 2025-11-19
+      knowledge_cutoff_date: 2024-11-01
+      context_length: 2000000
+      reasoning: True
+      aliases:
+        - grok-4-1-fast
+      versions:
+        grok-4-1-fast-reasoning-latest:
+          snapshot: latest
+    grok-4.20-non-reasoning:
+      display_name: "Grok 4.2 Non-Reasoning"
+      release_date: 2026-03-31
+      knowledge_cutoff_date: 2025-09-01
+      context_length: 2000000
+      reasoning: False
+      versions:
+        grok-4.20-0309-non-reasoning:
+          snapshot: "0309"
+          aliases:
+            - grok-4.20-non-reasoning
+            - grok-4.20-beta-non-reasoning
+            - grok-4.20-beta-latest-non-reasoning
+            - grok-4.20-experimental-beta-0304-non-reasoning
+            - grok-4.20-experimental-beta-non-reasoning-latest
+            - grok-4.20-beta-0309-non-reasoning
+            - grok-4.20-non-reasoning-gv2
+        grok-4.20-non-reasoning-latest:
+          snapshot: latest
+    grok-4.20:
+      display_name: "Grok 4.2"
+      release_date: 2026-03-31
+      knowledge_cutoff_date: 2025-09-01
+      context_length: 2000000
+      reasoning: True
+      versions:
+        grok-4.20-0309-reasoning:
+          snapshot: "0309"
+          aliases:
+            - grok-4.20
+            - grok-4.20-reasoning
+            - grok-4.20-0309
+            - grok-4.20-beta-0309-reasoning
+            - grok-4.20-beta
+            - grok-4.20-beta-0309
+            - grok-4.20-beta-latest
+            - grok-4.20-beta-latest-reasoning
+            - grok-4.20-beta-reasoning
+            - grok-4.20-experimental-beta-0304-reasoning
+            - grok-4.20-experimental-beta-0304
+            - grok-4.20-experimental-beta-reasoning-latest
+            - grok-4.20-experimental-beta-latest
+            - grok-4.20-reasoning-gv2
+        grok-4.20-reasoning-latest:
+          snapshot: latest
+    grok-4.20-multi-agent:
+      display_name: "Grok 4.20 Multi-Agent"
+      release_date: 2026-03-31
+      knowledge_cutoff_date: 2025-09-01
+      context_length: 2000000
+      reasoning: True
+      versions:
+        grok-4.20-multi-agent-0309:
+          snapshot: "0309"
+          aliases:
+            - grok-4.20-multi-agent
+            - grok-4.20-multi-agent-beta-latest
+            - grok-4.20-multi-agent-experimental-beta-0304
+            - grok-4.20-multi-agent-experimental-beta-latest
+            - grok-4.20-multi-agent-beta-0309
+        grok-4.20-multi-agent-latest:
+          snapshot: latest
+    grok-4.3:
+      display_name: "Grok 4.3"
+      release_date: 2026-04-17
+      knowledge_cutoff_date: 2025-12-01
+      context_length: 1000000
+      reasoning: True
+      versions:
+        grok-4.3-latest:
+          snapshot: latest
     grok-3:
       display_name: "Grok 3"
       release_date: 2025-02-17

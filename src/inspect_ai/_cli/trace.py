@@ -248,7 +248,7 @@ def anomolies_command_impl(
         def print_fn(o: RenderableType) -> None:
             console.print(o, highlight=False)
 
-        print_fn(f"[bold]TRACE: {shlex.quote(trace_file_path.as_posix())}[bold]")
+        print_fn(f"[bold]TRACE: {shlex.quote(trace_file_path.as_posix())}[/bold]")
 
         _print_bucket(print_fn, "Running Actions", running_actions)
         _print_bucket(print_fn, "Cancelled Actions", canceled_actions)

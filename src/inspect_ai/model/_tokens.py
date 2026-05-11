@@ -116,7 +116,7 @@ def count_text_tokens(text: str) -> int:
     import tiktoken
 
     enc = tiktoken.get_encoding("o200k_base")
-    token_count = len(enc.encode(text))
+    token_count = len(enc.encode(text, disallowed_special=()))
     return max(1, int(token_count * 1.1))
 
 

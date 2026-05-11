@@ -1,5 +1,6 @@
 ---
 title: Datasets 
+llms-description: Datasets provide samples to evaluation tasks. How to adapt various data sources for use with Inspect, including multi-modal data.
 ---
 
 ## Overview
@@ -206,6 +207,8 @@ dataset=hf_dataset("openai_humaneval",
 ```
 
 Under the hood, the `hf_dataset()` function is calling the [load_dataset()](https://huggingface.co/docs/datasets/en/package_reference/loading_methods#datasets.load_dataset) function in the Hugging Face datasets package. You can additionally pass arbitrary parameters on to `load_dataset()` by including them in the call to `hf_dataset()`. For example `hf_dataset(..., cache_dir="~/my-cache-dir")`.
+
+By default, `hf_dataset()` retries transient Hugging Face errors (rate limits, timeouts, and Hub-unreachable cache misses) with exponential backoff. Pass `retry=False` to disable.
 
 ## Amazon S3
 

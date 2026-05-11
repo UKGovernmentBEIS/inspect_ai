@@ -1,7 +1,7 @@
 import math
 from dataclasses import dataclass
 from logging import getLogger
-from typing import Awaitable, Callable, Type, TypeVar, cast
+from typing import Awaitable, Callable, Literal, Type, TypeVar, cast
 
 import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream
@@ -20,7 +20,11 @@ from inspect_ai.event import Event
 from inspect_ai.hooks._legacy import override_api_key_legacy
 from inspect_ai.log._log import EvalLog, EvalSample, EvalSampleSummary, EvalSpec
 from inspect_ai.log._samples import sample_active
+from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelUsage
+from inspect_ai.tool._tool_choice import ToolChoice
+from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import LimitExceededError
 
 logger = getLogger(__name__)
@@ -257,6 +261,34 @@ class ModelCacheUsageData:
 
 
 @dataclass(frozen=True)
+class BeforeModelGenerate:
+    """Data provided before a model generate() call."""
+
+    model_name: str
+    """The name of the model about to be called."""
+    input: list[ChatMessage]
+    """The chat messages about to be sent to the model."""
+    tools: list[ToolInfo]
+    """The tools available for the model to call."""
+    tool_choice: ToolChoice
+    """Directives to the model as to which tools to prefer."""
+    config: GenerateConfig
+    """The generation configuration."""
+    cache: Literal["write"] | None
+    """Cache mode: 'write' if caching is enabled, None otherwise."""
+    eval_set_id: str | None = None
+    """The globally unique identifier for the eval set (if any)."""
+    run_id: str | None = None
+    """The globally unique identifier for the run (if any)."""
+    eval_id: str | None = None
+    """The globally unique identifier for the task execution (if any)."""
+    sample_id: str | None = None
+    """The globally unique identifier for the sample execution (if any)."""
+    task_name: str | None = None
+    """The name of the task that triggered this generate call (if any)."""
+
+
+@dataclass(frozen=True)
 class SampleScoring:
     """Sample scoring hook event data."""
 
@@ -286,6 +318,17 @@ class Hooks:
     Note that whenever hooks are called, they are wrapped in a try/except block to
     catch any exceptions that may occur. This is to ensure that a hook failure does not
     affect the overall execution of the eval. If a hook fails, a warning will be logged.
+
+    #### Ownership of hook event data
+
+    Event objects passed via ``on_sample_event`` and the ``EvalSample`` passed
+    via ``on_sample_end`` are owned by the framework. Hook implementations may
+    read these objects and may retain references for inspection, but **must
+    not mutate them in place**. The framework retains references to these
+    objects and may serialize, copy, or further transform them after the
+    hook returns; in-place mutation is undefined behavior. If a hook needs a
+    mutable working copy, call ``data.event.model_copy(deep=True)`` (or the
+    equivalent on the sample) inside the hook and operate on that copy.
     """
 
     def enabled(self) -> bool:
@@ -408,6 +451,21 @@ class Hooks:
 
         Args:
            data: Sample end data.
+        """
+        pass
+
+    async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
+        """Called before a model's generate() method is invoked.
+
+        This is called before cache lookup and before model API access
+        verification, so hook mutations to inputs/tools/config are reflected in
+        cache keys and in the actual API call.
+
+        Note that this fires inside the retry wrapper, so it will be called
+        on each retry attempt, not just the first.
+
+        Args:
+           data: Pre-generation data including input messages, tools, and config.
         """
         pass
 
@@ -724,6 +782,34 @@ async def emit_sample_end(
     await _emit_to_all(lambda hook: hook.on_sample_end(data))
 
 
+async def emit_before_model_generate(
+    model_name: str,
+    input: list[ChatMessage],
+    tools: list[ToolInfo],
+    tool_choice: ToolChoice,
+    config: GenerateConfig,
+    cache: Literal["write"] | None,
+) -> None:
+    from inspect_ai.log._samples import sample_active
+
+    active = sample_active()
+
+    data = BeforeModelGenerate(
+        model_name=model_name,
+        input=input,
+        tools=tools,
+        tool_choice=tool_choice,
+        config=config,
+        cache=cache,
+        eval_set_id=active.eval_set_id if active else None,
+        run_id=active.run_id if active else None,
+        eval_id=active.eval_id if active else None,
+        sample_id=active.id if active else None,
+        task_name=active.task if active else None,
+    )
+    await _emit_to_all(lambda hook: hook.on_before_model_generate(data))
+
+
 async def emit_sample_attempt_start(
     eval_set_id: str | None,
     run_id: str,
@@ -850,10 +936,39 @@ def override_api_key(env_var_name: str, value: str) -> str | None:
     return override_api_key_legacy(env_var_name, value)
 
 
+_hooks_cache: list[Hooks] = []
+_hooks_cache_state: tuple[int, int] = (-1, -1)
+
+
 def get_all_hooks() -> list[Hooks]:
-    """Get all registered hooks."""
-    results = registry_find(lambda info: info.type == "hooks")
-    return cast(list[Hooks], results)
+    """Get all registered hooks.
+
+    Cached against (registry_version, len(registry)): the first call (or
+    any call after the registry mutates) does the full `registry_find`
+    walk; subsequent calls with no change return the cached list directly.
+
+    The version counter is bumped by `registry_add`. The length is tracked
+    in addition so direct deletions from `_registry` (used by some tests)
+    also invalidate the cache — an add+delete sequence bumps both, a pure
+    delete changes only length, and a pure add changes both.
+
+    `_emit_to_all` calls this on every hook emission, and a typical eval
+    fires ~50 emissions per sample (one per Event, plus per-generate /
+    per-attempt / per-sample lifecycle hooks). The un-cached scan walks the
+    entire process-wide registry — Tasks, Solvers, Scorers, Models, etc. —
+    which dominates loop CPU at high concurrency.
+    """
+    from inspect_ai._util import registry as _registry_mod
+
+    global _hooks_cache, _hooks_cache_state
+    state = (_registry_mod._registry_version, len(_registry_mod._registry))
+    if state != _hooks_cache_state:
+        _hooks_cache = cast(
+            list[Hooks],
+            registry_find(lambda info: info.type == "hooks"),
+        )
+        _hooks_cache_state = state
+    return _hooks_cache
 
 
 async def _emit_to_all(callable: Callable[[Hooks], Awaitable[None]]) -> None:

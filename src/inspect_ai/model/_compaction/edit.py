@@ -1,4 +1,4 @@
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from shortuuid import uuid
 from typing_extensions import override
@@ -72,6 +72,19 @@ class CompactionEdit(CompactionStrategy):
         self.keep_tool_uses = keep_tool_uses
         self.keep_tool_inputs = keep_tool_inputs
         self.exclude_tools = exclude_tools
+
+    @override
+    def _repr_params_(self) -> dict[str, Any]:
+        params = super()._repr_params_()
+        params.update(
+            {
+                "keep_thinking_turns": self.keep_thinking_turns,
+                "keep_tool_uses": self.keep_tool_uses,
+                "keep_tool_inputs": self.keep_tool_inputs,
+                "exclude_tools": self.exclude_tools,
+            }
+        )
+        return params
 
     @override
     async def compact(
@@ -228,13 +241,37 @@ def is_result_cleared(content: ContentToolUse) -> bool:
 
 
 def _clear_reasoning(msg: ChatMessageAssistant) -> ChatMessageAssistant:
-    """Remove ContentReasoning from message content."""
+    """Remove ContentReasoning from message content.
+
+    Provider-specific replay anchors are preserved: the Google provider uses
+    ``ContentReasoning(redacted=True, internal={"gemini_function_call_id": ...})``
+    as a positional anchor that links a function_call to the thought_signature
+    Gemini's verifier requires on the next turn. Stripping the anchor would
+    orphan the matching tool call and break replay with 400 INVALID_ARGUMENT.
+    """
     if isinstance(msg.content, str):
         return msg  # No reasoning in string content
-    new_content = [c for c in msg.content if not isinstance(c, ContentReasoning)]
+    new_content = [
+        c
+        for c in msg.content
+        if not isinstance(c, ContentReasoning) or _is_replay_anchor(c)
+    ]
     if not new_content:
         return msg.model_copy(update={"id": uuid(), "content": ""})
     return msg.model_copy(update={"id": uuid(), "content": new_content})
+
+
+def _is_replay_anchor(content: ContentReasoning) -> bool:
+    """True if a reasoning block carries provider-specific replay-critical state.
+
+    Provider-specific keys this recognizes:
+    - ``gemini_function_call_id`` (Google): redacted reasoning that anchors a
+      function_call to its thought_signature for next-turn replay.
+    """
+    return (
+        isinstance(content.internal, dict)
+        and "gemini_function_call_id" in content.internal
+    )
 
 
 def _find_tool_message(

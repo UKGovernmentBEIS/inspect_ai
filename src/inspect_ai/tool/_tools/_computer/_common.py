@@ -307,6 +307,9 @@ _KEY_ALIASES.update(
         "arrowup": "Up",
         "arrowright": "Right",
         "arrowdown": "Down",
+        # xdotool doesn't recognize "PRINTSCREEN" or "PRTSCR" — it needs the keysym name "Print".
+        "printscreen": "Print",
+        "prtscr": "Print",
         # Modifier abbreviations — map to xdotool's built-in aliases
         "ctl": "ctrl",
         "control": "ctrl",
@@ -316,6 +319,8 @@ _KEY_ALIASES.update(
         "windows": "super",
         "opt": "alt",
         "option": "alt",
+        # xdotool doesn't recognize "," — it needs the keysym name "comma".
+        ",": "comma",
     }
 )
 

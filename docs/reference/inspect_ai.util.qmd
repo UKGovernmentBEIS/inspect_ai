@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.util"
+reference: inspect_ai.util
+description: Miscellaneous utility functions.
 ---
 
 ## Store
@@ -29,6 +30,7 @@ title: "inspect_ai.util"
 ### concurrency
 ### subprocess
 ### ExecResult
+### AdaptiveConcurrency
 
 ## Display
 
@@ -41,13 +43,16 @@ title: "inspect_ai.util"
 
 ### span
 ### current_span_id
+### span_id_provider
 ### collect
-### resource
 ### throttle
 ### background
 ### trace_action
 ### trace_message
-
+### media_resolver
+### resource
+### download
+### gdrive_download
 
 ## Sandbox
 

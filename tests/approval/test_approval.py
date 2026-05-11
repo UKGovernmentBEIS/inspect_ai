@@ -245,5 +245,136 @@ async def test_execute_tools_approval_empty_list():
     assert messages[-1].content == [ContentText(text="2")]
 
 
+async def test_execute_tools_reject_records_tool_event():
+    """A rejected tool call must still emit a ToolEvent with error.type='approval'."""
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._tool_call import ToolCall
+    from inspect_ai.tool._tool_def import ToolDef
+
+    init_transcript(Transcript())
+
+    tool_def = ToolDef(addition())
+    call = ToolCall(
+        id="test",
+        function="addition",
+        arguments={"x": 1, "y": 1},
+        parse_error=None,
+    )
+    await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [tool_def],
+        approval=[reject_all_policy],
+    )
+
+    tool_events = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert len(tool_events) == 1
+    assert tool_events[0].id == "test"
+    assert tool_events[0].function == "addition"
+    assert tool_events[0].error is not None
+    assert tool_events[0].error.type == "approval"
+
+
+async def test_execute_tools_terminate_records_tool_event():
+    """A terminated tool call must still emit a ToolEvent (failed=True) before raising."""
+    import pytest
+
+    from inspect_ai._util.exception import TerminateSampleError
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._tool_call import ToolCall
+    from inspect_ai.tool._tool_def import ToolDef
+
+    init_transcript(Transcript())
+
+    terminate_all_policy = ApprovalPolicy(
+        approver=auto_approver("terminate"), tools="*"
+    )
+
+    tool_def = ToolDef(addition())
+    call = ToolCall(
+        id="test",
+        function="addition",
+        arguments={"x": 1, "y": 1},
+        parse_error=None,
+    )
+    with pytest.raises(TerminateSampleError):
+        await execute_tools(
+            [ChatMessageAssistant(content=[], tool_calls=[call])],
+            [tool_def],
+            approval=[terminate_all_policy],
+        )
+
+    tool_events = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert len(tool_events) == 1
+    assert tool_events[0].id == "test"
+    assert tool_events[0].function == "addition"
+    assert tool_events[0].failed is True
+
+
+async def test_execute_tools_parse_error_records_tool_event():
+    """A ToolCall with parse_error must emit a ToolEvent with error.type='parsing'."""
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._tool_call import ToolCall
+    from inspect_ai.tool._tool_def import ToolDef
+
+    init_transcript(Transcript())
+
+    tool_def = ToolDef(addition())
+    call = ToolCall(
+        id="test",
+        function="addition",
+        arguments={"x": 1, "y": 1},
+        parse_error="bad arguments",
+    )
+    await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [tool_def],
+    )
+
+    tool_events = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert len(tool_events) == 1
+    assert tool_events[0].id == "test"
+    assert tool_events[0].error is not None
+    assert tool_events[0].error.type == "parsing"
+
+
+async def test_execute_tools_tool_not_found_records_tool_event():
+    """A call to an unregistered tool must emit a ToolEvent with error.type='parsing'."""
+    from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import Transcript, init_transcript, transcript
+    from inspect_ai.model._call_tools import execute_tools
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.tool._tool_call import ToolCall
+    from inspect_ai.tool._tool_def import ToolDef
+
+    init_transcript(Transcript())
+
+    tool_def = ToolDef(addition())
+    call = ToolCall(
+        id="test",
+        function="nonexistent",
+        arguments={},
+        parse_error=None,
+    )
+    await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])],
+        [tool_def],
+    )
+
+    tool_events = [e for e in transcript().events if isinstance(e, ToolEvent)]
+    assert len(tool_events) == 1
+    assert tool_events[0].function == "nonexistent"
+    assert tool_events[0].error is not None
+    assert tool_events[0].error.type == "parsing"
+
+
 if __name__ == "__main__":
     test_approve_escalate()

@@ -1,5 +1,6 @@
 ---
-title: inspect trace
+reference: inspect trace
+description: List and read execution traces.
 ---
 
 

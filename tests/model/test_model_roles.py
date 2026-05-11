@@ -1,9 +1,11 @@
 import tempfile
 
+import pytest
 from test_helpers.utils import failing_solver, skip_if_no_google, skip_if_no_openai
 
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai._eval.evalset import eval_set
+from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
@@ -12,7 +14,7 @@ from inspect_ai.solver import solver
 
 RED_TEAM = "red_team"
 RED_TEAM_DEFAULT = "openai/gpt-4o"
-GEMINI_FLASH_20 = "google/gemini-2.0-flash"
+GEMINI_FLASH_3_PREVIEW = "google/gemini-3-flash-preview"
 
 
 @solver
@@ -38,10 +40,10 @@ def role_task():
 @skip_if_no_google
 @skip_if_no_openai
 def test_model_role() -> None:
-    log = eval(role_task(), model_roles={RED_TEAM: GEMINI_FLASH_20})[0]
+    log = eval(role_task(), model_roles={RED_TEAM: GEMINI_FLASH_3_PREVIEW})[0]
     assert log.eval.model_roles
-    assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_20
-    check_model_role(log, RED_TEAM, GEMINI_FLASH_20)
+    assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_3_PREVIEW
+    check_model_role(log, RED_TEAM, GEMINI_FLASH_3_PREVIEW)
 
 
 @skip_if_no_openai
@@ -53,13 +55,13 @@ def test_model_role_default() -> None:
 @skip_if_no_google
 @skip_if_no_openai
 def test_model_role_retry() -> None:
-    log = eval(role_task(), model_roles={RED_TEAM: GEMINI_FLASH_20})[0]
+    log = eval(role_task(), model_roles={RED_TEAM: GEMINI_FLASH_3_PREVIEW})[0]
     log.status = "cancelled"
     log.samples = []
     log = eval_retry(log)[0]
     assert log.eval.model_roles
-    assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_20
-    check_model_role(log, RED_TEAM, GEMINI_FLASH_20)
+    assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_3_PREVIEW
+    check_model_role(log, RED_TEAM, GEMINI_FLASH_3_PREVIEW)
 
 
 @task
@@ -71,10 +73,10 @@ def role_task_init():
 @skip_if_no_google
 @skip_if_no_openai
 def test_model_role_task_init():
-    log = eval(role_task_init, model_roles={RED_TEAM: GEMINI_FLASH_20})[0]
+    log = eval(role_task_init, model_roles={RED_TEAM: GEMINI_FLASH_3_PREVIEW})[0]
     assert log.eval.model_roles
-    assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_20
-    check_model_role(log, RED_TEAM, GEMINI_FLASH_20)
+    assert log.eval.model_roles[RED_TEAM].model == GEMINI_FLASH_3_PREVIEW
+    check_model_role(log, RED_TEAM, GEMINI_FLASH_3_PREVIEW)
 
 
 @skip_if_no_google
@@ -92,9 +94,11 @@ def test_model_role_eval_set() -> None:
             log_dir=log_dir,
             retry_wait=0.001,
             retry_attempts=5,
-            model_roles={RED_TEAM: GEMINI_FLASH_20},
+            model_roles={RED_TEAM: GEMINI_FLASH_3_PREVIEW},
         )
-        check_model_role(read_eval_log(logs[0].location), RED_TEAM, GEMINI_FLASH_20)
+        check_model_role(
+            read_eval_log(logs[0].location), RED_TEAM, GEMINI_FLASH_3_PREVIEW
+        )
 
 
 def check_model_role(log: EvalLog, role: str, model: str) -> None:
@@ -170,7 +174,7 @@ def test_role_usage_eval_retry() -> None:
 @skip_if_no_google
 @skip_if_no_openai
 def test_role_usage_tracking() -> None:
-    log = eval(role_task(), model_roles={RED_TEAM: GEMINI_FLASH_20})[0]
+    log = eval(role_task(), model_roles={RED_TEAM: GEMINI_FLASH_3_PREVIEW})[0]
 
     assert log.stats.role_usage is not None
     assert RED_TEAM in log.stats.role_usage
@@ -218,7 +222,8 @@ def check_memoize_solver():
 def test_model_role_memoize() -> None:
     # check with role specified
     log = eval(
-        Task(solver=check_memoize_solver()), model_roles={RED_TEAM: GEMINI_FLASH_20}
+        Task(solver=check_memoize_solver()),
+        model_roles={RED_TEAM: GEMINI_FLASH_3_PREVIEW},
     )[0]
     assert log.status == "success"
 
@@ -259,6 +264,39 @@ def multi_role_solver():
         return state
 
     return solve
+
+
+def test_model_role_required_raises_when_not_specified() -> None:
+    """get_model with required=True should raise when the role is not specified."""
+    with pytest.raises(PrerequisiteError, match="required"):
+        get_model(role="nonexistent_role", required=True)
+
+
+def test_model_role_required_succeeds_when_specified() -> None:
+    """get_model with required=True should succeed when the role is provided."""
+
+    @solver
+    def required_role_solver():
+        async def solve(state, generate):
+            model = get_model(role=GRADER, required=True)
+            state.output = await model.generate(state.messages)
+            state.messages.append(state.output.message)
+            return state
+
+        return solve
+
+    log = eval(
+        Task(solver=required_role_solver()),
+        model_roles={GRADER: MOCK_A},
+    )[0]
+    assert log.status == "success"
+    check_model_role(log, GRADER, MOCK_A)
+
+
+def test_model_role_required_falls_back_to_default() -> None:
+    """get_model with required=True but a default should use the default, not raise."""
+    model = get_model(role="missing_role", required=True, default="mockllm/model")
+    assert model is not None
 
 
 def test_model_role_merge_eval_overrides_task() -> None:

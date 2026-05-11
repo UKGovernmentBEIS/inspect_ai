@@ -5,17 +5,17 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from inspect_sandbox_tools._remote_tools._exec_remote._job import _make_preexec
+from inspect_sandbox_tools._util.user_switch import make_preexec
 
-_OOM_PATCH = "inspect_sandbox_tools._remote_tools._exec_remote._job._set_oom_score_adj"
+_OOM_PATCH = "inspect_sandbox_tools._util.user_switch.set_oom_score_adj"
 
 
 class TestMakePreexec:
-    """Tests for the _make_preexec function."""
+    """Tests for the make_preexec function."""
 
     def test_no_user_only_sets_oom(self) -> None:
         """When username is None, preexec only sets OOM score."""
-        preexec = _make_preexec(None)
+        preexec = make_preexec(None)
         with patch(_OOM_PATCH) as mock_oom, patch("os.setuid") as mock_setuid:
             preexec()
             mock_oom.assert_called_once()
@@ -43,7 +43,7 @@ class TestMakePreexec:
         mock_setgid.side_effect = lambda *a: call_order.append("setgid")
         mock_setuid.side_effect = lambda *a: call_order.append("setuid")
 
-        preexec = _make_preexec("testuser")
+        preexec = make_preexec("testuser")
         with patch(_OOM_PATCH):
             preexec()
 
@@ -59,7 +59,7 @@ class TestMakePreexec:
         self, mock_getpwnam: MagicMock, mock_exit: MagicMock
     ) -> None:
         """When the user doesn't exist in /etc/passwd, preexec calls os._exit(1)."""
-        preexec = _make_preexec("testuser")
+        preexec = make_preexec("testuser")
         with patch(_OOM_PATCH), pytest.raises(SystemExit):
             preexec()
         mock_exit.assert_called_once_with(1)
@@ -79,7 +79,7 @@ class TestMakePreexec:
         pw.pw_gid = 1000
         mock_getpwnam.return_value = pw
 
-        preexec = _make_preexec("testuser")
+        preexec = make_preexec("testuser")
         with patch(_OOM_PATCH), pytest.raises(SystemExit):
             preexec()
         mock_exit.assert_called_once_with(1)
@@ -123,7 +123,7 @@ class TestJobCreateHomeEnv:
         from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
 
         job = await Job.create("echo hi", user=None, can_switch_user=False)
-        await job.kill()
+        await job.kill(ack_seq=0)
         # No assertion on env needed — just verify it doesn't crash.
         # The subprocess inherits os.environ unchanged when env=None.
 
@@ -182,7 +182,7 @@ class TestJobCreateUserValidation:
 
         job = await Job.create("echo hello", user=None, can_switch_user=False)
         assert job.pid > 0
-        await job.kill()
+        await job.kill(ack_seq=0)
 
     async def test_current_user_without_can_switch_works(self) -> None:
         """Requesting the current user should succeed even without root."""
@@ -193,7 +193,7 @@ class TestJobCreateUserValidation:
         current_user = getpass.getuser()
         job = await Job.create("echo hello", user=current_user, can_switch_user=False)
         assert job.pid > 0
-        await job.kill()
+        await job.kill(ack_seq=0)
 
 
 class TestExecRemoteUserIntegration:
@@ -204,12 +204,12 @@ class TestExecRemoteUserIntegration:
         from inspect_sandbox_tools._remote_tools._exec_remote._job import Job
 
         job = await Job.create("id -un", user="nobody", can_switch_user=True)
-        result = await job.poll()
+        result = await job.poll(ack_seq=0)
         for _ in range(50):
             if result.state == "completed":
                 break
             await asyncio.sleep(0.1)
-            result = await job.poll()
+            result = await job.poll(ack_seq=result.seq)
         assert result.state == "completed"
         assert result.exit_code == 0
         assert result.stdout.strip() == "nobody"

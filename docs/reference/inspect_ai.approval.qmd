@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.approval"
+reference: inspect_ai.approval
+description: Approvers and approval policies.
 ---
 
 ## Approvers

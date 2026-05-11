@@ -1,5 +1,6 @@
 ---
 title: Tool Approval 
+llms-description: Fine-grained policies for approving tool calls made by models.
 ---
 
 ## Overview

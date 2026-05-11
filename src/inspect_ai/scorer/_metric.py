@@ -96,6 +96,28 @@ class Score(BaseModel):
     history: list[ScoreEdit] = Field(default_factory=list)
     """Edit history - users can access intermediate states."""
 
+    @classmethod
+    def unscored(
+        cls,
+        *,
+        answer: str | None = None,
+        explanation: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "Score":
+        """Construct a Score that is preserved but excluded from metrics and reducers.
+
+        Use this when a scorer cannot produce a value for a sample but you
+        still want to record context (answer, explanation, metadata). Sets
+        `value` to NaN, which is the canonical sentinel that aggregate
+        metrics and reducers skip.
+        """
+        return cls(
+            value=float("nan"),
+            answer=answer,
+            explanation=explanation,
+            metadata=metadata,
+        )
+
     @property
     def text(self) -> str:
         """Read the score as text."""

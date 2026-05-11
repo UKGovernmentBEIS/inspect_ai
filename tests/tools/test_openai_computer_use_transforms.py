@@ -1,3 +1,4 @@
+import pytest
 from openai.types.responses import ResponseComputerToolCall
 from openai.types.responses.computer_action import (
     Click,
@@ -369,6 +370,7 @@ def _computer_tool_info():
                     "scroll_direction",
                     "start_coordinate",
                     "text",
+                    "press_enter",
                     "actions",
                 ]
             }
@@ -386,10 +388,61 @@ def test_maybe_computer_use_tool_gpt54():
     assert "display_height" not in result
 
 
-def test_maybe_computer_use_tool_non_matching_model():
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "gpt-5.4",
+        "gpt-5.4-mini",
+        "gpt-5.4-pro",
+        "gpt-5.4-2026-03-17",
+        "gpt-5.4-mini-2026-04-17",
+        "gpt-5.5",
+        "gpt-5.5-mini",
+        "gpt-5.5-pro",
+        "gpt-6",
+        "gpt-6.0",
+        "gpt-7.2",
+        "GPT-5.4",
+    ],
+)
+def test_maybe_computer_use_tool_accepts(model_name):
     tool = _computer_tool_info()
-    assert maybe_computer_use_tool("gpt-4o", tool) is None
-    assert maybe_computer_use_tool("computer-use-preview", tool) is None
+    result = maybe_computer_use_tool(model_name, tool)
+    assert result is not None, f"expected {model_name} to qualify"
+    assert result["type"] == "computer"
+
+
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        # nano variants (issue #3844)
+        "gpt-5.4-nano",
+        "gpt-5.4-nano-2026-03-17",
+        "gpt-5.5-nano",
+        # instant variants
+        "gpt-5.4-instant",
+        "gpt-5.5-instant",
+        # chat variants
+        "gpt-5.4-chat",
+        "gpt-5.5-chat",
+        # below the (5, 4) floor
+        "gpt-5",
+        "gpt-5.0",
+        "gpt-5.3",
+        "gpt-4.1",
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-3.5-turbo",
+        # non-GPT names
+        "computer-use-preview",
+        "claude-opus-4-6",
+        "o3",
+        "",
+    ],
+)
+def test_maybe_computer_use_tool_rejects(model_name):
+    tool = _computer_tool_info()
+    assert maybe_computer_use_tool(model_name, tool) is None
 
 
 def test_maybe_computer_use_tool_non_computer_tool():
@@ -397,6 +450,7 @@ def test_maybe_computer_use_tool_non_computer_tool():
 
     tool = ToolInfo(name="bash", description="bash", parameters=ToolParams())
     assert maybe_computer_use_tool("gpt-5.4", tool) is None
+    assert maybe_computer_use_tool("gpt-5.5", tool) is None
 
 
 def test_back_and_forward_click():

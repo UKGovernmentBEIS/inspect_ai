@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.scorer"
+reference: inspect_ai.scorer
+description: Task scoring and metrics.
 ---
 
 ## Scorers
@@ -14,6 +15,8 @@ title: "inspect_ai.scorer"
 ### exact
 ### model_graded_qa
 ### model_graded_fact
+### perplexity
+### target_perplexity
 ### multi_scorer
 
 ## Metrics
@@ -23,6 +26,8 @@ title: "inspect_ai.scorer"
 ### std
 ### stderr
 ### bootstrap_stderr
+### perplexity_per_token
+### perplexity_per_seq
 
 ## Reducers
 

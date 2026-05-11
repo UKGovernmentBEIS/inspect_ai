@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 import os
 import socket
 import subprocess
@@ -16,6 +17,7 @@ from inspect_sandbox_tools._util.common_types import JSONRPCResponseJSON
 from inspect_sandbox_tools._util.constants import SERVER_DIR, SOCKET_PATH
 from inspect_sandbox_tools._util.json_rpc_helpers import json_rpc_unix_call
 from inspect_sandbox_tools._util.load_tools import load_tools
+from inspect_sandbox_tools._util.user_switch import get_home_dir, switch_user
 
 
 class JSONRPCIncoming(BaseModel):
@@ -37,25 +39,25 @@ def main() -> None:
     match args.command:
         case "healthcheck":
             healthcheck()
-        case "start-server":
-            start_server()
         case "exec":
             asyncio.run(_exec(args.request))
+        case "start-server":
+            start_server()
         case "server":
             server_main()
         case "model_proxy":
             asyncio.run(run_model_proxy_server())
 
 
-def healthcheck():
-    asyncio.run(_exec('{"jsonrpc": "2.0", "method": "version", "id": 666}'))
-    asyncio.run(_exec('{"jsonrpc": "2.0", "method": "remote_version", "id": 667}'))
-
-
 def start_server() -> None:
     """Start the sandbox tools server and validate it is responsive."""
     _ensure_server_is_running()
     healthcheck()
+
+
+def healthcheck():
+    asyncio.run(_exec('{"jsonrpc": "2.0", "method": "version", "id": 666}'))
+    asyncio.run(_exec('{"jsonrpc": "2.0", "method": "remote_version", "id": 667}'))
 
 
 # Example/testing requests
@@ -67,6 +69,22 @@ async def _exec(request: str | None) -> None:
     request_json_str = request or sys.stdin.read().strip()
     tool_name = JSONRPCIncoming.model_validate_json(request_json_str).method
     assert isinstance(tool_name, str)
+
+    # For in-process tools, extract _run_as_user and setuid before dispatching.
+    # The CLI is short-lived (one invocation per request), so in-process setuid is safe.
+    if tool_name in in_process_tools:
+        request_data = json.loads(request_json_str)
+        run_as_user = None
+        if isinstance(request_data.get("params"), dict):
+            run_as_user = request_data["params"].pop("_run_as_user", None)
+        if run_as_user is not None:
+            if not isinstance(run_as_user, str):
+                raise TypeError(
+                    f"_run_as_user must be a string, got {type(run_as_user).__name__}"
+                )
+            request_json_str = json.dumps(request_data)
+            switch_user(run_as_user)
+            os.environ["HOME"] = get_home_dir(run_as_user)
 
     print(
         await (
@@ -86,8 +104,8 @@ async def _dispatch_remote_method(request_json_str: str) -> JSONRPCResponseJSON:
     return await json_rpc_unix_call(str(SOCKET_PATH), request_json_str)
 
 
-_SERVER_STDOUT_LOG = str(SERVER_DIR / "server-stdout.log")
-_SERVER_STDERR_LOG = str(SERVER_DIR / "server-stderr.log")
+_SERVER_STDOUT_LOG = SERVER_DIR / "server-stdout.log"
+_SERVER_STDERR_LOG = SERVER_DIR / "server-stderr.log"
 
 
 def _ensure_server_is_running() -> None:
@@ -100,13 +118,10 @@ def _ensure_server_is_running() -> None:
     # half-started socket and falsely conclude the server is ready.
     SOCKET_PATH.unlink(missing_ok=True)
 
-    # Create server directory for socket and logs.
-    # Permissions are enforced by the server on startup; here we just
-    # ensure the directory exists so we can open log files.
     SERVER_DIR.mkdir(exist_ok=True)
-
     stdout_log = open(_SERVER_STDOUT_LOG, "a")
     stderr_log = open(_SERVER_STDERR_LOG, "a")
+
     process = subprocess.Popen(
         (
             # Production staticx mode
@@ -160,10 +175,7 @@ def _read_server_logs() -> str:
 
 def _can_connect_to_socket() -> bool:
     """Test if we can connect to the Unix domain socket."""
-    try:
-        if not SOCKET_PATH.exists():
-            return False
-    except PermissionError:
+    if not SOCKET_PATH.exists():
         return False
 
     try:
@@ -172,7 +184,7 @@ def _can_connect_to_socket() -> bool:
         sock.connect(str(SOCKET_PATH))
         sock.close()
         return True
-    except (OSError, ConnectionRefusedError):
+    except (OSError, ConnectionRefusedError, PermissionError):
         # Do NOT delete the socket here. The socket file may belong to a server
         # we just started that has bound its socket but hasn't called listen()
         # yet. Deleting it at this point would permanently break that server:
@@ -189,9 +201,9 @@ def _parse_args() -> argparse.Namespace:
     )
     exec_parser = subparsers.add_parser("exec")
     exec_parser.add_argument(dest="request", type=str, nargs="?")
+    subparsers.add_parser("start-server")
     subparsers.add_parser("server")
     subparsers.add_parser("healthcheck")
-    subparsers.add_parser("start-server")
     subparsers.add_parser("model_proxy")
 
     return parser.parse_args()

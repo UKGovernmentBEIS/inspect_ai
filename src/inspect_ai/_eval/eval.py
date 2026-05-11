@@ -1,4 +1,3 @@
-import copy
 import logging
 import os
 import sys
@@ -30,12 +29,14 @@ from inspect_ai._display.core.active import display as task_display
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
+    DEFAULT_EPOCHS,
     DEFAULT_LOG_FORMAT,
     DEFAULT_LOG_SHARED,
     JSON_LOG_FORMAT,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import absolute_file_path
+from inspect_ai._util.file import absolute_file_path, filesystem
+from inspect_ai._util.log_context import set_run_shape
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.platform import platform_init
 from inspect_ai._util.registry import registry_lookup, registry_package_name
@@ -59,14 +60,13 @@ from inspect_ai.model._model import (
     get_model,
     init_active_model,
     init_model_roles,
-    init_model_usage,
-    init_role_usage,
     resolve_models,
 )
 from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
+from inspect_ai.util._concurrency import AdaptiveConcurrency
 from inspect_ai.util._display import (
     DisplayType,
     display_type,
@@ -110,6 +110,7 @@ def eval(
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
+    score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
@@ -134,6 +135,7 @@ def eval(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model.
@@ -185,6 +187,9 @@ def eval(
             `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
+        score_on_error: Score samples that error rather than failing the eval mid-run.
+            Errors still count toward the `fail_on_error` threshold for marking the eval
+            log as 'error'. Only takes effect after retries (if any) are exhausted.
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
@@ -212,7 +217,7 @@ def eval(
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
-        log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
+        log_model_api: Log raw model api requests and responses. True logs all calls, False logs only errors, None (default) logs the first few calls per model plus errors.
         log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
@@ -227,6 +232,7 @@ def eval(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        task_retry_attempts: Number of times to retry tasks (defaults to 0)
         **kwargs: Model generation options.
 
     Returns:
@@ -266,6 +272,7 @@ def eval(
                 fail_on_error=fail_on_error,
                 continue_on_fail=continue_on_fail,
                 retry_on_error=retry_on_error,
+                score_on_error=score_on_error,
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
@@ -290,6 +297,7 @@ def eval(
                 score=score,
                 score_display=score_display,
                 eval_set_id=eval_set_id,
+                task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
         # exceptions can escape when debug_errors is True and that's okay
@@ -330,6 +338,7 @@ async def eval_async(
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
+    score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
@@ -354,6 +363,7 @@ async def eval_async(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     r"""Evaluate tasks using a Model (async).
@@ -374,10 +384,10 @@ async def eval_async(
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         approval: Tool use approval policies.
-          Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
-          Defaults to no approval policy.
+            Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
+            Defaults to no approval policy.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
-          "info", "warning", "error", "critical", or "notset" (defaults to "warning")
+            "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
         log_dir: Output path for logging results (defaults to file log in ./logs directory).
         log_format: Format for writing log files (defaults to "eval", the native high-performance format).
@@ -393,6 +403,9 @@ async def eval_async(
             `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
+        score_on_error: Score samples that error rather than failing the eval mid-run.
+            Errors still count toward the `fail_on_error` threshold for marking the eval
+            log as 'error'. Only takes effect after retries (if any) are exhausted.
         debug_errors: Raise task errors (rather than logging them) so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
@@ -415,19 +428,18 @@ async def eval_async(
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images, even if specified as a filename or URL (defaults to False)
-        log_model_api: Log raw model requests and responses. Note that error requests/responses are always logged.
+        log_model_api: Log raw model api requests and responses. True logs all calls, False logs only errors, None (default) logs the first few calls per model plus errors.
         log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
-           If not specified, an appropriate default for the format and filesystem is
-           chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
-        log_shared: Indicate that the log directory is shared, which results in additional
-        syncing of realtime log data for Inspect View.
+            If not specified, an appropriate default for the format and filesystem is
+            chosen (10 for most all cases, 100 for JSON logs on remote filesystems).
+        log_shared: Indicate that the log directory is shared, which results in additional syncing of realtime log data for Inspect View.
         log_header_only: If `True`, the function should return only log headers rather than full logs with samples (defaults to `False`).
-        run_samples: Run samples. If `False`, a log with `status=="started"` and an
-           empty `samples` list is returned.
+        run_samples: Run samples. If `False`, a log with `status=="started"` and an empty `samples` list is returned.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        task_retry_attempts: Number of times to retry tasks (defaults to 0)
         **kwargs: Model generation options.
 
     Returns:
@@ -463,6 +475,7 @@ async def eval_async(
                 fail_on_error=fail_on_error,
                 continue_on_fail=continue_on_fail,
                 retry_on_error=retry_on_error,
+                score_on_error=score_on_error,
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
@@ -487,6 +500,7 @@ async def eval_async(
                 score=score,
                 score_display=score_display,
                 eval_set_id=eval_set_id,
+                task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
         finally:
@@ -532,6 +546,7 @@ async def _eval_async_inner(
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
+    score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
@@ -556,6 +571,7 @@ async def _eval_async_inner(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
     from inspect_ai.hooks._hooks import emit_run_end, emit_run_start
@@ -706,6 +722,7 @@ async def _eval_async_inner(
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
+            score_on_error=score_on_error,
             message_limit=message_limit,
             token_limit=token_limit,
             cost_limit=cost_limit,
@@ -732,6 +749,18 @@ async def _eval_async_inner(
         task_definitions = len(resolved_tasks) // len(model)
         parallel = 1 if (task_definitions == 1 or max_tasks is None) else max_tasks
 
+        # set run shape for log record enhancement
+        if eval_config.epochs is not None:
+            run_max_epochs = eval_config.epochs
+        else:
+            run_max_epochs = max(
+                (t.task.epochs or DEFAULT_EPOCHS for t in resolved_tasks),
+                default=DEFAULT_EPOCHS,
+            )
+        set_run_shape(
+            (t.task.name for t in resolved_tasks),
+            run_max_epochs,
+        )
         await emit_run_start(eval_set_id, run_id, resolved_tasks)
 
         # single task definition (could be multi-model) or max_tasks capped to 1
@@ -758,6 +787,7 @@ async def _eval_async_inner(
                         run_samples=run_samples,
                         score=score,
                         debug_errors=debug_errors is True,
+                        task_retry_attempts=task_retry_attempts,
                         **kwargs,
                     )
                 )
@@ -785,6 +815,7 @@ async def _eval_async_inner(
                 metadata=metadata,
                 run_samples=run_samples,
                 score=score,
+                task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
             logs = EvalLogs(results)
@@ -823,6 +854,7 @@ def eval_retry(
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
+    score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
@@ -837,6 +869,7 @@ def eval_retry(
     timeout: int | None = None,
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
+    adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -869,13 +902,16 @@ def eval_retry(
             `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
+        score_on_error: Score samples that error rather than failing the eval mid-run.
+            Errors still count toward the `fail_on_error` threshold for marking the eval
+            log as 'error'. Only takes effect after retries (if any) are exhausted.
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
             even if specified as a filename or URL (defaults to False)
-        log_model_api: Log raw model api requests and responses. Note that error requests/responses are always logged.
+        log_model_api: Log raw model api requests and responses. True logs all calls, False logs only errors, None (default) logs the first few calls per model plus errors.
         log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
             If not specified, an appropriate default for the format and filesystem is
@@ -893,6 +929,14 @@ def eval_retry(
             Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections:
             Maximum number of concurrent connections to Model API (default is per Model API)
+        adaptive_connections:
+            Adaptive concurrency for Model API connections. Defaults to enabled
+            (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100).
+            Pass `False` to opt out (uses static concurrency), an integer `N` as
+            shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency`
+            to fully customize bounds and tuning (cooldown_seconds, decrease_factor,
+            scale_up_percent). An explicit `max_connections` or `batch=True`
+            takes precedence and uses static concurrency.
 
     Returns:
         List of EvalLog (one for each task)
@@ -918,6 +962,7 @@ def eval_retry(
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
+            score_on_error=score_on_error,
             debug_errors=debug_errors,
             log_samples=log_samples,
             log_realtime=log_realtime,
@@ -932,6 +977,7 @@ def eval_retry(
             timeout=timeout,
             attempt_timeout=attempt_timeout,
             max_connections=max_connections,
+            adaptive_connections=adaptive_connections,
         )
 
     return task_display().run_task_app(with_async_fs(run_task_app))
@@ -951,6 +997,7 @@ async def eval_retry_async(
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
+    score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     log_samples: bool | None = None,
     log_realtime: bool | None = None,
@@ -965,6 +1012,7 @@ async def eval_retry_async(
     timeout: int | None = None,
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
+    adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -990,13 +1038,16 @@ async def eval_retry_async(
             `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
            (by default, no retries occur).
+        score_on_error: Score samples that error rather than failing the eval mid-run.
+            Errors still count toward the `fail_on_error` threshold for marking the eval
+            log as 'error'. Only takes effect after retries (if any) are exhausted.
         debug_errors: Raise task errors (rather than logging them)
            so they can be debugged (defaults to False).
         log_samples: Log detailed samples and scores (defaults to True)
         log_realtime: Log events in realtime (enables live viewing of samples in inspect view). Defaults to True.
         log_images: Log base64 encoded version of images,
            even if specified as a filename or URL (defaults to False)
-        log_model_api: Log raw model api request and response. Note that error requests/responses are always logged.
+        log_model_api: Log raw model api requests and responses. True logs all calls, False logs only errors, None (default) logs the first few calls per model plus errors.
         log_refusals: Log warnings for model refusals.
         log_buffer: Number of samples to buffer before writing log file.
            If not specified, an appropriate default for the format and filesystem is
@@ -1009,6 +1060,7 @@ async def eval_retry_async(
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
+        adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
 
     Returns:
         List of EvalLog (one for each task)
@@ -1032,6 +1084,29 @@ async def eval_retry_async(
         )
         for task in tasks
     ]
+
+    # opportunistically recover crashed logs before retrying
+    recovered_files: dict[int, str] = {}
+    for i, eval_log in enumerate(retry_eval_logs):
+        if eval_log.status == "started" and eval_log.location:
+            from inspect_ai.log._recover import (
+                RecoveryNotAvailable,
+                recover_eval_log_async,
+            )
+
+            try:
+                recovered = await recover_eval_log_async(
+                    eval_log.location, cleanup=False
+                )
+                retry_eval_logs[i] = recovered
+                if recovered.location:
+                    recovered_files[i] = recovered.location
+            except RecoveryNotAvailable:
+                pass  # no recovery data available — proceed with flushed samples
+            except Exception as ex:
+                logging.getLogger(__name__).warning(
+                    f"Recovery failed for {eval_log.location}: {ex}"
+                )
 
     # eval them in turn
     eval_logs: list[EvalLog] = []
@@ -1133,6 +1208,11 @@ async def eval_retry_async(
             if retry_on_error is not None
             else eval_log.eval.config.retry_on_error
         )
+        score_on_error = (
+            score_on_error
+            if score_on_error is not None
+            else eval_log.eval.config.score_on_error
+        )
         log_samples = (
             log_samples if log_samples is not None else eval_log.eval.config.log_samples
         )
@@ -1176,23 +1256,12 @@ async def eval_retry_async(
         config.timeout = timeout or config.timeout
         config.attempt_timeout = attempt_timeout or config.attempt_timeout
         config.max_connections = max_connections or config.max_connections
+        if adaptive_connections is not None:
+            config.adaptive_connections = adaptive_connections
 
-        # extract previous model usage to continue token counting (make a deep copy to avoid modifying the original log)
-        initial_model_usage = (
-            copy.deepcopy(eval_log.stats.model_usage)
-            if eval_log.stats.model_usage
-            else None
-        )
-        if initial_model_usage:
-            init_model_usage(initial_model_usage)
-
-        initial_role_usage = (
-            copy.deepcopy(eval_log.stats.role_usage)
-            if eval_log.stats.role_usage
-            else None
-        )
-        if initial_role_usage:
-            init_role_usage(initial_role_usage)
+        # model_usage / role_usage are rolled forward per-task inside task_run
+        # via PreviousTask.log.stats -> ResolvedTask.initial_*_usage; nothing
+        # to seed here.
 
         # run the eval
         log = (
@@ -1226,6 +1295,7 @@ async def eval_retry_async(
                 fail_on_error=fail_on_error,
                 continue_on_fail=continue_on_fail,
                 retry_on_error=retry_on_error,
+                score_on_error=score_on_error,
                 debug_errors=debug_errors,
                 message_limit=message_limit,
                 token_limit=token_limit,
@@ -1250,6 +1320,16 @@ async def eval_retry_async(
 
         # add it to our results
         eval_logs.append(log)
+
+    # Clean up recovered files only for retries that succeeded. On failure,
+    # the recovered file serves as a safety net with samples that would
+    # otherwise be lost.
+    for idx, recovered_file in recovered_files.items():
+        if eval_logs[idx].status == "success":
+            try:
+                filesystem(recovered_file).rm(recovered_file)
+            except Exception:
+                pass
 
     return EvalLogs(eval_logs)
 

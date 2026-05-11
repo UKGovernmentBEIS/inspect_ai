@@ -804,7 +804,7 @@ def check_anthropic_bridge_log_json(log_json: str, tools: bool):
 
 
 def check_google_bridge_log_json(log_json: str, tools: bool):
-    assert r'"model": "google/gemini-2.0-flash"' in log_json
+    assert r'"model": "google/gemini-3.1-flash-lite-preview"' in log_json
     # Note: Google generation config params (temperature, top_p, top_k, max_tokens)
     # are not logged the same way as OpenAI/Anthropic - they're set on the SDK client
     if tools:
@@ -813,20 +813,25 @@ def check_google_bridge_log_json(log_json: str, tools: bool):
 
 @skip_if_no_google
 def test_bridged_agent_google():
-    log_json = eval_bridged_task("google/gemini-2.0-flash", agent=google_agent(False))
+    log_json = eval_bridged_task(
+        "google/gemini-3.1-flash-lite-preview", agent=google_agent(False)
+    )
     check_google_bridge_log_json(log_json, tools=False)
 
 
 @skip_if_no_google
 def test_bridged_agent_google_tools():
-    log_json = eval_bridged_task("google/gemini-2.0-flash", agent=google_agent(True))
+    log_json = eval_bridged_task(
+        "google/gemini-3.1-flash-lite-preview", agent=google_agent(True)
+    )
     check_google_bridge_log_json(log_json, tools=True)
 
 
 @skip_if_no_google
 def test_bridged_web_search_tool_google():
     log = eval(
-        web_search_task(google_web_search_agent()), model="google/gemini-2.0-flash"
+        web_search_task(google_web_search_agent()),
+        model="google/gemini-3.1-flash-lite-preview",
     )[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     # Google SDK uses camelCase field names in serialized output
@@ -839,7 +844,7 @@ def test_bridged_web_search_tool_google():
 def test_bridged_code_execution_tool_google():
     log = eval(
         code_execution_task(google_code_execution_agent()),
-        model="google/gemini-2.0-flash",
+        model="google/gemini-3.1-flash-lite-preview",
     )[0]
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"codeExecution"' in log_json

@@ -1,4 +1,5 @@
 import base64
+import re
 from logging import getLogger
 from typing import Any, Literal, Tuple, Union, cast
 
@@ -15,12 +16,14 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
+from inspect_ai.util._json import json_schema_dump
 
 from .._chat_message import (
     ChatMessage,
@@ -30,7 +33,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage
 from .util import (
@@ -324,27 +327,43 @@ class BedrockAPI(ModelAPI):
         else:
             return DEFAULT_MAX_TOKENS
 
+    # Bedrock returns AWS-specific error codes; the throttling-family codes
+    # are documented as the 429 equivalent and indicate true capacity
+    # throttling. The infra-family codes (RequestTimeout, ServiceUnavailable)
+    # are retryable but represent AWS-side issues, not client over-saturation —
+    # so they're classified as transient (pause scale-up, don't scale down).
+    _BEDROCK_THROTTLE_CODES = frozenset(
+        [
+            "ThrottlingException",
+            "RequestLimitExceeded",
+            "Throttling",
+            "RequestThrottled",
+            "TooManyRequestsException",
+            "ProvisionedThroughputExceededException",
+        ]
+    )
+    _BEDROCK_TRANSIENT_CODES = frozenset(
+        [
+            "TransactionInProgressException",
+            "RequestTimeout",
+            "ServiceUnavailable",
+            "ServiceUnavailableException",
+        ]
+    )
+
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         from botocore.exceptions import ClientError
 
-        # Look for an explicit throttle exception
         if isinstance(ex, ClientError):
             error_code = ex.response.get("Error", {}).get("Code", "")
-            return error_code in [
-                "ThrottlingException",
-                "RequestLimitExceeded",
-                "Throttling",
-                "RequestThrottled",
-                "TooManyRequestsException",
-                "ProvisionedThroughputExceededException",
-                "TransactionInProgressException",
-                "RequestTimeout",
-                "ServiceUnavailable",
-                "ServiceUnavailableException",
-            ]
-        else:
-            return False
+            if error_code in self._BEDROCK_THROTTLE_CODES:
+                # AWS doesn't include Retry-After on ThrottlingException — fall
+                # back to the controller's configured cooldown floor.
+                return RetryDecision.rate_limit()
+            if error_code in self._BEDROCK_TRANSIENT_CODES:
+                return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def collapse_user_messages(self) -> bool:
@@ -404,6 +423,31 @@ class BedrockAPI(ModelAPI):
     def is_nova(self) -> bool:
         return "nova" in self.model_name
 
+    def _is_claude_4_x(self, x: int) -> bool:
+        # bedrock model ids look like
+        # `anthropic.claude-opus-4-7-20260101-v1:0` or
+        # `eu.anthropic.claude-opus-4-7-...` for cross-region inference profiles.
+        return (
+            self.is_claude()
+            and re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.model_name) is not None
+        )
+
+    def is_claude_4_7_or_later(self) -> bool:
+        # mirrors the gating used in the native anthropic provider:
+        # claude 4.7+ runs adaptive-thinking-only and rejects temperature /
+        # top_p / top_k. assume future minor versions of claude 4 keep the
+        # 4.7 capability set unless a specific older minor is matched.
+        if not self.is_claude():
+            return False
+        if self._is_claude_4_x(7):
+            return True
+        # future claude 4 minor not yet recognised
+        if re.search(r"claude-[a-zA-Z]+-4-", self.model_name):
+            recognised = any(self._is_claude_4_x(x) for x in (0, 1, 5, 6))
+            if not recognised:
+                return True
+        return False
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -441,17 +485,48 @@ class BedrockAPI(ModelAPI):
                 input, emulate_reasoning=self.is_claude()
             )
 
+            # Claude 4.7+ runs adaptive-thinking-only and rejects sampling
+            # parameters; only maxTokens is accepted. Mirror the gating used
+            # in the native anthropic provider. See issue #3766.
+            forbid_sampling_params = self.is_claude_4_7_or_later()
+
+            def _sampling_param_warning(parameter: str) -> str:
+                return (
+                    f"bedrock model '{self.model_name}' does not support the "
+                    f"'{parameter}' parameter (adaptive thinking only)."
+                )
+
             # additional model request fields
             additionalModelRequestFields: dict[str, Any] = {}
             if config.top_k:
-                additionalModelRequestFields["top_k"] = config.top_k
+                if forbid_sampling_params:
+                    warn_once(logger, _sampling_param_warning("top_k"))
+                else:
+                    additionalModelRequestFields["top_k"] = config.top_k
             reasoning_cfg = self.reasoning_config(config)
             additionalModelRequestFields = additionalModelRequestFields | reasoning_cfg
 
-            # Nova with reasoning enabled requires maxTokens to be unset
-            nova_reasoning_enabled = (
-                self.is_nova() and "reasoningConfig" in reasoning_cfg
+            # Nova with reasoning at "high" effort requires maxTokens to be unset.
+            # Lower effort levels ("low", "medium") still accept maxTokens, so we
+            # must only omit it for the "high" case. See issue #3767.
+            nova_high_effort_reasoning = (
+                self.is_nova()
+                and reasoning_cfg.get("reasoningConfig", {}).get("maxReasoningEffort")
+                == "high"
             )
+
+            # Gate temperature / top_p for adaptive-thinking-only models.
+            if forbid_sampling_params and config.temperature is not None:
+                warn_once(logger, _sampling_param_warning("temperature"))
+                inference_temperature: float | None = None
+            else:
+                inference_temperature = config.temperature
+
+            if forbid_sampling_params and config.top_p is not None:
+                warn_once(logger, _sampling_param_warning("top_p"))
+                inference_top_p: float | None = None
+            else:
+                inference_top_p = config.top_p
 
             # Make the request
             request = ConverseClientConverseRequest(
@@ -459,9 +534,9 @@ class BedrockAPI(ModelAPI):
                 messages=messages,
                 system=system,
                 inferenceConfig=ConverseInferenceConfig(
-                    maxTokens=None if nova_reasoning_enabled else config.max_tokens,
-                    temperature=config.temperature,
-                    topP=config.top_p,
+                    maxTokens=None if nova_high_effort_reasoning else config.max_tokens,
+                    temperature=inference_temperature,
+                    topP=inference_top_p,
                     stopSequences=config.stop_seqs,
                 ),
                 additionalModelRequestFields=additionalModelRequestFields,
@@ -866,8 +941,9 @@ def converse_tools(tools: list[ToolInfo]) -> list[ConverseTool] | None:
             name=tool.name,
             description=tool.description,
             inputSchema={
-                "json": tool.parameters.model_dump(
-                    exclude_none=True, exclude={"additionalProperties"}
+                "json": json_schema_dump(
+                    tool.parameters,
+                    exclude={"additionalProperties"},
                 )
             },
         )

@@ -1,20 +1,28 @@
-from ..._util.json_rpc_helpers import NoParams, validated_json_rpc_method
+import os
+
+from ..._util.json_rpc_helpers import validated_json_rpc_method
 from ._controller import Controller
 from .tool_types import (
     BashParams,
     BashRestartResult,
     InteractParams,
     InteractResult,
+    NewSessionParams,
     NewSessionResult,
     RestartParams,
 )
 
 controller = Controller()
+_can_switch_user = os.getuid() == 0
 
 
-@validated_json_rpc_method(NoParams)
-async def bash_session_new_session(_: NoParams) -> NewSessionResult:
-    return NewSessionResult(session_name=await controller.new_session())
+@validated_json_rpc_method(NewSessionParams)
+async def bash_session_new_session(params: NewSessionParams) -> NewSessionResult:
+    return NewSessionResult(
+        session_name=await controller.new_session(
+            user=params.user, can_switch_user=_can_switch_user
+        )
+    )
 
 
 @validated_json_rpc_method(BashParams)

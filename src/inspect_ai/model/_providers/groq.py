@@ -29,12 +29,16 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_TOKENS,
 )
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from .._call_tools import parse_tool_call
 from .._chat_message import (
@@ -45,7 +49,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
@@ -212,16 +216,16 @@ class GroqAPI(ModelAPI):
         if config.reasoning_effort is not None:
             params["reasoning_effort"] = config.reasoning_effort
         if config.response_schema is not None:
+            json_schema_dict: dict[str, Any] = dict(
+                name=config.response_schema.name,
+                schema=json_schema_dump(config.response_schema.json_schema),
+            )
+            if config.response_schema.description is not None:
+                json_schema_dict["description"] = config.response_schema.description
+            if config.response_schema.strict is not None:
+                json_schema_dict["strict"] = config.response_schema.strict
             params["response_format"] = dict(
-                type="json_schema",
-                json_schema=dict(
-                    name=config.response_schema.name,
-                    schema=config.response_schema.json_schema.model_dump(
-                        exclude_none=True
-                    ),
-                    description=config.response_schema.description,
-                    strict=config.response_schema.strict,
-                ),
+                type="json_schema", json_schema=json_schema_dict
             )
         return params
 
@@ -239,13 +243,17 @@ class GroqAPI(ModelAPI):
         ]
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
-            return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, APITimeoutError):
-            return True
-        else:
-            return False
+            if not is_retryable_http_status(ex.status_code):
+                return RetryDecision.no()
+            retry_after = parse_retry_after_from_exception(ex)
+            if ex.status_code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+        if isinstance(ex, APITimeoutError):
+            return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
@@ -378,10 +386,7 @@ async def as_chat_completion_part(
 
 
 def chat_tools(tools: List[ToolInfo]) -> List[Dict[str, Any]]:
-    return [
-        {"type": "function", "function": tool.model_dump(exclude_none=True)}
-        for tool in tools
-    ]
+    return [{"type": "function", "function": json_schema_dump(tool)} for tool in tools]
 
 
 def chat_tool_choice(tool_choice: ToolChoice) -> str | Dict[str, Any]:

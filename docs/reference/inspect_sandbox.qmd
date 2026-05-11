@@ -1,5 +1,6 @@
 ---
-title: inspect sandbox
+reference: inspect sandbox
+description: Manage sandbox environments.
 ---
 
 

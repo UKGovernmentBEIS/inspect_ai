@@ -1,4 +1,8 @@
 /.quarto/
-/_book/
 /_site/
-**/*.quarto_ipynb
+/_include.yml
+/reference/refs*.json
+**/*.quarto_ipynb*
+**/*.excalidraw.svg
+/.venv/
+**/__pycache__

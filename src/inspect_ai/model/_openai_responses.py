@@ -44,6 +44,7 @@ from openai.types.responses import (
     WebSearchToolParam,
 )
 from openai.types.responses import Response as OpenAIResponse
+from openai.types.responses.namespace_tool_param import NamespaceToolParam
 from openai.types.responses.response import IncompleteDetails
 from openai.types.responses.response_code_interpreter_tool_call import (
     OutputImage,
@@ -117,6 +118,7 @@ from openai.types.responses.tool_param import (
 from pydantic import JsonValue, TypeAdapter, ValidationError
 
 from inspect_ai._util.citation import Citation, DocumentCitation, UrlCitation
+from inspect_ai._util.constants import NO_CONTENT
 from inspect_ai._util.content import (
     Content,
     ContentAudio,
@@ -160,6 +162,7 @@ from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from ._providers._openai_computer_use import (
     computer_call_output,
@@ -174,6 +177,7 @@ MESSAGE_PHASE = "message_phase"
 
 class ResponsesModelInfo(Protocol):
     def has_reasoning_options(self) -> bool: ...
+    def reasoning_only_fallback(self) -> bool: ...
     def is_gpt(self) -> bool: ...
     def is_gpt_5(self) -> bool: ...
     def is_gpt_5_plus(self) -> bool: ...
@@ -217,17 +221,23 @@ def _extract_compaction_from_content_data(
 
 
 async def openai_responses_inputs(
-    messages: list[ChatMessage], model_info: ResponsesModelInfo | None = None
+    messages: list[ChatMessage],
+    model_info: ResponsesModelInfo | None = None,
+    synthesize_phase: bool = False,
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
-        for item in await _openai_input_item_from_chat_message(message, model_info)
+        for item in await _openai_input_item_from_chat_message(
+            message, model_info, synthesize_phase
+        )
     ]
 
 
 async def _openai_input_item_from_chat_message(
-    message: ChatMessage, model_info: ResponsesModelInfo | None = None
+    message: ChatMessage,
+    model_info: ResponsesModelInfo | None = None,
+    synthesize_phase: bool = False,
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
@@ -248,7 +258,9 @@ async def _openai_input_item_from_chat_message(
             )
         ]
     elif message.role == "assistant":
-        return _openai_input_items_from_chat_message_assistant(message, model_info)
+        return _openai_input_items_from_chat_message_assistant(
+            message, model_info, synthesize_phase
+        )
     elif message.role == "tool":
         # see if we need to recover the call id for the computer tool calls
         responses_tool_call = assistant_internal().tool_calls.get(
@@ -1009,7 +1021,9 @@ def tool_use_to_web_search_param(
 
 
 def _openai_input_items_from_chat_message_assistant(
-    message: ChatMessageAssistant, model_info: ResponsesModelInfo | None = None
+    message: ChatMessageAssistant,
+    model_info: ResponsesModelInfo | None = None,
+    synthesize_phase: bool = False,
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -1039,6 +1053,19 @@ def _openai_input_items_from_chat_message_assistant(
         ]
     )
 
+    # If all content is reasoning-only (no text, no tool calls), inject a
+    # NO_CONTENT fallback to prevent the Responses API from rejecting the
+    # next request. This matches the pattern used by other providers
+    # (Anthropic, Google, Mistral, Bedrock) for empty assistant content.
+    if (
+        model_info is not None
+        and model_info.reasoning_only_fallback()
+        and content_items
+        and all(isinstance(c, ContentReasoning) for c in content_items)
+        and len(message.tool_calls or []) == 0
+    ):
+        content_items.append(ContentText(text=NO_CONTENT))
+
     # items to return
     items: list[ResponseInputItemParam] = []
     pending_response_output_id: str | None = None
@@ -1046,6 +1073,12 @@ def _openai_input_items_from_chat_message_assistant(
     pending_response_output: list[
         ResponseOutputRefusalParam | ResponseOutputTextParam
     ] = []
+
+    synthetic_phase = (
+        _synthetic_phase_for_assistant_message(message, content_items)
+        if synthesize_phase
+        else None
+    )
 
     def flush_pending_context_text() -> None:
         nonlocal pending_response_output_id, pending_response_phase
@@ -1151,6 +1184,8 @@ def _openai_input_items_from_chat_message_assistant(
                         message_phase = (
                             phase_value if isinstance(phase_value, str) else None
                         )
+                if message_phase is None:
+                    message_phase = synthetic_phase
 
                 # see if we need to flush d
                 if (
@@ -1174,6 +1209,25 @@ def _openai_input_items_from_chat_message_assistant(
     flush_pending_context_text()
 
     return items + _tool_call_items_from_assistant_message(message)
+
+
+def _synthetic_phase_for_assistant_message(
+    message: ChatMessageAssistant,
+    content_items: list[ContentText | ContentReasoning | ContentToolUse | ContentImage],
+) -> str:
+    # OpenAI recommends preserving `phase` when replaying Responses API
+    # assistant messages; see:
+    # https://developers.openai.com/api/docs/guides/reasoning#phase-parameter
+    # https://developers.openai.com/api/reference/responses
+    #
+    # Inspect always preserves OpenAI-returned MESSAGE_PHASE metadata. This
+    # helper is intentionally opt-in (`responses_phase=True`) because the docs
+    # are explicit about preservation but less explicit about client synthesis
+    # for arbitrary histories constructed outside the OpenAI Responses API.
+    has_tool_activity = bool(message.tool_calls) or any(
+        isinstance(content, ContentToolUse) for content in content_items
+    )
+    return "commentary" if has_tool_activity else "final_answer"
 
 
 def _model_tool_call_for_internal(
@@ -1282,7 +1336,7 @@ def _tool_param_for_tool_info(
             type="function",
             name=_responses_tool_alias(tool.name),
             description=tool.description,
-            parameters=tool.parameters.model_dump(exclude_none=True),
+            parameters=json_schema_dump(tool.parameters),
             strict=False,  # default parameters don't work in strict mode
         )
 
@@ -1525,6 +1579,10 @@ def is_computer_tool_param(tool_param: ToolParam) -> TypeGuard[ComputerToolParam
 
 def is_custom_tool_param(tool_param: ToolParam) -> TypeGuard[CustomToolParam]:
     return tool_param.get("type") == "custom"
+
+
+def is_namespace_tool_param(tool_param: ToolParam) -> TypeGuard[NamespaceToolParam]:
+    return tool_param.get("type") == "namespace"
 
 
 def maybe_code_interpreter_tool(

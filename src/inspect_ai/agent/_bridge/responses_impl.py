@@ -103,6 +103,7 @@ from inspect_ai.model._openai_responses import (
     is_function_call_output,
     is_function_tool_param,
     is_mcp_tool_param,
+    is_namespace_tool_param,
     is_response_code_interpreter_call,
     is_response_computer_tool_call,
     is_response_custom_tool_call,
@@ -193,12 +194,22 @@ async def inspect_responses_api_request_impl(
         )
 
     # convert openai tools to inspect tools (don't pass custom tools on to
-    # non openai models as they don't know how to handle them)
-    tools = [
-        tool_from_responses_tool(tool, web_search, code_execution)
-        for tool in responses_tools
-        if is_openai or tool["type"] != "custom"
-    ]
+    # non openai models as they don't know how to handle them). Track which
+    # tool names belong to a namespace so we can restore the `namespace`
+    # field on outgoing ResponseFunctionToolCalls (codex-cli dispatches by
+    # (namespace, name) and would reject calls with a missing namespace).
+    tools: list[ToolInfo | Tool] = []
+    tool_namespaces: dict[str, str] = {}
+    for tool in responses_tools:
+        if not is_openai and tool["type"] == "custom":
+            continue
+        if is_namespace_tool_param(tool):
+            ns_name = tool["name"]
+            for inner in tool.get("tools", []):
+                inner_name = cast(dict[str, Any], inner).get("name")
+                if isinstance(inner_name, str):
+                    tool_namespaces[inner_name] = ns_name
+        tools.extend(tools_from_responses_tool(tool, web_search, code_execution))
     tools = [tool for tool in tools if tool]
     responses_tool_choice: ResponsesToolChoiceParam | None = json_data.get(
         "tool_choice", None
@@ -245,7 +256,9 @@ async def inspect_responses_api_request_impl(
         incomplete_details=responses_incomplete_details(output.stop_reason),
         model=model_name,
         object="response",
-        output=responses_output_items_from_assistant_message(output.message),
+        output=responses_output_items_from_assistant_message(
+            output.message, tool_namespaces
+        ),
         parallel_tool_calls=parallel_tool_calls,
         tool_choice=responses_tool_choice_param_to_tool_choice(responses_tool_choice),
         tools=responses_tool_params_to_tools(responses_tools),
@@ -363,6 +376,37 @@ def tool_from_responses_tool(
         )
     else:
         raise RuntimeError(f"ToolParam of type {tool_param.get('type')} not supported.")
+
+
+def tools_from_responses_tool(
+    tool_param: ToolParam,
+    web_search_providers: WebSearchProviders,
+    code_execution_providers: CodeExecutionProviders,
+) -> list[ToolInfo | Tool]:
+    """Convert a responses ToolParam into zero or more inspect tools.
+
+    NamespaceToolParam groups multiple function/custom tools under one
+    logical container; it is flattened into its constituent tools. The
+    enclosing namespace name is tracked separately by the caller and
+    restored on outgoing ResponseFunctionToolCall.namespace so that
+    scaffolds (e.g. codex-cli) which dispatch by (namespace, name) can
+    locate the tool on the return trip.
+    """
+    if is_namespace_tool_param(tool_param):
+        flattened: list[ToolInfo | Tool] = []
+        for inner in tool_param.get("tools", []):
+            inner_param = cast(ToolParam, inner)
+            flattened.append(
+                tool_from_responses_tool(
+                    inner_param, web_search_providers, code_execution_providers
+                )
+            )
+        return flattened
+    return [
+        tool_from_responses_tool(
+            tool_param, web_search_providers, code_execution_providers
+        )
+    ]
 
 
 def resolve_code_interpreter_providers(
@@ -813,6 +857,7 @@ mcp_tool_adapter = TypeAdapter(list[McpListToolsTool])
 
 def responses_output_items_from_assistant_message(
     message: ChatMessageAssistant,
+    tool_namespaces: dict[str, str] | None = None,
 ) -> list[ResponseOutputItem]:
     output: list[ResponseOutputItem] = []
     # normalize message content to list
@@ -923,12 +968,14 @@ def responses_output_items_from_assistant_message(
                 )
             )
         else:
+            namespace = (tool_namespaces or {}).get(tool_call.function)
             output.append(
                 ResponseFunctionToolCall(
                     type="function_call",
                     call_id=tool_call.id,
                     name=tool_call.function,
                     arguments=json.dumps(tool_call.arguments),
+                    namespace=namespace,
                 )
             )
 

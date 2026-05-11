@@ -23,7 +23,7 @@ from inspect_ai.tool import ToolInfo
 @skip_if_no_together_base_url
 async def test_openai_compatible() -> None:
     model = get_model(
-        "openai-api/together/MiniMaxAI/MiniMax-M2.5",
+        "openai-api/together/MiniMaxAI/MiniMax-M2.7",
         config=GenerateConfig(
             frequency_penalty=0.0,
             stop_seqs=None,
@@ -152,6 +152,15 @@ def test_handle_bad_request(
             },
             "content_filter",
             id="invalid_request_blocked_message",
+        ),
+        pytest.param(
+            {
+                "message": "This request has been flagged for potentially high-risk cyber activity.",
+                "code": "cyber_policy",
+                "type": "invalid_request",  # This is the error type for 5.4
+            },
+            "content_filter",
+            id="cyber_policy",
         ),
         pytest.param(
             {

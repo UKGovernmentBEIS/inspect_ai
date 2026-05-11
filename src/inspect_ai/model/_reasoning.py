@@ -1,4 +1,5 @@
 import base64
+import html
 import json
 import re
 from logging import getLogger
@@ -66,9 +67,14 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
 
 
 def _parse_attr(attrs_str: str, name: str) -> str | None:
-    """Extract attribute value from attributes string."""
+    """Extract attribute value from attributes string.
+
+    Values are HTML-unescaped to invert the escaping done by
+    `reasoning_to_think_tag`. Plain values without entities are
+    unchanged.
+    """
     match = re.search(rf'{name}="([^"]*)"', attrs_str)
-    return match.group(1) if match else None
+    return html.unescape(match.group(1)) if match else None
 
 
 def _parse_internal_attr(attrs_str: str) -> JsonValue | None:
@@ -104,7 +110,11 @@ def reasoning_to_think_tag(reasoning: "ContentReasoning") -> str:
     """
     attribs = ""
     if reasoning.signature is not None:
-        attribs = f'{attribs} signature="{reasoning.signature}"'
+        # HTML-escape so signatures containing quotes, '<', '>', or '&'
+        # (e.g. OpenRouter's reasoning-details JSON payload) survive the
+        # attribute round-trip. Plain signatures are unchanged.
+        signature = html.escape(reasoning.signature, quote=True)
+        attribs = f'{attribs} signature="{signature}"'
     if reasoning.redacted:
         attribs = f'{attribs} redacted="true"'
     if reasoning.internal is not None:
