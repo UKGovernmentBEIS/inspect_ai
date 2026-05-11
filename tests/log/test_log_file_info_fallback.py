@@ -146,6 +146,17 @@ class TestLogFileInfoHeaderFallback:
         assert result.task == "numeric_test"
         assert result.task_id == "num_id"
 
+    def test_hour_only_timestamp_not_native(self, tmp_path):
+        """Truncated ISO prefix (YYYY-MM-DDTHH only) must not take the fast path."""
+        header = _make_full_header(task="from_header", task_id="hdr_id")
+        eval_path = tmp_path / "2026-01-01T00_custom.eval"
+        _make_eval_zip(str(eval_path), header)
+
+        info = _make_fileinfo(str(eval_path), size=os.path.getsize(eval_path))
+        result = log_file_info(info)
+        assert result.task == "from_header"
+        assert result.task_id == "hdr_id"
+
     def test_corrupt_file_degrades_gracefully(self, tmp_path):
         """Non-ZIP file with custom name returns empty task, no exception."""
         bad_path = tmp_path / "bad_name.eval"
@@ -272,7 +283,23 @@ class TestListEvalLogsAsyncIntegration:
         native = by_name["2026-01-01T00-00-00_nativetask_nativeid.eval"]
         assert native.task == "nativetask"
         assert native.task_id == "nativeid"
-
         custom = by_name["my_custom_async.eval"]
         assert custom.task == "c_task"
         assert custom.task_id == "c_id"
+
+    async def test_list_eval_logs_async_local_custom_filename(self, tmp_path):
+        """Local FS path (sync filesystem) still resolves custom filenames.
+
+        Important under trio: the previous sync fallback hit read_eval_log which
+        refuses to run under trio, so custom-named local files silently lost
+        their task name. The new async path bypasses that.
+        """
+        from inspect_ai._view.common import list_eval_logs_async
+
+        header = _make_full_header(task="local_task", task_id="local_id")
+        _make_eval_zip(str(tmp_path / "no_timestamp.eval"), header)
+
+        logs = await list_eval_logs_async(str(tmp_path), recursive=False)
+        assert len(logs) == 1
+        assert logs[0].task == "local_task"
+        assert logs[0].task_id == "local_id"

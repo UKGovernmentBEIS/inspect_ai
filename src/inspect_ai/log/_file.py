@@ -715,7 +715,9 @@ async def log_files_from_ls_async(
 
 
 log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
-_timestamp_prefix_re = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}")
+# Native Inspect filenames always start with a full ISO timestamp
+# (date + T + HH[:-]MM[:-]SS); anything shorter must use the header fallback.
+_timestamp_prefix_re = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}")
 
 
 def is_log_file(file: str, extensions: list[str]) -> bool:
