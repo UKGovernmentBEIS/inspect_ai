@@ -44,6 +44,22 @@ scanner: EvalScanners | None = None
 
 CLI flags override equivalent fields in a YAML config.
 
+## Scan-side model
+
+The scanner's `get_model()` is detached from the eval's active model. `_install_scan_model_context` runs *before every scanner dispatch* and unconditionally invokes scout's `init_scan_model_context`, which installs whichever model is set via (in priority order):
+
+1. `EvalScannerConfig.model` / CLI `--scan-model`,
+2. the `SCOUT_SCAN_MODEL` env var,
+3. the `NoModel` sentinel (`inspect_ai.model._providers.none.NoModel`) — its `.generate(...)` raises `PrerequisiteError`.
+
+The detachment is intentional. Scanners typically want a different (often cheaper or smaller) model than the eval; silently inheriting `eval_set(model=...)` or `Task(model=...)` has produced costly surprises. Forcing the user to think about the scan-side model is the goal.
+
+Scanners that never call `get_model()` are unaffected — `NoModel` only raises on use. For scanners that *do* need a model but none is configured, scout's `_scan_one` treats `PrerequisiteError` as scan-fatal (explicit re-raise alongside the generic `except Exception` capture path), so the error propagates out of `scan_eval_sample`. We rewrap it in `_rewrap_no_model_error` to surface the missing scan-side model directly (the underlying message `"No model specified..."` doesn't tell the user the problem is scan-side):
+
+> `Scanner '<name>' tried to use a model but no scan-side model is configured. Set one via EvalScannerConfig(model=...), the CLI flag --scan-model, or the SCOUT_SCAN_MODEL environment variable.`
+
+`raise ... from None` suppresses the noisy NoModel chain so this message stands alone in the user's traceback.
+
 ## Scan Directory State
 
 The state of the scan dir on disk is what scout's tooling reads, and it's where the inspect_ai/scout consistency invariant lives.
@@ -152,7 +168,7 @@ Inspect_ai runs samples concurrently up to `max_samples`. Multiple `scan_eval_sa
 
 The contended resource is scout's `_summary.json` (read-modify-write). `RecorderBuffer` accepts a `concurrent_writers=True` flag that wraps the read-modify-write in a per-buffer-dir `anyio.Lock`. inspect_ai opts in; scout's existing single-process and multi-process flows leave it off.
 
-The connection-pool semaphore for the eval-side model API is shared with scanner-side calls when the scanner inherits the eval's model. Scout's per-Model semaphore keys on `connection_key()` so calls from both sides queue through the same limit.
+The connection-pool semaphore for the eval-side model API is shared with scanner-side calls when both sides are configured with the same model (e.g. `eval_set(model="X")` + `EvalScannerConfig(model="X")`). Scout's per-Model semaphore keys on `connection_key()` so calls from both sides queue through the same limit. With a distinct scan-side model — the recommended default since scanners are detached from the eval's model (see [Scan-side model](#scan-side-model)) — each side gets its own pool.
 
 ## Filter semantics
 
