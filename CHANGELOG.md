@@ -10,6 +10,7 @@
 - Model API: Remove semaphore around calls to `count_tokens()` (they are already retried and gated by `max_samples`).
 - Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
 - Datasets: `hf_dataset` retries transient Hugging Face errors (rate limits, timeouts, Hub-unreachable cache misses) up to 3 times (5 in CI) with exponential backoff. Pass `retry=False` to disable.
+- Scoring: Store and aggregate results for cancelled eval runs.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
 - Eval Set: Support for task filtering in CLI invocations via the `-F` option.
 - Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don't implement conditional writes).
