@@ -1264,7 +1264,7 @@ async def task_run_sample(
                                 )
                                 wrapped.__cause__ = ex
                                 ex = wrapped
-                           
+
                             if active.interrupt_action is not None:
                                 # Operator-interrupted: log to transcript but
                                 # don't propagate to error/retry. The operator
