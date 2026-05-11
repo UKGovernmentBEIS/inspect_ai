@@ -6,9 +6,12 @@ from test_helpers.tools import list_files
 from test_helpers.utils import ensure_test_package_installed, skip_if_trio
 
 from inspect_ai import Task, eval_async
+from inspect_ai._util.registry import _registry
 from inspect_ai.dataset import Sample
+from inspect_ai.hooks import Hooks
+from inspect_ai.hooks import hooks as register_hooks
 from inspect_ai.hooks._hooks import emit_run_start
-from inspect_ai.model import get_model
+from inspect_ai.model import ChatMessageUser, GenerateConfig, get_model
 from inspect_ai.scorer import includes
 from inspect_ai.solver import generate, use_tools
 from inspect_ai.util import SandboxEnvironmentSpec
@@ -21,7 +24,9 @@ async def test_extension_model():
 
     # call the model
     mdl = get_model("custom/gpt7")
-    result = await mdl.generate([{"role": "user", "content": "hello"}], [], "none", {})
+    result = await mdl.generate(
+        [ChatMessageUser(content="hello")], [], "none", GenerateConfig()
+    )
     assert result.completion == "Hello from gpt7"
 
 
@@ -110,10 +115,21 @@ def test_supports_str_config():
 
 
 async def test_hooks():
+    # Pre-register a hook so the test exercises the case where
+    # `emit_run_start` runs while the registry already contains entries
+    # from the current process. Order-of-iteration regressions in the hook
+    # registry would surface here.
+    @register_hooks(name="preexisting_test_hook", description="test")
+    class PreexistingHook(Hooks):
+        pass
+
     ensure_test_package_installed()
     module = importlib.import_module("inspect_package.hooks.custom")
     module.run_ids = []
 
-    await emit_run_start(eval_set_id=None, run_id="42", tasks=[])
+    try:
+        await emit_run_start(eval_set_id=None, run_id="42", tasks=[])
+    finally:
+        _registry.pop("hooks:preexisting_test_hook", None)
 
     assert module.run_ids == ["42"]
