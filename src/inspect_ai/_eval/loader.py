@@ -90,6 +90,7 @@ def resolve_tasks(
                 model=task.model or model,
                 model_roles=_merge_model_roles(task.model_roles, model_roles),
                 sandbox=resolve_task_sandbox(task, sandbox),
+                checkpoint=task.checkpoint,
                 sequence=sequence,
             )
             for sequence, task in enumerate(tasks)
@@ -208,6 +209,7 @@ def resolve_previous_task(
         sandbox=resolve_task_file_sandbox(
             previous_task.log.eval.task_file, previous_task.log.eval.sandbox
         ),
+        checkpoint=loaded_task.checkpoint,
         sequence=sequence,
         id=previous_task.id,
         sample_source=eval_log_sample_source(

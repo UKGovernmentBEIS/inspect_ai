@@ -38,6 +38,7 @@ from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._task_state import TaskState
+from inspect_ai.util._checkpoint.config import CheckpointConfig
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
@@ -77,6 +78,7 @@ class Task:
         config: GenerateConfig = GenerateConfig(),
         model_roles: dict[str, str | Model] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
+        checkpoint: CheckpointConfig | None = None,
         approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
@@ -111,6 +113,9 @@ class Task:
             config: Model generation config for default model (does not apply to model roles)
             model_roles: Named roles for use in `get_model()`.
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+            checkpoint: Checkpoint configuration for this task. Overridden by
+                eval-level `checkpoint` when set; overrides any sample-level
+                `checkpoint`.
             approval: Tool use approval policies.
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
             epochs: Epochs to repeat samples for and optional score
@@ -178,6 +183,7 @@ class Task:
         self.config = config
         self.model_roles = resolve_model_roles(model_roles)
         self.sandbox = resolve_sandbox_environment(sandbox)
+        self.checkpoint = checkpoint
         self.approval = resolve_approval(approval)
         epochs = resolve_epochs(epochs)
         self.epochs = epochs.epochs if epochs else None
@@ -249,6 +255,7 @@ def task_with(
     config: GenerateConfig | NotGiven = NOT_GIVEN,
     model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
+    checkpoint: CheckpointConfig | None | NotGiven = NOT_GIVEN,
     approval: str
     | ApprovalPolicyConfig
     | list[ApprovalPolicy]
@@ -290,6 +297,9 @@ def task_with(
         config: Model generation config for default model (does not apply to model roles)
         model_roles: Named roles for use in `get_model()`.
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+        checkpoint: Checkpoint configuration for this task. Overridden by
+            eval-level `checkpoint` when set; overrides any sample-level
+            `checkpoint`.
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         epochs: Epochs to repeat samples for and optional score
@@ -346,6 +356,8 @@ def task_with(
         task.model_roles = resolve_model_roles(model_roles)
     if not isinstance(sandbox, NotGiven):
         task.sandbox = resolve_sandbox_environment(sandbox)
+    if not isinstance(checkpoint, NotGiven):
+        task.checkpoint = checkpoint
     if not isinstance(approval, NotGiven):
         task.approval = resolve_approval(approval)
     if not isinstance(epochs, NotGiven):
