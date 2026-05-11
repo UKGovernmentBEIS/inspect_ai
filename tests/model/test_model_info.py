@@ -3,7 +3,12 @@
 import pytest
 
 from inspect_ai.model import ModelInfo, get_model, get_model_info, set_model_info
-from inspect_ai.model._model_info import clear_model_info_cache, get_model_input_tokens
+from inspect_ai.model._model_data.model_data import ModelCost
+from inspect_ai.model._model_info import (
+    clear_model_info_cache,
+    get_model_input_tokens,
+    set_model_cost,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -201,3 +206,89 @@ class TestGetModelInputTokens:
         )
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
+
+
+class TestResultCaching:
+    """Tests for the result-level memoization in get_model_info."""
+
+    def test_failed_lookup_only_runs_fuzzy_match_once(self, monkeypatch):
+        """A second lookup of an unknown model must not re-run fuzzy matching."""
+        from inspect_ai.model import _model_info as model_info_module
+
+        call_count = 0
+        original_fuzzy = model_info_module._fuzzy_match
+
+        def counting_fuzzy(name, db):
+            nonlocal call_count
+            call_count += 1
+            return original_fuzzy(name, db)
+
+        monkeypatch.setattr(model_info_module, "_fuzzy_match", counting_fuzzy)
+
+        # First call: cache miss, fuzzy runs.
+        result1 = get_model_info("unknown-provider/never-heard-of-it-xyz")
+        assert result1 is None
+        assert call_count == 1
+
+        # Second call: cache hit, fuzzy must not run again.
+        result2 = get_model_info("unknown-provider/never-heard-of-it-xyz")
+        assert result2 is None
+        assert call_count == 1
+
+    def test_successful_lookup_is_cached(self, monkeypatch):
+        """A second lookup of a known model must not re-run any matching."""
+        from inspect_ai.model import _model_info as model_info_module
+
+        # Prime the cache.
+        first = get_model_info("anthropic/claude-sonnet-4")
+        assert first is not None
+
+        lookup_calls = 0
+        original_lookup = model_info_module._lookup_in_db
+
+        def counting_lookup(name, db):
+            nonlocal lookup_calls
+            lookup_calls += 1
+            return original_lookup(name, db)
+
+        monkeypatch.setattr(model_info_module, "_lookup_in_db", counting_lookup)
+
+        second = get_model_info("anthropic/claude-sonnet-4")
+        assert second is first
+        assert lookup_calls == 0
+
+    def test_set_model_info_invalidates_cache(self):
+        """set_model_info() must make subsequent lookups see the new info."""
+        # Cache a None result for a name we'll subsequently register.
+        before = get_model_info("test-org/cache-invalidation-model")
+        assert before is None
+
+        # Register custom info under that exact name.
+        set_model_info(
+            "test-org/cache-invalidation-model",
+            ModelInfo(context_length=12345),
+        )
+
+        # The cached None must have been invalidated.
+        after = get_model_info("test-org/cache-invalidation-model")
+        assert after is not None
+        assert after.context_length == 12345
+
+    def test_set_model_cost_invalidates_cache(self):
+        """set_model_cost() must make subsequent lookups see the new cost."""
+        # Prime the cache with a known model.
+        first = get_model_info("anthropic/claude-sonnet-4")
+        assert first is not None
+
+        set_model_cost(
+            "anthropic/claude-sonnet-4",
+            ModelCost(
+                input=1.0, output=2.0, input_cache_write=0.5, input_cache_read=0.1
+            ),
+        )
+
+        after = get_model_info("anthropic/claude-sonnet-4")
+        assert after is not None
+        assert after.cost is not None
+        assert after.cost.input == 1.0
+        assert after.cost.output == 2.0
