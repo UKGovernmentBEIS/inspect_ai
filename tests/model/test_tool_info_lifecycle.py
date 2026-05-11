@@ -11,8 +11,14 @@ from inspect_ai.event import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.hooks import BeforeModelGenerate, Hooks, hooks
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
-from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, get_model
-from inspect_ai.model._cache import cache_clear
+from inspect_ai.model import (
+    ChatMessage,
+    ChatMessageUser,
+    GenerateConfig,
+    ModelOutput,
+    get_model,
+)
+from inspect_ai.model._cache import CachePolicy, cache_clear
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.util._limit import LimitExceededError
 
@@ -254,11 +260,11 @@ async def test_hook_tool_mutation_is_retained_and_isolated_from_provider() -> No
 
 class AttemptAnnotatingHooks(Hooks):
     def __init__(self) -> None:
-        self.attempts: list[int] = []
+        self.calls = 0
 
     async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
-        self.attempts.append(data.attempt)
-        data.tools[0].description += f" attempt {data.attempt}"
+        self.calls += 1
+        data.tools[0].description += f" attempt {self.calls}"
 
 
 @pytest.mark.anyio
@@ -287,7 +293,7 @@ async def test_before_model_generate_retries_start_from_clean_tool_baseline() ->
             config=GenerateConfig(max_retries=2),
         )
 
-    assert hook.attempts == [1, 2]
+    assert hook.calls == 2
     assert seen == [
         "Add two numbers. attempt 1",
         "Add two numbers. attempt 2",
@@ -387,6 +393,34 @@ async def test_cache_key_is_frozen_when_provider_mutates_input() -> None:
     try:
         await model.generate("hello", cache=True)
         await model.generate("hello", cache=True)
+    finally:
+        cache_clear("mockllm/model")
+
+    assert calls == 1
+
+
+@pytest.mark.anyio
+async def test_cache_policy_store_uses_explicit_cache_policy() -> None:
+    calls = 0
+
+    def out(
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput:
+        nonlocal calls
+        calls += 1
+        return ModelOutput.from_content(model="mockllm", content="ok")
+
+    cache_clear("mockllm/model")
+    model = get_model("mockllm/model", memoize=False, custom_outputs=out)
+    config = GenerateConfig(cache=CachePolicy(expiry=None))
+    input: list[ChatMessage] = [ChatMessageUser(content="hello")]
+
+    try:
+        await model._generate(input, [], None, config)
+        await model._generate(input, [], None, config)
     finally:
         cache_clear("mockllm/model")
 

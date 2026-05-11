@@ -1013,8 +1013,6 @@ class Model:
             cache_policy = cache
         hooks_enabled = any(hook.enabled() for hook in get_all_hooks())
         cache_mode: Literal["write"] | None = "write" if cache_policy else None
-        attempt = 0
-
         # track reported waiting time during this generate call
         reported_waiting_time = 0.0
 
@@ -1036,9 +1034,6 @@ class Model:
             )
         )
         async def generate() -> tuple[ModelOutput, BaseModel]:
-            nonlocal attempt
-            attempt += 1
-
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
 
@@ -1051,7 +1046,6 @@ class Model:
                 tool_choice=tool_choice,
                 config=config,
                 cache=cache_mode,
-                attempt=attempt,
             )
 
             event_tools = (
@@ -1198,7 +1192,7 @@ class Model:
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
                 )
 
-            if cache and cache_entry:
+            if cache_policy and cache_entry:
                 cache_store(entry=cache_entry, output=output)
 
             return output, event
