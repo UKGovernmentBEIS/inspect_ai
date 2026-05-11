@@ -5,7 +5,7 @@ llms-description: Additional options and data available for reasoning models.
 
 ## Overview
 
-Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5 Flash, Grok 3, and DeepSeek r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
+Reasoning models like OpenAI o-series, Claude Sonnet 3.7, Gemini 2.5 Flash, Grok, and DeepSeek r1 have some additional options that can be used to tailor their behaviour. They also in some cases make available full or partial reasoning traces for the chains of thought that led to their response.
 
 In this article we'll first cover the basics of [Reasoning Content](#reasoning-content) and [Reasoning Options](#reasoning-options), then cover the usage and options supported by various reasoning models.
 
@@ -25,7 +25,7 @@ The following reasoning options are available from the CLI and within `GenerateC
 
 | Option | Description | Default | Models |
 |------------------|-------------------|------------------|------------------|
-| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`minimal`, `low`, `medium`, `high`, or `xhigh`) | `medium` | Anthropic Claude 4.6, OpenAI GPT-5 and o-series, Gemini 3+, Grok 3 |
+| `reasoning_effort` | Constrains effort on reasoning for reasoning models (`minimal`, `low`, `medium`, `high`, or `xhigh`) | `medium` | Anthropic Claude 4.6, OpenAI GPT-5 and o-series, Gemini 3+, Grok 3+ |
 | `reasoning_tokens` | Maximum number of tokens to use for reasoning. | (none) | Claude 3.7+ and Gemini 2.5+ |
 | `reasoning_summary` | Provide summary of reasoning steps (`none`, `concise`, `detailed`, `auto`). Use "auto" to access the most detailed summarizer available for the current model. | (none) | OpenAI o-series |
 | `reasoning_history` | Include reasoning in message history sent to model (`none`, `all`, `last`, or `auto`) | `auto` | All models |
@@ -38,7 +38,7 @@ As you can see from above, models have different means of specifying the tokens 
  eval(
     task,
     model=["openai/o3-mini","anthropic/claude-3-7-sonnet-20250219"],
-    reasoning_effort="medium",  # openai, gemini 3+, claude 4.6+, and grok 3
+    reasoning_effort="medium",  # openai, gemini 3+, claude 4.6+, and grok
     reasoning_tokens=4096       # anthropic 3.7/4.x and gemini 2.5
  )
 ```
@@ -159,17 +159,15 @@ The most recent Gemini models also include support for including a reasoning sum
 
 Grok currently makes available several reasoning models:
 
--   `grok/grok-4`
+-   `grok/grok-4.3`
 -   `grok/grok-3`
 -   `grok/grok-3-mini`
 
-You can condition the amount of reasoning done by Grok 3 using the \[`reasoning_effort`\]https://docs.x.ai/docs/guides/reasoning) option, which can be set to `low` or `high`.
+You can condition the amount of reasoning done by Grok 3 and Grok 4.3+ using the \[`reasoning_effort`\]https://docs.x.ai/docs/guides/reasoning) option, which can be set to `none`, `low` `medium`, or `high`.
 
 ``` bash
-inspect eval math.py --model grok/grok-3-mini --reasoning-effort high
+inspect eval math.py --model grok/grok-4.3 --reasoning-effort high
 ```
-
-Note that Grok 4 does not support the `--reasoning-effort` parameter so it is ignored if specified.
 
 ## DeepSeek-R1
 
@@ -190,5 +188,29 @@ Reasoning content from DeepSeek models is captured using either the `reasoning_c
 ## vLLM/SGLang
 
 vLLM and SGLang both support reasoning outputs; however, the usage is often model dependant and requires additional configuration. See the [vLLM](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) and [SGLang](https://docs.sglang.ai/backend/separate_reasoning.html) documentation for details.
+
+For vLLM, configure the model's reasoning parser with `-M` model arguments when Inspect starts the vLLM server. For example, Qwen3 reasoning output can be enabled for extraction as follows:
+
+``` bash
+inspect eval math.py --model vllm/Qwen/Qwen3-8B -M reasoning_parser=qwen3
+```
+
+Thinking mode is model-specific and is controlled separately from Inspect's `--reasoning-effort` option. For models where vLLM exposes template switches such as `enable_thinking` or `thinking`, pass them as vLLM chat-template kwargs. To set a server-wide default for a server started by Inspect, use:
+
+``` bash
+inspect eval math.py --model vllm/Qwen/Qwen3-8B \
+  -M reasoning_parser=qwen3 \
+  -M default_chat_template_kwargs='{"enable_thinking": true}'
+```
+
+To override the template kwargs for individual requests, pass them through `extra_body`:
+
+``` bash
+inspect eval math.py --model vllm/Qwen/Qwen3-8B \
+  -M reasoning_parser=qwen3 \
+  -M extra_body='{"chat_template_kwargs": {"enable_thinking": true}}'
+```
+
+Open-weights reasoning models do not all support adjustable effort levels. In those cases, `--reasoning-effort` may have no effect even though a reasoning parser is required for vLLM to separate reasoning from the final answer.
 
 If the model already outputs its reasoning between `<think></think>` tags such as with the R1 models or through prompt engineering, then Inspect will capture it automatically without any additional configuration of vLLM or SGLang.

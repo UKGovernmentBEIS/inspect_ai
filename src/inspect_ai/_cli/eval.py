@@ -1,5 +1,6 @@
 import functools
 import json
+from pathlib import Path
 from typing import Any, Callable, Literal, cast
 
 import click
@@ -9,6 +10,8 @@ from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
+from inspect_ai._eval.list import list_tasks
+from inspect_ai._eval.task import TaskInfo
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -80,10 +83,12 @@ NO_SCORE_HELP = (
 NO_SCORE_DISPLAY = "Do not display scoring metrics in realtime."
 MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (defaults to {DEFAULT_MAX_CONNECTIONS})"
 ADAPTIVE_CONNECTIONS_HELP = (
-    "Enable adaptive concurrency for Model API connections, automatically "
-    "scaling between bounds based on rate-limit feedback. Pass `true` for "
-    "defaults (min=4, start=20, max=200), `false` to explicitly disable, or "
-    'bounds as "min-max" (e.g. "4-80") or "min-start-max" (e.g. "4-20-80").'
+    "Adaptive concurrency for Model API connections, automatically scaling "
+    "between bounds based on rate-limit feedback (default: enabled, with "
+    "min=4, start=20, max=100). Pass `false` to opt out, an integer N for "
+    "a custom max (e.g. `200`), or bounds as `min-max` (e.g. `4-80`) or "
+    "`min-start-max` (e.g. `4-20-80`). Explicit `--max-connections` and "
+    "`--batch` take precedence."
 )
 MAX_RETRIES_HELP = (
     "Maximum number of times to retry model API requests (defaults to unlimited)"
@@ -875,6 +880,13 @@ def eval_command(
     type=str,
     help="ID for the eval set. If not specified, a unique ID will be generated.",
 )
+@click.option(
+    "-F",
+    "task_filter",
+    multiple=True,
+    type=str,
+    help="One or more boolean task filters (e.g. -F light=true or -F draft~=false).",
+)
 @eval_options
 @click.pass_context
 def eval_set_command(
@@ -974,6 +986,7 @@ def eval_set_command(
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
     eval_set_id: str | None,
+    task_filter: tuple[str, ...] | None,
     **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks with retries.
@@ -1052,6 +1065,7 @@ def eval_set_command(
         embed_viewer=True if embed_viewer else False,
         log_dir_allow_dirty=log_dir_allow_dirty,
         eval_set_id=eval_set_id,
+        task_filter=task_filter,
         **config,
     )
 
@@ -1124,6 +1138,7 @@ def eval_exec(
     embed_viewer: bool = False,
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
+    task_filter: tuple[str, ...] | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse task, solver, and model args
@@ -1139,6 +1154,10 @@ def eval_exec(
 
     # parse metadata
     eval_metadata = parse_cli_args(metadata)
+
+    # apply eval-set task filters
+    if is_eval_set:
+        tasks = _filter_task_identifiers(tasks, task_filter)
 
     # resolve epochs
     eval_epochs = (
@@ -1258,30 +1277,65 @@ def eval_exec(
 
 def _parse_adaptive_connections_cli(
     value: str | None,
-) -> bool | AdaptiveConcurrency | None:
+) -> bool | int | AdaptiveConcurrency | None:
     """Parse a CLI string into an adaptive_connections value.
 
-    Accepts: None (passthrough), bool keywords ("true"/"false"/"1"/"0"/"yes"/"no",
-    case-insensitive), or shorthand like "4-80" / "4-20-80" delegated to
-    AdaptiveConcurrency's parser. Raises `click.BadParameter` on invalid input
-    so the CLI surfaces a clean usage message instead of a raw pydantic
-    ValidationError.
+    Accepts: None (passthrough), bool keywords ("true"/"yes" / "false"/"no",
+    case-insensitive), a bare integer N (shorthand for
+    `AdaptiveConcurrency(max=N)`), or a min-max / min-start-max shorthand
+    like "4-80" / "4-20-80" delegated to AdaptiveConcurrency's parser.
+    Raises `click.BadParameter` on invalid input so the CLI surfaces a
+    clean usage message instead of a raw pydantic ValidationError.
+
+    Note: `"1"`/`"0"` are treated as the integer-max shorthand, not as
+    bool aliases. Users who want explicit on/off should pass `true`/`false`.
     """
     if value is None:
         return None
     v = value.strip().lower()
-    if v in ("true", "1", "yes"):
+    if v in ("true", "yes"):
         return True
-    if v in ("false", "0", "no"):
+    if v in ("false", "no"):
         return False
+    # Bare integer → max shorthand.
+    if v.isdigit():
+        return int(v)
     try:
         return AdaptiveConcurrency.model_validate(value)
     except Exception as ex:
         raise click.BadParameter(
-            f"{value!r} is not a valid value. Expected `true`, `false`, or "
-            f"bounds shorthand like `4-80` or `4-20-80`.",
+            f"{value!r} is not a valid value. Expected `true`, `false`, an "
+            f"integer max (e.g. `200`), or bounds shorthand like `4-80` "
+            f"or `4-20-80`.",
             param_hint="--adaptive-connections",
         ) from ex
+
+
+def _filter_task_identifiers(
+    tasks: tuple[str, ...] | None, filters: tuple[str, ...] | None
+) -> tuple[str, ...] | None:
+    parsed_filters = parse_cli_args(filters)
+    if not parsed_filters:
+        return tasks
+
+    def include_task(task: TaskInfo) -> bool:
+        for name, value in parsed_filters.items():
+            if name.endswith("~"):
+                include = task.attribs.get(name[:-1], None) != value
+            else:
+                include = task.attribs.get(name, None) == value
+            if not include:
+                return False
+        return True
+
+    task_infos = list_tasks(
+        globs=list(tasks) if tasks else [],
+        root_dir=Path.cwd(),
+        filter=include_task,
+    )
+    if not task_infos:
+        raise click.ClickException("No tasks matched the specified -F filter(s).")
+    return tuple(str(task) for task in task_infos)
 
 
 def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:

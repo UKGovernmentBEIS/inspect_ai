@@ -24,7 +24,7 @@ from inspect_ai._util.file import (
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
-from inspect_ai.log._pool import resolve_sample_events_data
+from inspect_ai.log._pool import rebind_sample_timelines, resolve_sample_events_data
 
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
@@ -351,14 +351,11 @@ async def read_eval_log_async(
             recorder_type = recorder_type_for_format(format)
         log = await recorder_type.read_log(log_file, header_only)
 
-    # always resolve message pool refs so ModelEvent.input is populated
     if log.samples:
-        log.samples = [resolve_sample_events_data(sample) for sample in log.samples]
-        if resolve_attachments:
-            log.samples = [
-                resolve_sample_attachments(sample, resolve_attachments)
-                for sample in log.samples
-            ]
+        log.samples = [
+            _resolve_sample_for_read(sample, resolve_attachments)
+            for sample in log.samples
+        ]
 
     # provide sample ids if they aren't there
     if log.eval.dataset.sample_ids is None and log.samples is not None:
@@ -537,12 +534,7 @@ async def read_eval_log_sample_async(
         log_file, id, epoch, uuid, exclude_fields, reader
     )
 
-    # always resolve message pool refs so ModelEvent.input is populated
-    sample = resolve_sample_events_data(sample)
-    if resolve_attachments:
-        sample = resolve_sample_attachments(sample, resolve_attachments)
-
-    return sample
+    return _resolve_sample_for_read(sample, resolve_attachments)
 
 
 def read_eval_log_sample_summaries(
@@ -836,3 +828,14 @@ def to_overview(header: EvalLog) -> LogOverview:
         completed_at=header.stats.completed_at,
         primary_metric=primary_metric,
     )
+
+
+def _resolve_sample_for_read(
+    sample: "EvalSample",
+    resolve_attachments: bool | Literal["full", "core"],
+) -> "EvalSample":
+    """Apply read-time event resolution and bind timelines to final events."""
+    sample = resolve_sample_events_data(sample)
+    if resolve_attachments:
+        sample = resolve_sample_attachments(sample, resolve_attachments)
+    return rebind_sample_timelines(sample)

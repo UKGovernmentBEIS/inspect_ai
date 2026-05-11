@@ -10,6 +10,7 @@ from pydantic import JsonValue
 
 from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai.event import Event, Timeline, TimelineEvent, TimelineSpan
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._condense import (
     condense_events,
@@ -17,7 +18,7 @@ from inspect_ai.log._condense import (
     expand_events,
     resolve_sample_attachments,
 )
-from inspect_ai.log._file import read_eval_log, write_eval_log
+from inspect_ai.log._file import read_eval_log, read_eval_log_sample, write_eval_log
 from inspect_ai.log._log import (
     EvalConfig,
     EvalDataset,
@@ -84,6 +85,33 @@ def _make_sample_with_repeated_inputs() -> EvalSample:
         messages=[msg_sys, msg_user, msg_asst, msg_user2, msg_asst2],
         events=[event1, event2, event3],
     )
+
+
+def _make_sample_with_timeline() -> EvalSample:
+    """Create a sample whose timeline references its event stream."""
+    sample = _make_sample_with_repeated_inputs()
+    sample.timelines = [
+        Timeline(
+            name="t",
+            description="",
+            root=TimelineSpan(
+                id="root",
+                name="root",
+                span_type="agent",
+                content=[TimelineEvent(event=e) for e in sample.events],
+            ),
+        )
+    ]
+    return sample
+
+
+def _timeline_events(sample: EvalSample) -> list[Event]:
+    assert sample.timelines is not None
+    return [
+        item.event
+        for item in sample.timelines[0].root.content
+        if isinstance(item, TimelineEvent)
+    ]
 
 
 def test_condense_builds_message_pool():
@@ -239,6 +267,77 @@ def test_write_read_round_trip(
         assert len(model_events[1].input) == 4
         assert len(model_events[2].input) == 5
         for event in model_events:
+            assert event.input_refs is None
+
+
+def test_eval_sample_validation_preserves_condensed_timeline_events_data():
+    """EvalSample validation hydrates timelines but does not resolve event pools."""
+    sample = _make_sample_with_timeline()
+    condensed = condense_sample(sample)
+
+    raw = json.loads(condensed.model_dump_json())
+    parsed = EvalSample.model_validate(raw)
+
+    assert parsed.events_data is not None
+    by_uuid = {e.uuid: e for e in parsed.events}
+    timeline_events = _timeline_events(parsed)
+
+    for event in timeline_events:
+        assert event is by_uuid[event.uuid]
+        assert isinstance(event, ModelEvent)
+        assert event.input == []
+        assert event.input_refs is not None
+
+
+@pytest.mark.parametrize(
+    "resolve_attachments",
+    [
+        pytest.param(False, id="no-attachments"),
+        pytest.param("full", id="full-attachments"),
+    ],
+)
+def test_read_rebinds_timelines_to_resolved_events(
+    resolve_attachments: Literal["full", "core"] | bool,
+):
+    """Read APIs should bind timelines to the final resolved sample.events."""
+    sample = _make_sample_with_timeline()
+    log = EvalLog(
+        version=LOG_SCHEMA_VERSION,
+        status="success",
+        eval=EvalSpec(
+            task="t",
+            task_version=0,
+            task_id="t",
+            model="m",
+            dataset=EvalDataset(name="t", samples=1),
+            config=EvalConfig(),
+            created="2025-01-01T00:00:00Z",
+        ),
+        plan=EvalPlan(),
+        results=EvalResults(total_samples=1, completed_samples=1),
+        stats=EvalStats(
+            started_at="2025-01-01T00:00:00Z", completed_at="2025-01-01T00:01:00Z"
+        ),
+        samples=[condense_sample(sample)],
+    )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path = os.path.join(tmpdir, "test.eval")
+        write_eval_log(log, path)
+        read = read_eval_log(path, resolve_attachments=resolve_attachments)
+        read_sample = read_eval_log_sample(
+            path, id="test", resolve_attachments=resolve_attachments
+        )
+
+    assert read.samples is not None
+    for resolved_sample in (read.samples[0], read_sample):
+        by_uuid = {e.uuid: e for e in resolved_sample.events}
+        timeline_events = _timeline_events(resolved_sample)
+
+        for event in timeline_events:
+            assert event is by_uuid[event.uuid]
+            assert isinstance(event, ModelEvent)
+            assert len(event.input) > 0
             assert event.input_refs is None
 
 
