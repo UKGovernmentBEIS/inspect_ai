@@ -8,6 +8,7 @@
 - Model API: Remove semaphore around calls to `count_tokens()` (they are already retried and gated by `max_samples`).
 - Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
+- Eval Set: Support for task filtering in CLI invocations via the `-F` option.
 - Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
 - Task Display: Honor terminal `COLUMNS` and `LINES` for dumb terminals.
 - Memory: Log condensing no longer retains unchanged JSON copies in long evals.
