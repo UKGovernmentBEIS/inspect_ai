@@ -89,10 +89,10 @@ def condense_events(
     Returns:
         Tuple of (condensed events, events data containing message and call pools).
     """
-    condensed_events, message_pool, *_ = condense_model_event_inputs(events, [], {})
-    condensed_events, call_pool, *_ = condense_model_event_calls(
-        condensed_events, [], {}
-    )
+    condensed_events, _, new_msgs = condense_model_event_inputs(events, 0, {})
+    message_pool: list[ChatMessage] = [msg for _, msg in new_msgs]
+    condensed_events, _, new_calls = condense_model_event_calls(condensed_events, 0, {})
+    call_pool: list[JsonValue] = [call_msg for _, call_msg in new_calls]
     return condensed_events, EventsData(messages=message_pool, calls=call_pool)
 
 
@@ -155,14 +155,22 @@ def condense_sample(sample: EvalSample, log_images: bool = True) -> EvalSample:
     existing_calls = existing["calls"] if existing else []
 
     msg_index = _build_msg_index(existing_msgs)
-    condensed_events, message_pool, *_ = condense_model_event_inputs(
-        condensed_events, existing_msgs, msg_index
+    condensed_events, _, new_msgs = condense_model_event_inputs(
+        condensed_events, len(existing_msgs), msg_index
     )
+    message_pool: list[ChatMessage] = [
+        *existing_msgs,
+        *(msg for _, msg in new_msgs),
+    ]
 
     call_index = _build_call_index(existing_calls)
-    condensed_events, call_pool, *_ = condense_model_event_calls(
-        condensed_events, existing_calls, call_index
+    condensed_events, _, new_calls = condense_model_event_calls(
+        condensed_events, len(existing_calls), call_index
     )
+    call_pool: list[JsonValue] = [
+        *existing_calls,
+        *(call_msg for _, call_msg in new_calls),
+    ]
     events_data = EventsData(messages=message_pool, calls=call_pool)
 
     return sample.model_copy(
