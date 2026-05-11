@@ -248,6 +248,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # track stats, results, and log
     results: EvalResults | None = None
     reductions: list[EvalSampleReductions] | None = None
+    progress_results: list[dict[str, SampleScore]] = []
     eval_log: EvalLog | None = None
     stats = EvalStats(started_at=iso_now())
 
@@ -383,9 +384,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 scanned_per_scanner = scanned_transcripts_for_resume(
                     scanner, scan_id, profile.log_location
                 )
-
-                # track when samples complete and update progress as we go
-                progress_results: list[dict[str, SampleScore]] = []
 
                 def update_metrics(metrics: list[TaskDisplayMetric]) -> None:
                     td.update_metrics(metrics)
@@ -617,6 +615,17 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             with anyio.CancelScope(shield=True):
                 # collect eval data
                 collect_eval_data(stats)
+
+                # compute partial results from samples that completed
+                if len(progress_results) > 0:
+                    results, reductions = eval_results(
+                        samples=profile.samples,
+                        scores=progress_results,
+                        reducers=task.epochs_reducer,
+                        scorers=scorers,
+                        metrics=task.metrics,
+                        scorer_names=scorer_names,
+                    )
 
                 if task_cancel and task_cancel.cancel_type is not None:
                     # User-initiated cancel (abort/retry) — log as error so
@@ -1564,29 +1573,30 @@ def create_sample_semaphore(
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
 ) -> contextlib.AbstractAsyncContextManager[Any]:
-    from inspect_ai.util._concurrency import AdaptiveConcurrency, DynamicSampleLimiter
+    from inspect_ai.util._concurrency import (
+        DynamicSampleLimiter,
+        adaptive_active,
+        resolve_adaptive,
+    )
 
     if config.max_samples is not None:
-        # explicit max_samples wins silently — anticipating that adaptive_connections
-        # may become default-on, in which case warning when max_samples < adaptive.max
+        # explicit max_samples wins silently — under default-on
+        # adaptive_connections, warning when max_samples < adaptive.max
         # would fire for nearly every deliberate max_samples setting
         return anyio.Semaphore(config.max_samples)
-    elif (
-        generate_config.adaptive_connections
-        and generate_config.max_connections is None
-        and not generate_config.batch
+    elif adaptive_active(
+        generate_config.adaptive_connections,
+        generate_config.max_connections,
+        generate_config.batch,
     ):
         # adaptive: dynamic limiter that tracks the controller(s) — sample
         # concurrency grows with the controller's current limit so setup work
         # (sandboxes etc.) stays proportional to actual model concurrency.
         # Both explicit max_connections and batch mode silently override
         # adaptive (matches the precedence in Model._connection_concurrency).
-        adaptive = (
-            generate_config.adaptive_connections
-            if isinstance(generate_config.adaptive_connections, AdaptiveConcurrency)
-            else AdaptiveConcurrency()
+        return DynamicSampleLimiter(
+            resolve_adaptive(generate_config.adaptive_connections)
         )
-        return DynamicSampleLimiter(adaptive)
     else:
         # static path (existing behavior, unchanged)
         max_samples = (
@@ -1601,8 +1611,16 @@ def create_sample_semaphore(
         return anyio.Semaphore(max_samples)
 
 
+# `importlib.util.find_spec` walks importer paths (~3 ms per call). Cache
+# at module load — package installation can't change during a process
+# lifetime, so the result is invariant. Without this, `init_sample_assistant_internal`
+# (called once per sample) was costing ~3 s per 500 samples in profiling.
+_HAS_OPENAI: bool = importlib.util.find_spec("openai") is not None
+_HAS_ANTHROPIC: bool = importlib.util.find_spec("anthropic") is not None
+
+
 def init_sample_assistant_internal() -> None:
-    if importlib.util.find_spec("openai"):
+    if _HAS_OPENAI:
         try:
             from inspect_ai.model._openai_responses import (
                 init_sample_openai_assistant_internal,
@@ -1612,7 +1630,7 @@ def init_sample_assistant_internal() -> None:
         except ImportError:
             pass
 
-    if importlib.util.find_spec("anthropic"):
+    if _HAS_ANTHROPIC:
         try:
             from inspect_ai.model._providers.anthropic import (
                 init_sample_anthropic_assistant_internal,

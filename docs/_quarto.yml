@@ -15,12 +15,6 @@ website:
         href: extensions/index.qmd
       - text: "Evals"
         href: evals/index.qmd
-  announcement: 
-    icon: megaphone
-    dismissable: true
-    content: "Announcing new releases of **Petri** and **Bloom**---automated alignment auditing built on Inspect. [Learn more](https://meridianlabs.ai/blog/posts/introducing-petri-3/)"
-    type: secondary
-    position: below-navbar
 
 inspect-docs:
   title: Inspect

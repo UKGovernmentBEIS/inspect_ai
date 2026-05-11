@@ -1,4 +1,5 @@
 import base64
+import re
 from logging import getLogger
 from typing import Any, Literal, Tuple, Union, cast
 
@@ -15,6 +16,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import reasoning_to_think_tag
@@ -421,6 +423,31 @@ class BedrockAPI(ModelAPI):
     def is_nova(self) -> bool:
         return "nova" in self.model_name
 
+    def _is_claude_4_x(self, x: int) -> bool:
+        # bedrock model ids look like
+        # `anthropic.claude-opus-4-7-20260101-v1:0` or
+        # `eu.anthropic.claude-opus-4-7-...` for cross-region inference profiles.
+        return (
+            self.is_claude()
+            and re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.model_name) is not None
+        )
+
+    def is_claude_4_7_or_later(self) -> bool:
+        # mirrors the gating used in the native anthropic provider:
+        # claude 4.7+ runs adaptive-thinking-only and rejects temperature /
+        # top_p / top_k. assume future minor versions of claude 4 keep the
+        # 4.7 capability set unless a specific older minor is matched.
+        if not self.is_claude():
+            return False
+        if self._is_claude_4_x(7):
+            return True
+        # future claude 4 minor not yet recognised
+        if re.search(r"claude-[a-zA-Z]+-4-", self.model_name):
+            recognised = any(self._is_claude_4_x(x) for x in (0, 1, 5, 6))
+            if not recognised:
+                return True
+        return False
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -458,10 +485,24 @@ class BedrockAPI(ModelAPI):
                 input, emulate_reasoning=self.is_claude()
             )
 
+            # Claude 4.7+ runs adaptive-thinking-only and rejects sampling
+            # parameters; only maxTokens is accepted. Mirror the gating used
+            # in the native anthropic provider. See issue #3766.
+            forbid_sampling_params = self.is_claude_4_7_or_later()
+
+            def _sampling_param_warning(parameter: str) -> str:
+                return (
+                    f"bedrock model '{self.model_name}' does not support the "
+                    f"'{parameter}' parameter (adaptive thinking only)."
+                )
+
             # additional model request fields
             additionalModelRequestFields: dict[str, Any] = {}
             if config.top_k:
-                additionalModelRequestFields["top_k"] = config.top_k
+                if forbid_sampling_params:
+                    warn_once(logger, _sampling_param_warning("top_k"))
+                else:
+                    additionalModelRequestFields["top_k"] = config.top_k
             reasoning_cfg = self.reasoning_config(config)
             additionalModelRequestFields = additionalModelRequestFields | reasoning_cfg
 
@@ -474,6 +515,19 @@ class BedrockAPI(ModelAPI):
                 == "high"
             )
 
+            # Gate temperature / top_p for adaptive-thinking-only models.
+            if forbid_sampling_params and config.temperature is not None:
+                warn_once(logger, _sampling_param_warning("temperature"))
+                inference_temperature: float | None = None
+            else:
+                inference_temperature = config.temperature
+
+            if forbid_sampling_params and config.top_p is not None:
+                warn_once(logger, _sampling_param_warning("top_p"))
+                inference_top_p: float | None = None
+            else:
+                inference_top_p = config.top_p
+
             # Make the request
             request = ConverseClientConverseRequest(
                 modelId=self.model_name,
@@ -481,8 +535,8 @@ class BedrockAPI(ModelAPI):
                 system=system,
                 inferenceConfig=ConverseInferenceConfig(
                     maxTokens=None if nova_high_effort_reasoning else config.max_tokens,
-                    temperature=config.temperature,
-                    topP=config.top_p,
+                    temperature=inference_temperature,
+                    topP=inference_top_p,
                     stopSequences=config.stop_seqs,
                 ),
                 additionalModelRequestFields=additionalModelRequestFields,

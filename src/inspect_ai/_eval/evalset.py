@@ -398,10 +398,12 @@ def eval_set(
     # batch=True + adaptive_connections=True + retry_connections=0.5 would
     # silently lose decay (evalset suppresses it, but the model path goes
     # static and never sets up an adaptive controller).
-    adaptive_will_be_active = (
-        bool(kwargs.get("adaptive_connections"))
-        and kwargs.get("max_connections") is None
-        and not kwargs.get("batch")
+    from inspect_ai.util._concurrency import adaptive_active
+
+    adaptive_will_be_active = adaptive_active(
+        kwargs.get("adaptive_connections"),
+        kwargs.get("max_connections"),
+        kwargs.get("batch"),
     )
     if adaptive_will_be_active:
         retry_connections = 1.0

@@ -29,6 +29,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
 )
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._openai import chat_message_assistant_from_openai
 from inspect_ai.model._openai_responses import (
     reasoning_from_responses_reasoning,
     responses_reasoning_from_reasoning,
@@ -124,6 +125,32 @@ async def test_model_output_from_openai_with_tool_calls() -> None:
     assert message.tool_calls is not None
     assert len(message.tool_calls) == 1
     assert message.tool_calls[0].function == "get_weather"
+
+
+async def test_chat_completion_openrouter_reasoning_details() -> None:
+    details = [
+        {
+            "type": "reasoning.text",
+            "text": "I should answer directly.",
+            "format": "unknown",
+            "index": 0,
+        }
+    ]
+    message = ChatCompletionMessage.model_construct(
+        role="assistant",
+        content="Final answer",
+        reasoning_details=details,
+    )
+
+    result = chat_message_assistant_from_openai("gpt-4o", message, [])
+
+    assert isinstance(result.content, list)
+    assert isinstance(result.content[0], ContentReasoning)
+    assert result.content[0].reasoning == "I should answer directly."
+    assert "reasoning.text" not in result.content[0].reasoning
+    assert result.content[0].signature is not None
+    assert isinstance(result.content[1], ContentText)
+    assert result.content[1].text == "Final answer"
 
 
 async def test_model_output_from_openai_dict_input() -> None:

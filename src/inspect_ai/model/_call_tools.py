@@ -65,7 +65,7 @@ from inspect_ai.tool._tool import (
     tool_result_content,
 )
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
-from inspect_ai.tool._tool_def import ToolDef, tool_defs
+from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
@@ -642,6 +642,90 @@ async def resolve_tools(
             resolved_tools.append(tool)
 
     return resolved_tools
+
+
+class PreparedTools(NamedTuple):
+    tdefs: list[ToolDef]
+    base_tools: list[ToolInfo]
+
+
+def _tool_info_from_tdef(tdef: ToolDef, *, own_parameters: bool) -> ToolInfo:
+    parameters = (
+        tdef.parameters.model_copy(deep=True) if own_parameters else tdef.parameters
+    )
+    return ToolInfo(
+        name=tdef.name,
+        description=tdef.description,
+        parameters=parameters,
+        options=tdef.options,
+    )
+
+
+async def prepare_tools(
+    tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
+) -> PreparedTools:
+    resolved_tools = await resolve_tools(tools)
+    tdefs: list[ToolDef] = []
+    base_tools: list[ToolInfo] = []
+
+    for tool in resolved_tools:
+        if isinstance(tool, ToolInfo):
+            base_tools.append(tool.model_copy(deep=True))
+        elif isinstance(tool, ToolDef):
+            tdefs.append(tool)
+            base_tools.append(_tool_info_from_tdef(tool, own_parameters=True))
+        else:
+            fields = tool_def_fields(tool)
+            tdef = ToolDef(
+                tool,
+                name=fields.name,
+                description=fields.description,
+                parameters=fields.parameters,
+                parallel=fields.parallel,
+                viewer=fields.viewer,
+                model_input=fields.model_input,
+                options=fields.options,
+            )
+            tdefs.append(tdef)
+            base_tools.append(
+                ToolInfo(
+                    name=fields.name,
+                    description=fields.description,
+                    parameters=fields.parameters,
+                    options=fields.options,
+                )
+            )
+
+    return PreparedTools(tdefs=tdefs, base_tools=base_tools)
+
+
+def copy_tools_info(tools: Sequence[ToolInfo]) -> list[ToolInfo]:
+    return [tool.model_copy(deep=True) for tool in tools]
+
+
+def snapshot_tools_for_event(
+    call_tools: Sequence[ToolInfo], base_tools: Sequence[ToolInfo]
+) -> list[ToolInfo]:
+    base_tools_by_name = {tool.name: tool for tool in base_tools}
+    snapshots: list[ToolInfo] = []
+    for call_tool in call_tools:
+        base_tool = base_tools_by_name.get(call_tool.name)
+        parameters = (
+            base_tool.parameters
+            if base_tool and call_tool.parameters == base_tool.parameters
+            else call_tool.parameters.model_copy(deep=True)
+        )
+        snapshot = call_tool.model_copy(deep=False)
+        snapshot.parameters = parameters
+        snapshot.options = deepcopy(call_tool.options)
+        snapshots.append(snapshot)
+    return snapshots
+
+
+def tools_info_equal(left: Sequence[ToolInfo], right: Sequence[ToolInfo]) -> bool:
+    if len(left) != len(right):
+        return False
+    return all(left_tool == right_tool for left_tool, right_tool in zip(left, right))
 
 
 def get_tools_info(
