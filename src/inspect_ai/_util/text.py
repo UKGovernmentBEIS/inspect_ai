@@ -19,9 +19,9 @@ def strip_punctuation(s: str) -> str:
 
 
 def strip_numeric_punctuation(s: str) -> str:
-    # strip $, €, £, and ,
-    # *,_ to string formatting characters sometimes added by LLMs
-    stripped = re.sub(r"[$,£,€,*,_]", "", s)
+    # strip currency symbols ($, €, £), thousands separator (,),
+    # the percent sign, and string-formatting markers (*, _) sometimes added by LLMs
+    stripped = re.sub(r"[$,£,€,*,_%]", "", s)
 
     # strip . if it's followed by a space, the end of the string,
     # or a non-digit character

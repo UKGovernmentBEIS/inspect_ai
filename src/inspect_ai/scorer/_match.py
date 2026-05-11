@@ -19,9 +19,11 @@ def match(
           output; "exact" requires the output be exactly
           equal to the target (module whitespace, etc.)
        ignore_case: Do case insensitive comparison.
-       numeric: Is this a numeric match? (in this
-          case different punctuation removal rules are
-          used and numbers are normalized before comparison).
+       numeric: Is this a numeric match? When True, the model
+          output and target have currency symbols (`$`, `€`, `£`),
+          thousands separator (`,`), percent sign (`%`), and
+          string-formatting markers (`*`, `_`) stripped before
+          comparison, and numbers are normalized.
     """
 
     def check(value: str, target: str) -> tuple[str, bool]:
