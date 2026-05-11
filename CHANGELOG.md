@@ -14,6 +14,7 @@
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
 - Eval Set: Support for task filtering in CLI invocations via the `-F` option.
 - Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don't implement conditional writes).
+- Logging: `INSPECT_PY_LOGGER_FORMAT` env var (`rich`/`plain`/`json`) for non-TTY-friendly single-line console logs.
 - Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
 - Task Display: Honor terminal `COLUMNS` and `LINES` for dumb terminals.
 - Memory: Log condensing no longer retains unchanged JSON copies in long evals.
