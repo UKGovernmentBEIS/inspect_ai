@@ -211,6 +211,12 @@ async def eval_run(
                 else:
                     task.continue_on_fail = task_eval_config.continue_on_fail
 
+                # score_on_error
+                if task_eval_config.score_on_error is None:
+                    task_eval_config.score_on_error = task.score_on_error
+                else:
+                    task.score_on_error = task_eval_config.score_on_error
+
                 # merge eval-level and task-level tags
                 merged_tags = list(set(tags or []) | set(task.tags or [])) or None
 
@@ -263,6 +269,8 @@ async def eval_run(
                         debug_errors=debug_errors,
                         sample_source=resolved_task.sample_source,
                         kwargs=kwargs,
+                        initial_model_usage=resolved_task.initial_model_usage,
+                        initial_role_usage=resolved_task.initial_role_usage,
                     )
                 )
 
@@ -835,6 +843,10 @@ async def startup_sandbox_environments(
             cleanups.append(
                 (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
             )
+
+        # provide some space above task display
+        if sandboxenvs:
+            print("")
 
     # return shutdown method
     async def shutdown() -> None:

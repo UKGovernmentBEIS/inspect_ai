@@ -99,6 +99,15 @@ def vllm() -> type[ModelAPI]:
     return VLLMAPI
 
 
+@modelapi(name="vllm-completions")
+def vllm_completions() -> type[ModelAPI]:
+    validate_openai_client("vLLM Completions API")
+
+    from .vllm_completions import VLLMCompletionsAPI
+
+    return VLLMCompletionsAPI
+
+
 @modelapi(name="cf")
 def cf() -> type[ModelAPI]:
     from .cloudflare import CloudFlareAPI

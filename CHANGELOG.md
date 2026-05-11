@@ -1,3 +1,91 @@
+## Unreleased
+
+- OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
+- OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
+- VLLM: Preserve dotted vLLM server arg keys.
+- Bedrock: Drop unsupported sampling params for Claude 4.7+.
+- SageMaker: Add `prompt_logprobs` support in chat mode via `GenerateConfig`, parse prompt logprobs from completion mode responses, enabling `perplexity()` and `target_perplexity()` scorers end-to-end.
+- Model API: `--adaptive-connections` is now enabled by default (defaults to 100 per model connection).
+- Model API: Cache lookup of openai and anthropic packages at sample initialization.
+- Model API: Remove semaphore around calls to `count_tokens()` (they are already retried and gated by `max_samples`).
+- Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
+- Datasets: `hf_dataset` retries transient Hugging Face errors (rate limits, timeouts, Hub-unreachable cache misses) up to 3 times (5 in CI) with exponential backoff. Pass `retry=False` to disable.
+- Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
+- Eval Set: Support for task filtering in CLI invocations via the `-F` option.
+- Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don't implement conditional writes).
+- Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
+- Task Display: Honor terminal `COLUMNS` and `LINES` for dumb terminals.
+- Memory: Log condensing no longer retains unchanged JSON copies in long evals.
+- Memory: Don't retain message lists in buffer DB (memory leak on long agentic samples).
+- Memory: Collapse user messages at compaction time to avoid carrying extra messages.
+- Memory: Stop retaining copied tool schemas in model events.
+- Bugfix: Ensure that models don't share GenerateConfig instance via default get_model argument.
+- Inspect View: Pending samples fetch directly from S3 with chunked loading
+- Inspect View: Score color scales applied to sample-header chips
+- Inspect View: Outline close icon aligned; rootHeader made sticky
+- Inspect View: Fixed model retry event rendering
+- Inspect View: Fixed message ordering in running-sample Messages tab with cross-poll caching
+
+## 0.3.220 (08 May 2026)
+
+- Anthropic: Skip the top-level `cache_control` auto-caching field on Bedrock and Vertex where they are not supported.
+- Grok: Forward `tool_call_id` in tool responses (parallel tool calling).
+- Grok: Support `reasoning_effort` for Grok 4 models.
+- Scoring: Don't retry samples interrupted by operator during scoring.
+- MCP: Raise `ToolError` when timeout error occurs in MCP tool call.
+- Eval Set: Fix retry log filename colliding with the failed log when both calls land in the same wall-clock second, which previously caused successful samples to be re-run instead of reused from the prior log.
+- Eval Logs: Disable boto3 1.36+ default integrity checksums on S3 log writes to avoid intermittent `IncompleteBody` errors during multipart uploads under concurrent flushes.
+- Bugfix: Fix bridged-tool result serialization to handle `list[ContentText]`.
+
+## 0.3.219 (06 May 2026)
+
+- Inspect View: Fix extraneous console errors
+- Inspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.
+- Inspect View: Task samples - preserve sort and other state in VS Code.
+
+## 0.3.218 (06 May 2026)
+
+- Google: Support Gemini 3+ native web search and code execution alongside function tools.
+- HuggingFace: Add `trust_remote_code` model argument (defaults to `False`).
+- VLLM: New `vllm-completions` model provider that uses completions rather than chat endpoint.
+- OpenRouter: Coalesce adjacent system messages before request.
+- Bedrock: Preserve maxTokens when reasoning effort is less than "high".
+- Eval Set: `retry_immediate` now defaults to True. Pass `retry_immediate=False` (or `--no-retry-immediate`) to restore the previous batch-retry behavior.
+- Eval Set: `max_tasks` now defaults to the greater of 10 and the number of models being evaluated (was previously 4).
+- Eval Set: Roll forward `model_usage` and `role_usage` from previous log when performing retries (matches existing `eval-retry` behavior).
+- Compaction: Account for redacted-reasoning input cost on providers that exclude it from `usage.input_tokens` (currently OpenAI Responses with `store=false` + `include=["reasoning.encrypted_content"]`).
+- Bugfix: Fix `ToolEvent.message_id` to reference the correct `ChatMessageTool` when multiple tool calls occur in one assistant turn.
+
+## 0.3.217 (03 May 2026)
+
+- Add [adaptive connections](https://inspect.aisi.org.uk/models-concurrency.html#adaptive-connections) option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.
+- Add [score on error](https://inspect.aisi.org.uk/handling-errors.html#scoring-errored-samples) option to score samples that error rather than failing the task (errors are still counted toward the `fail_on_error` threshold).
+- Add `media_resolver()` context manager for scoped URI resolution for media reading (images, audio, etc.).
+- Add `download()` and `gdrive_download()` helpers for fetching external files with SHA256 verification, caching, and transient-error retry. `gdrive_download()` requires the optional `gdown` dependency, installed via `pip install inspect_ai[gdown]`.
+- Compaction: Lock Compact handler against concurrent AgentBridge calls.
+- Compaction: On `stop_reason='model_length'` in `react()` agent, force-compact before falling through to the overflow filter.
+- Analysis: Fix wrong `working_time` path in `SampleSummary` columns.
+- Add `scorer` and `scorer_args` to ScoreEvent
+
+## 0.3.216 (01 May 2026)
+
+- OpenRouter: Escape signature attribute in <think> tag round-trip.
+- Logging: Add sample id, epoch, and task name to log records.
+- Docker: Skip `docker pull` for service images already present in the local Docker daemon.
+- Inspect View: Add score comparator with NaN filtering and regex-escaped property matching (#167)
+- Inspect View: Improve grid sorting with NaN values and fix sample column sizing (#166)
+- Inspect View: Make live-streaming message/call pool processing idempotent by entry id to prevent duplicated messages in API request views (#168)
+- Model database: Fix incorrect `input_tokens` for `gpt-5.4`, `gpt-5.4-pro`, `gpt-5.5`, `gpt-5.5-pro` (was 778000, now 922000 = 1,050,000 context − 128,000 output).
+
+## 0.3.215 (30 April 2026)
+
+- Handle split UTF-16 "lone surrogate" in log message condensation.
+- Inspect View: Collapse the LogView title bar on scroll
+- Inspect View: Add additional column support when viewing task samples.
+- Inspect View: Add sample uuid column id and filtering.
+- Inspect View: Fix issue causing column sizing and re-ordering to snap back to initial state.
+- Inspect View: Fix copy command including large binary payloads.
+
 ## 0.3.214 (29 April 2026)
 
 - Scoring: Allow NaN-at-root unscored sentinel for dict- and list-valued scorers.

@@ -65,6 +65,7 @@ from ._model import (
     Model,
     ModelAPI,
     ModelName,
+    RetryDecision,
     get_model,
     model_roles,
 )
@@ -148,6 +149,7 @@ __all__ = [
     "Model",
     "ModelAPI",
     "ModelName",
+    "RetryDecision",
     "ModelConfig",
     "ModelUsage",
     "StopReason",

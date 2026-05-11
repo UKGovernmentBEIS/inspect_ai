@@ -336,7 +336,7 @@ openai:
       knowledge_cutoff_date: 2025-08-31
       context_length: 1050000
       output_tokens: 128000
-      input_tokens: 778000
+      input_tokens: 922000
       reasoning: True
       versions:
         gpt-5.4-2026-03-05:
@@ -347,7 +347,7 @@ openai:
       knowledge_cutoff_date: 2025-08-31
       context_length: 1050000
       output_tokens: 128000
-      input_tokens: 778000
+      input_tokens: 922000
       reasoning: True
       versions:
         gpt-5.4-pro-2026-03-05:
@@ -380,7 +380,7 @@ openai:
       knowledge_cutoff_date: 2025-12-01
       context_length: 1050000
       output_tokens: 128000
-      input_tokens: 778000
+      input_tokens: 922000
       reasoning: True
       versions:
         gpt-5.5-2026-04-23:
@@ -391,7 +391,7 @@ openai:
       knowledge_cutoff_date: 2025-12-01
       context_length: 1050000
       output_tokens: 128000
-      input_tokens: 778000
+      input_tokens: 922000
       reasoning: True
       versions:
         gpt-5.5-2026-04-23:

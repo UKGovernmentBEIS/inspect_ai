@@ -4,7 +4,10 @@ import logging
 import re
 from copy import copy
 from dataclasses import dataclass
-from typing import Any, Callable, Literal, TypeAlias, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias, cast
+
+if TYPE_CHECKING:
+    from inspect_ai.model._model import RetryDecision
 
 import httpx
 from openai import (
@@ -54,7 +57,10 @@ from inspect_ai._util.content import (
     ContentReasoning,
     ContentText,
 )
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.model._call_tools import parse_tool_call
@@ -69,6 +75,9 @@ from inspect_ai.model._model_output import (
     Logprob,
     Logprobs,
     TopLogprob,
+)
+from inspect_ai.model._openrouter_reasoning import (
+    openrouter_reasoning_details_to_reasoning,
 )
 from inspect_ai.model._reasoning import (
     parse_content_with_reasoning,
@@ -535,9 +544,8 @@ async def messages_from_openai(
             # other sources
             parse_result = parse_reasoning_content(message)
             if parse_result is not None:
-                reasoning: ContentReasoning | None = ContentReasoning(
-                    internal=parse_result[0].source,
-                    reasoning=str(parse_result[0].reasoning),
+                reasoning: ContentReasoning | None = (
+                    content_reasoning_from_openai_reasoning(parse_result[0])
                 )
             else:
                 reasoning = None
@@ -702,6 +710,22 @@ class CompletionsReasoningContent:
     reasoning: JsonValue
 
 
+def content_reasoning_from_openai_reasoning(
+    reasoning_content: CompletionsReasoningContent,
+) -> ContentReasoning:
+    if reasoning_content.source == "reasoning_details" and isinstance(
+        reasoning_content.reasoning, list
+    ):
+        return openrouter_reasoning_details_to_reasoning(
+            cast(list[dict[str, Any]], reasoning_content.reasoning)
+        )
+
+    return ContentReasoning(
+        reasoning=str(reasoning_content.reasoning),
+        internal=reasoning_content.source,
+    )
+
+
 ReasoningExtractor: TypeAlias = Callable[
     [CompletionsReasoningContent], ContentReasoning | None
 ]
@@ -725,10 +749,7 @@ def chat_message_assistant_from_openai(
         if reasoning_extractor is not None:
             reasoning = reasoning_extractor(reasoning_content)
         if reasoning is None:
-            reasoning = ContentReasoning(
-                reasoning=str(reasoning_content.reasoning),
-                internal=reasoning_content.source,
-            )
+            reasoning = content_reasoning_from_openai_reasoning(reasoning_content)
 
         content: str | list[Content] = [
             reasoning,
@@ -758,9 +779,17 @@ def parse_reasoning_content(
         list[CompletionsReasoningSource],
         ["reasoning_details", "reasoning_content", "reasoning"],
     ):
-        reasoning = getattr(message, source, None)
+        if isinstance(message, dict):
+            reasoning = message.get(source, None)
+        else:
+            reasoning = getattr(message, source, None)
         if reasoning:
-            return CompletionsReasoningContent(source=source, reasoning=reasoning), None
+            return (
+                CompletionsReasoningContent(
+                    source=source, reasoning=cast(JsonValue, reasoning)
+                ),
+                None,
+            )
 
     # not found, look for <think> tag
     content = (
@@ -840,27 +869,18 @@ def chat_choices_from_openai(
     ]
 
 
-def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
-    """Parse prompt logprobs from a vLLM chat completions response.
+def parse_vllm_prompt_logprobs_raw(raw: list[Any]) -> Logprobs | None:
+    """Parse a vLLM prompt_logprobs list into a :class:`Logprobs` object.
 
-    vLLM places prompt_logprobs at the response top level (not inside choices).
-    Each position is a dict mapping token_id -> {decoded_token, logprob, rank}.
-    The first entry in each dict is always the actual prompt token (by vLLM's
-    insertion-order contract); subsequent entries are the top-N alternatives
-    (when prompt_logprobs > 1).  The rank field indicates the model's
-    prediction ranking (rank 1 = most likely), NOT which token is the actual
-    prompt token — the actual token may have a high rank if it was unlikely.
+    vLLM format: each position is either ``None`` (BOS) or a dict mapping
+    ``token_id -> {decoded_token, logprob, rank}``.  The first entry in
+    each dict is the actual prompt token (by vLLM's insertion-order
+    contract); subsequent entries are the top-N alternatives
+    (when ``prompt_logprobs > 1``).
+
+    This is the shared parsing logic used by both the chat completions
+    path (``_parse_prompt_logprobs``) and the ``vllm-completions`` provider.
     """
-    raw: list[Any] | None = None
-    # vLLM returns prompt_logprobs at the top level of the response
-    if hasattr(response, "prompt_logprobs") and response.prompt_logprobs is not None:
-        raw = response.prompt_logprobs
-    elif hasattr(response, "model_extra") and response.model_extra:
-        raw = response.model_extra.get("prompt_logprobs")
-
-    if not raw:
-        return None
-
     result: list[Logprob] = []
     for entry in raw:
         # First token has None logprob (no left context)
@@ -912,17 +932,96 @@ def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
     return Logprobs(content=result) if result else None
 
 
+def _parse_prompt_logprobs(response: Any) -> Logprobs | None:
+    """Parse prompt logprobs from a vLLM chat completions response.
+
+    vLLM places prompt_logprobs at the response top level (not inside choices).
+    This function locates the raw list and delegates to
+    :func:`parse_vllm_prompt_logprobs_raw` for parsing.
+    """
+    raw: list[Any] | None = None
+    if hasattr(response, "prompt_logprobs") and response.prompt_logprobs is not None:
+        raw = response.prompt_logprobs
+    elif hasattr(response, "model_extra") and response.model_extra:
+        raw = response.model_extra.get("prompt_logprobs")
+
+    if not raw:
+        return None
+
+    return parse_vllm_prompt_logprobs_raw(raw)
+
+
+def parse_completion_logprobs(sdk_logprobs: Any) -> Logprobs | None:
+    """Parse ``/v1/completions`` logprobs into :class:`Logprobs`.
+
+    The completions endpoint returns logprobs as parallel arrays::
+
+        {
+            "tokens": [" Paris", "."],
+            "token_logprobs": [-0.595, -0.837],
+            "top_logprobs": [{" Paris": -0.595}, {".": -0.837}]
+        }
+
+    This differs from chat completions which uses a list of objects.
+    """
+    if sdk_logprobs is None:
+        return None
+
+    tokens = getattr(sdk_logprobs, "tokens", None)
+    token_logprobs = getattr(sdk_logprobs, "token_logprobs", None)
+    if not tokens or not token_logprobs:
+        return None
+
+    sdk_top = getattr(sdk_logprobs, "top_logprobs", None)
+
+    result: list[Logprob] = []
+    for i, (token, logprob) in enumerate(zip(tokens, token_logprobs)):
+        if logprob is None:
+            continue
+        top_lps: list[TopLogprob] | None = None
+        if sdk_top and i < len(sdk_top) and sdk_top[i]:
+            top_lps = [TopLogprob(token=t, logprob=lp) for t, lp in sdk_top[i].items()]
+        result.append(Logprob(token=token, logprob=logprob, top_logprobs=top_lps))
+    return Logprobs(content=result) if result else None
+
+
 def openai_should_retry(ex: BaseException) -> bool:
+    return openai_classify_retry(ex) is not None
+
+
+def openai_classify_retry(ex: BaseException) -> "RetryDecision | None":
+    """Classify an OpenAI SDK exception as rate_limit / transient / not retryable.
+
+    Returns None when the exception isn't retryable. Reads `Retry-After` and
+    `x-ratelimit-reset-*` from the response headers when available so the
+    adaptive controller can honor server-suggested wait times.
+    """
+    from inspect_ai.model._model import RetryDecision
+
     if isinstance(ex, RateLimitError):
-        return True
-    elif isinstance(ex, APIStatusError):
-        return is_retryable_http_status(ex.status_code)
-    elif isinstance(ex, OpenAIResponseError):
-        return ex.code in ["rate_limit_exceeded", "server_error"]
-    elif isinstance(ex, APIConnectionError | APITimeoutError):
-        return True
-    else:
-        return False
+        return RetryDecision.rate_limit(
+            retry_after=parse_retry_after_from_exception(ex)
+        )
+    if isinstance(ex, APIStatusError):
+        status = ex.status_code
+        retry_after = parse_retry_after_from_exception(ex)
+        if status == 429:
+            return RetryDecision.rate_limit(retry_after=retry_after)
+        if is_retryable_http_status(status):
+            return RetryDecision.transient(retry_after=retry_after)
+        return None
+    if isinstance(ex, OpenAIResponseError):
+        # OpenAIResponseError is the structured error from the Responses API.
+        # `rate_limit_exceeded` is the explicit rate-limit code; `server_error`
+        # is a generic backend failure (treat as transient).
+        if ex.code == "rate_limit_exceeded":
+            return RetryDecision.rate_limit()
+        if ex.code == "server_error":
+            return RetryDecision.transient()
+        return None
+    if isinstance(ex, APIConnectionError | APITimeoutError):
+        return RetryDecision.transient()
+    return None
 
 
 def openai_handle_bad_request(

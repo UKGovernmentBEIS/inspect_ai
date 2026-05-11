@@ -122,7 +122,10 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data, file_as_data_uri
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
@@ -150,7 +153,7 @@ from inspect_ai.util._json import (
     set_additional_properties_false,
 )
 
-from ..._util.httpx import httpx_should_retry
+from ..._util.httpx import httpx_classify_retry
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -158,7 +161,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig, normalized_batch_config
-from .._model import ModelAPI, log_model_retry
+from .._model import ModelAPI, RetryDecision, log_model_retry
 from .._model_call import ModelCall, as_error_response
 from .._model_output import ChatCompletionChoice, ModelOutput, ModelUsage, StopReason
 from .._providers._anthropic_citations import (
@@ -389,8 +392,15 @@ class AnthropicAPI(ModelAPI):
             # prepare request params (assembled this way so we can log the raw model call)
             request: dict[str, Any] = dict(messages=messages)
 
-            # automatic caching for messages (system/tools use explicit breakpoints)
-            if cache_prompt:
+            # automatic caching for messages (system/tools use explicit breakpoints).
+            # Per Anthropic's docs, the top-level `cache_control` field is only
+            # supported on the direct Claude API and Azure AI Foundry (preview);
+            # "support for Amazon Bedrock and Google Vertex AI is coming later." On
+            # those services it is rejected as
+            # `cache_control: Extra inputs are not permitted`. Fall back to the
+            # per-block markers added in resolve_chat_input on those services.
+            # ref: https://docs.claude.com/en/docs/build-with-claude/prompt-caching#automatic-caching
+            if cache_prompt and not (self.is_bedrock() or self.is_vertex()):
                 request["cache_control"] = {"type": "ephemeral"}
 
             # system messages and tools
@@ -999,14 +1009,15 @@ class AnthropicAPI(ModelAPI):
             return self.canonical_name()
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
+            retry_after = parse_retry_after_from_exception(ex)
             # when streaming, anthropic does not set status_code == 529
             # for overloaded or internal server errors so we check for them explicitly
             if isinstance(ex.body, dict):
                 body_str = str(ex.body).lower()
                 if "overloaded" in body_str or "internal server error" in body_str:
-                    return True
+                    return RetryDecision.transient(retry_after=retry_after)
                 # TCP interruptions can truncate large request bodies in transit,
                 # causing a 400 even though json.dumps() produced valid JSON.
                 if (
@@ -1014,16 +1025,21 @@ class AnthropicAPI(ModelAPI):
                     and "not valid json" in body_str
                     and "unexpected end of data" in body_str
                 ):
-                    return True
+                    return RetryDecision.transient(retry_after=retry_after)
 
             # standard http status code checking
-            return is_retryable_http_status(ex.status_code)
-        elif httpx_should_retry(ex):
-            return True
-        elif isinstance(ex, APIConnectionError | APITimeoutError):
-            return True
-        else:
-            return False
+            if not is_retryable_http_status(ex.status_code):
+                return RetryDecision.no()
+            if ex.status_code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+
+        decision = httpx_classify_retry(ex)
+        if decision is not None:
+            return decision
+        if isinstance(ex, APIConnectionError | APITimeoutError):
+            return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:

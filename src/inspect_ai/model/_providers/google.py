@@ -16,14 +16,13 @@ from google.genai import Client
 from google.genai.errors import APIError, ClientError
 from google.genai.types import (
     Candidate,
-    CodeExecutionResult,
     Content,
     ContentListUnion,
     ContentListUnionDict,
     ContentUnion,
-    ExecutableCode,
     File,
     FinishReason,
+    FunctionCall,
     FunctionCallingConfig,
     FunctionCallingConfigMode,
     FunctionDeclaration,
@@ -48,6 +47,7 @@ from google.genai.types import (
     ToolCodeExecution,
     ToolConfig,
     ToolListUnion,
+    ToolType,
 )
 from pydantic import JsonValue
 from shortuuid import uuid
@@ -68,7 +68,10 @@ from inspect_ai._util.content import (
     ContentVideo,
 )
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data
 from inspect_ai._util.kvstore import inspect_kvstore
 from inspect_ai._util.logger import warn_once
@@ -91,7 +94,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._generate_config import has_image_output, normalized_batch_config
-from inspect_ai.model._model import log_model_retry
+from inspect_ai.model._model import RetryDecision, log_model_retry
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._providers._google_batch import GoogleBatcher, batch_request_dict
 from inspect_ai.model._providers._google_citations import (
@@ -124,6 +127,18 @@ GOOGLE_API_KEY = "GOOGLE_API_KEY"
 VERTEX_API_KEY = "VERTEX_API_KEY"
 
 SAFETY_SETTINGS = "safety_settings"
+
+# Key under ContentReasoning.internal that links a redacted reasoning block
+# to the function_call whose thought_signature it carries. Used to preserve
+# part ordering on replay when a function_call appears at a specific position
+# relative to other content blocks (visible thought, server tool calls).
+_GEMINI_FUNCTION_CALL_ID_KEY = "gemini_function_call_id"
+
+# Server-side tool_call types that we round-trip as ContentToolUse(tool_type="web_search").
+# Anything outside this set is warned-and-skipped by server_tool_use_from_tool_call.
+_SUPPORTED_SERVER_TOOL_TYPES: frozenset[ToolType] = frozenset(
+    {ToolType.GOOGLE_SEARCH_WEB, ToolType.GOOGLE_SEARCH_IMAGE}
+)
 DEFAULT_SAFETY_SETTINGS: list[SafetySettingDict] = [
     {
         "category": HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
@@ -310,11 +325,12 @@ class GoogleGenAIAPI(ModelAPI):
             has_native_tools, gemini_tools = (
                 self.chat_tools(tools) if len(tools) > 0 else (False, None)
             )
-            gemini_tool_config = (
-                chat_tool_config(tool_choice)
-                if not has_native_tools and len(tools) > 0
-                else None
-            )
+            if gemini_native_tool_combination(gemini_tools):
+                gemini_tool_config = gemini_native_tool_combination_config(tool_choice)
+            elif not has_native_tools and len(tools) > 0:
+                gemini_tool_config = chat_tool_config(tool_choice)
+            else:
+                gemini_tool_config = None
             system_instruction = await extract_system_message_as_parts(
                 client, input, tools, include_function_calling_hint=not has_native_tools
             )
@@ -669,11 +685,22 @@ class GoogleGenAIAPI(ModelAPI):
         ) and "-pro" in self.service_model_name()
 
     @override
-    def should_retry(self, ex: BaseException) -> bool:
+    def should_retry(self, ex: BaseException) -> bool | RetryDecision:
+        # HTTP 429 is always a rate-limit signal regardless of SDK status text.
+        # 503 needs a guard: Google sometimes returns 503 RESOURCE_EXHAUSTED
+        # for sustained capacity pressure on Gemini (rate-limit), while plain
+        # 503 UNAVAILABLE is infra unavailability (transient).
         if isinstance(ex, APIError) and ex.code is not None:
-            return is_retryable_http_status(ex.code)
-        else:
-            return False
+            if not is_retryable_http_status(ex.code):
+                return RetryDecision.no()
+            retry_after = parse_retry_after_from_exception(ex)
+            if ex.code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            status = getattr(ex, "status", "") or ""
+            if ex.code == 503 and "RESOURCE_EXHAUSTED" in status.upper():
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+        return RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
@@ -873,11 +900,23 @@ class GoogleGenAIAPI(ModelAPI):
             )
         )
 
-        # native search/code execution tools (cannot mix with function declarations)
+        # native search/code execution tools
         if google_search or code_execution:
             if function_declarations:
-                raise ValueError(
-                    "Gemini does not yet support native web search or code execution concurrently with other tools."
+                if not self.is_gemini_3_plus():
+                    raise ValueError(
+                        f"Combining native web search or code execution with custom function tools requires Gemini 3 or later. The model '{self.model_name}' does not support this combination."
+                    )
+                combined_native_tools: ToolListUnion = [
+                    Tool(function_declarations=function_declarations)
+                ]
+                if google_search:
+                    combined_native_tools.append(Tool(google_search=google_search))
+                if code_execution:
+                    combined_native_tools.append(Tool(code_execution=code_execution))
+                return (
+                    True,
+                    combined_native_tools,
                 )
             native_tools: ToolListUnion = []
             if google_search:
@@ -1044,6 +1083,47 @@ async def content(
         )
     elif isinstance(message, ChatMessageAssistant):
         content_parts: list[Part] = []
+        emitted_tool_call_ids: set[str] = set()
+        server_tool_signature: bytes | None = None
+
+        def part_from_tool_call(tool_call: ToolCall) -> Part:
+            if tool_call.function == "computer":
+                action_name = (
+                    tool_call.id.rsplit("_", 1)[0] if tool_call.id else "computer"
+                )
+                _, action_args = gemini_action_from_tool_call(tool_call)
+                return Part(
+                    function_call=FunctionCall(
+                        id=tool_call.id,
+                        name=action_name,
+                        args=action_args,
+                    )
+                )
+            else:
+                return Part(
+                    function_call=FunctionCall(
+                        id=tool_call.id,
+                        name=tool_call.function,
+                        args=tool_call.arguments,
+                    )
+                )
+
+        def apply_reasoning_signature(
+            part: Part, reasoning_block: ContentReasoning
+        ) -> None:
+            # Position-only anchors carry empty reasoning — they mark a function_call's
+            # original position without a signature. Caller borrows a signature
+            # from elsewhere if the verifier requires one.
+            if not reasoning_block.reasoning:
+                return
+            if reasoning_block.redacted:
+                part.thought_signature = base64.b64decode(
+                    reasoning_block.reasoning.encode()
+                )
+            else:
+                logger.warning(
+                    "Reasoning block must have a reasoning signature to set thought_signature."
+                )
 
         if isinstance(message.content, str):
             content_parts.append(Part(text=message.content or NO_CONTENT))
@@ -1051,11 +1131,77 @@ async def content(
             for i, content in enumerate(message.content):
                 if isinstance(content, ContentReasoning):
                     if emulate_reasoning:
+                        # Gemini position anchors are protocol state (a function_call
+                        # ID + an optional thought_signature), not human-readable
+                        # reasoning text. Skip them under emulate_reasoning so they
+                        # don't leak into the prompt as empty <think> tags on older
+                        # models (Gemini 1.5/2.0) that rely on text emulation.
+                        if (
+                            isinstance(content.internal, dict)
+                            and _GEMINI_FUNCTION_CALL_ID_KEY in content.internal
+                        ):
+                            continue
                         content_parts.append(Part(text=reasoning_to_think_tag(content)))
                     else:
                         # if this is encrypted reasoning, save it for applying the thought_signature
                         # to the next part (don't emit a separate thought part during replay)
                         if content.redacted:
+                            function_call_id = (
+                                content.internal.get(_GEMINI_FUNCTION_CALL_ID_KEY)
+                                if isinstance(content.internal, dict)
+                                else None
+                            )
+                            if (
+                                isinstance(function_call_id, str)
+                                and message.tool_calls is not None
+                            ):
+                                tool_call = next(
+                                    (
+                                        tool_call
+                                        for tool_call in message.tool_calls
+                                        if tool_call.id == function_call_id
+                                    ),
+                                    None,
+                                )
+                                if tool_call is not None:
+                                    part = part_from_tool_call(tool_call)
+                                    if content.reasoning:
+                                        # Signed anchor — apply its signature.
+                                        # Clear any in-flight server_tool_signature
+                                        # so a later unsigned anchor doesn't
+                                        # borrow it across an intervening signed
+                                        # function_call. The borrow is only
+                                        # valid for a lone unsigned function_call
+                                        # IMMEDIATELY following a signed server
+                                        # tool — once another signed Part
+                                        # intervenes, the signature is no longer
+                                        # context-adjacent.
+                                        apply_reasoning_signature(part, content)
+                                        server_tool_signature = None
+                                    elif server_tool_signature is not None:
+                                        # Position-only anchor with no signature.
+                                        # Borrow the in-flight server-tool sig
+                                        # (works when the server tool was
+                                        # processed IMMEDIATELY before this
+                                        # anchor in iteration order, with no
+                                        # intervening signed function_calls).
+                                        part.thought_signature = server_tool_signature
+                                        server_tool_signature = None
+                                    # else: leave the function_call unsigned. An
+                                    # empty anchor with no in-flight signature
+                                    # corresponds to a parallel sibling at its
+                                    # original position; the verifier accepts
+                                    # unsigned siblings in their original
+                                    # positions per Google's "first parallel
+                                    # call only" rule. Borrowing an unrelated
+                                    # signature here has been observed to
+                                    # produce "Corrupted thought signature"
+                                    # 400s — the safe path is to leave it
+                                    # unsigned.
+                                    content_parts.append(part)
+                                    emitted_tool_call_ids.add(tool_call.id)
+                                    working_reasoning_block = None
+                                    continue
                             working_reasoning_block = content
                         else:
                             # unencrypted reasoning (for older models or debugging)
@@ -1067,10 +1213,25 @@ async def content(
                     # server side tool use
                     if isinstance(content, ContentToolUse):
                         parts_to_append = parts_from_server_tool_use(content)
+                        if (
+                            message.tool_calls is not None
+                            and server_tool_signature is None
+                        ):
+                            server_tool_signature = next(
+                                (
+                                    part.thought_signature
+                                    for part in parts_to_append
+                                    if part.thought_signature is not None
+                                ),
+                                None,
+                            )
 
                     # other content
                     else:
                         parts_to_append = [await content_part(client, content)]
+
+                    if not parts_to_append:
+                        continue
 
                     # If previously there was a reasoning block, we need to set the "thought_signature"
                     # using the reasoning from that block.
@@ -1098,43 +1259,53 @@ async def content(
 
         # Now handle tool calls
         if message.tool_calls is not None:
-            # Per Gemini API docs: thought_signature goes on the first tool call in a message.
-            # For parallel function calls, only the first FC gets the signature.
-            # For sequential function calls (multi-step), each step is a separate message,
-            # so each will have its own reasoning block and signature.
-            # The loop below applies the signature to the first tool call (when working_reasoning_block
-            # is not None), then clears it so subsequent tool calls don't get it.
+            # New captures anchor every function_call by id in the content list,
+            # so this loop is a fallback path for tool_calls that did NOT get
+            # an anchor — typically legacy eval logs from before
+            # anchors-for-all, or any captured function_call without a name.
+            #
+            # Signature handling:
+            #   - If a working_reasoning_block is in flight (visible
+            #     thought-text consolidation), apply its signature.
+            #   - Else, if the in-flight server_tool_signature is available
+            #     (a ContentToolUse was processed earlier in iteration),
+            #     borrow it. This handles legacy logs where an unsigned
+            #     function_call followed a signed server tool in the original
+            #     response. We do NOT borrow when the server tool would come
+            #     LATER in iteration: borrowing across mismatched contexts
+            #     produces "Corrupted thought signature" 400s.
+            #   - Else, leave the function_call unsigned. The verifier
+            #     accepts unsigned parallel siblings at their original
+            #     positions per Google's "first parallel call only" rule.
             for tool_call in message.tool_calls:
-                if tool_call.function == "computer":
-                    action_name = (
-                        tool_call.id.rsplit("_", 1)[0] if tool_call.id else "computer"
-                    )
-                    _, action_args = gemini_action_from_tool_call(tool_call)
-                    part = Part.from_function_call(
-                        name=action_name,
-                        args=action_args,
-                    )
-                else:
-                    part = Part.from_function_call(
-                        name=tool_call.function,
-                        args=tool_call.arguments,
-                    )
+                if tool_call.id in emitted_tool_call_ids:
+                    continue
+
+                part = part_from_tool_call(tool_call)
 
                 # handle reasoning block if available
                 if working_reasoning_block is not None:
-                    # tool call reasoning should always use a thought_signature
-                    if (
-                        working_reasoning_block.reasoning is not None
-                        and working_reasoning_block.redacted
-                    ):
-                        part.thought_signature = base64.b64decode(
-                            working_reasoning_block.reasoning.encode()
-                        )
-                    else:
-                        logger.warning(
-                            "Reasoning block must have a reasoning signature to set thought_signature."
-                        )
+                    # Apply the in-flight working signature. Also clear
+                    # server_tool_signature so a later unsigned tool_call in
+                    # this loop doesn't borrow a stale server-tool sig across
+                    # this now-signed function_call.
+                    apply_reasoning_signature(part, working_reasoning_block)
                     working_reasoning_block = None
+                    server_tool_signature = None
+                elif server_tool_signature is not None:
+                    # Borrow the in-flight server-tool signature for an
+                    # unanchored unsigned function_call — empirically observed
+                    # to satisfy the verifier when the unsigned function_call
+                    # follows a signed server tool with no intervening signed
+                    # function_call. Cross-context borrows (intervening signed
+                    # parts, or server tool processed AFTER this point) have
+                    # been observed to produce "Corrupted thought signature"
+                    # 400s; both the anchor-replay path above and the
+                    # working_reasoning_block branch clear server_tool_signature
+                    # whenever a signed signature is consumed, keeping the
+                    # borrow scoped to the immediately-adjacent case.
+                    part.thought_signature = server_tool_signature
+                    server_tool_signature = None
 
                 content_parts.append(part)
         return Content(role="model", parts=content_parts)
@@ -1160,6 +1331,7 @@ async def content(
             response_name = message.function or ""
             fn_response_parts = None
         response = FunctionResponse(
+            id=message.tool_call_id,
             name=response_name,
             response=response_dict,
             parts=fn_response_parts,
@@ -1167,6 +1339,14 @@ async def content(
         parts: list[Part] = [Part(function_response=response)]
         # For non-computer tools, include images as sibling content parts
         # since most models don't support multimodal function responses.
+        #
+        # KNOWN LIMITATION: Gemini 3 docs prefer multimodal function responses
+        # to be nested inside FunctionResponse.parts (FunctionResponsePart with
+        # inline_data) rather than emitted as siblings. This sibling-Part path
+        # is a deliberate workaround for Gemini 2.x and predates the Gemini 3
+        # mixed-tools work. A follow-up PR should gate on is_gemini_3_plus()
+        # and convert ContentImage / ContentDocument into FunctionResponsePart
+        # values for newer models, falling back to siblings on Gemini 2.x.
         if message.function != "computer" and isinstance(message.content, list):
             for item in message.content:
                 if isinstance(item, ContentImage):
@@ -1275,6 +1455,44 @@ def chat_tool_config(tool_choice: ToolChoice) -> ToolConfig:
         )
 
 
+def gemini_native_tool_combination(tools: ToolListUnion | None) -> bool:
+    """Check whether Gemini tools combine function declarations and native tools."""
+    if tools is None:
+        return False
+    has_function_declarations = any(
+        isinstance(tool, Tool) and bool(tool.function_declarations) for tool in tools
+    )
+    has_builtin_tool = any(
+        isinstance(tool, Tool)
+        and (tool.google_search is not None or tool.code_execution is not None)
+        for tool in tools
+    )
+    return has_function_declarations and has_builtin_tool
+
+
+def gemini_native_tool_combination_config(tool_choice: ToolChoice) -> ToolConfig:
+    """Build ToolConfig for Gemini 3 native tools plus function declarations."""
+    if isinstance(tool_choice, ToolFunction):
+        function_calling_config = FunctionCallingConfig(
+            mode=FunctionCallingConfigMode.ANY,
+            allowed_function_names=[tool_choice.name],
+        )
+    else:
+        # Gemini 3 requires VALIDATED rather than AUTO when a request combines
+        # native server-side tools with custom function declarations.
+        function_calling_config = FunctionCallingConfig(
+            mode=(
+                FunctionCallingConfigMode.VALIDATED
+                if tool_choice == "auto"
+                else cast(FunctionCallingConfigMode, tool_choice.upper())
+            )
+        )
+    return ToolConfig(
+        include_server_side_tool_invocations=True,
+        function_calling_config=function_calling_config,
+    )
+
+
 def _consolidate_thought_signature(
     signature: bytes,
     working_reasoning_block: ContentReasoning | None,
@@ -1326,6 +1544,7 @@ def completion_choice_from_candidate(
     # content parts -- we need to consolidate this into a single ContentReasoning
     # to match our schema (we'll unroll it back into parts on replay)
     working_reasoning_block: ContentReasoning | None = None
+    function_call_ids: dict[int, str] = {}
 
     # content can be None when the finish_reason is SAFETY
     # content.parts can be None when the finish_reason is MALFORMED_FUNCTION_CALL
@@ -1333,6 +1552,63 @@ def completion_choice_from_candidate(
         # traverse parts
         parts = candidate.content.parts
         for i, part in enumerate(parts):
+            if part.tool_response is not None:
+                continue  # We pickup tool responses with part.tool_call
+
+            if part.function_call is not None:
+                # Anchor every function_call (signed AND unsigned) so replay
+                # preserves the exact original part ordering. Empty-string
+                # reasoning marks the anchor as position-only with no signature
+                # of its own.
+                #
+                # Empirically (gemini-3.1-pro-preview): unsigned function_calls
+                # are accepted by the verifier when emitted at their ORIGINAL
+                # position (matching Google's documented "first parallel call
+                # only" rule); reordering an unsigned function_call to a
+                # different position produces a 400 "missing thought_signature".
+                # That is what anchor-all guards against — the anchor pins the
+                # position so the unsigned sibling is replayed where the model
+                # emitted it. The replay path will only borrow a signature
+                # from an immediately-adjacent signed server-side tool, never
+                # across positions, since cross-context borrows trigger
+                # "Corrupted thought signature" 400s.
+                if part.function_call.name:
+                    function_call_id = part.function_call.id or (
+                        f"{part.function_call.name}_{uuid()}"
+                    )
+                    function_call_ids[i] = function_call_id
+                    signature_b64 = (
+                        base64.b64encode(part.thought_signature).decode()
+                        if part.thought_signature is not None
+                        else ""
+                    )
+                    content.append(
+                        ContentReasoning(
+                            reasoning=signature_b64,
+                            redacted=True,
+                            internal={_GEMINI_FUNCTION_CALL_ID_KEY: function_call_id},
+                        )
+                    )
+                    working_reasoning_block = None
+                continue
+
+            if part.tool_call is not None:
+                tool_response_part = next(
+                    (
+                        candidate_part
+                        for candidate_part in parts[i + 1 :]
+                        if candidate_part.tool_response is not None
+                        and candidate_part.tool_response.id == part.tool_call.id
+                    ),
+                    None,
+                )
+                server_tool_use = server_tool_use_from_tool_call(
+                    part, tool_response_part
+                )
+                if server_tool_use is not None:
+                    content.append(server_tool_use)
+                continue
+
             if part.text is None and part.executable_code is None:
                 # Handle inline_data parts (images, audio)
                 if part.inline_data is not None:
@@ -1384,6 +1660,26 @@ def completion_choice_from_candidate(
                 )
                 content.append(working_reasoning_block)
             else:
+                # executable_code is its own branch: the originating Parts (and
+                # their thought_signature, in mixed mode) are serialized into
+                # ContentToolUse.internal["gemini_parts"] so replay can re-attach
+                # the signature directly to the executable_code part. Mirrors
+                # how function_call anchors are handled, and avoids overwriting
+                # any preceding visible thought-text via _consolidate_thought_signature.
+                if part.executable_code is not None:
+                    # lookahead for execution result Part (carries its own signature)
+                    result_part = (
+                        parts[i + 1]
+                        if i + 1 < len(parts)
+                        and parts[i + 1].code_execution_result is not None
+                        else None
+                    )
+                    content.append(
+                        server_tool_use_from_executable_code(part, result_part)
+                    )
+                    working_reasoning_block = None
+                    continue
+
                 # Check if this block has an associated thought_signature and
                 # whether it corresponds to the previous ContentReasoning block.
                 if part.thought_signature is not None:
@@ -1393,19 +1689,6 @@ def completion_choice_from_candidate(
 
                 if part.text is not None:
                     content.append(ContentText(text=part.text))
-                if part.executable_code is not None:
-                    # lookahead for execution result
-                    code_execution_result = (
-                        parts[i + 1].code_execution_result
-                        if i + 1 < len(parts)
-                        else None
-                    )
-                    # append tool use
-                    content.append(
-                        server_tool_use_from_executable_code(
-                            part.executable_code, code_execution_result
-                        )
-                    )
 
     # distribute citations to individual ContentText parts with adjusted indexes
     citations = get_candidate_citations(candidate)
@@ -1415,7 +1698,7 @@ def completion_choice_from_candidate(
     # now tool calls
     tool_calls: list[ToolCall] = []
     if candidate.content is not None and candidate.content.parts is not None:
-        for part in candidate.content.parts:
+        for i, part in enumerate(candidate.content.parts):
             if part.function_call:
                 if (
                     part.function_call is None
@@ -1425,16 +1708,22 @@ def completion_choice_from_candidate(
                     raise ValueError(f"Incomplete function call: {part.function_call}")
 
                 # If the part has a thought_signature, try and associate it with the previous working block
-                if part.thought_signature:
+                if part.thought_signature and i not in function_call_ids:
+                    function_call_reasoning = ContentReasoning(
+                        reasoning=base64.b64encode(part.thought_signature).decode(),
+                        redacted=True,
+                    )
                     if working_reasoning_block is None:
                         # We make the assumption that tool calls don't have independent reasoning
                         # blocks unless they are preceded by a reasoning block.
-                        reasoning_block = ContentReasoning(
-                            reasoning=base64.b64encode(part.thought_signature).decode(),
-                            redacted=True,
-                        )
-
-                        content.append(reasoning_block)
+                        content.append(function_call_reasoning)
+                    elif not working_reasoning_block.redacted:
+                        # Preserve visible thought text as a thought part on replay.
+                        # The function_call signature still needs to be returned
+                        # with the function_call part itself, so store it as a
+                        # separate redacted reasoning carrier.
+                        content.append(function_call_reasoning)
+                        working_reasoning_block = None
                     else:
                         # attach the thought_signature to the previous reasoning block
                         working_reasoning_block.summary = (
@@ -1467,9 +1756,12 @@ def completion_choice_from_candidate(
                 else:
                     if part.function_call.args:
                         part.function_call.args.pop("safety_decision", None)
+                    function_call_id = function_call_ids.get(i) or (
+                        part.function_call.id or f"{part.function_call.name}_{uuid()}"
+                    )
                     tool_calls.append(
                         ToolCall(
-                            id=f"{part.function_call.name}_{uuid()}",
+                            id=function_call_id,
                             function=part.function_call.name,
                             arguments=part.function_call.args,
                         )
@@ -1606,8 +1898,12 @@ def usage_metadata_to_model_usage(
 
 
 def server_tool_use_from_executable_code(
-    executable_code: ExecutableCode, result: CodeExecutionResult | None
+    executable_code_part: Part, result_part: Part | None
 ) -> ContentToolUse:
+    executable_code = executable_code_part.executable_code
+    assert executable_code is not None
+    result = result_part.code_execution_result if result_part is not None else None
+
     # parse out output and error
     if result is not None:
         result_output = result.output or ""
@@ -1619,7 +1915,17 @@ def server_tool_use_from_executable_code(
         result_output = ""
         result_error = None
 
-    # return tool use
+    # serialize the originating Parts so we can replay them verbatim — this
+    # preserves any thought_signature carried on either part, which Gemini 3
+    # mixed-mode requires on the next turn (mirrors the web_search path).
+    internal_parts = [
+        executable_code_part.model_dump(exclude_none=True, by_alias=True, mode="json")
+    ]
+    if result_part is not None:
+        internal_parts.append(
+            result_part.model_dump(exclude_none=True, by_alias=True, mode="json")
+        )
+
     return ContentToolUse(
         tool_type="code_execution",
         id="",
@@ -1627,21 +1933,91 @@ def server_tool_use_from_executable_code(
         arguments=executable_code.code or "",
         result=result_output,
         error=result_error,
+        internal={"gemini_parts": cast(JsonValue, internal_parts)},
+    )
+
+
+def server_tool_use_from_tool_call(
+    tool_call_part: Part, tool_response_part: Part | None
+) -> ContentToolUse | None:
+    """Convert a Gemini server-side tool call into Inspect content."""
+    assert tool_call_part.tool_call is not None
+    tool_call = tool_call_part.tool_call
+    tool_response = (
+        tool_response_part.tool_response if tool_response_part is not None else None
+    )
+    internal_parts = [
+        tool_call_part.model_dump(exclude_none=True, by_alias=True, mode="json")
+    ]
+    if tool_response_part is not None:
+        internal_parts.append(
+            tool_response_part.model_dump(exclude_none=True, by_alias=True, mode="json")
+        )
+    if tool_call.tool_type not in _SUPPORTED_SERVER_TOOL_TYPES:
+        warn_once(
+            logger,
+            f"Skipping unsupported Google server-side tool call type: {tool_call.tool_type!r}.",
+        )
+        return None
+    return ContentToolUse(
+        tool_type="web_search",
+        id=tool_call.id or "",
+        name=tool_call.tool_type.value,
+        arguments=json.dumps(tool_call.args or {}),
+        result=json.dumps(tool_response.response if tool_response else {}),
+        internal={"gemini_parts": cast(JsonValue, internal_parts)},
     )
 
 
 def parts_from_server_tool_use(tool: ContentToolUse) -> list[Part]:
-    parts: list[Part] = [
+    """Reconstruct Gemini request parts from server-side tool use."""
+    if tool.tool_type == "web_search":
+        if (
+            isinstance(tool.internal, dict)
+            and (gemini_parts := tool.internal.get("gemini_parts")) is not None
+            and isinstance(gemini_parts, list)
+        ):
+            gemini_request_parts = [Part.model_validate(part) for part in gemini_parts]
+            missing_signature = any(
+                part.tool_call is not None and part.thought_signature is None
+                for part in gemini_request_parts
+            )
+            if not missing_signature:
+                return gemini_request_parts
+            warn_once(
+                logger,
+                "Skipping Gemini server-side web search replay because the saved tool call is missing a thought_signature.",
+            )
+        return []
+
+    if tool.tool_type != "code_execution":
+        return []
+
+    # Prefer the verbatim parts captured at response time — they preserve any
+    # thought_signature carried on executable_code / code_execution_result,
+    # which Gemini 3 mixed-mode requires on the next turn.
+    if (
+        isinstance(tool.internal, dict)
+        and (gemini_parts := tool.internal.get("gemini_parts")) is not None
+        and isinstance(gemini_parts, list)
+    ):
+        return [Part.model_validate(part) for part in gemini_parts]
+
+    # Legacy fallback for eval logs captured before signatures were preserved
+    # on executable_code: reconstruct from the typed fields. No signature is
+    # available, so this only round-trips correctly in single-tool (non-mixed)
+    # mode where Gemini does not require a signature on these parts.
+    code_execution_parts: list[Part] = [
         Part.from_executable_code(code=tool.arguments, language=Language(tool.name))
     ]
     if tool.result or tool.error:
-        parts.append(
+        code_execution_parts.append(
             Part.from_code_execution_result(
                 outcome=Outcome(tool.error) if tool.error else Outcome.OUTCOME_OK,
                 output=tool.result,
             )
         )
-    return parts
+    return code_execution_parts
 
 
 def finish_reason_to_stop_reason(finish_reason: FinishReason) -> StopReason:

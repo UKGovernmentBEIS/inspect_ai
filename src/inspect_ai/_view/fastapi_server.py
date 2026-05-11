@@ -35,6 +35,7 @@ from inspect_ai._view.common import (
     LogFilesResponse,
     LogInfo,
     LogListingResponse,
+    build_pending_sample_urls,
     delete_log,
     get_log_dir,
     get_log_file,
@@ -49,7 +50,11 @@ from inspect_ai._view.common import (
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import read_eval_log_headers_async
 from inspect_ai.log._recorders.buffer import sample_buffer
-from inspect_ai.log._recorders.buffer.types import SampleData, Samples
+from inspect_ai.log._recorders.buffer.types import (
+    PendingSampleUrls,
+    SampleData,
+    Samples,
+)
 
 logger = getLogger(__name__)
 
@@ -441,6 +446,43 @@ def view_server_app(
             return Response(status_code=HTTP_404_NOT_FOUND)
         else:
             return sample_data
+
+    @app.get(
+        "/pending-sample-data-urls",
+        response_model=PendingSampleUrls,
+        response_model_exclude_none=False,
+        response_class=InspectJsonResponse,
+    )
+    async def api_pending_sample_data_urls(
+        request: Request,
+        log: str,
+        id: str,
+        epoch: int,
+        last_event_id: int | None = Query(None, alias="last-event-id"),
+        after_attachment_id: int | None = Query(None, alias="after-attachment-id"),
+        after_message_pool_id: int | None = Query(None, alias="after-message-pool-id"),
+        after_call_pool_id: int | None = Query(None, alias="after-call-pool-id"),
+        max_segments: int | None = Query(None, alias="max-segments"),
+        tail: bool = Query(False),
+    ) -> PendingSampleUrls | Response:
+        file = urllib.parse.unquote(log)
+        await _validate_read(request, file)
+
+        mapped = await _map_file(request, file)
+        body = await build_pending_sample_urls(
+            file=mapped,
+            id=id,
+            epoch=epoch,
+            after_event_id=last_event_id,
+            after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
+            max_segments=max_segments,
+            tail=tail,
+        )
+        if body is None:
+            return Response(status_code=HTTP_404_NOT_FOUND)
+        return body
 
     return app
 

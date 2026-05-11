@@ -1,3 +1,5 @@
+from inspect_ai._util.download import download, gdrive_download
+from inspect_ai._util.images import MediaResolverFunc, media_resolver
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
     RegistryInfo,
@@ -22,7 +24,7 @@ from inspect_ai.util._limit import (
 
 from ._background import background
 from ._collect import collect
-from ._concurrency import concurrency
+from ._concurrency import AdaptiveConcurrency, concurrency
 from ._console import input_screen
 from ._display import DisplayType, display_counter, display_type
 from ._early_stopping import (
@@ -62,7 +64,7 @@ from ._sandbox import (
     sandbox_with,
     sandboxenv,
 )
-from ._span import current_span_id, span
+from ._span import SpanIdProvider, current_span_id, span, span_id_provider
 from ._store import Store, store, store_from_events, store_from_events_as
 from ._store_model import StoreModel, store_as
 from ._subprocess import (
@@ -73,6 +75,8 @@ from ._subtask import Subtask, subtask
 from ._throttle import throttle
 
 __all__ = [
+    "media_resolver",
+    "MediaResolverFunc",
     "apply_limits",
     "sample_limits",
     "SampleLimits",
@@ -81,7 +85,10 @@ __all__ = [
     "ComposeHealthcheck",
     "ComposeService",
     "ExecResult",
+    "AdaptiveConcurrency",
     "concurrency",
+    "download",
+    "gdrive_download",
     "DisplayType",
     "display_counter",
     "display_type",
@@ -121,6 +128,8 @@ __all__ = [
     "store_as",
     "span",
     "current_span_id",
+    "span_id_provider",
+    "SpanIdProvider",
     "collect",
     "Subtask",
     "subtask",

@@ -53,19 +53,12 @@ inspect-docs:
           href: providers.qmd
         - href: caching.qmd
         - href: models-batch.qmd
+        - text: Concurrency
+          href: models-concurrency.qmd
         - href: compaction.qmd
         - href: multimodal.qmd
         - href: reasoning.qmd
         - href: structured.qmd
-    - text: Tools
-      contents:
-        - href: tools.qmd
-        - href: tools-standard.qmd
-        - text: MCP Tools
-          href: tools-mcp.qmd
-        - href: tools-custom.qmd
-        - href: sandboxing.qmd
-        - href: approval.qmd
     - text: Agents
       contents:
         - href: agents.qmd
@@ -75,6 +68,15 @@ inspect-docs:
         - href: agent-custom.qmd
         - href: agent-bridge.qmd
         - href: human-agent.qmd
+    - text: Tools
+      contents:
+        - href: tools.qmd
+        - href: tools-standard.qmd
+        - text: MCP Tools
+          href: tools-mcp.qmd
+        - href: tools-custom.qmd
+        - href: sandboxing.qmd
+        - href: approval.qmd
     - text: Analysis
       contents:
         - href: eval-logs.qmd

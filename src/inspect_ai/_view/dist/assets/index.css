@@ -14485,6 +14485,9 @@ body[class^="vscode-"] {
   --bs-card-border-color: var(--vscode-editorGroup-border);
   --bs-warning-bg-subtle: var(--vscode-inputValidation-warningBackground);
   --bs-warning-text-emphasis: var(--vscode-input-foreground);
+  --bs-success-bg-subtle: var(--vscode-diffEditor-insertedTextBackground);
+  --bs-danger-bg-subtle: var(--vscode-diffEditor-removedTextBackground);
+  --bs-info-bg-subtle: var(--vscode-inputValidation-infoBackground);
   --bs-breadcrumb-divider-color: var(--vscode-foreground);
   --inspect-find-background: var(--vscode-editorWidget-background);
   --inspect-find-foreground: var(--vscode-editorWidget-foreground);
@@ -15857,16 +15860,17 @@ li > ul {
   padding: 0 0.2rem;
   background-color: var(--bs-body-bg);
 }
-.btn._toolButton_wcmr6_1 {
+.btn._toolButton_13erz_1 {
   background-color: var(--bs-light-border-subtle);
+  border: 1px solid var(--bs-border-color);
   white-space: nowrap;
 }
 
-._marginRight_wcmr6_6 {
+._marginRight_13erz_7 {
   margin-right: 0.5em;
 }
 
-._toolButton_wcmr6_1:focus {
+._toolButton_13erz_1:focus {
   outline: none;
   box-shadow:
     0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
@@ -15874,15 +15878,16 @@ li > ul {
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-._latched_wcmr6_18,
-._latched_wcmr6_18:hover {
+.btn._toolButton_13erz_1._subtle_13erz_19 {
+  background-color: var(--bs-light);
+}
+
+.btn._toolButton_13erz_1._latched_13erz_23,
+.btn._toolButton_13erz_1._latched_13erz_23:hover {
+  background-color: var(--bs-secondary-bg);
   box-shadow:
     inset 0 2px 4px rgba(0, 0, 0, 0.15),
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-
-.btn._toolButton_wcmr6_1._subtle_wcmr6_25 {
-  background-color: var(--bs-body-bg);
 }
 ._headerContainer_gh2j2_1 {
   display: grid;
@@ -16843,7 +16848,7 @@ span.ap-marker-container:hover span.ap-marker {
     opacity: 0.8;
   }
 }
-._rootControl_19z32_1 {
+._rootControl_13qph_1 {
   background-color: var(--bs-body-bg);
   border-radius: var(--bs-border-radius);
   display: flex;
@@ -16852,12 +16857,12 @@ span.ap-marker-container:hover span.ap-marker {
   border: solid 1px var(--bs-border-color);
 }
 
-._segment_19z32_10._selected_19z32_10 {
+._segment_13qph_10._selected_13qph_10 {
   background-color: var(--bs-secondary-bg);
   border-radius: var(--bs-border-radius);
 }
 
-button._segment_19z32_10 {
+button._segment_13qph_10 {
   margin: 1px;
   background-color: var(--bs-body-bg);
   border-radius: var(--bs-border-radius);
@@ -16869,8 +16874,17 @@ button._segment_19z32_10 {
   height: calc(100% - 2px);
 }
 
-._segment_19z32_10 i {
+._segment_13qph_10 i {
   margin-right: 0.2em;
+}
+
+button._segment_13qph_10._compact_13qph_31 {
+  padding-inline-start: 4px;
+  padding-inline-end: 4px;
+}
+
+button._segment_13qph_10._compact_13qph_31 i {
+  margin-right: 0;
 }
 ._sourcePanel_bat6y_1 {
   width: 100%;
@@ -16935,29 +16949,29 @@ button._segment_19z32_10 {
 ._hidden_1linb_42 {
   opacity: 0 !important;
 }
-.btn._toolButton_1q996_1 {
+.btn._toolButton_1swkv_1 {
   background-color: var(--bs-light-border-subtle);
 }
 
-.btn._toolButton_1q996_1._bodyColor_1q996_5 {
-  background-color: var(--bs-body-bg);
+.btn._toolButton_1swkv_1._bodyColor_1swkv_5 {
+  background-color: var(--bs-light);
 }
 
-._toolButton_1q996_1 {
+._toolButton_1swkv_1 {
   white-space: nowrap;
 }
 
-._toolButton_1q996_1 i {
+._toolButton_1swkv_1 i {
   margin-right: 0.5em;
 }
 
-._toolButton_1q996_1 ._chevron_1q996_17 {
+._toolButton_1swkv_1 ._chevron_1swkv_17 {
   margin-left: 0.5em;
   margin-right: 0;
   font-size: 0.75em;
 }
 
-._toolButton_1q996_1:focus {
+._toolButton_1swkv_1:focus {
   outline: none;
   box-shadow:
     0 0 0 2px rgba(var(--bs-primary-rgb), 0.5),
@@ -16965,7 +16979,7 @@ button._segment_19z32_10 {
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
-._backdrop_1q996_31 {
+._backdrop_1swkv_31 {
   position: fixed;
   top: 0;
   left: 0;
@@ -16975,7 +16989,7 @@ button._segment_19z32_10 {
   z-index: 1049;
 }
 
-._dropdownMenu_1q996_41 {
+._dropdownMenu_1swkv_41 {
   position: fixed;
   background: var(--bs-body-bg);
   border: 1px solid var(--bs-border-color);
@@ -16986,7 +17000,7 @@ button._segment_19z32_10 {
   overflow: hidden;
 }
 
-._dropdownItem_1q996_52 {
+._dropdownItem_1swkv_52 {
   display: block;
   width: 100%;
   padding: 0.25rem 0.75rem;
@@ -16999,30 +17013,30 @@ button._segment_19z32_10 {
   transition: background-color 0.15s ease-in-out;
 }
 
-._dropdownItem_1q996_52:hover {
+._dropdownItem_1swkv_52:hover {
   background-color: var(--bs-tertiary-bg);
 }
 
-._dropdownItem_1q996_52:active {
+._dropdownItem_1swkv_52:active {
   background-color: var(--bs-secondary-bg);
 }
-._tabs_1wfac_1 {
+._tabs_85ts4_1 {
   align-items: center;
 }
 
-._tabContents_1wfac_5 {
+._tabContents_85ts4_5 {
   flex: 1;
   /* clip instead of hidden to ensure scroll container for position: sticky; children is higher in the hierarchy */
   overflow-y: clip;
 }
 
-._tabContents_1wfac_5._scrollable_1wfac_11 {
+._tabContents_85ts4_5._scrollable_85ts4_11 {
   min-height: 0;
   overflow-y: auto;
   height: 100%;
 }
 
-._tab_1wfac_1 {
+._tab_85ts4_1 {
   color: "var(--bs-body-color)";
   padding: 0.25rem 0.5rem;
   border-top-left-radius: var(--bs-border-radius);
@@ -17032,30 +17046,34 @@ button._segment_19z32_10 {
   margin-bottom: -1px;
 }
 
-._tabItem_1wfac_27 {
+._tabItem_85ts4_27 {
   align-self: end;
 }
 
-._pillSmallContainer_1wfac_31 {
+._pillSmallContainer_85ts4_31 {
   gap: 0.25rem;
 }
 
-._pillSmall_1wfac_31 {
+._pillSmall_85ts4_31 {
   padding: 0.3rem 0.5rem;
 }
 
-._tabIcon_1wfac_39 {
+._tabIcon_85ts4_39 {
   margin-right: 0.5em;
 }
 
-._tabSpacer_1wfac_43 {
+._tabSpacer_85ts4_43 {
   flex: 1 1 0;
   min-width: 0;
   list-style: none;
 }
 
-._tabTools_1wfac_49 {
-  flex-basis: auto;
+._tabTools_85ts4_49 {
+  /* Grow alongside the spacer so flex children inside (e.g. a filter
+     input) can claim leftover horizontal space rather than being
+     content-sized. `justify-content: end` keeps non-growing tools
+     pinned to the right edge as before. */
+  flex: 1 1 auto;
   display: flex;
   align-items: center;
   justify-content: end;
@@ -17064,20 +17082,20 @@ button._segment_19z32_10 {
   column-gap: 0.5rem;
 }
 
-._tabStyle_1wfac_59 {
+._tabStyle_85ts4_63 {
   padding-left: 0.7em;
   padding-right: 0.7em;
 }
 
-._tabTools_1wfac_49 > * {
+._tabTools_85ts4_49 > * {
   flex: 0 1 auto;
 }
 
-._tabTools_1wfac_49 input {
+._tabTools_85ts4_49 input {
   font-size: var(--inspect-font-size-smallest);
 }
 
-._tabTools_1wfac_49 .btn {
+._tabTools_85ts4_49 .btn {
   font-size: var(--inspect-font-size-smallest);
   padding: 0.1em 0.5em;
 }
@@ -17345,24 +17363,22 @@ button._segment_19z32_10 {
   text-decoration-style: solid;
   background-color: var(--bs-primary-bg-subtle);
 }
-._circle_qymy9_1 {
-  font-family: "Consola Regular";
-  width: 40px;
-  height: 30px;
+._circle_17gxn_1 {
+  width: 36px;
+  height: 22px;
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  border-radius: 15px;
-  padding-top: 1px;
+  border-radius: 11px;
 }
 
-._green_qymy9_12 {
+._green_17gxn_10 {
   background-color: var(--bs-success);
   border-color: var(--bs-success);
   color: var(--bs-body-bg);
 }
 
-._red_qymy9_18 {
+._red_17gxn_16 {
   background-color: var(--bs-danger);
   border-color: var(--bs-danger);
   color: var(--bs-body-bg);
@@ -17465,30 +17481,28 @@ button._segment_19z32_10 {
 ._treeIcon_qjlxf_23 {
   margin-top: -3px;
 }
-._circle_1iagp_1 {
-  font-family: "Consola Regular";
-  width: 20px;
-  height: 20px;
+._circle_1seo2_1 {
+  width: 18px;
+  height: 18px;
   display: inline-flex;
   justify-content: center;
   align-items: center;
   border-radius: 50%;
-  padding-top: 1px;
 }
 
-._green_1iagp_12 {
+._green_1seo2_10 {
   background-color: var(--bs-success);
   border-color: var(--bs-success);
   color: var(--bs-body-bg);
 }
 
-._red_1iagp_18 {
+._red_1seo2_16 {
   background-color: var(--bs-danger);
   border-color: var(--bs-danger);
   color: var(--bs-body-bg);
 }
 
-._orange_1iagp_24 {
+._orange_1seo2_22 {
   background-color: var(--bs-orange);
   border-color: var(--bs-orange);
   color: var(--bs-body-bg);
@@ -17690,12 +17704,15 @@ button._segment_19z32_10 {
 ._pathContainer_1u3sd_58 {
   overflow-x: hidden;
 }
-._navbarButton_7hxb6_1 {
-  font-size: 0.6rem;
+._navbarButton_i4zyi_1 {
+  font-size: 0.7rem;
+  /* Match the height of the navbar's `ViewSegmentedControl` outer
+   * container (20.8px): font 0.7rem * 1.5 = 16.8 line-height + 1px
+   * padding-y * 2 + 1px border * 2. */
   padding: 1px 5px;
 }
 
-._dropdownChevron_7hxb6_6 {
+._dropdownChevron_i4zyi_9 {
   margin-left: 0.35rem;
   /* Inherit the button's font-size so the chevron never creates a taller
      line-box than the button's text. Hard-coding a smaller font-size token
@@ -17837,35 +17854,49 @@ button._segment_19z32_10 {
   width: inherit;
   height: inherit;
 }
-._nameCell_90rs9_1 {
+._rowLink_37x2s_1 {
+  color: inherit;
+  text-decoration: none;
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._modelCell_90rs9_8 {
+._rowLink_37x2s_1:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+._nameCell_37x2s_15 {
   display: flex;
   align-items: center;
   min-width: 0;
   flex: 1;
 }
 
-._modelCellPrimary_90rs9_15 {
+._modelCell_37x2s_22 {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+._modelCellPrimary_37x2s_29 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
 
-._scoreCell_90rs9_22 {
+._scoreCell_37x2s_36 {
   display: flex;
   align-items: center;
   font-size: 0.875rem;
   color: var(--bs-gray-600);
 }
 
-._multiScorerBadge_90rs9_29 {
+._multiScorerBadge_37x2s_43 {
   margin-left: 0.35rem;
   padding: 2px 0.45rem;
   border-radius: 0.5rem;
@@ -17877,30 +17908,30 @@ button._segment_19z32_10 {
   white-space: nowrap;
 }
 
-._error_90rs9_41 {
+._error_37x2s_55 {
   color: var(--bs-danger);
 }
 
-._started_90rs9_45 {
+._started_37x2s_59 {
   color: var(--bs-secondary);
 }
 
-._success_90rs9_49 {
+._success_37x2s_63 {
   color: var(--bs-success);
 }
 
-._cancelled_90rs9_53 {
+._cancelled_37x2s_67 {
   color: var(--bs-secondary);
 }
 
-._statusCell_90rs9_57 {
+._statusCell_37x2s_71 {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
 }
 
-._dateCell_90rs9_64 {
+._dateCell_37x2s_78 {
   display: flex;
   align-items: center;
   min-width: 0;
@@ -17965,6 +17996,221 @@ button._segment_19z32_10 {
   font-size: var(--inspect-font-size-title-secondary);
   margin-top: -0.1rem;
   margin-bottom: -0.1rem;
+}
+._gridWrapper_yfmzu_1 {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+._gridContainer_yfmzu_7 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* Shared chrome — applied to all sample/log grids. Other ag-grids in the
+ * app (e.g. the small score-summary table in title-view) intentionally opt
+ * out by not adding this class. */
+
+._gridChrome_yfmzu_19 .ag-row {
+  cursor: pointer;
+  border-bottom: 1px solid var(--bs-border-color);
+  background-color: var(--bs-body-bg);
+  /* Stretch rows to fill the viewport so the bottom-border separator
+   * spans edge-to-edge even when columns total less than the viewport.
+   * `min-width` overrides the inline `width` AG Grid sets on each row. */
+  min-width: 100%;
+}
+
+/* Match container so rows' min-width: 100% has the full viewport to
+ * stretch into. Pinned containers are unaffected. */
+._gridChrome_yfmzu_19 .ag-center-cols-container {
+  min-width: 100%;
+}
+
+._gridChrome_yfmzu_19 {
+  --ag-row-selected-color: transparent;
+  --ag-selected-row-background-color: transparent;
+}
+
+/* Pseudo-element overlay so the selection ring sits above per-cell
+ * backgrounds set by the colour-scale heatmap. */
+._gridChrome_yfmzu_19 .ag-row.ag-row-selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px var(--bs-focus-ring-color);
+  z-index: 1;
+}
+
+._gridChrome_yfmzu_19 .ag-header-cell {
+  /* Right gutter gives the active-filter icon (sibling of the header
+   * label inside `.ag-cell-label-container`) breathing room from the
+   * column boundary. Left padding is handled via the `::before` flex
+   * item below so it shrinks on narrow cells. */
+  padding: 0 4px 0 0;
+}
+
+._gridChrome_yfmzu_19 .ag-header-cell-label::before {
+  content: "";
+  flex: 0 1 var(--ag-cell-horizontal-padding);
+}
+
+._gridChrome_yfmzu_19 .ag-header-cell-text {
+  font-size: var(--inspect-font-size-smallestest);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 400;
+}
+
+/* Rotated header — opt-in via `headerClass: styles.rotatedHeader` +
+ * `headerComponent: RotatedHeader` in a ColDef. SamplesGrid auto-bumps
+ * `headerHeight` to kRotatedHeaderHeight when any column has this class
+ * so the rotated label has room to fan up-and-to-the-right without
+ * getting clipped by the header viewport. */
+._gridChrome_yfmzu_19 ._rotatedHeader_yfmzu_71 {
+  /* Default ag-grid `.ag-header-cell` clips overflow; the rotated
+   * parallelogram pivots out of the cell box and would disappear
+   * without this. */
+  overflow: visible;
+  /* Suppress Balham's vertical column separator on rotated cells —
+   * a vertical line through a 45° label clashes. The angled divider
+   * inside `RotatedHeader` takes its place. */
+  --ag-header-column-border: transparent;
+  /* Override the regular-cell right-gutter padding so the rotated
+   * label's `left: 100%` anchor lands on the actual cell boundary
+   * (matching the colour-scale background) instead of the inset
+   * content edge. The gutter exists for the default filter icon,
+   * which rotated cells don't render. */
+  padding-right: 0;
+}
+
+/* Compact-mode trailing spacer column — no header content, no
+ * separator. The spacer only exists to extend the scrollable extent
+ * so the rightmost rotated label has room past the last data column;
+ * a vertical divider on it would visually fence off that breathing
+ * room and look like a grid edge. */
+._gridChrome_yfmzu_19 ._spacerHeader_yfmzu_98 {
+  --ag-header-column-border: transparent;
+}
+
+/* Each rotated label extends past its own cell into the next
+ * column's space, so the next cell's content wrapper would
+ * otherwise intercept clicks on the overflowing label tip. Make the
+ * wrapper transparent to pointer events; the label inside opts back
+ * in via `pointer-events: auto` (see RotatedHeader.module.css). */
+._gridChrome_yfmzu_19 ._rotatedHeader_yfmzu_71 .ag-header-cell-comp-wrapper {
+  pointer-events: none;
+}
+
+/* When any column has a rotated header, the header row is tall
+ * enough that center-aligned labels look adrift. Bottom-align all
+ * header content so non-rotated labels line up visually with the
+ * rotated labels (which are anchored at the cell's bottom-left).
+ * The cell, label-container, and label are each independent flex
+ * boxes that all default to center alignment, so all three need
+ * the override for the text to actually drop to the bottom. */
+._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell,
+._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-cell-label-container,
+._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell-label {
+  align-items: flex-end;
+}
+._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell-label {
+  padding-bottom: 4px;
+}
+
+/* Bottom-anchor the vertical column separator on regular cells when
+ * the header row is tall (rotated-mode). Balham's `::after` separator
+ * defaults to vertically-centered and 50% height, which floats far
+ * above the bottom-aligned text and looks orphaned. Drop it down so
+ * it sits next to the text. */
+._gridChrome_yfmzu_19:has(._rotatedHeader_yfmzu_71) .ag-header-cell::after {
+  top: auto;
+  bottom: 0;
+  height: 22px;
+}
+
+/* Hide ag-grid's default header-filter button (funnel) until the
+ * user hovers the column header. Stays visible when the filter is
+ * active so users always see *which* columns are filtering. Applies
+ * to all sample/log grids — quieter at rest, full affordance on
+ * intent. */
+._gridChrome_yfmzu_19 .ag-header-cell-filter-button {
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+._gridChrome_yfmzu_19
+  .ag-header-cell:hover
+  .ag-header-cell-filter-button,
+._gridChrome_yfmzu_19
+  .ag-header-cell.ag-header-cell-filtered
+  .ag-header-cell-filter-button {
+  opacity: 1;
+}
+
+._gridChrome_yfmzu_19 .ag-sort-order {
+  font-size: var(--inspect-font-size-smallestest);
+  align-self: center;
+  margin-right: -10px;
+}
+
+/* List mode — multi-line wrapping cells, top-aligned. ag-grid Balham
+ * stretches line-height to match row-height (so single-line text
+ * visually centers in inline-block cells); reset to a normal
+ * line-height so all cells (plain text, MarkdownCellDiv, ScoreCellDiv)
+ * sit at the top together. */
+._listMode_yfmzu_167 .ag-cell {
+  line-height: var(--bs-body-line-height);
+  padding-top: 0.25rem;
+  padding-bottom: 0.25rem;
+  white-space: normal;
+}
+
+/* Grid mode — let ag-grid's default row-height line-height vertically
+ * center single-line plain text. Custom renderers (ScoreCellDiv) need
+ * explicit centering — see the `.gridMode .score` rule below. */
+._gridMode_yfmzu_176 .ag-cell {
+  align-items: center;
+}
+
+/* Cell helpers exposed for column renderers. */
+._cell_yfmzu_182 {
+  line-height: var(--bs-body-line-height);
+}
+
+._wrapAnywhere_yfmzu_186 {
+  overflow-wrap: break-word;
+}
+
+._noLeft_yfmzu_190 {
+  padding-left: 0;
+}
+
+._score_yfmzu_176 {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compact mode: fill the cell so the inner content centers vertically
+ * regardless of the cell's natural inline-block layout. `.ag-cell` is
+ * `position: absolute` in ag-grid's base CSS, so `inset: 0` resolves. */
+._gridMode_yfmzu_176 ._score_yfmzu_176 {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+._centered_yfmzu_212 {
+  display: flex;
+  justify-content: center;
 }
 ._footer_14uod_1 {
   border-top: solid var(--bs-light-border-subtle) 1px;
@@ -18451,7 +18697,7 @@ a._citationLink_1ggvf_9:hover {
 ._navs_1vm6p_1 {
   margin-right: 0;
 }
-._stickyWrapper_osq4e_1 {
+._stickyWrapper_12thy_1 {
   position: sticky;
   top: var(--inspect-event-panel-sticky-top, 0px);
   /* Full-bleed: cancel the parent card's padding so the sticky bar
@@ -18463,29 +18709,41 @@ a._citationLink_1ggvf_9:hover {
   border-bottom: solid 1px transparent;
 }
 
-._stickyWrapper_osq4e_1[data-useStickyObserver-stuck] {
+._stickyWrapper_12thy_1[data-useStickyObserver-stuck] {
   background-color: var(--bs-light);
   border-bottom-color: var(--bs-light-border-subtle);
 }
 
-._label_osq4e_18 {
+._label_12thy_18 {
   margin-right: 0.2em;
   justify-self: end;
 }
 
-._navs_osq4e_23 {
+._title_12thy_23 {
+  min-width: 0;
+  line-height: 1.6;
+}
+
+._titleExtra_12thy_28 {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 0.5em;
+}
+
+._navs_12thy_35 {
   justify-self: end;
   display: flex;
   align-items: baseline;
 }
 
-._turnLabel_osq4e_29 {
+._turnLabel_12thy_41 {
   margin-left: 0.625rem;
   opacity: 0.5;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._card_osq4e_35 {
+._card_12thy_47 {
   position: relative;
   background-color: var(--bs-body-bg);
   padding: 0.625rem;
@@ -18493,37 +18751,39 @@ a._citationLink_1ggvf_9:hover {
   border-radius: var(--bs-border-radius);
 }
 
-._cardContent_osq4e_43 {
+._cardContent_12thy_55 {
   padding: 0;
   display: inherit;
 }
 
-._cardContent_osq4e_43._hidden_osq4e_48 {
+._cardContent_12thy_55._hidden_12thy_60 {
   display: none;
 }
 
-._hidden_osq4e_48 {
+._hidden_12thy_60 {
   display: none;
 }
 
-._copyLink_osq4e_56 {
+._copyLink_12thy_68 {
   font-size: 1.2em;
-  height: 1em;
   opacity: 0;
   padding-left: 0.2em;
-  padding-right: 2em;
+  padding-right: 0;
+  vertical-align: middle;
+  line-height: 1;
+  margin-left: 0.25em;
 }
 
-._hover_osq4e_64 ._copyLink_osq4e_56 {
+._hover_12thy_78 ._copyLink_12thy_68 {
   opacity: 0.75;
 }
 
-._root_osq4e_68 {
+._root_12thy_82 {
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
 
-._bottomDongle_osq4e_73 {
+._bottomDongle_12thy_87 {
   display: block;
   position: absolute;
   margin: 0 auto;
@@ -18539,12 +18799,12 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._dongleIcon_osq4e_89 {
+._dongleIcon_12thy_103 {
   padding-right: 0.3em;
 }
 
 @media print {
-  ._card_osq4e_35 {
+  ._card_12thy_47 {
     break-inside: avoid;
   }
 }
@@ -18679,21 +18939,24 @@ a._citationLink_1ggvf_9:hover {
   min-width: 300px;
   max-width: 80%;
 }
-._node_79lc7_1 {
+._node_1eney_1 {
   display: grid;
   column-gap: 0.3em;
   grid-template-columns: max-content 1fr;
 }
 
-._rootHeader_79lc7_7 {
+._rootHeader_1eney_7 {
   padding: 0 1.5em 0.25em 0;
   background-color: var(--bs-body-bg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
-._panel_79lc7_15 {
+._panel_1eney_18 {
   margin-top: 0.65rem;
   overflow: visible;
 }
@@ -19038,7 +19301,7 @@ a._citationLink_1ggvf_9:hover {
 ._dropdownItemActive_djjmp_74 {
   font-weight: 600;
 }
-._swimlane_16dh6_1 {
+._swimlane_1itnu_1 {
   --swimlane-row-height: 18px;
   --swimlane-minimap-height: 24px;
   --swimlane-grid-columns: auto 1fr auto;
@@ -19054,7 +19317,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Pinned section: minimap + parent row — always visible */
-._pinnedSection_16dh6_17 {
+._pinnedSection_1itnu_17 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -19062,7 +19325,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Scrollable section: child rows */
-._scrollSection_16dh6_25 {
+._scrollSection_1itnu_25 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -19071,13 +19334,13 @@ a._citationLink_1ggvf_9:hover {
   overflow-y: auto;
 }
 
-._swimlane_16dh6_1:focus-visible {
+._swimlane_1itnu_1:focus-visible {
   box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
 }
 
 /* Collapsible rows — fade + slide animation */
 
-._collapsibleSection_16dh6_40 {
+._collapsibleSection_1itnu_40 {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: subgrid;
@@ -19090,7 +19353,7 @@ a._citationLink_1ggvf_9:hover {
   opacity: 1;
 }
 
-._collapsibleCollapsed_16dh6_53 {
+._collapsibleCollapsed_1itnu_53 {
   grid-template-rows: 0fr;
   padding-bottom: 0;
   opacity: 0;
@@ -19100,11 +19363,11 @@ a._citationLink_1ggvf_9:hover {
    Note: avoid margin-top:-1px here — it causes the content to overflow
    the StickyScroll wrapper, inflating stickySwimLaneHeight by 1px and
    leaving a gap between the swimlane and the event card headers. */
-._swimlaneSticky_16dh6_63 {
+._swimlaneSticky_1itnu_63 {
   background-color: var(--bs-body-bg);
 }
 
-._collapsibleInner_16dh6_67 {
+._collapsibleInner_1itnu_67 {
   grid-column: 1 / -1;
   overflow: hidden;
   display: grid;
@@ -19114,7 +19377,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Collapse toggle — hangs below the bottom border, centered */
 
-._collapseToggle_16dh6_77 {
+._collapseToggle_1itnu_77 {
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -19135,20 +19398,20 @@ a._citationLink_1ggvf_9:hover {
   line-height: 1;
 }
 
-._collapseToggle_16dh6_77:hover {
+._collapseToggle_1itnu_77:hover {
   color: var(--vscode-foreground);
   background-color: var(--bs-secondary-bg);
 }
 
 /* Row — display:contents so all rows share the parent grid columns */
 
-._row_16dh6_105 {
+._row_1itnu_105 {
   display: contents;
 }
 
 /* Label cell */
 
-._label_16dh6_111 {
+._label_1itnu_111 {
   padding: 0 0.5rem 0 1.45rem;
   white-space: nowrap;
   font-size: var(--inspect-font-size-smallest);
@@ -19162,23 +19425,23 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._label_16dh6_111:hover {
+._label_1itnu_111:hover {
   color: var(--vscode-textLink-foreground);
 }
 
-._labelSelected_16dh6_129 {
+._labelSelected_1itnu_129 {
   color: var(--vscode-textLink-foreground);
 }
 
 /* Ancestor rows of the selected branch — subtler than selected */
-._labelHighlighted_16dh6_134 {
+._labelHighlighted_1itnu_134 {
   color: var(--vscode-textLink-foreground);
   opacity: 0.6;
 }
 
 /* Expand/collapse chevron in label */
 
-._chevron_16dh6_141 {
+._chevron_1itnu_141 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -19189,31 +19452,70 @@ a._citationLink_1ggvf_9:hover {
   font-size: 8px;
 }
 
-._chevron_16dh6_141:hover {
+._chevron_1itnu_141:hover {
   color: var(--vscode-foreground);
 }
 
-._chevronSpacer_16dh6_156 {
+._chevronSpacer_1itnu_156 {
   display: inline-block;
   width: 12px;
   flex-shrink: 0;
 }
 
+._punchDownBtn_1itnu_162 {
+  margin-left: auto;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  font-size: 9px;
+  cursor: pointer;
+  color: var(--vscode-descriptionForeground, #717171);
+  opacity: 0;
+}
+
+._label_1itnu_111:hover ._punchDownBtn_1itnu_162,
+._labelSelected_1itnu_129 ._punchDownBtn_1itnu_162 {
+  opacity: 1;
+}
+
+._punchDownBtn_1itnu_162:hover {
+  color: var(--vscode-foreground);
+}
+
+._viewStackBack_1itnu_184 {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 3px;
+  background: transparent;
+  font-size: var(--inspect-font-size-smallest);
+  color: var(--vscode-foreground);
+  cursor: pointer;
+}
+
+._viewStackBack_1itnu_184:hover {
+  background: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.05));
+}
+
 /* Bar area */
 
-._barArea_16dh6_164 {
+._barArea_1itnu_203 {
   height: var(--swimlane-row-height);
   border-left: 1px solid var(--bs-border-color);
   border-right: 1px solid var(--bs-border-color);
 }
 
-._barInner_16dh6_170 {
+._barInner_1itnu_209 {
   position: relative;
   height: 100%;
   margin: 0 4px;
 }
 
-._fill_16dh6_176 {
+._fill_1itnu_215 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -19227,15 +19529,15 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._fill_16dh6_176:hover {
+._fill_1itnu_215:hover {
   opacity: 0.5;
 }
 
-._fillParent_16dh6_194 {
+._fillParent_1itnu_233 {
   opacity: 0.2;
 }
 
-._fillSelected_16dh6_198 {
+._fillSelected_1itnu_237 {
   opacity: 0.7;
   box-shadow: inset 0 0 0 1px var(--bs-primary);
 }
@@ -19243,7 +19545,7 @@ a._citationLink_1ggvf_9:hover {
 /* Partial highlight overlay — sibling of .fill in barInner.
    Shows the "active" portion of a bar (e.g. parent bar up to fork point
    when a branch is selected). Independent opacity, not stacked with .fill. */
-._fillHighlight_16dh6_206 {
+._fillHighlight_1itnu_245 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -19254,14 +19556,14 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Row is selected but a different span within the row is focused */
-._fillDimmed_16dh6_217 {
+._fillDimmed_1itnu_256 {
   opacity: 0.15;
 }
 
 /* Region segment — same as .fill but without :hover (hover is managed via JS).
    Does NOT set opacity here — opacity comes from .fill-style state classes
    (.fillParent, .fillSelected, .fillDimmed) or from .regionHover/.regionDefault. */
-._regionSegment_16dh6_224 {
+._regionSegment_1itnu_263 {
   position: absolute;
   top: 1px;
   bottom: 1px;
@@ -19271,36 +19573,36 @@ a._citationLink_1ggvf_9:hover {
 
 /* Default opacity for region segments — slightly dimmed vs hover
    to give a subtle highlight without making unhovered segments look faded. */
-._regionDefault_16dh6_223 {
+._regionDefault_1itnu_262 {
   opacity: 0.25;
 }
 
 /* Applied via React state when the segment (or whole bar) should show hover */
-._regionHover_16dh6_223 {
+._regionHover_1itnu_262 {
   opacity: 0.45;
 }
 
 /* Region segments — partial border-radius for segmented bars */
-._regionFirst_16dh6_244 {
+._regionFirst_1itnu_283 {
   border-radius: 2px 0 0 2px;
 }
 
-._regionLast_16dh6_248 {
+._regionLast_1itnu_287 {
   border-radius: 0 2px 2px 0;
 }
 
-._regionMiddle_16dh6_252 {
+._regionMiddle_1itnu_291 {
   border-radius: 0;
 }
 
-._parallelBadge_16dh6_256 {
+._parallelBadge_1itnu_295 {
   font-size: var(--inspect-font-size-smallest);
   color: var(--vscode-descriptionForeground, #717171);
 }
 
 /* Markers */
 
-._marker_16dh6_263 {
+._marker_1itnu_302 {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
@@ -19314,7 +19616,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* White disc behind branch icon so transparent cutouts don't bleed bar color */
-._markerBranch_16dh6_277::before {
+._markerBranch_1itnu_316::before {
   content: "";
   position: absolute;
   width: 6px;
@@ -19324,11 +19626,11 @@ a._citationLink_1ggvf_9:hover {
   z-index: -1;
 }
 
-._marker_16dh6_263 > * {
+._marker_1itnu_302 > * {
   pointer-events: none;
 }
 
-._markerError_16dh6_291 {
+._markerError_1itnu_330 {
   top: 1px;
   bottom: 1px;
   height: auto;
@@ -19339,7 +19641,7 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._markerError_16dh6_291::after {
+._markerError_1itnu_330::after {
   content: "";
   position: absolute;
   top: 0;
@@ -19349,7 +19651,7 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--vscode-errorForeground, #f44747);
 }
 
-._markerCompaction_16dh6_312 {
+._markerCompaction_1itnu_351 {
   color: var(--bs-body-bg);
   rotate: none;
   font-size: 16px;
@@ -19363,13 +19665,13 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._markerBranch_16dh6_277 {
+._markerBranch_1itnu_316 {
   color: var(--vscode-foreground);
   cursor: pointer;
 }
 
 /* Branch connector line from parent marker to branch bar */
-._branchConnector_16dh6_332 {
+._branchConnector_1itnu_371 {
   position: absolute;
   top: 0;
   left: 0;
@@ -19380,7 +19682,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Right-pointing arrowhead for branch connectors (CSS border triangle) */
-._connectorArrow_16dh6_343 {
+._connectorArrow_1itnu_382 {
   position: absolute;
   top: 50%;
   transform: translate(-1px, -50%);
@@ -19393,7 +19695,7 @@ a._citationLink_1ggvf_9:hover {
 }
 
 /* Horizontal line extending back from arrowhead to the SVG horizontal endpoint */
-._connectorArrow_16dh6_343::before {
+._connectorArrow_1itnu_382::before {
   content: "";
   position: absolute;
   top: 50%;
@@ -19408,7 +19710,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Breadcrumb row */
 
-._breadcrumbRow_16dh6_371 {
+._breadcrumbRow_1itnu_410 {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
@@ -19417,7 +19719,7 @@ a._citationLink_1ggvf_9:hover {
   min-width: 0;
 }
 
-._optionsButton_16dh6_380 {
+._optionsButton_1itnu_419 {
   background: none;
   border: 1px solid var(--vscode-widget-border, var(--bs-border-color));
   border-radius: 50%;
@@ -19435,13 +19737,13 @@ a._citationLink_1ggvf_9:hover {
   opacity: 0.6;
 }
 
-._optionsButton_16dh6_380:hover {
+._optionsButton_1itnu_419:hover {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground);
   opacity: 1;
 }
 
-._breadcrumbTrail_16dh6_404 {
+._breadcrumbTrail_1itnu_443 {
   display: flex;
   align-items: center;
   gap: 0;
@@ -19449,13 +19751,13 @@ a._citationLink_1ggvf_9:hover {
   overflow: hidden;
 }
 
-._breadcrumbSegment_16dh6_412 {
+._breadcrumbSegment_1itnu_451 {
   display: flex;
   align-items: center;
   white-space: nowrap;
 }
 
-._breadcrumbDivider_16dh6_418 {
+._breadcrumbDivider_1itnu_457 {
   color: var(--vscode-descriptionForeground, #717171);
   font-size: var(--inspect-font-size-smallest);
   padding: 0 2px;
@@ -19463,7 +19765,7 @@ a._citationLink_1ggvf_9:hover {
   user-select: none;
 }
 
-._breadcrumbLink_16dh6_426 {
+._breadcrumbLink_1itnu_465 {
   background: none;
   border: none;
   cursor: pointer;
@@ -19472,12 +19774,12 @@ a._citationLink_1ggvf_9:hover {
   padding: 0 2px;
 }
 
-._breadcrumbLink_16dh6_426:hover {
+._breadcrumbLink_1itnu_465:hover {
   color: var(--vscode-foreground);
   text-decoration: underline;
 }
 
-._breadcrumbCurrent_16dh6_440 {
+._breadcrumbCurrent_1itnu_479 {
   background: none;
   border: none;
   color: var(--vscode-foreground);
@@ -19488,7 +19790,7 @@ a._citationLink_1ggvf_9:hover {
 
 /* Token cell */
 
-._tokens_16dh6_451 {
+._tokens_1itnu_490 {
   padding: 0 0.75rem 0 0.5rem;
   font-size: var(--inspect-font-size-smallest);
   line-height: var(--swimlane-row-height);
@@ -19498,7 +19800,7 @@ a._citationLink_1ggvf_9:hover {
   -webkit-user-select: none;
   user-select: none;
 }
-._root_130zy_1 {
+._root_t7oq7_1 {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -19506,7 +19808,7 @@ a._citationLink_1ggvf_9:hover {
   min-height: 0;
 }
 
-._container_130zy_9 {
+._container_t7oq7_9 {
   display: grid;
   width: 100%;
   grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px var(
@@ -19516,46 +19818,45 @@ a._citationLink_1ggvf_9:hover {
   min-height: 100vh;
 }
 
-._container_130zy_9 > * {
+._container_t7oq7_9 > * {
   min-width: 0;
   padding-bottom: 1rem;
 }
 
-._container_130zy_9._outlineCollapsed_130zy_24 {
+._container_t7oq7_9._outlineCollapsed_t7oq7_24 {
   grid-template-columns: 22px 1px 1fr 1px var(--right-pane-width, 360px);
 }
 
-._container_130zy_9._noOutline_130zy_28 {
+._container_t7oq7_9._noOutline_t7oq7_28 {
   grid-template-columns: 1fr 1px var(--right-pane-width, 360px);
 }
 
-._container_130zy_9._rightPaneCollapsed_130zy_32 {
+._container_t7oq7_9._rightPaneCollapsed_t7oq7_32 {
   grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px 22px;
 }
 
-._container_130zy_9._outlineCollapsed_130zy_24._rightPaneCollapsed_130zy_32 {
+._container_t7oq7_9._outlineCollapsed_t7oq7_24._rightPaneCollapsed_t7oq7_32 {
   grid-template-columns: 22px 1px 1fr 1px 22px;
 }
 
-._container_130zy_9._noOutline_130zy_28._rightPaneCollapsed_130zy_32 {
+._container_t7oq7_9._noOutline_t7oq7_28._rightPaneCollapsed_t7oq7_32 {
   grid-template-columns: 1fr 1px 22px;
 }
 
-._container_130zy_9._noRightPane_130zy_44 {
+._container_t7oq7_9._noRightPane_t7oq7_44 {
   grid-template-columns: var(--outline-width, 180px) 1px 1fr;
 }
 
-._container_130zy_9._outlineCollapsed_130zy_24._noRightPane_130zy_44 {
+._container_t7oq7_9._outlineCollapsed_t7oq7_24._noRightPane_t7oq7_44 {
   grid-template-columns: 22px 1px 1fr;
 }
 
-._container_130zy_9._noOutline_130zy_28._noRightPane_130zy_44 {
+._container_t7oq7_9._noOutline_t7oq7_28._noRightPane_t7oq7_44 {
   grid-template-columns: 1fr;
 }
 
-._outline_130zy_24 {
+._outline_t7oq7_24 {
   padding-left: 0.6rem;
-  padding-top: 0.2rem;
   /* Prevent stretching to the full grid-row height so that
      position:sticky has room to travel within the cell. */
   align-self: start;
@@ -19564,13 +19865,13 @@ a._citationLink_1ggvf_9:hover {
 /* Cap height to the visible area below the sticky offset and
    scroll internally when the outline is taller.
    Only when expanded — overflow clips the toggle button when collapsed. */
-._container_130zy_9:not(._outlineCollapsed_130zy_24) > ._outline_130zy_24 {
+._container_t7oq7_9:not(._outlineCollapsed_t7oq7_24) > ._outline_t7oq7_24 {
   max-height: calc(var(--scroller-height, 100vh) - var(--outline-top, 0px));
   overflow-y: auto;
   scrollbar-width: thin;
 }
 
-._outlineToggle_130zy_73 {
+._outlineToggle_t7oq7_72 {
   all: unset;
   cursor: pointer;
   font-size: 0.8em;
@@ -19579,26 +19880,26 @@ a._citationLink_1ggvf_9:hover {
   right: 0.2rem;
 }
 
-._outlineToggle_130zy_73[aria-disabled="true"] {
+._outlineToggle_t7oq7_72[aria-disabled="true"] {
   cursor: default;
   opacity: 0.4;
 }
 
-._separator_130zy_87 {
+._separator_t7oq7_86 {
   background-color: var(--bs-border-color);
 }
 
-._rightSeparator_130zy_91 {
+._rightSeparator_t7oq7_90 {
   background-color: var(--bs-border-color);
 }
 
-._rightPane_130zy_32 {
+._rightPane_t7oq7_32 {
   padding-top: 0rem;
   padding-right: 0.2rem;
   align-self: start;
 }
 
-._container_130zy_9:not(._rightPaneCollapsed_130zy_32) > ._rightPane_130zy_32 {
+._container_t7oq7_9:not(._rightPaneCollapsed_t7oq7_32) > ._rightPane_t7oq7_32 {
   padding-left: 0.2rem;
   /* Leave room on the right for the absolutely-positioned close button. */
   padding-right: 1.2rem;
@@ -19607,7 +19908,7 @@ a._citationLink_1ggvf_9:hover {
   scrollbar-width: thin;
 }
 
-._rightPaneResizer_130zy_110 {
+._rightPaneResizer_t7oq7_109 {
   position: absolute;
   left: -3px;
   top: 0;
@@ -19621,12 +19922,12 @@ a._citationLink_1ggvf_9:hover {
   transition: background-color 120ms ease;
 }
 
-._rightPaneResizer_130zy_110:hover,
-._rightPaneResizer_130zy_110:active {
+._rightPaneResizer_t7oq7_109:hover,
+._rightPaneResizer_t7oq7_109:active {
   background-color: var(--bs-primary-border-subtle);
 }
 
-._rightPaneToggle_130zy_129 {
+._rightPaneToggle_t7oq7_128 {
   all: unset;
   cursor: pointer;
   font-size: 0.8em;
@@ -19635,11 +19936,11 @@ a._citationLink_1ggvf_9:hover {
   left: 0.2rem;
 }
 
-._eventsList_130zy_138 {
+._eventsList_t7oq7_137 {
   padding-bottom: 1rem;
 }
 
-._sidebarHeader_130zy_142 {
+._sidebarHeader_t7oq7_141 {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -19647,12 +19948,12 @@ a._citationLink_1ggvf_9:hover {
   margin-bottom: 0.3rem;
 }
 
-._sidebarHeaderIcon_130zy_150 {
+._sidebarHeaderIcon_t7oq7_149 {
   font-size: 0.9em;
   flex-shrink: 0;
 }
 
-._sidebarHeaderTitle_130zy_155 {
+._sidebarHeaderTitle_t7oq7_154 {
   flex: 1;
   min-width: 0;
   font-weight: normal;
@@ -19663,18 +19964,39 @@ a._citationLink_1ggvf_9:hover {
   top: 1px;
 }
 
-._sidebarHeaderClose_130zy_166 {
+/* 0-height sticky anchor that keeps the close button glued to the top of
+   the visible scroll area. The button itself is absolutely positioned
+   inside the anchor so it doesn't push surrounding content. z-index sits
+   above sibling sticky headers (e.g. SampleScansSidebar's scanner picker
+   at z-index: 2) so the close button paints on top. */
+._sidebarHeaderCloseAnchor_t7oq7_170 {
+  position: sticky;
+  top: 0;
+  height: 0;
+  z-index: 3;
+}
+
+/* In the right pane, extend the anchor into the parent's right padding so
+   the button lines up with the existing visual position. */
+._rightPane_t7oq7_32 ._sidebarHeaderCloseAnchor_t7oq7_170 {
+  margin-right: -1.2rem;
+}
+
+/* Center the close icon vertically with the rootHeader title that follows
+   in the scroll content. The title (text-size-smaller) sits at the top of
+   that content; this offset aligns the icon's visual center with the title's. */
+._sidebarHeaderClose_t7oq7_170 {
   all: unset;
   cursor: pointer;
   font-size: 0.9em;
-  padding: 0 0.2em;
+  padding: 0.2rem 0.4rem;
   position: absolute;
-  top: 0.2rem;
-  right: 0.1rem;
-  z-index: 1;
+  top: -0.25em;
+  right: 0;
+  background-color: var(--bs-body-bg);
 }
 
-._sidebarHeaderClose_130zy_166:hover {
+._sidebarHeaderClose_t7oq7_170:hover {
   opacity: 0.7;
 }
 ._headline_1l22a_1 {
@@ -19694,6 +20016,49 @@ a._citationLink_1ggvf_9:hover {
 }
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
+}
+._nav_1tozt_1 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px 8px;
+  margin: 4px 0;
+  font-size: var(--inspect-font-size-smallest);
+  color: var(--vscode-descriptionForeground, #717171);
+}
+
+._icon_1tozt_12 {
+  font-size: 11px;
+  margin-right: 2px;
+  opacity: 0.7;
+}
+
+._pill_1tozt_18 {
+  border: 1px solid transparent;
+  background: none;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: inherit;
+  color: var(--vscode-descriptionForeground, #717171);
+  cursor: pointer;
+}
+
+._pill_1tozt_18:hover {
+  border-color: var(--bs-border-color);
+  color: var(--vscode-foreground);
+}
+
+._selected_1tozt_33 {
+  border-color: var(--bs-border-color);
+  background: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.04));
+  color: var(--vscode-foreground);
+  font-weight: 500;
+  cursor: default;
+}
+
+._selected_1tozt_33:hover {
+  border-color: var(--bs-border-color);
 }
 ._panel_vz394_1 {
   margin: 0.2em 0;
@@ -19775,6 +20140,124 @@ a._citationLink_1ggvf_9:hover {
   flex: 1 1 auto;
   min-width: 300px;
   width: fit-content;
+}
+._wrap_fjhll_1 {
+  position: relative;
+  display: inline-flex;
+}
+
+._chip_fjhll_6 {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px 2px 6px;
+  background: var(--bs-secondary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--bs-secondary-color);
+  text-transform: none;
+  line-height: 1;
+}
+
+._chip_fjhll_6:hover,
+._chipOpen_fjhll_25 {
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+}
+
+._chipText_fjhll_30 {
+  font-weight: 500;
+  padding-right: 0.5rem;
+}
+
+._chipIcon_fjhll_35 {
+  font-size: 11px;
+  line-height: 1;
+}
+
+._chipChevron_fjhll_40 {
+  font-size: 9px;
+  line-height: 1;
+}
+
+._backdrop_fjhll_45 {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+._menu_fjhll_51 {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 280px;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  padding: 4px;
+  z-index: 11;
+  font-size: 12px;
+}
+
+._item_fjhll_65 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--bs-body-color);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+._item_fjhll_65:hover {
+  background: var(--bs-tertiary-bg);
+}
+
+._itemActive_fjhll_85 {
+  background: var(--bs-secondary-bg);
+}
+
+._itemNum_fjhll_89 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bs-secondary-bg);
+  color: var(--bs-secondary-color);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+._itemLabel_fjhll_104 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._itemStatus_fjhll_112 {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--bs-secondary-color);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 ._container_1m4t0_1 {
   margin: 0.5em 0 0 0;
@@ -20056,43 +20539,49 @@ a._citationLink_1ggvf_9:hover {
     break-inside: avoid;
   }
 }
-._tabControls_1si8b_1 {
+/* The tabs sticky-pin beneath the (dynamic-height) sample header.
+ * The header itself uses `<StickyScroll>` and changes height between
+ * full and compact (headroom collapse), publishing its current
+ * height as `--inspect-sample-header-height` on the tabs container.
+ * The tabs slide up automatically when the header collapses and
+ * back down when it expands. */
+._tabControls_10ac3_7 {
   position: sticky;
   z-index: 1001;
-  top: 0;
+  top: var(--inspect-sample-header-height, 0);
   padding: 0.25rem 0.5rem;
   border-bottom: solid 1px var(--bs-border-color);
   background-color: var(--bs-body-bg);
 }
 
-._fullWidth_1si8b_10 {
+._fullWidth_10ac3_16 {
   width: 100%;
 }
 
-._metadataPanel_1si8b_14 {
+._metadataPanel_10ac3_20 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-._padded_1si8b_20 {
+._padded_10ac3_26 {
   padding-left: 0.8em;
   margin-top: 0.4em;
 }
 
-._error_1si8b_25 {
+._error_10ac3_31 {
   padding-top: 0.5em;
 }
 
-._ansi_1si8b_29 {
+._ansi_10ac3_35 {
   margin: 1em 0;
 }
 
-._noTop_1si8b_33 {
+._noTop_10ac3_39 {
   margin-top: 0;
 }
 
-._timePanel_1si8b_37 {
+._timePanel_10ac3_43 {
   display: grid;
   grid-template-columns: max-content max-content;
   grid-template-rows: auto;
@@ -20100,19 +20589,19 @@ a._citationLink_1ggvf_9:hover {
   min-width: 200px;
 }
 
-._chat_1si8b_45 {
+._chat_10ac3_51 {
   padding: 1em;
 }
 
-._padded_1si8b_20 {
+._padded_10ac3_26 {
   padding: 1em;
 }
 
-._overflowVisible_1si8b_53 {
+._overflowVisible_10ac3_59 {
   overflow-y: visible;
 }
 
-._retriedErrors_1si8b_57 {
+._retriedErrors_10ac3_63 {
   margin: 0.5rem;
   min-width: 0;
   overflow: hidden;
@@ -20170,74 +20659,438 @@ a._citationLink_1ggvf_9:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-._target_1foh6_1 {
-  padding-left: 0;
-}
-
-._answer_1foh6_5 {
-  padding-left: 0;
-}
-
-._grid_1foh6_9 {
-  display: grid;
-  grid-column-gap: 1em;
-  border-bottom: solid var(--bs-border-color) 1px;
-  padding: 0.5rem;
-}
-
-._centerLabel_1foh6_16 {
+._panel_h02oy_1 {
+  background: transparent;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
 }
 
-._centerValue_1foh6_21 {
+._panelHeader_h02oy_9 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  /* Match body left/right padding so the label/controls align with
+   * the rows/chips below. */
+  padding: 2px 12px;
+}
+
+._scoresHeader_h02oy_19 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+._scoresCount_h02oy_27 {
+  font-size: var(--inspect-font-size-smallest, 0.7rem);
+  color: var(--bs-tertiary-color, var(--bs-secondary));
+  font-variant-numeric: tabular-nums;
+}
+
+._columnLabel_h02oy_33 {
+  font-size: var(--inspect-font-size-smallest, 0.7rem);
+  font-weight: 400;
+  color: var(--bs-secondary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+._headerControls_h02oy_41 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Wrap the sort dropdown in the same outer chrome as the
+ * SegmentedControl so its border / body-bg / border-radius match the
+ * segments next to it. The inner ToolDropdownButton is then stripped
+ * back to a flat, transparent trigger. */
+._sortWrapper_h02oy_51 {
+  display: inline-flex;
+  background-color: var(--bs-body-bg);
+  border-radius: var(--bs-border-radius);
+  border: solid 1px var(--bs-border-color);
+}
+
+.btn._sortButton_h02oy_58 {
+  background: transparent;
+  border: none;
+  border-radius: var(--bs-border-radius);
+  color: var(--bs-secondary);
+  margin: 1px;
+  padding: 0 5px;
+  height: calc(100% - 2px);
+  line-height: 1.5;
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--inspect-font-size-smallest, 0.7rem);
+}
+
+.btn._sortButton_h02oy_58:hover {
+  color: var(--bs-body-color);
+}
+
+.btn._sortButton_h02oy_58 i {
+  margin-right: 0;
+}
+
+._panelBody_h02oy_80 {
+  min-height: 0;
+}
+
+._bodyGrid_h02oy_84 {
+  padding: 4px 12px;
+}
+
+._panel_h02oy_1._tight_h02oy_88 ._bodyGrid_h02oy_84 {
+  padding: 3px 12px;
+}
+
+._bodyChips_h02oy_92 {
+  padding: 6px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+._panel_h02oy_1._tight_h02oy_88 ._bodyChips_h02oy_92 {
+  padding: 5px 12px;
+}
+
+/* Cap the body at ~5 grid rows. Anything larger scrolls inside the
+ * panel so the rest of the header layout stays put. The cap is
+ * shared across grid and chips so the panel can't suddenly grow
+ * vertically when the user toggles views. */
+._dense_h02oy_107 {
+  max-height: 125px;
+  overflow-y: auto;
+}
+
+/* ── Grid rows ─────────────────────────────────────────────────────── */
+._row_h02oy_113 {
+  display: grid;
+  grid-template-columns: minmax(60px, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  padding: 2px 0;
+  min-width: 0;
+}
+
+._rowTight_h02oy_122 {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+._rowName_h02oy_127 {
+  font-size: var(--inspect-font-size-small, 0.8rem);
+  color: var(--bs-body-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+  min-width: 0;
+}
+
+/* ── Chips ─────────────────────────────────────────────────────────── */
+._chip_h02oy_138 {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 4px;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  font-size: var(--inspect-font-size-small, 0.8rem);
+  line-height: 1.3;
+  max-width: 220px;
+  min-width: 0;
+}
+
+._chipFail_h02oy_152 {
+  border-color: var(--bs-danger);
+}
+
+._chipWarn_h02oy_156 {
+  border-color: var(--bs-orange);
+}
+
+._chipName_h02oy_160 {
+  color: var(--bs-body-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+._circle_kcau9_1 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+._circlePass_kcau9_13 {
+  background: var(--bs-success);
+}
+
+._circleFail_kcau9_17 {
+  background: var(--bs-danger);
+}
+
+._circleWarn_kcau9_21 {
+  background: var(--bs-orange);
+}
+
+._circleNeutral_kcau9_25 {
+  background: var(--bs-secondary);
+}
+
+._text_kcau9_29 {
+  font-size: var(--inspect-font-size-small, 0.8rem);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  display: inline-block;
+  max-width: 12em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+
+._textPass_kcau9_41 {
+  color: var(--bs-success);
+}
+
+._textFail_kcau9_45 {
+  color: var(--bs-danger);
+}
+
+._textWarn_kcau9_49 {
+  color: var(--bs-orange);
+}
+
+._textNeutral_kcau9_53 {
+  color: var(--bs-body-color);
+}
+
+/* Smaller pill used inside ScoreChip. The mini pill has a fixed-ish
+ * height and gets a colored background for tone scores; neutral
+ * scores stay subtle. */
+._miniPill_kcau9_60 {
+  display: inline-block;
+  text-align: center;
+  vertical-align: middle;
+  min-width: 18px;
+  max-width: 8em;
+  height: 16px;
+  line-height: 16px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  font-size: var(--inspect-font-size-smallestest, 0.6rem);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._miniPillPass_kcau9_80 {
+  background: var(--bs-success);
+  color: #fff;
+}
+
+._miniPillFail_kcau9_85 {
+  background: var(--bs-danger);
+  color: #fff;
+}
+
+._miniPillWarn_kcau9_90 {
+  background: var(--bs-orange);
+  color: #fff;
+}
+
+._miniPillNeutral_kcau9_95 {
+  background: var(--bs-secondary-bg-subtle);
+  color: var(--bs-secondary);
+}
+._root_rr9mf_1 {
+  background: var(--bs-light);
+  color: var(--bs-body-color);
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+/* Outer two-column layout. The right column gets a clamped range so
+ * its width adapts to viewport but stays in a band that yields
+ * roughly 2–3 chips per row regardless of chip set. The body fields
+ * (1fr) keep the rest. The 1-2 score case uses `noRight` instead and
+ * inlines the score cells into the field grid. */
+._layout_rr9mf_12 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(160px, 220px);
+}
+
+._layout_rr9mf_12._wideRight_rr9mf_17 {
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 440px);
+}
+
+._layout_rr9mf_12._noRight_rr9mf_21 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+._left_rr9mf_25 {
+  padding: 8px 0.5rem;
+  min-width: 0;
+}
+
+._layout_rr9mf_12._noRight_rr9mf_21 ._left_rr9mf_25 {
+  border-right: none;
+}
+
+._right_rr9mf_34 {
+  padding: 0;
+  background: var(--bs-light);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+._metaLine_rr9mf_42 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 8px;
+  row-gap: 2px;
+  margin-bottom: 8px;
+  color: var(--bs-secondary);
+}
+
+._metaSep_rr9mf_52 {
+  color: var(--bs-tertiary-color, var(--bs-secondary));
+}
+
+._metaId_rr9mf_56 {
+  font-family: var(--bs-font-monospace);
+  color: var(--bs-body-color);
+  font-size: var(--inspect-font-size-base);
+  font-weight: 500;
+}
+
+/* Field row: Input | Target | Answer in a single row. Target gets a
+ * fixed-ish middle slot, Input and Answer flex. */
+._fields_rr9mf_65 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(60px, auto) minmax(0, 1fr);
+  gap: 8px 24px;
+}
+
+._field_rr9mf_65 {
+  min-width: 0;
+}
+
+._fieldTarget_rr9mf_75 {
+  max-width: 200px;
+}
+
+._fieldLabel_rr9mf_79 {
+  font-size: var(--inspect-font-size-smallest, 0.7rem);
+  font-weight: 400;
+  color: var(--bs-secondary);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+._fieldValue_rr9mf_87 {
+  font-size: var(--inspect-font-size-smaller, 0.9rem);
+  color: var(--bs-body-color);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+._clamp_rr9mf_94 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Score "field" cell — used in compact (1-2 scores) mode when scores
+ * are inlined into the same fields grid as Input/Target/Answer. The
+ * label gets the same FieldLabel chrome; the value sits directly
+ * beneath it, vertically aligned with the body field values. */
+._scoreField_rr9mf_106 {
+  max-width: 140px;
+}
+
+._scoreFieldValue_rr9mf_110 {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+._errorBlock_rr9mf_117 {
+  padding: 10px 18px;
+  border-top: 1px dashed var(--bs-border-color);
+}
+
+/* Collapsed state — meta line only. Used both as a standalone band
+ * inside SampleSummaryView and (more usefully) as the content of the
+ * sticky overlay rendered by `SampleDisplay` when the user has
+ * scrolled past the full header. Positioning lives at the call-site
+ * because the parent owns the scroll context. */
+._collapsedMeta_rr9mf_127 {
+  padding: 2px 0.5rem;
   display: flex;
   align-items: center;
 }
 
-._wrap_1foh6_26 {
-  word-wrap: anywhere;
-}
-
-._titled_1foh6_30:hover {
-  cursor: pointer;
-}
-
-._value_1foh6_34 {
-  flex-direction: column;
-  padding-top: 0.1em;
+/* In the collapsed band there's no fields row beneath the meta line,
+ * so suppress the bottom margin that the expanded layout uses. */
+._collapsedMeta_rr9mf_127 ._metaLine_rr9mf_42 {
+  margin-bottom: 0;
 }
 
 /* Invalidation banner styles */
-._invalidationBanner_1foh6_40 {
+._invalidationBanner_rr9mf_140 {
   display: flex;
   align-items: flex-start;
   gap: 0.75em;
   padding: 0.75em 1em;
-  background-color: var(--bs-warning-bg-subtle, #fff3cd);
-  border-bottom: 1px solid var(--bs-warning-border-subtle, #ffecb5);
-  color: var(--bs-warning-text-emphasis, #664d03);
+  background-color: var(--bs-warning-bg-subtle);
+  border-bottom: 1px solid var(--bs-warning-border-subtle);
+  color: var(--bs-warning-text-emphasis);
 }
 
-._invalidationIcon_1foh6_50 {
+._invalidationIcon_rr9mf_150 {
   font-size: 1.25em;
   line-height: 1;
   flex-shrink: 0;
 }
 
-._invalidationContent_1foh6_56 {
+._invalidationContent_rr9mf_156 {
   display: flex;
   flex-direction: column;
   gap: 0.25em;
   min-width: 0;
 }
 
-._invalidationTitle_1foh6_63 {
+._invalidationTitle_rr9mf_163 {
   font-weight: 600;
   font-size: 0.9em;
 }
 
-._invalidationDetails_1foh6_68 {
+._invalidationDetails_rr9mf_168 {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5em 1.5em;
@@ -20245,7 +21098,7 @@ a._citationLink_1ggvf_9:hover {
   opacity: 0.9;
 }
 
-._invalidationReason_1foh6_76 {
+._invalidationReason_rr9mf_176 {
   flex-basis: 100%;
 }
 ._statusCell_hunte_1 {
@@ -20598,12 +21451,12 @@ pre._value_8citi_25 {
   opacity: 0.5;
   pointer-events: none;
 }
-._workspace_kf1qa_1 {
+._workspace_rc1vz_1 {
   padding-top: 0rem;
   overflow-y: hidden;
 }
 
-._tabContainer_kf1qa_6 {
+._tabContainer_rc1vz_6 {
   padding: 0;
   flex: 1;
   display: flex;
@@ -20611,14 +21464,14 @@ pre._value_8citi_25 {
   overflow-y: hidden;
 }
 
-._tabSet_kf1qa_14 {
+._tabSet_rc1vz_14 {
   flex-wrap: nowrap;
   padding: 0.5rem 0.5rem 0.5rem 0.5rem;
   border-bottom: solid 1px var(--bs-border-color);
-  background: var(--bs-light);
+  background: var(--bs-light-bg-subtle);
 }
 
-._tabs_kf1qa_21 {
+._tabs_rc1vz_21 {
   padding: 0.3rem 0.3rem 0.3rem 0.3rem;
   width: 5rem;
   text-transform: uppercase;
@@ -20626,7 +21479,7 @@ pre._value_8citi_25 {
   font-weight: 600;
 }
 
-._tabPanels_kf1qa_29 {
+._tabPanels_rc1vz_29 {
   flex: 1;
   overflow-y: hidden;
   display: flex;
@@ -20807,71 +21660,6 @@ pre._value_8citi_25 {
   height: 1px;
   background-color: var(--bs-light-border-subtle);
 }
-._mainLayout_1pg7l_1 {
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-}
-
-._samplesListGrid_1pg7l_7 .ag-row {
-  border-bottom: 1px solid var(--bs-border-color);
-}
-
-._samplesListGrid_1pg7l_7 .ag-row.ag-row-selected {
-  box-shadow: inset 0 0 0 2px var(--bs-focus-ring-color);
-}
-
-._samplesListGrid_1pg7l_7 .ag-header-cell {
-  padding: 0;
-}
-._samplesListGrid_1pg7l_7 .ag-header-cell-label::before {
-  content: "";
-  flex: 0 1 var(--ag-cell-horizontal-padding);
-}
-
-._samplesListGrid_1pg7l_7 .ag-header-cell-text {
-  font-size: var(--inspect-font-size-smallestest);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 400;
-}
-
-._samplesListGrid_1pg7l_7 .ag-sort-order {
-  font-size: var(--inspect-font-size-smallestest);
-  align-self: center;
-  margin-right: -10px;
-}
-
-._samplesListGrid_1pg7l_7 .ag-cell {
-  align-items: flex-start;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
-  white-space: normal;
-}
-
-._cell_1pg7l_43 {
-  line-height: var(--bs-body-line-height);
-}
-
-._wrapAnywhere_1pg7l_47 {
-  overflow-wrap: break-word;
-}
-
-._noLeft_1pg7l_51 {
-  padding-left: 0;
-}
-
-._score_1pg7l_55 {
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-._centered_1pg7l_62 {
-  display: flex;
-  justify-content: center;
-}
 ._footer_vkofn_1 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   background: var(--bs-light-bg-subtle);
@@ -20900,17 +21688,82 @@ pre._value_8citi_25 {
   margin-left: 0.1em;
   margin-top: -3px;
 }
-._label_jbrqc_1 {
+._mainLayout_1qj8a_1 {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Cell helpers — still referenced by columns.tsx. Phase 1 will migrate
+ * cell renderers into shared/samples-grid/cells.tsx and this file goes
+ * away entirely. */
+._cell_1qj8a_10 {
+  line-height: var(--bs-body-line-height);
+}
+
+._wrapAnywhere_1qj8a_14 {
+  overflow-wrap: break-word;
+}
+
+._noLeft_1qj8a_18 {
+  padding-left: 0;
+}
+
+._score_1qj8a_22 {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._centered_1qj8a_29 {
+  display: flex;
+  justify-content: center;
+}
+._container_1tduz_1 {
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.25rem;
+  min-width: 10rem;
+}
+
+._row_1tduz_8 {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: 0;
+}
+
+._checkbox_1tduz_15 {
+  margin-right: 0.5rem;
+  cursor: pointer;
+}
+._root_1dunz_1 {
+  display: flex;
+  /* Pin the inherited font-size so the CodeMirror editor (which uses
+     `font-size: inherit`) matches the navbar's 0.7rem instead of
+     picking up whatever the surrounding container computes to. */
+  font-size: var(--inspect-font-size-smallest);
+  /* Claim leftover horizontal space (basis 0) but keep enough room for
+     the editor to be usable. min-width covers label + ~100px input +
+     help + their margins; below that the tab-tools row wraps. */
+  flex: 1 1 0;
+  min-width: 170px;
+  max-width: 500px;
+}
+
+._label_1dunz_15 {
   align-self: center;
   margin-right: 0.3em;
   margin-left: 0.2em;
 }
 
-._input_jbrqc_7 {
-  width: 300px;
+._input_1dunz_21 {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
-._help_jbrqc_11 {
+._help_1dunz_26 {
   position: relative;
   margin-left: 0.5em;
   cursor: help;
@@ -20972,6 +21825,126 @@ pre._value_8citi_25 {
 ._bodyColorButton_uvlpz_54 {
   background-color: var(--bs-body-bg);
 }
+/* Rotated parallelogram label, anchored to the cell's bottom-left
+ * corner so the column can be much narrower than the label. The
+ * containing `.ag-header-cell` must allow overflow:visible — see the
+ * `.rotatedHeader` rule in SamplesGrid.module.css. */
+._label_1w6d0_5 {
+  position: absolute;
+  bottom: 0;
+  /* Anchor flush with the column's right edge so the rotated label
+   * — and the diagonal divider drawn as its bottom border — sits
+   * exactly on the column boundary, acting as the column's right
+   * separator. */
+  left: 100%;
+  height: 18px;
+  /* Bottom border doubles as the column-divider line: after rotation
+   * it lies along the diagonal lower edge of the label parallelogram,
+   * forming a clean separator between adjacent rotated headers in the
+   * same `--ag-border-color` Balham uses for vertical separators. */
+  border-bottom: 1px solid var(--ag-border-color, var(--bs-border-color));
+  /* Fixed width so every rotated label has the same parallelogram
+   * length. The text inside stretches via `flex: 1` and ellipses if
+   * it overflows. */
+  width: 130px;
+  padding: 0 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  cursor: pointer;
+  background: transparent;
+  /* Opt back into pointer events — parent wrapper sets
+   * pointer-events:none so adjacent rotated labels don't shadow ours. */
+  pointer-events: auto;
+  /* Rotate from the column's bottom-left corner so the label fans
+   * up-and-to-the-right. */
+  transform: rotate(-45deg);
+  transform-origin: bottom left;
+}
+
+._label_1w6d0_5:hover {
+  /* Subtle highlight on hover — and lift above neighboring rotated
+   * labels so the hovered text is fully readable. */
+  background: var(--bs-tertiary-bg);
+  z-index: 2;
+}
+
+._text_1w6d0_46 {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--inspect-font-size-smallestest);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._sortIcon_1w6d0_57 {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+/* Filter button lives at the end of the rotated label (after the
+ * text + sort icon), so it sits at the upper-right tip of the
+ * parallelogram — the natural reading-order spot for an action.
+ * The column-menu popup is anchored to a separate hidden element
+ * (`.menuAnchor`) so it appears under the real column. */
+._filterBtn_1w6d0_67 {
+  background: transparent;
+  border: none;
+  padding: 0 2px;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  color: inherit;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+/* Show the filter button only when the user is over this rotated
+ * label specifically. Hovering the cell's narrow vertical strip is
+ * misleading because the rotated label (and the filter button at its
+ * end) is offset 3-ish columns up-and-right of that strip — keying
+ * off the label keeps the affordance under the cursor instead of
+ * flashing several columns away. */
+._label_1w6d0_5:hover ._filterBtn_1w6d0_67 {
+  opacity: 1;
+}
+
+._filterBtn_1w6d0_67._filterBtnActive_1w6d0_91 {
+  opacity: 1;
+}
+
+/* Active-filter dot — small affordance at the upper-right of the
+ * funnel, matching ag-grid's convention of indicating active filters. */
+._filterBtn_1w6d0_67._filterBtnActive_1w6d0_91::after {
+  content: "";
+  position: absolute;
+  top: -1px;
+  right: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--bs-primary);
+}
+
+/* Invisible anchor for the column-menu popup. ag-grid positions the
+ * menu relative to whatever element you hand `showColumnMenu` — by
+ * pointing it at this un-rotated bottom-right anchor (rather than the
+ * visible filter button on the rotated parallelogram) the popup lands
+ * directly under the column instead of offset diagonally up-and-right. */
+._menuAnchor_1w6d0_66 {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
 ._panel_1yknn_1 {
   width: 100%;
   display: flex;
@@ -20999,96 +21972,6 @@ pre._value_8citi_25 {
   grid-template-columns: fit-content(50%) fit-content(50%);
   column-gap: 3em;
   align-items: flex-start;
-}
-._downloadLogButton_fi3zx_1 {
-  border: none;
-  background-color: inherit;
-  opacity: 0.75;
-  padding-top: 0;
-  padding-left: 0;
-  transition: opacity 0.2s;
-}
-
-._downloadLogButton_fi3zx_1:hover {
-  opacity: 0.75;
-}
-._container_q17yq_1 {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 0;
-  margin-top: -0.2rem;
-  margin-bottom: 0.2rem;
-}
-
-._grid_q17yq_10 {
-  display: grid;
-  grid-template-rows: repeat(auto-fill, minmax(10px, 1fr));
-  grid-template-columns: 1fr;
-  gap: 0.1em;
-  padding-right: 1em;
-}
-._container_17txe_1 {
-  display: flex;
-  padding-top: 0;
-  margin-left: 0.5rem;
-  min-width: 250px;
-}
-
-._wrapper_17txe_8 {
-  display: grid;
-  grid-template-columns: minmax(auto, 1fr) 1fr;
-  width: 100%;
-}
-
-._toggle_17txe_14 {
-  margin-top: 0.3em;
-  font-size: 1em;
-  padding: 0rem 0.1rem 0.1rem 0rem;
-  display: flex;
-}
-
-._body_17txe_21 {
-  display: flex;
-  flex-direction: column;
-  margin-left: 0.2rem;
-}
-
-._bodyContainer_17txe_27 {
-  margin-top: 0.1rem;
-  display: grid;
-  grid-template-columns: minmax(30px, max-content) minmax(100px, max-content);
-}
-
-._taskTitle_17txe_33 {
-  font-weight: 600;
-  margin-right: 0.3rem;
-}
-
-._taskModel_17txe_38 {
-  padding-top: 0.4rem;
-}
-
-._taskStatus_17txe_42 {
-  display: flex;
-  justify-content: end;
-  margin-right: 1em;
-  margin-bottom: 0;
-}
-
-._secondaryContainer_17txe_49 {
-  opacity: 0.7;
-  margin-top: -0.1rem;
-  padding-bottom: 0;
-  display: grid;
-  grid-template-columns: minmax(0, max-content) max-content;
-  gap: 0.5rem;
-}
-
-._buttonGroup_17txe_58 {
-  display: flex;
-  gap: 0.15rem;
-  align-items: center;
 }
 ._button_12472_1 {
   display: flex;
@@ -21163,6 +22046,85 @@ pre._value_8citi_25 {
 
 ._noPadding_1tj8p_56 {
   padding: 0;
+}
+._container_w43k4_1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.25rem 0.5rem;
+  min-height: 1.75rem;
+}
+
+._left_w43k4_11 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+._task_w43k4_19 {
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+
+._model_w43k4_24 {
+  opacity: 0.75;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+._right_w43k4_30 {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+._inlineMetrics_w43k4_38 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+
+._inlineMetric_w43k4_38 {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+._inlineMetricLabel_w43k4_50 {
+  opacity: 0.7;
+}
+
+._inlineMetricValue_w43k4_54 {
+  font-weight: 600;
+}
+
+._statusBadge_w43k4_58 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+._statusIcon_w43k4_64 {
+  font-size: 1em;
+}
+
+._statusCount_w43k4_68 {
+  opacity: 0.7;
+}
+
+._scoringDetailModal_w43k4_72 .modal-dialog {
+  max-width: min(1000px, 90vw);
+}
+
+._scoringDetailModal_w43k4_72 .modal-content {
+  width: fit-content;
+  max-width: 100%;
 }
 ._simpleMetricsRows_13tuz_1 {
   display: flex;
@@ -21353,6 +22315,96 @@ thead th {
 ._tableSeparator_12koy_45 th {
   border: none !important;
 }
+._downloadLogButton_fi3zx_1 {
+  border: none;
+  background-color: inherit;
+  opacity: 0.75;
+  padding-top: 0;
+  padding-left: 0;
+  transition: opacity 0.2s;
+}
+
+._downloadLogButton_fi3zx_1:hover {
+  opacity: 0.75;
+}
+._container_q17yq_1 {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: -0.2rem;
+  margin-bottom: 0.2rem;
+}
+
+._grid_q17yq_10 {
+  display: grid;
+  grid-template-rows: repeat(auto-fill, minmax(10px, 1fr));
+  grid-template-columns: 1fr;
+  gap: 0.1em;
+  padding-right: 1em;
+}
+._container_17txe_1 {
+  display: flex;
+  padding-top: 0;
+  margin-left: 0.5rem;
+  min-width: 250px;
+}
+
+._wrapper_17txe_8 {
+  display: grid;
+  grid-template-columns: minmax(auto, 1fr) 1fr;
+  width: 100%;
+}
+
+._toggle_17txe_14 {
+  margin-top: 0.3em;
+  font-size: 1em;
+  padding: 0rem 0.1rem 0.1rem 0rem;
+  display: flex;
+}
+
+._body_17txe_21 {
+  display: flex;
+  flex-direction: column;
+  margin-left: 0.2rem;
+}
+
+._bodyContainer_17txe_27 {
+  margin-top: 0.1rem;
+  display: grid;
+  grid-template-columns: minmax(30px, max-content) minmax(100px, max-content);
+}
+
+._taskTitle_17txe_33 {
+  font-weight: 600;
+  margin-right: 0.3rem;
+}
+
+._taskModel_17txe_38 {
+  padding-top: 0.4rem;
+}
+
+._taskStatus_17txe_42 {
+  display: flex;
+  justify-content: end;
+  margin-right: 1em;
+  margin-bottom: 0;
+}
+
+._secondaryContainer_17txe_49 {
+  opacity: 0.7;
+  margin-top: -0.1rem;
+  padding-bottom: 0;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) max-content;
+  gap: 0.5rem;
+}
+
+._buttonGroup_17txe_58 {
+  display: flex;
+  gap: 0.15rem;
+  align-items: center;
+}
 ._statusContainer_1sckj_1 {
   display: inline-block;
   margin-top: 0.3em;
@@ -21433,40 +22485,40 @@ thead th {
   color: var(--bs-warning-text-emphasis, #664d03);
   cursor: help;
 }
-._navbarContainer_838qu_1 {
+._navbarContainer_de7i3_1 {
   display: flex;
   padding-top: 0;
   margin-left: 0.5rem;
   min-width: 250px;
 }
 
-._navbarToggle_838qu_8 {
+._navbarToggle_de7i3_8 {
   padding: 0rem 0.1rem 0.1rem 0rem;
   display: flex;
 }
 
-._navbarBody_838qu_13 {
+._navbarBody_de7i3_13 {
   display: flex;
   flex-direction: column;
   margin-left: 0.2rem;
 }
 
-._navbarBodyContainer_838qu_19 {
+._navbarBodyContainer_de7i3_19 {
   margin-top: 0.1rem;
   display: grid;
   grid-template-columns: minmax(30px, max-content) minmax(100px, max-content);
 }
 
-._navbarTaskTitle_838qu_25 {
+._navbarTaskTitle_de7i3_25 {
   font-weight: 600;
   margin-right: 0.3rem;
 }
 
-._navbarTaskModel_838qu_30 {
+._navbarTaskModel_de7i3_30 {
   padding-top: 0.4rem;
 }
 
-._navbarSecondaryContainer_838qu_34 {
+._navbarSecondaryContainer_de7i3_34 {
   opacity: 0.7;
   margin-top: 0.1rem;
   padding-bottom: 0;
@@ -21474,18 +22526,67 @@ thead th {
   grid-template-columns: minmax(0, max-content) max-content;
 }
 
-._navbarStatus_838qu_42 {
+._navbarStatus_de7i3_42 {
   justify-content: end;
   margin-right: 1em;
   margin-bottom: 0;
 }
 
-._navbarWrapper_838qu_48 {
+._navbarWrapper_de7i3_48 {
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  position: sticky;
+  overflow: hidden;
+  background-color: var(--bs-light-bg-subtle);
 }
-._navbarInnerWrapper_838qu_51 {
+._navbarInnerWrapper_de7i3_57 {
   display: grid;
   grid-template-columns: 1fr auto;
+}
+
+/* Expanded / collapsed slot animation
+ *
+ * Both slots are rendered into a CSS grid with an animated row size:
+ * the active slot's container gets `grid-template-rows: 1fr` and the
+ * inactive slot collapses to `0fr`. Combined with `overflow: hidden`,
+ * this produces a smooth height transition.
+ */
+._expandedSlot_de7i3_69,
+._collapsedSlot_de7i3_70 {
+  width: 100%;
+  display: grid;
+  overflow: hidden;
+  transition: opacity 120ms linear;
+}
+
+._expandedSlot_de7i3_69 {
+  grid-template-rows: 1fr;
+}
+
+._collapsedSlot_de7i3_70 {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+._collapsed_de7i3_70 ._expandedSlot_de7i3_69 {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+
+._collapsed_de7i3_70 ._collapsedSlot_de7i3_70 {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+._expandedSlot_de7i3_69 > ._expandedInner_de7i3_99,
+._collapsedSlot_de7i3_70 > * {
+  min-height: 0;
+  overflow: hidden;
 }
 ._container_ovp9s_1 {
   display: grid;

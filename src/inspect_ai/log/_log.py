@@ -64,6 +64,7 @@ class EvalConfigDefaults(TypedDict):
     epochs_reducer: list[str]
     fail_on_error: bool
     continue_on_fail: bool
+    score_on_error: bool
     sandbox_cleanup: bool
     log_samples: bool
     log_realtime: bool
@@ -77,6 +78,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "epochs_reducer": ["mean"],
         "fail_on_error": True,
         "continue_on_fail": False,
+        "score_on_error": False,
         "sandbox_cleanup": True,
         "log_samples": True,
         "log_realtime": True,
@@ -126,6 +128,14 @@ class EvalConfig(BaseModel):
 
     retry_on_error: int | None = Field(default=None)
     """Number of times to retry samples if they encounter errors."""
+
+    score_on_error: bool | None = Field(default=None)
+    """Score samples that error rather than failing the eval mid-run.
+
+    Errors are still counted toward the `fail_on_error` threshold for marking
+    the eval log as 'error'. Only takes effect after retries (if any) are
+    exhausted.
+    """
 
     message_limit: int | None = Field(default=None)
     """Maximum messages to allow per sample."""
@@ -985,6 +995,25 @@ def eval_error(
     )
 
 
+class ConnectionLimitChange(BaseModel):
+    """Record of an adaptive-connections controller scale change."""
+
+    timestamp: float
+    """Unix timestamp (seconds since epoch) of the change."""
+
+    model: str
+    """Display name of the model whose connection limit changed (e.g. `openai/gpt-4o`)."""
+
+    old_limit: int
+    """Concurrency limit before the change."""
+
+    new_limit: int
+    """Concurrency limit after the change."""
+
+    reason: Literal["slow_start", "steady_state_up", "rate_limit"]
+    """Why the change occurred."""
+
+
 class EvalStats(BaseModel):
     """Timing and usage statistics."""
 
@@ -999,6 +1028,9 @@ class EvalStats(BaseModel):
 
     role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage by role for evaluation."""
+
+    connection_limit_history: list[ConnectionLimitChange] = Field(default_factory=list)
+    """History of adaptive-connections controller scale changes (empty unless `adaptive_connections` was enabled)."""
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())

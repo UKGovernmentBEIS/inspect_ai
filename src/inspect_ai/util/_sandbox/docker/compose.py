@@ -181,6 +181,15 @@ async def compose_pull(
     )
 
 
+async def docker_image_exists_locally(image: str) -> bool:
+    """Check whether a docker image is already present in the local daemon."""
+    result = await subprocess(
+        ["docker", "image", "inspect", image],
+        capture_output=True,
+    )
+    return result.success
+
+
 async def compose_exec(
     command: list[str],
     *,

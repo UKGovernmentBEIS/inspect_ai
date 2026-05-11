@@ -452,6 +452,7 @@ The following model args are supported:
 | `stream` | Enable streaming responses (default: `false`). |
 | `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
 | `inference_component_name` | Name of the inference component for multi-model endpoints. |
+| `prompt_logprobs` | Number of prompt log probabilities to return per token. Used for perplexity scoring with vLLM-backed endpoints. |
 
 : {tbl-colwidths=\[35,65\]}
 
@@ -494,17 +495,49 @@ inspect eval arc.py --model sagemaker/my-cpt-endpoint \
   --top-logprobs 5
 ```
 
-Prompt log probabilities for CPT models can be passed as a model argument:
+::: {.callout-note}
+Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
+:::
+
+### Prompt Logprobs & Perplexity
+
+The SageMaker provider supports prompt log probabilities and the `perplexity()` and `target_perplexity()` scorers when backed by a vLLM endpoint.
+
+In **chat mode**, set `prompt_logprobs` via `GenerateConfig` or the `-G` CLI flag:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import GenerateConfig
+from inspect_ai.scorer import perplexity
+from inspect_ai.solver import generate
+
+@task
+def perplexity_eval():
+    return Task(
+        dataset=[Sample(input="The capital of France is Paris")],
+        solver=[generate(max_tokens=1)],
+        scorer=perplexity(),
+        config=GenerateConfig(prompt_logprobs=1),
+    )
+```
 
 ``` bash
-inspect eval perplexity_eval.py --model sagemaker/my-cpt-endpoint \
+inspect eval perplexity_eval.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2
+```
+
+In **completion mode**, pass `prompt_logprobs` as a model argument:
+
+``` bash
+inspect eval perplexity_eval.py --model sagemaker/my-endpoint \
   -M region_name=us-west-2 \
   -M completion_mode=true \
   -M prompt_logprobs=1
 ```
 
 ::: {.callout-note}
-Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
+The `target_perplexity()` scorer's auto-tokenization feature is not available for SageMaker (the vLLM `/tokenize` endpoint is not reachable through `invoke_endpoint`). Provide `num_target_tokens` in sample metadata instead.
 :::
 
 Authentication uses your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role). The endpoint must be accessible from your environment.
@@ -560,7 +593,7 @@ To use the [Together AI](https://www.together.ai/) provider, install the `openai
 ``` bash
 pip install openai
 export TOGETHER_API_KEY=your-together-api-key
-inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.5
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
 ```
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -750,6 +783,22 @@ Pass the `do_sample` model arg to override the default sampling behavior (which 
 $ inspect eval arc.py --model hf/openai-community/gpt2 -M do_sample=false
 ```
 
+### Trust Remote Code
+
+Some Hugging Face models ship custom Python code in their repositories that the `transformers` library will execute on load when `trust_remote_code=True`. Because executing remote code is a security risk (the model author can run arbitrary code in your evaluation process), Inspect defaults `trust_remote_code` to `False` and will not forward `trust_remote_code` from generic `model_args`. To opt in for a specific model you trust, pass it explicitly:
+
+``` bash
+inspect eval arc.py --model hf/some-org/custom-arch-model -M trust_remote_code=true
+```
+
+Or from Python:
+
+``` python
+eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remote_code=True))
+```
+
+The flag is applied to both the model and tokenizer `from_pretrained()` calls.
+
 ### Local Models
 
 In addition to using models from the Hugging Face Hub, the Hugging Face provider can also use local model weights and tokenizers (e.g. for a locally fine tuned model). Use `hf/local` along with the `model_path`, and (optionally) `tokenizer_path` arguments to select a local model. For example, from the command line, use the `-M` flag to pass the model arguments:
@@ -779,7 +828,7 @@ pip install vllm
 inspect eval arc.py --model vllm/openai-community/gpt2
 ```
 
-For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference).
+For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference). Top-level model arg names are converted to CLI flag form (for example, `tensor_parallel_size` becomes `--tensor-parallel-size`). Dotted vLLM arguments preserve nested field names after the dot, so `-M speculative-config.num_speculative_tokens=1` is forwarded as `--speculative-config.num_speculative_tokens 1`.
 
 The following environment variables are supported by the vLLM provider:
 
@@ -901,9 +950,21 @@ inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=fal
 `use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
 :::
 
+### Raw Text Completions
+
+Use the `vllm-completions` provider when you want vLLM to receive a raw text prompt rather than chat messages rendered through a chat template:
+
+``` bash
+inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m
+```
+
+This provider uses vLLM's `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations.
+
 ### Tool Use and Reasoning
 
 vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
+
+For vLLM reasoning models, pass the model-specific parser and chat-template kwargs through `-M`. See [Reasoning](reasoning.qmd#vllmsglang) for CLI examples.
 
 ### Prompt Log Probabilities
 
