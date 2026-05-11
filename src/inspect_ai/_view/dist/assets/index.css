@@ -18697,7 +18697,7 @@ a._citationLink_1ggvf_9:hover {
 ._navs_1vm6p_1 {
   margin-right: 0;
 }
-._stickyWrapper_osq4e_1 {
+._stickyWrapper_12thy_1 {
   position: sticky;
   top: var(--inspect-event-panel-sticky-top, 0px);
   /* Full-bleed: cancel the parent card's padding so the sticky bar
@@ -18709,29 +18709,41 @@ a._citationLink_1ggvf_9:hover {
   border-bottom: solid 1px transparent;
 }
 
-._stickyWrapper_osq4e_1[data-useStickyObserver-stuck] {
+._stickyWrapper_12thy_1[data-useStickyObserver-stuck] {
   background-color: var(--bs-light);
   border-bottom-color: var(--bs-light-border-subtle);
 }
 
-._label_osq4e_18 {
+._label_12thy_18 {
   margin-right: 0.2em;
   justify-self: end;
 }
 
-._navs_osq4e_23 {
+._title_12thy_23 {
+  min-width: 0;
+  line-height: 1.6;
+}
+
+._titleExtra_12thy_28 {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+  margin-left: 0.5em;
+}
+
+._navs_12thy_35 {
   justify-self: end;
   display: flex;
   align-items: baseline;
 }
 
-._turnLabel_osq4e_29 {
+._turnLabel_12thy_41 {
   margin-left: 0.625rem;
   opacity: 0.5;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._card_osq4e_35 {
+._card_12thy_47 {
   position: relative;
   background-color: var(--bs-body-bg);
   padding: 0.625rem;
@@ -18739,37 +18751,39 @@ a._citationLink_1ggvf_9:hover {
   border-radius: var(--bs-border-radius);
 }
 
-._cardContent_osq4e_43 {
+._cardContent_12thy_55 {
   padding: 0;
   display: inherit;
 }
 
-._cardContent_osq4e_43._hidden_osq4e_48 {
+._cardContent_12thy_55._hidden_12thy_60 {
   display: none;
 }
 
-._hidden_osq4e_48 {
+._hidden_12thy_60 {
   display: none;
 }
 
-._copyLink_osq4e_56 {
+._copyLink_12thy_68 {
   font-size: 1.2em;
-  height: 1em;
   opacity: 0;
   padding-left: 0.2em;
-  padding-right: 2em;
+  padding-right: 0;
+  vertical-align: middle;
+  line-height: 1;
+  margin-left: 0.25em;
 }
 
-._hover_osq4e_64 ._copyLink_osq4e_56 {
+._hover_12thy_78 ._copyLink_12thy_68 {
   opacity: 0.75;
 }
 
-._root_osq4e_68 {
+._root_12thy_82 {
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
 
-._bottomDongle_osq4e_73 {
+._bottomDongle_12thy_87 {
   display: block;
   position: absolute;
   margin: 0 auto;
@@ -18785,12 +18799,12 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._dongleIcon_osq4e_89 {
+._dongleIcon_12thy_103 {
   padding-right: 0.3em;
 }
 
 @media print {
-  ._card_osq4e_35 {
+  ._card_12thy_47 {
     break-inside: avoid;
   }
 }
@@ -18925,21 +18939,24 @@ a._citationLink_1ggvf_9:hover {
   min-width: 300px;
   max-width: 80%;
 }
-._node_79lc7_1 {
+._node_1eney_1 {
   display: grid;
   column-gap: 0.3em;
   grid-template-columns: max-content 1fr;
 }
 
-._rootHeader_79lc7_7 {
+._rootHeader_1eney_7 {
   padding: 0 1.5em 0.25em 0;
   background-color: var(--bs-body-bg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 
-._panel_79lc7_15 {
+._panel_1eney_18 {
   margin-top: 0.65rem;
   overflow: visible;
 }
@@ -19783,7 +19800,7 @@ a._citationLink_1ggvf_9:hover {
   -webkit-user-select: none;
   user-select: none;
 }
-._root_1mbr3_1 {
+._root_t7oq7_1 {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -19791,7 +19808,7 @@ a._citationLink_1ggvf_9:hover {
   min-height: 0;
 }
 
-._container_1mbr3_9 {
+._container_t7oq7_9 {
   display: grid;
   width: 100%;
   grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px var(
@@ -19801,46 +19818,45 @@ a._citationLink_1ggvf_9:hover {
   min-height: 100vh;
 }
 
-._container_1mbr3_9 > * {
+._container_t7oq7_9 > * {
   min-width: 0;
   padding-bottom: 1rem;
 }
 
-._container_1mbr3_9._outlineCollapsed_1mbr3_24 {
+._container_t7oq7_9._outlineCollapsed_t7oq7_24 {
   grid-template-columns: 22px 1px 1fr 1px var(--right-pane-width, 360px);
 }
 
-._container_1mbr3_9._noOutline_1mbr3_28 {
+._container_t7oq7_9._noOutline_t7oq7_28 {
   grid-template-columns: 1fr 1px var(--right-pane-width, 360px);
 }
 
-._container_1mbr3_9._rightPaneCollapsed_1mbr3_32 {
+._container_t7oq7_9._rightPaneCollapsed_t7oq7_32 {
   grid-template-columns: var(--outline-width, 180px) 1px 1fr 1px 22px;
 }
 
-._container_1mbr3_9._outlineCollapsed_1mbr3_24._rightPaneCollapsed_1mbr3_32 {
+._container_t7oq7_9._outlineCollapsed_t7oq7_24._rightPaneCollapsed_t7oq7_32 {
   grid-template-columns: 22px 1px 1fr 1px 22px;
 }
 
-._container_1mbr3_9._noOutline_1mbr3_28._rightPaneCollapsed_1mbr3_32 {
+._container_t7oq7_9._noOutline_t7oq7_28._rightPaneCollapsed_t7oq7_32 {
   grid-template-columns: 1fr 1px 22px;
 }
 
-._container_1mbr3_9._noRightPane_1mbr3_44 {
+._container_t7oq7_9._noRightPane_t7oq7_44 {
   grid-template-columns: var(--outline-width, 180px) 1px 1fr;
 }
 
-._container_1mbr3_9._outlineCollapsed_1mbr3_24._noRightPane_1mbr3_44 {
+._container_t7oq7_9._outlineCollapsed_t7oq7_24._noRightPane_t7oq7_44 {
   grid-template-columns: 22px 1px 1fr;
 }
 
-._container_1mbr3_9._noOutline_1mbr3_28._noRightPane_1mbr3_44 {
+._container_t7oq7_9._noOutline_t7oq7_28._noRightPane_t7oq7_44 {
   grid-template-columns: 1fr;
 }
 
-._outline_1mbr3_24 {
+._outline_t7oq7_24 {
   padding-left: 0.6rem;
-  padding-top: 0.2rem;
   /* Prevent stretching to the full grid-row height so that
      position:sticky has room to travel within the cell. */
   align-self: start;
@@ -19849,13 +19865,13 @@ a._citationLink_1ggvf_9:hover {
 /* Cap height to the visible area below the sticky offset and
    scroll internally when the outline is taller.
    Only when expanded — overflow clips the toggle button when collapsed. */
-._container_1mbr3_9:not(._outlineCollapsed_1mbr3_24) > ._outline_1mbr3_24 {
+._container_t7oq7_9:not(._outlineCollapsed_t7oq7_24) > ._outline_t7oq7_24 {
   max-height: calc(var(--scroller-height, 100vh) - var(--outline-top, 0px));
   overflow-y: auto;
   scrollbar-width: thin;
 }
 
-._outlineToggle_1mbr3_73 {
+._outlineToggle_t7oq7_72 {
   all: unset;
   cursor: pointer;
   font-size: 0.8em;
@@ -19864,26 +19880,26 @@ a._citationLink_1ggvf_9:hover {
   right: 0.2rem;
 }
 
-._outlineToggle_1mbr3_73[aria-disabled="true"] {
+._outlineToggle_t7oq7_72[aria-disabled="true"] {
   cursor: default;
   opacity: 0.4;
 }
 
-._separator_1mbr3_87 {
+._separator_t7oq7_86 {
   background-color: var(--bs-border-color);
 }
 
-._rightSeparator_1mbr3_91 {
+._rightSeparator_t7oq7_90 {
   background-color: var(--bs-border-color);
 }
 
-._rightPane_1mbr3_32 {
+._rightPane_t7oq7_32 {
   padding-top: 0rem;
   padding-right: 0.2rem;
   align-self: start;
 }
 
-._container_1mbr3_9:not(._rightPaneCollapsed_1mbr3_32) > ._rightPane_1mbr3_32 {
+._container_t7oq7_9:not(._rightPaneCollapsed_t7oq7_32) > ._rightPane_t7oq7_32 {
   padding-left: 0.2rem;
   /* Leave room on the right for the absolutely-positioned close button. */
   padding-right: 1.2rem;
@@ -19892,7 +19908,7 @@ a._citationLink_1ggvf_9:hover {
   scrollbar-width: thin;
 }
 
-._rightPaneResizer_1mbr3_110 {
+._rightPaneResizer_t7oq7_109 {
   position: absolute;
   left: -3px;
   top: 0;
@@ -19906,12 +19922,12 @@ a._citationLink_1ggvf_9:hover {
   transition: background-color 120ms ease;
 }
 
-._rightPaneResizer_1mbr3_110:hover,
-._rightPaneResizer_1mbr3_110:active {
+._rightPaneResizer_t7oq7_109:hover,
+._rightPaneResizer_t7oq7_109:active {
   background-color: var(--bs-primary-border-subtle);
 }
 
-._rightPaneToggle_1mbr3_129 {
+._rightPaneToggle_t7oq7_128 {
   all: unset;
   cursor: pointer;
   font-size: 0.8em;
@@ -19920,11 +19936,11 @@ a._citationLink_1ggvf_9:hover {
   left: 0.2rem;
 }
 
-._eventsList_1mbr3_138 {
+._eventsList_t7oq7_137 {
   padding-bottom: 1rem;
 }
 
-._sidebarHeader_1mbr3_142 {
+._sidebarHeader_t7oq7_141 {
   display: flex;
   flex-direction: row;
   align-items: center;
@@ -19932,12 +19948,12 @@ a._citationLink_1ggvf_9:hover {
   margin-bottom: 0.3rem;
 }
 
-._sidebarHeaderIcon_1mbr3_150 {
+._sidebarHeaderIcon_t7oq7_149 {
   font-size: 0.9em;
   flex-shrink: 0;
 }
 
-._sidebarHeaderTitle_1mbr3_155 {
+._sidebarHeaderTitle_t7oq7_154 {
   flex: 1;
   min-width: 0;
   font-weight: normal;
@@ -19953,7 +19969,7 @@ a._citationLink_1ggvf_9:hover {
    inside the anchor so it doesn't push surrounding content. z-index sits
    above sibling sticky headers (e.g. SampleScansSidebar's scanner picker
    at z-index: 2) so the close button paints on top. */
-._sidebarHeaderCloseAnchor_1mbr3_171 {
+._sidebarHeaderCloseAnchor_t7oq7_170 {
   position: sticky;
   top: 0;
   height: 0;
@@ -19962,22 +19978,25 @@ a._citationLink_1ggvf_9:hover {
 
 /* In the right pane, extend the anchor into the parent's right padding so
    the button lines up with the existing visual position. */
-._rightPane_1mbr3_32 ._sidebarHeaderCloseAnchor_1mbr3_171 {
+._rightPane_t7oq7_32 ._sidebarHeaderCloseAnchor_t7oq7_170 {
   margin-right: -1.2rem;
 }
 
-._sidebarHeaderClose_1mbr3_171 {
+/* Center the close icon vertically with the rootHeader title that follows
+   in the scroll content. The title (text-size-smaller) sits at the top of
+   that content; this offset aligns the icon's visual center with the title's. */
+._sidebarHeaderClose_t7oq7_170 {
   all: unset;
   cursor: pointer;
   font-size: 0.9em;
   padding: 0.2rem 0.4rem;
   position: absolute;
-  top: 0;
+  top: -0.25em;
   right: 0;
   background-color: var(--bs-body-bg);
 }
 
-._sidebarHeaderClose_1mbr3_171:hover {
+._sidebarHeaderClose_t7oq7_170:hover {
   opacity: 0.7;
 }
 ._headline_1l22a_1 {
@@ -20121,6 +20140,124 @@ a._citationLink_1ggvf_9:hover {
   flex: 1 1 auto;
   min-width: 300px;
   width: fit-content;
+}
+._wrap_fjhll_1 {
+  position: relative;
+  display: inline-flex;
+}
+
+._chip_fjhll_6 {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px 2px 6px;
+  background: var(--bs-secondary-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--bs-secondary-color);
+  text-transform: none;
+  line-height: 1;
+}
+
+._chip_fjhll_6:hover,
+._chipOpen_fjhll_25 {
+  background: var(--bs-tertiary-bg);
+  color: var(--bs-body-color);
+}
+
+._chipText_fjhll_30 {
+  font-weight: 500;
+  padding-right: 0.5rem;
+}
+
+._chipIcon_fjhll_35 {
+  font-size: 11px;
+  line-height: 1;
+}
+
+._chipChevron_fjhll_40 {
+  font-size: 9px;
+  line-height: 1;
+}
+
+._backdrop_fjhll_45 {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+}
+
+._menu_fjhll_51 {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 280px;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  padding: 4px;
+  z-index: 11;
+  font-size: 12px;
+}
+
+._item_fjhll_65 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--bs-body-color);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+._item_fjhll_65:hover {
+  background: var(--bs-tertiary-bg);
+}
+
+._itemActive_fjhll_85 {
+  background: var(--bs-secondary-bg);
+}
+
+._itemNum_fjhll_89 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--bs-secondary-bg);
+  color: var(--bs-secondary-color);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+._itemLabel_fjhll_104 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._itemStatus_fjhll_112 {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--bs-secondary-color);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 ._container_1m4t0_1 {
   margin: 0.5em 0 0 0;

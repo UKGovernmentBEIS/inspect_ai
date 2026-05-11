@@ -10,7 +10,12 @@ from inspect_ai.tool import Tool, ToolDef, ToolInfo, ToolSource
 
 from .._call_tools import get_tools_info, resolve_tools
 from .._chat_message import ChatMessage, ChatMessageAssistant, ChatMessageUser
-from .._model import REDACTED_REASONING_TOKENS_METADATA_KEY, Model, get_model
+from .._model import (
+    REDACTED_REASONING_TOKENS_METADATA_KEY,
+    Model,
+    collapse_consecutive_messages_for_api,
+    get_model,
+)
 from .._model_info import get_model_input_tokens
 from .._model_output import ModelOutput
 from .memory import MEMORY_TOOL, memory_warning_message
@@ -203,7 +208,15 @@ def compaction(
                     # Native compaction: only prepend system messages
                     # (user content is preserved by provider or in compaction block)
                     prepend_prefix = [m for m in prefix if m.role == "system"]
-                c_input = prepend_prefix + c_input
+                pre_collapse_input = prepend_prefix + c_input
+                c_message_was_in_input = c_message is not None and any(
+                    m is c_message for m in pre_collapse_input
+                )
+                c_input = collapse_consecutive_messages_for_api(
+                    pre_collapse_input, target_model.api
+                )
+                if c_message_was_in_input and not any(m is c_message for m in c_input):
+                    c_message = None
 
                 # update input
                 compacted_input.clear()

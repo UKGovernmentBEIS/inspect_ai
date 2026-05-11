@@ -15,7 +15,7 @@
             "type": "number"
           },
           "max": {
-            "default": 200,
+            "default": 100,
             "title": "Max",
             "type": "integer"
           },
@@ -4479,6 +4479,9 @@
                 "type": "boolean"
               },
               {
+                "type": "integer"
+              },
+              {
                 "$ref": "#/components/schemas/AdaptiveConcurrency"
               },
               {
@@ -6444,6 +6447,33 @@
         "title": "OutlineNode",
         "type": "object"
       },
+      "PendingSampleUrls": {
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentRef"
+            },
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "segments",
+          "complete",
+          "has_more"
+        ],
+        "title": "PendingSampleUrls",
+        "type": "object"
+      },
       "ProvenanceData": {
         "description": "Metadata about who made an edit and why.",
         "properties": {
@@ -7939,6 +7969,35 @@
           "intermediate"
         ],
         "title": "ScoreEvent",
+        "type": "object"
+      },
+      "SegmentRef": {
+        "properties": {
+          "direct_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direct Url"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "member_name": {
+            "title": "Member Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "member_name"
+        ],
+        "title": "SegmentRef",
         "type": "object"
       },
       "SpanBeginEvent": {
@@ -10155,6 +10214,143 @@
           }
         },
         "summary": "Api Sample Events"
+      }
+    },
+    "/pending-sample-data-urls": {
+      "get": {
+        "operationId": "api_pending_sample_data_urls_pending_sample_data_urls_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "epoch",
+            "required": true,
+            "schema": {
+              "title": "Epoch",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-attachment-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Attachment-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-message-pool-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Message-Pool-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-call-pool-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Call-Pool-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max-segments",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max-Segments"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tail",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Tail",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingSampleUrls"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Pending Sample Data Urls"
       }
     },
     "/pending-samples": {

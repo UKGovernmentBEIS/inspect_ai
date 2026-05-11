@@ -112,7 +112,7 @@ class TestOpenrouterReasoningDetailsToReasoning:
 
     def test_empty_list_logs_warning(self):
         """Empty reasoning_details list logs warning and returns raw JSON."""
-        with patch("inspect_ai.model._providers.openrouter.logger") as mock_logger:
+        with patch("inspect_ai.model._openrouter_reasoning.logger") as mock_logger:
             details = []
             result = openrouter_reasoning_details_to_reasoning(details)
 
@@ -123,7 +123,7 @@ class TestOpenrouterReasoningDetailsToReasoning:
 
     def test_invalid_format_logs_warning(self):
         """Invalid/malformed data logs warning and returns raw JSON."""
-        with patch("inspect_ai.model._providers.openrouter.logger") as mock_logger:
+        with patch("inspect_ai.model._openrouter_reasoning.logger") as mock_logger:
             details = [{"type": "unknown.type", "foo": "bar"}]
             result = openrouter_reasoning_details_to_reasoning(details)
 

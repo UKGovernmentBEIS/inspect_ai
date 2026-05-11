@@ -133,6 +133,7 @@ class CacheEntry:
         self.tool_choice = tool_choice
         self.tools = tools
         self.policy = policy
+        self.key = _cache_key(self)
 
 
 def _cache_key(entry: CacheEntry) -> str:
@@ -197,7 +198,7 @@ def cache_store(
     output: ModelOutput,
 ) -> bool:
     """Cache a value in the cache directory."""
-    filename = cache_path(model=entry.model) / _cache_key(entry)
+    filename = cache_path(model=entry.model) / entry.key
 
     try:
         filename.parent.mkdir(parents=True, exist_ok=True)
@@ -214,7 +215,7 @@ def cache_store(
 
 def cache_fetch(entry: CacheEntry) -> ModelOutput | None:
     """Fetch a value from the cache directory."""
-    filename = cache_path(model=entry.model) / _cache_key(entry)
+    filename = cache_path(model=entry.model) / entry.key
     try:
         trace("Fetching from cache: %s", filename)
 

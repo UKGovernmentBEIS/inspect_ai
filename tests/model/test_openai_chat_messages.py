@@ -65,6 +65,31 @@ async def test_assistant_message_with_smuggled_tags():
             assert "<think" not in c.text
 
 
+async def test_assistant_message_with_openrouter_reasoning_details():
+    messages = [
+        DummyMessage("assistant", content="assistant output"),
+    ]
+    messages[0]["reasoning_details"] = [
+        {
+            "type": "reasoning.text",
+            "text": "visible reasoning",
+            "format": "unknown",
+            "index": 0,
+        }
+    ]
+
+    chat_msgs = await messages_from_openai(messages)
+
+    assert len(chat_msgs) == 1
+    msg = chat_msgs[0]
+    assert isinstance(msg.content, list)
+    assert isinstance(msg.content[0], ContentReasoning)
+    assert msg.content[0].reasoning == "visible reasoning"
+    assert "reasoning.text" not in msg.content[0].reasoning
+    assert isinstance(msg.content[1], ContentText)
+    assert msg.content[1].text == "assistant output"
+
+
 async def test_user_message_passthrough():
     # User message should be passed through unchanged
     user_content = "user says hello"
