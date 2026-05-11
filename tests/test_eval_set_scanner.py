@@ -146,6 +146,17 @@ def id2_only_scanner():
     return scan
 
 
+@scanner(messages="all", name="active_model_recording_scanner")
+def active_model_recording_scanner():
+    """Records `str(get_model())` so the test can see what model the scanner resolves to for each transcript."""
+    from inspect_ai.model import get_model
+
+    async def scan(transcript: Transcript) -> Result:
+        return Result(value=str(get_model()))
+
+    return scan
+
+
 # --- helpers ----------------------------------------------------------------
 
 
@@ -1839,44 +1850,6 @@ def test_tags_and_metadata_written_to_scan_spec() -> None:
             assert spec["metadata"][key] == value
 
 
-def test_llm_scanner_inherits_eval_set_model_when_unspecified() -> None:
-    """Scanner falls back to the eval's active model when no scan-side model is set.
-
-    With no `ScanJob`/`ScanJobConfig` (just a list of scanners), there's
-    nothing for `_install_scan_model_context` to override, so the
-    scanner's `get_model()` resolves to whichever model
-    `eval_set(model=...)` installed via inspect_ai's model context.
-    Using mockllm here — which can't produce parseable boolean answers —
-    so `results == 0`; the point is to confirm the model was reachable
-    (`tokens > 0` and `mockllm/model` in `model_usage`).
-    """
-    from inspect_scout import llm_scanner
-
-    scanner_fn = llm_scanner(question="Did anything notable happen?", answer="boolean")
-
-    with tempfile.TemporaryDirectory() as log_dir:
-        eval_set(
-            tasks=_task(2),
-            log_dir=log_dir,
-            scanner=[scanner_fn],
-            model="mockllm/model",
-            retry_attempts=0,
-            display="none",
-        )
-
-        scan_dir = _scan_dir(log_dir)
-        summary = _read_summary(scan_dir)
-        assert len(summary["scanners"]) == 1
-        ss = next(iter(summary["scanners"].values()))
-        assert ss["scans"] >= 2
-        # mockllm responded — non-zero token usage proves a model was
-        # available to the scanner via the inspect_ai context.
-        assert ss["tokens"] > 0
-        assert "mockllm/model" in ss["model_usage"]
-        # but no parseable boolean answer → no usable results.
-        assert ss["results"] == 0
-
-
 def test_install_scan_model_context_forwards_all_model_kwargs() -> None:
     """All model-related ScanJob fields are forwarded to scout.
 
@@ -2066,41 +2039,148 @@ def test_eval_and_scan_model_usage_are_partitioned() -> None:
     assert ss["tokens"] == scan_usage["total_tokens"]
 
 
-def test_llm_scanner_inherits_task_model_when_eval_set_model_omitted() -> None:
-    """Scanner picks up the task's model when eval_set's model is omitted.
+def test_llm_scanner_fails_eval_when_no_scanner_model_configured() -> None:
+    """`llm_scanner` brings down the eval when no scan-side model is set.
 
-    Same fallback as above, but the model lives on `Task(model=...)`
-    instead of `eval_set(model=...)`. Inspect_ai's per-task model
-    populates the model context for the task's samples, and the
-    scanner's `get_model()` returns it.
+    Scout treats `PrerequisiteError` from a scanner as scan-fatal (see
+    `_scan_one`'s explicit re-raise), so `NoModel.generate()`'s
+    `PrerequisiteError` propagates out of `scan_eval_sample` into the
+    sample, errors the task, and `eval_set` returns `success=False`.
+    The task's model never leaks into the scan-side tracker — silent
+    inheritance is exactly the failure mode we want to prevent.
     """
     from inspect_scout import llm_scanner
 
     scanner_fn = llm_scanner(question="Did anything notable happen?", answer="boolean")
 
+    n = 2
     with tempfile.TemporaryDirectory() as log_dir:
-        # model on the Task; no `model=` on eval_set — the eval-level
-        # default is overridden by the task-level one for any task that
-        # specifies it.
+        # model on the Task; no `model=` on eval_set; no scan-side model
         task = Task(
-            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(2)],
+            dataset=[Sample(input=f"q{i}", target=str(i)) for i in range(n)],
             solver=generate(),
             model="mockllm/model",
         )
-        eval_set(
+        success, logs = eval_set(
             tasks=task,
             log_dir=log_dir,
             scanner=[scanner_fn],
             retry_attempts=0,
             display="none",
         )
+        assert not success
+        # the failure is the missing-scanner-model error, surfaced
+        # through scout's PrerequisiteError fast path and rewrapped
+        # by `_rewrap_no_model_error` with actionable scan-context guidance
+        assert len(logs) == 1
+        assert logs[0].status == "error"
+        assert logs[0].error is not None
+        msg = logs[0].error.message
+        assert "no scan-side model is configured" in msg
+        assert "--scan-model" in msg
+        assert "SCOUT_SCAN_MODEL" in msg
+
+
+def test_scanner_does_not_inherit_per_task_model() -> None:
+    """Scanner never silently inherits the eval's per-task model.
+
+    Without an `EvalScannerConfig.model`,
+    `_install_scan_model_context` is still invoked, so scout's
+    `init_scan_model_context` installs the `NoModel` sentinel when no
+    scan-side model is configured. The scanner's `get_model()` returns
+    `none/none` for every transcript regardless of which task produced
+    it, and any `.generate(...)` call would raise. Scanners that need
+    a model must declare one via `EvalScannerConfig.model` (or
+    `SCOUT_SCAN_MODEL` env var).
+    """
+    n = 2
+    task_a = Task(
+        name="task_a",
+        dataset=[Sample(input=f"a{i}", target=str(i)) for i in range(n)],
+        solver=generate(),
+        model="mockllm/model-a",
+    )
+    task_b = Task(
+        name="task_b",
+        dataset=[Sample(input=f"b{i}", target=str(i)) for i in range(n)],
+        solver=generate(),
+        model="mockllm/model-b",
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=[task_a, task_b],
+            log_dir=log_dir,
+            scanner=[active_model_recording_scanner()],
+            retry_attempts=0,
+            display="none",
+        )
+        assert success
 
         scan_dir = _scan_dir(log_dir)
-        summary = _read_summary(scan_dir)
-        ss = next(iter(summary["scanners"].values()))
-        assert ss["tokens"] > 0
-        assert "mockllm/model" in ss["model_usage"]
-        assert ss["results"] == 0
+        df = (
+            _read_parquet(scan_dir / "active_model_recording_scanner.parquet")
+            .read(columns=["transcript_model", "value"])
+            .to_pandas()
+        )
+
+        # both tasks produced their samples
+        assert set(df["transcript_model"]) == {"mockllm/model-a", "mockllm/model-b"}
+        assert len(df) == 2 * n
+
+        # but on the scan side every row sees the NoModel sentinel —
+        # the per-task model is not silently inherited
+        assert set(df["value"]) == {"none/none"}
+
+
+def test_scanner_uses_configured_scanner_model_for_all_tasks() -> None:
+    """`EvalScannerConfig.model` overrides for every task uniformly.
+
+    Two tasks with distinct per-task models, a scanner config that
+    pins its own `mockllm/scan-model` — every row's scanner-observed
+    model is the configured scan-side model, independent of which
+    task produced the transcript.
+    """
+    from inspect_ai import EvalScannerConfig
+
+    n = 2
+    task_a = Task(
+        name="task_a",
+        dataset=[Sample(input=f"a{i}", target=str(i)) for i in range(n)],
+        solver=generate(),
+        model="mockllm/model-a",
+    )
+    task_b = Task(
+        name="task_b",
+        dataset=[Sample(input=f"b{i}", target=str(i)) for i in range(n)],
+        solver=generate(),
+        model="mockllm/model-b",
+    )
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=[task_a, task_b],
+            log_dir=log_dir,
+            scanner=EvalScannerConfig(
+                scanners=[active_model_recording_scanner()],
+                model="mockllm/scan-model",
+            ),
+            retry_attempts=0,
+            display="none",
+        )
+        assert success
+
+        scan_dir = _scan_dir(log_dir)
+        df = (
+            _read_parquet(scan_dir / "active_model_recording_scanner.parquet")
+            .read(columns=["transcript_model", "value"])
+            .to_pandas()
+        )
+
+        assert set(df["transcript_model"]) == {"mockllm/model-a", "mockllm/model-b"}
+        assert len(df) == 2 * n
+        # scanner-side model is the configured one, not the per-task model
+        assert set(df["value"]) == {"mockllm/scan-model"}
 
 
 def test_scanner_resume_with_changed_scanner_set_fails_loudly() -> None:
@@ -3109,10 +3189,11 @@ def hello_task() -> Task:
 def test_max_connections_caps_eval_plus_scanner_when_model_is_shared() -> None:
     """`max_connections` caps total in-flight calls across eval + scanner.
 
-    When the scanner inherits the eval's model (no `model` field on the
-    config), both sides reach the same `ModelAPI`. Inspect's connection
-    semaphore is keyed by `connection_key()`, so a single semaphore
-    governs both — `max_connections` should bound the *combined* peak.
+    When the scanner is configured with the same model as the eval (via
+    `EvalScannerConfig.model`), both sides reach the same `ModelAPI`.
+    Inspect's connection semaphore is keyed by `connection_key()`, so a
+    single semaphore governs both — `max_connections` should bound the
+    *combined* peak.
 
     Approach: register a tracking `ModelAPI` whose `generate` increments
     a counter on entry, sleeps briefly so other tasks can pile up, then
@@ -3186,6 +3267,8 @@ def test_max_connections_caps_eval_plus_scanner_when_model_is_shared() -> None:
 
         return scan
 
+    from inspect_ai import EvalScannerConfig
+
     n_samples = 8
     max_conn = 2
     try:
@@ -3193,7 +3276,13 @@ def test_max_connections_caps_eval_plus_scanner_when_model_is_shared() -> None:
             success, _ = eval_set(
                 tasks=_task(n_samples),
                 log_dir=log_dir,
-                scanner=[generate_calling_scanner()],
+                # same model on both sides so they share the connection
+                # semaphore — scanner no longer inherits the eval model
+                # implicitly, must be passed explicitly
+                scanner=EvalScannerConfig(
+                    scanners=[generate_calling_scanner()],
+                    model="trackapi/test",
+                ),
                 model="trackapi/test",
                 max_connections=max_conn,
                 # let many samples run at once so the cap (not the

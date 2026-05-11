@@ -297,6 +297,7 @@ async def scan_eval_sample(
     transcript = _transcript(eval_sample, info=info)
 
     from inspect_ai._eval.task.scan_display import push_results
+    from inspect_ai._util.error import PrerequisiteError
 
     for name, scanner_fn in scanners_dict.items():
         job = ScannerJob(
@@ -304,7 +305,10 @@ async def scan_eval_sample(
             scanner=scanner_fn,
             scanner_name=name,
         )
-        reports = await _scan_one(job)
+        try:
+            reports = await _scan_one(job)
+        except PrerequisiteError as e:
+            raise _rewrap_no_model_error(name, e) from None
         recorder = FileRecorder()
         await recorder.attach(scan_dir, concurrent_writers=True)
         await recorder.record(info, name, reports, metrics=None)
@@ -803,38 +807,60 @@ def _normalize_metadata(scanner: "EvalScanners | None") -> "dict[str, Any] | Non
 
 
 def _install_scan_model_context(scanner: "EvalScanners | None") -> None:
-    """Install scout's scan-time model context for this sample, if set.
+    """Install scout's scan-time model context for this sample.
 
-    When `EvalScannerConfig` carries `model` (or related
-    `model_base_url` / `model_args` / `generate_config` / `model_roles`),
-    call scout's `init_scan_model_context` so the scanner's
-    `get_model()` resolves to the scan-side model rather than the eval's
-    active model. The override lives on the per-sample async context —
-    each sample inherits a fresh copy of the task's context, so setting
-    it here does not leak to other samples or back into the eval's
-    solver path. (The eval's `model_usage` for this sample is already
-    snapshotted into `EvalSample` before `scan_eval_sample` is called.)
-    No-op when nothing's set, so the scanner inherits the eval's model.
+    Always invokes scout's `init_scan_model_context` so the scanner's
+    `get_model()` is detached from the eval's active model. Scout's
+    resolution chain is: kwargs > `SCOUT_SCAN_MODEL` env var > `NoModel`
+    sentinel (which raises `PrerequisiteError` on use). Forcing this
+    detachment is intentional: scanners often need a different model
+    from the eval, and silently inheriting the eval's model has caused
+    expensive surprises. Scanners that never call `get_model()` are
+    unaffected.
+
+    The override lives on the per-sample async context — each sample
+    inherits a fresh copy of the task's context, so setting it here
+    does not leak to other samples or back into the eval's solver path.
+    (The eval's `model_usage` for this sample is already snapshotted
+    into `EvalSample` before `scan_eval_sample` is called.)
     """
     from inspect_scout._scan import init_scan_model_context
 
-    if not isinstance(scanner, EvalScannerConfig):
-        return
-
     kwargs: dict[str, Any] = {}
-    if scanner.model is not None:
-        kwargs["model"] = scanner.model
-    if scanner.generate_config is not None:
-        kwargs["model_config"] = scanner.generate_config
-    if scanner.model_base_url is not None:
-        kwargs["model_base_url"] = scanner.model_base_url
-    if scanner.model_args is not None:
-        kwargs["model_args"] = scanner.model_args
-    if scanner.model_roles is not None:
-        kwargs["model_roles"] = scanner.model_roles
+    if isinstance(scanner, EvalScannerConfig):
+        if scanner.model is not None:
+            kwargs["model"] = scanner.model
+        if scanner.generate_config is not None:
+            kwargs["model_config"] = scanner.generate_config
+        if scanner.model_base_url is not None:
+            kwargs["model_base_url"] = scanner.model_base_url
+        if scanner.model_args is not None:
+            kwargs["model_args"] = scanner.model_args
+        if scanner.model_roles is not None:
+            kwargs["model_roles"] = scanner.model_roles
 
-    if kwargs:
-        init_scan_model_context(**kwargs)
+    init_scan_model_context(**kwargs)
+
+
+def _rewrap_no_model_error(scanner_name: str, error: Exception) -> Exception:
+    """Replace scout's generic `NoModel` error with actionable scan-context guidance.
+
+    `NoModel.generate()` raises a `PrerequisiteError` whose message
+    ("No model specified ...") doesn't tell the user that this is about
+    the *scan-side* model. Surface a clearer message pointing at the
+    knobs they can set; for any other `PrerequisiteError`, return it
+    unchanged so the caller re-raises as-is.
+    """
+    from inspect_ai._util.error import PrerequisiteError
+
+    if "No model specified" in str(error):
+        return PrerequisiteError(
+            f"Scanner '{scanner_name}' tried to use a model but no "
+            "scan-side model is configured. Set one via "
+            "`EvalScannerConfig(model=...)`, the CLI flag `--scan-model`, "
+            "or the `SCOUT_SCAN_MODEL` environment variable."
+        )
+    return error
 
 
 def _verify_scanner_config_unchanged(
