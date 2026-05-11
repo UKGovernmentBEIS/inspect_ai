@@ -1,6 +1,15 @@
 ## Unreleased
 
+- SageMaker: Add `prompt_logprobs` support in chat mode via `GenerateConfig`, parse prompt logprobs from completion mode responses, enabling `perplexity()` and `target_perplexity()` scorers end-to-end.
+- Model API: `--adaptive-connections` is now enabled by default (defaults to 100 per model connection).
+- Model API: Cache lookup of openai and anthropic packages at sample initialization.
+- Model API: Remove semaphore around calls to `count_tokens()` (they are already retried and gated by `max_samples`).
+- Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
+- Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
 - Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
+- Memory: Log condensing no longer retains unchanged JSON copies in long evals.
+- Memory: Don't retain message lists in buffer DB (memory leak on long agentic samples).
+- Bugfix: Ensure that models don't share GenerateConfig instance via default get_model argument.
 
 ## 0.3.220 (08 May 2026)
 
