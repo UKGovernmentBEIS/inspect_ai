@@ -29,8 +29,8 @@ from inspect_ai.log._file import (
     eval_log_json,
     is_log_file,
     list_eval_logs,
-    log_file_info,
-    log_files_from_ls,
+    log_file_info_async,
+    log_files_from_ls_async,
     read_eval_log_async,
 )
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
@@ -493,8 +493,9 @@ async def list_eval_logs_async(
                         await async_fs._ls(log_dir, detail=True),
                     )
                 logs = [fs._file_info(file) for file in files]
-                # resolve to eval logs
-                return log_files_from_ls(logs, formats, descending)
+                # resolve to eval logs (async fan-out so header reads on
+                # non-conforming filenames don't block the event loop)
+                return await log_files_from_ls_async(logs, formats, descending)
             else:
                 return []
     else:
@@ -534,7 +535,7 @@ async def eval_log_info_async(
     fs = filesystem(log_file, fs_options)
     if fs.exists(log_file):
         info = fs.info(log_file)
-        return log_file_info(info)
+        return await log_file_info_async(info)
     else:
         return None
 

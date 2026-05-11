@@ -13,7 +13,11 @@ import os
 import zipfile
 
 from inspect_ai._util.file import FileInfo
-from inspect_ai.log._file import log_file_info
+from inspect_ai.log._file import (
+    log_file_info,
+    log_file_info_async,
+    log_files_from_ls_async,
+)
 
 
 def _make_fileinfo(path: str, size: int = 1000) -> FileInfo:
@@ -93,9 +97,7 @@ class TestLogFileInfoNativeParse:
 
     def test_standard_three_part_filename(self):
         """Native filename {timestamp}_{task}_{id}.eval parses correctly."""
-        info = _make_fileinfo(
-            "/logs/2026-03-15T11-51-45_g2a-simlex999_abc123.eval"
-        )
+        info = _make_fileinfo("/logs/2026-03-15T11-51-45_g2a-simlex999_abc123.eval")
         result = log_file_info(info)
         assert result.task == "g2a-simlex999"
         assert result.task_id == "abc123"
@@ -109,20 +111,14 @@ class TestLogFileInfoNativeParse:
 
     def test_four_part_filename_with_model(self):
         """Legacy filename {timestamp}_{task}_{model}_{id}.eval parses correctly."""
-        info = _make_fileinfo(
-            "/logs/2026-03-15T11-51-45_mytask_mymodel_abc123.eval"
-        )
+        info = _make_fileinfo("/logs/2026-03-15T11-51-45_mytask_mymodel_abc123.eval")
         result = log_file_info(info)
         assert result.task == "mytask"
         assert result.task_id == "abc123"
 
 
 class TestLogFileInfoHeaderFallback:
-    """TDD Red Phase: tests for the fallback path.
-
-    Custom filenames (no ISO timestamp prefix) should trigger header reading.
-    These tests FAIL on current code and PASS after implementation.
-    """
+    """Custom filenames (no ISO timestamp prefix) trigger header reading."""
 
     def test_custom_filename_reads_header(self, tmp_path):
         """Non-standard filename triggers header.json read for task/task_id."""
@@ -195,9 +191,7 @@ class TestListEvalLogsIntegration:
         from inspect_ai.log import list_eval_logs
 
         # Create a native-named eval (timestamp prefix -> fast path)
-        native_header = _make_full_header(
-            task="native_task", task_id="nativeid"
-        )
+        native_header = _make_full_header(task="native_task", task_id="nativeid")
         _make_eval_zip(
             str(tmp_path / "2026-01-01T00-00-00_nativetask_nativeid.eval"),
             native_header,
@@ -224,3 +218,61 @@ class TestListEvalLogsIntegration:
         custom = by_name["my_custom_eval.eval"]
         assert custom.task == "custom_task"
         assert custom.task_id == "custom_id"
+
+
+class TestLogFileInfoAsync:
+    """Async variants: same behavior, no event-loop blocking on header reads."""
+
+    async def test_async_native_filename_skips_io(self):
+        info = _make_fileinfo("/logs/2026-03-15T11-51-45_g2a-simlex999_abc123.eval")
+        result = await log_file_info_async(info)
+        assert result.task == "g2a-simlex999"
+        assert result.task_id == "abc123"
+
+    async def test_async_custom_filename_reads_header(self, tmp_path):
+        header = _make_full_header(task="async_task", task_id="async_id")
+        eval_path = tmp_path / "no_timestamp_here.eval"
+        _make_eval_zip(str(eval_path), header)
+
+        info = _make_fileinfo(str(eval_path), size=os.path.getsize(eval_path))
+        result = await log_file_info_async(info)
+        assert result.task == "async_task"
+        assert result.task_id == "async_id"
+
+    async def test_async_corrupt_degrades_gracefully(self, tmp_path):
+        bad_path = tmp_path / "bad_async.eval"
+        bad_path.write_bytes(b"this is not a zip file")
+
+        info = _make_fileinfo(str(bad_path), size=22)
+        result = await log_file_info_async(info)
+        assert result.task == ""
+        assert result.task_id == ""
+
+
+class TestListEvalLogsAsyncIntegration:
+    """list_eval_logs_async resolves custom filenames via async header fan-out."""
+
+    async def test_mixed_filenames_async(self, tmp_path):
+        from inspect_ai._util.file import filesystem
+
+        native_header = _make_full_header(task="n_task", task_id="n_id")
+        _make_eval_zip(
+            str(tmp_path / "2026-01-01T00-00-00_nativetask_nativeid.eval"),
+            native_header,
+        )
+        custom_header = _make_full_header(task="c_task", task_id="c_id")
+        _make_eval_zip(str(tmp_path / "my_custom_async.eval"), custom_header)
+
+        fs = filesystem(str(tmp_path))
+        ls = fs.ls(str(tmp_path), recursive=False)
+        logs = await log_files_from_ls_async(ls)
+        assert len(logs) == 2
+
+        by_name = {os.path.basename(log.name): log for log in logs}
+        native = by_name["2026-01-01T00-00-00_nativetask_nativeid.eval"]
+        assert native.task == "nativetask"
+        assert native.task_id == "nativeid"
+
+        custom = by_name["my_custom_async.eval"]
+        assert custom.task == "c_task"
+        assert custom.task_id == "c_id"
