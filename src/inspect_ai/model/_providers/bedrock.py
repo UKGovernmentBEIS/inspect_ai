@@ -8,7 +8,6 @@ from typing_extensions import override
 
 from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS, NO_CONTENT
-from inspect_ai._util.logger import warn_once
 from inspect_ai._util.content import (
     Content,
     ContentImage,
@@ -17,6 +16,7 @@ from inspect_ai._util.content import (
 )
 from inspect_ai._util.error import PrerequisiteError, pip_dependency_error
 from inspect_ai._util.images import file_as_data
+from inspect_ai._util.logger import warn_once
 from inspect_ai._util.version import verify_required_version
 from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.model._reasoning import reasoning_to_think_tag
