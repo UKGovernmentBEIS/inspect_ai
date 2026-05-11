@@ -12,7 +12,6 @@
 - Datasets: `hf_dataset` retries transient Hugging Face errors (rate limits, timeouts, Hub-unreachable cache misses) up to 3 times (5 in CI) with exponential backoff. Pass `retry=False` to disable.
 - Scoring: Store and aggregate results for cancelled eval runs.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
-- Eval Set: Support for task filtering in CLI invocations via the `-F` option.
 - Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don't implement conditional writes).
 - Eval Log: Make `log_file_info()` robust to non-standard filenames; added `log_file_info_async()` / `log_files_from_ls_async()` so view-server header reads don't block the event loop.
 - Logging: `INSPECT_PY_LOGGER_FORMAT` env var (`rich`/`plain`/`json`) for non-TTY-friendly single-line console logs.
