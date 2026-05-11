@@ -265,6 +265,21 @@ class ComposeService(ComposeModel):
     init: bool | None = Field(default=None)
     """Run an init process inside the container."""
 
+    privileged: bool | None = Field(default=None)
+    """Run the container in privileged mode."""
+
+    shm_size: str | int | None = Field(default=None)
+    """Size of ``/dev/shm`` (e.g. ``1g``, ``256m``, or bytes as int)."""
+
+    ulimits: dict[str, int | dict[str, int]] | None = Field(default=None)
+    """Per-container ulimits (e.g. ``nofile: {soft: 20000, hard: 40000}``)."""
+
+    depends_on: list[str] | dict[str, Any] | None = Field(default=None)
+    """Service startup dependencies. Short (list) or long (dict) form per Compose spec."""
+
+    pull_policy: str | None = Field(default=None)
+    """Image pull policy (e.g. ``always``, ``never``, ``missing``, ``build``)."""
+
     deploy: ComposeDeploy | None = Field(default=None)
     """Deployment configuration including resources."""
 

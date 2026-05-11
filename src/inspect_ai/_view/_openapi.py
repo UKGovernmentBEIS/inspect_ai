@@ -57,11 +57,19 @@ def build_openapi_schema(app: FastAPI) -> dict[str, Any]:
     Returns:
         OpenAPI schema dict with post-processing applied.
     """
-    from fastapi._compat import v2  # type: ignore[attr-defined]
+    import fastapi._compat as fastapi_compat
+    import fastapi.openapi.utils as openapi_utils
     from fastapi.openapi.utils import get_openapi
 
-    # Monkey-patch custom schema generator for nullability-based required semantics
-    v2.GenerateJsonSchema = _CustomJsonSchemaGenerator  # type: ignore
+    # Monkey-patch custom schema generator for nullability-based required semantics.
+    # FastAPI < 0.118 keeps `GenerateJsonSchema` on a `v2` submodule; FastAPI 0.118+
+    # collapsed `_compat` into a single module and the lookup site moved into
+    # `fastapi.openapi.utils` itself, so patch both locations defensively.
+    if hasattr(fastapi_compat, "v2"):
+        setattr(fastapi_compat.v2, "GenerateJsonSchema", _CustomJsonSchemaGenerator)
+    else:
+        setattr(fastapi_compat, "GenerateJsonSchema", _CustomJsonSchemaGenerator)
+    setattr(openapi_utils, "GenerateJsonSchema", _CustomJsonSchemaGenerator)
 
     openapi_schema = get_openapi(
         title=app.title, version=app.version, routes=app.routes
