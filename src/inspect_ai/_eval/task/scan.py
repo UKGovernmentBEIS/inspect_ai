@@ -286,13 +286,19 @@ async def scan_eval_sample(
     from inspect_scout._concurrency.common import ScannerJob
     from inspect_scout._recorder.file import FileRecorder
     from inspect_scout._scan import _scan_one
+    from inspect_scout._transcript.eval_log import (
+        transcript_from_eval_sample,
+        transcript_info_from_eval_sample,
+    )
 
     _install_scan_model_context(scanner)
     scanners_dict = _normalize_scanners(scanner)
-    info = _transcript_info(
-        eval_sample, eval_id=eval_id, model=model, log_location=log_location
+    info = transcript_info_from_eval_sample(
+        eval_sample, eval_id=eval_id, log_location=log_location, model=model
     )
-    transcript = _transcript(eval_sample, info=info)
+    transcript = transcript_from_eval_sample(
+        eval_sample, eval_id=eval_id, log_location=log_location, model=model
+    )
 
     from inspect_ai._eval.task.scan_display import push_results
     from inspect_ai._util.error import PrerequisiteError
@@ -1128,69 +1134,3 @@ def _filter_row(eval_sample: EvalSample, eval_spec: EvalSpec | None) -> dict[str
     sample_row, _ = import_record(log, eval_sample, sample_cols, strict=False)
 
     return {**eval_row, **sample_row}
-
-
-def _transcript_info(
-    eval_sample: EvalSample,
-    *,
-    eval_id: str,
-    model: str | None,
-    log_location: str | None,
-) -> Any:
-    from inspect_scout import TranscriptInfo
-
-    from inspect_ai.analysis._dataframe.samples.extract import auto_sample_id
-
-    # use the same id derivation as inspect_ai's samples_df (which scout's
-    # EvalLogTranscripts reads): `sample.uuid` if present, else a stable
-    # hash of (eval_id, sample.id, sample.epoch). Aligning with that
-    # convention is what lets scout's tooling cross-reference our records
-    # against the same transcripts read out of the eval logs.
-    return TranscriptInfo(
-        transcript_id=eval_sample.uuid or auto_sample_id(eval_id, eval_sample),
-        source_type="eval_sample",
-        source_id=eval_id,
-        source_uri=log_location,
-        date=eval_sample.completed_at or eval_sample.started_at,
-        task_id=str(eval_sample.id),
-        task_repeat=eval_sample.epoch,
-        model=model,
-        score=_score_value(eval_sample),
-        success=_score_success(eval_sample),
-        message_count=len(eval_sample.messages),
-        total_time=eval_sample.total_time,
-        error=eval_sample.error.message if eval_sample.error is not None else None,
-        metadata=dict(eval_sample.metadata),
-    )
-
-
-def _transcript(eval_sample: EvalSample, *, info: Any) -> Any:
-    from inspect_scout import Transcript
-
-    timelines: list[Any] = list(eval_sample.timelines or [])
-    if not timelines and eval_sample.events:
-        from inspect_ai.event import timeline_build
-
-        timelines = [timeline_build(eval_sample.events)]
-
-    return Transcript.model_construct(
-        **info.model_dump(),
-        messages=list(eval_sample.messages),
-        events=list(eval_sample.events),
-        timelines=timelines,
-    )
-
-
-def _score_value(sample: EvalSample) -> Any:
-    if sample.scores and len(sample.scores) == 1:
-        return next(iter(sample.scores.values())).value
-    return None
-
-
-def _score_success(sample: EvalSample) -> bool | None:
-    value = _score_value(sample)
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return value > 0
-    return None
