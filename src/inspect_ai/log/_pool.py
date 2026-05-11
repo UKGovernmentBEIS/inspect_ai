@@ -82,9 +82,8 @@ def condense_model_event_inputs(
     Args:
         events: Events to condense.
         next_index: The pool position assigned to the first new unique
-            message. For callers carrying an existing index this is the
-            current pool length, which equals ``len(msg_index)`` (each
-            entry in the index corresponds to exactly one pool slot).
+            message, typically the current pool length for callers carrying
+            an existing pool.
         msg_index: Existing hash → pool-index map carried forward across
             calls.
 
@@ -184,8 +183,8 @@ def condense_model_event_calls(
     Args:
         events: Events to condense.
         next_index: The pool position assigned to the first new unique
-            call message. For callers carrying an existing index this is
-            the current pool length, which equals ``len(call_index)``.
+            call message, typically the current pool length for callers
+            carrying an existing pool.
         call_index: Existing hash → pool-index map.
 
     Returns:

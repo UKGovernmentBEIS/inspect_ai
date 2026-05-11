@@ -233,13 +233,13 @@ class SampleBufferDatabase(SampleBuffer):
                 (to_json_str_safe(summary), str(summary.id), summary.epoch),
             )
 
-        # SQL UPDATE above casts id to str for the column type, but the
-        # in-memory dict keys preserve the original int|str form to match
-        # the (event.id, event.epoch) keys used in _condense_event.
-        key = (summary.id, summary.epoch)
-        self._msg_indices.pop(key, None)
-        self._call_indices.pop(key, None)
-        self._completed_samples.add(key)
+            # SQL UPDATE above casts id to str for the column type, but the
+            # in-memory dict keys preserve the original int|str form to match
+            # the (event.id, event.epoch) keys used in _condense_event.
+            key = (summary.id, summary.epoch)
+            self._msg_indices.pop(key, None)
+            self._call_indices.pop(key, None)
+            self._completed_samples.add(key)
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         with self._get_connection(write=True) as conn:
