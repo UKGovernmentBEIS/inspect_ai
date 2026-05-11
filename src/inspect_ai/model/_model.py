@@ -1001,16 +1001,7 @@ class Model:
         if extract_types:
             input = tool_result_media_as_user_message(input, tuple(extract_types))
 
-        # optionally collapse *consecutive* messages into one -
-        # (some apis e.g. anthropic require this)
-        if self.api.collapse_user_messages():
-            input = collapse_consecutive_user_messages(input)
-
-        if self.api.collapse_assistant_messages():
-            input = collapse_consecutive_assistant_messages(input)
-
-        if self.api.collapse_system_messages():
-            input = collapse_consecutive_system_messages(input)
+        input = collapse_consecutive_messages_for_api(input, self.api)
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
@@ -1990,6 +1981,23 @@ def maybe_adding_user_message(
 
 
 # Functions to reduce consecutive user messages to a single user message -> required for some models
+def collapse_consecutive_messages_for_api(
+    messages: list[ChatMessage], api: ModelAPI
+) -> list[ChatMessage]:
+    # optionally collapse *consecutive* messages into one -
+    # (some apis e.g. anthropic require this)
+    if api.collapse_user_messages():
+        messages = collapse_consecutive_user_messages(messages)
+
+    if api.collapse_assistant_messages():
+        messages = collapse_consecutive_assistant_messages(messages)
+
+    if api.collapse_system_messages():
+        messages = collapse_consecutive_system_messages(messages)
+
+    return messages
+
+
 def collapse_consecutive_user_messages(
     messages: list[ChatMessage],
 ) -> list[ChatMessage]:
