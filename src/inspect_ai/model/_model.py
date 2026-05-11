@@ -70,7 +70,7 @@ from inspect_ai.tool import Tool, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._remote import is_mcp_server_tool
 from inspect_ai.tool._tool import ToolSource
 from inspect_ai.tool._tool_call import ToolCallModelInputHints
-from inspect_ai.tool._tool_def import ToolDef, tool_defs
+from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import concurrency
 from inspect_ai.util._limit import (
     check_cost_limit,
@@ -82,11 +82,13 @@ from inspect_ai.util._limit import (
 
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
 from ._call_tools import (
+    copy_tools_info,
     disable_parallel_tools,
     execute_tools,
-    get_tools_info,
-    resolve_tools,
+    prepare_tools,
+    snapshot_tools_for_event,
     tool_call_view,
+    tools_info_equal,
 )
 from ._chat_message import (
     ChatMessage,
@@ -936,6 +938,7 @@ class Model:
             emit_before_model_generate,
             emit_model_cache_usage,
             emit_model_usage,
+            get_all_hooks,
         )
         from inspect_ai.hooks._legacy import send_telemetry_legacy
         from inspect_ai.log._refusal import report_refusal
@@ -944,20 +947,13 @@ class Model:
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
 
-        # resolve tools
-        resolved_tools = await resolve_tools(tools)
-
-        # extract tool defs if we can
-        tdefs = await tool_defs(
-            [tool for tool in resolved_tools if not isinstance(tool, ToolInfo)]
-        )
-
-        # resolve all tools into tool_info
-        tools_info = get_tools_info(resolved_tools)
+        prepared_tools = await prepare_tools(tools)
+        tdefs = prepared_tools.tdefs
+        base_tools = prepared_tools.base_tools
 
         # raise error if we don't support remote_mcp and we have an mcp server
         if not self.api.supports_remote_mcp():
-            for tool in tools_info:
+            for tool in base_tools:
                 if is_mcp_server_tool(tool):
                     raise RuntimeError(
                         f"Remote MCP execution is not supported for {self}. "
@@ -966,7 +962,7 @@ class Model:
 
         # if we have a specific tool selected then filter out the others
         if isinstance(tool_choice, ToolFunction):
-            tools_info = [tool for tool in tools_info if tool.name == tool_choice.name]
+            base_tools = [tool for tool in base_tools if tool.name == tool_choice.name]
 
         # if tool_choice is "none" or if there are no tools then fully purge
         # the tools (as some models (e.g. openai and mistral) get confused
@@ -974,11 +970,11 @@ class Model:
         # (they both 'semi' use the tool by placing the arguments in JSON
         # in their output!). on the other hand, anthropic actually errors if
         # there are tools anywhere in the message stream and no tools defined.
-        if tool_choice == "none" or len(tools_info) == 0:
+        if tool_choice == "none" or len(base_tools) == 0:
             # allow model providers to implement a tools_required() method to
             # force tools to be passed (we need this for anthropic)
             if not self.api.tools_required():
-                tools_info = []
+                base_tools = []
             tool_choice = "none"
 
         # handle reasoning history
@@ -1001,23 +997,15 @@ class Model:
         if extract_types:
             input = tool_result_media_as_user_message(input, tuple(extract_types))
 
-        # optionally collapse *consecutive* messages into one -
-        # (some apis e.g. anthropic require this)
-        if self.api.collapse_user_messages():
-            input = collapse_consecutive_user_messages(input)
-
-        if self.api.collapse_assistant_messages():
-            input = collapse_consecutive_assistant_messages(input)
-
-        if self.api.collapse_system_messages():
-            input = collapse_consecutive_system_messages(input)
+        input = collapse_consecutive_messages_for_api(input, self.api)
 
         # resolve cache policy
         if isinstance(cache, NotGiven):
             cache_policy: bool | CachePolicy | None = config.cache
         else:
             cache_policy = cache
-
+        hooks_enabled = any(hook.enabled() for hook in get_all_hooks())
+        cache_mode: Literal["write"] | None = "write" if cache_policy else None
         # track reported waiting time during this generate call
         reported_waiting_time = 0.0
 
@@ -1042,6 +1030,23 @@ class Model:
             # type-checker can't see that we made sure tool_choice is not none in the outer frame
             assert tool_choice is not None
 
+            call_tools = copy_tools_info(base_tools)
+
+            await emit_before_model_generate(
+                model_name=str(self),
+                input=input,
+                tools=call_tools,
+                tool_choice=tool_choice,
+                config=config,
+                cache=cache_mode,
+            )
+
+            event_tools = (
+                snapshot_tools_for_event(call_tools, base_tools)
+                if hooks_enabled and not tools_info_equal(call_tools, base_tools)
+                else base_tools
+            )
+
             cache_entry: CacheEntry | None
             if cache_policy:
                 if isinstance(cache_policy, CachePolicy):
@@ -1056,13 +1061,13 @@ class Model:
                     model=str(self),
                     policy=policy,
                     tool_choice=tool_choice,
-                    tools=tools_info,
+                    tools=event_tools,
                 )
                 existing = cache_fetch(cache_entry)
                 if isinstance(existing, ModelOutput):
                     _, event = self._record_model_interaction(
                         input=input,
-                        tools=tools_info,
+                        tools=event_tools,
                         tool_choice=tool_choice,
                         config=config,
                         cache="read",
@@ -1090,20 +1095,10 @@ class Model:
             # (we'll update it with the results once we have them)
             complete, event = self._record_model_interaction(
                 input=input,
-                tools=tools_info,
+                tools=event_tools,
                 tool_choice=tool_choice,
                 config=config,
-                cache="write" if cache else None,
-            )
-
-            # emit before-generate hook
-            await emit_before_model_generate(
-                model_name=str(self),
-                input=input,
-                tools=tools_info,
-                tool_choice=tool_choice,
-                config=config,
-                cache="write" if cache else None,
+                cache=cache_mode,
             )
 
             # create timeout context manager if we have an attempt timeout
@@ -1121,7 +1116,7 @@ class Model:
                         with timeout_cm:
                             result = await self.api.generate(
                                 input=input,
-                                tools=tools_info,
+                                tools=call_tools,
                                 tool_choice=tool_choice,
                                 config=config,
                             )
@@ -1190,7 +1185,7 @@ class Model:
                     json.dumps(dict(model=str(self), usage=output.usage.model_dump())),
                 )
 
-            if cache and cache_entry:
+            if cache_policy and cache_entry:
                 cache_store(entry=cache_entry, output=output)
 
             return output, event
@@ -1990,6 +1985,23 @@ def maybe_adding_user_message(
 
 
 # Functions to reduce consecutive user messages to a single user message -> required for some models
+def collapse_consecutive_messages_for_api(
+    messages: list[ChatMessage], api: ModelAPI
+) -> list[ChatMessage]:
+    # optionally collapse *consecutive* messages into one -
+    # (some apis e.g. anthropic require this)
+    if api.collapse_user_messages():
+        messages = collapse_consecutive_user_messages(messages)
+
+    if api.collapse_assistant_messages():
+        messages = collapse_consecutive_assistant_messages(messages)
+
+    if api.collapse_system_messages():
+        messages = collapse_consecutive_system_messages(messages)
+
+    return messages
+
+
 def collapse_consecutive_user_messages(
     messages: list[ChatMessage],
 ) -> list[ChatMessage]:

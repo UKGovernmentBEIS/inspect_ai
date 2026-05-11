@@ -102,6 +102,8 @@ def partition_messages(messages: list[ChatMessage]) -> PartitionedMessages:
     for message in messages:
         if message.role == "system":
             partitioned.system.append(message)
+        elif _is_summary_message(message):
+            partitioned.conversation.append(message)
         elif message.source == "input":
             partitioned.input.append(message)
         else:
@@ -109,7 +111,9 @@ def partition_messages(messages: list[ChatMessage]) -> PartitionedMessages:
 
     # if there are no input messages then take up to the first user message
     if len(partitioned.input) == 0:
-        while partitioned.conversation:
+        while partitioned.conversation and not _is_summary_message(
+            partitioned.conversation[0]
+        ):
             message = partitioned.conversation.pop(0)
             partitioned.input.append(message)
             if message.role == "user":
@@ -117,6 +121,10 @@ def partition_messages(messages: list[ChatMessage]) -> PartitionedMessages:
 
     # all done!
     return partitioned
+
+
+def _is_summary_message(message: ChatMessage) -> bool:
+    return "summary" in (message.metadata or {})
 
 
 def strip_citations(messages: list[ChatMessage]) -> list[ChatMessage]:
