@@ -27,6 +27,7 @@ import inspect_ai.log
 import inspect_ai.log._recorders.buffer.filestore
 import inspect_ai.model
 from inspect_ai._view import fastapi_server
+from inspect_ai._view.common import get_direct_url
 from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 from inspect_ai.model._generate_config import GenerateConfig
 
@@ -191,6 +192,27 @@ def _create_sample_buffer(log_path: str) -> None:
     from inspect_ai.log._recorders.buffer.types import EventData, SampleData
 
     buf = SampleBufferFilestore(log_path, create=True)
+    buf.write_segment(
+        0,
+        [
+            SegmentFile(
+                id="sample1",
+                epoch=0,
+                data=SampleData(
+                    events=[
+                        EventData(
+                            id=1,
+                            event_id="evt0",
+                            sample_id="sample1",
+                            epoch=0,
+                            event={"message": "hello"},
+                        )
+                    ],
+                    attachments=[],
+                ),
+            )
+        ],
+    )
     buf.write_manifest(
         Manifest(
             samples=[
@@ -204,21 +226,35 @@ def _create_sample_buffer(log_path: str) -> None:
                     segments=[0],
                 )
             ],
-            segments=[Segment(id=0, last_event_id=0, last_attachment_id=0)],
+            segments=[Segment(id=0, last_event_id=1, last_attachment_id=0)],
         )
     )
+
+
+def _create_sample_buffer_with_id(log_path: str, sample_id: int | str) -> None:
+    """Create a minimal sample buffer that stores `sample_id` as written."""
+    from inspect_ai.log._recorders.buffer.filestore import (
+        Manifest,
+        SampleBufferFilestore,
+        SampleManifest,
+        Segment,
+        SegmentFile,
+    )
+    from inspect_ai.log._recorders.buffer.types import EventData, SampleData
+
+    buf = SampleBufferFilestore(log_path, create=True)
     buf.write_segment(
         0,
         [
             SegmentFile(
-                id="sample1",
+                id=str(sample_id),
                 epoch=0,
                 data=SampleData(
                     events=[
                         EventData(
-                            id=0,
+                            id=1,
                             event_id="evt0",
-                            sample_id="sample1",
+                            sample_id=str(sample_id),
                             epoch=0,
                             event={"message": "hello"},
                         )
@@ -227,6 +263,88 @@ def _create_sample_buffer(log_path: str) -> None:
                 ),
             )
         ],
+    )
+    buf.write_manifest(
+        Manifest(
+            samples=[
+                SampleManifest(
+                    summary=inspect_ai.log.EvalSampleSummary(
+                        id=sample_id,
+                        epoch=0,
+                        input="test input",
+                        target="test target",
+                    ),
+                    segments=[0],
+                )
+            ],
+            segments=[Segment(id=0, last_event_id=1, last_attachment_id=0)],
+        )
+    )
+
+
+def _create_multi_segment_sample_buffer(log_path: str, num_segments: int) -> None:
+    """Create a sample buffer with `num_segments` segments.
+
+    Segment `i` carries `last_event_id = i + 1` (SQL AUTOINCREMENT ids
+    start at 1) and zero entries on the other dimensions. Empty pool
+    dimensions use the writer's `0` sentinel.
+    """
+    from inspect_ai.log._recorders.buffer.filestore import (
+        Manifest,
+        SampleBufferFilestore,
+        SampleManifest,
+        Segment,
+        SegmentFile,
+    )
+    from inspect_ai.log._recorders.buffer.types import EventData, SampleData
+
+    buf = SampleBufferFilestore(log_path, create=True)
+    for i in range(num_segments):
+        buf.write_segment(
+            i,
+            [
+                SegmentFile(
+                    id="sample1",
+                    epoch=0,
+                    data=SampleData(
+                        events=[
+                            EventData(
+                                id=i + 1,
+                                event_id=f"evt{i}",
+                                sample_id="sample1",
+                                epoch=0,
+                                event={"message": f"event {i}"},
+                            )
+                        ],
+                        attachments=[],
+                    ),
+                )
+            ],
+        )
+    buf.write_manifest(
+        Manifest(
+            samples=[
+                SampleManifest(
+                    summary=inspect_ai.log.EvalSampleSummary(
+                        id="sample1",
+                        epoch=0,
+                        input="test input",
+                        target="test target",
+                    ),
+                    segments=list(range(num_segments)),
+                )
+            ],
+            segments=[
+                Segment(
+                    id=i,
+                    last_event_id=i + 1,
+                    last_attachment_id=0,
+                    last_message_pool_id=0,
+                    last_call_pool_id=0,
+                )
+                for i in range(num_segments)
+            ],
+        )
     )
 
 
@@ -262,6 +380,14 @@ def view_client(
         client = FastAPIViewTestClient(tmp_path)
     else:
         client = AioHTTPViewTestClient(tmp_path)
+    yield client
+    client.close()
+
+
+@pytest.fixture
+def fastapi_view_client(tmp_path: Path) -> Generator[ViewTestClient, Any, None]:
+    """FastAPI-only view client using real local paths (no memory:// mapping)."""
+    client = FastAPIViewTestClient(tmp_path)
     yield client
     client.close()
 
@@ -622,8 +748,8 @@ def write_fake_eval_log_buffer(
     segments = [
         inspect_ai.log._recorders.buffer.filestore.Segment(
             id=i,
-            last_event_id=i,
-            last_attachment_id=i,
+            last_event_id=i + 1,
+            last_attachment_id=i + 1,
         )
         for i in range(num_segments)
     ]
@@ -1038,3 +1164,248 @@ def test_log_read_missing_file_returns_404(test_client: TestClient) -> None:
     """Reading a nonexistent log file returns 404."""
     response = test_client.request("GET", "/logs/nonexistent/file.eval")
     assert response.status_code == 404
+
+
+def test_get_direct_url_returns_none_for_local_path(tmp_path: Path) -> None:
+    f = tmp_path / "x.txt"
+    f.write_text("hi")
+    assert asyncio.run(get_direct_url(str(f))) is None
+
+
+def test_get_direct_url_returns_url_for_s3(mock_s3: None) -> None:
+    path = "s3://test-bucket/example.bin"
+    with cast(
+        ContextManager[IO[bytes]],
+        fsspec.open(path, "wb"),
+    ) as f:
+        f.write(b"hi")
+
+    url = asyncio.run(get_direct_url(path))
+    assert url is not None
+    assert url.startswith("http")
+    assert "test-bucket" in url
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# /pending-sample-data-urls tests
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+def test_api_pending_sample_data_urls_no_buffer(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
+        "&id=x&epoch=0",
+    )
+    assert resp.status_code == 404
+
+
+def test_api_pending_sample_data_urls_local_has_null_direct_url(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer(full_path)
+
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
+        "&id=sample1&epoch=0",
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert len(body["segments"]) >= 1
+    for seg in body["segments"]:
+        assert seg["direct_url"] is None
+        assert seg["member_name"] == "sample1_0.json"
+
+
+def test_api_pending_sample_data_urls_prunes_by_cursor(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_multi_segment_sample_buffer(full_path, num_segments=3)
+    # Segments are constructed with last_event_id=i+1 and
+    # last_attachment_id=0, so only segment 2 (last_event_id=3) has any
+    # dimension above the cursors below.
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
+        "&id=sample1&epoch=0"
+        "&last-event-id=2&after-attachment-id=0"
+        "&after-message-pool-id=0&after-call-pool-id=0",
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert [s["id"] for s in body["segments"]] == [2]
+
+
+def test_api_pending_sample_data_urls_has_more_default_false(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer(full_path)
+
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
+        "&id=sample1&epoch=0",
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert body["has_more"] is False
+
+
+def test_api_pending_sample_data_urls_truncates_to_max_segments(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_multi_segment_sample_buffer(full_path, num_segments=3)
+
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
+        "&id=sample1&epoch=0&max-segments=2",
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert [s["id"] for s in body["segments"]] == [0, 1]
+    assert body["has_more"] is True
+
+
+def test_api_pending_sample_data_urls_max_segments_exact_fit(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_multi_segment_sample_buffer(full_path, num_segments=3)
+
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
+        "&id=sample1&epoch=0&max-segments=3",
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert [s["id"] for s in body["segments"]] == [0, 1, 2]
+    assert body["has_more"] is False
+
+
+def test_api_pending_sample_data_urls_numeric_id_stored_as_int(
+    view_client: ViewTestClient,
+) -> None:
+    # Sample.id is `int | str` and round-trips with whichever type was
+    # written; URL params are always str. The handler must match either.
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer_with_id(full_path, sample_id=42)
+
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
+        "&id=42&epoch=0",
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert len(body["segments"]) == 1
+    assert body["segments"][0]["member_name"] == "42_0.json"
+
+
+def test_api_pending_sample_data_urls_numeric_id_stored_as_str(
+    view_client: ViewTestClient,
+) -> None:
+    # Counterpart of the int case: when Sample.id was constructed from a
+    # numeric string, the manifest stores `"0"`. A naive `int(id)` coercion
+    # would miss this and 404, sending the client to the slow proxy path.
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_sample_buffer_with_id(full_path, sample_id="0")
+
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
+        "&id=0&epoch=0",
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert len(body["segments"]) == 1
+    assert body["segments"][0]["member_name"] == "0_0.json"
+
+
+def test_api_pending_sample_data_urls_tail_returns_last_n(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_multi_segment_sample_buffer(full_path, num_segments=5)
+
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
+        "&id=sample1&epoch=0&tail=true&max-segments=2",
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert [s["id"] for s in body["segments"]] == [3, 4]
+    assert body["has_more"] is False
+
+
+def test_api_pending_sample_data_urls_tail_without_cap_returns_all(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    _create_multi_segment_sample_buffer(full_path, num_segments=3)
+
+    resp = view_client.request(
+        "GET",
+        f"/pending-sample-data-urls?log={urllib.parse.quote_plus(full_path)}"
+        "&id=sample1&epoch=0&tail=true",
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert [s["id"] for s in body["segments"]] == [0, 1, 2]
+    assert body["has_more"] is False
+
+
+def test_api_pending_sample_data_urls_s3_populates_direct_url(
+    mock_s3: None, tmp_path: Path
+) -> None:
+    s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_task_taskid.eval"
+    eval_log = inspect_ai.log.EvalLog(
+        eval=inspect_ai.log.EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="task",
+            task_id="task_id",
+            dataset=inspect_ai.log.EvalDataset(),
+            model="model",
+            config=inspect_ai.log.EvalConfig(),
+        )
+    )
+    inspect_ai.log.write_eval_log(eval_log, s3_log, "eval")
+    _create_sample_buffer(s3_log)
+
+    client = FastAPIViewTestClient(tmp_path)
+    try:
+        resp = client.request(
+            "GET",
+            f"/pending-sample-data-urls?log={urllib.parse.quote_plus(s3_log)}"
+            "&id=sample1&epoch=0",
+        )
+        resp.raise_for_status()
+        body = resp.json()
+    finally:
+        client.close()
+
+    assert len(body["segments"]) == 1
+    direct_url = body["segments"][0]["direct_url"]
+    assert direct_url is not None
+    assert direct_url.startswith("http")
+    assert "test-bucket" in direct_url

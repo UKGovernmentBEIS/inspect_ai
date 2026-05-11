@@ -21,6 +21,15 @@ DEFAULT_RETRY_DELAY = 5
 DEFAULT_TIMEOUT = 60 * 10  # fairly conservative default timeout of 10 minutes
 
 
+def _server_arg_to_cli_key(key: str) -> str:
+    """Convert a Python-style server arg key to a CLI flag key."""
+    if "." not in key:
+        return key.replace("_", "-")
+
+    top_level, *nested = key.split(".")
+    return ".".join([top_level.replace("_", "-"), *nested])
+
+
 def reserve_port(
     host: str, start: int = 30000, end: int = 40000
 ) -> Tuple[int, socket.socket]:
@@ -309,7 +318,7 @@ def start_local_server(
     if server_args:
         for key, value in server_args.items():
             # Convert Python style args (underscore) to CLI style (dash)
-            cli_key = key.replace("_", "-")
+            cli_key = _server_arg_to_cli_key(key)
             if isinstance(value, bool):
                 if value:
                     full_command.append(f"--{cli_key}")
