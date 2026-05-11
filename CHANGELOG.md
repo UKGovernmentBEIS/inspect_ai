@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
+- VLLM: Preserve dotted vLLM server arg keys.
 - SageMaker: Add `prompt_logprobs` support in chat mode via `GenerateConfig`, parse prompt logprobs from completion mode responses, enabling `perplexity()` and `target_perplexity()` scorers end-to-end.
 - Model API: `--adaptive-connections` is now enabled by default (defaults to 100 per model connection).
 - Model API: Cache lookup of openai and anthropic packages at sample initialization.
