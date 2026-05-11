@@ -272,6 +272,13 @@ def _patch_restic(tmp_path: Path) -> Iterator[None]:
         yield
 
 
+@contextmanager
+def _patch_prevent_use_off() -> Iterator[None]:
+    """Disable the WIP `prevent_use` kill switch so `build_impl()` runs its real path."""
+    with patch("inspect_ai.util._checkpoint.checkpointer_impl.prevent_use", False):
+        yield
+
+
 @pytest.fixture
 def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
     """Active sample fixture; redirects on-disk writes under tmp_path."""
@@ -282,6 +289,7 @@ def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
         _patch_cache_dir(tmp_path),
         _patch_restic(tmp_path),
         _patch_sample_runtime(),
+        _patch_prevent_use_off(),
     ):
         yield fake
 
