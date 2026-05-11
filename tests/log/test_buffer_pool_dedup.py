@@ -301,8 +301,7 @@ def test_buffer_pool_refs_resolve_correctly(db: SampleBufferDatabase) -> None:
     db.log_events(
         [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_a, msg_b]))]
     )
-    # Turn 3: [C, A, B] -- non-monotonic ordering forces refs to be resolved
-    # by index, not by reproducing the input position
+    # Turn 3: [C, A, B] verifies refs resolve by pool index.
     db.log_events(
         [SampleEvent(id="s1", epoch=1, event=_make_model_event([msg_c, msg_a, msg_b]))]
     )

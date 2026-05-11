@@ -165,18 +165,11 @@ class SampleBufferDatabase(SampleBuffer):
             else:
                 raise FileNotFoundError("Log database for '{location}' not found.")
 
-        # Per-sample hash → pool index map for message/call dedup.
-        # The full pool entries live in SQLite (message_pool / call_pool
-        # tables); these in-memory dicts only carry the index map needed
-        # to assign positions to new unique entries during the lifetime
-        # of the sample. Cleared in remove_samples and complete_sample.
+        # Per-sample hash → pool index maps; full pool entries live in SQLite.
         self._msg_indices: dict[tuple[str | int, int], dict[str, int]] = {}
         self._call_indices: dict[tuple[str | int, int], dict[str, int]] = {}
 
-        # Tombstone for samples that completed and had their indices
-        # popped. _condense_event must not run for a key in this set: a
-        # late ModelEvent would silently restart the index at 0 and
-        # corrupt the SQLite-backed pool. Cleared in remove_samples.
+        # Prevent late ModelEvents from restarting indices at 0 after completion.
         self._completed_samples: set[tuple[str | int, int]] = set()
 
         # create sync filestore if log_shared
@@ -233,9 +226,6 @@ class SampleBufferDatabase(SampleBuffer):
                 (to_json_str_safe(summary), str(summary.id), summary.epoch),
             )
 
-            # SQL UPDATE above casts id to str for the column type, but the
-            # in-memory dict keys preserve the original int|str form to match
-            # the (event.id, event.epoch) keys used in _condense_event.
             key = (summary.id, summary.epoch)
             self._msg_indices.pop(key, None)
             self._call_indices.pop(key, None)
@@ -257,7 +247,7 @@ class SampleBufferDatabase(SampleBuffer):
         if len(samples) == 0:
             return
 
-        # clear in-memory index state
+        # clear in-memory state
         for key in samples:
             self._msg_indices.pop(key, None)
             self._call_indices.pop(key, None)

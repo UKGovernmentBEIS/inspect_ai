@@ -188,10 +188,6 @@ def _write_sample_streaming(
                     ]
 
                     # Pool dedup (carrying state across segments).
-                    # message_pool / call_pool are mutated in place via
-                    # extend(); they're loop-local list[ChatMessage] /
-                    # list[JsonValue] declared above the loop and consumed
-                    # once after the loop to build EventsData.
                     condensed, msg_index, new_msgs = condense_model_event_inputs(
                         condensed, len(message_pool), msg_index
                     )
