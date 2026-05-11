@@ -76,6 +76,9 @@ from inspect_ai.model._model_output import (
     Logprobs,
     TopLogprob,
 )
+from inspect_ai.model._openrouter_reasoning import (
+    openrouter_reasoning_details_to_reasoning,
+)
 from inspect_ai.model._reasoning import (
     parse_content_with_reasoning,
     reasoning_to_think_tag,
@@ -541,9 +544,8 @@ async def messages_from_openai(
             # other sources
             parse_result = parse_reasoning_content(message)
             if parse_result is not None:
-                reasoning: ContentReasoning | None = ContentReasoning(
-                    internal=parse_result[0].source,
-                    reasoning=str(parse_result[0].reasoning),
+                reasoning: ContentReasoning | None = (
+                    content_reasoning_from_openai_reasoning(parse_result[0])
                 )
             else:
                 reasoning = None
@@ -708,6 +710,22 @@ class CompletionsReasoningContent:
     reasoning: JsonValue
 
 
+def content_reasoning_from_openai_reasoning(
+    reasoning_content: CompletionsReasoningContent,
+) -> ContentReasoning:
+    if reasoning_content.source == "reasoning_details" and isinstance(
+        reasoning_content.reasoning, list
+    ):
+        return openrouter_reasoning_details_to_reasoning(
+            cast(list[dict[str, Any]], reasoning_content.reasoning)
+        )
+
+    return ContentReasoning(
+        reasoning=str(reasoning_content.reasoning),
+        internal=reasoning_content.source,
+    )
+
+
 ReasoningExtractor: TypeAlias = Callable[
     [CompletionsReasoningContent], ContentReasoning | None
 ]
@@ -731,10 +749,7 @@ def chat_message_assistant_from_openai(
         if reasoning_extractor is not None:
             reasoning = reasoning_extractor(reasoning_content)
         if reasoning is None:
-            reasoning = ContentReasoning(
-                reasoning=str(reasoning_content.reasoning),
-                internal=reasoning_content.source,
-            )
+            reasoning = content_reasoning_from_openai_reasoning(reasoning_content)
 
         content: str | list[Content] = [
             reasoning,
@@ -764,9 +779,17 @@ def parse_reasoning_content(
         list[CompletionsReasoningSource],
         ["reasoning_details", "reasoning_content", "reasoning"],
     ):
-        reasoning = getattr(message, source, None)
+        if isinstance(message, dict):
+            reasoning = message.get(source, None)
+        else:
+            reasoning = getattr(message, source, None)
         if reasoning:
-            return CompletionsReasoningContent(source=source, reasoning=reasoning), None
+            return (
+                CompletionsReasoningContent(
+                    source=source, reasoning=cast(JsonValue, reasoning)
+                ),
+                None,
+            )
 
     # not found, look for <think> tag
     content = (

@@ -267,8 +267,8 @@ The `computer()` tool provides models with a computer desktop environment along 
 
 | Provider  | Models                                                     |
 |-----------|------------------------------------------------------------|
-| Anthropic | `claude-opus-4-6` , `claude-opus-4-5`, `claude-sonnet-4-6` |
-| Open AI   | `gpt-5.4`, `gpt-5.4-pro`                                   |
+| Anthropic | `claude-opus-4-5+`, `claude-sonnet-4-6`                    |
+| Open AI   | `gpt-5.4+`, `gpt-5.4-pro+`                                 |
 | Google    | `gemini-3-flash-preview`                                   |
 
 : {tbl-colwidths="\[25,75\]"}
