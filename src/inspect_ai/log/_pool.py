@@ -12,17 +12,6 @@ In practice an ``id(obj)`` → hash cache avoids re-serialising the same
 Python object, bringing the common case back to O(N) while remaining
 correct even when users mutate objects (same object identity = same
 content by definition).
-
-Design note — pool list externalisation
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-``condense_model_event_inputs`` / ``condense_model_event_calls`` no
-longer maintain or return the full pool list. They return only
-``new_entries`` from this call. Callers that need the pool list as a
-data product (the ``.eval`` log writer in ``_condense.py`` and the
-recovery streamer in ``_recover/_stream.py``) rebuild it externally.
-The buffer DB (``_recorders/buffer/database.py``) does not need it:
-pool entries are written to SQLite at insert time and never re-read
-in-process. It stores only the hash to index dict.
 """
 
 import json
