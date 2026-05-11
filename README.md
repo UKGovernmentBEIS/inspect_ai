@@ -18,6 +18,14 @@ cd inspect_ai
 pip install -e ".[dev]"
 ```
 
+Alternatively, if you use [uv](https://docs.astral.sh/uv/), sync the development environment from the checked-in lockfile:
+
+```bash
+uv sync --extra dev
+```
+
+The uv workflow is supported but not required. The `uv.lock` file records a reproducible development resolution; project dependencies are still declared in `requirements*.txt` and exposed through `pyproject.toml`. When changing dependencies, update the appropriate requirements file and refresh the lockfile rather than relying on `uv add`.
+
 Optionally install pre-commit hooks via
 
 ```bash
@@ -31,13 +39,15 @@ make check
 make test
 ```
 
+When working in a uv-managed environment, prefix those commands with `uv run` (for example, `uv run make check`).
+
 If you use VS Code, you should be sure to have installed the recommended extensions (Python, Ruff, and MyPy). Note that you'll be prompted to install these when you open the project in VS Code.
 
 ### Frontend development (TypeScript)
 
 The web UI lives in a git submodule at `src/inspect_ai/_view/ts-mono/`. **These steps are only needed if you plan to work on the TypeScript/React frontend** — Python-only contributors can skip this entirely.
 
-Initialize the submodule and install dependencies — see the [one-time setup guide](src/inspect_ai/_view/ts-mono/docs/submodule-guide.md#one-time-setup).
+Initialize the submodule and install dependencies — see the [one-time setup guide](https://github.com/meridianlabs-ai/ts-mono/blob/main/docs/submodule-guide.md#one-time-setup).
 
 ### Documentation
 

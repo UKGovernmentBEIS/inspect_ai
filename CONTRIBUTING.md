@@ -5,7 +5,7 @@ Thanks for your interest in contributing to Inspect! We regularly accept contrib
 ## Quick Reference
 For returning contributors:
 - Find issue → Comment to claim → Branch → Code → `make check` → `make test` → PR
-- Setup: `pip install -e ".[dev]"` and `make hooks`
+- Setup: `pip install -e ".[dev]"` or `uv sync --extra dev`, then `make hooks`
 
 ## Reporting Bugs
 Found a bug to report? Please [open an issue](https://github.com/UKGovernmentBEIS/inspect_ai/issues/new) with:
@@ -34,6 +34,14 @@ cd inspect_ai
 pip install -e ".[dev]"
 ```
 
+If you prefer [uv](https://docs.astral.sh/uv/), you can instead sync the development environment from the lockfile:
+
+```
+uv sync --extra dev
+```
+
+The uv workflow is optional. Inspect's dependencies are declared in the `requirements*.txt` files and exposed through `pyproject.toml`; `uv.lock` captures a reproducible development resolution. If you are changing dependencies, update the relevant requirements file and refresh the lockfile rather than using `uv add` as the source of truth.
+
 Create a branch with a short, descriptive name, then start working on the issue. You may find it helpful to install the pre-commit hooks:
 
 ```
@@ -46,6 +54,8 @@ Once you’ve fixed the issue, run the linter, formatter, and unit tests by runn
 make check    # Run linter (ruff) and formatter
 make test     # Run pytest suite
 ```
+
+In a uv-managed environment, run these as `uv run make check` and `uv run make test`.
 
 If any tests are failing, fix the code and run both commands again to verify. Once all the tests are passing, push your branch to GitHub.
 
