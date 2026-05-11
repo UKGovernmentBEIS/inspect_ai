@@ -2,7 +2,7 @@ import atexit
 import json
 import os
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from logging import (
     INFO,
     NOTSET,
@@ -246,7 +246,7 @@ def logger_display_format(env_prefix: str = "INSPECT") -> LoggerFormat:
 
 def json_log_record(record: LogRecord) -> dict[str, object]:
     payload: dict[str, object] = {
-        "ts": datetime.fromtimestamp(record.created, UTC).isoformat(),
+        "ts": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
         "level": record.levelname,
         "logger": record.name,
         "msg": record.getMessage(),
