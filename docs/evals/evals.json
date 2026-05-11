@@ -35,7 +35,7 @@
     ],
     "desc": "A benchmark designed to evaluate LLMs as Agents",
     "paper": "https://arxiv.org/abs/2308.03688",
-    "code": "inspect_evals/agent_bench",
+    "code": "inspect_evals/agent_bench_os",
     "contributors": [
       "Felhof",
       "hannagabor",
@@ -1026,6 +1026,28 @@
     "model_cards": []
   },
   {
+    "id": "scale_ai_swe_atlas_rf",
+    "name": "SWE-Atlas (Refactoring)",
+    "source": "harbor",
+    "categories": [
+      "Coding"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "SWE-Atlas - Refactoring -- A benchmark of refactoring tasks for coding agents.",
+    "paper": "https://github.com/scaleapi/SWE-Atlas",
+    "code": "inspect_harbor/scale_ai_swe_atlas_rf",
+    "contributors": [],
+    "samples": 70,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/scale_ai_swe_atlas_rf.html",
+    "model_cards": []
+  },
+  {
     "id": "scale_ai_swe_atlas_tw",
     "name": "SWE-Atlas (Test Writing)",
     "source": "harbor",
@@ -1609,7 +1631,7 @@
     ],
     "desc": "Tests whether AI agents can perform real-world time-consuming tasks on the web.",
     "paper": "https://arxiv.org/abs/2407.15711",
-    "code": "inspect_evals/assistant_bench",
+    "code": "inspect_evals/assistant_bench_closed_book_zero_shot",
     "contributors": [
       "nlpet",
       "caspardh"
@@ -1881,7 +1903,7 @@
     ],
     "desc": "Evaluating Conversational Agents in a Dual-Control Environment",
     "paper": "https://arxiv.org/abs/2506.07982",
-    "code": "inspect_evals/tau2",
+    "code": "inspect_evals/tau2_airline",
     "contributors": [
       "mmulet"
     ],
@@ -2258,7 +2280,7 @@
     ],
     "desc": "Assesses multimodal AI models on challenging college-level questions covering multiple academic subjects, requiring detailed visual interpretation, in-depth reasoning, and both multiple-choice and open-ended answering abilities.",
     "paper": "https://arxiv.org/abs/2311.16502",
-    "code": "inspect_evals/mmmu",
+    "code": "inspect_evals/mmmu_multiple_choice",
     "contributors": [
       "shaheenahmedc"
     ],
@@ -2538,7 +2560,7 @@
     ],
     "desc": "A benchmark that evaluates LLMs in their ability to operate Vim editor and complete editing challenges.",
     "paper": null,
-    "code": "inspect_evals/vimgolf_challenges",
+    "code": "inspect_evals/vimgolf_single_turn",
     "contributors": [
       "james4ever0"
     ],
@@ -2630,7 +2652,7 @@
     ],
     "desc": "LLM benchmark featuring an average data length surpassing 100K tokens.",
     "paper": "https://arxiv.org/abs/2402.13718",
-    "code": "inspect_evals/infinite_bench",
+    "code": "inspect_evals/infinite_bench_code_debug",
     "contributors": [
       "celiawaggoner"
     ],
@@ -2653,7 +2675,7 @@
     ],
     "desc": "AGIEval is a human-centric benchmark specifically designed to evaluate the general abilities of foundation models in tasks pertinent to human cognition and problem-solving.",
     "paper": "https://arxiv.org/abs/2304.06364",
-    "code": "inspect_evals/agieval",
+    "code": "inspect_evals/agie_aqua_rat",
     "contributors": [
       "bouromain"
     ],
@@ -2846,7 +2868,7 @@
     ],
     "desc": "Evaluate models on 57 tasks including elementary mathematics, US history, computer science, law, and more.",
     "paper": "https://arxiv.org/abs/2009.03300",
-    "code": "inspect_evals/mmlu",
+    "code": "inspect_evals/mmlu_0_shot",
     "contributors": [
       "jjallaire",
       "domdomegg"
@@ -2916,7 +2938,7 @@
     ],
     "desc": "Questions and answers from the Ordinary National Educational Test (O-NET), administered annually by the National Institute of Educational Testing Service to Matthayom 6 (Grade 12 / ISCED 3) students in Thailand.",
     "paper": null,
-    "code": "inspect_evals/onet",
+    "code": "inspect_evals/onet_m6",
     "contributors": [
       "bact"
     ],
@@ -2939,7 +2961,7 @@
     ],
     "desc": "An evaluation suite consisting of multiple personality tests that can be applied to LLMs.",
     "paper": null,
-    "code": "inspect_evals/personality",
+    "code": "inspect_evals/personality_BFI",
     "contributors": [
       "guiem"
     ],
@@ -3107,7 +3129,7 @@
     ],
     "desc": "Evaluates AI systems' ability to analyze cyber threat intelligence and develop comprehensive detection capabilities through a realistic 5-subtask workflow: MITRE technique mapping, data source discovery, Sigma rule generation, KQL development and testing against real telemetry data, and results analysis.",
     "paper": "https://arxiv.org/abs/2603.13517",
-    "code": "inspect_evals/cti_realm",
+    "code": "inspect_evals/cti_realm_25",
     "contributors": [
       "arjun180-new"
     ],
@@ -3235,7 +3257,7 @@
     ],
     "desc": "Datasets containing 80, 500, 2000 and 10000 multiple-choice questions, designed to evaluate understanding across nine domains within cybersecurity",
     "paper": "https://arxiv.org/abs/2402.07688",
-    "code": "inspect_evals/cybermetric",
+    "code": "inspect_evals/cybermetric_80",
     "contributors": [
       "neilshaabi"
     ],
@@ -3258,7 +3280,7 @@
     ],
     "desc": "Evaluates Large Language Models for cybersecurity risk to third parties, application developers and end users.",
     "paper": "https://arxiv.org/abs/2312.04724",
-    "code": "inspect_evals/cyberseceval_3",
+    "code": "inspect_evals/cyse3_visual_prompt_injection",
     "contributors": [
       "onionymous"
     ],
@@ -3281,7 +3303,7 @@
     ],
     "desc": "A suite of cybersecurity evaluation benchmarks adapted from Meta's PurpleLlama CybersecurityBenchmarks.",
     "paper": "https://arxiv.org/abs/2404.13161",
-    "code": "inspect_evals/cyberseceval_4",
+    "code": "inspect_evals/cyse4_mitre",
     "contributors": [
       "ckane"
     ],
@@ -3304,7 +3326,7 @@
     ],
     "desc": "Assesses language models for cybersecurity risks, specifically testing their potential to misuse programming interpreters, vulnerability to malicious prompt injections, and capability to exploit known software vulnerabilities.",
     "paper": "https://arxiv.org/pdf/2404.13161",
-    "code": "inspect_evals/cyberseceval_2",
+    "code": "inspect_evals/cyse2_interpreter_abuse",
     "contributors": [
       "its-emile"
     ],
@@ -3379,7 +3401,7 @@
     ],
     "desc": "\"Security Question Answering\" dataset to assess LLMs' understanding and application of security principles.",
     "paper": "https://arxiv.org/abs/2312.15838",
-    "code": "inspect_evals/sec_qa",
+    "code": "inspect_evals/sec_qa_v1",
     "contributors": [
       "matthewreed26"
     ],
@@ -3402,7 +3424,7 @@
     ],
     "desc": "Designed for analyzing cybersecurity incidents, which is comprised of two primary task categories: understanding and generation, with a further breakdown into 28 subcategories of tasks.",
     "paper": "https://arxiv.org/abs/2405.03446",
-    "code": "inspect_evals/sevenllm",
+    "code": "inspect_evals/sevenllm_mcq_zh",
     "contributors": [
       "kingroryg"
     ],
@@ -3527,7 +3549,7 @@
     ],
     "desc": "Measures a model's willingness to attempt persuasion on harmful, controversial, and benign topics.",
     "paper": "https://arxiv.org/abs/2506.02873",
-    "code": "inspect_evals/ape",
+    "code": "inspect_evals/ape_eval",
     "contributors": [
       "cmv13"
     ],
@@ -3609,7 +3631,7 @@
     ],
     "desc": "A dataset of 500 expert-crafted adversarial prompts with instance-based rubrics of 4-7 binary questions for automated evaluation across 3 domains relevant to national security and public safety (NSPS).",
     "paper": "https://arxiv.org/abs/2506.14922",
-    "code": "inspect_evals/fortress",
+    "code": "inspect_evals/fortress_adversarial",
     "contributors": [
       "jeqcho"
     ],
@@ -3751,7 +3773,7 @@
     ],
     "desc": "Evaluates long-term memory risk in assistant behavior across three tasks: cross-domain memory leakage, memory-driven sycophancy, and beneficial memory usage.",
     "paper": "https://arxiv.org/abs/2602.01146",
-    "code": "inspect_evals/persistbench",
+    "code": "inspect_evals/persistbench_cross_domain",
     "contributors": [
       "Chen-Oliver"
     ],
@@ -3891,7 +3913,7 @@
     ],
     "desc": "A dataset of 3,668 multiple-choice questions developed by a consortium of academics and technical consultants that serve as a proxy measurement of hazardous knowledge in biosecurity, cybersecurity, and chemical security.",
     "paper": "https://arxiv.org/abs/2403.03218",
-    "code": "inspect_evals/wmdp",
+    "code": "inspect_evals/wmdp_bio",
     "contributors": [
       "alexandraabbas"
     ],
@@ -3915,7 +3937,7 @@
     ],
     "desc": "Dataset of natural, grade-school science multiple-choice questions (authored for human tests).",
     "paper": "https://arxiv.org/abs/1803.05457",
-    "code": "inspect_evals/arc",
+    "code": "inspect_evals/arc_easy",
     "contributors": [
       "jjallaire"
     ],
@@ -4098,7 +4120,7 @@
     ],
     "desc": "Contains challenging multiple-choice questions created by domain experts in biology, physics, and chemistry, designed to test advanced scientific understanding beyond basic internet searches.",
     "paper": "https://arxiv.org/abs/2311.12022",
-    "code": "inspect_evals/gpqa",
+    "code": "inspect_evals/gpqa_diamond",
     "contributors": [
       "jjallaire"
     ],
@@ -4153,7 +4175,7 @@
     ],
     "desc": "Tests LLMs and LLM-augmented agents abilities to answer questions on scientific research workflows in domains like chemistry, biology, materials science, as well as more general science tasks",
     "paper": "https://arxiv.org/abs/2407.10362",
-    "code": "inspect_evals/lab_bench",
+    "code": "inspect_evals/lab_bench_litqa",
     "contributors": [
       "matthewreed26"
     ],
@@ -5019,7 +5041,7 @@
     ],
     "desc": "V*Bench is a visual question & answer benchmark that evaluates MLLMs in their ability to process high-resolution and visually crowded images to find and focus on small details.",
     "paper": "https://arxiv.org/abs/2312.14135",
-    "code": "inspect_evals/vstar_bench",
+    "code": "inspect_evals/vstar_bench_attribute_recognition",
     "contributors": [
       "bienehito"
     ],
@@ -5118,7 +5140,7 @@
     ],
     "desc": "Ten real-world–inspired tasks from Google DeepMind's Dangerous Capabilities Evaluations assessing self-proliferation behaviors (e.g., email setup, model installation, web agent setup, wallet operations).",
     "paper": "https://arxiv.org/pdf/2403.13793",
-    "code": "inspect_evals/gdm_self_proliferation",
+    "code": "inspect_evals/gdm_sp01_e2e",
     "contributors": [
       "XkunW",
       "MariaIzobava",
@@ -5146,7 +5168,7 @@
     ],
     "desc": "Test AI's ability to reason about its environment.",
     "paper": "https://arxiv.org/abs/2505.01420",
-    "code": "inspect_evals/gdm_self_reasoning",
+    "code": "inspect_evals/gdm_self_reasoning_approved_directories",
     "contributors": [
       "ZiyueWang25",
       "XkunW"
@@ -5173,7 +5195,7 @@
     ],
     "desc": "Test AI's ability to reason about and circumvent oversight.",
     "paper": "https://arxiv.org/abs/2505.01420",
-    "code": "inspect_evals/gdm_stealth",
+    "code": "inspect_evals/gdm_classifier_evasion",
     "contributors": [
       "ZiyueWang25"
     ],
@@ -5219,7 +5241,7 @@
     ],
     "desc": "Evaluates situational awareness in LLMs—knowledge of themselves and their circumstances—through behavioral tests including recognizing generated text, predicting behavior, and following self-aware instructions.",
     "paper": "https://arxiv.org/abs/2407.04694",
-    "code": "inspect_evals/sad",
+    "code": "inspect_evals/sad_stages_full",
     "contributors": [
       "HugoSave"
     ],

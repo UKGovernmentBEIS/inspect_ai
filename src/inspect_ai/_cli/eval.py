@@ -83,10 +83,12 @@ NO_SCORE_HELP = (
 NO_SCORE_DISPLAY = "Do not display scoring metrics in realtime."
 MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (defaults to {DEFAULT_MAX_CONNECTIONS})"
 ADAPTIVE_CONNECTIONS_HELP = (
-    "Enable adaptive concurrency for Model API connections, automatically "
-    "scaling between bounds based on rate-limit feedback. Pass `true` for "
-    "defaults (min=4, start=20, max=200), `false` to explicitly disable, or "
-    'bounds as "min-max" (e.g. "4-80") or "min-start-max" (e.g. "4-20-80").'
+    "Adaptive concurrency for Model API connections, automatically scaling "
+    "between bounds based on rate-limit feedback (default: enabled, with "
+    "min=4, start=20, max=100). Pass `false` to opt out, an integer N for "
+    "a custom max (e.g. `200`), or bounds as `min-max` (e.g. `4-80`) or "
+    "`min-start-max` (e.g. `4-20-80`). Explicit `--max-connections` and "
+    "`--batch` take precedence."
 )
 MAX_RETRIES_HELP = (
     "Maximum number of times to retry model API requests (defaults to unlimited)"
@@ -1275,28 +1277,36 @@ def eval_exec(
 
 def _parse_adaptive_connections_cli(
     value: str | None,
-) -> bool | AdaptiveConcurrency | None:
+) -> bool | int | AdaptiveConcurrency | None:
     """Parse a CLI string into an adaptive_connections value.
 
-    Accepts: None (passthrough), bool keywords ("true"/"false"/"1"/"0"/"yes"/"no",
-    case-insensitive), or shorthand like "4-80" / "4-20-80" delegated to
-    AdaptiveConcurrency's parser. Raises `click.BadParameter` on invalid input
-    so the CLI surfaces a clean usage message instead of a raw pydantic
-    ValidationError.
+    Accepts: None (passthrough), bool keywords ("true"/"yes" / "false"/"no",
+    case-insensitive), a bare integer N (shorthand for
+    `AdaptiveConcurrency(max=N)`), or a min-max / min-start-max shorthand
+    like "4-80" / "4-20-80" delegated to AdaptiveConcurrency's parser.
+    Raises `click.BadParameter` on invalid input so the CLI surfaces a
+    clean usage message instead of a raw pydantic ValidationError.
+
+    Note: `"1"`/`"0"` are treated as the integer-max shorthand, not as
+    bool aliases. Users who want explicit on/off should pass `true`/`false`.
     """
     if value is None:
         return None
     v = value.strip().lower()
-    if v in ("true", "1", "yes"):
+    if v in ("true", "yes"):
         return True
-    if v in ("false", "0", "no"):
+    if v in ("false", "no"):
         return False
+    # Bare integer → max shorthand.
+    if v.isdigit():
+        return int(v)
     try:
         return AdaptiveConcurrency.model_validate(value)
     except Exception as ex:
         raise click.BadParameter(
-            f"{value!r} is not a valid value. Expected `true`, `false`, or "
-            f"bounds shorthand like `4-80` or `4-20-80`.",
+            f"{value!r} is not a valid value. Expected `true`, `false`, an "
+            f"integer max (e.g. `200`), or bounds shorthand like `4-80` "
+            f"or `4-20-80`.",
             param_hint="--adaptive-connections",
         ) from ex
 
