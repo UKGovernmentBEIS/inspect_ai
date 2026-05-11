@@ -9,6 +9,7 @@
 - Model API: Cache lookup of openai and anthropic packages at sample initialization.
 - Model API: Remove semaphore around calls to `count_tokens()` (they are already retried and gated by `max_samples`).
 - Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
+- Limits: Added `suspend_token_limit()` context manager for suspending token tracking and limit enforcement within a scope.
 - Datasets: `hf_dataset` retries transient Hugging Face errors (rate limits, timeouts, Hub-unreachable cache misses) up to 3 times (5 in CI) with exponential backoff. Pass `retry=False` to disable.
 - Scoring: Store and aggregate results for cancelled eval runs.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
