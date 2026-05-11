@@ -7,7 +7,7 @@ google-genai>=1.69.0
 griffe>=2
 groq>=0.28.0
 huggingface_hub>=1.0.0
-inspect_scout
+inspect-scout>=0.4.33
 ipython
 jsonpath-ng
 markdown

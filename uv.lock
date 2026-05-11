@@ -2042,7 +2042,7 @@ requires-dist = [
     { name = "httpx" },
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "ijson", specifier = ">=3.2.0" },
-    { name = "inspect-scout", marker = "extra == 'dev'" },
+    { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.4.33" },
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "jsonlines", specifier = ">=3.0.0" },
     { name = "jsonpatch", specifier = ">=1.32" },
@@ -2127,7 +2127,7 @@ dev = [{ name = "inspect-ai", extras = ["dev"] }]
 
 [[package]]
 name = "inspect-scout"
-version = "0.4.27"
+version = "0.4.33"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -2162,9 +2162,9 @@ dependencies = [
     { name = "wrapt" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8e/23/61fd4fde268ee8fd5fbbdebe09e4cbdeeef44b360a90f561e84350579216/inspect_scout-0.4.27.tar.gz", hash = "sha256:2c8d5950386607cc6ef21bdad4a3762a8944cd4197923ddb714d6b21c02d7ca9", size = 2492616, upload-time = "2026-04-20T19:39:08.332Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ca/f2/3eac0e15d693ad262cfa15e654bfaca0117903499217f16bd40ad7cab4f1/inspect_scout-0.4.33.tar.gz", hash = "sha256:03161a486d0adab40770abd2b02f17fffd5c63060c1e90b6b22df8a8cc78c01c", size = 2512252, upload-time = "2026-05-11T19:56:36.903Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0b/b9/d3b1a324f0b5cf07ab4ba5c5fd5242a7a9d4197662a302572d6457f03aca/inspect_scout-0.4.27-py3-none-any.whl", hash = "sha256:11c98d690495f01242c3d5e5db7ec716fb3e5e698ddc1bb58e96c2bd9164f3fe", size = 2603102, upload-time = "2026-04-20T19:39:06.641Z" },
+    { url = "https://files.pythonhosted.org/packages/66/7a/ed72009398dc745eb5044cdb86f44c064c1a88cddef7de7b4d026a3e2aac/inspect_scout-0.4.33-py3-none-any.whl", hash = "sha256:e0b9c098f604f8decc048fc507173fec689bf137f10c308a759ca18f8028133d", size = 2624087, upload-time = "2026-05-11T19:56:34.887Z" },
 ]
 
 [[package]]
