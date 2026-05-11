@@ -267,6 +267,25 @@ def test_buffer_pool_cleanup_on_remove(db: SampleBufferDatabase) -> None:
     )
 
 
+def test_buffer_pool_late_model_event_after_complete_raises(
+    db: SampleBufferDatabase,
+) -> None:
+    sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
+    db.start_sample(sample)
+    db.complete_sample(sample)
+
+    with pytest.raises(RuntimeError, match="after complete_sample"):
+        db.log_events(
+            [
+                SampleEvent(
+                    id="s1",
+                    epoch=1,
+                    event=_make_model_event([ChatMessageUser(content="late")]),
+                )
+            ]
+        )
+
+
 def test_buffer_pool_refs_resolve_correctly(db: SampleBufferDatabase) -> None:
     """input_refs resolve to the correct messages across multiple turns."""
     sample = EvalSampleSummary(id="s1", epoch=1, input="test", target="target")
