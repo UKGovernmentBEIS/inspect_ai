@@ -10,6 +10,7 @@ import pytest
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval, task
+from inspect_ai._util.content import ContentText
 from inspect_ai.agent import BridgedToolsSpec, sandbox_agent_bridge
 from inspect_ai.dataset import Sample
 from inspect_ai.log import EvalLog
@@ -50,6 +51,20 @@ def get_structured_data(call_log: list[dict]):
         """
         call_log.append({"tool": "get_structured_data", "key": key})
         return json.dumps({"key": key, "values": [1, 2, 3], "nested": {"a": "b"}})
+
+    return execute
+
+
+@tool
+def content_returning_tool(call_log: list[dict]):
+    async def execute(text: str) -> list[ContentText]:
+        """Echo a string back as a list of content blocks.
+
+        Args:
+            text: Text to echo back.
+        """
+        call_log.append({"tool": "content_returning_tool", "text": text})
+        return [ContentText(text=text)]
 
     return execute
 
@@ -338,3 +353,45 @@ def test_duplicate_bridged_tools_names_raises_error():
     eval_bridged_tools_task(test_solver())
 
     assert error_raised, "Expected ValueError for duplicate bridged_tools names"
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_content_returning_tool_serializes_correctly() -> None:
+    """Bridged tools returning list[ContentText] must serialize without error.
+
+    Regression test for json.dumps choking on Pydantic BaseModel — list[ContentText]
+    is the standard return type for inspect_ai MCP tools.
+    """
+    call_log: list[dict] = []
+
+    @solver
+    def test_solver():
+        async def solve(state, generate):
+            async with sandbox_agent_bridge(
+                bridged_tools=[
+                    BridgedToolsSpec(
+                        name="content", tools=[content_returning_tool(call_log)]
+                    )
+                ]
+            ) as bridge:
+                config = bridge.mcp_server_configs[0]
+                response = await call_mcp_tool(
+                    config, "content_returning_tool", {"text": "hello"}
+                )
+
+                assert response["jsonrpc"] == "2.0"
+                # Bridge serializes the tool's return value into a single MCP
+                # text part; for non-strings it's a JSON-encoded payload.
+                payload = json.loads(response["result"]["content"][0]["text"])
+                assert isinstance(payload, list)
+                assert payload[0]["type"] == "text"
+                assert payload[0]["text"] == "hello"
+
+            return state
+
+        return solve
+
+    eval_bridged_tools_task(test_solver())
+
+    assert call_log == [{"tool": "content_returning_tool", "text": "hello"}]

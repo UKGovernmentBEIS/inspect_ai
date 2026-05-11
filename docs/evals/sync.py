@@ -17,9 +17,23 @@ HERE = Path(__file__).parent
 OVERLAY_FILE = HERE / "evals_overrides.yml"
 
 CATEGORY_VOCAB = {
-    "Coding", "Assistants", "Cybersecurity", "Safeguards", "Mathematics",
-    "Reasoning", "Knowledge", "Science", "Biology", "Chemistry", "Physics",
-    "Professional", "Finance", "Medicine", "Law", "Multimodal", "Scheming",
+    "Coding",
+    "Assistants",
+    "Cybersecurity",
+    "Safeguards",
+    "Mathematics",
+    "Reasoning",
+    "Knowledge",
+    "Science",
+    "Biology",
+    "Chemistry",
+    "Physics",
+    "Professional",
+    "Finance",
+    "Medicine",
+    "Law",
+    "Multimodal",
+    "Scheming",
     "Behavior",
 }
 
@@ -70,6 +84,24 @@ def _derive_samples(tasks: list[dict[str, Any]]) -> int | None:
     return None
 
 
+def _derive_task_name(slug: str, tasks: list[dict[str, Any]]) -> str:
+    """Pick the task name to expose in CLI / Python snippets.
+
+    Most evals have a single task whose name matches the directory slug
+    (e.g. ``gpqa_diamond/`` contains task ``gpqa_diamond``). Some directories
+    bundle multiple variants under a non-matching slug (e.g. ``mmlu/``
+    contains ``mmlu_0_shot`` and ``mmlu_5_shot``); for those we use the
+    first task's name so the rendered ``inspect eval ...`` command and
+    Python import actually work.
+    """
+    task_names = [
+        t.get("name") for t in (tasks or []) if isinstance(t, dict) and t.get("name")
+    ]
+    if task_names and slug not in task_names:
+        return str(task_names[0])
+    return slug
+
+
 def _load_overlay() -> dict[str, dict[str, Any]]:
     if not OVERLAY_FILE.exists():
         return {}
@@ -102,6 +134,9 @@ def _to_record(
     if ": " in title:
         title = title.split(": ", 1)[0]
 
+    tasks = data.get("tasks") or []
+    task_name = _derive_task_name(slug, tasks)
+
     return {
         "id": slug,
         "name": title,
@@ -112,9 +147,9 @@ def _to_record(
         "modalities": _derive_modalities(tags, metadata),
         "desc": _first_sentence((data.get("description") or "").strip()),
         "paper": paper,
-        "code": f"inspect_evals/{slug}",
+        "code": f"inspect_evals/{task_name}",
         "contributors": list(data.get("contributors") or []),
-        "samples": _derive_samples(data.get("tasks") or []),
+        "samples": _derive_samples(tasks),
         "featured": False,
         "url": f"https://ukgovernmentbeis.github.io/inspect_evals/evals/{group.lower()}/{slug}/",
     }
@@ -123,6 +158,8 @@ def _to_record(
 def load_evals(inspect_evals_path: Path) -> list[dict[str, Any]]:
     overlay = _load_overlay()
     records: list[dict[str, Any]] = []
-    for yaml_path in sorted((inspect_evals_path / "src" / "inspect_evals").glob("*/eval.yaml")):
+    for yaml_path in sorted(
+        (inspect_evals_path / "src" / "inspect_evals").glob("*/eval.yaml")
+    ):
         records.append(_to_record(yaml_path, inspect_evals_path, overlay))
     return records
