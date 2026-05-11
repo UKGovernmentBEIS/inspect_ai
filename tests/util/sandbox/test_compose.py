@@ -72,6 +72,91 @@ x-inspect_k8s_sandbox:
         parse_compose_yaml(str(compose_file))
 
 
+def test_parse_compose_yaml_accepts_depends_on_short_form(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    depends_on:
+      - judge
+      - postgres
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].depends_on == ["judge", "postgres"]
+
+
+def test_parse_compose_yaml_accepts_depends_on_long_form(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    depends_on:
+      judge:
+        condition: service_started
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].depends_on == {
+        "judge": {"condition": "service_started"}
+    }
+
+
+def test_parse_compose_yaml_accepts_pull_policy(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    pull_policy: never
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].pull_policy == "never"
+
+
+def test_parse_compose_yaml_accepts_privileged(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    privileged: true
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].privileged is True
+
+
+def test_parse_compose_yaml_accepts_shm_size(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    shm_size: 2g
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].shm_size == "2g"
+
+
+def test_parse_compose_yaml_accepts_ulimits(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    ulimits:
+      nproc: 65535
+      nofile:
+        soft: 20000
+        hard: 40000
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].ulimits == {
+        "nproc": 65535,
+        "nofile": {"soft": 20000, "hard": 40000},
+    }
+
+
 def test_parse_compose_yaml_rejects_unknown_field(tmp_path):
     compose_file = tmp_path / "compose.yaml"
     compose_file.write_text("""

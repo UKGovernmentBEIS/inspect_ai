@@ -9,6 +9,22 @@ from test_helpers.utils import (
 from inspect_ai.model import GenerateConfig, get_model
 
 
+def test_default_generate_config_not_shared_between_models():
+    """Mutating one model's default config must not leak to other models.
+
+    Regression for shared mutable default `GenerateConfig()` on `get_model`:
+    Python evaluates the default once at function-definition time, so without
+    the `None` sentinel pattern every call to `get_model()` that omitted
+    `config=` would receive the SAME `GenerateConfig` instance.
+    """
+    model1 = get_model("mockllm/default-config-one", memoize=False)
+    model1.config.max_retries = 1
+
+    model2 = get_model("mockllm/default-config-two", memoize=False)
+
+    assert model2.config.max_retries is None
+
+
 @pytest.mark.anyio
 @skip_if_no_openai_package
 @skip_if_trio
