@@ -457,8 +457,9 @@ class Hooks:
     async def on_before_model_generate(self, data: BeforeModelGenerate) -> None:
         """Called before a model's generate() method is invoked.
 
-        This is called after cache lookup (only fires on cache miss) and
-        after model API access verification, right before the actual API call.
+        This is called before cache lookup and before model API access
+        verification, so hook mutations to inputs/tools/config are reflected in
+        cache keys and in the actual API call.
 
         Note that this fires inside the retry wrapper, so it will be called
         on each retry attempt, not just the first.
