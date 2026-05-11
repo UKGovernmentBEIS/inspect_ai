@@ -7,6 +7,7 @@
 - Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
 - Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
+- Task Display: Honor terminal `COLUMNS` and `LINES` for dumb terminals.
 - Memory: Log condensing no longer retains unchanged JSON copies in long evals.
 - Memory: Don't retain message lists in buffer DB (memory leak on long agentic samples).
 - Memory: Collapse user messages at compaction time to avoid carrying extra messages.
