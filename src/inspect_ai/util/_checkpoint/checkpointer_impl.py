@@ -15,12 +15,14 @@ import json
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from functools import partial
+from logging import getLogger
 from pathlib import Path
 
 import anyio
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.logger import warn_once
 from inspect_ai.event._event import Event
 from inspect_ai.log._samples import sample_active
 from inspect_ai.log._transcript import transcript
@@ -46,6 +48,10 @@ from .restic import (
 from .sample_checkpoints_dir import ensure_sample_checkpoints_dir, write_sidecar
 from .working_dir import ensure_sample_working_dir
 
+logger = getLogger(__name__)
+
+prevent_use = True
+
 
 async def build_impl() -> Checkpointer:
     """Build the concrete session for the current sample.
@@ -57,6 +63,10 @@ async def build_impl() -> Checkpointer:
     dirs and initializes the host + per-sandbox restic repos, then
     returns an :class:`_Checkpointer`.
     """
+    if prevent_use:
+        warn_once(logger, "Checkpointing is still not yet fully implemented")
+        return _NoopCheckpointer()
+
     # TODO(checkpointing-phase-3): capture the sample-level retry /
     # attempt index. `ActiveSample` does not currently carry it; the
     # value is published via the `on_sample_attempt_start` hook with
