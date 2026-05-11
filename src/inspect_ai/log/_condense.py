@@ -494,11 +494,28 @@ def walk_json_value(
     if isinstance(value, str):
         return content_fn(value)
     elif isinstance(value, list):
-        return [walk_json_value(v, content_fn, context) for v in value]
+        return walk_json_list(value, content_fn, context)
     elif isinstance(value, dict):
         return walk_json_dict(value, content_fn, context)
     else:
         return value
+
+
+def walk_json_list(
+    value: list[JsonValue],
+    content_fn: Callable[[str], str],
+    context: WalkContext,
+) -> list[JsonValue]:
+    walked_list: list[JsonValue] | None = None
+
+    for i, v in enumerate(value):
+        walked = walk_json_value(v, content_fn, context)
+        if walked is not v:
+            if walked_list is None:
+                walked_list = list(value)
+            walked_list[i] = walked
+
+    return walked_list if walked_list is not None else value
 
 
 def walk_json_dict(
@@ -506,13 +523,16 @@ def walk_json_dict(
     content_fn: Callable[[str], str],
     context: WalkContext,
 ) -> dict[str, JsonValue]:
-    updates: dict[str, JsonValue] = {}
+    walked_dict: dict[str, JsonValue] | None = None
+
     for k, v in value.items():
-        updates[k] = walk_json_value(v, content_fn, context)
-    if updates:
-        value = value.copy()
-        value.update(updates)
-    return value
+        walked = walk_json_value(v, content_fn, context)
+        if walked is not v:
+            if walked_dict is None:
+                walked_dict = value.copy()
+            walked_dict[k] = walked
+
+    return walked_dict if walked_dict is not None else value
 
 
 def walk_input(
