@@ -32,6 +32,8 @@
 - Bugfix: Don't raise on tool params with `None` as default (e.g.`x: dict = None`).
 - Bugfix: Fallback error message for when `OSError` does not include `.strerror` and `.filename`
 - Bugfix: More gracefully handle tool results with mixed `[Content, str]`.
+- Bugfix: Accept `""` as an `answer` for `basic_agent().
+- Bugfix: Narrowly replace `{submit}` in `react()` agent prompt templates (rather than using `.format`).
 
 ## 0.3.220 (08 May 2026)
 
