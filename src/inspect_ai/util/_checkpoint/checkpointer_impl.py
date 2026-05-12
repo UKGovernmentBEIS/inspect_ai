@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import time
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from functools import partial
 from logging import getLogger
 from pathlib import Path
@@ -187,8 +187,13 @@ class _Checkpointer:
         state = sample_state()
         if not state:
             raise RuntimeError("Checkpointer must find sample state")
+        ts = transcript()
         await self._write_host_context(
-            self._sample_working_dir, messages, transcript().events, state.store
+            self._sample_working_dir,
+            messages,
+            ts.events,
+            ts.attachments,
+            state.store,
         )
 
         # Host + each sandbox (backup → egress) in parallel. The
@@ -235,27 +240,33 @@ class _Checkpointer:
         sample_working_dir: str,
         messages: Sequence[ChatMessage],
         events: Sequence[Event],
+        attachments: Mapping[str, str],
         store: Store,
     ) -> None:
-        """Write the host context across four files.
+        """Write the host context across five files.
 
         - ``messages.json`` — JSON array of ChatMessage.
         - ``events.json`` — condensed events; ModelEvent inputs / calls
           replaced with refs into the pools below.
         - ``events_data.json`` — ``{messages, calls}`` dedup pools.
+        - ``attachments.json`` — hash → original-content pool that
+          ``ModelEvent.call`` refs (`attachment://<hash>`) point into.
+          Captured live by ``Transcript._process_event``; serialized
+          here so the snapshot is self-contained.
         - ``store.json`` — Store key/value as a single JSON object.
         """
         # condense_events() pools ModelEvent input + call messages — the big
-        # O(N²) redundancy. Does NOT extract attachments (data URIs embedded
-        # in tool results, state changes, model output): those stay inline.
-        # Fine for text-only agents; swap to condense_sample()-shape (adds
-        # attachments.json) when vision / computer-use agents need
-        # checkpointing.
+        # O(N²) redundancy. It does not extract additional attachments;
+        # those come pre-extracted on the transcript (call payloads >100
+        # chars are rewritten to attachment:// refs as events flow in,
+        # with originals in transcript.attachments). We persist that
+        # pool alongside the events so resume can resolve the refs.
         condensed_events, events_data = condense_events(events)
         sample_dir = anyio.Path(sample_working_dir)
         await (sample_dir / "messages.json").write_text(_json_dump(messages))
         await (sample_dir / "events.json").write_text(_json_dump(condensed_events))
         await (sample_dir / "events_data.json").write_text(_json_dump(events_data))
+        await (sample_dir / "attachments.json").write_text(_json_dump(dict(attachments)))
         await (sample_dir / "store.json").write_text(_json_dump(store_jsonable(store)))
 
     async def _backup_host(self) -> ResticBackupSummary:

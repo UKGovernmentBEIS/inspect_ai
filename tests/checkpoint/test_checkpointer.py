@@ -85,7 +85,7 @@ def _patch_sample_runtime() -> Iterator[None]:
     from inspect_ai.util._store import Store
 
     fake_state = SimpleNamespace(store=Store())
-    fake_transcript = SimpleNamespace(events=[])
+    fake_transcript = SimpleNamespace(events=[], attachments={})
     with (
         patch(
             "inspect_ai.util._checkpoint.checkpointer_impl.sample_state",
@@ -358,6 +358,7 @@ async def test_fire_writes_manifest_and_sidecars(
     assert (sample_working / "messages.json").is_file()
     assert (sample_working / "events.json").is_file()
     assert (sample_working / "events_data.json").is_file()
+    assert (sample_working / "attachments.json").is_file()
     assert (sample_working / "store.json").is_file()
 
 
@@ -400,11 +401,12 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
         host_restic=Path("/fake"),
         restic_password="pwd",
     )
-    await cp._write_host_context(str(work), messages, events, Store())
+    await cp._write_host_context(str(work), messages, events, {}, Store())
 
     assert (work / "messages.json").is_file()
     assert (work / "events.json").is_file()
     assert (work / "events_data.json").is_file()
+    assert (work / "attachments.json").is_file()
     assert (work / "store.json").is_file()
 
     events_json = (work / "events.json").read_text()
@@ -418,3 +420,21 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
     expanded = expand_events(events_json, data_json)
     model_events = [e for e in expanded if isinstance(e, ModelEvent)]
     assert [len(e.input) for e in model_events] == [2, 4, 5]
+
+
+async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
+    """transcript.attachments survives the checkpoint as attachments.json."""
+    attachments = {"abc123": "data:image/png;base64,iVBORw0", "def456": "long-text"}
+
+    work = tmp_path / "work"
+    work.mkdir()
+    cp = _Checkpointer(
+        config=CheckpointConfig(trigger=TurnInterval(every=1)),
+        sample_checkpoints_dir=str(tmp_path / "ckpts"),
+        sample_working_dir=str(work),
+        host_restic=Path("/fake"),
+        restic_password="pwd",
+    )
+    await cp._write_host_context(str(work), [], [], attachments, Store())
+
+    assert json.loads((work / "attachments.json").read_text()) == attachments
