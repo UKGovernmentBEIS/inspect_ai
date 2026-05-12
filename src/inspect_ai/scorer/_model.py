@@ -290,8 +290,15 @@ First, write out in a step by step manner your reasoning about the criterion to 
 """
 
 
-DEFAULT_GRADE_PATTERN = r"(?i)GRADE\s*:\s*([CPI])(.*)$"
-"""Regex to extract the grade from the COT above."""
+DEFAULT_GRADE_PATTERN = r"(?is).*GRADE\s*:\s*([CPI])"
+"""Regex to extract the grade from the COT above.
+
+The leading greedy ``.*`` (with DOTALL) ensures ``re.search`` binds to the
+*last* ``GRADE: X`` in the grader output — the instructions tell the grader
+to end with the grade, so earlier mentions (e.g. echoed in chain-of-thought
+or injected via the submission) must not win. No end-of-string anchor is
+used so that trailing text after the grade line does not suppress the match.
+"""
 
 
 def chat_history(state: TaskState) -> str:

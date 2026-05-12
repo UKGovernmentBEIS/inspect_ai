@@ -22,6 +22,7 @@ from inspect_ai._display import (
     display,
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
+from inspect_ai._eval.task.scan import EvalScanners
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -109,6 +110,10 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._checkpoint.config import (
+    CheckpointConfig,
+    merge_checkpoint_configs,
+)
 from inspect_ai.util._early_stopping import (
     EarlyStop,
     EarlyStopping,
@@ -141,6 +146,11 @@ from .images import (
 from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
 from .sandbox import sandboxenv_context
+from .scan import (
+    resume_scan_previous_sample,
+    scan_eval_sample,
+    scanned_transcripts_for_resume,
+)
 from .store import DiskSampleStore, maybe_page_to_disk
 from .util import sample_messages, slice_dataset
 
@@ -162,10 +172,16 @@ class TaskRunOptions:
     model: Model
     model_roles: dict[str, Model] | None
     sandbox: SandboxEnvironmentSpec | None
+    checkpoint: CheckpointConfig | None
+    """Task-level checkpoint config (raw `task.checkpoint`)."""
+    eval_checkpoint: CheckpointConfig | None
+    """Eval/CLI-level checkpoint config (overrides task/sample)."""
     logger: TaskLogger
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
+    scanner: "EvalScanners | None" = field(default=None)
+    scan_id: str | None = field(default=None)
     tags: list[str] | None = field(default=None)
     run_samples: bool | None = field(default=True)
     score: bool = field(default=True)
@@ -206,10 +222,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     model = options.model
     model_roles = options.model_roles
     sandbox = options.sandbox
+    checkpoint = options.checkpoint
+    eval_checkpoint = options.eval_checkpoint
     logger = options.logger
     eval_wd = options.eval_wd
     config = options.config
     solver = options.solver
+    scanner = options.scanner
+    scan_id = options.scan_id
     tags = options.tags
     score = options.score
     sample_source = options.sample_source
@@ -242,12 +262,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     eval_log: EvalLog | None = None
     stats = EvalStats(started_at=iso_now())
 
-    # handle sample errors (raise as required)
-    sample_error_handler = SampleErrorHandler(
-        config.fail_on_error if config.continue_on_fail is not True else False,
-        len(task.dataset),
-    )
-
     # resolve some config
     model_name = ModelName(model)
     epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
@@ -261,6 +275,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # O(concurrent_samples) instead of O(total_samples * epochs))
     dataset = slice_dataset(task.dataset, config.limit, config.sample_id)
     total_samples = len(dataset) * epochs
+
+    # handle sample errors (raise as required). use total_samples (sliced
+    # dataset * epochs) as the denominator for fractional fail_on_error so
+    # the mid-run abort threshold matches the end-of-run check below.
+    sample_error_handler = SampleErrorHandler(
+        config.fail_on_error if config.continue_on_fail is not True else False,
+        total_samples,
+    )
 
     # optionally page dataset to disk if it exceeds the memory budget
     sample_store = maybe_page_to_disk(dataset, config.max_dataset_memory)
@@ -371,6 +393,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     config, generate_config, model.api
                 )
 
+                scanned_per_scanner = scanned_transcripts_for_resume(
+                    scanner, scan_id, profile.log_location
+                )
+
                 def update_metrics(metrics: list[TaskDisplayMetric]) -> None:
                     td.update_metrics(metrics)
                     logger.update_metrics(metrics)
@@ -442,11 +468,23 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                         score=score,
                                         sample_id=previous_sample.id,
                                         sample_metadata=previous_sample.metadata,
+                                        scorer=key,
                                     )
                                     for key, score in previous_sample.scores.items()
                                 }
                                 if previous_sample.scores
                                 else {}
+                            )
+                            await resume_scan_previous_sample(
+                                previous_sample,
+                                scanner,
+                                scanned_per_scanner,
+                                sample_semaphore,
+                                scan_id=scan_id,
+                                eval_id=logger.eval.eval_id,
+                                log_location=profile.log_location,
+                                model=str(model),
+                                eval_spec=logger.eval,
                             )
                             await sample_complete(sample_id, epoch, sample_scores)
                             return sample_scores
@@ -483,11 +521,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         log_location=profile.log_location,
                         create_sample_state=create_sample_state,
                         sandbox=sandbox,
+                        checkpoint=checkpoint,
+                        eval_checkpoint=eval_checkpoint,
                         max_sandboxes=config.max_sandboxes,
                         sandbox_cleanup=sandbox_cleanup,
                         plan=plan,
                         scorers=scorers,
                         scorer_names=scorer_names,
+                        scanner=scanner,
                         cleanup=task.cleanup,
                         generate=generate,
                         progress=progress,
@@ -511,6 +552,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         eval_set_id=logger.eval.eval_set_id,
                         run_id=logger.eval.run_id,
                         task_id=logger.eval.eval_id,
+                        scan_id=options.scan_id,
                     )
 
                 sample_results = await tg_collect(
@@ -753,11 +795,14 @@ async def task_run_sample(
     log_location: str,
     create_sample_state: Callable[[str | None], Awaitable[tuple[Sample, TaskState]]],
     sandbox: SandboxEnvironmentSpec | None,
+    checkpoint: CheckpointConfig | None,
+    eval_checkpoint: CheckpointConfig | None,
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
+    scanner: "EvalScanners | None",
     cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],
@@ -779,6 +824,7 @@ async def task_run_sample(
     eval_set_id: str | None,
     run_id: str,
     task_id: str,
+    scan_id: str | None = None,
     sample_uuid: str | None = None,
 ) -> dict[str, SampleScore] | EarlyStop | None:
     from inspect_ai.event import Event
@@ -836,6 +882,13 @@ async def task_run_sample(
             else contextlib.nullcontext()
         )
 
+        # resolve checkpoint config across all three levels with
+        # precedence eval > sample > task (per-field merge — see
+        # `merge_checkpoint_configs`).
+        resolved_checkpoint = merge_checkpoint_configs(
+            checkpoint, sample.checkpoint, eval_checkpoint
+        )
+
         # helper to handle exceptions (will throw if we've exceeded the limit)
         def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
             # helper to log sample error
@@ -880,6 +933,7 @@ async def task_run_sample(
             working_limit=working_limit,
             fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
+            checkpoint=resolved_checkpoint,
             eval_set_id=eval_set_id,
             run_id=run_id,
             eval_id=task_id,
@@ -1329,6 +1383,15 @@ async def task_run_sample(
                             logger=logger,
                             log_images=log_images,
                         )
+                    await scan_eval_sample(
+                        eval_sample,
+                        scanner,
+                        scan_id=scan_id,
+                        eval_id=task_id,
+                        log_location=log_location,
+                        model=str(state.model),
+                        eval_spec=logger.eval if logger else None,
+                    )
                     await emit_attempt_end(will_retry=False)
                     await emit_sample_end(
                         eval_set_id, run_id, task_id, state.uuid, eval_sample
@@ -1355,11 +1418,14 @@ async def task_run_sample(
             log_location=log_location,
             create_sample_state=create_sample_state,
             sandbox=sandbox,
+            checkpoint=checkpoint,
+            eval_checkpoint=eval_checkpoint,
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
             plan=plan,
             scorers=scorers,
             scorer_names=scorer_names,
+            scanner=scanner,
             cleanup=cleanup,
             generate=generate,
             progress=progress,
@@ -1381,6 +1447,7 @@ async def task_run_sample(
             eval_set_id=eval_set_id,
             run_id=run_id,
             task_id=task_id,
+            scan_id=scan_id,
             sample_uuid=state.uuid,
         )
 

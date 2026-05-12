@@ -561,7 +561,10 @@ def _parse_float(text: str) -> int | float | None:
         if int(float_text) == float_text:
             return int(float_text)
         return float_text
-    except ValueError:
+    except (ValueError, OverflowError):
+        # OverflowError: int(float("inf")); ValueError: int(float("nan"))
+        # or float() of non-numeric text. In all cases this isn't a usable
+        # primitive float — let the caller fall through to symbolic parsing.
         return None
 
 
@@ -864,7 +867,14 @@ def math() -> Scorer:
         if isinstance(ans1, list) != isinstance(ans2, list):
             return False
         if isinstance(ans1, list) and isinstance(ans2, list):
-            return False
+            # Lists arise from brace-delimited sets like "{1, 2}", so compare
+            # as multisets: sort by string repr (elements may be heterogeneous
+            # SymPy / numeric types) and check element-wise equivalence.
+            if len(ans1) != len(ans2):
+                return False
+            sorted1 = sorted(ans1, key=str)
+            sorted2 = sorted(ans2, key=str)
+            return all(check_answers(a, b) for a, b in zip(sorted1, sorted2))
 
         try:
             if _both_have_equals(ans1, ans2):

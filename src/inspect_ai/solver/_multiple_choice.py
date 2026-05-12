@@ -93,7 +93,9 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
     # First check whether the string strictly ends with the expected answer
     # In this case, we're looking for a single line which contains the expected
     # ANSWER: <answer> string with only whitespace or a period/full stop at the end.
-    match = re.search(
+    # The CoT templates instruct the model to put the answer on the LAST line,
+    # so if there are multiple matching lines we take the last one.
+    matches = re.findall(
         r"(?i)^ANSWER\s*:\s*([A-Za-z\d ,]+)\s*(?:$|\n|\.)",
         state.output.completion,
         flags=re.MULTILINE,
@@ -101,20 +103,22 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
 
     # If we couldn't match the strict version, we can try the less strict
     # version for backward compatibility
-    if match is None:
-        match = re.search(
+    if not matches:
+        matches = re.findall(
             r"(?i)ANSWER\s*:\s*([A-Za-z\d ,]+)(?:[^\w]|\n|$|\.)",
             state.output.completion,
         )
 
-    if match is None:
+    if not matches:
         return set()
 
-    matched = match.group(1)
+    matched = matches[-1]
 
-    # Strip trailing period / full stop
+    # Strip trailing period / full stop, and uppercase so that e.g.
+    # "ANSWER: b" is accepted (the regex above is case-insensitive)
     matched = matched.strip()
     matched = matched.rstrip(".")
+    matched = matched.upper()
 
     allowed_options = set(answer_character(i) for i in range(len(state.choices)))
 
@@ -122,7 +126,7 @@ def parse_answers(state: TaskState, multiple_correct: bool) -> set[str]:
         # Match must contain only the allowed choices
         # (may be separated by commas, spaces, the word 'and', or nothing at all)
 
-        matched = matched.replace(" and ", "")
+        matched = matched.replace(" AND ", ",")
 
         matched = matched.replace(" ", "")
 

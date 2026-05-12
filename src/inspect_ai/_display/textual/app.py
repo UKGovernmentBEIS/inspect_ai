@@ -49,6 +49,7 @@ from .theme import inspect_dark, inspect_light
 from .widgets.console import ConsoleView
 from .widgets.footer import AppFooter
 from .widgets.samples import SamplesView
+from .widgets.scan import ScanView
 from .widgets.tasks import TasksView
 from .widgets.titlebar import AppTitlebar
 
@@ -252,6 +253,8 @@ class TaskScreenApp(App[TR]):
                 yield SamplesView()
             with TabPane("Console", id="console"):
                 yield ConsoleView()
+            with TabPane("Scan", id="scan"):
+                yield ScanView()
             if _flow_content is not None:
                 with TabPane("Flow", id="flow"):
                     yield RichLog(id="flow-log")
@@ -268,6 +271,11 @@ class TaskScreenApp(App[TR]):
         # write any flow content to the Flow tab
         if _flow_content is not None:
             self.query_one("#flow-log", RichLog).write(_flow_content)
+
+        # Scan tab starts hidden; revealed by update_display when a
+        # scan becomes active. Tab content is composed unconditionally
+        # so we can show it later without `add_pane`.
+        self.query_one(TabbedContent).hide_tab("scan")
 
         # handle tab activations
         self.handle_tab_activations()
@@ -287,6 +295,7 @@ class TaskScreenApp(App[TR]):
             self.update_title()
             self.update_tasks()
             self.update_samples()
+            self.update_scan()
             self.update_footer()
             for input_panel in self.query(f".{InputPanel.DEFAULT_CLASSES}"):
                 cast(InputPanel, input_panel).update()
@@ -295,6 +304,30 @@ class TaskScreenApp(App[TR]):
             # When a modal (e.g. CancelDialog) is active, main app widgets
             # like AppTitlebar and TasksView are not found.
             pass
+
+    def update_scan(self) -> None:
+        # avoid importing scan_display at module load time — it's only
+        # populated when an eval_set call has a scanner configured
+        from inspect_ai._eval.task.scan_display import get_state
+
+        state = get_state()
+        if not state.active:
+            return
+        tabs = self.query_one(TabbedContent)
+        # show_tab is idempotent — cheaper than tracking the revealed
+        # state ourselves
+        tabs.show_tab("scan")
+
+        # samples_total = sum of samples across every task this app has
+        # seen × number of scanners. `_app_tasks` is cumulative across
+        # task_screen lifecycles, so multi-task eval_set runs aggregate
+        # correctly. 0 when no tasks have started yet → ScanView omits
+        # the progress bar.
+        n_scanners = len(state.spec.scanners) if state.spec else 1
+        total_samples = sum(t.profile.samples for t in self._app_tasks)
+        samples_total = total_samples * n_scanners
+
+        self.query_one(ScanView).update(samples_total=samples_total)
 
     # update the header title
     def update_title(self) -> None:

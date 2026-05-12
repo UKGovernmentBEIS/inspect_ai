@@ -920,6 +920,7 @@ def test_fastapi_eval_set(test_client: TestClient) -> None:
                     ),
                 ),
                 sandbox=None,
+                checkpoint=None,
                 task_file="task_file",
                 task_args={},
                 model=inspect_ai.model.get_model("mockllm/model"),
