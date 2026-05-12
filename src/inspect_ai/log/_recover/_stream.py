@@ -171,29 +171,39 @@ def _write_sample_streaming(
                 # Segment files written by sync_to_filestore already carry
                 # condensed events; their pools live alongside the events.
                 if seg_data.message_pool:
-                    message_pool.extend(
-                        _CHAT_MESSAGES_ADAPTER.validate_python(
-                            [
-                                json_module.loads(entry.data)
-                                for entry in sorted(
-                                    seg_data.message_pool, key=lambda entry: entry.id
-                                )
-                            ],
-                            context=get_deserializing_context(),
-                        )
-                    )
-                    msg_index = _build_msg_index(message_pool)
-
-                if seg_data.call_pool:
-                    call_pool.extend(
+                    new_messages = _CHAT_MESSAGES_ADAPTER.validate_python(
                         [
                             json_module.loads(entry.data)
                             for entry in sorted(
-                                seg_data.call_pool, key=lambda entry: entry.id
+                                seg_data.message_pool, key=lambda entry: entry.id
                             )
-                        ]
+                        ],
+                        context=get_deserializing_context(),
                     )
-                    call_index = _build_call_index(call_pool)
+                    pool_start = len(message_pool)
+                    message_pool.extend(new_messages)
+                    msg_index.update(
+                        {
+                            key: pool_start + index
+                            for key, index in _build_msg_index(new_messages).items()
+                        }
+                    )
+
+                if seg_data.call_pool:
+                    new_calls = [
+                        json_module.loads(entry.data)
+                        for entry in sorted(
+                            seg_data.call_pool, key=lambda entry: entry.id
+                        )
+                    ]
+                    pool_start = len(call_pool)
+                    call_pool.extend(new_calls)
+                    call_index.update(
+                        {
+                            key: pool_start + index
+                            for key, index in _build_call_index(new_calls).items()
+                        }
+                    )
 
                 # Deserialize events from this segment
                 raw_events = _deserialize_events([ed.event for ed in seg_data.events])
