@@ -218,7 +218,8 @@ def test_pending_sync_respects_log_shared_interval(
     monkeypatch: pytest.MonkeyPatch,
     sync_releases: list[threading.Event],
 ) -> None:
-    shared_db.log_shared = 0.2
+    throttle_interval = 1
+    shared_db.log_shared = throttle_interval
     first_started = threading.Event()
     release_first = threading.Event()
     second_started = threading.Event()
@@ -254,7 +255,7 @@ def test_pending_sync_respects_log_shared_interval(
     _assert_event(second_started, "pending sync did not run")
     assert recorder.calls == 2
     assert recorder.max_active_calls == 1
-    assert sync_times[1] - sync_times[0] >= shared_db.log_shared * 0.9
+    assert sync_times[1] - sync_times[0] >= throttle_interval * 0.9
 
 
 def test_sync_exception_does_not_prevent_later_sync(
