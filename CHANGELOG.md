@@ -50,6 +50,11 @@
 - Bugfix: `time_limit()` no longer masks exceptions raised after the deadline (e.g. from `finally` blocks) with `LimitExceededError`; the original exception now propagates.
 - Bugfix: Multiple-choice answer parsing — `multiple_choice()`/`answer()`/`choice()` now accept lowercase letters, prefer the last `ANSWER:` occurrence (matching the CoT "last line" instruction), parse `"A, B and C"` lists, and handle multi-answer targets with separators (`Target("A,B")`).
 - Bugfix: Shared log buffer sync is scheduled onto a single daemon worker thread (prevent deadlock when logging occurs during sync).
+- Bugfix: `max_score` reducer's dict/list paths now NaN-filter per key/index, making results order-independent (NaN previously kept whichever element came first).
+- Bugfix: `pass_at(k)` now returns the unscored NaN sentinel when fewer than `k` epochs were scored (previously inflated to 1.0).
+- Bugfix: `create_reducers` no longer rewrites custom reducer names ending in `_<digits>` (e.g. `"top_5"`) into the built-in `_k` shorthand.
+- Bugfix: `multi_scorer` returns `Score.unscored()` when every sub-scorer declines to score (previously crashed with `IndexError`).
+- Bugfix: `at_least` / `pass_at` reducer names now correctly include the `_k` suffix on the returned reducer (previously leaked onto the module-global factory).
 
 ## 0.3.220 (08 May 2026)
 
