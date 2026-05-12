@@ -224,6 +224,49 @@ def test_invalidation(tmp_path: Path):
     assert reused_uuids == old_uuids - {invalid_sample_uuid}
 
 
+def test_eval_retry_preserves_scorer_attribution():
+    # Restored (cached) samples must carry the same SampleScore.scorer
+    # attribution as freshly executed samples. Regression: the cached path
+    # previously omitted `scorer=` so restored scores had scorer=None and
+    # were indistinguishable from solver-set scores in results aggregation.
+    import inspect_ai._eval.task.run as run_mod
+
+    captured: list[list[dict]] = []
+    orig = run_mod.eval_results
+
+    def spy(*args, **kwargs):
+        scores = kwargs.get("scores", args[1] if len(args) > 1 else None)
+        captured.append(list(scores))
+        return orig(*args, **kwargs)
+
+    run_mod.eval_results = spy
+    try:
+        # 2 samples: first passes, second fails -> retry restores first from
+        # cache and reruns second fresh
+        log1 = eval(
+            failing_task_deterministic([False, True]),
+            model="mockllm/model",
+            fail_on_error=False,
+        )[0]
+        assert log1.status == "success"
+        captured.clear()
+
+        log2 = eval_retry(log1)[0]
+        assert log2.status == "success"
+    finally:
+        run_mod.eval_results = orig
+
+    by_id: dict[int, str | None] = {}
+    for call_scores in captured:
+        for d in call_scores:
+            for ss in d.values():
+                by_id[ss.sample_id] = ss.scorer
+
+    assert 1 in by_id and 2 in by_id
+    assert by_id[2] == "match", f"fresh sample scorer={by_id[2]!r}"
+    assert by_id[1] == "match", f"restored sample scorer={by_id[1]!r}"
+
+
 def test_eval_retry_preserves_token_usage():
     # 10 samples: first 8 pass, last 2 fail
     # On retry: fresh iterator, 2 samples read [False, False] -> both pass

@@ -9,11 +9,17 @@
 - Model API: Cache lookup of openai and anthropic packages at sample initialization.
 - Model API: Remove semaphore around calls to `count_tokens()` (they are already retried and gated by `max_samples`).
 - Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
+- Limits: Added `suspend_token_limit()` context manager for suspending token tracking and limit enforcement within a scope.
 - Datasets: `hf_dataset` retries transient Hugging Face errors (rate limits, timeouts, Hub-unreachable cache misses) up to 3 times (5 in CI) with exponential backoff. Pass `retry=False` to disable.
+- Datasets: Reject sample ids that collide under `str()` coercion.
+- Datasets: Treat NaN from HuggingFace dataset as `None` is treated (converted to `""`).
+- Datasets: Use HuggingFace revision in cache key for downloaded datasets.
+- Datasets: Propagate `hf_dataset(..., shuffle=True)` to `EvalDataset.shuffled`.
 - Scoring: Store and aggregate results for cancelled eval runs.
+- Analysis: Use score reducer in `evals_df()` column name when there are multiple reducers.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
-- Eval Set: Support for task filtering in CLI invocations via the `-F` option.
 - Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don't implement conditional writes).
+- Eval Log: Make `log_file_info()` robust to non-standard filenames; added `log_file_info_async()` / `log_files_from_ls_async()` so view-server header reads don't block the event loop.
 - Logging: `INSPECT_PY_LOGGER_FORMAT` env var (`rich`/`plain`/`json`) for non-TTY-friendly single-line console logs.
 - Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
 - Task Display: Honor terminal `COLUMNS` and `LINES` for dumb terminals.
@@ -21,12 +27,23 @@
 - Memory: Don't retain message lists in buffer DB (memory leak on long agentic samples).
 - Memory: Collapse user messages at compaction time to avoid carrying extra messages.
 - Memory: Stop retaining copied tool schemas in model events.
-- Bugfix: Ensure that models don't share GenerateConfig instance via default get_model argument.
 - Inspect View: Pending samples fetch directly from S3 with chunked loading
 - Inspect View: Score color scales applied to sample-header chips
 - Inspect View: Outline close icon aligned; rootHeader made sticky
 - Inspect View: Fixed model retry event rendering
 - Inspect View: Fixed message ordering in running-sample Messages tab with cross-poll caching
+- Bugfix: Ensure that models don't share GenerateConfig instance via default get_model argument.
+- Bugfix: Don't raise on tool params with `None` as default (e.g.`x: dict = None`).
+- Bugfix: Fallback error message for when `OSError` does not include `.strerror` and `.filename`
+- Bugfix: More gracefully handle tool results with mixed `[Content, str]`.
+- Bugfix: Accept `""` as an `answer` for `basic_agent().
+- Bugfix: Narrowly replace `{submit}` in `react()` agent prompt templates (rather than using `.format`).
+- Bugfix: Correctly handle `pd.NA` when converting scores to float in analysis df functions.
+- Bugfix: Include model role usage data in eval samples summaries.
+- Bugfix: Prevent duplicate entries in `summaries.json` when re-scoring or converting logs.
+- Bugfix: `fail_on_error` fractional threshold now uses the sliced sample count multiplied by `epochs` (matching the end-of-run check)
+- Bugfix: `eval_retry` preserves `SampleScore.scorer` attribution on restored samples (was `None` instead of the scorer name).
+- Bugfix: `time_limit()` no longer masks exceptions raised after the deadline (e.g. from `finally` blocks) with `LimitExceededError`; the original exception now propagates.
 
 ## 0.3.220 (08 May 2026)
 

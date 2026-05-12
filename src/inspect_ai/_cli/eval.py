@@ -1,6 +1,5 @@
 import functools
 import json
-from pathlib import Path
 from typing import Any, Callable, Literal, cast
 
 import click
@@ -10,8 +9,6 @@ from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
 from inspect_ai._eval.evalset import eval_set
-from inspect_ai._eval.list import list_tasks
-from inspect_ai._eval.task import TaskInfo
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -38,6 +35,7 @@ from inspect_ai.model._generate_config import (  # noqa: F811
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
+from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
 from inspect_ai.util._resource import resource
 
 from .common import (
@@ -97,6 +95,7 @@ TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
 ATTEMPT_TIMEOUT_HELP = "Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."
 CACHE_HELP = "Policy for caching of model generations. Specify --cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g. (e.g. 1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full `CachePolicy` configuration."
 BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
+CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for default (every 5 turns), --checkpoint=turn:N / time:Ns/m/h/d / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
 
 
 def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
@@ -202,6 +201,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help=NO_SANDBOX_CLEANUP_HELP,
         envvar="INSPECT_EVAL_NO_SANDBOX_CLEANUP",
+    )
+    @click.option(
+        "--checkpoint",
+        is_flag=False,
+        flag_value="turn:5",
+        default=None,
+        help=CHECKPOINT_HELP,
+        envvar="INSPECT_EVAL_CHECKPOINT",
     )
     @click.option(
         "--limit",
@@ -676,6 +683,7 @@ def eval_command(
     approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    checkpoint: str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -776,6 +784,7 @@ def eval_command(
         approval=approval,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
+        checkpoint=checkpoint,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
         no_epochs_reducer=no_epochs_reducer,
@@ -880,13 +889,6 @@ def eval_command(
     type=str,
     help="ID for the eval set. If not specified, a unique ID will be generated.",
 )
-@click.option(
-    "-F",
-    "task_filter",
-    multiple=True,
-    type=str,
-    help="One or more boolean task filters (e.g. -F light=true or -F draft~=false).",
-)
 @eval_options
 @click.pass_context
 def eval_set_command(
@@ -913,6 +915,7 @@ def eval_set_command(
     metadata: tuple[str, ...] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    checkpoint: str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -986,7 +989,6 @@ def eval_set_command(
     log_format: Literal["eval", "json"] | None,
     log_level_transcript: str,
     eval_set_id: str | None,
-    task_filter: tuple[str, ...] | None,
     **common: Unpack[CommonOptions],
 ) -> int:
     """Evaluate a set of tasks with retries.
@@ -1022,6 +1024,7 @@ def eval_set_command(
         approval=approval,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
+        checkpoint=checkpoint,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
         no_epochs_reducer=no_epochs_reducer,
@@ -1065,7 +1068,6 @@ def eval_set_command(
         embed_viewer=True if embed_viewer else False,
         log_dir_allow_dirty=log_dir_allow_dirty,
         eval_set_id=eval_set_id,
-        task_filter=task_filter,
         **config,
     )
 
@@ -1095,6 +1097,7 @@ def eval_exec(
     approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    checkpoint: str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1138,7 +1141,6 @@ def eval_exec(
     embed_viewer: bool = False,
     log_dir_allow_dirty: bool | None = None,
     eval_set_id: str | None = None,
-    task_filter: tuple[str, ...] | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
     # parse task, solver, and model args
@@ -1154,10 +1156,6 @@ def eval_exec(
 
     # parse metadata
     eval_metadata = parse_cli_args(metadata)
-
-    # apply eval-set task filters
-    if is_eval_set:
-        tasks = _filter_task_identifiers(tasks, task_filter)
 
     # resolve epochs
     eval_epochs = (
@@ -1218,6 +1216,7 @@ def eval_exec(
             approval=approval,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
+            checkpoint=parse_checkpoint(checkpoint),
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
@@ -1309,33 +1308,6 @@ def _parse_adaptive_connections_cli(
             f"or `4-20-80`.",
             param_hint="--adaptive-connections",
         ) from ex
-
-
-def _filter_task_identifiers(
-    tasks: tuple[str, ...] | None, filters: tuple[str, ...] | None
-) -> tuple[str, ...] | None:
-    parsed_filters = parse_cli_args(filters)
-    if not parsed_filters:
-        return tasks
-
-    def include_task(task: TaskInfo) -> bool:
-        for name, value in parsed_filters.items():
-            if name.endswith("~"):
-                include = task.attribs.get(name[:-1], None) != value
-            else:
-                include = task.attribs.get(name, None) == value
-            if not include:
-                return False
-        return True
-
-    task_infos = list_tasks(
-        globs=list(tasks) if tasks else [],
-        root_dir=Path.cwd(),
-        filter=include_task,
-    )
-    if not task_infos:
-        raise click.ClickException("No tasks matched the specified -F filter(s).")
-    return tuple(str(task) for task in task_infos)
 
 
 def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:

@@ -14,6 +14,7 @@ from anyio.abc import TaskGroup
 from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.util._checkpoint.config import CheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxConnection
 from inspect_ai.util._sandbox.context import sandbox_connections
@@ -39,6 +40,7 @@ class ActiveSample:
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
+        checkpoint: CheckpointConfig | None = None,
         eval_set_id: str | None = None,
         run_id: str | None = None,
         eval_id: str | None = None,
@@ -63,6 +65,7 @@ class ActiveSample:
         self.total_cost: float | None = None
         self.transcript = transcript
         self.sandboxes = sandboxes
+        self.checkpoint = checkpoint
         self.eval_set_id = eval_set_id
         self.run_id = run_id
         self.eval_id = eval_id
@@ -135,6 +138,7 @@ async def active_sample(
     working_limit: int | None,
     fails_on_error: bool,
     transcript: Transcript,
+    checkpoint: CheckpointConfig | None = None,
     eval_set_id: str | None = None,
     run_id: str | None = None,
     eval_id: str | None = None,
@@ -154,6 +158,7 @@ async def active_sample(
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
+        checkpoint=checkpoint,
         eval_set_id=eval_set_id,
         run_id=run_id,
         eval_id=eval_id,
