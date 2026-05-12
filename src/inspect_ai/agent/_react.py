@@ -26,6 +26,7 @@ from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
+from inspect_ai.util._checkpoint import checkpointer
 
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._filter import MessageFilter
@@ -186,7 +187,7 @@ def react(
         )
 
     async def execute(state: AgentState) -> AgentState:
-        async with mcp_connection(tools):
+        async with checkpointer() as cp, mcp_connection(tools):
             # prepend system message if we have one
             if system_message:
                 state.messages.insert(0, system_message)
@@ -206,6 +207,9 @@ def react(
             # main loop = will terminate after submit (subject to max_attempts)
             # or if a message or token limit is hit
             while True:
+                # checkpoint at turn boundary (no-op when policy says so)
+                await cp.tick(state.messages)
+
                 # generate output and append assistant message
                 state = await _agent_generate(
                     model, state, tools, retry_refusals, compact
@@ -360,7 +364,7 @@ def react_no_submit(
     system_message = _prompt_to_system_message(prompt, tools, None)
 
     async def execute(state: AgentState) -> AgentState:
-        async with mcp_connection(tools):
+        async with checkpointer() as cp, mcp_connection(tools):
             # prepend system message if we have one
             if system_message:
                 state.messages.insert(0, system_message)
@@ -376,6 +380,9 @@ def react_no_submit(
 
             # main loop
             while True:
+                # checkpoint at turn boundary (no-op when policy says so)
+                await cp.tick(state.messages)
+
                 # generate output and append assistant message
                 state = await _agent_generate(
                     model, state, tools, retry_refusals, compact
