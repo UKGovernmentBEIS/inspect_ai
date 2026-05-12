@@ -21,15 +21,19 @@ def eval_log_scores_dict(
     log: EvalLog,
 ) -> list[dict[str, dict[str, int | float]]] | None:
     if log.results is not None:
-        # include the reducer in the key when present so that runs with
-        # multiple epochs_reducer values (which produce one EvalScore per
-        # reducer with the same `name`) yield distinct columns rather than
-        # the last reducer silently overwriting earlier ones
+        # only disambiguate by reducer when multiple scores share a name
+        # (e.g. epochs_reducer=["mean","max"] produces one EvalScore per
+        # reducer with the same `name`). when names are unique, keep the
+        # existing `score_<name>_<metric>` column naming.
+        name_counts: dict[str, int] = {}
+        for score in log.results.scores:
+            name_counts[score.name] = name_counts.get(score.name, 0) + 1
+
         metrics = [
             {
                 (
                     f"{score.name}_{score.reducer}"
-                    if score.reducer is not None
+                    if name_counts[score.name] > 1 and score.reducer is not None
                     else score.name
                 ): {metric.name: metric.value for metric in score.metrics.values()}
             }
