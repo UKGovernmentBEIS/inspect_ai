@@ -181,6 +181,31 @@ def test_dataset_auto_id() -> None:
     assert [sample.id for sample in dataset] == [id for id in range(1, 11)]
 
 
+def test_dataset_nan_target_treated_as_missing() -> None:
+    # HuggingFace / pandas-backed sources represent missing string values as
+    # float NaN. These must be treated like None (-> ""), not stringified to
+    # the literal "nan" (which would silently become the gold answer).
+    from inspect_ai.dataset._util import record_to_sample_fn
+
+    rec2sample = record_to_sample_fn(FieldSpec())
+
+    sample = rec2sample({"input": "What is 2+2?", "target": float("nan")})
+    assert not isinstance(sample, list)
+    assert sample.target == "", (
+        f"float NaN target should be treated as missing, got {sample.target!r}"
+    )
+
+    # None already handled correctly; keep as a regression guard
+    sample_none = rec2sample({"input": "x", "target": None})
+    assert not isinstance(sample_none, list)
+    assert sample_none.target == ""
+
+    # numeric (non-NaN) targets should still be stringified
+    sample_num = rec2sample({"input": "x", "target": 4})
+    assert not isinstance(sample_num, list)
+    assert sample_num.target == "4"
+
+
 def test_dataset_zero_seed() -> None:
     dataset1 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
     dataset2 = json_dataset(dataset_path("dataset.jsonl"), shuffle=True, seed=0)
