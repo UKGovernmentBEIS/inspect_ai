@@ -28,9 +28,8 @@ from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
     is_log_file,
-    list_eval_logs,
-    log_file_info,
-    log_files_from_ls,
+    log_file_info_async,
+    log_files_from_ls_async,
     read_eval_log_async,
 )
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
@@ -493,18 +492,19 @@ async def list_eval_logs_async(
                         await async_fs._ls(log_dir, detail=True),
                     )
                 logs = [fs._file_info(file) for file in files]
-                # resolve to eval logs
-                return log_files_from_ls(logs, formats, descending)
+                # resolve to eval logs (async fan-out so header reads on
+                # non-conforming filenames don't block the event loop)
+                return await log_files_from_ls_async(logs, formats, descending)
             else:
                 return []
     else:
-        return list_eval_logs(
-            log_dir=log_dir,
-            formats=formats,
-            recursive=recursive,
-            descending=descending,
-            fs_options=fs_options,
-        )
+        # sync filesystem (e.g. local) — list sync but resolve headers via
+        # the async fan-out so non-conforming filenames don't block the loop
+        # and so trio callers don't hit the sync-only read_eval_log path.
+        if not fs.exists(log_dir):
+            return []
+        logs = fs.ls(log_dir, recursive=recursive)
+        return await log_files_from_ls_async(logs, formats, descending)
 
 
 def resolve_header_only(path: str, header_only: int | None) -> bool:
@@ -534,7 +534,7 @@ async def eval_log_info_async(
     fs = filesystem(log_file, fs_options)
     if fs.exists(log_file):
         info = fs.info(log_file)
-        return log_file_info(info)
+        return await log_file_info_async(info)
     else:
         return None
 
