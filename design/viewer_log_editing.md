@@ -7,7 +7,8 @@ currently is read-only against `EvalLog` files; this work expands the view serve
 with HTTP endpoints that wrap the existing Python edit APIs in
 `inspect_ai.log` and lays groundwork for matching UI affordances.
 
-Scope is everything in the inspect API that accepts a `ProvenanceData`:
+Scope is everything in the inspect API whose edit payload carries
+`ProvenanceData` (either as a direct argument or nested in the edit value):
 
 | Python API | Wrapped server endpoint (planned) | Phase |
 |------------|-----------------------------------|-------|
@@ -15,9 +16,13 @@ Scope is everything in the inspect API that accepts a `ProvenanceData`:
 | `edit_eval_log` (`MetadataEdit`)  | `POST /api/log-edit/{log}` | 2 |
 | `invalidate_samples`              | `POST /api/log-invalidate-samples/{log}` | 3 |
 | `uninvalidate_samples`            | `POST /api/log-uninvalidate-samples/{log}` | 3 |
+| `edit_score`                      | `POST /api/log-edit-score/{log}` | 4 |
 
 `uninvalidate_samples` does not take `ProvenanceData` but pairs with
-`invalidate_samples` and belongs alongside it.
+`invalidate_samples` and belongs alongside it. `edit_score` takes a
+`ScoreEdit` rather than a separate `ProvenanceData`, but `ScoreEdit` has
+`provenance: ProvenanceData | None` nested inside it — so the operation
+fits the same "authored, attributable mutation" pattern as the others.
 
 ## Motivation
 
@@ -39,8 +44,6 @@ inspect-flow) inherit the new endpoints for free.
 
 - CLI commands for editing logs (already noted as out-of-scope in
   `log_edits_tags_metadata.md`; tracked separately).
-- Editing scores (`edit_score` does not take `ProvenanceData` and follows a
-  different storage path — separate effort).
 - Concurrency control for local-filesystem logs. S3 conditional writes are
   wired up in Phase 1 (see below); local-file ETag synthesis is deferred — the
   single-user `inspect view` case is the dominant local one and last-writer-wins
@@ -163,16 +166,58 @@ required. We need to think about:
   partial mutation) — open question.
 - Whether the response should be the new header or the modified samples.
 
-## Phase 4 — View UI
+## Phase 4 — Score editing
+
+Wraps `edit_score` from `inspect_ai.log._score`:
+
+```
+POST /api/log-edit-score/{log}
+{
+  "sample_id":  "<sample id>",
+  "epoch":       1,                 // optional; required when multiple epochs share the id
+  "score_name": "accuracy",
+  "edit":        {                  // ScoreEdit
+    "value":       0.8,             // or "UNCHANGED"
+    "answer":      "yes",           // or "UNCHANGED" / null
+    "explanation": "UNCHANGED",
+    "metadata":    "UNCHANGED",
+    "provenance":  { "author": "alice", "reason": "regrade after rubric update" }
+  },
+  "recompute_metrics": true
+}
+```
+
+Notes specific to this phase:
+
+- `ScoreEdit.provenance` is nested inside the edit payload (not a separate
+  body field), matching the Python API. The viewer should always populate
+  it — `None` is reserved for the original scorer-emitted score, and once
+  edits append to `Score.history`, missing provenance becomes ambiguous.
+- `edit_score` mutates in-place: it appends a `ScoreEditEvent` to the
+  sample's event tree and pushes the prior `ScoreEdit` onto `score.history`.
+  That means **full read + full write** — not header-only. Same memory
+  implications as Phase 3.
+- `recompute_metrics=True` (the Python default) re-aggregates the log's
+  metrics so `EvalResults.scores` stays consistent with the edited sample
+  scores. The server should preserve that default; a client that wants to
+  defer metric recomputation can opt out.
+- New `ValueError` paths surface as HTTP 400 (sample not found, ambiguous
+  sample-id without epoch, creating a new score without a `value`).
+- Auth: gated by `can_write` like the other edit endpoints.
+
+## Phase 5 — View UI
 
 Out of scope for this design doc; deferred until the server endpoints land and
-stabilize. Initial sketch (from `log_edits_tags_metadata.md`):
+stabilize. Initial sketch:
 
-- Display effective `tags` / `metadata` on the log header.
+- Display effective `tags` / `metadata` on the log header (Phase 1/2).
 - Inline tag chip editor that POSTs a `TagsEdit`.
 - Expandable edit history with provenance (like the existing invalidation
   card).
 - Tag filter on the log list view.
+- Sample-level "invalidate" / "uninvalidate" affordances (Phase 3).
+- Inline score editor on the sample view with score history + provenance
+  surfaced from `score.history` (Phase 4).
 
 A follow-up doc will cover the UI design once the server side is stable.
 
@@ -183,8 +228,8 @@ A follow-up doc will cover the UI design once the server side is stable.
   authors, we need a real auth story — out of scope here.
 - Editing in-progress logs: edits against a still-running eval would race
   the recorder. Phase 1 simply doesn't gate this; the recorder will overwrite.
-  Worth deciding before Phase 3 (sample invalidation can plausibly target a
-  running eval).
+  Worth deciding before Phase 3/4 (sample invalidation and score editing can
+  plausibly target a running eval).
 - Eval-format vs JSON-format logs: `header_only` write is implemented per
   recorder. Verify both recorders honor `header_only=True` semantics — Phase 1
   tests cover the `.eval` recorder; `.json` is a follow-up if we keep
