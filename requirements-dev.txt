@@ -12,7 +12,7 @@ ipython
 jsonpath-ng
 markdown
 mcp>=1.10.0
-mistralai>=2.0.0
+mistralai @ git+https://github.com/mistralai/client-python.git@v2.4.5
 moto[server]>=5.1.5
 mypy>=1.17.0
 nbformat
