@@ -24,6 +24,7 @@ from pydantic_core import to_jsonable_python
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.logger import warn_once
 from inspect_ai.event._event import Event
+from inspect_ai.log import condense_events
 from inspect_ai.log._samples import sample_active
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
@@ -236,18 +237,25 @@ class _Checkpointer:
         events: Sequence[Event],
         store: Store,
     ) -> None:
-        """Write the host context across three files.
+        """Write the host context across four files.
 
-        - ``messages.json`` — JSON array of ChatMessage. Append-only in
-          practice; restic's content-defined chunking dedups the
-          unchanged prefix across snapshots.
-        - ``events.json`` — JSON array of Event. Same property.
+        - ``messages.json`` — JSON array of ChatMessage.
+        - ``events.json`` — condensed events; ModelEvent inputs / calls
+          replaced with refs into the pools below.
+        - ``events_data.json`` — ``{messages, calls}`` dedup pools.
         - ``store.json`` — Store key/value as a single JSON object.
-          Mutates anywhere; doesn't dedup, but it's the smallest file.
         """
+        # condense_events() pools ModelEvent input + call messages — the big
+        # O(N²) redundancy. Does NOT extract attachments (data URIs embedded
+        # in tool results, state changes, model output): those stay inline.
+        # Fine for text-only agents; swap to condense_sample()-shape (adds
+        # attachments.json) when vision / computer-use agents need
+        # checkpointing.
+        condensed_events, events_data = condense_events(events)
         sample_dir = anyio.Path(sample_working_dir)
         await (sample_dir / "messages.json").write_text(_json_dump(messages))
-        await (sample_dir / "events.json").write_text(_json_dump(events))
+        await (sample_dir / "events.json").write_text(_json_dump(condensed_events))
+        await (sample_dir / "events_data.json").write_text(_json_dump(events_data))
         await (sample_dir / "store.json").write_text(_json_dump(store_jsonable(store)))
 
     async def _backup_host(self) -> ResticBackupSummary:
