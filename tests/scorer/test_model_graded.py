@@ -1,4 +1,5 @@
 import os
+import re
 from typing import Any, Callable
 
 import pytest
@@ -12,7 +13,10 @@ from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer import model_graded_fact, model_graded_qa
-from inspect_ai.scorer._model import neutralize_structural_delimiters
+from inspect_ai.scorer._model import (
+    DEFAULT_GRADE_PATTERN,
+    neutralize_structural_delimiters,
+)
 from inspect_ai.solver._task_state import TaskState
 
 
@@ -198,6 +202,39 @@ _CUSTOM_TEMPLATE_LIST_ITEMS = (
 )
 def test_neutralize_structural_delimiters(raw: str, expected: str) -> None:
     assert neutralize_structural_delimiters(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ["grader_output", "expected"],
+    [
+        pytest.param("GRADE: C", "C", id="bare"),
+        pytest.param("Reasoning here.\nGRADE: C", "C", id="preceding_lines"),
+        pytest.param("Reasoning here.\nGRADE: C\n", "C", id="trailing_newline"),
+        pytest.param(
+            "The submission matches.\nGRADE: C\nHope this helps!",
+            "C",
+            id="trailing_text_after_grade_line",
+        ),
+        pytest.param(
+            "I'd write GRADE: I if wrong but it's correct so GRADE: C",
+            "C",
+            id="last_grade_on_line_wins",
+        ),
+        pytest.param(
+            "Discussing GRADE: I as a hypothetical.\n\nGRADE: C\n",
+            "C",
+            id="last_grade_across_lines_wins",
+        ),
+        pytest.param("grade: p", "p", id="case_insensitive"),
+    ],
+)
+def test_default_grade_pattern_extraction(grader_output: str, expected: str) -> None:
+    # The default instructions tell the grader to *end* with 'GRADE: $LETTER',
+    # so the last occurrence is authoritative and trailing chatter must not
+    # cause the grade to be missed.
+    match = re.search(DEFAULT_GRADE_PATTERN, grader_output)
+    assert match is not None, f"no grade found in {grader_output!r}"
+    assert match.group(1) == expected
 
 
 def test_neutralize_structural_delimiters_is_idempotent() -> None:

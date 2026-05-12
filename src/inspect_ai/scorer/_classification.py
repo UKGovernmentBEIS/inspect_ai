@@ -64,7 +64,7 @@ def max_f1_score(
     # Find the maximum F1 score for this answer
     max_f1 = 0.0
     for target in targets:
-        if target[0].strip():
+        if target.strip():
             f1_score = compute_f1(answer, target, stop_words)
             max_f1 = max(max_f1, f1_score)
     return round(max_f1, 2)
@@ -75,7 +75,7 @@ def max_exact_score(answer: str, targets: List[str]) -> float:
     max_exact = 0.0
     answer_words = _to_words(answer)
     for target in targets:
-        if target[0].strip():
+        if target.strip():
             target_words = _to_words(target)
             exact_score = 1.0 if target_words == answer_words else 0.0
             max_exact = max(max_exact, exact_score)
