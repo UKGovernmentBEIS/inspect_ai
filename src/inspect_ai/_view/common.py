@@ -7,7 +7,7 @@ from collections.abc import AsyncIterable
 from functools import partial
 from io import BytesIO
 from logging import getLogger
-from typing import Any, AsyncIterator, Literal, Tuple, cast
+from typing import Any, AsyncIterator, Literal, NamedTuple, Tuple, cast
 
 import fsspec  # type: ignore
 from aiobotocore.response import StreamingBody
@@ -147,15 +147,20 @@ def log_files_response(
     )
 
 
-async def get_log_file(
-    file: str, header_only_param: str | None
-) -> tuple[bytes, str | None]:
-    """Read a log file and return its JSON bytes plus the optional ETag.
+class LogPayload(NamedTuple):
+    """An eval log's serialized JSON bytes plus its optional ETag.
 
     The ETag is populated only when the underlying recorder surfaces one
     (today that means S3-hosted logs). Callers should forward it as an
     HTTP `ETag` response header when present.
     """
+
+    contents: bytes
+    etag: str | None
+
+
+async def get_log_file(file: str, header_only_param: str | None) -> LogPayload:
+    """Read a log file and return its JSON bytes plus the optional ETag."""
     # resolve header_only
     header_only_mb = int(header_only_param) if header_only_param is not None else None
     header_only = resolve_header_only(file, header_only_mb)
@@ -173,14 +178,14 @@ async def get_log_file(
     if log is None:  # normal read
         log = await read_eval_log_async(file, header_only=False)
 
-    return eval_log_json(log), log.etag
+    return LogPayload(contents=eval_log_json(log), etag=log.etag)
 
 
 async def apply_log_edits(
     file: str,
     update: LogUpdate,
     if_match_etag: str | None = None,
-) -> tuple[bytes, str | None]:
+) -> LogPayload:
     """Apply tag/metadata edits to a log and persist them.
 
     Reads the header, applies `update.edits` via `edit_eval_log`, and writes
@@ -206,7 +211,7 @@ async def apply_log_edits(
     new_etag: str | None = None
     if filesystem(file).is_s3():
         new_etag = (await read_eval_log_async(file, header_only=True)).etag
-    return eval_log_json(log), new_etag
+    return LogPayload(contents=eval_log_json(log), etag=new_etag)
 
 
 async def get_log_size(log_file: str) -> int:
