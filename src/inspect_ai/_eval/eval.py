@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import os
 import sys
@@ -26,6 +27,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
+from inspect_ai._eval.task.scan import EvalScanners, scan_context
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
@@ -96,6 +98,7 @@ def eval(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    scanner: "EvalScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
@@ -137,6 +140,7 @@ def eval(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
@@ -163,6 +167,8 @@ def eval(
             any task- or sample-level `checkpoint` when set.
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
+        scanner: Scanner(s) to apply to each sample's transcript after the
+            sample completes.
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
@@ -236,6 +242,7 @@ def eval(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
         **kwargs: Model generation options.
 
@@ -263,6 +270,7 @@ def eval(
                 sandbox_cleanup=sandbox_cleanup,
                 checkpoint=checkpoint,
                 solver=solver,
+                scanner=scanner,
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
@@ -302,6 +310,7 @@ def eval(
                 score=score,
                 score_display=score_display,
                 eval_set_id=eval_set_id,
+                scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
@@ -312,7 +321,20 @@ def eval(
             else:
                 raise
 
-    return task_display().run_task_app(with_async_fs(run_task_app))
+    result = task_display().run_task_app(with_async_fs(run_task_app))
+
+    # print scan status after the task display has exited so the
+    # message lands AFTER the panel + `Log:` line. Only when eval owns
+    # the scan lifecycle (standalone call, not nested in eval_set).
+    if scanner is not None and eval_set_id is None:
+        from inspect_ai._eval.task.scan import print_scan_status
+
+        resolved_log_dir = absolute_file_path(
+            log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
+        )
+        print_scan_status(resolved_log_dir, scanner)
+
+    return result
 
 
 # single call to eval_async at a time
@@ -330,6 +352,7 @@ async def eval_async(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    scanner: "EvalScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -369,6 +392,7 @@ async def eval_async(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
@@ -388,6 +412,7 @@ async def eval_async(
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
         checkpoint: Checkpoint configuration for this eval. Overrides any task- or sample-level `checkpoint` when set.
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
+        scanner: Scanner(s) to apply to each sample's transcript after the sample completes.
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         approval: Tool use approval policies.
@@ -446,6 +471,7 @@ async def eval_async(
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         eval_set_id: Unique id for eval set (this is passed from `eval_set()` and should not be specified directly).
+        scan_id: Override the scan-dir identifier (defaults to `eval_set_id` or `run_id`). Set by `eval_retry` to reuse the original eval's scan dir.
         task_retry_attempts: Number of times to retry tasks (defaults to 0)
         **kwargs: Model generation options.
 
@@ -469,6 +495,7 @@ async def eval_async(
                 sandbox_cleanup=sandbox_cleanup,
                 checkpoint=checkpoint,
                 solver=solver,
+                scanner=scanner,
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
@@ -508,6 +535,7 @@ async def eval_async(
                 score=score,
                 score_display=score_display,
                 eval_set_id=eval_set_id,
+                scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
                 **kwargs,
             )
@@ -541,6 +569,7 @@ async def _eval_async_inner(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    scanner: "EvalScanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -580,6 +609,7 @@ async def _eval_async_inner(
     score: bool = True,
     score_display: bool | None = None,
     eval_set_id: str | None = None,
+    scan_id: str | None = None,
     task_retry_attempts: int | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> list[EvalLog]:
@@ -772,64 +802,83 @@ async def _eval_async_inner(
         )
         await emit_run_start(eval_set_id, run_id, resolved_tasks)
 
-        # single task definition (could be multi-model) or max_tasks capped to 1
-        if parallel == 1:
-            results: list[EvalLog] = []
-            for sequence in sorted(set(t.sequence for t in resolved_tasks)):
-                task_batch = list(
-                    filter(lambda t: t.sequence == sequence, resolved_tasks)
-                )
-                results.extend(
-                    await eval_run(
-                        eval_set_id=eval_set_id,
-                        run_id=run_id,
-                        tasks=task_batch,
-                        parallel=parallel,
-                        eval_config=eval_config,
-                        eval_sandbox=sandbox,
-                        eval_checkpoint=checkpoint,
-                        recorder=recorder,
-                        header_only=log_header_only,
-                        epochs_reducer=epochs_reducer,
-                        solver=solver,
-                        tags=tags,
-                        metadata=metadata,
-                        run_samples=run_samples,
-                        score=score,
-                        debug_errors=debug_errors is True,
-                        task_retry_attempts=task_retry_attempts,
-                        **kwargs,
-                    )
-                )
-                # exit the loop if there was a cancellation
-                if any([result.status == "cancelled" for result in results]):
-                    break
-
-            # return list of eval logs
-            logs = EvalLogs(results)
-
-        # multiple task definitions AND tasks not capped at 1
-        else:
-            results = await eval_run(
-                eval_set_id=eval_set_id,
-                run_id=run_id,
-                tasks=resolved_tasks,
-                parallel=parallel,
-                eval_config=eval_config,
-                eval_sandbox=sandbox,
-                eval_checkpoint=checkpoint,
-                recorder=recorder,
-                header_only=log_header_only,
-                epochs_reducer=epochs_reducer,
-                solver=solver,
-                tags=tags,
-                metadata=metadata,
-                run_samples=run_samples,
-                score=score,
-                task_retry_attempts=task_retry_attempts,
-                **kwargs,
+        # scan_id is whichever the caller passed explicitly (e.g. eval_retry
+        # forwards the prior log's scan_id so the scan dir is reused), else
+        # the eval_set_id (when nested inside `eval_set`), else this run's
+        # uuid for a standalone eval. eval_set already wraps the run loop
+        # in scan_context, so skip the wrap here when eval_set_id is set
+        # to avoid double init/finalize.
+        scan_id = scan_id or eval_set_id or run_id
+        if scanner is not None and eval_set_id is None:
+            scan_cm: contextlib.AbstractContextManager[None] = scan_context(
+                scanner, scan_id=scan_id, log_dir=log_dir
             )
-            logs = EvalLogs(results)
+        else:
+            scan_cm = contextlib.nullcontext()
+
+        with scan_cm:
+            # single task definition (could be multi-model) or max_tasks capped to 1
+            if parallel == 1:
+                results: list[EvalLog] = []
+                for sequence in sorted(set(t.sequence for t in resolved_tasks)):
+                    task_batch = list(
+                        filter(lambda t: t.sequence == sequence, resolved_tasks)
+                    )
+                    results.extend(
+                        await eval_run(
+                            eval_set_id=eval_set_id,
+                            run_id=run_id,
+                            tasks=task_batch,
+                            parallel=parallel,
+                            eval_config=eval_config,
+                            eval_sandbox=sandbox,
+                            eval_checkpoint=checkpoint,
+                            recorder=recorder,
+                            header_only=log_header_only,
+                            epochs_reducer=epochs_reducer,
+                            solver=solver,
+                            scanner=scanner,
+                            scan_id=scan_id,
+                            tags=tags,
+                            metadata=metadata,
+                            run_samples=run_samples,
+                            score=score,
+                            debug_errors=debug_errors is True,
+                            task_retry_attempts=task_retry_attempts,
+                            **kwargs,
+                        )
+                    )
+                    # exit the loop if there was a cancellation
+                    if any([result.status == "cancelled" for result in results]):
+                        break
+
+                # return list of eval logs
+                logs = EvalLogs(results)
+
+            # multiple task definitions AND tasks not capped at 1
+            else:
+                results = await eval_run(
+                    eval_set_id=eval_set_id,
+                    run_id=run_id,
+                    tasks=resolved_tasks,
+                    parallel=parallel,
+                    eval_config=eval_config,
+                    eval_sandbox=sandbox,
+                    eval_checkpoint=checkpoint,
+                    recorder=recorder,
+                    header_only=log_header_only,
+                    epochs_reducer=epochs_reducer,
+                    solver=solver,
+                    scanner=scanner,
+                    scan_id=scan_id,
+                    tags=tags,
+                    metadata=metadata,
+                    run_samples=run_samples,
+                    score=score,
+                    task_retry_attempts=task_retry_attempts,
+                    **kwargs,
+                )
+                logs = EvalLogs(results)
 
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)
@@ -876,6 +925,7 @@ def eval_retry(
     log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
+    scanner: "EvalScanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
@@ -932,6 +982,11 @@ def eval_retry(
             to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        scanner: Scanner(s) to apply to each sample's transcript after the sample
+            completes. When provided, the existing scan dir from the original
+            eval (keyed by its `eval_set_id` or `run_id`) is reused — same resume
+            contract as `eval_set`: matching scanner config attaches, divergent
+            config raises `PrerequisiteError`.
         max_retries:
             Maximum number of times to retry request.
         timeout:
@@ -984,6 +1039,7 @@ def eval_retry(
             log_shared=log_shared,
             score=score,
             score_display=score_display,
+            scanner=scanner,
             max_retries=max_retries,
             timeout=timeout,
             attempt_timeout=attempt_timeout,
@@ -991,7 +1047,20 @@ def eval_retry(
             adaptive_connections=adaptive_connections,
         )
 
-    return task_display().run_task_app(with_async_fs(run_task_app))
+    result = task_display().run_task_app(with_async_fs(run_task_app))
+
+    # print scan status after the task display has exited so the
+    # message lands AFTER the panel + `Log:` line. Matches `eval` /
+    # `eval_set`'s trailing summary.
+    if scanner is not None:
+        from inspect_ai._eval.task.scan import print_scan_status
+
+        resolved_log_dir = absolute_file_path(
+            log_dir if log_dir else os.environ.get("INSPECT_LOG_DIR", "./logs")
+        )
+        print_scan_status(resolved_log_dir, scanner)
+
+    return result
 
 
 async def eval_retry_async(
@@ -1019,6 +1088,7 @@ async def eval_retry_async(
     log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
+    scanner: "EvalScanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
@@ -1067,6 +1137,11 @@ async def eval_retry_async(
             additional syncing of realtime log data for Inspect View.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        scanner: Scanner(s) to apply to each sample's transcript after the sample
+            completes. When provided, the existing scan dir from the original
+            eval (keyed by its `eval_set_id` or `run_id`) is reused — same resume
+            contract as `eval_set`: matching scanner config attaches, divergent
+            config raises `PrerequisiteError`.
         max_retries: Maximum number of times to retry request.
         timeout: Request timeout (in seconds)
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
@@ -1274,6 +1349,18 @@ async def eval_retry_async(
         # via PreviousTask.log.stats -> ResolvedTask.initial_*_usage; nothing
         # to seed here.
 
+        # When the user passes scanners on retry, reuse the prior log's
+        # scan_id so the existing scan dir is attached to (rather than a
+        # fresh one being created from the new run_id). scan_init's
+        # _verify_scanner_config_unchanged then enforces the same resume
+        # contract eval_set uses — matching config attaches, divergent
+        # config raises before any samples run.
+        retry_scan_id = (
+            (eval_log.eval.eval_set_id or eval_log.eval.run_id)
+            if scanner is not None
+            else None
+        )
+
         # run the eval
         log = (
             await eval_async(
@@ -1292,6 +1379,8 @@ async def eval_retry_async(
                 sandbox=eval_log.eval.sandbox,
                 sandbox_cleanup=sandbox_cleanup,
                 solver=solver,
+                scanner=scanner,
+                scan_id=retry_scan_id,
                 tags=tags,
                 metadata=metadata,
                 approval=approval,

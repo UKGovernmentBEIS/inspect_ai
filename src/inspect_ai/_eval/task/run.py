@@ -22,6 +22,7 @@ from inspect_ai._display import (
     display,
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
+from inspect_ai._eval.task.scan import EvalScanners
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -145,6 +146,11 @@ from .images import (
 from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
 from .sandbox import sandboxenv_context
+from .scan import (
+    resume_scan_previous_sample,
+    scan_eval_sample,
+    scanned_transcripts_for_resume,
+)
 from .store import DiskSampleStore, maybe_page_to_disk
 from .util import sample_messages, slice_dataset
 
@@ -174,6 +180,8 @@ class TaskRunOptions:
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
+    scanner: "EvalScanners | None" = field(default=None)
+    scan_id: str | None = field(default=None)
     tags: list[str] | None = field(default=None)
     run_samples: bool | None = field(default=True)
     score: bool = field(default=True)
@@ -220,6 +228,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     eval_wd = options.eval_wd
     config = options.config
     solver = options.solver
+    scanner = options.scanner
+    scan_id = options.scan_id
     tags = options.tags
     score = options.score
     sample_source = options.sample_source
@@ -383,6 +393,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     config, generate_config, model.api
                 )
 
+                scanned_per_scanner = scanned_transcripts_for_resume(
+                    scanner, scan_id, profile.log_location
+                )
+
                 def update_metrics(metrics: list[TaskDisplayMetric]) -> None:
                     td.update_metrics(metrics)
                     logger.update_metrics(metrics)
@@ -461,6 +475,17 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 if previous_sample.scores
                                 else {}
                             )
+                            await resume_scan_previous_sample(
+                                previous_sample,
+                                scanner,
+                                scanned_per_scanner,
+                                sample_semaphore,
+                                scan_id=scan_id,
+                                eval_id=logger.eval.eval_id,
+                                log_location=profile.log_location,
+                                model=str(model),
+                                eval_spec=logger.eval,
+                            )
                             await sample_complete(sample_id, epoch, sample_scores)
                             return sample_scores
 
@@ -503,6 +528,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         plan=plan,
                         scorers=scorers,
                         scorer_names=scorer_names,
+                        scanner=scanner,
                         cleanup=task.cleanup,
                         generate=generate,
                         progress=progress,
@@ -526,6 +552,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         eval_set_id=logger.eval.eval_set_id,
                         run_id=logger.eval.run_id,
                         task_id=logger.eval.eval_id,
+                        scan_id=options.scan_id,
                     )
 
                 sample_results = await tg_collect(
@@ -775,6 +802,7 @@ async def task_run_sample(
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
+    scanner: "EvalScanners | None",
     cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],
@@ -796,6 +824,7 @@ async def task_run_sample(
     eval_set_id: str | None,
     run_id: str,
     task_id: str,
+    scan_id: str | None = None,
     sample_uuid: str | None = None,
 ) -> dict[str, SampleScore] | EarlyStop | None:
     from inspect_ai.event import Event
@@ -1341,6 +1370,15 @@ async def task_run_sample(
                             logger=logger,
                             log_images=log_images,
                         )
+                    await scan_eval_sample(
+                        eval_sample,
+                        scanner,
+                        scan_id=scan_id,
+                        eval_id=task_id,
+                        log_location=log_location,
+                        model=str(state.model),
+                        eval_spec=logger.eval if logger else None,
+                    )
                     await emit_attempt_end(will_retry=False)
                     await emit_sample_end(
                         eval_set_id, run_id, task_id, state.uuid, eval_sample
@@ -1374,6 +1412,7 @@ async def task_run_sample(
             plan=plan,
             scorers=scorers,
             scorer_names=scorer_names,
+            scanner=scanner,
             cleanup=cleanup,
             generate=generate,
             progress=progress,
@@ -1395,6 +1434,7 @@ async def task_run_sample(
             eval_set_id=eval_set_id,
             run_id=run_id,
             task_id=task_id,
+            scan_id=scan_id,
             sample_uuid=state.uuid,
         )
 
