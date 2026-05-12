@@ -11,10 +11,36 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
-CheckpointTrigger = Literal["time", "turn", "manual", "token", "cost", "budget"]
-"""All checkpoint trigger kinds, including those scheduled for Phase 5."""
+CheckpointTriggerKind = Literal["time", "turn", "manual", "token", "cost", "budget"]
+"""Identifier of which trigger fired, as recorded on the sidecar.
+
+Distinct from :data:`inspect_ai.util._checkpoint.CheckpointTrigger`, which is
+the *configuration* type (a union of `TimeInterval`/`TurnInterval`/etc.
+plus the ``"manual"`` literal). This is the runtime *label* for the
+configured trigger that fired this checkpoint.
+"""
+
+
+class SnapshotInfo(BaseModel):
+    """Per-backup stats captured in the sidecar.
+
+    One per repo (host repo + one per active sandbox repo). Values come
+    from restic's backup summary — see :class:`ResticBackupSummary`.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    snapshot_id: str
+    """Restic snapshot id for this backup."""
+
+    size_bytes: int
+    """Bytes this snapshot added to its repo, after compression
+    (restic's ``data_added_packed``)."""
+
+    duration_ms: int
+    """How long the restic invocation took, in milliseconds."""
 
 
 class CheckpointSidecar(BaseModel):
@@ -30,7 +56,7 @@ class CheckpointSidecar(BaseModel):
     checkpoint_id: int
     """Ordinal integer (1, 2, 3, …) chosen by inspect at write time."""
 
-    trigger: CheckpointTrigger
+    trigger: CheckpointTriggerKind
     """The policy that fired this checkpoint."""
 
     turn: int
@@ -43,14 +69,14 @@ class CheckpointSidecar(BaseModel):
     """How long the checkpoint cycle took, in milliseconds."""
 
     size_bytes: int
-    """On-disk size added by this checkpoint."""
+    """Total on-disk size added by this checkpoint (sum of host + sandboxes)."""
 
-    host_snapshot_id: str
-    """Restic snapshot id in the per-attempt host repo."""
+    host: SnapshotInfo
+    """Stats for the host repo backup this cycle."""
 
-    sandboxes: dict[str, str]
-    """Map from sandbox name to the corresponding restic snapshot id in
-    that sandbox's per-attempt repo. Empty when checkpointing is host-only."""
+    sandboxes: dict[str, SnapshotInfo] = Field(default_factory=dict)
+    """Per-sandbox stats keyed by sandbox name. Empty when checkpointing is
+    host-only."""
 
 
 class CheckpointManifest(BaseModel):

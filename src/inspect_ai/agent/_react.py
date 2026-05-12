@@ -26,6 +26,7 @@ from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
+from inspect_ai.util._checkpoint import checkpointer
 
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._filter import MessageFilter
@@ -186,7 +187,7 @@ def react(
         )
 
     async def execute(state: AgentState) -> AgentState:
-        async with mcp_connection(tools):
+        async with checkpointer() as cp, mcp_connection(tools):
             # prepend system message if we have one
             if system_message:
                 state.messages.insert(0, system_message)
@@ -206,6 +207,9 @@ def react(
             # main loop = will terminate after submit (subject to max_attempts)
             # or if a message or token limit is hit
             while True:
+                # checkpoint at turn boundary (no-op when policy says so)
+                await cp.tick(state.messages)
+
                 # generate output and append assistant message
                 state = await _agent_generate(
                     model, state, tools, retry_refusals, compact
@@ -297,8 +301,8 @@ def react(
                         if not state.output.message.tool_calls:
                             state.messages.append(
                                 ChatMessageUser(
-                                    content=DEFAULT_CONTINUE_PROMPT.format(
-                                        submit=submit_tool.name
+                                    content=DEFAULT_CONTINUE_PROMPT.replace(
+                                        "{submit}", submit_tool.name
                                     )
                                 )
                             )
@@ -306,7 +310,9 @@ def react(
                         # send back the user message
                         state.messages.append(
                             ChatMessageUser(
-                                content=do_continue.format(submit=submit_tool.name)
+                                content=do_continue.replace(
+                                    "{submit}", submit_tool.name
+                                )
                             )
                         )
                     elif isinstance(do_continue, AgentState):
@@ -324,7 +330,7 @@ def react(
                     )
                     state.messages.append(
                         ChatMessageUser(
-                            content=continue_msg.format(submit=submit_tool.name)
+                            content=continue_msg.replace("{submit}", submit_tool.name)
                         )
                     )
 
@@ -358,7 +364,7 @@ def react_no_submit(
     system_message = _prompt_to_system_message(prompt, tools, None)
 
     async def execute(state: AgentState) -> AgentState:
-        async with mcp_connection(tools):
+        async with checkpointer() as cp, mcp_connection(tools):
             # prepend system message if we have one
             if system_message:
                 state.messages.insert(0, system_message)
@@ -374,6 +380,9 @@ def react_no_submit(
 
             # main loop
             while True:
+                # checkpoint at turn boundary (no-op when policy says so)
+                await cp.tick(state.messages)
+
                 # generate output and append assistant message
                 state = await _agent_generate(
                     model, state, tools, retry_refusals, compact
@@ -449,10 +458,13 @@ def _prompt_to_system_message(
                 and ("{submit}" not in prompt.assistant_prompt)
                 and prompt.submit_prompt
             ):
-                assistant_prompt = f"{prompt.assistant_prompt}\n{prompt.submit_prompt.format(submit=submit_tool)}"
+                assistant_prompt = (
+                    f"{prompt.assistant_prompt}\n"
+                    f"{prompt.submit_prompt.replace('{submit}', submit_tool)}"
+                )
             else:
-                assistant_prompt = prompt.assistant_prompt.format(
-                    submit=submit_tool or "submit"
+                assistant_prompt = prompt.assistant_prompt.replace(
+                    "{submit}", submit_tool or "submit"
                 )
             prompt_lines.append(assistant_prompt)
         prompt_content = "\n\n".join(prompt_lines)

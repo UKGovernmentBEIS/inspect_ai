@@ -188,8 +188,10 @@ def hf_dataset(
     # resolve data_to_sample function
     data_to_sample = record_to_sample_fn(sample_fields)
 
-    # generate a unique cache dir for this dataset
-    dataset_hash = mm3_hash(f"{path}{name}{data_dir}{split}{kwargs}")
+    # generate a unique cache dir for this dataset (revision must be part of
+    # the key so that loading a pinned revision does not poison the cache for
+    # later default-revision loads, and vice versa)
+    dataset_hash = mm3_hash(f"{path}{name}{data_dir}{split}{revision}{kwargs}")
     datasets_cache_dir = inspect_cache_dir("hf_datasets")
     dataset_cache_dir = os.path.join(
         datasets_cache_dir, f"{safe_filename(path)}-{dataset_hash}"
@@ -226,6 +228,7 @@ def hf_dataset(
         samples=data_to_samples(dataset.to_list(), data_to_sample, auto_id),
         name=Path(path).stem if Path(path).exists() else path,
         location=path,
+        shuffled=shuffle,
     )
 
     shuffle_choices_if_requested(memory_dataset, shuffle_choices)

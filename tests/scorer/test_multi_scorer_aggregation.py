@@ -1,6 +1,12 @@
+import math
+
+import anyio
+
 from inspect_ai._eval.task.results import eval_results
+from inspect_ai.model._model import ModelName
 from inspect_ai.scorer import Score, Target, mean, scorer
 from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._multi import multi_scorer
 from inspect_ai.scorer._scorer import unique_scorer_name
 from inspect_ai.solver import TaskState
 
@@ -102,3 +108,24 @@ def test_reducer_consistent_across_scorers() -> None:
     for score_result in results.scores:
         assert "mean" in score_result.metrics
         assert score_result.metrics["mean"].value is not None
+
+
+def test_multi_scorer_all_none_returns_unscored() -> None:
+    # Regression: when every sub-scorer returns None (which the Scorer
+    # protocol permits), multi_scorer filtered to an empty list and the
+    # reducer crashed with IndexError on scores[0]. It should instead
+    # yield the unscored NaN sentinel.
+    async def none_scorer(state: TaskState, target: Target) -> None:
+        return None
+
+    state = TaskState(
+        model=ModelName("mockllm/model"),
+        sample_id=0,
+        epoch=0,
+        input=[],
+        messages=[],
+    )
+    combined = multi_scorer([none_scorer, none_scorer], reducer="mean")
+    result = anyio.run(combined, state, Target(""))
+    assert isinstance(result, Score)
+    assert isinstance(result.value, float) and math.isnan(result.value)

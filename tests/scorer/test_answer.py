@@ -99,6 +99,33 @@ async def test_line_failure():
 
 
 @pytest.mark.anyio
+async def test_letter_last_occurrence_wins():
+    # Models sometimes self-correct ("ANSWER: A ... wait, ANSWER: B"). The
+    # final ANSWER: line should be the one that is scored, consistent with
+    # the behaviour of answer("line").
+    scorer = answer("letter")
+    state = simple_task_state(
+        model_output="Let me think. ANSWER: A\nWait, that is wrong.\nANSWER: B"
+    )
+    result = await scorer(state, Target(["B"]))
+
+    assert result.answer == "B"
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_word_last_occurrence_wins():
+    scorer = answer("word")
+    state = simple_task_state(
+        model_output="ANSWER: No\nActually, on reflection...\nANSWER: Yes"
+    )
+    result = await scorer(state, Target(["Yes"]))
+
+    assert result.answer == "Yes"
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
 async def test_line_multiple_matches():
     scorer = answer("line")
     state = simple_task_state(

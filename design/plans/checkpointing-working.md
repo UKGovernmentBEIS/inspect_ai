@@ -12,26 +12,28 @@ Checkpoint + resume is **phase 1 of a broader long-horizon eval feature stream**
 
 -   **Mid-sample resume.** Resume picks up an individual sample from its latest checkpoint, not from the start of the sample.
 -   **Provider-agnostic mechanism.** One filesystem-based mechanism covers all sandbox providers; no provider-native snapshots.
--   **Cooperative with the agent.** Checkpoint/resume only works when the agent participates. Inspect cannot determine on its own whether a given agent's logic will behave correctly after restoration — the agent is the one that knows whether its state is in the messages, the store, and the sandbox (resumable) vs. in in-memory Python state that won't survive a crash (not resumable). For this reason, checkpointing is enabled **by the agent**, configured on the agent's constructor (not on `Task(...)`), and resume-safe behavior is the agent's responsibility.
+-   **Cooperative with the agent.** Checkpoint/resume only works when the agent participates. Inspect cannot determine on its own whether a given agent's logic will behave correctly after restoration — the agent is the one that knows whether its state is in the messages, the store, and the sandbox (resumable) vs. in in-memory Python state that won't survive a crash (not resumable). For this reason, resume-safe behavior is the agent's responsibility, and an agent must opt in to cooperation by calling the inspect-provided primitives (`Checkpointer`, `tick`, `checkpoint`). The agent decides *whether* it cooperates; the caller (eval/task/sample) decides *whether and how* to checkpoint.
 -   **The `.eval` log is the source of truth** for eval identity, config, sample inputs, and completed-sample records. The checkpoints directory holds only in-flight state.
 -   **Resumption is accomplished through `inspect eval retry`,** layering on existing retry infrastructure. No new command or flag.
 -   **Resumption inherits retry's rehydration.** Whatever retry can reconstruct — eval config from the log, task identity, sample inputs, dynamic tasks via eval-set — resumption gets for free. Checkpointing adds no new bundling or reification machinery; it extends retry's sample source to also deliver *partial* samples.
 
 ## Non-goals
 
--   **In-memory sandbox/process state.** We checkpoint configured directories inside each sandbox — not running processes, open sockets, RAM, or any path outside the configured set. Path selection is agent-specific and declared on the agent's `CheckpointConfig` (§2, §4a).
+-   **In-memory sandbox/process state.** We checkpoint configured directories inside each sandbox — not running processes, open sockets, RAM, or any path outside the configured set. Path selection is agent-specific and declared on the resolved `CheckpointConfig` (§2, §4a).
 -   **Provider-native snapshot mechanisms** (Modal memory/VM snapshots, Docker commit, VM image snapshots). Not in Phase 1.
 -   **Tracking or replaying external side-effects across resume.** If an agent made external API calls between the last checkpoint and the crash, those side-effects may re-execute on resume. Tool authors are responsible for tolerating this (typically via idempotent tools). *Reality doesn't have a fork command.*
 -   **Mid-tool-call checkpointing (not initially).** For Phase 1, checkpoints fire only at turn boundaries. A long-running tool call (e.g., a 10-minute subprocess) blocks the next checkpoint until the call returns. We do not interrupt tools to snapshot. Mid-tool-call checkpointing is planned for a later phase.
 
 ## 1. Data layout
 
-For an eval log `foo.eval`, checkpoints live in a sibling directory `foo.eval.checkpoints/` (default location; overridable to `s3://` or any fsspec-supported URL). The log records the canonical checkpoints directory location.
+For an eval log `foo.eval`, checkpoints live by default in a sibling directory `foo.checkpoints/` (`.eval` is stripped from the basename before the `.checkpoints` suffix is appended). The parent root is overridable via `CheckpointConfig.checkpoints_dir` (any fsspec-resolvable path: local, `s3://`, etc.) — the per-eval subdir name is unchanged. The log records the canonical checkpoints directory location.
 
 ```         
 logs/
   foo.eval                                   # existing eval log
-  foo.eval.checkpoints/                      # sibling dir (default)
+  foo.checkpoints/                           # sibling dir (default;
+                                             #   parent overridable via
+                                             #   CheckpointConfig.checkpoints_dir).
     manifest.json                            # eval-level header:
                                              #   eval_id (pairs with log),
                                              #   layout version,
@@ -74,13 +76,30 @@ A **checkpoint** is identified by an ordinal integer (1, 2, 3, …) chosen by in
   "created_at": "2026-04-26T14:23:11Z",
   "duration_ms": 842,
   "size_bytes": 1834291,
-  "host_snapshot_id": "<restic snapshot id>",
+  "host": {
+    "snapshot_id": "<restic snapshot id>",
+    "size_bytes": 1612345,
+    "duration_ms": 720
+  },
   "sandboxes": {
-    "default":  "<restic snapshot id>",
-    "tools":    "<restic snapshot id>"
+    "default": {
+      "snapshot_id": "<restic snapshot id>",
+      "size_bytes": 110234,
+      "duration_ms": 95
+    },
+    "tools": {
+      "snapshot_id": "<restic snapshot id>",
+      "size_bytes": 111712,
+      "duration_ms": 87
+    }
   }
 }
 ```
+
+Each per-repo entry (`host` and the values in `sandboxes`) is a
+`SnapshotInfo` record carrying the restic snapshot id plus that
+backup's incremental size (`data_added_packed` from restic's summary)
+and elapsed time. The top-level `size_bytes` is the rolled-up total.
 
 Listing checkpoints for an attempt is `ls <attempt>/ckpt-*.json` — no restic invocation needed. Restic snapshots are also tagged with the ordinal as a debugging aid / fallback if a sidecar is lost; the sidecar is the authoritative index.
 
@@ -93,7 +112,50 @@ one attempt are not shared with or consulted by another.
 
 ## 2. Configuration surface
 
-A checkpointing-aware agent accepts an optional **`CheckpointConfig`** on its constructor — for example, `react(checkpoint=CheckpointConfig(...))`. When `None` (or omitted), checkpointing is disabled.
+`CheckpointConfig` is specified at one of three levels — mirroring how `sandbox` is specified — with **per-field merge** across the three layers in precedence order **eval > sample > task**. Each level supplies a partial config (every field defaults to `None`); the harness combines them at sample-run time, with the higher-priority layer winning on a field-by-field basis. When unset at every level, checkpointing is disabled.
+
+Rationale for the precedence direction (sample > task): task defines the agent's standard policy for *all* of its samples; an individual sample specializes — e.g. tighter cadence, an extra captured path, more failure tolerance for a flaky row. Eval/CLI is always the highest priority because it's the operator's run-time override.
+
+`sandbox_paths` is treated as a single value (whole-dict replacement) — not per-key merged. To add a path to an existing sandbox, the higher-priority layer redeclares the full list.
+
+-   **Sample**: `Sample(checkpoint=CheckpointConfig(...))` — dataset-author default.
+-   **Task**: `Task(checkpoint=CheckpointConfig(...))` — task-level default.
+-   **Eval / CLI**: `eval(checkpoint=CheckpointConfig(...))` and `inspect eval --checkpoint=...` — run-level override.
+
+The resolved per-sample config is installed by the harness into an ambient context before the agent runs. Inside a checkpointing-aware agent, `Checkpointer()` (zero-arg) reads the resolved config from the ambient context — agents do not pass it explicitly. See §3 below.
+
+### CLI encoding
+
+`--checkpoint` accepts a flexible value, mirroring the `--batch` pattern:
+
+```         
+--checkpoint                       # bare → CheckpointConfig(trigger=TurnInterval(every=5))
+--checkpoint=turn:5                # TurnInterval(every=5)
+--checkpoint=time:15m              # TimeInterval(every=timedelta(minutes=15))
+--checkpoint=time:30s              # TimeInterval(every=timedelta(seconds=30))
+--checkpoint=manual                # trigger="manual"
+--checkpoint=./checkpoint.yaml     # YAML/JSON config file
+--checkpoint=s3://bucket/c.yaml    # fsspec-resolvable path
+```
+
+Time-value suffixes: `s`, `m`, `h`, `d` (case-insensitive); bare integer = seconds.
+
+The YAML/JSON schema mirrors `CheckpointConfig`, with `trigger` discriminated by `type`:
+
+``` yaml
+trigger:
+  type: turn          # or: time, token, cost, budget; or the literal "manual"
+  every: 5
+sandbox_paths:
+  default: ["/root", "/workspace"]
+  tools: ["/opt/agent-state"]
+checkpoints_dir: s3://my-bucket/checkpoints
+max_consecutive_failures: 3
+retention:
+  after_eval: retain
+```
+
+### Python construction
 
 ```python
 @dataclass
@@ -117,14 +179,13 @@ class BudgetPercent:
     budget: Literal["token", "cost", "time", "working"]
     percent: float                # e.g. 10.0 → every 10% of the named budget
 
-CheckpointPolicy = (
+CheckpointTrigger = (
     TimeInterval         # every N of wall-clock time
     | TurnInterval       # every N agent turns
     | TokenInterval      # every N tokens generated
     | CostInterval       # every $N spent
     | BudgetPercent      # at percentage milestones of a named budget
     | Literal["manual"]  # agent-triggered via await checkpoint()
-    | None               # disabled
 )
 
 @dataclass
@@ -135,9 +196,15 @@ class Retention:
     later inspection or replay. See §8d."""
 
 class CheckpointConfig:
-    policy: CheckpointPolicy = None
-    """Checkpoint trigger. All policies fire at the next turn boundary
+    trigger: CheckpointTrigger
+    """Checkpoint trigger. All triggers fire at the next turn boundary
     after the trigger condition is reached. See bullets below."""
+
+    checkpoints_dir: str | None = None
+    """Override the parent root under which the eval checkpoints dir
+    lands. None (default) = sibling of the eval log file. When set,
+    inspect places <log-base>.checkpoints/ under this root. Any
+    fsspec-resolvable path (s3://, local, etc.). See §1."""
 
     sandbox_paths: dict[str, list[str]] = {}
     """Per-sandbox-name list of absolute paths to capture inside the sandbox.
@@ -151,15 +218,14 @@ class CheckpointConfig:
     """Controls when checkpoint data is deleted. See §8d."""
 ```
 
-All policies fire at turn boundaries only; an agent is never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint.
+All triggers fire at turn boundaries only; an agent is never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint. To disable checkpointing, omit the ``CheckpointConfig`` at every level.
 
--   **None** — checkpointing disabled.
--   **Time-based** (`policy=TimeInterval(every=timedelta(minutes=15))`) — approximately every N seconds/minutes of wall-clock time; fires at the next turn boundary after the interval elapses (effective interval ≥ N).
--   **Turn-based** (`policy=TurnInterval(every=5)`) — every N agent turns.
--   **Token-based** (`policy=TokenInterval(every=100_000)`) — every N tokens generated.
--   **Cost-based** (`policy=CostInterval(every=5.00)`) — every $N of model spend.
--   **Budget-percentage** (`policy=BudgetPercent(budget="cost", percent=10)`) — fires at percentage milestones of one of inspect's configured limits. `budget` is one of `"token"`, `"cost"`, `"time"` (wall-clock from `time_limit`), `"working"` (agent-active from `working_limit`); `percent` is the step size (e.g. `10` → fires at 10%, 20%, …). Requires the corresponding `*_limit` to be set on the task or sample.
--   **Manual** (`policy="manual"`) — agent-triggered via an inspect-provided Python function (e.g. `from inspect_ai import checkpoint; await checkpoint(...)`). Not a model-callable tool — this is a programmatic hook for agent authors, not a prompt-engineering surface for the model.
+-   **Time-based** (`trigger=TimeInterval(every=timedelta(minutes=15))`) — approximately every N seconds/minutes of wall-clock time; fires at the next turn boundary after the interval elapses (effective interval ≥ N).
+-   **Turn-based** (`trigger=TurnInterval(every=5)`) — every N agent turns.
+-   **Token-based** (`trigger=TokenInterval(every=100_000)`) — every N tokens generated.
+-   **Cost-based** (`trigger=CostInterval(every=5.00)`) — every $N of model spend.
+-   **Budget-percentage** (`trigger=BudgetPercent(budget="cost", percent=10)`) — fires at percentage milestones of one of inspect's configured limits. `budget` is one of `"token"`, `"cost"`, `"time"` (wall-clock from `time_limit`), `"working"` (agent-active from `working_limit`); `percent` is the step size (e.g. `10` → fires at 10%, 20%, …). Requires the corresponding `*_limit` to be set on the task or sample.
+-   **Manual** (`trigger="manual"`) — agent-triggered via an inspect-provided Python function (e.g. `from inspect_ai import checkpoint; await checkpoint(...)`). Not a model-callable tool — this is a programmatic hook for agent authors, not a prompt-engineering surface for the model.
 
 ### Sandbox paths
 
@@ -188,14 +254,14 @@ If a sandbox name returned by `sample_init` does not appear in `sandbox_paths`, 
 
 Inspect provides checkpointing support at two layers:
 
--   **Built-in React agent.** The React agent accepts an optional `CheckpointConfig` and supports all policies out of the box. It serves as the reference consumer of the underlying primitives.
--   **Primitives for custom agents.** Custom agents follow the same pattern: accept a `CheckpointConfig` parameter and delegate to inspect-provided primitives — capture state, write checkpoint, restore from checkpoint, policy hooks — rather than reimplementing the machinery. The agent author does **not** track policy state (time elapsed, turns since last checkpoint); inspect's helpers consume the `CheckpointConfig` and fire a checkpoint when the policy says to. The boilerplate to add checkpoint support to a custom agent is minimal.
+-   **Built-in React agent.** The React agent unconditionally cooperates with checkpointing: it enters a `Checkpointer()` and calls `tick()` at each turn boundary. When no `CheckpointConfig` is installed in the ambient context, the session is a no-op.
+-   **Primitives for custom agents.** Custom agents follow the same pattern: enter `Checkpointer()` (zero-arg) around the agent loop and call `await tick(messages)` at each turn boundary (and optionally `await checkpoint(messages)` for manual triggers). The agent author does **not** receive or thread a `CheckpointConfig`; the harness installs the resolved config into an ambient `ContextVar` before the agent runs, and `Checkpointer()` reads it on entry. The agent does **not** track policy state (time elapsed, turns since last checkpoint); inspect's helpers consume the resolved config and fire a checkpoint when the policy says to. The boilerplate to add checkpoint support to a custom agent is minimal.
 
 ## 4. Snapshotting
 
 ### 4a. Scope
 
-**Sandbox repos** capture a list of paths inside each sandbox, configured per-sandbox-name on the agent's `CheckpointConfig` (§2). Restic backs up all configured paths in a single snapshot per cycle; cross-path CDC dedup is automatic. Anything outside the configured paths is not captured and will not be restored on resume.
+**Sandbox repos** capture a list of paths inside each sandbox, configured per-sandbox-name on the resolved `CheckpointConfig` (§2). Restic backs up all configured paths in a single snapshot per cycle; cross-path CDC dedup is automatic. Anything outside the configured paths is not captured and will not be restored on resume.
 
 The right paths are agent-specific. Native Python agents typically need none — their state lives in messages and `Store`, both captured by the host repo. **Sandbox CLI agents** (Claude Code, Codex CLI, Gemini CLI, etc.) typically need several directories: the agent's home directory, the project working directory (often `/workspace`), and any tool-state directories the agent writes to. Agent authors are expected to declare the paths their agent actually depends on.
 
@@ -311,6 +377,27 @@ Each host-repo snapshot contains exactly two files, sourced from a host-local wo
 Customer-facing checkpoint metadata (trigger, turn, duration, sandbox snapshot ids, etc.) lives in the per-checkpoint sidecar at the attempt root (§1), not inside the snapshot.
 
 The host working tree is host-local and ephemeral (not at the destination). Restic needs a real local-filesystem source path even when the destination is on s3; the working tree is overwritten in place each cycle.
+
+**Working-tree location.** Working trees live under
+`inspect_cache_dir("checkpoints")/<log-basename>/<sample-id>__<epoch>[_<retry>]/`,
+where `<log-basename>` is the eval log file name with its `.eval`
+suffix stripped. The per-attempt subtree mirrors the per-attempt
+subtree of the destination `<log>.eval.checkpoints/` directory — same
+shape, different root — so a working tree and its destination repo
+are trivially correlated. Caching under `inspect_cache_dir` keeps the
+working tree writable in all install scenarios (matching the §4c
+restic-binary cache rationale) and survives across `pip install`
+cycles. The working tree is overwritten in place each cycle and
+cleaned up on attempt completion.
+
+```
+$XDG_CACHE_HOME/inspect_ai/checkpoints/      # working-tree root
+  <log-basename>/                            # one per eval log
+    <sample-id>__<epoch>[_<retry>]/          # one per attempt;
+                                             #   shape mirrors §1.
+      context.json
+      store.json
+```
 
 ## 6. Resumption
 

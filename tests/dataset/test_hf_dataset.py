@@ -216,6 +216,114 @@ def test_hf_dataset_default_retries_transient_errors(fast_retry, monkeypatch):
     assert call_count == 3
 
 
+class _FakeHFDataset:
+    """Minimal stand-in for a datasets.Dataset object."""
+
+    def __init__(self, records) -> None:
+        self._records = list(records)
+        self.saved_to: str | None = None
+
+    def shuffle(self, seed=None):
+        import random
+
+        rng = random.Random(seed)
+        shuffled = list(self._records)
+        rng.shuffle(shuffled)
+        return _FakeHFDataset(shuffled)
+
+    def select(self, indices):
+        return _FakeHFDataset([self._records[i] for i in indices])
+
+    def to_list(self):
+        return list(self._records)
+
+    def save_to_disk(self, path):
+        import os
+
+        os.makedirs(path, exist_ok=True)
+        self.saved_to = path
+
+
+def _install_fake_datasets_full(monkeypatch, tmp_path, load_dataset, load_from_disk):
+    import sys
+    import types
+
+    fake = types.ModuleType("datasets")
+    fake.load_dataset = load_dataset
+    fake.load_from_disk = load_from_disk
+    monkeypatch.setitem(sys.modules, "datasets", fake)
+    monkeypatch.setattr(
+        "inspect_ai.dataset._sources.hf.verify_required_version",
+        lambda *_a, **_k: None,
+    )
+    monkeypatch.setattr(
+        "inspect_ai.dataset._sources.hf.inspect_cache_dir",
+        lambda *_a, **_k: str(tmp_path),
+    )
+
+
+def test_hf_dataset_shuffle_sets_shuffled_flag(tmp_path, monkeypatch):
+    # Regression: hf_dataset(..., shuffle=True) must report dataset.shuffled
+    # as True so the eval log header records the shuffle correctly.
+    records = [{"input": "a", "target": "1"}, {"input": "b", "target": "2"}]
+
+    def fake_load_dataset(*_a, **_k):
+        return _FakeHFDataset(records)
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, lambda *_a, **_k: None
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    ds = hf_dataset(path="org/ds", split="test", shuffle=True, cached=False)
+    assert ds.shuffled is True
+
+    ds_unshuffled = hf_dataset(path="org/ds", split="test", shuffle=False, cached=False)
+    assert ds_unshuffled.shuffled is False
+
+
+def test_hf_dataset_cache_key_includes_revision(tmp_path, monkeypatch) -> None:
+    # Regression: loading with revision="X" must not poison the cache for a
+    # subsequent default (revision=None) load of the same dataset.
+    saved_dirs: dict[str, list] = {}
+
+    def fake_load_dataset(*_a, revision=None, **_k):
+        target = revision or "default"
+        ds = _FakeHFDataset([{"input": "q", "target": target}])
+        # capture where each revision gets cached
+        orig_save = ds.save_to_disk
+
+        def save(path):
+            orig_save(path)
+            saved_dirs.setdefault(path, []).append(target)
+
+        ds.save_to_disk = save
+        return ds
+
+    def fake_load_from_disk(path):
+        # return whatever was last saved at this path
+        target = saved_dirs[path][-1]
+        return _FakeHFDataset([{"input": "q", "target": target}])
+
+    _install_fake_datasets_full(
+        monkeypatch, tmp_path, fake_load_dataset, fake_load_from_disk
+    )
+
+    from inspect_ai.dataset import hf_dataset
+
+    # first load pins a specific revision
+    ds_pinned = hf_dataset(path="org/ds", split="test", revision="abc123")
+    assert ds_pinned[0].target == "abc123"
+
+    # second load asks for the default branch; must NOT serve the pinned
+    # revision from cache
+    ds_default = hf_dataset(path="org/ds", split="test")
+    assert ds_default[0].target == "default", (
+        "default-revision load returned data cached from revision='abc123'"
+    )
+
+
 def test_hf_dataset_cache_hit_does_not_invoke_retry(tmp_path, monkeypatch):
     # Regression guard: cache-hit must skip the retry wrapper, otherwise a
     # corrupted local cache would stall behind the 5-minute backoff window.
@@ -233,7 +341,7 @@ def test_hf_dataset_cache_hit_does_not_invoke_retry(tmp_path, monkeypatch):
     path = "test/cache-hit-dataset"
     split = "test"
     # must match the hash formula in hf_dataset
-    dataset_hash = mm3_hash(f"{path}{None}{None}{split}{{}}")
+    dataset_hash = mm3_hash(f"{path}{None}{None}{split}{None}{{}}")
     cache_dir = tmp_path / f"{safe_filename(path)}-{dataset_hash}"
     cache_dir.mkdir()
 
