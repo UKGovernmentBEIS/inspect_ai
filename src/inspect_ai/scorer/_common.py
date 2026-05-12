@@ -1,3 +1,4 @@
+import math
 import re
 from typing import Callable, Literal
 
@@ -56,22 +57,27 @@ def match_str(
     if ignore_case:
         v = v.casefold()
         t = t.casefold()
-    if numeric and t.isnumeric():
-        # remove punctuation
+    if numeric and _is_number(strip_numeric_punctuation(t)):
+        # the target is a number: extract the relevant number(s) from the
+        # value, normalize both, and compare for numeric equality. we do
+        # NOT fall through to the text comparison below because e.g.
+        # "25".endswith("5") is True but 25 != 5.
         v = strip_numeric_punctuation(v)
-        t = strip_numeric_punctuation(t)
-        # normalize as required
-        t = normalize_number(t)
+        t = normalize_number(strip_numeric_punctuation(t))
+        words = re.split(r"\s+", v)
         if location == "begin":
-            words = re.split(r"\s+", v)
             v = first_number_normalized(words)
         elif location == "end":
-            words = re.split(r"\s+", v)
             words.reverse()
             v = first_number_normalized(words)
         elif location == "exact":
             v = normalize_number(v)
+        else:
+            # location == "any": match if any number in the value equals t
+            numbers = all_numbers_normalized(words)
+            return answer, t in numbers
         answer = v
+        return answer, v == t
     elif ignore_punctuation:
         v = strip_punctuation(v)
         t = strip_punctuation(t)
@@ -87,22 +93,44 @@ def match_str(
         return answer, t in v
 
 
+def _is_number(s: str) -> bool:
+    """Is `s` parseable as a finite number?
+
+    Recognises ordinary float syntax (including signs, decimals, and
+    exponents, e.g. ``-5``, ``3.14``, ``1e3``) as well as unicode numeric
+    characters (e.g. ``½``, ``三``, ``5²``) that ``str.isnumeric`` accepts
+    but ``float`` rejects. ``nan`` and ``inf`` are not considered numbers.
+    """
+    try:
+        return math.isfinite(float(s))
+    except ValueError:
+        return s.isnumeric()
+
+
 def first_number_normalized(words: list[str]) -> str:
-    number = next(
-        (word for word in words if word.replace(".", "").isnumeric()), words[0]
-    )
+    number = next((word for word in words if _is_number(word)), words[0])
     return normalize_number(number)
 
 
+def all_numbers_normalized(words: list[str]) -> list[str]:
+    return [normalize_number(word) for word in words if _is_number(word)]
+
+
 def normalize_number(number: str, precision: int = 5) -> str:
-    if number.replace(".", "").isnumeric():
-        # first try parsing with our tried and true parser, if that fails
-        # then there were unicode characters that are still .isnumeric()
-        # for that case, parse with our new unicode parser
-        try:
-            num = str_to_float(number)
-        except ValueError:
-            num = unicode_number_to_float(number)
+    num = _parse_number(number)
+    if num is not None and math.isfinite(num):
         return format(num, f".{precision}g")
     else:
         return number
+
+
+def _parse_number(number: str) -> float | None:
+    # first try the built-in float parser (which handles signs, decimals,
+    # and exponents); if that fails, try our extended parsers for unicode
+    # superscripts/fractions and finally generic unicode numeric characters
+    for parse in (float, str_to_float, unicode_number_to_float):
+        try:
+            return parse(number)
+        except ValueError:
+            pass
+    return None
