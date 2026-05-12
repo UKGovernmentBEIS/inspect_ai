@@ -301,8 +301,8 @@ def react(
                         if not state.output.message.tool_calls:
                             state.messages.append(
                                 ChatMessageUser(
-                                    content=_sub_submit(
-                                        DEFAULT_CONTINUE_PROMPT, submit_tool.name
+                                    content=DEFAULT_CONTINUE_PROMPT.replace(
+                                        "{submit}", submit_tool.name
                                     )
                                 )
                             )
@@ -310,7 +310,9 @@ def react(
                         # send back the user message
                         state.messages.append(
                             ChatMessageUser(
-                                content=_sub_submit(do_continue, submit_tool.name)
+                                content=do_continue.replace(
+                                    "{submit}", submit_tool.name
+                                )
                             )
                         )
                     elif isinstance(do_continue, AgentState):
@@ -328,7 +330,7 @@ def react(
                     )
                     state.messages.append(
                         ChatMessageUser(
-                            content=_sub_submit(continue_msg, submit_tool.name)
+                            content=continue_msg.replace("{submit}", submit_tool.name)
                         )
                     )
 
@@ -438,16 +440,6 @@ def react_no_submit(
     return _resolve_agent(execute, name, description)
 
 
-def _sub_submit(text: str, submit_name: str) -> str:
-    """Substitute the documented `{submit}` placeholder for the submit tool name.
-
-    Uses literal replace rather than `str.format` so that other braces in
-    user-supplied prompts (e.g. JSON examples) are left intact and do not
-    raise `KeyError`/`IndexError`.
-    """
-    return text.replace("{submit}", submit_name)
-
-
 def _prompt_to_system_message(
     prompt: str | AgentPrompt | None,
     tools: list[Tool | ToolDef | ToolSource],
@@ -466,10 +458,13 @@ def _prompt_to_system_message(
                 and ("{submit}" not in prompt.assistant_prompt)
                 and prompt.submit_prompt
             ):
-                assistant_prompt = f"{prompt.assistant_prompt}\n{_sub_submit(prompt.submit_prompt, submit_tool)}"
+                assistant_prompt = (
+                    f"{prompt.assistant_prompt}\n"
+                    f"{prompt.submit_prompt.replace('{submit}', submit_tool)}"
+                )
             else:
-                assistant_prompt = _sub_submit(
-                    prompt.assistant_prompt, submit_tool or "submit"
+                assistant_prompt = prompt.assistant_prompt.replace(
+                    "{submit}", submit_tool or "submit"
                 )
             prompt_lines.append(assistant_prompt)
         prompt_content = "\n\n".join(prompt_lines)
