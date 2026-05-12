@@ -1,7 +1,5 @@
 from typing import Literal, cast
 
-import numpy as np
-
 from inspect_ai.scorer._metric import (
     Metric,
     MetricProtocol,
@@ -43,6 +41,8 @@ def grouped(
     """
 
     def grouped_metric(scores: list[SampleScore]) -> Value:
+        import numpy as np
+
         # Satisfy the type checker that the metric is a MetricProtocol
         metric_protocol = cast(MetricProtocol, metric)
 

@@ -1,8 +1,7 @@
+import math
 import statistics
 from collections import Counter
 from typing import Callable, cast
-
-import numpy as np
 
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
@@ -132,6 +131,8 @@ def pass_at(
 
     def reduce(scores: list[Score]) -> Score:
         def pass_at_k(values: list[float]) -> float:
+            import numpy as np
+
             total = len(values)
             correct = sum(1 for v in values if v >= value)
             if total - correct < k:
@@ -387,7 +388,7 @@ def _compute_scalar_stat(
 
 def _is_unscored(value: Value) -> bool:
     r"""Check if a score value is the NaN-at-root unscored sentinel."""
-    return isinstance(value, float) and np.isnan(value)
+    return isinstance(value, float) and math.isnan(value)
 
 
 def _first_scored(scores: list[Score]) -> Score | None:
@@ -476,4 +477,4 @@ def _nan_score(scores: list[Score]) -> Score:
 
 def _is_reducible(value: str | int | float | bool) -> bool:
     """Check if a value is reducible (not a NaN float)."""
-    return not (isinstance(value, float) and np.isnan(value))
+    return not (isinstance(value, float) and math.isnan(value))

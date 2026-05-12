@@ -253,11 +253,14 @@ async def resolve_sandbox(
 
 async def _retrying_httpx_get(
     url: str,
-    client: httpx.AsyncClient = httpx.AsyncClient(),
+    client: httpx.AsyncClient | None = None,
     timeout: int = 30,  # per-attempt timeout
     max_retries: int = 10,
     total_timeout: int = 120,  #  timeout for the whole retry loop. not for an individual attempt
 ) -> bytes:
+    if client is None:
+        client = httpx.AsyncClient()
+
     @retry(
         wait=wait_exponential_jitter(),
         stop=(stop_after_attempt(max_retries) | stop_after_delay(total_timeout)),

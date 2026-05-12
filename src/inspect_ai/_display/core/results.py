@@ -1,6 +1,6 @@
+import math
 from typing import Sequence, Set
 
-import numpy as np
 from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
@@ -283,7 +283,7 @@ def task_metric(metrics: list[TaskDisplayMetric], width: int | None = None) -> s
     )
 
     metric = metrics[0]
-    if metric.value is None or np.isnan(metric.value):
+    if metric.value is None or math.isnan(metric.value):
         value = " n/a"
     else:
         value = f"{metric.value:.2f}"

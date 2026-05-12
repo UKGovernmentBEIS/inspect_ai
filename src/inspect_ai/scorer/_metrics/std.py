@@ -1,8 +1,6 @@
 from logging import getLogger
 from typing import cast
 
-import numpy as np
-
 from .._metric import (
     Metric,
     SampleScore,
@@ -35,6 +33,8 @@ def bootstrap_stderr(
     """
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
         std = np.std(
             [
@@ -73,6 +73,8 @@ def stderr(
         For details, see Appendix A of https://arxiv.org/pdf/2411.00640.
         The version here uses a finite cluster correction (unlike the paper)
         """
+        import numpy as np
+
         assert cluster is not None
         cluster_list = []
         value_list = []
@@ -112,6 +114,8 @@ def stderr(
         return cast(float, standard_error)
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
         n = len(values)
 
@@ -151,6 +155,8 @@ def std(to_float: ValueToFloat = value_to_float()) -> Metric:
     """
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
         n = len(values)
 
@@ -185,6 +191,8 @@ def var(to_float: ValueToFloat = value_to_float()) -> Metric:
     """
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         values = [to_float(score.score.value) for score in scores]
         n = len(values)
         # variance is calculated by dividing by n-ddof so ensure
