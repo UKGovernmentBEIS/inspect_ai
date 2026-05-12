@@ -1,3 +1,4 @@
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from logging import getLogger
@@ -250,8 +251,9 @@ def value_to_float(
 
 def is_number(s: str) -> bool:
     try:
-        float(s)
-        return True
+        # Reject non-finite literals like "nan" / "inf" — float() accepts
+        # them but they would poison downstream metrics (e.g. accuracy()).
+        return math.isfinite(float(s))
     except ValueError:
         return False
 
