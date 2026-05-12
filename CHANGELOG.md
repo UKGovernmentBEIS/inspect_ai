@@ -13,6 +13,7 @@
 - Datasets: `hf_dataset` retries transient Hugging Face errors (rate limits, timeouts, Hub-unreachable cache misses) up to 3 times (5 in CI) with exponential backoff. Pass `retry=False` to disable.
 - Datasets: Reject sample ids that collide under `str()` coercion
 - Scoring: Store and aggregate results for cancelled eval runs.
+- Analysis: Use score reducer in `evals_df()` column name when there are multiple reducers.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
 - Eval Set: Run [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scanners over each task's logs as part of `eval_set` (CLI `--scanner` / `EvalScannerConfig`). Scans incrementally as logs land, reuses prior results across resumes, and renders progress alongside the existing eval view.
 - Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don't implement conditional writes).
@@ -35,6 +36,7 @@
 - Bugfix: More gracefully handle tool results with mixed `[Content, str]`.
 - Bugfix: Accept `""` as an `answer` for `basic_agent().
 - Bugfix: Narrowly replace `{submit}` in `react()` agent prompt templates (rather than using `.format`).
+- Bugfix: Correctly handle `pd.NA` when converting scores to float in analysis df functions.
 
 ## 0.3.220 (08 May 2026)
 
