@@ -28,6 +28,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_tag,
 )
+from inspect_ai._util.text import is_finite_number
 from inspect_ai.log._edit import ProvenanceData
 
 logger = getLogger(__name__)
@@ -239,7 +240,7 @@ def value_to_float(
                 return 1.0
             elif value in ["no", "false"]:
                 return 0.0
-            elif is_number(value):
+            elif is_finite_number(value):
                 return float(value)
 
         # couldn't extract a value
@@ -247,15 +248,6 @@ def value_to_float(
         return 0.0
 
     return to_float
-
-
-def is_number(s: str) -> bool:
-    try:
-        # Reject non-finite literals like "nan" / "inf" — float() accepts
-        # them but they would poison downstream metrics (e.g. accuracy()).
-        return math.isfinite(float(s))
-    except ValueError:
-        return False
 
 
 @runtime_checkable

@@ -2112,6 +2112,14 @@ async def model_output_from_message(
         + (input_tokens_cache_read or 0)
         + output_tokens  # includes reasoning tokens
     )
+
+    # Capture any undeclared fields on the Message (SDK uses extra="allow")
+    # so callers can read response fields we don't model explicitly.
+    extra_body = getattr(message, "model_extra", None) or {}
+    metadata: dict[str, Any] | None = (
+        {"extra_body": dict(extra_body)} if extra_body else None
+    )
+
     return (
         ModelOutput(
             model=message.model,
@@ -2124,6 +2132,7 @@ async def model_output_from_message(
                 input_tokens_cache_read=input_tokens_cache_read,
                 reasoning_tokens=reasoning_tokens if reasoning_tokens > 0 else None,
             ),
+            metadata=metadata,
         ),
         pause_turn,
     )
