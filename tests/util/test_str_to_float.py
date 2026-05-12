@@ -2,7 +2,7 @@ from typing import Final
 
 import pytest
 
-from inspect_ai._util.text import str_to_float
+from inspect_ai._util.text import is_finite_number, str_to_float
 from inspect_ai.scorer._common import normalize_number
 from inspect_ai.scorer._unicode import unicode_number_to_float
 
@@ -252,3 +252,19 @@ def test_error_cases() -> None:
 
 def test_normalize_unicode_numeric():
     assert normalize_number("三三") == normalize_number("三三")
+
+
+def test_is_finite_number():
+    assert is_finite_number("5")
+    assert is_finite_number("-5")
+    assert is_finite_number("3.14")
+    assert is_finite_number("1e3")
+    assert is_finite_number(" 2 ")
+    assert not is_finite_number("nan")
+    assert not is_finite_number("inf")
+    assert not is_finite_number("-inf")
+    assert not is_finite_number("hello")
+    assert not is_finite_number("")
+    # unicode numerics are not handled by float() and so are not finite
+    # numbers in this sense (callers that need them must check separately)
+    assert not is_finite_number("½")

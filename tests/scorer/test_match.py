@@ -100,6 +100,17 @@ async def test_numeric_any_finds_number_in_middle():
 
 
 @pytest.mark.anyio
+async def test_numeric_any_answer_is_matched_number():
+    # the Score.answer should be the matched number, not the full output
+    scorer = match(numeric=True, location="any")
+    state = simple_task_state(model_output="first 7 then 25 then done")
+    result = await scorer(state, Target(["25"]))
+
+    assert result.text == CORRECT
+    assert result.answer == "25"
+
+
+@pytest.mark.anyio
 async def test_numeric_negative_target_wrong_sign():
     # target -5 must not match output 5
     scorer = match(numeric=True)
