@@ -11,7 +11,10 @@
 - Model Info: Cache model info database lookup results so that failed lookups don't repeat fuzzy model name search.
 - Limits: Added `suspend_token_limit()` context manager for suspending token tracking and limit enforcement within a scope.
 - Datasets: `hf_dataset` retries transient Hugging Face errors (rate limits, timeouts, Hub-unreachable cache misses) up to 3 times (5 in CI) with exponential backoff. Pass `retry=False` to disable.
-- Datasets: Reject sample ids that collide under `str()` coercion
+- Datasets: Reject sample ids that collide under `str()` coercion.
+- Datasets: Treat NaN from HuggingFace dataset as `None` is treated (converted to `""`).
+- Datasets: Use HuggingFace revision in cache key for downloaded datasets.
+- Datasets: Propagate `hf_dataset(..., shuffle=True)` to `EvalDataset.shuffled`.
 - Scoring: Store and aggregate results for cancelled eval runs.
 - Analysis: Use score reducer in `evals_df()` column name when there are multiple reducers.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).

@@ -219,7 +219,7 @@ def test_hf_dataset_default_retries_transient_errors(fast_retry, monkeypatch):
 class _FakeHFDataset:
     """Minimal stand-in for a datasets.Dataset object."""
 
-    def __init__(self, records):
+    def __init__(self, records) -> None:
         self._records = list(records)
         self.saved_to: str | None = None
 
@@ -283,7 +283,7 @@ def test_hf_dataset_shuffle_sets_shuffled_flag(tmp_path, monkeypatch):
     assert ds_unshuffled.shuffled is False
 
 
-def test_hf_dataset_cache_key_includes_revision(tmp_path, monkeypatch):
+def test_hf_dataset_cache_key_includes_revision(tmp_path, monkeypatch) -> None:
     # Regression: loading with revision="X" must not poison the cache for a
     # subsequent default (revision=None) load of the same dataset.
     saved_dirs: dict[str, list] = {}
