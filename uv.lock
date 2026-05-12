@@ -2042,7 +2042,7 @@ requires-dist = [
     { name = "httpx" },
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "ijson", specifier = ">=3.2.0" },
-    { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.4.33" },
+    { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.4.34" },
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "jsonlines", specifier = ">=3.0.0" },
     { name = "jsonpatch", specifier = ">=1.32" },
