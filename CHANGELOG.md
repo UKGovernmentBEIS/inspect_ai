@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scoring: Added `aggregate(key, agg=metric)` factory composing any existing `Metric` with a dict-key selector for dict-valued `Score.value` -- removes per-eval re-implementation of `mean_of` / `stderr_of` / etc.
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
 - VLLM: Preserve dotted vLLM server arg keys.
