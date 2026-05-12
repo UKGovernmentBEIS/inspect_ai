@@ -56,7 +56,7 @@ from .working_dir import ensure_sample_working_dir
 
 logger = getLogger(__name__)
 
-prevent_use = False
+prevent_use = True
 
 
 async def build_impl() -> Checkpointer:
@@ -293,7 +293,9 @@ class _Checkpointer:
         events_data = EventsData(messages=self._msg_pool, calls=self._call_pool)
         sample_dir = anyio.Path(sample_working_dir)
         await (sample_dir / "messages.json").write_text(_json_dump(messages))
-        await (sample_dir / "events.json").write_text(_json_dump(self._condensed_events))
+        await (sample_dir / "events.json").write_text(
+            _json_dump(self._condensed_events)
+        )
         await (sample_dir / "events_data.json").write_text(_json_dump(events_data))
         await (sample_dir / "attachments.json").write_text(
             _json_dump(dict(attachments))

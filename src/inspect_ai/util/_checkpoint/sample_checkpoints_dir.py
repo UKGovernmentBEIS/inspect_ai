@@ -92,10 +92,11 @@ def _write_sidecar_blocking(
     )
 
     sidecar_path = f"{sample_checkpoints_dir}/ckpt-{checkpoint_id:05d}.json"
-    # TODO(checkpointing-phase-3): make the sidecar write atomic (write
-    # `.tmp`, fsync, rename). Per §4d, the sidecar is the commit point —
-    # a torn write would expose a half-built checkpoint. Acceptable
-    # while no real snapshot is referenced.
+    # Non-atomic on purpose. Per §4d, the commit point is "sidecar that
+    # parses": resume globs `ckpt-*.json`, parse-and-skips torn / missing
+    # entries, and falls back to the prior parseable sidecar. A
+    # mid-write crash costs at most one checkpoint's progress — same as
+    # crashing before the sidecar starts.
     with file(sidecar_path, "w") as f:
         f.write(sidecar.model_dump_json(indent=2))
     return sidecar_path
