@@ -66,6 +66,7 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
+from inspect_ai.util._checkpoint import CheckpointConfig
 from inspect_ai.util._concurrency import AdaptiveConcurrency
 from inspect_ai.util._display import (
     DisplayType,
@@ -93,6 +94,7 @@ def eval(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -157,6 +159,8 @@ def eval(
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
+        checkpoint: Checkpoint configuration for this eval. Overrides
+            any task- or sample-level `checkpoint` when set.
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
         tags: Tags to associate with this evaluation run.
@@ -257,6 +261,7 @@ def eval(
                 task_args=task_args,
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
+                checkpoint=checkpoint,
                 solver=solver,
                 tags=tags,
                 metadata=metadata,
@@ -323,6 +328,7 @@ async def eval_async(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -380,6 +386,7 @@ async def eval_async(
         task_args: Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
+        checkpoint: Checkpoint configuration for this eval. Overrides any task- or sample-level `checkpoint` when set.
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
@@ -460,6 +467,7 @@ async def eval_async(
                 task_args=task_args,
                 sandbox=sandbox,
                 sandbox_cleanup=sandbox_cleanup,
+                checkpoint=checkpoint,
                 solver=solver,
                 tags=tags,
                 metadata=metadata,
@@ -531,6 +539,7 @@ async def _eval_async_inner(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
@@ -778,6 +787,7 @@ async def _eval_async_inner(
                         parallel=parallel,
                         eval_config=eval_config,
                         eval_sandbox=sandbox,
+                        eval_checkpoint=checkpoint,
                         recorder=recorder,
                         header_only=log_header_only,
                         epochs_reducer=epochs_reducer,
@@ -807,6 +817,7 @@ async def _eval_async_inner(
                 parallel=parallel,
                 eval_config=eval_config,
                 eval_sandbox=sandbox,
+                eval_checkpoint=checkpoint,
                 recorder=recorder,
                 header_only=log_header_only,
                 epochs_reducer=epochs_reducer,
