@@ -11,6 +11,7 @@ from inspect_ai._util.file import cleanup_s3_sessions
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.trace import trace_action
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._checkpoint import CheckpointConfig
 
 if sys.version_info < (3, 11):
     from exceptiongroup import ExceptionGroup
@@ -69,6 +70,7 @@ async def eval_run(
     parallel: int,
     eval_config: EvalConfig,
     eval_sandbox: SandboxEnvironmentType | None,
+    eval_checkpoint: CheckpointConfig | None,
     recorder: Recorder,
     header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
@@ -262,6 +264,8 @@ async def eval_run(
                         model=resolved_task.model,
                         model_roles=resolved_task.model_roles,
                         sandbox=resolved_task.sandbox,
+                        checkpoint=resolved_task.checkpoint,
+                        eval_checkpoint=eval_checkpoint,
                         logger=logger,
                         eval_wd=eval_wd,
                         config=task_eval_config,
@@ -888,10 +892,25 @@ def ensure_unique_ids(dataset: Dataset) -> None:
     Raises:
         PrerequisiteError: If duplicate IDs are found in the dataset.
     """
-    seen_ids = set()
+    seen_ids: set[int | str | None] = set()
+    seen_str_ids: dict[str, int | str] = {}
     for sample in dataset:
         if sample.id in seen_ids:
             raise PrerequisiteError(
                 f"The dataset contains duplicate sample ids (duplicate id: {sample.id}). Please ensure each sample has a unique id."
             )
+        # sample ids are also keyed by their str() form downstream (.eval log
+        # member names, score reduction grouping, buffer database), so e.g.
+        # int 1 and str "1" cannot coexist even though they're distinct values
+        if sample.id is not None:
+            str_id = str(sample.id)
+            if str_id in seen_str_ids:
+                other = seen_str_ids[str_id]
+                raise PrerequisiteError(
+                    f"The dataset contains sample ids {other!r} ({type(other).__name__}) "
+                    f"and {sample.id!r} ({type(sample.id).__name__}) which share the same "
+                    f"string representation '{str_id}'. Sample ids must be unique when "
+                    f"converted to strings."
+                )
+            seen_str_ids[str_id] = sample.id
         seen_ids.add(sample.id)

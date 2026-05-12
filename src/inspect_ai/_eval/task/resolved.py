@@ -6,6 +6,7 @@ from inspect_ai._eval.task.run import EvalSampleSource
 from inspect_ai.model import Model
 from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.util import SandboxEnvironmentSpec
+from inspect_ai.util._checkpoint.config import CheckpointConfig
 
 
 @dataclass(frozen=True)
@@ -17,6 +18,7 @@ class ResolvedTask:
     model: Model
     model_roles: dict[str, Model] | None
     sandbox: SandboxEnvironmentSpec | None
+    checkpoint: CheckpointConfig | None
     sequence: int
     sample_source: EvalSampleSource | None = field(default=None)
     initial_model_usage: dict[str, ModelUsage] | None = field(default=None)

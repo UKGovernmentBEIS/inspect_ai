@@ -15492,14 +15492,17 @@ so disabling selection can break that functionality */
   -moz-user-select: none;
   -ms-user-select: none;
 }
-/* VS Code Light Modern theme defaults (for non-VS Code context) */
+/* VS Code theme defaults (for non-VS Code context) */
 /* Complete set of variables used by @vscode-elements/elements */
 /* These are overridden by actual VS Code theme variables when running in VS Code */
 
 :root {
+  color-scheme: light;
+
   /* Core colors */
   --vscode-foreground: #3b3b3b;
   --vscode-descriptionForeground: #717171;
+  --vscode-disabledForeground: rgba(0, 0, 0, 0.4);
   --vscode-errorForeground: #f14c4c;
   --vscode-icon-foreground: #424242;
   --vscode-focusBorder: #0090f1;
@@ -15519,8 +15522,17 @@ so disabling selection can break that functionality */
   --vscode-editor-background: #ffffff;
   --vscode-editor-foreground: #3b3b3b;
   --vscode-editor-inlineValuesForeground: rgba(0, 0, 0, 0.5);
+  --vscode-editor-inactiveSelectionBackground: #e5ebf1;
+  --vscode-editor-selectionBackground: #add6ff;
+  --vscode-editor-selectionHighlightBackground: rgba(173, 214, 255, 0.45);
   --vscode-editorGroup-border: #e7e7e7;
+  --vscode-editorHoverWidget-background: #f3f3f3;
+  --vscode-editorInfo-foreground: #316bcd;
+  --vscode-editorLink-activeForeground: #006ab1;
+  --vscode-editorWarning-foreground: #bf8803;
+  --vscode-editorWidget-background: #f3f3f3;
   --vscode-editorWidget-border: #d4d4d4;
+  --vscode-editorWidget-foreground: #3b3b3b;
 
   /* Input colors */
   --vscode-input-background: #ffffff;
@@ -15536,6 +15548,11 @@ so disabling selection can break that functionality */
   --vscode-inputValidation-warningBorder: #be8800;
   --vscode-inputValidation-errorBackground: #f2dede;
   --vscode-inputValidation-errorBorder: #be1100;
+
+  /* Dropdown colors */
+  --vscode-dropdown-background: #ffffff;
+  --vscode-dropdown-foreground: #3b3b3b;
+  --vscode-dropdown-border: #cecece;
 
   /* Settings controls (used by vscode-elements textfield, checkbox, dropdown) */
   --vscode-settings-textInputBackground: #ffffff;
@@ -15601,8 +15618,18 @@ so disabling selection can break that functionality */
   --vscode-activityBarBadge-background: #007acc;
   --vscode-activityBarBadge-foreground: #ffffff;
 
+  /* Banner, breadcrumb, notifications, links */
+  --vscode-banner-iconForeground: #007acc;
+  --vscode-breadcrumb-foreground: #616161;
+  --vscode-notificationLink-foreground: #006ab1;
+  --vscode-notifications-background: #ffffff;
+  --vscode-notifications-foreground: #3b3b3b;
+  --vscode-textLink-foreground: #006ab1;
+  --vscode-textLink-activeForeground: #005a9e;
+
   /* Panel colors */
   --vscode-panel-background: #ffffff;
+  --vscode-panel-border: #e7e7e7;
   --vscode-panelTitle-activeBorder: #007acc;
   --vscode-panelTitle-activeForeground: #3b3b3b;
   --vscode-panelTitle-inactiveForeground: #717171;
@@ -15610,7 +15637,17 @@ so disabling selection can break that functionality */
   /* Sidebar colors */
   --vscode-sideBar-background: #f3f3f3;
   --vscode-sideBarSectionHeader-background: #f3f3f3;
+  --vscode-sideBarSectionHeader-border: #e7e7e7;
+  --vscode-sideBarSectionHeader-foreground: #3b3b3b;
   --vscode-sideBarTitle-foreground: #3b3b3b;
+
+  /* Peek view */
+  --vscode-peekViewTitle-background: #f3f3f3;
+  --vscode-peekViewTitleDescription-foreground: #616161;
+
+  /* Diff colors */
+  --vscode-diffEditor-insertedTextBackground: #dafbe1;
+  --vscode-diffEditor-removedTextBackground: #ffebe9;
 
   /* Progress bar */
   --vscode-progressBar-background: #007acc;
@@ -15627,6 +15664,235 @@ so disabling selection can break that functionality */
   /* Tree colors */
   --vscode-tree-indentGuidesStroke: #d4d4d4;
   --vscode-tree-inactiveIndentGuidesStroke: rgba(212, 212, 212, 0.5);
+
+  /* Terminal ANSI colors */
+  --vscode-terminal-ansiBlack: #000000;
+  --vscode-terminal-ansiRed: #cd3131;
+  --vscode-terminal-ansiGreen: #00bc00;
+  --vscode-terminal-ansiYellow: #949800;
+  --vscode-terminal-ansiBlue: #0451a5;
+  --vscode-terminal-ansiMagenta: #bc05bc;
+  --vscode-terminal-ansiCyan: #0598bc;
+  --vscode-terminal-ansiWhite: #555555;
+  --vscode-terminal-ansiBrightBlack: #666666;
+  --vscode-terminal-ansiBrightRed: #cd3131;
+  --vscode-terminal-ansiBrightGreen: #14ce14;
+  --vscode-terminal-ansiBrightYellow: #b5ba00;
+  --vscode-terminal-ansiBrightBlue: #0451a5;
+  --vscode-terminal-ansiBrightMagenta: #bc05bc;
+  --vscode-terminal-ansiBrightCyan: #0598bc;
+  --vscode-terminal-ansiBrightWhite: #a5a5a5;
+
+  /* Keybinding table */
+  --vscode-keybindingTable-headerBackground: rgba(128, 128, 128, 0.1);
+  --vscode-keybindingTable-rowsBackground: rgba(128, 128, 128, 0.04);
+}
+
+:root[data-bs-theme="dark"] {
+  color-scheme: dark;
+
+  /* Core colors */
+  --vscode-foreground: #bfbfbf;
+  --vscode-descriptionForeground: #8c8c8c;
+  --vscode-disabledForeground: #555555;
+  --vscode-errorForeground: #f48771;
+  --vscode-icon-foreground: #8c8c8c;
+  --vscode-focusBorder: #3994bcb3;
+  --vscode-contrastBorder: transparent;
+
+  /* Text colors */
+  --vscode-textBlockQuote-background: #242526;
+  --vscode-textBlockQuote-border: #2a2b2cff;
+  --vscode-textCodeBlock-background: #242526;
+  --vscode-textPreformat-background: #262626;
+  --vscode-textPreformat-foreground: #8c8c8c;
+  --vscode-textSeparator-foreground: #2a2a2aff;
+
+  /* Font settings */
+  --vscode-font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  --vscode-font-size: 13px;
+  --vscode-font-weight: normal;
+  --vscode-editor-font-family: Menlo, Monaco, "Courier New", monospace;
+  --vscode-editor-font-size: 12px;
+  --vscode-editor-font-weight: normal;
+
+  /* Editor colors */
+  --vscode-editor-background: #121314;
+  --vscode-editor-foreground: #bbbebf;
+  --vscode-editor-inlineValuesForeground: #8c8c8c;
+  --vscode-editor-inactiveSelectionBackground: #27678260;
+  --vscode-editor-selectionBackground: #276782dd;
+  --vscode-editor-selectionHighlightBackground: #27678260;
+  --vscode-editorGroup-border: #2a2b2cff;
+  --vscode-editorHoverWidget-background: #202122;
+  --vscode-editorInfo-foreground: #3a94bc;
+  --vscode-editorLink-activeForeground: #3a94bc;
+  --vscode-editorWarning-foreground: #e5ba7d;
+  --vscode-editorWidget-background: #202122;
+  --vscode-editorWidget-border: #2a2b2cff;
+  --vscode-editorWidget-foreground: #bfbfbf;
+
+  /* Input colors */
+  --vscode-input-background: #191a1b;
+  --vscode-input-foreground: #bfbfbf;
+  --vscode-input-border: #333536ff;
+  --vscode-input-placeholderForeground: #555555;
+  --vscode-inputOption-activeBackground: #3994bc33;
+  --vscode-inputOption-activeBorder: #2a2b2cff;
+  --vscode-inputOption-activeForeground: #bfbfbf;
+
+  /* Input validation */
+  --vscode-inputValidation-warningBackground: #352a05;
+  --vscode-inputValidation-warningBorder: #b89500;
+  --vscode-inputValidation-warningForeground: #bfbfbf;
+  --vscode-inputValidation-errorBackground: #3a1d1d;
+  --vscode-inputValidation-errorBorder: #be1100;
+  --vscode-inputValidation-errorForeground: #bfbfbf;
+
+  /* Dropdown colors */
+  --vscode-dropdown-background: #191a1b;
+  --vscode-dropdown-foreground: #bfbfbf;
+  --vscode-dropdown-border: #333536;
+  --vscode-dropdown-listBackground: #191a1b;
+
+  /* Settings controls (used by vscode-elements textfield, checkbox, dropdown) */
+  --vscode-settings-textInputBackground: #191a1b;
+  --vscode-settings-textInputForeground: #bfbfbf;
+  --vscode-settings-textInputBorder: #333536ff;
+  --vscode-settings-checkboxBackground: #242526;
+  --vscode-settings-checkboxForeground: #8c8c8c;
+  --vscode-settings-checkboxBorder: #333536;
+  --vscode-settings-dropdownBackground: #191a1b;
+  --vscode-settings-dropdownForeground: #bfbfbf;
+  --vscode-settings-dropdownBorder: #333536;
+  --vscode-settings-dropdownListBorder: #333536;
+  --vscode-settings-headerBorder: rgba(128, 128, 128, 0.35);
+
+  /* Checkbox colors */
+  --vscode-checkbox-background: #242526;
+  --vscode-checkbox-foreground: #8c8c8c;
+  --vscode-checkbox-border: #333536;
+
+  /* Button colors */
+  --vscode-button-background: #297aa0;
+  --vscode-button-foreground: #ffffff;
+  --vscode-button-hoverBackground: #2b7da3;
+  --vscode-button-border: #333536ff;
+  --vscode-button-separator: rgba(255, 255, 255, 0.4);
+  --vscode-button-secondaryBackground: #00000000;
+  --vscode-button-secondaryForeground: #cccccc;
+  --vscode-button-secondaryHoverBackground: #ffffff10;
+
+  /* Widget/shadow colors */
+  --vscode-widget-shadow: rgba(0, 0, 0, 0.36);
+  --vscode-widget-border: #2a2b2cff;
+
+  /* Toolbar */
+  --vscode-toolbar-hoverBackground: #ffffff18;
+  --vscode-toolbar-activeBackground: #ffffff18;
+  --vscode-toolbar-hoverOutline: transparent;
+
+  /* List colors (used by select/dropdown components) */
+  --vscode-list-hoverBackground: #ffffff0d;
+  --vscode-list-hoverForeground: #bfbfbf;
+  --vscode-list-activeSelectionBackground: #3994bc26;
+  --vscode-list-activeSelectionForeground: #ededed;
+  --vscode-list-activeSelectionIconForeground: #ededed;
+  --vscode-list-inactiveSelectionBackground: #2c2d2e;
+  --vscode-list-inactiveSelectionForeground: #ededed;
+  --vscode-list-focusBackground: #3994bc26;
+  --vscode-list-focusForeground: #bfbfbf;
+  --vscode-list-focusOutline: #3994bcb3;
+  --vscode-list-focusAndSelectionOutline: #3994bcb3;
+  --vscode-list-focusHighlightForeground: #48a0c7;
+  --vscode-list-highlightForeground: #48a0c7;
+  --vscode-list-invalidItemForeground: #444444;
+  --vscode-list-errorForeground: #f48771;
+  --vscode-list-warningForeground: #e5ba7d;
+
+  /* Menu colors */
+  --vscode-menu-background: #202122;
+  --vscode-menu-foreground: #bfbfbf;
+  --vscode-menu-border: #2a2b2cff;
+  --vscode-menu-selectionBackground: #3994bc26;
+  --vscode-menu-selectionForeground: #bfbfbf;
+  --vscode-menu-selectionBorder: transparent;
+  --vscode-menu-separatorBackground: #2a2b2c;
+
+  /* Badge colors */
+  --vscode-badge-background: #3994bcf0;
+  --vscode-badge-foreground: #ffffff;
+  --vscode-activityBarBadge-background: #3994bc;
+  --vscode-activityBarBadge-foreground: #ffffff;
+
+  /* Banner, breadcrumb, notifications, links */
+  --vscode-banner-iconForeground: #48a0c7;
+  --vscode-breadcrumb-foreground: #8c8c8c;
+  --vscode-notificationLink-foreground: #3a94bc;
+  --vscode-notifications-background: #202122;
+  --vscode-notifications-foreground: #bfbfbf;
+  --vscode-textLink-foreground: #48a0c7;
+  --vscode-textLink-activeForeground: #53a5ca;
+
+  /* Panel colors */
+  --vscode-panel-background: #191a1b;
+  --vscode-panel-border: #2a2b2cff;
+  --vscode-panelTitle-activeBorder: #3994bc;
+  --vscode-panelTitle-activeForeground: #bfbfbf;
+  --vscode-panelTitle-inactiveForeground: #8c8c8c;
+
+  /* Sidebar colors */
+  --vscode-sideBar-background: #191a1b;
+  --vscode-sideBar-foreground: #bfbfbf;
+  --vscode-sideBar-border: #2a2b2cff;
+  --vscode-sideBarSectionHeader-background: #191a1b;
+  --vscode-sideBarSectionHeader-border: #2a2b2cff;
+  --vscode-sideBarSectionHeader-foreground: #bfbfbf;
+  --vscode-sideBarTitle-foreground: #bfbfbf;
+
+  /* Peek view */
+  --vscode-peekViewTitle-background: #242526;
+  --vscode-peekViewTitleDescription-foreground: #8c8c8c;
+
+  /* Diff colors */
+  --vscode-diffEditor-insertedTextBackground: #57ab5a4d;
+  --vscode-diffEditor-removedTextBackground: #f470674d;
+
+  /* Progress bar */
+  --vscode-progressBar-background: #878889;
+
+  /* Scrollbar colors */
+  --vscode-scrollbar-shadow: #191b1d4d;
+  --vscode-scrollbarSlider-background: #83848533;
+  --vscode-scrollbarSlider-hoverBackground: #83848566;
+  --vscode-scrollbarSlider-activeBackground: #83848599;
+
+  /* Sash (resizable borders) */
+  --vscode-sash-hoverBorder: #3994bcb3;
+
+  /* Tree colors */
+  --vscode-tree-indentGuidesStroke: #8384854d;
+  --vscode-tree-inactiveIndentGuidesStroke: #83848533;
+
+  /* Terminal ANSI colors */
+  --vscode-terminal-ansiBlack: #000000;
+  --vscode-terminal-ansiRed: #cd3131;
+  --vscode-terminal-ansiGreen: #0dbc79;
+  --vscode-terminal-ansiYellow: #e5e510;
+  --vscode-terminal-ansiBlue: #2472c8;
+  --vscode-terminal-ansiMagenta: #bc3fbc;
+  --vscode-terminal-ansiCyan: #11a8cd;
+  --vscode-terminal-ansiWhite: #e5e5e5;
+  --vscode-terminal-ansiBrightBlack: #666666;
+  --vscode-terminal-ansiBrightRed: #f14c4c;
+  --vscode-terminal-ansiBrightGreen: #23d18b;
+  --vscode-terminal-ansiBrightYellow: #f5f543;
+  --vscode-terminal-ansiBrightBlue: #3b8eea;
+  --vscode-terminal-ansiBrightMagenta: #d670d6;
+  --vscode-terminal-ansiBrightCyan: #29b8db;
+  --vscode-terminal-ansiBrightWhite: #e5e5e5;
 
   /* Keybinding table */
   --vscode-keybindingTable-headerBackground: rgba(128, 128, 128, 0.1);
@@ -16848,7 +17114,7 @@ span.ap-marker-container:hover span.ap-marker {
     opacity: 0.8;
   }
 }
-._rootControl_13qph_1 {
+._rootControl_1d1i3_1 {
   background-color: var(--bs-body-bg);
   border-radius: var(--bs-border-radius);
   display: flex;
@@ -16857,12 +17123,13 @@ span.ap-marker-container:hover span.ap-marker {
   border: solid 1px var(--bs-border-color);
 }
 
-._segment_13qph_10._selected_13qph_10 {
+._segment_1d1i3_10._selected_1d1i3_10 {
   background-color: var(--bs-secondary-bg);
   border-radius: var(--bs-border-radius);
+  color: var(--bs-emphasis-color);
 }
 
-button._segment_13qph_10 {
+button._segment_1d1i3_10 {
   margin: 1px;
   background-color: var(--bs-body-bg);
   border-radius: var(--bs-border-radius);
@@ -16874,17 +17141,23 @@ button._segment_13qph_10 {
   height: calc(100% - 2px);
 }
 
-._segment_13qph_10 i {
+._segment_1d1i3_10 i {
   margin-right: 0.2em;
 }
 
-button._segment_13qph_10._compact_13qph_31 {
+button._segment_1d1i3_10._compact_1d1i3_32 {
   padding-inline-start: 4px;
   padding-inline-end: 4px;
 }
 
-button._segment_13qph_10._compact_13qph_31 i {
+button._segment_1d1i3_10._compact_1d1i3_32 i {
   margin-right: 0;
+}
+
+button._segment_1d1i3_10._disabled_1d1i3_41,
+button._segment_1d1i3_10._disabled_1d1i3_41:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 ._sourcePanel_bat6y_1 {
   width: 100%;
@@ -18694,10 +18967,122 @@ a._citationLink_1ggvf_9:hover {
   padding: 0.1rem 0.6rem;
   border-radius: var(--bs-border-radius);
 }
-._navs_1vm6p_1 {
-  margin-right: 0;
+._wrapper_og902_1 {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  min-width: 0;
+  flex: 1;
 }
-._stickyWrapper_12thy_1 {
+
+._navs_og902_10 {
+  margin-right: 0;
+  flex-wrap: nowrap;
+}
+
+/* Off-screen single-line copy of the pills used to measure the natural
+   width that determines whether to render tabs or the picker. */
+._probe_og902_17 {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  width: max-content;
+  flex-wrap: nowrap;
+}
+
+._probeItem_og902_27 {
+  min-width: 4rem;
+  padding: 0.1rem 0.6rem;
+  white-space: nowrap;
+}
+._trigger_nqyxq_1 {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.6rem;
+  border: none;
+  border-radius: var(--bs-border-radius);
+  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+  cursor: pointer;
+  /* `.nav-link.active` colors only apply inside a `.nav-pills` parent;
+     the picker button isn't nested in one, so apply them directly. */
+  background-color: var(--bs-nav-pills-link-active-bg, var(--bs-primary));
+  color: var(--bs-nav-pills-link-active-color, #fff);
+}
+
+._trigger_nqyxq_1:hover {
+  filter: brightness(1.05);
+}
+
+._label_nqyxq_21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+._chevron_nqyxq_27 {
+  margin-left: 0.4em;
+  font-size: 0.75em;
+  flex-shrink: 0;
+}
+
+._backdrop_nqyxq_33 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Above Bootstrap's sticky-top (1020) so sticky bars don't occlude the menu. */
+  z-index: 1049;
+}
+
+._menu_nqyxq_43 {
+  position: fixed;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.25rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  z-index: 1050;
+  overflow: hidden;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+._item_nqyxq_55 {
+  display: block;
+  width: 100%;
+  padding: 0.25rem 0.75rem;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  color: var(--bs-body-color);
+  white-space: nowrap;
+  transition: background-color 0.15s ease-in-out;
+}
+
+._item_nqyxq_55:hover {
+  background-color: var(--bs-tertiary-bg);
+}
+
+._item_nqyxq_55:active {
+  background-color: var(--bs-secondary-bg);
+}
+
+._item_nqyxq_55._selected_nqyxq_76 {
+  background-color: var(--bs-primary);
+  color: var(--bs-light);
+}
+
+._item_nqyxq_55._selected_nqyxq_76:hover {
+  background-color: var(--bs-primary);
+  filter: brightness(1.05);
+}
+._stickyWrapper_1ox4y_1 {
   position: sticky;
   top: var(--inspect-event-panel-sticky-top, 0px);
   /* Full-bleed: cancel the parent card's padding so the sticky bar
@@ -18709,41 +19094,43 @@ a._citationLink_1ggvf_9:hover {
   border-bottom: solid 1px transparent;
 }
 
-._stickyWrapper_12thy_1[data-useStickyObserver-stuck] {
+._stickyWrapper_1ox4y_1[data-useStickyObserver-stuck] {
   background-color: var(--bs-light);
   border-bottom-color: var(--bs-light-border-subtle);
 }
 
-._label_12thy_18 {
+._label_1ox4y_18 {
   margin-right: 0.2em;
   justify-self: end;
 }
 
-._title_12thy_23 {
+._title_1ox4y_23 {
   min-width: 0;
   line-height: 1.6;
 }
 
-._titleExtra_12thy_28 {
+._titleExtra_1ox4y_28 {
   display: inline-flex;
   align-items: center;
   vertical-align: middle;
   margin-left: 0.5em;
 }
 
-._navs_12thy_35 {
-  justify-self: end;
+._navs_1ox4y_35 {
   display: flex;
   align-items: baseline;
+  justify-content: flex-end;
+  min-width: 0;
 }
 
-._turnLabel_12thy_41 {
-  margin-left: 0.625rem;
+._turnLabel_1ox4y_42 {
+  margin-left: 1rem;
+  margin-top: 0.2rem;
   opacity: 0.5;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._card_12thy_47 {
+._card_1ox4y_49 {
   position: relative;
   background-color: var(--bs-body-bg);
   padding: 0.625rem;
@@ -18751,20 +19138,20 @@ a._citationLink_1ggvf_9:hover {
   border-radius: var(--bs-border-radius);
 }
 
-._cardContent_12thy_55 {
+._cardContent_1ox4y_57 {
   padding: 0;
   display: inherit;
 }
 
-._cardContent_12thy_55._hidden_12thy_60 {
+._cardContent_1ox4y_57._hidden_1ox4y_62 {
   display: none;
 }
 
-._hidden_12thy_60 {
+._hidden_1ox4y_62 {
   display: none;
 }
 
-._copyLink_12thy_68 {
+._copyLink_1ox4y_70 {
   font-size: 1.2em;
   opacity: 0;
   padding-left: 0.2em;
@@ -18774,16 +19161,16 @@ a._citationLink_1ggvf_9:hover {
   margin-left: 0.25em;
 }
 
-._hover_12thy_78 ._copyLink_12thy_68 {
+._hover_1ox4y_80 ._copyLink_1ox4y_70 {
   opacity: 0.75;
 }
 
-._root_12thy_82 {
+._root_1ox4y_84 {
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
 
-._bottomDongle_12thy_87 {
+._bottomDongle_1ox4y_89 {
   display: block;
   position: absolute;
   margin: 0 auto;
@@ -18799,12 +19186,12 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._dongleIcon_12thy_103 {
+._dongleIcon_1ox4y_105 {
   padding-right: 0.3em;
 }
 
 @media print {
-  ._card_12thy_47 {
+  ._card_1ox4y_49 {
     break-inside: avoid;
   }
 }
@@ -18837,34 +19224,6 @@ a._citationLink_1ggvf_9:hover {
 ._title_1ww70_5 {
   font-weight: 600;
   padding-bottom: 0.3em;
-}
-._wrapper_45f60_1 {
-  display: grid;
-  grid-template-columns: 0 auto auto;
-  column-gap: 1.5em;
-  row-gap: 0.2em;
-}
-
-._col2_45f60_8 {
-  grid-column: 2;
-}
-
-._col1_3_45f60_12 {
-  grid-column: 1/3;
-}
-
-._col3_45f60_16 {
-  grid-column: 3;
-}
-
-._separator_45f60_20 {
-  grid-column: -1/1;
-  height: 1px;
-  background-color: var(--bs-light-border-subtle);
-}
-
-._topMargin_45f60_26 {
-  margin-top: 1em;
 }
 ._toolsGrid_1qqm2_1 {
   display: grid;
@@ -20073,73 +20432,473 @@ a._citationLink_1ggvf_9:hover {
 ._jsonPanel_1eq5o_8 {
   padding: 0 !important;
 }
-._wrapper_sq96g_1 {
-  display: grid;
-  grid-template-columns: 0 auto auto;
-  column-gap: 1.5em;
-  row-gap: 0.2em;
+._wrapper_1cp7t_1 {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8125rem;
+  color: var(--bs-body-color);
 }
 
-._col2_sq96g_8 {
-  grid-column: 2;
-}
-
-._col1_3_sq96g_12 {
-  grid-column: 1/3;
-}
-
-._col3_sq96g_16 {
-  grid-column: 3;
-}
-
-._separator_sq96g_20 {
-  grid-column: -1/1;
-  height: 1px;
-  background-color: var(--bs-light-border-subtle);
-}
-
-._padded_sq96g_26 {
-  margin-bottom: 1em;
-}
-._table_z217i_1 {
+._table_1cp7t_7 {
   width: 100%;
+  border-collapse: collapse;
 }
 
-._tableTokens_z217i_5 {
-  padding-bottom: 0.7rem;
+._table_1cp7t_7 thead th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--bs-secondary);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0 0.75rem 0.5rem 0;
+  border-bottom: 1px solid var(--bs-light-border-subtle);
+  white-space: nowrap;
 }
 
-._tableH_z217i_9 {
-  padding: 0;
-  font-weight: 300;
+._table_1cp7t_7 thead th._num_1cp7t_24 {
+  text-align: right;
 }
 
-._model_z217i_14 {
-  padding-right: 1em;
+._table_1cp7t_7 tbody tr._modelRow_1cp7t_28 td {
+  padding-top: 22px;
+  padding-bottom: 18px;
+  border-top: 1px solid var(--bs-light-border-subtle);
+  vertical-align: top;
 }
 
-._cellContents_z217i_18 {
-  padding-bottom: 1em;
+._table_1cp7t_7 tbody tr._modelRow_1cp7t_28:first-child td {
+  border-top: 0;
+  padding-top: 6px;
 }
-._wrapper_14r3b_1 {
-  padding-top: 0;
-  padding-bottom: 1em;
-  margin-left: 0.5em;
+
+._table_1cp7t_7 tbody td {
+  padding: 0.25rem 0.75rem 0.25rem 0;
+  vertical-align: top;
+}
+
+._table_1cp7t_7 tbody td._num_1cp7t_24 {
+  text-align: right;
+}
+
+._modelCell_1cp7t_49 {
+  font-weight: 500;
+  padding-right: 1.5rem;
+  min-width: 14rem;
+}
+
+._modelName_1cp7t_55 {
+  display: block;
+  word-break: break-word;
+}
+
+._modelAlias_1cp7t_60 {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--bs-secondary);
+  margin-top: 0.1rem;
+  word-break: break-word;
+}
+
+._modelTotal_1cp7t_69 {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
+  margin-top: 0.4rem;
+}
+
+._configSection_1cp7t_77 {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--bs-light-border-subtle);
+  max-width: 240px;
+}
+
+._configSectionLabel_1cp7t_84 {
+  font-family: var(--bs-font-monospace);
+  font-size: 10px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--bs-secondary);
+  margin-top: 10px;
+}
+
+._configSectionLabel_1cp7t_84:first-child {
+  margin-top: 0;
+}
+
+._configTable_1cp7t_98 {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 14px;
+  align-items: baseline;
+  margin: 2px 0 0;
+  font-family: var(--bs-font-monospace);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--bs-body-color);
+}
+
+._configKey_1cp7t_110 {
+  color: var(--bs-secondary);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+._configVal_1cp7t_116 {
+  margin: 0;
+  color: var(--bs-body-color);
+  font-weight: 400;
+}
+
+._modelTotal_1cp7t_69 small {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--bs-secondary);
+  margin-left: 0.25rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+._composeCell_1cp7t_131 {
+  min-width: 200px;
+}
+
+._table_1cp7t_7 tbody td._composeCell_1cp7t_131 {
+  padding-right: 3rem;
+}
+
+._stack_1cp7t_139 {
+  display: flex;
+  height: 8px;
+  width: 100%;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bs-light-border-subtle);
+  margin-top: 7px;
+}
+
+._stack_1cp7t_139 > span {
+  display: block;
+  height: 100%;
+}
+
+._pcts_1cp7t_154 {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--bs-secondary);
+}
+
+._breakdown_1cp7t_162 {
+  display: grid;
+  grid-template-columns: max-content 1fr max-content;
+  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+  margin: 0;
+}
+
+._breakdownLabel_1cp7t_170 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--bs-secondary);
+}
+
+._breakdownLeader_1cp7t_178 {
+  border-bottom: 1px dotted var(--bs-tertiary-color);
+  height: 0.6em;
+  transform: translateY(-2px);
+  margin: 0;
+}
+
+._breakdownValue_1cp7t_185 {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--bs-body-color);
+  text-align: right;
+}
+
+._totalCell_1cp7t_192 {
+  vertical-align: top;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
+}
+
+._perSampleCell_1cp7t_199 {
+  vertical-align: top;
+  color: var(--bs-secondary);
+}
+
+._perSampleSub_1cp7t_204 {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--bs-secondary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: 0.15rem;
+}
+
+._swatch_1cp7t_213 {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+._swatchSmall_1cp7t_221 {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+}
+
+._catInput_1cp7t_227 {
+  background: #cfdcef;
+}
+
+._catCacheRead_1cp7t_231 {
+  background: #a8c4ec;
+}
+
+._catCacheWrite_1cp7t_235 {
+  background: #6ea0dc;
+}
+
+._catOutput_1cp7t_239 {
+  background: #3a7bd5;
+}
+
+._catReasoning_1cp7t_243 {
+  background: #1f4e8c;
+}
+._strip_c99qp_1 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: stretch;
+  border-top: 1px solid var(--bs-light-border-subtle);
+  border-bottom: 1px solid var(--bs-light-border-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 4 tracks: [total] [compose x2] [working time] */
+._stripTimed_c99qp_11 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+._cell_c99qp_15 {
+  padding: 0.75rem 1rem 0.75rem 0;
+  border-right: 1px solid var(--bs-light-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+._cell_c99qp_15:not(:first-child) {
+  padding-left: 1rem;
+}
+
+._cell_c99qp_15:last-child {
+  border-right: 0;
+  padding-right: 0;
+}
+
+._span2_c99qp_33 {
+  grid-column: span 2;
+}
+
+._lab_c99qp_37 {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+._lab_c99qp_37 svg {
+  width: 11px;
+  height: 11px;
+  color: #3a7bd5;
+  flex-shrink: 0;
+}
+
+._val_c99qp_55 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--bs-body-color);
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  line-height: 1.1;
+}
+
+._val_c99qp_55 small {
+  font-size: 0.75rem;
+  color: var(--bs-secondary);
+  font-weight: 400;
+}
+
+._sub_c99qp_71 {
+  font-size: 0.75rem;
+  color: var(--bs-secondary);
+}
+
+._stack_c99qp_76 {
+  display: flex;
+  height: 8px;
+  width: 100%;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bs-light-border-subtle);
+}
+
+._stack_c99qp_76 > span {
+  display: block;
+  height: 100%;
+}
+
+._breakdown_c99qp_90 {
   display: flex;
   flex-wrap: wrap;
-  gap: 1em;
+  gap: 0.25rem 0.9rem;
+  font-size: 0.75rem;
+  color: var(--bs-secondary);
 }
 
-._col1_14r3b_10 {
-  flex: 0 1 auto;
-  min-width: 200px;
-  width: fit-content;
+._breakdown_c99qp_90 > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
 }
 
-._col2_14r3b_16 {
-  flex: 1 1 auto;
-  min-width: 300px;
-  width: fit-content;
+._breakdown_c99qp_90 b {
+  color: var(--bs-body-color);
+  font-weight: 600;
+}
+
+._swatch_c99qp_109 {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* Working time — duration + clock times on one row */
+._workingRow_c99qp_118 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+._clockRow_c99qp_125 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--bs-secondary);
+}
+
+._clockVal_c99qp_133 {
+  font-weight: 600;
+  color: var(--bs-body-color);
+}
+
+._clockArrow_c99qp_138 {
+  color: var(--bs-secondary);
+}
+
+/* Category colours — single blue-family hue */
+._catInput_c99qp_143 {
+  background: #cfdcef;
+}
+._catCacheRead_c99qp_146 {
+  background: #a8c4ec;
+}
+._catCacheWrite_c99qp_149 {
+  background: #6ea0dc;
+}
+._catOutput_c99qp_152 {
+  background: #3a7bd5;
+}
+._catReasoning_c99qp_155 {
+  background: #1f4e8c;
+}
+._panel_ald9k_1 {
+  display: block;
+}
+
+._head_ald9k_5 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bs-light-border-subtle);
+  margin-bottom: 14px;
+}
+
+._headLeft_ald9k_16 {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+._title_ald9k_23 {
+  margin: 0;
+  font-size: var(--inspect-font-size-small);
+  font-weight: 600;
+}
+
+._meta_ald9k_29 {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: var(--bs-body-color);
+}
+
+._metaItem_ald9k_37 {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+._metaLabel_ald9k_43 {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bs-secondary);
+}
+
+._metaValue_ald9k_51 {
+  font-size: 13px;
+  color: var(--bs-body-color);
+  font-variant-numeric: tabular-nums;
+}
+
+._metaSep_ald9k_57 {
+  width: 1px;
+  align-self: stretch;
+  background: var(--bs-light-border-subtle);
+  margin: 2px 4px;
+}
+
+._tableNoTop_ald9k_64 {
+  margin-top: 0;
 }
 ._wrap_fjhll_1 {
   position: relative;
@@ -20259,44 +21018,48 @@ a._citationLink_1ggvf_9:hover {
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-._container_1m4t0_1 {
+._container_1rvau_1 {
   margin: 0.5em 0 0 0;
   width: 100%;
 }
 
-._all_1m4t0_6 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  column-gap: 1em;
+._all_1rvau_6 {
+  display: flex;
+  flex-direction: column;
+  gap: 1em;
 }
 
-._tableSelection_1m4t0_12 {
+._tableSelection_1rvau_12 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._tools_1m4t0_18 {
+._config_1rvau_18 {
+  margin-top: 0;
+}
+
+._tools_1rvau_22 {
   grid-column: -1/1;
 }
 
-._codePre_1m4t0_22 {
+._codePre_1rvau_26 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_1m4t0_22 {
+._code_1rvau_26 {
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-._progress_1m4t0_34 {
+._progress_1rvau_38 {
   margin-left: 0.5em;
 }
 
-._error_1m4t0_38 {
+._error_1rvau_42 {
   color: var(--bs-danger);
   padding: 0.5em;
   border: 1px solid var(--bs-danger);
@@ -20307,27 +21070,27 @@ a._citationLink_1ggvf_9:hover {
   margin: 0.5em 0;
 }
 
-._showAllLink_1m4t0_49 {
+._showAllLink_1rvau_53 {
   text-align: center;
   padding: 0.5em 0 0.7em;
 }
 
-._showAllLink_1m4t0_49 a {
+._showAllLink_1rvau_53 a {
   cursor: pointer;
   color: var(--bs-secondary-color);
   text-decoration: none;
 }
 
-._showAllIcon_1m4t0_60 {
+._showAllIcon_1rvau_64 {
   margin-right: 0.35em;
 }
 
-._showAllLink_1m4t0_49 a:hover {
+._showAllLink_1rvau_53 a:hover {
   color: var(--bs-body-color);
   text-decoration: underline;
 }
 
-._toolConfig_1m4t0_69 {
+._toolConfig_1rvau_73 {
   display: grid;
   grid-template-columns: max-content minmax(0, auto);
   column-gap: 1em;
@@ -20336,7 +21099,7 @@ a._citationLink_1ggvf_9:hover {
   overflow-wrap: anywhere;
 }
 
-._toolChoice_1m4t0_78 {
+._toolChoice_1rvau_82 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   display: grid;
   grid-template-columns: max-content minmax(0, auto);
@@ -20545,7 +21308,7 @@ a._citationLink_1ggvf_9:hover {
  * height as `--inspect-sample-header-height` on the tabs container.
  * The tabs slide up automatically when the header collapses and
  * back down when it expands. */
-._tabControls_10ac3_7 {
+._tabControls_1km5i_7 {
   position: sticky;
   z-index: 1001;
   top: var(--inspect-sample-header-height, 0);
@@ -20554,54 +21317,46 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--bs-body-bg);
 }
 
-._fullWidth_10ac3_16 {
+._fullWidth_1km5i_16 {
   width: 100%;
 }
 
-._metadataPanel_10ac3_20 {
+._metadataPanel_1km5i_20 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-._padded_10ac3_26 {
+._padded_1km5i_26 {
   padding-left: 0.8em;
   margin-top: 0.4em;
 }
 
-._error_10ac3_31 {
+._error_1km5i_31 {
   padding-top: 0.5em;
 }
 
-._ansi_10ac3_35 {
+._ansi_1km5i_35 {
   margin: 1em 0;
 }
 
-._noTop_10ac3_39 {
+._noTop_1km5i_39 {
   margin-top: 0;
 }
 
-._timePanel_10ac3_43 {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  grid-template-rows: auto;
-  column-gap: 0.5em;
-  min-width: 200px;
-}
-
-._chat_10ac3_51 {
+._chat_1km5i_43 {
   padding: 1em;
 }
 
-._padded_10ac3_26 {
+._padded_1km5i_26 {
   padding: 1em;
 }
 
-._overflowVisible_10ac3_59 {
+._overflowVisible_1km5i_51 {
   overflow-y: visible;
 }
 
-._retriedErrors_10ac3_63 {
+._retriedErrors_1km5i_55 {
   margin: 0.5rem;
   min-width: 0;
   overflow: hidden;
@@ -21636,29 +22391,6 @@ pre._value_8citi_25 {
   padding: 0.5rem;
   font-size: var(--inspect-font-size-small);
   width: 100%;
-}
-._container_4wzpj_1 {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  row-gap: 2em;
-  column-gap: 1em;
-}
-
-._modelInfo_4wzpj_8 {
-  display: grid;
-  grid-template-columns: max-content auto;
-  column-gap: 1em;
-  row-gap: 0.1em;
-}
-
-._role_4wzpj_15 {
-  grid-column: -1/1;
-}
-
-._sep_4wzpj_19 {
-  grid-column: -1/1;
-  height: 1px;
-  background-color: var(--bs-light-border-subtle);
 }
 ._footer_vkofn_1 {
   border-top: solid var(--bs-light-border-subtle) 1px;

@@ -65,6 +65,7 @@ from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
+from inspect_ai.util._checkpoint import CheckpointConfig
 from inspect_ai.util._display import (
     display_type_initialized,
     display_type_plain,
@@ -114,6 +115,7 @@ def eval_set(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "EvalScanners | None" = None,
     tags: list[str] | None = None,
@@ -192,6 +194,8 @@ def eval_set(
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
+        checkpoint: Checkpoint configuration for this eval set. Overrides
+            any task- or sample-level `checkpoint` when set.
         solver: Alternative solver(s) for
             evaluating task(s). Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -304,6 +308,7 @@ def eval_set(
             task_args=task_args,
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
+            checkpoint=checkpoint,
             solver=solver,
             scanner=scanner,
             tags=tags,
