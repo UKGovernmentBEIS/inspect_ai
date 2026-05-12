@@ -438,3 +438,64 @@ async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
     await cp._write_host_context(str(work), [], [], attachments, Store())
 
     assert json.loads((work / "attachments.json").read_text()) == attachments
+
+
+async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> None:
+    """Each fire processes only the new event slice; pool + events grow append-only."""
+    msg_sys: ChatMessage = ChatMessageSystem(content="sys")
+    msg_u1: ChatMessage = ChatMessageUser(content="q1")
+    msg_a1: ChatMessage = ChatMessageAssistant(content="a1")
+    msg_u2: ChatMessage = ChatMessageUser(content="q2")
+
+    def _model_event(input_msgs: list[ChatMessage]) -> ModelEvent:
+        return ModelEvent(
+            model="test",
+            input=input_msgs,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(),
+        )
+
+    fire1_events = [
+        _model_event([msg_sys, msg_u1]),
+        _model_event([msg_sys, msg_u1, msg_a1]),
+    ]
+    # Fire 2 appends one more event; the prior two stay condensed-as-is.
+    fire2_events = [*fire1_events, _model_event([msg_sys, msg_u1, msg_a1, msg_u2])]
+
+    work = tmp_path / "work"
+    work.mkdir()
+    cp = _Checkpointer(
+        config=CheckpointConfig(trigger=TurnInterval(every=1)),
+        sample_checkpoints_dir=str(tmp_path / "ckpts"),
+        sample_working_dir=str(work),
+        host_restic=Path("/fake"),
+        restic_password="pwd",
+    )
+
+    await cp._write_host_context(str(work), [], fire1_events, {}, Store())
+    pool_after_1 = json.loads((work / "events_data.json").read_text())["messages"]
+    events_after_1 = json.loads((work / "events.json").read_text())
+    assert len(pool_after_1) == 3  # sys, u1, a1
+    assert len(events_after_1) == 2
+    assert cp._events_consumed == 2
+
+    await cp._write_host_context(str(work), [], fire2_events, {}, Store())
+    pool_after_2 = json.loads((work / "events_data.json").read_text())["messages"]
+    events_after_2 = json.loads((work / "events.json").read_text())
+    # Append-only: pool grew by exactly one (u2); first 3 entries unchanged.
+    assert pool_after_2[:3] == pool_after_1
+    assert len(pool_after_2) == 4
+    # Events grew by one; the first two are byte-identical to fire 1.
+    assert events_after_2[:2] == events_after_1
+    assert len(events_after_2) == 3
+    assert cp._events_consumed == 3
+
+    # Full round-trip still works on the cumulative output.
+    expanded = expand_events(
+        (work / "events.json").read_text(),
+        (work / "events_data.json").read_text(),
+    )
+    model_events = [e for e in expanded if isinstance(e, ModelEvent)]
+    assert [len(e.input) for e in model_events] == [2, 3, 4]

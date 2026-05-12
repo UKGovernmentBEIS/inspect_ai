@@ -19,12 +19,17 @@ from logging import getLogger
 from pathlib import Path
 
 import anyio
+from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.logger import warn_once
 from inspect_ai.event._event import Event
-from inspect_ai.log import condense_events
+from inspect_ai.log import EventsData
+from inspect_ai.log._pool import (
+    condense_model_event_calls,
+    condense_model_event_inputs,
+)
 from inspect_ai.log._samples import sample_active
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
@@ -51,7 +56,7 @@ from .working_dir import ensure_sample_working_dir
 
 logger = getLogger(__name__)
 
-prevent_use = True
+prevent_use = False
 
 
 async def build_impl() -> Checkpointer:
@@ -143,6 +148,15 @@ class _Checkpointer:
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
         self._next_checkpoint_id = 1
+        # Persisted across fires: each fire processes only the new event slice
+        # and appends to these accumulators. Safe because checkpoints fire at
+        # turn boundaries, after which prior events are immutable.
+        self._condensed_events: list[Event] = []
+        self._msg_pool: list[ChatMessage] = []
+        self._msg_index: dict[str, int] = {}
+        self._call_pool: list[JsonValue] = []
+        self._call_index: dict[str, int] = {}
+        self._events_consumed = 0
 
     async def tick(self, messages: Sequence[ChatMessage]) -> None:
         self._turn += 1
@@ -255,18 +269,35 @@ class _Checkpointer:
           here so the snapshot is self-contained.
         - ``store.json`` — Store key/value as a single JSON object.
         """
-        # condense_events() pools ModelEvent input + call messages — the big
-        # O(N²) redundancy. It does not extract additional attachments;
-        # those come pre-extracted on the transcript (call payloads >100
-        # chars are rewritten to attachment:// refs as events flow in,
-        # with originals in transcript.attachments). We persist that
-        # pool alongside the events so resume can resolve the refs.
-        condensed_events, events_data = condense_events(events)
+        # Pool ModelEvent input + call messages — the big O(N²) redundancy.
+        # We process only the new event slice each fire and append to the
+        # accumulators on the session, so total hashing work is O(N) over a
+        # sample rather than O(N) per fire. Safe because checkpoints fire at
+        # turn boundaries, after which prior events are immutable.
+        # Attachments come pre-extracted on the transcript (call payloads
+        # >100 chars are rewritten to attachment:// refs as events flow in,
+        # with originals in transcript.attachments) — we persist that pool
+        # here so resume can resolve the refs.
+        new = events[self._events_consumed :]
+        if new:
+            cond, self._msg_index, new_msgs = condense_model_event_inputs(
+                new, len(self._msg_pool), self._msg_index
+            )
+            self._msg_pool.extend(m for _, m in new_msgs)
+            cond, self._call_index, new_calls = condense_model_event_calls(
+                cond, len(self._call_pool), self._call_index
+            )
+            self._call_pool.extend(c for _, c in new_calls)
+            self._condensed_events.extend(cond)
+            self._events_consumed = len(events)
+        events_data = EventsData(messages=self._msg_pool, calls=self._call_pool)
         sample_dir = anyio.Path(sample_working_dir)
         await (sample_dir / "messages.json").write_text(_json_dump(messages))
-        await (sample_dir / "events.json").write_text(_json_dump(condensed_events))
+        await (sample_dir / "events.json").write_text(_json_dump(self._condensed_events))
         await (sample_dir / "events_data.json").write_text(_json_dump(events_data))
-        await (sample_dir / "attachments.json").write_text(_json_dump(dict(attachments)))
+        await (sample_dir / "attachments.json").write_text(
+            _json_dump(dict(attachments))
+        )
         await (sample_dir / "store.json").write_text(_json_dump(store_jsonable(store)))
 
     async def _backup_host(self) -> ResticBackupSummary:
