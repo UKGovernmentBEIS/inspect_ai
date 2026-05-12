@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 import logging
-from contextlib import ExitStack, contextmanager
+from contextlib import AbstractContextManager, ExitStack, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from types import TracebackType
@@ -265,7 +265,11 @@ def record_model_usage(usage: ModelUsage) -> None:
     """Record model usage against any active token limits.
 
     Does not check if the limit has been exceeded.
+
+    No-op when token limits are suspended (see `suspend_token_limit()`).
     """
+    if token_limit_tree.is_suspended():
+        return
     node = token_limit_tree.get()
     if node is None:
         return
@@ -278,11 +282,43 @@ def check_token_limit() -> None:
     Within the current execution context (e.g. async task) and its parent contexts only.
 
     Note that all active token limits are checked, not just the most recent one.
+
+    No-op when token limits are suspended (see `suspend_token_limit()`).
     """
+    if token_limit_tree.is_suspended():
+        return
     node = token_limit_tree.get()
     if node is None:
         return
     node.check()
+
+
+def suspend_token_limit() -> AbstractContextManager[None]:
+    """Suspend token limit metering within a block of code.
+
+    While this context manager is open:
+
+    - Token usage is not recorded against any active `token_limit()` scope
+      (including sample-level, agent-scoped, and arbitrary block limits).
+    - Calls to `check_token_limit()` are no-ops.
+    - This applies to any `token_limit()` contexts opened inside the block
+      as well — suspension wins over nested limits.
+
+    Useful for running code whose token usage should not count against an
+    agent's budget, e.g. one-shot summarization, routing, or auxiliary
+    planning calls.
+
+    Example:
+        with token_limit(10_000):
+            # tokens count against the 10k budget
+            await generate()
+            with suspend_token_limit():
+                # tokens here do not count
+                await expensive_summary()
+            # tokens count again
+            await generate()
+    """
+    return token_limit_tree.suspended()
 
 
 def cost_limit(limit: float | None) -> _CostLimit:
@@ -484,6 +520,7 @@ class _Tree(Generic[TNode]):
 
     def __init__(self, id: str) -> None:
         self._leaf_node: ContextVar[TNode | None] = ContextVar(id, default=None)
+        self._suspended: ContextVar[int] = ContextVar(f"{id}_suspended", default=0)
 
     def get(self) -> TNode | None:
         return self._leaf_node.get()
@@ -499,6 +536,17 @@ class _Tree(Generic[TNode]):
             raise RuntimeError("Limit tree is empty. Cannot pop from an empty tree.")
         self._leaf_node.set(current_leaf.parent)
         return current_leaf
+
+    def is_suspended(self) -> bool:
+        return self._suspended.get() > 0
+
+    @contextmanager
+    def suspended(self) -> Iterator[None]:
+        token = self._suspended.set(self._suspended.get() + 1)
+        try:
+            yield
+        finally:
+            self._suspended.reset(token)
 
 
 token_limit_tree: _Tree[_TokenLimit] = _Tree("token_limit_tree")
@@ -792,7 +840,11 @@ class _TimeLimit(Limit, _Node):
         self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         self._end_time = anyio.current_time()
         self._pop_and_check_identity(time_limit_tree)
-        if self._cancel_scope.cancel_called and self._limit is not None:
+        # use cancelled_caught (not cancel_called): if the deadline fired but
+        # the body raised a non-Cancelled exception (e.g. cleanup in `finally`
+        # crashed), the cancel scope did not catch a Cancelled and we must let
+        # the original exception propagate rather than masking it.
+        if self._cancel_scope.cancelled_caught and self._limit is not None:
             message = f"Time limit exceeded. limit: {self._limit} seconds"
             assert self._start_time is not None
             # Note we've measured the elapsed time independently of anyio's cancel scope

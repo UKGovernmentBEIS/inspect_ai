@@ -19,6 +19,7 @@ from inspect_ai._util.answer import answer_character, answer_index
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.model import ChatMessage
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
+from inspect_ai.util._checkpoint.config import CheckpointConfig
 from inspect_ai.util._sandbox.environment import resolve_sandbox_environment
 
 if TYPE_CHECKING:
@@ -38,6 +39,7 @@ class Sample(BaseModel):
         sandbox: SandboxEnvironmentType | None = None,
         files: dict[str, str] | None = None,
         setup: str | None = None,
+        checkpoint: CheckpointConfig | None = None,
     ) -> None:
         r"""Create a Sample.
 
@@ -54,6 +56,8 @@ class Sample(BaseModel):
                 SandboxEnvironment). Files can be paths, inline text, or inline binary (base64 encoded data URL).
             setup: Optional. Setup script to run for sample (run
                 within default SandboxEnvironment).
+            checkpoint: Optional. Checkpoint configuration for this sample
+                (overridden by task- or eval-level `checkpoint`).
         """
         super().__init__(
             input=input,
@@ -64,6 +68,7 @@ class Sample(BaseModel):
             sandbox=resolve_sandbox_environment(sandbox),
             files=files,
             setup=setup,
+            checkpoint=checkpoint,
         )
 
     input: str | list[ChatMessage]
@@ -103,6 +108,10 @@ class Sample(BaseModel):
 
     setup: str | None = Field(default=None)
     """Setup script to run for sample (run within default SandboxEnvironment)."""
+
+    checkpoint: CheckpointConfig | None = Field(default=None)
+    """Checkpoint configuration for this sample. Overridden by task- or
+    eval-level `checkpoint` when set."""
 
 
 def sample_input_len(sample: Sample) -> int:

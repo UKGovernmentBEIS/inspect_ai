@@ -37,6 +37,31 @@ def test_score_to_float():
     assert df["score_includes"].unique().tolist() == [1]
 
 
+def test_score_to_float_with_na():
+    """Ensure score_to_float handles pd.NA in pyarrow-backed columns.
+
+    When loading multiple logs with different scorers, score columns are
+    pyarrow-backed with pd.NA for samples scored by other scorers. score_to_float
+    must handle these NA values rather than crashing on bool(pd.NA).
+    """
+    import math
+
+    import pandas as pd
+
+    df = samples_df(LOGS_DIR)
+    # precondition: multi-scorer fixture produces NA values
+    assert df["score_match"].isna().any()
+
+    out = prepare(df, score_to_float("score_match"))
+
+    # NA inputs map to NaN, real values convert to float
+    for original, converted in zip(df["score_match"], out["score_match"]):
+        if pd.isna(original):
+            assert math.isnan(converted)
+        else:
+            assert isinstance(converted, float) and not math.isnan(converted)
+
+
 def check_log_viewer(
     df: Any, url_mappings: dict[str, str], includes: str | None = None
 ):
