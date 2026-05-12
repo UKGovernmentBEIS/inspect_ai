@@ -421,6 +421,77 @@ async def test_cot_complex_text():
     assert result.answer == "D"
 
 
+@pytest.mark.anyio
+async def test_lowercase_answer_letter():
+    # Regex is case-insensitive so a lowercase "ANSWER: b" should be accepted
+    generate = generate_for_multiple_correct(answers="ANSWER: b")
+    solver = multiple_choice()
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+
+    new_state = await solver(state=state, generate=generate)
+
+    assert choices_marked_correct(new_state.choices) == {"choice 2"}
+
+
+@pytest.mark.anyio
+async def test_multiple_correct_lowercase_answer_letters():
+    generate = generate_for_multiple_correct(answers="ANSWER: a, c")
+    solver = multiple_choice(multiple_correct=True)
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+
+    new_state = await solver(state=state, generate=generate)
+
+    assert choices_marked_correct(new_state.choices) == {"choice 1", "choice 3"}
+
+
+@pytest.mark.anyio
+async def test_cot_last_answer_line_wins():
+    # The CoT template instructs "the LAST line of your response should be
+    # ANSWER: $LETTER". An earlier line that happens to start with "Answer:"
+    # (natural CoT phrasing) must not shadow the final answer line.
+    cot_output = (
+        "Let me think step by step.\n"
+        "Answer: this question asks which option is correct\n"
+        "Working through the options...\n"
+        "ANSWER: B"
+    )
+    generate = generate_for_multiple_correct(answers=cot_output)
+    solver = multiple_choice(cot=True)
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+
+    new_state = await solver(state=state, generate=generate)
+
+    assert choices_marked_correct(new_state.choices) == {"choice 2"}
+
+
+@pytest.mark.anyio
+async def test_multiple_correct_comma_and():
+    # "A, B and C" is the most common natural-language list format
+    generate = generate_for_multiple_correct(answers="ANSWER: A, B and C")
+    solver = multiple_choice(multiple_correct=True)
+    state = simple_task_state(
+        choices=["choice 1", "choice 2", "choice 3", "choice 4"],
+        messages=[ChatMessageUser(content="What's the answer?", source="input")],
+    )
+
+    new_state = await solver(state=state, generate=generate)
+
+    assert choices_marked_correct(new_state.choices) == {
+        "choice 1",
+        "choice 2",
+        "choice 3",
+    }
+
+
 def choices_marked_correct(choices: list[Choice]) -> set[str]:
     """Helper function"""
     return set([choice.value for choice in choices if choice.correct])
