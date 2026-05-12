@@ -55,6 +55,7 @@ async def test_score_multiple_letters_with_separators(target: str):
     state.choices.mark_choice(2, False)
 
     result = await scorer(state, Target(target))
+    assert result is not None
     assert result.text == CORRECT
     assert result.answer == "A, B"
 
