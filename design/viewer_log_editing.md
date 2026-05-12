@@ -41,9 +41,10 @@ inspect-flow) inherit the new endpoints for free.
   `log_edits_tags_metadata.md`; tracked separately).
 - Editing scores (`edit_score` does not take `ProvenanceData` and follows a
   different storage path — separate effort).
-- Concurrency control beyond what S3 conditional writes (`if_match_etag`) already
-  provide. The Phase 1 endpoint performs a read-modify-write against the header
-  only; collision handling is best-effort and documented per endpoint.
+- Concurrency control for local-filesystem logs. S3 conditional writes are
+  wired up in Phase 1 (see below); local-file ETag synthesis is deferred — the
+  single-user `inspect view` case is the dominant local one and last-writer-wins
+  is acceptable there.
 
 ## Phase 1 — Tag edits (this change)
 
@@ -99,13 +100,37 @@ the `validate_log_file_request` helper plus the optional `Authorization` header.
 | File outside `log_dir` (no auth) | 401 (aiohttp) / 403 (FastAPI) |
 | Body validation fails (pydantic) | 422 |
 | `edit_eval_log` raises `ValueError` (empty tag, overlap, etc.) | 400 |
+| `If-Match` doesn't match current S3 ETag | 412 Precondition Failed |
 | Underlying read/write fails | 500 |
-| Conditional write conflict (future) | 409 |
+
+### ETag / If-Match (S3 only)
+
+S3-hosted logs already carry an ETag through `read_eval_log_async` and
+`write_eval_log_async(..., if_match_etag=...)` does the conditional `PutObject`,
+raising `WriteConflictError` on mismatch. Phase 1 plumbs both through the
+viewer:
+
+- `GET /api/logs/{log}` sets an `ETag` HTTP header when the recorder returns
+  one (S3 today, nothing on local).
+- `POST /api/log-edit/{log}` reads `If-Match` and forwards it to
+  `apply_log_edits` → `write_eval_log_async`. On `WriteConflictError` the
+  response is HTTP 412 Precondition Failed. The success response carries the
+  new `ETag` so the client can chain conditional edits without a fresh `GET`.
+
+`If-Match` is optional. Omitting it falls back to last-writer-wins, matching
+the existing `write_eval_log(..., if_match_etag=None)` semantics. The viewer
+UI should send `If-Match` whenever it has one — the server doesn't enforce
+that policy.
+
+Local-file ETag is deferred. There's no etag mechanism in the recorder for
+local files today; synthesizing one (mtime+size, or a content hash) plus a
+per-path lock would close the race window for a single-process viewer, but
+the single-user case doesn't warrant the complexity yet. Listed as a
+follow-up below.
 
 ### Out of scope for Phase 1
 
-- ETag round-trip / `If-Match`. Editing is single-writer in the common viewer
-  case; deferring until we add S3-hosted multi-user editing.
+- Local-file ETag synthesis.
 - Surfacing edit history in the viewer UI (Phase 4).
 
 ## Phase 2 — Metadata edits

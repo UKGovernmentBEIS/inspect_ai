@@ -34,6 +34,7 @@ from inspect_ai.log._file import (
     read_eval_log_async,
     write_eval_log_async,
 )
+from inspect_ai.log._log import EvalLog
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import PendingSampleUrls, SegmentRef
@@ -146,41 +147,66 @@ def log_files_response(
     )
 
 
-async def get_log_file(file: str, header_only_param: str | None) -> bytes:
+async def get_log_file(
+    file: str, header_only_param: str | None
+) -> tuple[bytes, str | None]:
+    """Read a log file and return its JSON bytes plus the optional ETag.
+
+    The ETag is populated only when the underlying recorder surfaces one
+    (today that means S3-hosted logs). Callers should forward it as an
+    HTTP `ETag` response header when present.
+    """
     # resolve header_only
     header_only_mb = int(header_only_param) if header_only_param is not None else None
     header_only = resolve_header_only(file, header_only_mb)
 
-    contents: bytes | None = None
+    log: EvalLog | None = None
     if header_only:
         try:
             log = await read_eval_log_async(file, header_only=True)
-            contents = eval_log_json(log)
         except ValueError as ex:
             logger.info(
                 f"Unable to read headers from log file {file}: {ex}. "
                 + "The file may include a NaN or Inf value. Falling back to reading entire file."
             )
 
-    if contents is None:  # normal read
+    if log is None:  # normal read
         log = await read_eval_log_async(file, header_only=False)
-        contents = eval_log_json(log)
 
-    return contents
+    return eval_log_json(log), log.etag
 
 
-async def apply_log_edits(file: str, update: LogUpdate) -> bytes:
+async def apply_log_edits(
+    file: str,
+    update: LogUpdate,
+    if_match_etag: str | None = None,
+) -> tuple[bytes, str | None]:
     """Apply tag/metadata edits to a log and persist them.
 
     Reads the header, applies `update.edits` via `edit_eval_log`, and writes
     the new header back without touching sample data. Returns the updated
-    header serialized as JSON, matching the `GET /api/logs/{log}` response
-    shape so clients can refresh their cached view in one round-trip.
+    header serialized as JSON and the new ETag (S3 only — None elsewhere),
+    so the caller can both refresh its cached view and chain a follow-up
+    conditional edit in a single round-trip.
+
+    Args:
+        file: Path or URI of the log to edit.
+        update: Edits + provenance to apply.
+        if_match_etag: When set on an S3 path, the write is conditional on
+            the current S3 ETag matching this value. Raises
+            `WriteConflictError` on mismatch. Ignored for non-S3 paths.
     """
     log = await read_eval_log_async(file, header_only=True)
     log = edit_eval_log(log, update.edits, update.provenance)
-    await write_eval_log_async(log, location=file, header_only=True)
-    return eval_log_json(log)
+    await write_eval_log_async(
+        log, location=file, if_match_etag=if_match_etag, header_only=True
+    )
+    # Re-read on S3 to capture the new ETag; skip the round-trip on local
+    # filesystems where ETag is always None.
+    new_etag: str | None = None
+    if filesystem(file).is_s3():
+        new_etag = (await read_eval_log_async(file, header_only=True)).etag
+    return eval_log_json(log), new_etag
 
 
 async def get_log_size(log_file: str) -> int:

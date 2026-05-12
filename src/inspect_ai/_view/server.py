@@ -20,6 +20,7 @@ from inspect_ai._display import display
 from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
 from inspect_ai._util.azure import is_azure_auth_error, is_azure_path
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
+from inspect_ai._util.error import WriteConflictError
 from inspect_ai._util.file import filesystem
 from inspect_ai._view.azure import (
     azure_debug_exists,
@@ -124,12 +125,20 @@ def view_server_app(
         except ValidationError as ex:
             raise web.HTTPUnprocessableEntity(text=ex.json())
 
+        if_match = request.headers.get("If-Match")
         try:
-            contents = await apply_log_edits(file, update)
+            contents, new_etag = await apply_log_edits(
+                file, update, if_match_etag=if_match
+            )
         except ValueError as ex:
             raise web.HTTPBadRequest(reason=str(ex))
+        except WriteConflictError as ex:
+            raise web.HTTPPreconditionFailed(reason=str(ex))
 
-        return web.Response(body=contents, content_type="application/json")
+        headers = {"ETag": new_etag} if new_etag is not None else {}
+        return web.Response(
+            body=contents, content_type="application/json", headers=headers
+        )
 
     @routes.get("/api/log-bytes/{log}")
     async def api_log_bytes(request: web.Request) -> web.Response:
@@ -536,9 +545,12 @@ def eval_set_response(eval_set: EvalSet | None) -> web.Response:
 
 async def log_file_response(file: str, header_only_param: str | None) -> web.Response:
     try:
-        contents = await get_log_file(file, header_only_param)
+        contents, etag = await get_log_file(file, header_only_param)
 
-        return web.Response(body=contents, content_type="application/json")
+        headers = {"ETag": etag} if etag is not None else {}
+        return web.Response(
+            body=contents, content_type="application/json", headers=headers
+        )
 
     except Exception as error:
         logger.exception(error)

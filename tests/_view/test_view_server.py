@@ -1519,6 +1519,152 @@ def test_api_pending_sample_data_urls_tail_without_cap_returns_all(
     assert body["has_more"] is False
 
 
+def _write_eval_log_to_s3(s3_path: str) -> None:
+    """Write a minimal eval log to an s3:// path. Uses the moto-mocked bucket."""
+    eval_log = inspect_ai.log.EvalLog(
+        eval=inspect_ai.log.EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="task",
+            task_id="task_id",
+            dataset=inspect_ai.log.EvalDataset(),
+            model="model",
+            config=inspect_ai.log.EvalConfig(),
+        )
+    )
+    inspect_ai.log.write_eval_log(eval_log, s3_path, "eval")
+
+
+def test_api_log_returns_etag_header_for_s3(mock_s3: None, tmp_path: Path) -> None:
+    s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_read.eval"
+    _write_eval_log_to_s3(s3_log)
+
+    client = FastAPIViewTestClient(tmp_path)
+    try:
+        resp = client.request("GET", f"/logs/{s3_log}")
+        resp.raise_for_status()
+        assert resp.headers.get("etag") is not None
+        assert resp.headers["etag"] != ""
+    finally:
+        client.close()
+
+
+def test_api_log_no_etag_header_for_local(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request("GET", view_client.log_url("logs", fname))
+    resp.raise_for_status()
+    assert "etag" not in resp.headers
+
+
+def test_api_log_edit_s3_returns_new_etag(mock_s3: None, tmp_path: Path) -> None:
+    s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_edit.eval"
+    _write_eval_log_to_s3(s3_log)
+
+    client = FastAPIViewTestClient(tmp_path)
+    try:
+        # Read once to capture current ETag.
+        read_resp = client.request("GET", f"/logs/{s3_log}")
+        read_resp.raise_for_status()
+        original_etag = read_resp.headers["etag"]
+
+        # Edit with matching If-Match — should succeed and return a new ETag.
+        edit_resp = client.request(
+            "POST",
+            f"/log-edit/{s3_log}",
+            headers={"If-Match": original_etag},
+            json={
+                "edits": [
+                    {"type": "tags", "tags_add": ["qa_passed"], "tags_remove": []}
+                ],
+                "provenance": {"author": "alice"},
+            },
+        )
+        edit_resp.raise_for_status()
+        new_etag = edit_resp.headers.get("etag")
+        assert new_etag is not None
+        assert new_etag != original_etag
+
+        # A follow-up GET should return the new ETag.
+        confirm_resp = client.request("GET", f"/logs/{s3_log}")
+        confirm_resp.raise_for_status()
+        assert confirm_resp.headers["etag"] == new_etag
+        assert confirm_resp.json()["tags"] == ["qa_passed"]
+    finally:
+        client.close()
+
+
+def test_api_log_edit_s3_stale_if_match_returns_412(
+    mock_s3: None, tmp_path: Path
+) -> None:
+    s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_stale.eval"
+    _write_eval_log_to_s3(s3_log)
+
+    client = FastAPIViewTestClient(tmp_path)
+    try:
+        read_resp = client.request("GET", f"/logs/{s3_log}")
+        read_resp.raise_for_status()
+        original_etag = read_resp.headers["etag"]
+
+        # First edit succeeds (consumes the ETag).
+        first = client.request(
+            "POST",
+            f"/log-edit/{s3_log}",
+            headers={"If-Match": original_etag},
+            json={
+                "edits": [{"type": "tags", "tags_add": ["a"], "tags_remove": []}],
+                "provenance": {"author": "alice"},
+            },
+        )
+        first.raise_for_status()
+
+        # Second edit with the now-stale ETag should 412.
+        second = client.request(
+            "POST",
+            f"/log-edit/{s3_log}",
+            headers={"If-Match": original_etag},
+            json={
+                "edits": [{"type": "tags", "tags_add": ["b"], "tags_remove": []}],
+                "provenance": {"author": "bob"},
+            },
+        )
+        assert second.status_code == 412
+
+        # The stale write must not have been applied.
+        confirm = client.request("GET", f"/logs/{s3_log}")
+        confirm.raise_for_status()
+        assert confirm.json()["tags"] == ["a"]
+    finally:
+        client.close()
+
+
+def test_api_log_edit_s3_without_if_match_succeeds(
+    mock_s3: None, tmp_path: Path
+) -> None:
+    """Omitting If-Match falls back to last-writer-wins (no conditional check).
+
+    Matches the existing behavior of `write_eval_log(..., if_match_etag=None)`.
+    """
+    s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_optional.eval"
+    _write_eval_log_to_s3(s3_log)
+
+    client = FastAPIViewTestClient(tmp_path)
+    try:
+        resp = client.request(
+            "POST",
+            f"/log-edit/{s3_log}",
+            json={
+                "edits": [{"type": "tags", "tags_add": ["x"], "tags_remove": []}],
+                "provenance": {"author": "alice"},
+            },
+        )
+        resp.raise_for_status()
+        # ETag still surfaced on the response so the client can switch to
+        # conditional writes on the next round-trip.
+        assert resp.headers.get("etag") is not None
+    finally:
+        client.close()
+
+
 def test_api_pending_sample_data_urls_s3_populates_direct_url(
     mock_s3: None, tmp_path: Path
 ) -> None:

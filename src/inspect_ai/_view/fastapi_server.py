@@ -26,6 +26,7 @@ from typing_extensions import override
 from inspect_ai._display.core.active import display
 from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
+from inspect_ai._util.error import WriteConflictError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai._view import notify
@@ -140,10 +141,11 @@ def view_server_app(
         file = normalize_uri(log)
         await _validate_read(request, file)
         try:
-            body = await get_log_file(await _map_file(request, file), header_only)
+            body, etag = await get_log_file(await _map_file(request, file), header_only)
         except FileNotFoundError:
             return Response(status_code=HTTP_404_NOT_FOUND)
-        return Response(content=body, media_type="application/json")
+        headers = {"ETag": etag} if etag is not None else {}
+        return Response(content=body, media_type="application/json", headers=headers)
 
     @app.get("/log-size/{log:path}")
     async def api_log_size(request: Request, log: str) -> int:
@@ -171,11 +173,19 @@ def view_server_app(
     async def api_log_edit(request: Request, log: str, update: LogUpdate) -> Response:
         file = normalize_uri(log)
         await _validate_write(request, file)
+        if_match = request.headers.get("If-Match")
         try:
-            contents = await apply_log_edits(await _map_file(request, file), update)
+            contents, new_etag = await apply_log_edits(
+                await _map_file(request, file), update, if_match_etag=if_match
+            )
         except ValueError as ex:
             raise HTTPException(status_code=400, detail=str(ex))
-        return Response(content=contents, media_type="application/json")
+        except WriteConflictError as ex:
+            raise HTTPException(status_code=412, detail=str(ex))
+        headers = {"ETag": new_etag} if new_etag is not None else {}
+        return Response(
+            content=contents, media_type="application/json", headers=headers
+        )
 
     @app.get("/log-bytes/{log:path}")
     async def api_log_bytes(
