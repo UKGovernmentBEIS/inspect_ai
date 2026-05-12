@@ -55,10 +55,13 @@
 - Bugfix: `create_reducers` no longer rewrites custom reducer names ending in `_<digits>` (e.g. `"top_5"`) into the built-in `_k` shorthand.
 - Bugfix: `multi_scorer` returns `Score.unscored()` when every sub-scorer declines to score (previously crashed with `IndexError`).
 - Bugfix: `at_least` / `pass_at` reducer names now correctly include the `_k` suffix on the returned reducer (previously leaked onto the module-global factory).
- - Bugfix: `model_graded_qa()` / `model_graded_fact()` — default grade pattern now extracts the *last* `GRADE: $LETTER` in grader output.
-  - Bugfix: `f1()` / `exact()` — targets with leading whitespace are no longer silently skipped.
-  - Bugfix: `math()` — brace-delimited set answers like `{1, 2}` are now compared as multisets.
-  - Bugfix: `math()` — model outputs containing `\boxed{inf}` / `Infinity` / `-inf` no longer crash the scorer with `OverflowError`.
+- Bugfix: `model_graded_qa()` / `model_graded_fact()` — default grade pattern now extracts the *last* `GRADE: $LETTER` in grader output.
+- Bugfix: `f1()` / `exact()` — targets with leading whitespace are no longer silently skipped.
+- Bugfix: `math()` — brace-delimited set answers like `{1, 2}` are now compared as multisets.
+- Bugfix: `math()` — model outputs containing `\boxed{inf}` / `Infinity` / `-inf` no longer crash the scorer with `OverflowError`.
+- Bugfix: `grouped()` — raise instead of silently overwriting a per-group metric when a group name collides with `all_label`.
+- Bugfix: `stderr(cluster=...)` — return 0 with a single cluster (was `NaN`/`inf` from divide-by-zero).
+- Bugfix: `value_to_float()` — reject `"nan"`/`"inf"` string values so a single non-finite Score doesn't poison `accuracy()` and friends.
 
 ## 0.3.220 (08 May 2026)
 
