@@ -118,10 +118,7 @@ async def test_init_concurrent_callers_produce_single_manifest(
 
     eval_dir = str(tmp_path / "foo.checkpoints")
     await tg_collect(
-        [
-            partial(init_eval_checkpoints_dir, eval_dir, "eval-001")
-            for _ in range(20)
-        ]
+        [partial(init_eval_checkpoints_dir, eval_dir, "eval-001") for _ in range(20)]
     )
 
     # Lock serialized the 20 callers: exactly one generated a password
