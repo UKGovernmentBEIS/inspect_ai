@@ -17,12 +17,23 @@ from inspect_ai.util._limit import (
     cost_limit,
     message_limit,
     sample_limits,
+    suspend_token_limit,
     time_limit,
     token_limit,
     working_limit,
 )
 
 from ._background import background
+from ._checkpoint import (
+    BudgetPercent,
+    CheckpointConfig,
+    CostInterval,
+    Retention,
+    TimeInterval,
+    TokenInterval,
+    TurnInterval,
+    checkpointer,
+)
 from ._collect import collect
 from ._concurrency import AdaptiveConcurrency, concurrency
 from ._console import input_screen
@@ -136,6 +147,7 @@ __all__ = [
     "throttle",
     "background",
     "cost_limit",
+    "suspend_token_limit",
     "token_limit",
     "time_limit",
     "working_limit",
@@ -156,4 +168,12 @@ __all__ = [
     "ExecRemoteStreamingOptions",
     "ExecStderr",
     "ExecStdout",
+    "BudgetPercent",
+    "CheckpointConfig",
+    "checkpointer",
+    "CostInterval",
+    "Retention",
+    "TimeInterval",
+    "TokenInterval",
+    "TurnInterval",
 ]
