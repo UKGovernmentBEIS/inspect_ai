@@ -213,15 +213,17 @@ def test_sync_returns_while_filestore_sync_is_blocked(
     release.set()
 
 
-def test_sync_requests_are_coalesced_and_do_not_run_concurrently(
+def test_pending_sync_respects_log_shared_interval(
     shared_db: SampleBufferDatabase,
     monkeypatch: pytest.MonkeyPatch,
     sync_releases: list[threading.Event],
 ) -> None:
+    shared_db.log_shared = 0.2
     first_started = threading.Event()
     release_first = threading.Event()
     second_started = threading.Event()
     recorder = SyncRecorder()
+    sync_times: list[float] = []
     sync_releases.append(release_first)
 
     def controlled_sync(
@@ -229,6 +231,7 @@ def test_sync_requests_are_coalesced_and_do_not_run_concurrently(
         filestore: SampleBufferFilestore,
     ) -> None:
         call_number = recorder.begin_call()
+        sync_times.append(time.monotonic())
         try:
             if call_number == 1:
                 first_started.set()
@@ -244,13 +247,14 @@ def test_sync_requests_are_coalesced_and_do_not_run_concurrently(
     _assert_event(first_started, "first sync did not start")
 
     for index in range(5):
-        _request_sync(shared_db, f"burst-{index}")
+        _write_event(shared_db, f"burst-{index}")
 
     release_first.set()
 
     _assert_event(second_started, "pending sync did not run")
     assert recorder.calls == 2
     assert recorder.max_active_calls == 1
+    assert sync_times[1] - sync_times[0] >= shared_db.log_shared * 0.9
 
 
 def test_sync_exception_does_not_prevent_later_sync(
@@ -391,6 +395,52 @@ def test_cleanup_discards_pending_sync_work(
     _join_or_raise(cleanup_thread, cleanup_errors)
 
     assert cleanup_done.is_set()
+    assert recorder.calls == 1
+    assert cleanup_recorder.calls == ["db", "filestore"]
+
+
+def test_cleanup_interrupts_pending_sync_throttle_wait(
+    shared_db: SampleBufferDatabase,
+    monkeypatch: pytest.MonkeyPatch,
+    cleanup_recorder: CleanupRecorder,
+    sync_releases: list[threading.Event],
+) -> None:
+    first_started = threading.Event()
+    first_finished = threading.Event()
+    release_first = threading.Event()
+    recorder = SyncRecorder()
+    sync_releases.append(release_first)
+
+    def blocked_first_sync(
+        db: SampleBufferDatabase,
+        filestore: SampleBufferFilestore,
+    ) -> None:
+        if recorder.next_call() == 1:
+            first_started.set()
+            release_first.wait(timeout=5)
+            first_finished.set()
+
+    monkeypatch.setattr(database_module, "sync_to_filestore", blocked_first_sync)
+    monkeypatch.setattr(database_module, "SYNC_CLEANUP_TIMEOUT", 1)
+
+    _request_sync(shared_db, "first")
+    _assert_event(first_started, "first sync did not start")
+
+    _write_event(shared_db, "pending")
+    assert shared_db._sync_pending is True
+
+    release_first.set()
+    _assert_event(first_finished, "first sync did not finish")
+    _wait_until(
+        lambda: shared_db._sync_thread is not None,
+        "sync worker did not remain active for pending throttle wait",
+    )
+
+    before = time.monotonic()
+    shared_db.cleanup()
+    elapsed = time.monotonic() - before
+
+    assert elapsed < 0.5
     assert recorder.calls == 1
     assert cleanup_recorder.calls == ["db", "filestore"]
 

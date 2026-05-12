@@ -182,6 +182,7 @@ class SampleBufferDatabase(SampleBuffer):
         )
         self._sync_time = time.monotonic()
         self._sync_lock = threading.Lock()
+        self._sync_wakeup = threading.Condition(self._sync_lock)
         self._sync_thread: threading.Thread | None = None
         self._sync_pending = False
         self._sync_closed = False
@@ -303,6 +304,7 @@ class SampleBufferDatabase(SampleBuffer):
         sync_thread: threading.Thread | None = None
         with self._sync_lock:
             self._sync_closed = True
+            self._sync_wakeup.notify_all()
             sync_thread = self._sync_thread
 
         if sync_thread is threading.current_thread():
@@ -514,6 +516,19 @@ class SampleBufferDatabase(SampleBuffer):
                     self._sync_pending = False
                     self._sync_thread = None
                     return
+
+                assert self.log_shared is not None
+                while True:
+                    if self._sync_closed:
+                        self._sync_pending = False
+                        self._sync_thread = None
+                        return
+
+                    remaining = self.log_shared - (time.monotonic() - self._sync_time)
+                    if remaining <= 0:
+                        break
+
+                    self._sync_wakeup.wait(timeout=remaining)
 
                 self._sync_pending = False
                 self._sync_time = time.monotonic()
