@@ -14,12 +14,27 @@ created on first use; subsequent calls are idempotent.
 from __future__ import annotations
 
 import secrets
+import threading
 
 import anyio
 
 from inspect_ai._util.file import basename, dirname, file, filesystem
 
 from .layout import CheckpointManifest
+
+# Serialize manifest init within a single inspect process. Multiple
+# samples in an eval can hit `_init_eval_checkpoints_dir_blocking`
+# concurrently from worker threads (each `init_eval_checkpoints_dir`
+# call is wrapped in `anyio.to_thread.run_sync`); without a lock, both
+# could see no manifest, both generate fresh passwords, and the second
+# `open("w")` would either overwrite or tear the first's bytes.
+#
+# Cross-process races aren't covered. The eval_dir is derived from the
+# log filename, which embeds the eval_id UUID — two processes sharing
+# an eval_dir requires running `inspect eval retry <log>` against a
+# log another process is still writing, and the `eval_id` mismatch
+# check catches that loudly.
+_manifest_lock = threading.Lock()
 
 _LAYOUT_VERSION = 1
 _LOG_SUFFIX = ".eval"
@@ -56,30 +71,26 @@ def _init_eval_checkpoints_dir_blocking(eval_dir: str, eval_id: str) -> None:
     fs.mkdir(eval_dir, exist_ok=True)
 
     manifest_path = f"{eval_dir}/manifest.json"
-    if fs.exists(manifest_path):
-        with file(manifest_path, "r") as f:
-            existing = CheckpointManifest.model_validate_json(f.read())
-        if existing.eval_id != eval_id:
-            raise RuntimeError(
-                f"Checkpoint manifest at {manifest_path} has eval_id "
-                f"{existing.eval_id!r}, but the active eval is {eval_id!r}. "
-                "The checkpoint directory may belong to a different eval."
-            )
-        return
+    with _manifest_lock:
+        if fs.exists(manifest_path):
+            with file(manifest_path, "r") as f:
+                existing = CheckpointManifest.model_validate_json(f.read())
+            if existing.eval_id != eval_id:
+                raise RuntimeError(
+                    f"Checkpoint manifest at {manifest_path} has eval_id "
+                    f"{existing.eval_id!r}, but the active eval is {eval_id!r}. "
+                    "The checkpoint directory may belong to a different eval."
+                )
+            return
 
-    # TODO(checkpointing-phase-3): two samples in the same eval racing
-    # here will both write a manifest, and the loser's password will be
-    # silently replaced. Switch to an exclusive-create primitive (or
-    # have the eval init layer write the manifest once before samples
-    # start).
-    manifest = CheckpointManifest(
-        eval_id=eval_id,
-        layout_version=_LAYOUT_VERSION,
-        engine="restic",
-        restic_password=secrets.token_urlsafe(32),
-    )
-    with file(manifest_path, "w") as f:
-        f.write(manifest.model_dump_json(indent=2))
+        manifest = CheckpointManifest(
+            eval_id=eval_id,
+            layout_version=_LAYOUT_VERSION,
+            engine="restic",
+            restic_password=secrets.token_urlsafe(32),
+        )
+        with file(manifest_path, "w") as f:
+            f.write(manifest.model_dump_json(indent=2))
 
 
 async def read_eval_manifest(eval_dir: str) -> CheckpointManifest:
