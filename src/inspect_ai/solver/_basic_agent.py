@@ -209,7 +209,7 @@ def basic_agent(
 
                         # was an answer submitted?
                         answer = submission(tool_results)
-                        if answer:
+                        if answer is not None:
                             if submit_append:
                                 state.output.completion = (
                                     f"{state.output.completion}\n\n{answer}".strip()

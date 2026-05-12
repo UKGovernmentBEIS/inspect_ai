@@ -301,8 +301,8 @@ def react(
                         if not state.output.message.tool_calls:
                             state.messages.append(
                                 ChatMessageUser(
-                                    content=DEFAULT_CONTINUE_PROMPT.format(
-                                        submit=submit_tool.name
+                                    content=DEFAULT_CONTINUE_PROMPT.replace(
+                                        "{submit}", submit_tool.name
                                     )
                                 )
                             )
@@ -310,7 +310,9 @@ def react(
                         # send back the user message
                         state.messages.append(
                             ChatMessageUser(
-                                content=do_continue.format(submit=submit_tool.name)
+                                content=do_continue.replace(
+                                    "{submit}", submit_tool.name
+                                )
                             )
                         )
                     elif isinstance(do_continue, AgentState):
@@ -328,7 +330,7 @@ def react(
                     )
                     state.messages.append(
                         ChatMessageUser(
-                            content=continue_msg.format(submit=submit_tool.name)
+                            content=continue_msg.replace("{submit}", submit_tool.name)
                         )
                     )
 
