@@ -160,6 +160,56 @@ def active_model_recording_scanner():
 # --- helpers ----------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _preserve_logging_state() -> Iterator[None]:
+    """Save / restore inspect_ai global state around every test in this file.
+
+    Three globals leak from `eval`/`eval_set`/`eval_retry` calls with
+    `display="none"` and break downstream tests (e.g.
+    `tests/test_model_env_mismatch.py`) which rely on `caplog`/`capsys`
+    to capture inspect_ai output:
+
+    1. `init_eval_context` → `init_logger` attaches a `LogHandler` to
+       the `inspect_ai` logger AND sets `propagate=False` on it. With
+       propagation off, inspect_ai warnings never reach the root logger
+       `caplog` is attached to.
+    2. `init_display_type("none")` sets a module-level `_display_type`
+       global that downstream tests inherit.
+    3. The "none" display path calls `rich.reconfigure(quiet=True)`
+       (see `_display/core/rich.py`), which globally swaps the rich
+       console for a quiet one — `capsys` then captures nothing because
+       rendered output is dropped.
+
+    Restore all three so other test files see the original state.
+    """
+    import logging
+
+    import rich
+
+    import inspect_ai.util._display as _display_mod
+    from inspect_ai._util.logger import _logHandler
+
+    targets = [logging.getLogger(), logging.getLogger("inspect_ai")]
+    saved = [(t, t.level, list(t.handlers), t.propagate) for t in targets]
+    saved_handler = _logHandler["handler"]
+    saved_display_type = _display_mod._display_type
+    try:
+        yield
+    finally:
+        for target, level, handlers, propagate in saved:
+            target.setLevel(level)
+            target.handlers[:] = handlers
+            target.propagate = propagate
+        _logHandler["handler"] = saved_handler
+        _display_mod._display_type = saved_display_type
+        # display="none" runs `rich.reconfigure(quiet=True)` (see
+        # `_display/core/rich.py`), which globally swaps the rich
+        # console for a quiet one — downstream tests' rendered output
+        # gets dropped and `capsys` captures nothing. Force-reset
+        # quiet=False so subsequent tests get a normal console.
+        rich.get_console().quiet = False
+
+
 def _task(n_samples: int = 2) -> Task:
     return Task(
         dataset=[
