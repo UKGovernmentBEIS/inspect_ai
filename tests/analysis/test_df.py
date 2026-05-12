@@ -40,6 +40,56 @@ def test_evals_df():
     assert len(df) == 4
 
 
+def test_evals_df_scores_with_reducers():
+    """Ensure per-reducer score metrics get distinct columns.
+
+    When the same scorer appears with multiple reducers (e.g. epochs with
+    epochs_reducer=["mean","max"]), each reducer's metrics must get distinct
+    columns rather than the last one silently overwriting the first.
+    """
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalMetric,
+        EvalResults,
+        EvalScore,
+        EvalSpec,
+    )
+
+    log = EvalLog(
+        status="success",
+        eval=EvalSpec(
+            created="2024-01-01T00:00:00+00:00",
+            task="t",
+            dataset=EvalDataset(),
+            model="test/model",
+            config=EvalConfig(epochs=4, epochs_reducer=["mean", "max"]),
+        ),
+        results=EvalResults(
+            scores=[
+                EvalScore(
+                    name="match",
+                    scorer="match",
+                    reducer="mean",
+                    metrics={"accuracy": EvalMetric(name="accuracy", value=0.50)},
+                ),
+                EvalScore(
+                    name="match",
+                    scorer="match",
+                    reducer="max",
+                    metrics={"accuracy": EvalMetric(name="accuracy", value=0.90)},
+                ),
+            ]
+        ),
+    )
+
+    df = evals_df([log], quiet=True)
+    assert "score_match_mean_accuracy" in df.columns
+    assert "score_match_max_accuracy" in df.columns
+    assert df.iloc[0]["score_match_mean_accuracy"] == 0.50
+    assert df.iloc[0]["score_match_max_accuracy"] == 0.90
+
+
 def test_evals_df_columns():
     df = evals_df(LOGS_DIR, columns=EvalInfo + EvalModel + EvalResults + EvalTask)
     assert (
