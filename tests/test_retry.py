@@ -224,7 +224,7 @@ def test_invalidation(tmp_path: Path):
     assert reused_uuids == old_uuids - {invalid_sample_uuid}
 
 
-def test_eval_retry_preserves_scorer_attribution():
+def test_eval_retry_preserves_scorer_attribution(monkeypatch) -> None:
     # Restored (cached) samples must carry the same SampleScore.scorer
     # attribution as freshly executed samples. Regression: the cached path
     # previously omitted `scorer=` so restored scores had scorer=None and
@@ -232,29 +232,27 @@ def test_eval_retry_preserves_scorer_attribution():
     import inspect_ai._eval.task.run as run_mod
 
     captured: list[list[dict]] = []
-    orig = run_mod.eval_results
+    orig = getattr(run_mod, "eval_results")
 
     def spy(*args, **kwargs):
         scores = kwargs.get("scores", args[1] if len(args) > 1 else None)
         captured.append(list(scores))
         return orig(*args, **kwargs)
 
-    run_mod.eval_results = spy
-    try:
-        # 2 samples: first passes, second fails -> retry restores first from
-        # cache and reruns second fresh
-        log1 = eval(
-            failing_task_deterministic([False, True]),
-            model="mockllm/model",
-            fail_on_error=False,
-        )[0]
-        assert log1.status == "success"
-        captured.clear()
+    monkeypatch.setattr(run_mod, "eval_results", spy)
 
-        log2 = eval_retry(log1)[0]
-        assert log2.status == "success"
-    finally:
-        run_mod.eval_results = orig
+    # 2 samples: first passes, second fails -> retry restores first from
+    # cache and reruns second fresh
+    log1 = eval(
+        failing_task_deterministic([False, True]),
+        model="mockllm/model",
+        fail_on_error=False,
+    )[0]
+    assert log1.status == "success"
+    captured.clear()
+
+    log2 = eval_retry(log1)[0]
+    assert log2.status == "success"
 
     by_id: dict[int, str | None] = {}
     for call_scores in captured:
