@@ -672,29 +672,52 @@ def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
     return log.replace("\\", "/")
 
 
+def _filter_log_files(
+    ls: list[FileInfo],
+    formats: list[Literal["eval", "json"]] | None,
+    descending: bool,
+    sort: bool,
+) -> list[FileInfo]:
+    extensions = [f".{format}" for format in (formats or ALL_LOG_FORMATS)]
+    ordered = (
+        sorted(
+            ls,
+            key=lambda file: file.mtime if file.mtime else 0,
+            reverse=descending,
+        )
+        if sort
+        else ls
+    )
+    return [
+        file
+        for file in ordered
+        if file.type == "file" and is_log_file(file.name, extensions)
+    ]
+
+
 def log_files_from_ls(
     ls: list[FileInfo],
     formats: list[Literal["eval", "json"]] | None = None,
     descending: bool = True,
     sort: bool = True,
 ) -> list[EvalLogInfo]:
-    extensions = [f".{format}" for format in (formats or ALL_LOG_FORMATS)]
-    return [
-        log_file_info(file)
-        for file in (
-            sorted(
-                ls,
-                key=lambda file: file.mtime if file.mtime else 0,
-                reverse=descending,
-            )
-            if sort
-            else ls
-        )
-        if file.type == "file" and is_log_file(file.name, extensions)
-    ]
+    return [log_file_info(f) for f in _filter_log_files(ls, formats, descending, sort)]
+
+
+async def log_files_from_ls_async(
+    ls: list[FileInfo],
+    formats: list[Literal["eval", "json"]] | None = None,
+    descending: bool = True,
+    sort: bool = True,
+) -> list[EvalLogInfo]:
+    files = _filter_log_files(ls, formats, descending, sort)
+    return await tg_collect([partial(log_file_info_async, f) for f in files])
 
 
 log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
+# Native Inspect filenames always start with a full ISO timestamp
+# (date + T + HH[:-]MM[:-]SS); anything shorter must use the header fallback.
+_timestamp_prefix_re = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}")
 
 
 def is_log_file(file: str, extensions: list[str]) -> bool:
@@ -709,34 +732,92 @@ def is_log_file(file: str, extensions: list[str]) -> bool:
         )
 
 
-def log_file_info(info: FileInfo) -> "EvalLogInfo":
-    # extract the basename and split into parts
-    # (deal with previous logs had the model in their name)
+def _try_parse_filename(
+    parts: list[str],
+) -> tuple[str | None, str | None, str | None]:
+    """Parse task/task_id/suffix from filename parts.
+
+    Returns (None, None, None) if the filename does not match
+    the expected {timestamp}_{task}_{id} pattern.
+    """
+    if len(parts) < 2:
+        return None, None, None
+
+    if not _timestamp_prefix_re.match(parts[0]):
+        return None, None, None
+
+    if len(parts) == 2:
+        return parts[1], "", None
+
+    # 3+ parts: {ts}_{task}_{id} or {ts}_{task}_{model}_{id}
+    last_idx = 3 if len(parts) > 3 else 2
+    task = parts[1]
+    part3 = parts[last_idx].split("-")
+    task_id = part3[0]
+    suffix = part3[1] if len(part3) > 1 else None
+    return task, task_id, suffix
+
+
+def _try_read_header(
+    name: str,
+) -> tuple[str | None, str | None, str | None]:
+    """Read task/task_id from the eval log header (sync). Returns (None, None, None) on error."""
+    try:
+        log = read_eval_log(name, header_only=True)
+        return log.eval.task, log.eval.task_id, None
+    except Exception as e:
+        logger.debug(f"Failed to read header from {name}: {e}")
+        return None, None, None
+
+
+async def _try_read_header_async(
+    name: str,
+) -> tuple[str | None, str | None, str | None]:
+    """Read task/task_id from the eval log header (async). Returns (None, None, None) on error."""
+    try:
+        log = await read_eval_log_async(name, header_only=True)
+        return log.eval.task, log.eval.task_id, None
+    except Exception as e:
+        logger.debug(f"Failed to read header from {name}: {e}")
+        return None, None, None
+
+
+def _filename_parts(info: FileInfo) -> list[str]:
     basename = os.path.splitext(info.name)[0]
-    parts = basename.split("/").pop().split("_")
-    if len(parts) == 1:
-        task = ""
-        task_id = ""
-        suffix = None
-    elif len(parts) == 2:
-        task = parts[1]
-        task_id = ""
-        suffix = None
-    else:
-        last_idx = 3 if len(parts) > 3 else 2
-        task = parts[1]
-        part3 = parts[last_idx].split("-")
-        task_id = part3[0]
-        suffix = task_id[2] if len(part3) > 1 else None
+    return basename.split("/").pop().split("_")
+
+
+def _build_log_info(
+    info: FileInfo,
+    task: str | None,
+    task_id: str | None,
+    suffix: str | None,
+) -> "EvalLogInfo":
     return EvalLogInfo(
         name=info.name,
         type=info.type,
         size=info.size,
         mtime=info.mtime,
-        task=task,
-        task_id=task_id,
+        task=task or "",
+        task_id=task_id or "",
         suffix=suffix,
     )
+
+
+def log_file_info(info: FileInfo) -> "EvalLogInfo":
+    parts = _filename_parts(info)
+    task, task_id, suffix = _try_parse_filename(parts)
+    if task is None:
+        task, task_id, suffix = _try_read_header(info.name)
+    return _build_log_info(info, task, task_id, suffix)
+
+
+async def log_file_info_async(info: FileInfo) -> "EvalLogInfo":
+    parts = _filename_parts(info)
+    task, task_id, suffix = _try_parse_filename(parts)
+    if task is None:
+        task, task_id, suffix = await _try_read_header_async(info.name)
+    return _build_log_info(info, task, task_id, suffix)
 
 
 def eval_log_json(log: EvalLog) -> bytes:
