@@ -3,8 +3,6 @@ import re
 from typing import Callable, Literal
 
 from inspect_ai._util.text import (
-    is_finite_number,
-    str_to_float,
     strip_numeric_punctuation,
     strip_punctuation,
 )
@@ -98,16 +96,33 @@ def match_str(
         return answer, t in v
 
 
+def _parse_number(s: str) -> float | None:
+    """Parse `s` as a finite number, or None.
+
+    Recognises plain float syntax (signs, decimals, exponents) and the
+    full set of inputs handled by ``unicode_number_to_float`` (unicode
+    minus, vulgar fractions, superscripts, Chinese numerals, fullwidth
+    digits, locale grouping). Rejects strings with trailing non-numeric
+    content (so ``"5 some text"`` returns None) so that ``location="exact"``
+    stays actually exact. ``nan`` and ``inf`` also return None.
+    """
+    for parse in (float, unicode_number_to_float):
+        try:
+            num = parse(s)
+        except ValueError:
+            continue
+        if math.isfinite(num):
+            return num
+    return None
+
+
 def _is_number(s: str) -> bool:
-    # accept ordinary float syntax as well as unicode numeric characters
-    # (e.g. ``½``, ``三``, ``5²``) that ``str.isnumeric`` accepts but
-    # ``float`` rejects, since normalize_number handles both
-    return is_finite_number(s) or s.isnumeric()
+    return _parse_number(s) is not None
 
 
 def first_number_normalized(words: list[str]) -> str:
-    number = next((word for word in words if _is_number(word)), words[0])
-    return normalize_number(number)
+    number = next((word for word in words if _is_number(word)), None)
+    return normalize_number(number) if number is not None else ""
 
 
 def all_numbers_normalized(words: list[str]) -> list[str]:
@@ -116,19 +131,6 @@ def all_numbers_normalized(words: list[str]) -> list[str]:
 
 def normalize_number(number: str, precision: int = 5) -> str:
     num = _parse_number(number)
-    if num is not None and math.isfinite(num):
-        return format(num, f".{precision}g")
-    else:
+    if num is None:
         return number
-
-
-def _parse_number(number: str) -> float | None:
-    # first try the built-in float parser (which handles signs, decimals,
-    # and exponents); if that fails, try our extended parsers for unicode
-    # superscripts/fractions and finally generic unicode numeric characters
-    for parse in (float, str_to_float, unicode_number_to_float):
-        try:
-            return parse(number)
-        except ValueError:
-            pass
-    return None
+    return format(num, f".{precision}g")

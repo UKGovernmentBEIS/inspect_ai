@@ -268,3 +268,29 @@ def test_is_finite_number():
     # unicode numerics are not handled by float() and so are not finite
     # numbers in this sense (callers that need them must check separately)
     assert not is_finite_number("½")
+
+
+def test_normalize_number_rejects_trailing_content():
+    # normalize_number must not silently truncate to a numeric prefix; that
+    # would make match(numeric=True, location="exact") accept e.g. "5 some
+    # text" as the number 5. str_to_float (used elsewhere) is permissive by
+    # design, but normalize_number is not.
+    assert normalize_number("5 some text") == "5 some text"
+    assert normalize_number("5abc") == "5abc"
+    assert normalize_number("3.14foo") == "3.14foo"
+    assert normalize_number("-5 garbage") == "-5 garbage"
+
+
+def test_normalize_number_unicode_inputs():
+    # Inputs the unicode parser handles end-to-end.
+    assert normalize_number("−5") == "-5"  # U+2212 minus
+    assert normalize_number("-½") == "-0.5"
+    assert normalize_number("2½") == "2.5"
+    assert normalize_number("一百二十三") == "123"
+    assert normalize_number("１２３") == "123"
+
+
+def test_normalize_number_rejects_non_finite():
+    assert normalize_number("inf") == "inf"
+    assert normalize_number("-inf") == "-inf"
+    assert normalize_number("nan") == "nan"

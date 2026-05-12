@@ -183,3 +183,137 @@ async def test_numeric_negative_normalization():
     result = await scorer(state, Target(["-5"]))
 
     assert result.text == CORRECT
+
+
+# --- location="exact" strictness ---------------------------------------------
+# normalize_number must not silently truncate a value with trailing content
+# to its numeric prefix (e.g. "5 some text" -> "5").
+
+
+@pytest.mark.anyio
+async def test_numeric_exact_rejects_trailing_text():
+    scorer = match(numeric=True, location="exact")
+    state = simple_task_state(model_output="5 some text")
+    result = await scorer(state, Target(["5"]))
+
+    assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_exact_rejects_trailing_alpha():
+    scorer = match(numeric=True, location="exact")
+    state = simple_task_state(model_output="5abc")
+    result = await scorer(state, Target(["5"]))
+
+    assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_exact_clean_match():
+    scorer = match(numeric=True, location="exact")
+    state = simple_task_state(model_output="5")
+    result = await scorer(state, Target(["5"]))
+
+    assert result.text == CORRECT
+
+
+# --- unicode / sign-variant numbers in model output --------------------------
+# The gate predicate must agree with the parser: any token the parser can
+# turn into a finite number is recognised as a number token.
+
+
+@pytest.mark.anyio
+async def test_numeric_unicode_minus_in_output():
+    # U+2212 MINUS SIGN, not ASCII hyphen-minus
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="answer: −5")
+    result = await scorer(state, Target(["-5"]))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_vulgar_fraction_in_output():
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="the result is ½")
+    result = await scorer(state, Target(["0.5"]))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_negative_vulgar_fraction_in_output():
+    scorer = match(numeric=True, location="any")
+    state = simple_task_state(model_output="got -½ as the result")
+    result = await scorer(state, Target(["-0.5"]))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_mixed_fraction_in_output():
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="answer 2½")
+    result = await scorer(state, Target(["2.5"]))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_chinese_numeral_in_output():
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="result: 三")
+    result = await scorer(state, Target(["3"]))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_fullwidth_digits_in_output():
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="the answer is １２３")
+    result = await scorer(state, Target(["123"]))
+
+    assert result.text == CORRECT
+
+
+# --- position-fragility guards ----------------------------------------------
+# Before the fix, `first_number_normalized` fell back to words[0] when no
+# token was recognised as a number, so a unicode token would only match
+# when it happened to land at the scan's starting position. Both cases
+# below must now match regardless of position.
+
+
+@pytest.mark.anyio
+async def test_numeric_unicode_minus_with_trailing_text():
+    scorer = match(numeric=True)
+    state = simple_task_state(model_output="the answer is -½ extra")
+    result = await scorer(state, Target(["-0.5"]))
+
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_numeric_unicode_minus_with_leading_text():
+    scorer = match(numeric=True, location="begin")
+    state = simple_task_state(model_output="leading text then -½")
+    result = await scorer(state, Target(["-0.5"]))
+
+    # location="begin" semantically means "the first number in the value",
+    # not "the value must start with a number".
+    assert result.text == CORRECT
+
+
+# --- any unmatched returns raw output ---------------------------------------
+# Counterpoint to test_numeric_any_answer_is_matched_number: when no number
+# matches, fall back to the raw model output rather than an extracted form.
+
+
+@pytest.mark.anyio
+async def test_numeric_any_answer_when_no_match():
+    scorer = match(numeric=True, location="any")
+    state = simple_task_state(model_output="got 7 and 11")
+    result = await scorer(state, Target(["25"]))
+
+    assert result.text == INCORRECT
+    assert result.answer == "got 7 and 11"
