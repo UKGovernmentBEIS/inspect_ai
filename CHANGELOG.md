@@ -41,6 +41,9 @@
 - Bugfix: Correctly handle `pd.NA` when converting scores to float in analysis df functions.
 - Bugfix: Include model role usage data in eval samples summaries.
 - Bugfix: Prevent duplicate entries in `summaries.json` when re-scoring or converting logs.
+- Bugfix: `fail_on_error` fractional threshold now uses the sliced sample count multiplied by `epochs` (matching the end-of-run check)
+- Bugfix: `eval_retry` preserves `SampleScore.scorer` attribution on restored samples (was `None` instead of the scorer name).
+- Bugfix: `time_limit()` no longer masks exceptions raised after the deadline (e.g. from `finally` blocks) with `LimitExceededError`; the original exception now propagates.
 
 ## 0.3.220 (08 May 2026)
 
