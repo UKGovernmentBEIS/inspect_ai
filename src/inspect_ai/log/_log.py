@@ -489,6 +489,7 @@ class EvalSample(BaseModel):
             metadata=self.metadata,
             scores=self.scores,
             model_usage=self.model_usage,
+            role_usage=self.role_usage,
             started_at=self.started_at,
             completed_at=self.completed_at,
             total_time=self.total_time,

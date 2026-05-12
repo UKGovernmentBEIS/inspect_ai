@@ -262,12 +262,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     eval_log: EvalLog | None = None
     stats = EvalStats(started_at=iso_now())
 
-    # handle sample errors (raise as required)
-    sample_error_handler = SampleErrorHandler(
-        config.fail_on_error if config.continue_on_fail is not True else False,
-        len(task.dataset),
-    )
-
     # resolve some config
     model_name = ModelName(model)
     epochs = config.epochs if config.epochs else DEFAULT_EPOCHS
@@ -281,6 +275,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # O(concurrent_samples) instead of O(total_samples * epochs))
     dataset = slice_dataset(task.dataset, config.limit, config.sample_id)
     total_samples = len(dataset) * epochs
+
+    # handle sample errors (raise as required). use total_samples (sliced
+    # dataset * epochs) as the denominator for fractional fail_on_error so
+    # the mid-run abort threshold matches the end-of-run check below.
+    sample_error_handler = SampleErrorHandler(
+        config.fail_on_error if config.continue_on_fail is not True else False,
+        total_samples,
+    )
 
     # optionally page dataset to disk if it exceeds the memory budget
     sample_store = maybe_page_to_disk(dataset, config.max_dataset_memory)
@@ -466,6 +468,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                         score=score,
                                         sample_id=previous_sample.id,
                                         sample_metadata=previous_sample.metadata,
+                                        scorer=key,
                                     )
                                     for key, score in previous_sample.scores.items()
                                 }
