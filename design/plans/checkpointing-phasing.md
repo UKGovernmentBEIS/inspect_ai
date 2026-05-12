@@ -211,32 +211,49 @@ together because the work fell out that way naturally. Resume
   restic's `data_added_packed` (post-compression on-disk cost);
   `duration_ms` from restic's `total_duration`. Top-level
   `size_bytes` on the sidecar is the rolled-up total.
-- **Real messages, events, and Store in the host snapshot.** The
-  host working dir is split into three files written each fire:
-  - `messages.json` — JSON array of the agent's `ChatMessage`s,
-    plumbed via `tick(messages)` / `checkpoint(messages)` (`react()`
-    passes `state.messages`).
-  - `events.json` — JSON array of `transcript().events`, pulled
-    from the active sample's transcript ContextVar.
+- **Host snapshot: five files, condensed + pooled.** The host working
+  dir is overwritten each fire with:
+  - `messages.json` — JSON array of `ChatMessage`s, plumbed via
+    `tick(messages)` / `checkpoint(messages)` (`react()` passes
+    `state.messages`).
+  - `events.json` — condensed events; `ModelEvent.input` and
+    `ModelEvent.call` messages are replaced with `input_refs` /
+    `call_refs` into the pools.
+  - `events_data.json` — `{messages, calls}` dedup pools that the
+    refs index into. Built incrementally: each fire processes only
+    the new event slice via `condense_model_event_inputs` /
+    `condense_model_event_calls` against the session's persisted
+    `_msg_index` / `_call_index`, appending new entries. Total
+    hashing work over a sample is O(N) rather than O(N) per fire.
+  - `attachments.json` — `transcript().attachments`, captured live
+    by `Transcript._process_event` as call payloads >100 chars get
+    rewritten to `attachment://<hash>` refs. Persisted alongside so
+    resume can resolve the refs.
   - `store.json` — `store_jsonable(state.store)`, pulled from
     `sample_state().store`.
-  All three serialize via `to_jsonable_python(..., exclude_none=True)`
-  so None fields don't bloat the on-disk bytes. Split rationale:
-  messages and events are append-only, so restic's content-defined
-  chunking dedups the unchanged prefix snapshot-to-snapshot. Store
-  mutates anywhere; it's the smallest file and rewrites in full.
+  All five serialize via `to_jsonable_python(..., exclude_none=True)`.
+  `events.json` and `events_data.json` both have a byte-stable prefix
+  across fires (only the tail grows), which tightens restic CDC
+  dedup beyond what a flat events array would give.
 - **Restic-config tuning for the host repo.** Host backup invokes
   restic with `--compression max` (zstd-max ≈ 5–10× ratio on
   JSON-only content vs the default `auto` ≈ 2–3×) and `--no-scan`
   (skips the up-front size-estimate walk; we control the source).
   Sandbox backups keep restic defaults — sandbox content is mixed
   binaries / logs, where `auto` is right.
-- **Dedup pools (`condense_sample()`-shaped) still TBD.** Today's
-  `events.json` is a flat array of raw events. The design's
-  condensed form (events carrying `input_refs` / `call_refs`, plus
-  `events_data.{messages, calls}` dedup pools, plus `attachments`)
-  is the next item in the TBD list below — a size optimization on
-  top of the already-real-data baseline.
+- **Sidecar commit is "parses or doesn't."** The sidecar write
+  itself is non-atomic. Resume globs `ckpt-*.json` and parse-and-skips
+  torn entries — the latest *parseable* sidecar is the resume point.
+  A mid-write crash costs at most one checkpoint, same as crashing
+  before the sidecar starts. See §4d.
+- **Concurrent-safe manifest init.** A module-level threading.Lock
+  serializes `_init_eval_checkpoints_dir_blocking` across the worker
+  threads spawned by per-sample `anyio.to_thread.run_sync`. Exactly
+  one caller generates the password and writes the manifest; the
+  rest see the existing file and return. Cross-process not covered
+  (filenames embed the eval_id UUID, so accidental sharing is
+  effectively impossible; the eval_id mismatch check catches the
+  pathological `inspect eval retry` overlap).
 - **Destination override**: `CheckpointConfig.checkpoints_dir`
   repoints the parent root under which the per-eval subdir lands;
   default is the log's directory. The per-eval subdir name strips a
@@ -245,13 +262,7 @@ together because the work fell out that way naturally. Resume
 
 **Still TBD (write side):**
 
-- **Condensed events + dedup pools** in `events.json` /
-  `events_data.json` / `attachments.json`. `condense_sample()`-shape
-  output: events with `input_refs` / `call_refs`, dedup pools keyed
-  by hash, attachments split out. A size optimization on top of the
-  flat events array we ship today.
 - `max_consecutive_failures` enforcement.
-- Concurrent-safe manifest creation (today: race; first writer wins).
 - **Real s3 / remote `checkpoints_dir` support**. The override accepts
   any string today, but only local destinations work end-to-end. The
   fsspec-mediated paths (manifest, sidecar, dir creation) already
