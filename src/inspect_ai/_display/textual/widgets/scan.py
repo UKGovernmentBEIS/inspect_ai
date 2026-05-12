@@ -1,9 +1,11 @@
-"""Textual widget rendering the scout scan panel from `ScanDisplayState`.
+"""Textual widget rendering the scout scan-progress view from `ScanDisplayState`.
 
 Reads the in-memory state populated by `scan_init` / `scan_eval_sample`
-and renders scout's `scan_panel(spec, summary, progress)` Rich
-renderable. No file I/O, no scout-side ScanDisplay shim — `scan_panel`
-is a pure renderable builder we call directly.
+and composes scout's `scanners_table(spec, summary)` underneath a
+progress bar. Deliberately bypasses scout's `scan_panel` — the Textual
+app already has its own footer (model-provider connections, HTTP
+retries) and we don't want the duplicate footer or the surrounding
+panel border.
 
 A persistent `rich.progress.Progress` is kept on the widget so its
 `TimeElapsedColumn` / `TimeRemainingColumn` accumulate correctly across
@@ -13,6 +15,7 @@ to zero each second).
 
 from typing import cast
 
+from rich.console import Group, RenderableType
 from rich.progress import (
     BarColumn,
     Progress,
@@ -59,17 +62,14 @@ class ScanView(Container):
 
         # imported lazily so inspect_ai doesn't pull scout into module
         # import time — scout is an optional dep
-        from inspect_scout._display.rich import scan_panel
+        from inspect_scout._display.rich import scanners_table
 
         progress = self._progress_for(samples_total, state.samples_completed)
-
-        target.update(
-            scan_panel(
-                spec=state.spec,
-                summary=state.summary,
-                progress=progress,
-            )
+        table = scanners_table(state.spec, state.summary)
+        renderable: RenderableType = (
+            Group("", progress, "", table) if progress is not None else table
         )
+        target.update(renderable)
 
     def _progress_for(
         self, samples_total: int, samples_completed: int
