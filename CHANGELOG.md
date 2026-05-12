@@ -2,6 +2,7 @@
 
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
+- Anthropic: Capture `extra_body` fields from `Message` response.
 - VLLM: Preserve dotted vLLM server arg keys.
 - Bedrock: Drop unsupported sampling params for Claude 4.7+.
 - SageMaker: Add `prompt_logprobs` support in chat mode via `GenerateConfig`, parse prompt logprobs from completion mode responses, enabling `perplexity()` and `target_perplexity()` scorers end-to-end.
@@ -16,6 +17,8 @@
 - Datasets: Use HuggingFace revision in cache key for downloaded datasets.
 - Datasets: Propagate `hf_dataset(..., shuffle=True)` to `EvalDataset.shuffled`.
 - Scoring: Store and aggregate results for cancelled eval runs.
+- Scoring: `match(numeric=True)` no longer matches digit-substrings (e.g. target `5` against `25`); now correctly handles negative, decimal, and scientific-notation targets, and recognises unicode-formatted numbers (unicode minus, vulgar fractions like `½`, Chinese numerals, fullwidth digits) in both targets and model output.
+- Scoring: `match(numeric=True, location="exact")` is now strict — values like `"5 some text"` no longer match target `"5"`.
 - Analysis: Use score reducer in `evals_df()` column name when there are multiple reducers.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
 - Eval Set: Run [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scanners over each task's logs as part of `eval_set` (CLI `--scanner` / `EvalScannerConfig`). Scans incrementally as logs land, reuses prior results across resumes, and renders progress alongside the existing eval view.
