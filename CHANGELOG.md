@@ -22,12 +22,15 @@
 - Memory: Don't retain message lists in buffer DB (memory leak on long agentic samples).
 - Memory: Collapse user messages at compaction time to avoid carrying extra messages.
 - Memory: Stop retaining copied tool schemas in model events.
-- Bugfix: Ensure that models don't share GenerateConfig instance via default get_model argument.
 - Inspect View: Pending samples fetch directly from S3 with chunked loading
 - Inspect View: Score color scales applied to sample-header chips
 - Inspect View: Outline close icon aligned; rootHeader made sticky
 - Inspect View: Fixed model retry event rendering
 - Inspect View: Fixed message ordering in running-sample Messages tab with cross-poll caching
+- Bugfix: Ensure that models don't share GenerateConfig instance via default get_model argument.
+- Bugfix: Don't raise on tool params with `None` as default (e.g.`x: dict = None`).
+- Bugfix: Fallback error message for when `OSError` does not include `.strerror` and `.filename`
+- Bugfix: More gracefully handle tool results with mixed `[Content, str]`.
 
 ## 0.3.220 (08 May 2026)
 
