@@ -273,14 +273,11 @@ class FileSystem:
         return isinstance(self.fs, fsspec.asyn.AsyncFileSystem)
 
     def is_s3(self) -> bool:
-        # avoid importing s3fs (and its heavy aiobotocore/aiohttp deps) just
-        # to do an isinstance check — match on the fsspec protocol instead
-        protocol = getattr(self.fs, "protocol", None)
-        if isinstance(protocol, str):
-            return protocol == "s3"
-        elif isinstance(protocol, (tuple, list)):
-            return "s3" in protocol
-        return False
+        # match on the fsspec protocol instead of isinstance(S3FileSystem)
+        # so we don't pull in s3fs/aiobotocore at import time
+        protocol = self.fs.protocol
+        protocols = protocol if isinstance(protocol, tuple) else (protocol,)
+        return "s3" in protocols
 
     def put_file(self, lpath: str, rpath: str) -> None:
         self.fs.put_file(lpath, rpath)

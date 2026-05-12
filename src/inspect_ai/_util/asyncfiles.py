@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import io
 import shutil
@@ -58,7 +60,7 @@ class _StreamingBodyByteReceiveStream(ByteReceiveStream):
     This adapter is needed when using async S3 under asyncio
     """
 
-    def __init__(self, body: "StreamingBody"):
+    def __init__(self, body: StreamingBody):
         """Initialize with S3 response body stream."""
         self._body = body
 
@@ -489,7 +491,7 @@ def get_async_filesystem() -> AsyncFilesystem:
 
 
 @functools.cache
-def _s3_transfer_config() -> "TransferConfig":
+def _s3_transfer_config() -> TransferConfig:
     # boto3 S3 multipart upload configuration for streaming writes.
     # Values are the boto3.s3.transfer.TransferConfig library defaults
     # as of 2026-03-07.
