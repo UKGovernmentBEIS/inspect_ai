@@ -543,8 +543,10 @@ async def agent_handoff(
     # inject curried args
     arguments = {**call.arguments, **agent_tool.kwargs}
 
-    # parse arguments
-    arguments = tool_params(arguments, agent_tool.agent)
+    # parse arguments (inject a `state` placeholder so tool_params doesn't
+    # treat the agent's required `state` parameter as missing — the handoff
+    # harness injects the real AgentState below)
+    arguments = tool_params({**arguments, "state": None}, agent_tool.agent)
     del arguments["state"]
 
     # run the agent with limits
