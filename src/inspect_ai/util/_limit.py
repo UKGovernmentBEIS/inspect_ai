@@ -792,7 +792,11 @@ class _TimeLimit(Limit, _Node):
         self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         self._end_time = anyio.current_time()
         self._pop_and_check_identity(time_limit_tree)
-        if self._cancel_scope.cancel_called and self._limit is not None:
+        # use cancelled_caught (not cancel_called): if the deadline fired but
+        # the body raised a non-Cancelled exception (e.g. cleanup in `finally`
+        # crashed), the cancel scope did not catch a Cancelled and we must let
+        # the original exception propagate rather than masking it.
+        if self._cancel_scope.cancelled_caught and self._limit is not None:
             message = f"Time limit exceeded. limit: {self._limit} seconds"
             assert self._start_time is not None
             # Note we've measured the elapsed time independently of anyio's cancel scope
