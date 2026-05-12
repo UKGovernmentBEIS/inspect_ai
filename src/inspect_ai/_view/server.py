@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import urllib.parse
@@ -12,6 +13,7 @@ from typing import (
 )
 
 from aiohttp import web
+from pydantic import ValidationError
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._display import display
@@ -23,6 +25,7 @@ from inspect_ai._view.azure import (
     azure_debug_exists,
     azure_runtime_hint,
 )
+from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._file import (
     read_eval_log_headers_async,
 )
@@ -30,6 +33,7 @@ from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 
 from ._dist import resolve_dist_directory
 from .common import (
+    apply_log_edits,
     async_connection,
     build_pending_sample_urls,
     delete_log,
@@ -104,6 +108,28 @@ def view_server_app(
         await delete_log(file)
 
         return web.json_response(True)
+
+    @routes.post("/api/log-edit/{log}")
+    async def api_log_edit(request: web.Request) -> web.Response:
+        file = normalize_uri(request.match_info["log"])
+        validate_log_file_request(file)
+
+        try:
+            body = await request.json()
+        except json.JSONDecodeError as ex:
+            raise web.HTTPBadRequest(reason=f"Invalid JSON: {ex}")
+
+        try:
+            update = LogUpdate.model_validate(body)
+        except ValidationError as ex:
+            raise web.HTTPUnprocessableEntity(text=ex.json())
+
+        try:
+            contents = await apply_log_edits(file, update)
+        except ValueError as ex:
+            raise web.HTTPBadRequest(reason=str(ex))
+
+        return web.Response(body=contents, content_type="application/json")
 
     @routes.get("/api/log-bytes/{log}")
     async def api_log_bytes(request: web.Request) -> web.Response:

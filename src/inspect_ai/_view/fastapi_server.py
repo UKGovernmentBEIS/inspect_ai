@@ -35,6 +35,7 @@ from inspect_ai._view.common import (
     LogFilesResponse,
     LogInfo,
     LogListingResponse,
+    apply_log_edits,
     build_pending_sample_urls,
     delete_log,
     get_log_dir,
@@ -48,6 +49,7 @@ from inspect_ai._view.common import (
     stream_log_bytes,
 )
 from inspect_ai.log import EvalLog
+from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._file import read_eval_log_headers_async
 from inspect_ai.log._recorders.buffer import sample_buffer
 from inspect_ai.log._recorders.buffer.types import (
@@ -65,6 +67,8 @@ class AccessPolicy(Protocol):
     async def can_delete(self, request: Request, file: str) -> bool: ...
 
     async def can_list(self, request: Request, dir: str) -> bool: ...
+
+    async def can_write(self, request: Request, file: str) -> bool: ...
 
 
 class FileMappingPolicy(Protocol):
@@ -117,6 +121,11 @@ def view_server_app(
             if not await access_policy.can_delete(request, file):
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
 
+    async def _validate_write(request: Request, file: str) -> None:
+        if access_policy is not None:
+            if not await access_policy.can_write(request, file):
+                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
     async def _validate_list(request: Request, file: str) -> None:
         if access_policy is not None:
             if not await access_policy.can_list(request, file):
@@ -157,6 +166,16 @@ def view_server_app(
         await _validate_delete(request, file)
         await delete_log(await _map_file(request, file))
         return True
+
+    @app.post("/log-edit/{log:path}", response_model=EvalLog)
+    async def api_log_edit(request: Request, log: str, update: LogUpdate) -> Response:
+        file = normalize_uri(log)
+        await _validate_write(request, file)
+        try:
+            contents = await apply_log_edits(await _map_file(request, file), update)
+        except ValueError as ex:
+            raise HTTPException(status_code=400, detail=str(ex))
+        return Response(content=contents, media_type="application/json")
 
     @app.get("/log-bytes/{log:path}")
     async def api_log_bytes(
@@ -551,6 +570,9 @@ class OnlyDirAccessPolicy(AccessPolicy):
 
     async def can_list(self, request: Request, dir: str) -> bool:
         return self._validate_log_dir(dir)
+
+    async def can_write(self, request: Request, file: str) -> bool:
+        return self._validate_log_dir(file)
 
 
 def view_server(

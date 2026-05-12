@@ -24,6 +24,7 @@ from inspect_ai._view.azure import (
     normalize_azure_listing_name,
     should_suppress_azure_error,
 )
+from inspect_ai.log._edit import LogUpdate, edit_eval_log
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
@@ -31,6 +32,7 @@ from inspect_ai.log._file import (
     log_file_info_async,
     log_files_from_ls_async,
     read_eval_log_async,
+    write_eval_log_async,
 )
 from inspect_ai.log._recorders.buffer.buffer import sample_buffer
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
@@ -165,6 +167,20 @@ async def get_log_file(file: str, header_only_param: str | None) -> bytes:
         contents = eval_log_json(log)
 
     return contents
+
+
+async def apply_log_edits(file: str, update: LogUpdate) -> bytes:
+    """Apply tag/metadata edits to a log and persist them.
+
+    Reads the header, applies `update.edits` via `edit_eval_log`, and writes
+    the new header back without touching sample data. Returns the updated
+    header serialized as JSON, matching the `GET /api/logs/{log}` response
+    shape so clients can refresh their cached view in one round-trip.
+    """
+    log = await read_eval_log_async(file, header_only=True)
+    log = edit_eval_log(log, update.edits, update.provenance)
+    await write_eval_log_async(log, location=file, header_only=True)
+    return eval_log_json(log)
 
 
 async def get_log_size(log_file: str) -> int:

@@ -78,6 +78,7 @@ class ViewTestClient:
         method: str,
         path: str,
         headers: dict[str, str] | None = None,
+        json: Any = None,
     ) -> SimpleResponse:
         raise NotImplementedError
 
@@ -105,9 +106,16 @@ class FastAPIViewTestClient(ViewTestClient):
         self._tc.__enter__()
 
     def request(
-        self, method: str, path: str, headers: dict[str, str] | None = None
+        self,
+        method: str,
+        path: str,
+        headers: dict[str, str] | None = None,
+        json: Any = None,
     ) -> SimpleResponse:
-        resp = self._tc.request(method, path, headers=headers or {})
+        kwargs: dict[str, Any] = {"headers": headers or {}}
+        if json is not None:
+            kwargs["json"] = json
+        resp = self._tc.request(method, path, **kwargs)
         return SimpleResponse(resp.status_code, resp.content, dict(resp.headers))
 
     def _encode_for_url(self, file_path: str) -> str:
@@ -137,13 +145,20 @@ class AioHTTPViewTestClient(ViewTestClient):
         self._loop.run_until_complete(_start())
 
     def request(
-        self, method: str, path: str, headers: dict[str, str] | None = None
+        self,
+        method: str,
+        path: str,
+        headers: dict[str, str] | None = None,
+        json: Any = None,
     ) -> SimpleResponse:
         # aiohttp routes are prefixed with /api
         full_path = f"/api{path}"
 
         async def _do() -> SimpleResponse:
-            resp = await self._client.request(method, full_path, headers=headers or {})
+            kwargs: dict[str, Any] = {"headers": headers or {}}
+            if json is not None:
+                kwargs["json"] = json
+            resp = await self._client.request(method, full_path, **kwargs)
             body = await resp.read()
             return SimpleResponse(resp.status, body, dict(resp.headers))
 
@@ -422,6 +437,114 @@ def test_api_log_delete(view_client: ViewTestClient) -> None:
     resp = view_client.request("GET", view_client.log_url("log-delete", fname))
     resp.raise_for_status()
     assert not Path(full_path).exists()
+
+
+def test_api_log_edit_tags_roundtrip(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "POST",
+        view_client.log_url("log-edit", fname),
+        json={
+            "edits": [{"type": "tags", "tags_add": ["qa_passed"], "tags_remove": []}],
+            "provenance": {"author": "alice", "reason": "QA complete"},
+        },
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert body["tags"] == ["qa_passed"]
+    assert len(body["log_updates"]) == 1
+    assert body["log_updates"][0]["provenance"]["author"] == "alice"
+
+    # Re-read the persisted file to confirm the edit was actually written.
+    persisted = inspect_ai.log.read_eval_log(full_path, header_only=True)
+    assert persisted.tags == ["qa_passed"]
+    assert persisted.log_updates is not None
+    assert persisted.log_updates[0].provenance.author == "alice"
+
+
+def test_api_log_edit_noop_returns_unchanged(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "POST",
+        view_client.log_url("log-edit", fname),
+        json={
+            # Removing a tag that doesn't exist is a no-op.
+            "edits": [
+                {"type": "tags", "tags_add": [], "tags_remove": ["never_existed"]}
+            ],
+            "provenance": {"author": "alice"},
+        },
+    )
+    resp.raise_for_status()
+    assert resp.json().get("log_updates") is None
+    persisted = inspect_ai.log.read_eval_log(full_path, header_only=True)
+    assert persisted.log_updates is None
+
+
+def test_api_log_edit_invalid_tag_returns_400(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "POST",
+        view_client.log_url("log-edit", fname),
+        json={
+            # Empty tag is rejected by edit_eval_log.
+            "edits": [{"type": "tags", "tags_add": ["  "], "tags_remove": []}],
+            "provenance": {"author": "alice"},
+        },
+    )
+    assert resp.status_code == 400
+
+
+def test_api_log_edit_missing_provenance_returns_422(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "POST",
+        view_client.log_url("log-edit", fname),
+        json={"edits": [{"type": "tags", "tags_add": ["x"]}]},
+    )
+    assert resp.status_code == 422
+
+
+def test_api_log_edit_append_preserves_prior_updates(
+    view_client: ViewTestClient,
+) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+
+    first = view_client.request(
+        "POST",
+        view_client.log_url("log-edit", fname),
+        json={
+            "edits": [{"type": "tags", "tags_add": ["one"], "tags_remove": []}],
+            "provenance": {"author": "alice"},
+        },
+    )
+    first.raise_for_status()
+
+    second = view_client.request(
+        "POST",
+        view_client.log_url("log-edit", fname),
+        json={
+            "edits": [{"type": "tags", "tags_add": ["two"], "tags_remove": ["one"]}],
+            "provenance": {"author": "bob"},
+        },
+    )
+    second.raise_for_status()
+    body = second.json()
+    assert body["tags"] == ["two"]
+    assert len(body["log_updates"]) == 2
+    assert body["log_updates"][1]["provenance"]["author"] == "bob"
+
+    persisted = inspect_ai.log.read_eval_log(full_path, header_only=True)
+    assert persisted.tags == ["two"]
+    assert persisted.log_updates is not None
+    assert len(persisted.log_updates) == 2
 
 
 def test_api_log_bytes(view_client: ViewTestClient) -> None:
@@ -828,6 +951,9 @@ def test_client_with_restrictive_access() -> Generator[TestClient, Any, None]:
         async def can_list(self, request: Request, dir: str) -> bool:
             return dir is not None and dir != "" and dir != "/"
 
+        async def can_write(self, request: Request, file: str) -> bool:
+            return False
+
     with fastapi.testclient.TestClient(
         fastapi_server.view_server_app(
             mapping_policy=mapping_policy(),
@@ -845,6 +971,20 @@ def test_fastapi_log_delete_forbidden(
     )
     assert response.status_code == 403
     assert inspect_ai._util.file.filesystem("memory://").exists(mock_s3_eval_file)
+
+
+def test_fastapi_log_edit_forbidden(
+    test_client_with_restrictive_access: TestClient, mock_s3_eval_file: str
+) -> None:
+    response = test_client_with_restrictive_access.request(
+        "POST",
+        f"/log-edit/{mock_s3_eval_file}",
+        json={
+            "edits": [{"type": "tags", "tags_add": ["x"], "tags_remove": []}],
+            "provenance": {"author": "alice"},
+        },
+    )
+    assert response.status_code == 403
 
 
 @pytest.mark.parametrize("bad_log_dir", [None, "", "/"])
@@ -952,6 +1092,9 @@ def test_fastapi_log_download_forbidden(
 
         async def can_list(self, request: Request, dir: str) -> bool:
             return True
+
+        async def can_write(self, request: Request, file: str) -> bool:
+            return False
 
     class mapping_policy(FileMappingPolicy):
         async def map(self, request: Request, file: str) -> str:
