@@ -1131,9 +1131,9 @@ def test_eval_set_resume_scans_when_finalize_did_not_run_cleanly() -> None:
     from inspect_ai import EvalScannerConfig
 
     n = 5
-    orig_scan_eval_sample = run_mod.scan_eval_sample
+    orig_scan_eval_sample = run_mod.scan_eval_sample  # type: ignore[attr-defined]
 
-    async def skip_sample_3(eval_sample, scanner, **kwargs):  # type: ignore[no-untyped-def]
+    async def skip_sample_3(eval_sample, scanner, **kwargs):
         # simulate a crash in the window between log_sample and
         # scan_eval_sample for sample id 3 — log is durable, scan
         # never starts (no parquet row created for that sample)
@@ -1159,7 +1159,7 @@ def test_eval_set_resume_scans_when_finalize_did_not_run_cleanly() -> None:
         # never started" gap); scanner naturally errors on id 2 (the
         # "scan started, errored" case); ids 4, 5 fail solver and are
         # filtered out of scanning entirely.
-        run_mod.scan_eval_sample = skip_sample_3
+        run_mod.scan_eval_sample = skip_sample_3  # type: ignore[attr-defined]
         try:
             eval_set(
                 tasks=make_task(),
@@ -1172,7 +1172,7 @@ def test_eval_set_resume_scans_when_finalize_did_not_run_cleanly() -> None:
                 display="none",
             )
         finally:
-            run_mod.scan_eval_sample = orig_scan_eval_sample
+            run_mod.scan_eval_sample = orig_scan_eval_sample  # type: ignore[attr-defined]
 
         scan_dir = _scan_dir(log_dir)
         summary_1 = _read_summary(scan_dir)
@@ -1355,18 +1355,18 @@ def test_eval_set_resume_scans_when_intermediate_run_crashed_after_clean_finaliz
         # - scan_eval_sample is no-op for id 4 (sample logged, scan
         #   never started — the gap)
         # - scan_finalize is no-op (process killed before sync ran)
-        orig_scan_eval_sample = run_mod.scan_eval_sample
+        orig_scan_eval_sample = run_mod.scan_eval_sample  # type: ignore[attr-defined]
         orig_scan_finalize = scan_mod.scan_finalize
 
-        async def skip_sample_4(eval_sample, scanner, **kwargs):  # type: ignore[no-untyped-def]
+        async def skip_sample_4(eval_sample, scanner, **kwargs):
             if str(eval_sample.id) == "4":
                 return
             return await orig_scan_eval_sample(eval_sample, scanner, **kwargs)
 
-        async def no_finalize(*args, **kwargs):  # type: ignore[no-untyped-def]
+        async def no_finalize(*args, **kwargs):
             return
 
-        run_mod.scan_eval_sample = skip_sample_4
+        run_mod.scan_eval_sample = skip_sample_4  # type: ignore[attr-defined]
         scan_mod.scan_eval_sample = skip_sample_4
         scan_mod.scan_finalize = no_finalize
         try:
@@ -1380,7 +1380,7 @@ def test_eval_set_resume_scans_when_intermediate_run_crashed_after_clean_finaliz
                 display="none",
             )
         finally:
-            run_mod.scan_eval_sample = orig_scan_eval_sample
+            run_mod.scan_eval_sample = orig_scan_eval_sample  # type: ignore[attr-defined]
             scan_mod.scan_eval_sample = orig_scan_eval_sample
             scan_mod.scan_finalize = orig_scan_finalize
 
@@ -1526,13 +1526,13 @@ def test_eval_set_resume_short_circuits_when_prior_scan_clean() -> None:
         import inspect_ai._eval.task.scan as scan_mod
 
         invocations: list[str] = []
-        orig = run_mod.scan_eval_sample
+        orig = run_mod.scan_eval_sample  # type: ignore[attr-defined]
 
-        async def tracking(eval_sample, scanner, **kwargs):  # type: ignore[no-untyped-def]
+        async def tracking(eval_sample, scanner, **kwargs):
             invocations.append(str(eval_sample.id))
             return await orig(eval_sample, scanner, **kwargs)
 
-        run_mod.scan_eval_sample = tracking
+        run_mod.scan_eval_sample = tracking  # type: ignore[attr-defined]
         scan_mod.scan_eval_sample = tracking
         try:
             eval_set(
@@ -1544,7 +1544,7 @@ def test_eval_set_resume_short_circuits_when_prior_scan_clean() -> None:
                 display="none",
             )
         finally:
-            run_mod.scan_eval_sample = orig
+            run_mod.scan_eval_sample = orig  # type: ignore[attr-defined]
             scan_mod.scan_eval_sample = orig
 
         assert invocations == [], (
@@ -3409,6 +3409,13 @@ def test_max_connections_caps_eval_plus_scanner_when_model_is_shared() -> None:
 
     n_samples = 8
     max_conn = 2
+    # `adaptive_connections=False` AND a static `max_connections` need to
+    # be applied to BOTH sides — the scan-side model has its own
+    # GenerateConfig (set by `init_scan_model_context`) and doesn't
+    # inherit the eval-side config, so omitting them on the scanner side
+    # would route scan-side calls through the adaptive controller (with
+    # its own semaphore) and bypass the eval's static cap.
+    scan_generate = GenerateConfig(max_connections=max_conn, adaptive_connections=False)
     try:
         with tempfile.TemporaryDirectory() as log_dir:
             success, _ = eval_set(
@@ -3420,9 +3427,11 @@ def test_max_connections_caps_eval_plus_scanner_when_model_is_shared() -> None:
                 scanner=EvalScannerConfig(
                     scanners=[generate_calling_scanner()],
                     model="trackapi/test",
+                    generate_config=scan_generate,
                 ),
                 model="trackapi/test",
                 max_connections=max_conn,
+                adaptive_connections=False,
                 # let many samples run at once so the cap (not the
                 # sample fan-out) is the limiting factor
                 max_samples=n_samples,
@@ -3716,10 +3725,10 @@ def test_scan_dir_preserves_reused_sample_rows_across_runs() -> None:
             solver=generate(),
         )
 
-    def read_rows(path: UPath) -> dict[str, str]:
+    def read_rows(path: UPath) -> dict[str, Any]:
         """Map transcript_id → timestamp by reading the parquet."""
         pf = pq.ParquetFile(path.as_posix())
-        out: dict[str, str] = {}
+        out: dict[str, Any] = {}
         for i in range(pf.metadata.num_row_groups):
             tbl = pf.read_row_group(i, columns=["transcript_id", "timestamp"])
             for tid, ts in zip(
