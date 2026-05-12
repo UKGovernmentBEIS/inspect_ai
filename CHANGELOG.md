@@ -36,6 +36,8 @@
 - Bugfix: Accept `""` as an `answer` for `basic_agent().
 - Bugfix: Narrowly replace `{submit}` in `react()` agent prompt templates (rather than using `.format`).
 - Bugfix: Correctly handle `pd.NA` when converting scores to float in analysis df functions.
+- Bugfix: Include model role usage data in eval samples summaries.
+- Bugfix: Prevent duplicate entries in `summaries.json` when re-scoring or converting logs.
 
 ## 0.3.220 (08 May 2026)
 
