@@ -28,6 +28,7 @@
 - Logging: `INSPECT_PY_LOGGER_FORMAT` env var (`rich`/`plain`/`json`) for non-TTY-friendly single-line console logs.
 - Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
 - Task Display: Honor terminal `COLUMNS` and `LINES` for dumb terminals.
+- Validation: Reject unknown `GenerateConfig` fields with an error.
 - Memory: Log condensing no longer retains unchanged JSON copies in long evals.
 - Memory: Don't retain message lists in buffer DB (memory leak on long agentic samples).
 - Memory: Collapse user messages at compaction time to avoid carrying extra messages.

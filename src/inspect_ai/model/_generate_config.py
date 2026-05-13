@@ -2,10 +2,16 @@ from contextvars import ContextVar
 from copy import deepcopy
 from typing import Any, Literal, Union
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from typing_extensions import TypedDict
 
-from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
+from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DESERIALIZING
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.util._concurrency import AdaptiveConcurrency
 from inspect_ai.util._json import JSONSchema
@@ -308,6 +314,30 @@ class GenerateConfig(BaseModel):
 
     batch: bool | int | BatchConfig | None = Field(default=None)
     """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
+
+    # reject unknown fields unless we are reading older logs
+    @model_validator(mode="before")
+    @classmethod
+    def handle_unknown_fields(cls, data: Any, info: ValidationInfo) -> Any:
+        if isinstance(data, dict):
+            data = dict(data)
+            extra = set(data) - set(cls.model_fields)
+            if extra:
+                if isinstance(info.context, dict) and info.context.get(
+                    DESERIALIZING, False
+                ):
+                    data = {
+                        key: value
+                        for key, value in data.items()
+                        if key in cls.model_fields
+                    }
+                else:
+                    fields = ", ".join(sorted(extra))
+                    raise ValueError(
+                        f"Unknown GenerateConfig field(s): {fields}. "
+                        "Use extra_body for provider-specific options."
+                    )
+        return data
 
     # migrate reasoning_history as a bool
     @model_validator(mode="before")
