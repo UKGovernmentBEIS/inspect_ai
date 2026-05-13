@@ -3,6 +3,7 @@
 - Add [run-config](https://inspect.aisi.org.uk/task-configuration.html#run-config) option to `inspect eval` for single-file run configuration. A YAML or JSON file can specify task, model, model roles, generate config, solver, and eval config in one place; explicit CLI flags override values from the file. Mutually exclusive with `--generate-config`, `--task-config`, and `--solver-config`.
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
+- OpenRouter: Enable Anthropic prompt caching by default for `openrouter/anthropic/*` models via per-block `cache_control` markers (works across Anthropic-direct, Bedrock, and Vertex routing). Cache writes (`cache_creation_input_tokens`) are parsed into `ModelUsage.input_tokens_cache_write`. Set `cache_prompt=False` in `GenerateConfig` to disable.
 - Anthropic: Capture `extra_body` fields from `Message` response.
 - VLLM: Preserve dotted vLLM server arg keys.
 - Bedrock: Drop unsupported sampling params for Claude 4.7+.

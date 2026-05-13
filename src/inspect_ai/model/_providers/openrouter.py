@@ -15,7 +15,8 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.model import _openrouter_reasoning
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model import RetryDecision
-from inspect_ai.model._model_output import ChatCompletionChoice
+from inspect_ai.model._model_call import ModelCall
+from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 from inspect_ai.model._openai import (
     CompletionsReasoningContent,
     OpenAIResponseError,
@@ -25,6 +26,7 @@ from inspect_ai.model._openai import (
 from inspect_ai.model._reasoning import (
     reasoning_to_think_tag,
 )
+from inspect_ai.tool import ToolChoice
 from inspect_ai.tool._tool_info import ToolInfo
 
 from .._generate_config import GenerateConfig
@@ -68,6 +70,18 @@ class OpenRouterError(Exception):
 
 
 class OpenRouterAPI(OpenAICompatibleAPI):
+    """OpenAI-compatible client for the OpenRouter inference router.
+
+    For `openrouter/anthropic/*` models, Anthropic prompt caching is enabled
+    by default: this provider inserts per-block `cache_control: {"type":
+    "ephemeral"}` markers on the last system block, the last tool definition,
+    and a rolling pair of message-level breakpoints (mirroring the placement
+    used by the direct Anthropic provider). The markers are accepted by
+    OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Set
+    `cache_prompt=False` in `GenerateConfig` to disable. Cache writes returned
+    by the upstream provider are surfaced as `ModelUsage.input_tokens_cache_write`.
+    """
+
     def __init__(
         self,
         model_name: str,
@@ -246,6 +260,52 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             )
 
     @override
+    async def generate(
+        self,
+        input: list[ChatMessage],
+        tools: list[ToolInfo],
+        tool_choice: ToolChoice,
+        config: GenerateConfig,
+    ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
+        # Delegate to the OpenAI-compatible base and post-process usage to
+        # surface Anthropic-style cache_creation_input_tokens (which OpenRouter
+        # passes through for Anthropic-routed models but the base does not parse).
+        result = await super().generate(input, tools, tool_choice, config)
+        if isinstance(result, tuple):
+            output, call = result
+            if isinstance(output, ModelOutput):
+                _apply_cache_creation_usage(output, call)
+        return result
+
+    async def _generate_completion(
+        self, request: dict[str, Any], config: GenerateConfig
+    ) -> ChatCompletion:
+        # Inject Anthropic per-block cache_control markers when routing to
+        # an anthropic/* model. OpenRouter forwards these markers to all
+        # Anthropic-compatible backends (Anthropic-direct, Bedrock, Vertex).
+        if self._cache_prompt_enabled(config):
+            _add_anthropic_cache_markers(request)
+        return await super()._generate_completion(request, config)
+
+    def _cache_prompt_enabled(self, config: GenerateConfig) -> bool:
+        # service_model_name() may not strip the "openrouter/" prefix because
+        # self.service is mixed-case ("OpenRouter") while user-supplied model
+        # names are lowercase — fall back to manual prefix-strip.
+        name = self.service_model_name().removeprefix("openrouter/")
+        if not name.startswith("anthropic/"):
+            return False
+        cache_prompt = (
+            config.cache_prompt if isinstance(config.cache_prompt, bool) else True
+        )
+        if not cache_prompt:
+            return False
+        # Mirror the legacy-Claude gate from the direct anthropic provider.
+        bare = name.split(":", 1)[0]
+        if "claude-3-sonnet" in bare or "claude-2" in bare or "claude-instant" in bare:
+            return False
+        return True
+
+    @override
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
         # default params
         params = super().completion_params(config, tools)
@@ -291,3 +351,105 @@ class OpenRouterAPI(OpenAICompatibleAPI):
                 params[EXTRA_BODY]["reasoning"] = reasoning
 
         return params
+
+
+def _ephemeral() -> dict[str, str]:
+    return {"type": "ephemeral"}
+
+
+def _add_anthropic_cache_markers(request: dict[str, Any]) -> None:
+    """Insert Anthropic per-block cache_control markers in an OpenAI-format request.
+
+    Mirrors the breakpoint placement used by inspect_ai's direct anthropic
+    provider: last system block, last tool definition, and the penultimate
+    content block of the last message (with fallback to the last block of the
+    previous message when the last message has fewer than 2 blocks). Anthropic
+    enforces a maximum of 4 cache_control breakpoints per request; this scheme
+    uses at most 3.
+
+    Note: the OpenAI-compatible base snapshots the ModelCall request before
+    _generate_completion runs, so cache_control markers will NOT appear in the
+    request as logged to ``.eval`` files even when they are sent on the wire.
+    Verify caching via the returned usage line (CW/CR > 0) or the OpenRouter
+    dashboard's Generation viewer, not the Inspect log.
+    """
+    messages = request.get("messages")
+    if isinstance(messages, list) and messages:
+        # mark the last system message's last content block
+        for msg in reversed(messages):
+            if isinstance(msg, dict) and msg.get("role") == "system":
+                _mark_last_content_block(msg)
+                break
+
+        # mark a rolling pair of message-level breakpoints. auto-cache marks the
+        # last block; this gives lookback a fallback when the final block changes.
+        last = messages[-1]
+        if isinstance(last, dict):
+            last_content = last.get("content")
+            if isinstance(last_content, list) and len(last_content) >= 2:
+                _mark_block(last_content[-2])
+            elif len(messages) >= 2:
+                prev = messages[-2]
+                if isinstance(prev, dict):
+                    _mark_last_content_block(prev)
+
+    # mark the last tool definition (cache_control at the top of the tool dict,
+    # alongside "type": "function" — OpenRouter forwards this through to
+    # Anthropic's tool param where the marker lives at the same logical level).
+    tools = request.get("tools")
+    if isinstance(tools, list) and tools:
+        last_tool = tools[-1]
+        if isinstance(last_tool, dict):
+            cast(dict[str, Any], last_tool)["cache_control"] = _ephemeral()
+
+
+def _mark_last_content_block(msg: dict[str, Any]) -> None:
+    """Mark the last content block of a message with cache_control.
+
+    If content is a plain string, convert to a single-block list so we can
+    attach the marker.
+    """
+    content = msg.get("content")
+    if isinstance(content, list) and content:
+        last_block = content[-1]
+        if isinstance(last_block, dict):
+            _mark_block(last_block)
+    elif isinstance(content, str) and content:
+        msg["content"] = [
+            {"type": "text", "text": content, "cache_control": _ephemeral()}
+        ]
+
+
+def _mark_block(block: dict[str, Any]) -> None:
+    block["cache_control"] = _ephemeral()
+
+
+def _apply_cache_creation_usage(output: ModelOutput, call: ModelCall | None) -> None:
+    """Surface Anthropic's cache_creation_input_tokens in ModelUsage.
+
+    OpenRouter passes this field through on the raw response usage object for
+    Anthropic-routed models; the OpenAI-compatible base does not parse it.
+    Mirrors the input_tokens accounting convention used by the base for cache
+    reads: the count is subtracted from input_tokens so the usage line reads
+    `input + cache_write + cache_read = total tokens charged this turn`.
+    """
+    if call is None or output.usage is None:
+        return
+    raw = call.response if isinstance(call.response, dict) else None
+    if not raw:
+        return
+    usage = raw.get("usage")
+    if not isinstance(usage, dict):
+        return
+    # OpenRouter surfaces cache-write counts under
+    # prompt_tokens_details.cache_write_tokens (OpenAI-extension shape);
+    # also accept cache_creation_input_tokens for safety in case a future
+    # upstream switches to the Anthropic-native key at the top of usage.
+    ptd = usage.get("prompt_tokens_details")
+    cw = usage.get("cache_creation_input_tokens")
+    if (not isinstance(cw, int) or cw <= 0) and isinstance(ptd, dict):
+        cw = ptd.get("cache_write_tokens")
+    if not isinstance(cw, int) or cw <= 0:
+        return
+    output.usage.input_tokens_cache_write = cw
+    output.usage.input_tokens = max(0, output.usage.input_tokens - cw)
