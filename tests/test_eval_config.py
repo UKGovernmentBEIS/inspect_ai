@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -160,6 +161,120 @@ eval_config:
         assert log.eval.model_roles["grader"].model == "mockllm/model"
         assert log.eval.model_roles["grader"].config.temperature == 0.5
         assert log.eval.model_roles["grader"].config.max_tokens == 1000
+
+
+def test_eval_run_config_cli_env_var_overridden_by_run_config():
+    """INSPECT_EVAL_MODEL must not override a model set in --run-config."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        log_dir = temp_path / "logs"
+        run_config = temp_path / "run.yaml"
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+model: mockllm/model
+eval_config:
+  limit: 1
+""".strip()
+        )
+
+        subprocess.run(
+            [
+                "inspect",
+                "eval",
+                "--run-config",
+                run_config.as_posix(),
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            env={**os.environ, "INSPECT_EVAL_MODEL": "anthropic/claude-sonnet-4-6"},
+            check=True,
+        )
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.model == "mockllm/model"
+
+
+def test_eval_run_config_cli_env_var_overridden_by_explicit_flag():
+    """An explicit --model flag must beat both INSPECT_EVAL_MODEL and --run-config."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        log_dir = temp_path / "logs"
+        run_config = temp_path / "run.yaml"
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+model: mockllm/from_run_config
+eval_config:
+  limit: 1
+""".strip()
+        )
+
+        subprocess.run(
+            [
+                "inspect",
+                "eval",
+                "--run-config",
+                run_config.as_posix(),
+                "--model",
+                "mockllm/from_cli",
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            env={**os.environ, "INSPECT_EVAL_MODEL": "mockllm/from_env"},
+            check=True,
+        )
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.model == "mockllm/from_cli"
+
+
+def test_eval_run_config_cli_env_var_used_when_run_config_missing_field():
+    """INSPECT_EVAL_MODEL still applies when --run-config doesn't set `model`."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        log_dir = temp_path / "logs"
+        run_config = temp_path / "run.yaml"
+        # run config provides task + eval_config but NO top-level model
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+eval_config:
+  limit: 1
+""".strip()
+        )
+
+        # Defeat VSCode-mode .env override (inspect's init_dotenv uses
+        # override=True when TERM_PROGRAM=vscode, which would overwrite
+        # INSPECT_EVAL_MODEL from the repo .env and mask the env value
+        # this test is checking).
+        test_env = {
+            k: v
+            for k, v in os.environ.items()
+            if k
+            not in (
+                "VSCODE_IPYTHON_KERNEL",
+                "VSCODE_CLI_REQUIRE_TOKEN",
+                "VSCODE_PID",
+                "VSCODE_CWD",
+            )
+        }
+        if test_env.get("TERM_PROGRAM") == "vscode":
+            test_env["TERM_PROGRAM"] = "xterm"
+        test_env["INSPECT_EVAL_MODEL"] = "mockllm/from_env"
+
+        subprocess.run(
+            [
+                "inspect",
+                "eval",
+                "--run-config",
+                run_config.as_posix(),
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            env=test_env,
+            check=True,
+        )
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.model == "mockllm/from_env"
 
 
 def test_eval_run_config_cli_paper_config():
