@@ -1,4 +1,5 @@
 import contextlib
+from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from logging import getLogger
@@ -24,7 +25,9 @@ from anyio.abc import TaskGroup
 from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
-from inspect_ai.util._checkpoint.config import CheckpointConfig
+from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
+from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxConnection
 from inspect_ai.util._sandbox.context import sandbox_connections
@@ -52,10 +55,10 @@ class ActiveSample:
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
-        checkpoint: CheckpointConfig | None = None,
+        checkpointer: AbstractAsyncContextManager[Checkpointer],
+        eval_id: str,
         eval_set_id: str | None = None,
         run_id: str | None = None,
-        eval_id: str | None = None,
         agent_name: str | None = None,
     ) -> None:
         self.id = uuid()
@@ -78,7 +81,7 @@ class ActiveSample:
         self.total_cost: float | None = None
         self.transcript = transcript
         self.sandboxes = sandboxes
-        self.checkpoint = checkpoint
+        self.checkpointer = checkpointer
         self.eval_set_id = eval_set_id
         self.run_id = run_id
         self.eval_id = eval_id
@@ -203,12 +206,15 @@ async def active_sample(
     working_limit: int | None,
     fails_on_error: bool,
     transcript: Transcript,
-    checkpoint: CheckpointConfig | None = None,
+    eval_id: str,
+    checkpoint: ResolvedCheckpointConfig | None = None,
+    resume_checkpoint: ResumeCheckpoint | None = None,
     eval_set_id: str | None = None,
     run_id: str | None = None,
-    eval_id: str | None = None,
     agent_name: str | None = None,
 ) -> AsyncGenerator[ActiveSample, None]:
+    if sample.id is None:
+        raise ValueError("active_sample requires sample.id to be set")
     # create the sample
     active = ActiveSample(
         task=task,
@@ -224,7 +230,13 @@ async def active_sample(
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
-        checkpoint=checkpoint,
+        checkpointer=create_checkpointer(
+            config=checkpoint,
+            log_location=log_location,
+            sample_id=sample.id,
+            epoch=epoch,
+            resume_checkpoint=resume_checkpoint,
+        ),
         eval_set_id=eval_set_id,
         run_id=run_id,
         eval_id=eval_id,

@@ -1,30 +1,32 @@
 """Inspect checkpointing — agent-side primitives.
 
-Public surface re-exported via :mod:`inspect_ai.util`. The names below
-are the *only* symbols this package exposes to external callers; the
-broader set of layout types, parsers, and ContextVar accessors are
-import-from-leaf-module only (see ``layout.py``, ``parse.py``,
-``session.py``). See ``design/plans/checkpointing-working.md`` §2
-for the full semantic model.
+Public surface re-exported via :mod:`inspect_ai.util`. Other modules
+in the package (``layout``, ``parse_cli``, ``hydrate``,
+``_sandbox_restic``, …) are import-from-leaf-module only when external
+callers genuinely need them. See
+``design/plans/checkpointing-working.md`` §2 for the full semantic
+model.
 """
 
-from .checkpointer import checkpointer
-from .config import (
-    BudgetPercent,
-    CheckpointConfig,
-    CheckpointSampleConfig,
-    CostInterval,
-    Retention,
+from ._triggers import (
+    CheckpointTrigger,
+    Manual,
     TimeInterval,
     TokenInterval,
     TurnInterval,
 )
+from .checkpointer import checkpointer
+from .config import (
+    CheckpointConfig,
+    CheckpointSampleConfig,
+    Retention,
+)
 
 __all__ = [
-    "BudgetPercent",
     "CheckpointConfig",
     "CheckpointSampleConfig",
-    "CostInterval",
+    "CheckpointTrigger",
+    "Manual",
     "Retention",
     "TimeInterval",
     "TokenInterval",
