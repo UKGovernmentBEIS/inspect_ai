@@ -20,6 +20,28 @@ def _has_cache_control(block: Any) -> bool:
     return isinstance(block, dict) and block.get("cache_control") == EPHEMERAL
 
 
+def _make_api(model_name: str, **kwargs: Any) -> OpenRouterAPI:
+    return OpenRouterAPI(model_name=model_name, api_key="test-key", **kwargs)
+
+
+def _make_output(
+    input_tokens: int = 500,
+    output_tokens: int = 20,
+    total_tokens: int = 520,
+    input_tokens_cache_read: int | None = None,
+) -> ModelOutput:
+    return ModelOutput(
+        model="claude-sonnet-4-5",
+        choices=[],
+        usage=ModelUsage(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            input_tokens_cache_read=input_tokens_cache_read,
+        ),
+    )
+
+
 def test_add_cache_markers_system_tool_and_penultimate_block() -> None:
     """System + tools + multi-block last user message: 3 markers placed."""
     request: dict[str, Any] = {
@@ -109,6 +131,35 @@ def test_add_cache_markers_string_content_converted_to_list() -> None:
     assert sys_content[0]["cache_control"] == EPHEMERAL
 
 
+def test_add_cache_markers_fallback_does_not_convert_string_content() -> None:
+    """Fallback branch must NOT convert string content on the previous message.
+
+    Mirrors `anthropic.py:1208-1211`: when the last message has fewer than 2
+    blocks and we fall back to marking the previous message, the previous
+    message's string content must stay a string (it may be a `role:"tool"`
+    message whose content shape matters for upstream tool_result translation).
+    """
+    request: dict[str, Any] = {
+        "messages": [
+            {"role": "user", "content": "do the thing"},
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": "calling tool"}],
+                "tool_calls": [{"id": "call_1"}],
+            },
+            {"role": "tool", "tool_call_id": "call_1", "content": "tool result"},
+            {"role": "user", "content": "thanks"},
+        ]
+    }
+
+    _add_anthropic_cache_markers(request)
+
+    # the previous (tool) message's string content must remain a string
+    assert request["messages"][2]["content"] == "tool result"
+    # and no marker is placed on it (fallback only marks list content)
+    assert "cache_control" not in request["messages"][2]
+
+
 def test_add_cache_markers_single_message_no_marker() -> None:
     """Single message with single block (no previous message) → no marker placed."""
     request: dict[str, Any] = {
@@ -126,10 +177,6 @@ def test_add_cache_markers_no_tools_no_messages() -> None:
     request: dict[str, Any] = {}
     _add_anthropic_cache_markers(request)
     assert request == {}
-
-
-def _make_api(model_name: str, **kwargs: Any) -> OpenRouterAPI:
-    return OpenRouterAPI(model_name=model_name, api_key="test-key", **kwargs)
 
 
 def test_cache_prompt_enabled_for_anthropic_model_by_default() -> None:
@@ -153,6 +200,12 @@ def test_cache_prompt_disabled_when_config_false() -> None:
     assert api._cache_prompt_enabled(GenerateConfig(cache_prompt=False)) is False
 
 
+def test_cache_prompt_enabled_when_config_auto() -> None:
+    """`cache_prompt="auto"` enables caching (matches direct anthropic provider)."""
+    api = _make_api("openrouter/anthropic/claude-sonnet-4-5")
+    assert api._cache_prompt_enabled(GenerateConfig(cache_prompt="auto")) is True
+
+
 @pytest.mark.parametrize(
     "model",
     [
@@ -167,16 +220,7 @@ def test_cache_prompt_disabled_for_legacy_claude(model: str) -> None:
 
 
 def test_apply_cache_creation_usage_sets_write_and_adjusts_input() -> None:
-    output = ModelOutput(
-        model="claude-sonnet-4-5",
-        choices=[],
-        usage=ModelUsage(
-            input_tokens=500,
-            output_tokens=20,
-            total_tokens=520,
-            input_tokens_cache_read=100,
-        ),
-    )
+    output = _make_output(input_tokens_cache_read=100)
     call = ModelCall(
         request={}, response={"usage": {"cache_creation_input_tokens": 80}}
     )
@@ -196,16 +240,7 @@ def test_apply_cache_creation_usage_reads_openrouter_shape() -> None:
     OpenAI-extension shape rather than Anthropic's native `cache_creation_input_tokens`
     key, so the helper must read both.
     """
-    output = ModelOutput(
-        model="claude-sonnet-4-5",
-        choices=[],
-        usage=ModelUsage(
-            input_tokens=500,
-            output_tokens=20,
-            total_tokens=520,
-            input_tokens_cache_read=100,
-        ),
-    )
+    output = _make_output(input_tokens_cache_read=100)
     call = ModelCall(
         request={},
         response={"usage": {"prompt_tokens_details": {"cache_write_tokens": 80}}},
@@ -220,11 +255,7 @@ def test_apply_cache_creation_usage_reads_openrouter_shape() -> None:
 
 def test_apply_cache_creation_usage_prefers_anthropic_native_key() -> None:
     """When both shapes are present, the Anthropic-native key wins (future-proofing)."""
-    output = ModelOutput(
-        model="claude-sonnet-4-5",
-        choices=[],
-        usage=ModelUsage(input_tokens=500, output_tokens=20, total_tokens=520),
-    )
+    output = _make_output()
     call = ModelCall(
         request={},
         response={
@@ -242,11 +273,7 @@ def test_apply_cache_creation_usage_prefers_anthropic_native_key() -> None:
 
 
 def test_apply_cache_creation_usage_noop_when_field_missing() -> None:
-    output = ModelOutput(
-        model="claude-sonnet-4-5",
-        choices=[],
-        usage=ModelUsage(input_tokens=500, output_tokens=20, total_tokens=520),
-    )
+    output = _make_output()
     call = ModelCall(request={}, response={"usage": {"prompt_tokens": 500}})
 
     _apply_cache_creation_usage(output, call)
@@ -257,11 +284,7 @@ def test_apply_cache_creation_usage_noop_when_field_missing() -> None:
 
 
 def test_apply_cache_creation_usage_noop_when_no_call() -> None:
-    output = ModelOutput(
-        model="claude-sonnet-4-5",
-        choices=[],
-        usage=ModelUsage(input_tokens=500, output_tokens=20, total_tokens=520),
-    )
+    output = _make_output()
 
     _apply_cache_creation_usage(output, None)
 

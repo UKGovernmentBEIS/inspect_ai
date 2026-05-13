@@ -277,6 +277,7 @@ class OpenRouterAPI(OpenAICompatibleAPI):
                 _apply_cache_creation_usage(output, call)
         return result
 
+    @override
     async def _generate_completion(
         self, request: dict[str, Any], config: GenerateConfig
     ) -> ChatCompletion:
@@ -288,16 +289,15 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         return await super()._generate_completion(request, config)
 
     def _cache_prompt_enabled(self, config: GenerateConfig) -> bool:
-        # service_model_name() may not strip the "openrouter/" prefix because
-        # self.service is mixed-case ("OpenRouter") while user-supplied model
-        # names are lowercase — fall back to manual prefix-strip.
+        # service_model_name() does case-sensitive prefix-strip against
+        # self.service ("OpenRouter"), so it does NOT remove the lowercase
+        # "openrouter/" prefix from user-supplied model names. Strip manually.
         name = self.service_model_name().removeprefix("openrouter/")
         if not name.startswith("anthropic/"):
             return False
-        cache_prompt = (
-            config.cache_prompt if isinstance(config.cache_prompt, bool) else True
-        )
-        if not cache_prompt:
+        # Matches direct anthropic provider: only explicit False disables;
+        # None, True, and "auto" all enable.
+        if config.cache_prompt is False:
             return False
         # Mirror the legacy-Claude gate from the direct anthropic provider.
         bare = name.split(":", 1)[0]
@@ -375,7 +375,8 @@ def _add_anthropic_cache_markers(request: dict[str, Any]) -> None:
     """
     messages = request.get("messages")
     if isinstance(messages, list) and messages:
-        # mark the last system message's last content block
+        # mark the last system message's last content block (string-content
+        # system messages are safe to convert to list form)
         for msg in reversed(messages):
             if isinstance(msg, dict) and msg.get("role") == "system":
                 _mark_last_content_block(msg)
@@ -383,45 +384,49 @@ def _add_anthropic_cache_markers(request: dict[str, Any]) -> None:
 
         # mark a rolling pair of message-level breakpoints. auto-cache marks the
         # last block; this gives lookback a fallback when the final block changes.
+        # In the fallback branch we deliberately do NOT convert string-content
+        # to list form (mirroring anthropic.py:1208-1211): the previous message
+        # may be a role:"tool" message whose string content must stay a string
+        # for upstream tool_result translation.
         last = messages[-1]
         if isinstance(last, dict):
             last_content = last.get("content")
             if isinstance(last_content, list) and len(last_content) >= 2:
-                _mark_block(last_content[-2])
+                last_content[-2]["cache_control"] = _ephemeral()
             elif len(messages) >= 2:
                 prev = messages[-2]
                 if isinstance(prev, dict):
-                    _mark_last_content_block(prev)
+                    prev_content = prev.get("content")
+                    if isinstance(prev_content, list) and prev_content:
+                        last_block = prev_content[-1]
+                        if isinstance(last_block, dict):
+                            last_block["cache_control"] = _ephemeral()
 
     # mark the last tool definition (cache_control at the top of the tool dict,
-    # alongside "type": "function" — OpenRouter forwards this through to
-    # Anthropic's tool param where the marker lives at the same logical level).
+    # alongside "type": "function" — empirically verified against OpenRouter;
+    # nesting inside tool["function"] is silently tokenized as schema content).
     tools = request.get("tools")
     if isinstance(tools, list) and tools:
         last_tool = tools[-1]
         if isinstance(last_tool, dict):
-            cast(dict[str, Any], last_tool)["cache_control"] = _ephemeral()
+            last_tool["cache_control"] = _ephemeral()
 
 
 def _mark_last_content_block(msg: dict[str, Any]) -> None:
     """Mark the last content block of a message with cache_control.
 
     If content is a plain string, convert to a single-block list so we can
-    attach the marker.
+    attach the marker. Only safe for system messages — see caller.
     """
     content = msg.get("content")
     if isinstance(content, list) and content:
         last_block = content[-1]
         if isinstance(last_block, dict):
-            _mark_block(last_block)
+            last_block["cache_control"] = _ephemeral()
     elif isinstance(content, str) and content:
         msg["content"] = [
             {"type": "text", "text": content, "cache_control": _ephemeral()}
         ]
-
-
-def _mark_block(block: dict[str, Any]) -> None:
-    block["cache_control"] = _ephemeral()
 
 
 def _apply_cache_creation_usage(output: ModelOutput, call: ModelCall | None) -> None:
@@ -436,20 +441,20 @@ def _apply_cache_creation_usage(output: ModelOutput, call: ModelCall | None) -> 
     if call is None or output.usage is None:
         return
     raw = call.response if isinstance(call.response, dict) else None
-    if not raw:
-        return
-    usage = raw.get("usage")
+    usage = raw.get("usage") if raw else None
     if not isinstance(usage, dict):
         return
-    # OpenRouter surfaces cache-write counts under
-    # prompt_tokens_details.cache_write_tokens (OpenAI-extension shape);
-    # also accept cache_creation_input_tokens for safety in case a future
-    # upstream switches to the Anthropic-native key at the top of usage.
-    ptd = usage.get("prompt_tokens_details")
+    # Prefer Anthropic-native key for future-proofing; fall back to the
+    # OpenAI-extension shape that OpenRouter currently uses in practice.
     cw = usage.get("cache_creation_input_tokens")
-    if (not isinstance(cw, int) or cw <= 0) and isinstance(ptd, dict):
-        cw = ptd.get("cache_write_tokens")
     if not isinstance(cw, int) or cw <= 0:
+        ptd = usage.get("prompt_tokens_details")
+        cw = ptd.get("cache_write_tokens") if isinstance(ptd, dict) else None
+    if not isinstance(cw, int) or cw <= 0:
+        return
+    # Guard against double-application (e.g. if a future base parses cache
+    # writes natively): only set when the field hasn't been populated yet.
+    if output.usage.input_tokens_cache_write is not None:
         return
     output.usage.input_tokens_cache_write = cw
     output.usage.input_tokens = max(0, output.usage.input_tokens - cw)
