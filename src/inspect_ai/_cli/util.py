@@ -1,12 +1,13 @@
-from typing import Any, Callable
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Callable
 
 import click
 import yaml
-from pydantic import ValidationError
 
-from inspect_ai._util.config import resolve_args
-from inspect_ai.model import GenerateConfig, Model, get_model
-from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+if TYPE_CHECKING:
+    from inspect_ai.model import Model
+    from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 
 def int_or_bool_flag_callback(
@@ -113,6 +114,8 @@ def int_bool_or_str_flag_callback(
 def parse_cli_config(
     args: tuple[str, ...] | list[str] | None, config: str | None
 ) -> dict[str, Any]:
+    from inspect_ai._util.config import resolve_args
+
     # start with file if any
     cli_config: dict[str, Any] = {}
     if config is not None:
@@ -157,6 +160,10 @@ def parse_model_role_cli_args(
         ("grader={model: mockllm/model, temperature: 0.5}",) -> {'grader': <Model>}
         ('grader={"model": "mockllm/model", "temperature": 0.5}',) -> {'grader': <Model>}
     """
+    from pydantic import ValidationError
+
+    from inspect_ai.model import GenerateConfig, get_model
+
     try:
         parsed_args = parse_cli_args(model_roles, force_str=False)
     except Exception as e:
@@ -223,6 +230,8 @@ class SectionedCommand(click.Command):
 
 
 def parse_sandbox(sandbox: str | None) -> SandboxEnvironmentSpec | None:
+    from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+
     if sandbox is not None:
         parts = sandbox.split(":", maxsplit=1)
         if len(parts) == 1:

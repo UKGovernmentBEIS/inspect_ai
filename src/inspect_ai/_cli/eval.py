@@ -1,23 +1,14 @@
+from __future__ import annotations
+
 import functools
 import json
 from collections.abc import Callable
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import click
 import yaml
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    TypeAdapter,
-    ValidationError,
-    field_validator,
-)
 from typing_extensions import Unpack
 
-from inspect_ai import Epochs, eval, eval_retry
-from inspect_ai._eval.evalset import eval_set
-from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
     DEFAULT_BATCH_SIZE,
@@ -28,26 +19,13 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS,
     DEFAULT_RETRY_ON_ERROR,
 )
-from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import filesystem
-from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
-from inspect_ai.log._file import log_file_info
-from inspect_ai.log._log import EvalConfig
-from inspect_ai.model import GenerateConfig, GenerateConfigArgs, get_model
-from inspect_ai.model._cache import CachePolicy
-from inspect_ai.model._generate_config import (  # noqa: F811
-    BatchConfig,
-    ImageOutput,
-    OutputModality,
-    ResponseSchema,
-)
-from inspect_ai.model._model_config import ModelConfig
-from inspect_ai.scorer._reducer import create_reducers
-from inspect_ai.solver._solver import SolverSpec
-from inspect_ai.util import AdaptiveConcurrency
-from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
-from inspect_ai.util._resource import resource
-from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+
+if TYPE_CHECKING:
+    from inspect_ai.model import GenerateConfigArgs
+    from inspect_ai.model._generate_config import ResponseSchema
+    from inspect_ai.util import AdaptiveConcurrency
+
+    from ._run_config import RunConfigInput as RunConfigInput  # noqa: F401
 
 from .common import (
     CommonOptions,
@@ -825,6 +803,8 @@ def eval_command(ctx: click.Context, /, **params: Any) -> None:
     if params.get("run_config"):
         from click.core import ParameterSource
 
+        from ._run_config import parse_run_config
+
         run_params = parse_run_config(params["run_config"])
 
         # Map Click parameter name -> the cli_params key it ultimately produces
@@ -1321,159 +1301,26 @@ def eval_set_command(
     ctx.exit(0 if success else 1)
 
 
-class TaskInput(BaseModel):
-    task: str
-    args: dict[str, Any] = Field(default_factory=dict)
+_RUN_CONFIG_REEXPORTS = frozenset(
+    {
+        "TaskInput",
+        "SolverInput",
+        "RunConfigInput",
+        "parse_run_config",
+        "merge_run_config_params",
+    }
+)
 
 
-class SolverInput(BaseModel):
-    solver: str
-    args: dict[str, Any] = Field(default_factory=dict)
+def __getattr__(name: str) -> Any:
+    # Lazy re-export of run-config helpers so this module stays import-light
+    # (the underlying pydantic models pull in inspect_ai.model / log / util at
+    # class-definition time). See _run_config.py for details.
+    if name in _RUN_CONFIG_REEXPORTS:
+        from . import _run_config
 
-
-class RunConfigInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    task: str | TaskInput | None = None
-    model: str | ModelConfig | None = None
-    model_roles: dict[str, ModelConfig] = Field(default_factory=dict)
-    generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
-    eval_config: EvalConfig = Field(default_factory=EvalConfig)
-    solver: str | SolverInput | None = None
-    tags: list[str] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
-    sandbox: str | SandboxEnvironmentSpec | None = None
-
-    @field_validator("generate_config", mode="before")
-    @classmethod
-    def check_generate_config_fields(cls, v: Any) -> Any:
-        if isinstance(v, dict):
-            unknown = set(v.keys()) - set(GenerateConfig.model_fields.keys())
-            if unknown:
-                raise ValueError(f"Unknown generate_config fields: {unknown}")
-        return v
-
-    @field_validator("eval_config", mode="before")
-    @classmethod
-    def check_eval_config_fields(cls, v: Any) -> Any:
-        if isinstance(v, dict):
-            unknown = set(v.keys()) - set(EvalConfig.model_fields.keys())
-            if unknown:
-                raise ValueError(f"Unknown eval_config fields: {unknown}")
-        return v
-
-    def to_params(self) -> dict[str, Any]:
-        params: dict[str, Any] = {}
-
-        # Task
-        if self.task is not None:
-            if isinstance(self.task, str):
-                params["tasks"] = self.task
-            else:
-                params["tasks"] = self.task.task
-                if self.task.args:
-                    params["task_args"] = self.task.args
-
-        # Model
-        if self.model is not None:
-            if isinstance(self.model, str):
-                params["model"] = self.model
-            else:
-                params["model"] = self.model.model
-                if self.model.base_url is not None:
-                    params["model_base_url"] = self.model.base_url
-                if self.model.args:
-                    params["model_args"] = self.model.args
-                model_gc = self.model.config.model_dump(exclude_none=True)
-                if model_gc:
-                    params.update(model_gc)
-
-        # Top-level generate_config overrides any model-level config
-        top_gc = self.generate_config.model_dump(exclude_none=True)
-        if top_gc:
-            params.update(top_gc)
-
-        # Model roles
-        if self.model_roles:
-            params["model_roles"] = {
-                role: get_model(
-                    mc.model, config=mc.config, base_url=mc.base_url, **mc.args
-                )
-                for role, mc in self.model_roles.items()
-            }
-
-        # Solver
-        if self.solver is not None:
-            if isinstance(self.solver, str):
-                params["solver"] = SolverSpec(self.solver, {}, {})
-            else:
-                params["solver"] = SolverSpec(
-                    self.solver.solver, self.solver.args, self.solver.args
-                )
-
-        # Eval config — combine epochs + epochs_reducer into Epochs
-        ec = self.eval_config.model_dump(exclude_none=True)
-        epochs = ec.pop("epochs", None)
-        epochs_reducer = ec.pop("epochs_reducer", None)
-        if epochs is not None:
-            ec["epochs"] = Epochs(epochs, create_reducers(epochs_reducer))
-        params.update(ec)
-
-        # Tags and metadata
-        if self.tags:
-            params["tags"] = self.tags
-        if self.metadata:
-            params["metadata"] = self.metadata
-
-        # Sandbox
-        if self.sandbox is not None:
-            if isinstance(self.sandbox, str):
-                params["sandbox"] = parse_sandbox(self.sandbox)
-            else:
-                params["sandbox"] = self.sandbox
-
-        return params
-
-
-def parse_run_config(config: str) -> dict[str, Any]:
-    from jsonschema import Draft7Validator
-
-    config_dict = resolve_args(config)
-    try:
-        run_config = RunConfigInput.model_validate(config_dict)
-    except ValidationError as ex:
-        # Surface a more readable error via Draft7Validator. Fall back to
-        # pydantic's message when the JSON schema doesn't capture the
-        # failure (e.g. custom field_validators on generate_config/eval_config).
-        schema = RunConfigInput.model_json_schema()
-        errors = list(Draft7Validator(schema).iter_errors(config_dict))
-        if errors:
-            message = "\n".join(
-                [f"Invalid run config '{config}':"]
-                + [f" - {error.message}" for error in errors]
-            )
-        else:
-            message = f"Invalid run config '{config}': {ex}"
-        raise PrerequisiteError(message)
-    return run_config.to_params()
-
-
-def merge_run_config_params(
-    run_params: dict[str, Any], cli_params: dict[str, Any]
-) -> dict[str, Any]:
-    params = dict(run_params)
-    for key, value in cli_params.items():
-        if value is None or value == {}:
-            continue
-        if key == "score" and value is True:
-            continue
-        if key in ("task_args", "model_args") and key in params:
-            params[key] = params[key] | value
-        elif key == "model_roles" and key in params:
-            params[key] = params[key] | value
-        else:
-            params[key] = value
-    return params
+        return getattr(_run_config, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def eval_exec(
@@ -1558,6 +1405,16 @@ def eval_exec(
     eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
+    from inspect_ai import Epochs, eval
+    from inspect_ai._eval.evalset import eval_set
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
+    from inspect_ai.scorer._reducer import create_reducers
+    from inspect_ai.solver._solver import SolverSpec
+    from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
+
+    from ._run_config import merge_run_config_params, parse_run_config
+
     if run_config and is_eval_set:
         raise PrerequisiteError("--run-config is only supported by inspect eval.")
     if run_config and task_config:
@@ -1759,6 +1616,8 @@ def _parse_adaptive_connections_cli(
     Note: `"1"`/`"0"` are treated as the integer-max shorthand, not as
     bool aliases. Users who want explicit on/off should pass `true`/`false`.
     """
+    from inspect_ai.util import AdaptiveConcurrency
+
     if value is None:
         return None
     v = value.strip().lower()
@@ -1781,6 +1640,14 @@ def _parse_adaptive_connections_cli(
 
 
 def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
+    from pydantic import TypeAdapter
+
+    from inspect_ai._util.config import resolve_args
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai.model import GenerateConfigArgs
+    from inspect_ai.model._cache import CachePolicy
+    from inspect_ai.model._generate_config import BatchConfig, ResponseSchema
+
     # start with config file if specified
     adapter = TypeAdapter(GenerateConfigArgs)
     run_config_file = locals.get("run_config")
@@ -1856,6 +1723,11 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
 
 def parse_modalities(value: str) -> list[Any]:
     """Parse modalities from comma-separated names or YAML/JSON file."""
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai._util.file import filesystem
+    from inspect_ai.model._generate_config import ImageOutput, OutputModality
+    from inspect_ai.util._resource import resource
+
     # Check if it's a file path
     fs = filesystem(value)
     if fs.exists(value):
@@ -2119,6 +1991,10 @@ def eval_retry_command(
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
+    from inspect_ai import eval_retry
+    from inspect_ai._util.file import filesystem
+    from inspect_ai.log._file import log_file_info
+
     # resolve common options
     process_common_options(common)
 

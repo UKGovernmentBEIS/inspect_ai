@@ -33,7 +33,7 @@ from inspect_ai.model import (
     ModelUsage,
 )
 from inspect_ai.model._model_config import ModelConfig
-from inspect_ai.scorer import Score
+from inspect_ai.scorer._metric import Score
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store

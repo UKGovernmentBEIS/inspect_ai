@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import functools
 import os
 from typing import Any, Callable, cast
@@ -6,8 +8,6 @@ import click
 from typing_extensions import Unpack
 
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
-from inspect_ai._view.view import view
-from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 
 from .common import CommonOptions, common_options, process_common_options
 
@@ -59,6 +59,8 @@ def start(
     **common: Unpack[CommonOptions],
 ) -> None:
     """View evaluation logs."""
+    from inspect_ai._view.view import view
+
     # read common options
     process_common_options(common)
 
@@ -104,6 +106,8 @@ def bundle_command(
     **common: Unpack[CommonOptions],
 ) -> None:
     """Bundle evaluation logs"""
+    from inspect_ai.log._bundle import bundle_log_dir
+
     # process common options
     process_common_options(common)
 
@@ -118,6 +122,8 @@ def embed_command(
     **common: Unpack[CommonOptions],
 ) -> None:
     """Embed a lightweight viewer into a log directory."""
+    from inspect_ai.log._bundle import embed_log_dir
+
     process_common_options(common)
 
     embed_log_dir(log_dir=common["log_dir"])

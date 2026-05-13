@@ -25,6 +25,8 @@ from inspect_ai._util.azure import (
     is_azure_path,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.path import absolute_file_path as absolute_file_path  # noqa: F401
+from inspect_ai._util.path import strip_trailing_sep as strip_trailing_sep  # noqa: F401
 from inspect_ai._util.trace import trace_message
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
@@ -379,14 +381,6 @@ def filesystem(path: str, fs_options: dict[str, Any] = {}) -> FileSystem:
     return FileSystem(fs)
 
 
-def absolute_file_path(file: str) -> str:
-    # check for a relative dir, if we find one then resolve to absolute
-    fs_scheme = urlparse(file).scheme
-    if not fs_scheme and not os.path.isabs(file):
-        file = Path(file).resolve().as_posix()
-    return strip_trailing_sep(file)
-
-
 def to_uri(path_or_uri: str) -> str:
     # Check if it's already a URI
     parsed = urlparse(path_or_uri)
@@ -513,22 +507,6 @@ def clean_filename_component(component: str) -> str:
         .replace(":", "-")
         .replace("+", "-")
     )
-
-
-def strip_trailing_sep(path: str) -> str:
-    """Remove trailing separators from a path, preserving the root.
-
-    Matches pathlib behavior: exactly ``//`` is preserved per POSIX,
-    any other all-separator path collapses to a single separator.
-    """
-    fs = filesystem(path)
-    stripped = path.rstrip(fs.sep)
-    if stripped:
-        return stripped
-    # All separators — preserve exactly "//" per POSIX, otherwise collapse
-    if path == fs.sep * 2:
-        return path
-    return fs.sep
 
 
 logger = logging.getLogger(__name__)

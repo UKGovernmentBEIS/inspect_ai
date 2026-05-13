@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from dotenv import dotenv_values, find_dotenv, load_dotenv
 
-from .file import absolute_file_path
+from .path import absolute_file_path
 from .platform import is_running_in_vscode
 
 INSPECT_LOG_DIR_VAR = "INSPECT_LOG_DIR"

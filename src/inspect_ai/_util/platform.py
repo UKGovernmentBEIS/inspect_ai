@@ -1,10 +1,6 @@
 import importlib.util
 import os
 
-from inspect_ai._util._async import init_nest_asyncio
-
-from .error import set_exception_hook
-
 
 def running_in_notebook() -> bool:
     try:
@@ -20,6 +16,13 @@ def running_in_notebook() -> bool:
 
 
 def platform_init(hooks: bool = True) -> None:
+    # imported lazily so this module stays stdlib-only at import time —
+    # callers like _util.dotenv only need the cheap env-detection helpers
+    # below and shouldn't pay for anyio/rich/pydantic.
+    from inspect_ai._util._async import init_nest_asyncio
+
+    from .error import set_exception_hook
+
     if hooks:
         from inspect_ai.hooks._startup import init_hooks
 

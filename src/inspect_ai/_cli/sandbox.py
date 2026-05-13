@@ -1,8 +1,6 @@
-import anyio
-import click
+from __future__ import annotations
 
-from inspect_ai._util._async import configured_async_backend
-from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+import click
 
 
 @click.group("sandbox")
@@ -25,6 +23,11 @@ def sandbox_cleanup(type: str, environment_id: str | None) -> None:
     Pass an ENVIRONMENT_ID to cleanup only a single environment
     (otherwise all environments will be cleaned up).
     """
+    import anyio
+
+    from inspect_ai._util._async import configured_async_backend
+    from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
+
     sandboxenv_type = registry_find_sandboxenv(type)
     cli_cleanup = getattr(sandboxenv_type, "cli_cleanup")
     anyio.run(cli_cleanup, environment_id, backend=configured_async_backend())
