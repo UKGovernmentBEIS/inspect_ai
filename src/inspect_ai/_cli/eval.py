@@ -28,13 +28,13 @@ from inspect_ai.log._file import log_file_info
 from inspect_ai.log._log import EvalConfig
 from inspect_ai.model import GenerateConfig, GenerateConfigArgs, get_model
 from inspect_ai.model._cache import CachePolicy
-from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.model._generate_config import (  # noqa: F811
     BatchConfig,
     ImageOutput,
     OutputModality,
     ResponseSchema,
 )
+from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
@@ -1148,7 +1148,9 @@ class RunConfigInput(BaseModel):
         # Model roles
         if self.model_roles:
             params["model_roles"] = {
-                role: get_model(mc.model, config=mc.config, base_url=mc.base_url, **mc.args)
+                role: get_model(
+                    mc.model, config=mc.config, base_url=mc.base_url, **mc.args
+                )
                 for role, mc in self.model_roles.items()
             }
 
@@ -1188,8 +1190,6 @@ class RunConfigInput(BaseModel):
 def parse_run_config(config: str) -> dict[str, Any]:
     run_config = RunConfigInput.model_validate(resolve_args(config))
     return run_config.to_params()
-
-
 
 
 def merge_run_config_params(
