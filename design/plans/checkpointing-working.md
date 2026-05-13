@@ -115,13 +115,20 @@ one attempt are not shared with or consulted by another.
 
 ## 2. Configuration surface
 
-`CheckpointConfig` is specified at one of three levels — mirroring how `sandbox` is specified — with **per-field merge** across the three layers in precedence order **eval > sample > task**. Each level supplies a partial config (every field defaults to `None`); the harness combines them at sample-run time, with the higher-priority layer winning on a field-by-field basis. When unset at every level, checkpointing is disabled.
+Checkpoint config is specified at one of three levels — mirroring how `sandbox` is specified — with **per-field merge** across the three layers in precedence order **eval > sample > task**. Each level supplies a partial config (every field defaults to `None`); the harness combines them at sample-run time, with the higher-priority layer winning on a field-by-field basis. When unset at every level, checkpointing is disabled.
+
+The config is split into two classes:
+
+-   **`CheckpointSampleConfig`** — fields that may be set at *any* layer including the sample (`trigger`, `sandbox_paths`, `max_consecutive_failures`).
+-   **`CheckpointConfig(CheckpointSampleConfig)`** — adds the eval-wide fields (`checkpoints_dir`, `retention`) that must be set at the task or eval layer. This is the type used at the task and eval layers; the sample layer is typed `CheckpointSampleConfig` so the eval-wide fields aren't even accessible there.
+
+The split is structural: a sample physically cannot express `checkpoints_dir` or `retention` — those are eval-wide concerns. To change `checkpoints_dir` from its default (log-sibling), set it at the task or eval layer.
 
 Rationale for the precedence direction (sample > task): task defines the agent's standard policy for *all* of its samples; an individual sample specializes — e.g. tighter cadence, an extra captured path, more failure tolerance for a flaky row. Eval/CLI is always the highest priority because it's the operator's run-time override.
 
 `sandbox_paths` is treated as a single value (whole-dict replacement) — not per-key merged. To add a path to an existing sandbox, the higher-priority layer redeclares the full list.
 
--   **Sample**: `Sample(checkpoint=CheckpointConfig(...))` — dataset-author default.
+-   **Sample**: `Sample(checkpoint=CheckpointSampleConfig(...))` — dataset-author default.
 -   **Task**: `Task(checkpoint=CheckpointConfig(...))` — task-level default.
 -   **Eval / CLI**: `eval(checkpoint=CheckpointConfig(...))` and `inspect eval --checkpoint=...` — run-level override.
 
@@ -198,16 +205,12 @@ class Retention:
     successfully. "delete" (default) removes it; "retain" keeps it for
     later inspection or replay. See §8d."""
 
-class CheckpointConfig:
+class CheckpointSampleConfig:
+    """Fields settable at any layer including the sample."""
+
     trigger: CheckpointTrigger
     """Checkpoint trigger. All triggers fire at the next turn boundary
     after the trigger condition is reached. See bullets below."""
-
-    checkpoints_dir: str | None = None
-    """Override the parent root under which the eval checkpoints dir
-    lands. None (default) = sibling of the eval log file. When set,
-    inspect places <log-base>.checkpoints/ under this root. Any
-    fsspec-resolvable path (s3://, local, etc.). See §1."""
 
     sandbox_paths: dict[str, list[str]] = {}
     """Per-sandbox-name list of absolute paths to capture inside the sandbox.
@@ -217,8 +220,19 @@ class CheckpointConfig:
     """If set, the sample fails after N consecutive failed checkpoint attempts.
     None = unlimited tolerance (default). 0 = any failure is fatal. See §8c."""
 
+class CheckpointConfig(CheckpointSampleConfig):
+    """Adds eval-wide fields; used at the task and eval layers only."""
+
+    checkpoints_dir: str | None = None
+    """Override the parent root under which the eval checkpoints dir
+    lands. None (default) = sibling of the eval log file. When set,
+    inspect places <log-base>.checkpoints/ under this root. Any
+    fsspec-resolvable path (s3://, local, etc.). Eval-wide — settable
+    only at the task or eval layer. See §1."""
+
     retention: Retention = Retention()
-    """Controls when checkpoint data is deleted. See §8d."""
+    """Controls when checkpoint data is deleted. Eval-wide — settable
+    only at the task or eval layer. See §8d."""
 ```
 
 All triggers fire at turn boundaries only; an agent is never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint. To disable checkpointing, omit the ``CheckpointConfig`` at every level.

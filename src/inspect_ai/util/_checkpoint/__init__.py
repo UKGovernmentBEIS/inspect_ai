@@ -12,6 +12,7 @@ from .checkpointer import ResumeInfo, checkpointer
 from .config import (
     BudgetPercent,
     CheckpointConfig,
+    CheckpointSampleConfig,
     CostInterval,
     Retention,
     TimeInterval,
@@ -22,6 +23,7 @@ from .config import (
 __all__ = [
     "BudgetPercent",
     "CheckpointConfig",
+    "CheckpointSampleConfig",
     "CostInterval",
     "Retention",
     "ResumeInfo",

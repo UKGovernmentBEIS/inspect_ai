@@ -27,6 +27,7 @@ from ._background import background
 from ._checkpoint import (
     BudgetPercent,
     CheckpointConfig,
+    CheckpointSampleConfig,
     CostInterval,
     ResumeInfo,
     Retention,
@@ -171,6 +172,7 @@ __all__ = [
     "ExecStdout",
     "BudgetPercent",
     "CheckpointConfig",
+    "CheckpointSampleConfig",
     "checkpointer",
     "CostInterval",
     "Retention",

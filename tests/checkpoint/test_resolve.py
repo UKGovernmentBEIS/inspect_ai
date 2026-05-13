@@ -8,6 +8,7 @@ import pytest
 
 from inspect_ai.util._checkpoint import (
     CheckpointConfig,
+    CheckpointSampleConfig,
     Retention,
     TimeInterval,
     TurnInterval,
@@ -36,55 +37,21 @@ def test_layer_without_trigger_raises() -> None:
         merge_checkpoint_configs(CheckpointConfig(checkpoints_dir="/tmp"))
 
 
-def test_sample_checkpoints_dir_allowed_when_alone() -> None:
-    """Sample-only setting doesn't override anything → allowed."""
+def test_sample_layer_uses_sample_config_type() -> None:
+    """Sample-layer configs are typed CheckpointSampleConfig — no checkpoints_dir field."""
+    sample = CheckpointSampleConfig(trigger=TurnInterval(every=2))
+    assert not hasattr(sample, "checkpoints_dir")
+    assert not hasattr(sample, "retention")
+
     out = merge_checkpoint_configs(
-        sample=CheckpointConfig(
-            trigger=TurnInterval(every=1), checkpoints_dir="/tmp"
+        task=CheckpointConfig(
+            trigger=TurnInterval(every=5), checkpoints_dir="/tmp"
         ),
+        sample=sample,
     )
     assert out is not None
-    assert out.checkpoints_dir == "/tmp"
-
-
-def test_sample_checkpoints_dir_allowed_when_matches_task() -> None:
-    """Sample restating the task value is redundant, not overriding → allowed."""
-    out = merge_checkpoint_configs(
-        task=CheckpointConfig(trigger=TurnInterval(every=1), checkpoints_dir="/tmp"),
-        sample=CheckpointConfig(checkpoints_dir="/tmp"),
-    )
-    assert out is not None
-    assert out.checkpoints_dir == "/tmp"
-
-
-def test_sample_checkpoints_dir_allowed_when_matches_eval() -> None:
-    """Sample restating the eval value is redundant, not overriding → allowed."""
-    out = merge_checkpoint_configs(
-        task=CheckpointConfig(trigger=TurnInterval(every=1)),
-        sample=CheckpointConfig(checkpoints_dir="/tmp"),
-        eval_=CheckpointConfig(checkpoints_dir="/tmp"),
-    )
-    assert out is not None
-    assert out.checkpoints_dir == "/tmp"
-
-
-def test_sample_checkpoints_dir_rejected_when_differs_from_task() -> None:
-    """Sample value differs from task's → would override → rejected."""
-    with pytest.raises(ValueError, match="override"):
-        merge_checkpoint_configs(
-            task=CheckpointConfig(trigger=TurnInterval(every=1), checkpoints_dir="/a"),
-            sample=CheckpointConfig(checkpoints_dir="/b"),
-        )
-
-
-def test_sample_checkpoints_dir_rejected_when_differs_from_eval() -> None:
-    """Sample value differs from eval's → would override → rejected."""
-    with pytest.raises(ValueError, match="override"):
-        merge_checkpoint_configs(
-            task=CheckpointConfig(trigger=TurnInterval(every=1)),
-            sample=CheckpointConfig(checkpoints_dir="/sample"),
-            eval_=CheckpointConfig(checkpoints_dir="/eval"),
-        )
+    assert out.checkpoints_dir == "/tmp"  # from task
+    assert out.trigger == TurnInterval(every=2)  # from sample
 
 
 def test_higher_priority_overrides_trigger() -> None:
