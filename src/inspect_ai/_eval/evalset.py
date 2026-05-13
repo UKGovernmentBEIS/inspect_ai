@@ -481,6 +481,12 @@ def eval_set(
             sample_shuffle,
         )
 
+        # fail with a legible error if no tasks were found (matches `eval`)
+        if len(resolved_tasks) == 0:
+            raise PrerequisiteError(
+                "Error: No inspect tasks were found at the specified paths."
+            )
+
         # list all logs currently in the log directory (update manifest if there are some)
         all_logs = list_all_eval_logs(log_dir)
         if len(all_logs) > 0:

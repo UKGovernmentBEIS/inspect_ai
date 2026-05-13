@@ -1,6 +1,5 @@
 ## Unreleased
 
-- Add [run-config](https://inspect.aisi.org.uk/task-configuration.html#run-config) option to `inspect eval` for single-file run configuration. A YAML or JSON file can specify task, model, model roles, generate config, solver, and eval config in one place; explicit CLI flags override values from the file. Mutually exclusive with `--generate-config`, `--task-config`, and `--solver-config`.
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
 - OpenRouter: Enable Anthropic prompt caching by default for `openrouter/anthropic/*` models via per-block `cache_control` markers (works across Anthropic-direct, Bedrock, and Vertex routing). Cache writes (`cache_creation_input_tokens`) are parsed into `ModelUsage.input_tokens_cache_write`. Set `cache_prompt=False` in `GenerateConfig` to disable.
@@ -23,7 +22,9 @@
 - Scoring: `match(numeric=True, location="exact")` is now strict — values like `"5 some text"` no longer match target `"5"`.
 - Analysis: Use score reducer in `evals_df()` column name when there are multiple reducers.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
+- Config: Add `--run-config` option to `inspect eval` for single-file run configuration.
 - Eval Set: Run [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scanners over each task's logs as part of `eval_set` (CLI `--scanner` / `EvalScannerConfig`). Scans incrementally as logs land, reuses prior results across resumes, and renders progress alongside the existing eval view.
+- Eval Set: Fail fast with "No inspect tasks were found at the specified paths." when a task spec resolves to nothing (e.g. uninstalled package); previously crashed with `IndexError` inside `resolve_tasks` after passing an empty task list to `eval`.
 - Eval Set: Add `score_display` argument to `eval_set()` function.
 - Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don't implement conditional writes).
 - Eval Log: Make `log_file_info()` robust to non-standard filenames; added `log_file_info_async()` / `log_files_from_ls_async()` so view-server header reads don't block the event loop.
