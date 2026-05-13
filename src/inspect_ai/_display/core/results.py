@@ -1,4 +1,5 @@
 import math
+from contextvars import ContextVar
 from typing import Sequence, Set
 
 from rich.console import Group, RenderableType
@@ -22,6 +23,20 @@ from .display import (
 )
 from .panel import task_panel
 from .rich import rich_theme
+
+# Extra args appended to the suggested `inspect eval-retry` command shown
+# when a task is interrupted. Set by the CLI from scanner-related flags
+# (e.g. `--scanner foo.yaml`, `--scan-model bar`) so a copy-paste of the
+# resume message preserves the scan setup. Defaults to empty for
+# programmatic (non-CLI) callers, which won't display a CLI command anyway.
+_retry_args_suffix: ContextVar[str] = ContextVar(
+    "inspect_retry_args_suffix", default=""
+)
+
+
+def set_retry_args_suffix(suffix: str) -> None:
+    """Set the extra args appended to the displayed `eval-retry` command."""
+    _retry_args_suffix.set(suffix)
 
 
 def tasks_results(tasks: Sequence[TaskWithResult]) -> RenderableType:
@@ -260,9 +275,15 @@ def task_interrupted(profile: TaskProfile, samples_completed: int) -> Renderable
     if samples_completed > 0:
         message = f"{message}{samples_completed:,} of {profile.samples:,} total samples logged before interruption)."
         if task_can_retry(profile):
+            # preserve any scanner-related CLI flags the user passed so
+            # the suggested retry command resumes against the same scan
+            retry_extras = _retry_args_suffix.get()
+            retry_cmd = f"inspect eval-retry {log_location}"
+            if retry_extras:
+                retry_cmd = f"{retry_cmd} {retry_extras}"
             message = (
                 f"{message} Resume task with:[/{theme.error}][/bold]\n\n"
-                + f"[bold][{theme.light}]inspect eval-retry {log_location}[/{theme.light}][/bold]"
+                + f"[bold][{theme.light}]{retry_cmd}[/{theme.light}][/bold]"
             )
         else:
             message = f"{message}[/{theme.error}][/bold]"

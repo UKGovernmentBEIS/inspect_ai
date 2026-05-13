@@ -303,16 +303,10 @@ $ inspect list tasks security --json
 $ inspect list tasks security --json -F light=true
 ```
 
-You can pass the same `-F` filters directly to `inspect eval-set`:
+You can feed the results of `inspect list tasks` into `inspect eval-set` using `xargs` as follows:
 
 ``` bash
-$ inspect eval-set security --log-dir logs-security-42 -F light=true
-```
-
-You can still feed the results of `inspect list tasks` into `inspect eval-set` using `xargs` if you want to inspect or transform the task list first:
-
-``` bash
-$ inspect list tasks security -F light=true | xargs \
+$ inspect list tasks security | xargs \
    inspect eval-set --log-dir logs-security-42
 ```
 

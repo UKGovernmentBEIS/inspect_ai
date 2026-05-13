@@ -114,6 +114,23 @@ def test_basic_agent_custom_text():
     assert model_event.tools[1].description == AGENT_SUBMIT_TOOL_DESCRIPTION
 
 
+def test_basic_agent_empty_string_submit():
+    # an empty-string submission must be treated as a submission (and end the
+    # loop) rather than being ignored as falsy and looping to message_limit
+    task = Task(
+        dataset=[Sample(input="What is ''.strip()?", target="")],
+        solver=basic_agent(tools=[addition()], message_limit=20),
+        scorer=includes(),
+    )
+    log = eval(task, mockllm_model([""]))[0]
+    assert log.status == "success"
+    assert log.samples
+    model_events = sum(
+        1 for event in log.samples[0].transcript.events if event.event == "model"
+    )
+    assert model_events == 1
+
+
 def test_basic_agent_retries():
     def addition_task(max_attempts):
         return Task(

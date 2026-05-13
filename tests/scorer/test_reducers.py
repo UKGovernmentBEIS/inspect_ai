@@ -9,6 +9,7 @@ import numpy as np
 
 from inspect_ai import Epochs, Task, eval
 from inspect_ai._eval.score import score
+from inspect_ai._util.registry import registry_info
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import (
     Score,
@@ -25,6 +26,7 @@ from inspect_ai.scorer import (
 )
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.scorer._reducer.reducer import pass_at
+from inspect_ai.scorer._reducer.registry import REDUCER_NAME, reducer_log_name
 
 avg_reducer = mean_score()
 median_reducer = median_score()
@@ -386,6 +388,88 @@ def sum(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
 
 def test_scorer_lookup():
     assert create_reducers("add_em_up")
+
+
+@score_reducer(name="top_5")
+def top_five() -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        return scores[0]
+
+    return reduce
+
+
+def test_create_reducers_exact_name_with_trailing_digits() -> None:
+    # Regression: a custom reducer whose registered name happens to end in
+    # `_<digits>` (e.g. "top_5") must be looked up literally rather than
+    # being rewritten by the at_least_k / pass_at_k convenience regex into
+    # a lookup of "top" with k=5.
+    reducers = create_reducers("top_5")
+    assert reducers is not None and len(reducers) == 1
+    info = registry_info(reducers[0])
+    assert info.name == "top_5"
+
+    # built-in `_<k>` shorthand must still work
+    assert create_reducers("at_least_2")
+    assert create_reducers("pass_at_3")
+
+
+def test_at_least_reducer_name_includes_k() -> None:
+    # Regression: the REDUCER_NAME override inside at_least()/pass_at() was
+    # being written to the global factory wrapper rather than the returned
+    # reducer closure, so the registry name never picked up the `k` suffix
+    # and each call leaked global state onto the factory.
+    r3 = at_least(3)
+    assert registry_info(r3).name.endswith("at_least_3")
+    # creating another instance must not retroactively affect r3
+    _ = at_least(7)
+    assert registry_info(r3).name.endswith("at_least_3")
+    # the factory itself should not accumulate per-call state
+    assert not hasattr(at_least, REDUCER_NAME)
+    # log name must not double-append the suffix
+    assert reducer_log_name(r3) == "at_least_3"
+    assert reducer_log_name(pass_at(4)) == "pass_at_4"
+
+
+def test_max_reducer_dict_per_key_nan_order_independent() -> None:
+    # Regression: max_score's bespoke dict path fed raw per-key values to
+    # builtin max() without filtering NaN. Because NaN compares False with
+    # everything, the result depended on epoch order. The scalar path and
+    # _compute_dict_stat already filter via _is_reducible; the dict/list
+    # max paths must do the same.
+    nan_first = [Score(value={"x": float("nan")}), Score(value={"x": 1.0})]
+    one_first = [Score(value={"x": 1.0}), Score(value={"x": float("nan")})]
+    assert max_reducer(nan_first).value == {"x": 1.0}
+    assert max_reducer(one_first).value == {"x": 1.0}
+
+    # list path
+    nan_first_l = [Score(value=[float("nan")]), Score(value=[1.0])]
+    one_first_l = [Score(value=[1.0]), Score(value=[float("nan")])]
+    assert max_reducer(nan_first_l).value == [1.0]
+    assert max_reducer(one_first_l).value == [1.0]
+
+    # all-NaN per key falls back to NaN for that key
+    all_nan = [Score(value={"x": float("nan")}), Score(value={"x": float("nan")})]
+    reduced = max_reducer(all_nan).value
+    assert isinstance(reduced, dict) and _is_nan(reduced["x"])
+
+
+def test_pass_at_k_insufficient_scored_epochs() -> None:
+    # Regression: pass_at(k) computes over the NaN-filtered value list. When
+    # filtering shrinks the valid count below k, the `total - correct < k`
+    # short-circuit fired even with zero correct, reporting pass@k = 1.0.
+    # With fewer than k scored epochs the estimator is undefined, so the
+    # reducer should yield the unscored NaN sentinel rather than 1.0.
+    scores = [
+        Score(value=0.0),
+        Score(value=0.0),
+        Score(value=float("nan")),
+        Score(value=float("nan")),
+    ]
+    result = pass_at(3)(scores).value
+    assert _is_nan(result), f"expected NaN for <k scored epochs, got {result!r}"
+
+    # sanity: with k scored epochs and zero correct, pass@k is 0.0
+    assert pass_at(3)([Score(value=0.0)] * 4).value == 0.0
 
 
 def eval_with_reducer():

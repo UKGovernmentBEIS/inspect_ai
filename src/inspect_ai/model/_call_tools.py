@@ -178,17 +178,18 @@ async def _execute_tools_impl(
                     f"Error decoding bytes to {ex.encoding}: {ex.reason}",
                 )
             except PermissionError as ex:
-                err = f"{ex.strerror}."
+                err = f"{ex.strerror or str(ex)}."
                 if isinstance(ex.filename, str):
                     err = f"{err} Filename '{ex.filename}'."
                 tool_error = ToolCallError("permission", err)
             except FileNotFoundError as ex:
-                tool_error = ToolCallError(
-                    "file_not_found",
-                    f"File '{ex.filename}' was not found.",
-                )
+                if isinstance(ex.filename, str):
+                    err = f"File '{ex.filename}' was not found."
+                else:
+                    err = ex.strerror or str(ex)
+                tool_error = ToolCallError("file_not_found", err)
             except IsADirectoryError as ex:
-                err = f"{ex.strerror}."
+                err = f"{ex.strerror or str(ex)}."
                 if isinstance(ex.filename, str):
                     err = f"{err} Filename '{ex.filename}'."
                 tool_error = ToolCallError("is_a_directory", err)
@@ -233,16 +234,16 @@ async def _execute_tools_impl(
                         | ContentDocument
                     ]
                 ) = [result]
-            elif isinstance(result, list) and (
-                len(result) == 0
-                or isinstance(
-                    result[0],
+            elif isinstance(result, list) and all(
+                isinstance(
+                    r,
                     ContentText
                     | ContentImage
                     | ContentAudio
                     | ContentVideo
                     | ContentDocument,
                 )
+                for r in result
             ):
                 content = result
             else:
@@ -541,8 +542,10 @@ async def agent_handoff(
     # inject curried args
     arguments = {**call.arguments, **agent_tool.kwargs}
 
-    # parse arguments
-    arguments = tool_params(arguments, agent_tool.agent)
+    # parse arguments (inject a `state` placeholder so tool_params doesn't
+    # treat the agent's required `state` parameter as missing — the handoff
+    # harness injects the real AgentState below)
+    arguments = tool_params({**arguments, "state": None}, agent_tool.agent)
     del arguments["state"]
 
     # run the agent with limits
@@ -804,8 +807,10 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
         # yield parameter (fail if not passed and there is no default)
         if param_name in input:
             params[param_name] = tool_param(type_hint, input.get(param_name))
-        elif param.default is not None or type_hint_includes_none(type_hint):
+        elif param.default is not inspect.Parameter.empty:
             params[param_name] = param.default
+        elif type_hint_includes_none(type_hint):
+            params[param_name] = None
         else:
             raise ToolParsingError(
                 f"Required parameter {param_name} not provided to tool call."

@@ -96,6 +96,12 @@ def stderr(
         unique_clusters = np.unique(clusters)
         cluster_count = len(unique_clusters)
 
+        # The finite-cluster correction divides by (cluster_count - 1), so
+        # mirror the non-clustered path's n < 2 guard and return 0 rather
+        # than NaN/inf when there is only a single cluster.
+        if cluster_count < 2:
+            return 0.0
+
         # Compute clustered variance using NumPy operations
         clustered_variance = 0.0
         for cluster_id in unique_clusters:
