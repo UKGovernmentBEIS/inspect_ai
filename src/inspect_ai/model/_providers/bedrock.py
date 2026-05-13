@@ -490,19 +490,10 @@ class BedrockAPI(ModelAPI):
             # in the native anthropic provider. See issue #3766.
             forbid_sampling_params = self.is_claude_4_7_or_later()
 
-            def _sampling_param_warning(parameter: str) -> str:
-                return (
-                    f"bedrock model '{self.model_name}' does not support the "
-                    f"'{parameter}' parameter (adaptive thinking only)."
-                )
-
             # additional model request fields
-            additionalModelRequestFields: dict[str, Any] = {}
-            if config.top_k:
-                if forbid_sampling_params:
-                    warn_once(logger, _sampling_param_warning("top_k"))
-                else:
-                    additionalModelRequestFields["top_k"] = config.top_k
+            additionalModelRequestFields = self._additional_model_request_fields(
+                config, forbid_sampling_params
+            )
             reasoning_cfg = self.reasoning_config(config)
             additionalModelRequestFields = additionalModelRequestFields | reasoning_cfg
 
@@ -517,13 +508,13 @@ class BedrockAPI(ModelAPI):
 
             # Gate temperature / top_p for adaptive-thinking-only models.
             if forbid_sampling_params and config.temperature is not None:
-                warn_once(logger, _sampling_param_warning("temperature"))
+                warn_once(logger, self._sampling_param_warning("temperature"))
                 inference_temperature: float | None = None
             else:
                 inference_temperature = config.temperature
 
             if forbid_sampling_params and config.top_p is not None:
-                warn_once(logger, _sampling_param_warning("top_p"))
+                warn_once(logger, self._sampling_param_warning("top_p"))
                 inference_top_p: float | None = None
             else:
                 inference_top_p = config.top_p
@@ -587,6 +578,27 @@ class BedrockAPI(ModelAPI):
 
         # return
         return output, model_call
+
+    def _sampling_param_warning(self, parameter: str) -> str:
+        return (
+            f"bedrock model '{self.model_name}' does not support the "
+            f"'{parameter}' parameter (adaptive thinking only)."
+        )
+
+    def _additional_model_request_fields(
+        self, config: GenerateConfig, forbid_sampling_params: bool
+    ) -> dict[str, Any]:
+        fields: dict[str, Any] = {}
+
+        if config.top_k:
+            if forbid_sampling_params:
+                warn_once(logger, self._sampling_param_warning("top_k"))
+            elif self.is_nova():
+                fields["inferenceConfig"] = {"topK": config.top_k}
+            else:
+                fields["top_k"] = config.top_k
+
+        return fields
 
     def reasoning_config(self, config: GenerateConfig) -> dict[str, Any]:
         if self.is_gpt_oss():
