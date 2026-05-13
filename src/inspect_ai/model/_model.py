@@ -942,7 +942,7 @@ class Model:
         )
         from inspect_ai.hooks._legacy import send_telemetry_legacy
         from inspect_ai.log._refusal import report_refusal
-        from inspect_ai.log._samples import track_active_model_event
+        from inspect_ai.log._samples import sample_active, track_active_model_event
 
         # default to 'auto' for tool_choice (same as underlying model apis)
         tool_choice = tool_choice if tool_choice is not None else "auto"
@@ -1225,6 +1225,20 @@ class Model:
         # report refusal
         if not model_output.empty and model_output.stop_reason == "content_filter":
             report_refusal(model_output.completion)
+
+        # warn when the model's output was cut short by a token limit
+        if model_output.stop_reason in ("max_tokens", "model_length"):
+            active = sample_active()
+            sample_info = (
+                f" ({active.task}/{active.id}/{active.epoch})" if active else ""
+            )
+            limit_info = (
+                f" (max_tokens={config.max_tokens})" if config.max_tokens else ""
+            )
+            logger.warning(
+                f"Model output truncated by token limit{sample_info}{limit_info}. "
+                "Increase max_tokens in GenerateConfig if the truncation is unintended."
+            )
 
         # return results
         return model_output, event
