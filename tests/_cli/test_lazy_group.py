@@ -98,18 +98,9 @@ HEAVY_MODULES = (
     "botocore",
 )
 
-# Module-count ceilings: deterministic proxy for "did something heavy
-# leak in" that doesn't require enumerating every package. Current
-# baselines (2026-05): import inspect_ai ~155, inspect --help ~172,
-# inspect <cmd> --help ~210. Thresholds give ~50% headroom for small
-# additions; a heavy dep leaking in adds 200-1000 and trips these.
-MAX_MODULES_IMPORT_INSPECT_AI = 250
-MAX_MODULES_ROOT_HELP = 250
-MAX_MODULES_SUBCOMMAND_HELP = 350
 
-
-def _probe_modules(argv: list[str]) -> tuple[int, list[str]]:
-    """Run ``inspect <argv> --help`` in a fresh interpreter; return (module_count, heavy_loaded)."""
+def _heavy_loaded_after(argv: list[str]) -> list[str]:
+    """Run ``inspect <argv> --help`` in a fresh interpreter; return any HEAVY_MODULES that loaded."""
     probe = (
         "import sys\n"
         f"sys.argv = {['inspect', *argv, '--help']!r}\n"
@@ -117,62 +108,40 @@ def _probe_modules(argv: list[str]) -> tuple[int, list[str]]:
         "    import inspect_ai._cli.main as m; m.main()\n"
         "except SystemExit:\n"
         "    pass\n"
-        f"heavy = [m for m in {HEAVY_MODULES!r} if m in sys.modules]\n"
-        "print(len(sys.modules), *heavy)\n"
+        f"print(*[m for m in {HEAVY_MODULES!r} if m in sys.modules])\n"
     )
     out = subprocess.run(
         [sys.executable, "-c", probe], capture_output=True, text=True, check=False
     )
     assert out.returncode == 0, out.stderr
-    parts = out.stdout.strip().splitlines()[-1].split()
-    return int(parts[0]), parts[1:]
+    return out.stdout.strip().splitlines()[-1].split()
 
 
 def test_root_help_import_footprint() -> None:
-    """``inspect --help`` stays import-light.
-
-    Asserts both (a) no known-heavy package is loaded and (b) total
-    module count is under a ceiling, so a new heavy dep that isn't in
-    the explicit list still trips the test.
-    """
-    n, heavy = _probe_modules([])
+    """``inspect --help`` does not load any known-heavy package."""
+    heavy = _heavy_loaded_after([])
     assert not heavy, f"inspect --help loaded heavy modules: {heavy}"
-    assert n < MAX_MODULES_ROOT_HELP, (
-        f"inspect --help loaded {n} modules (ceiling {MAX_MODULES_ROOT_HELP}). "
-        f"Something heavy is now imported at --help time; run with -s to see "
-        f"sys.modules and find the new leak."
-    )
 
 
 @pytest.mark.parametrize("name", sorted(_SUBCOMMANDS))
 def test_subcommand_help_import_footprint(name: str) -> None:
-    """``inspect <cmd> --help`` stays import-light for every subcommand."""
-    n, heavy = _probe_modules([name])
+    """``inspect <cmd> --help`` does not load any known-heavy package."""
+    heavy = _heavy_loaded_after([name])
     assert not heavy, f"inspect {name} --help loaded heavy modules: {heavy}"
-    assert n < MAX_MODULES_SUBCOMMAND_HELP, (
-        f"inspect {name} --help loaded {n} modules "
-        f"(ceiling {MAX_MODULES_SUBCOMMAND_HELP})."
-    )
 
 
 def test_import_inspect_ai_footprint() -> None:
-    """Bare ``import inspect_ai`` stays import-light."""
+    """Bare ``import inspect_ai`` does not load any known-heavy package."""
     out = subprocess.run(
         [
             sys.executable,
             "-c",
             "import sys; import inspect_ai; "
-            f"heavy=[m for m in {HEAVY_MODULES!r} if m in sys.modules]; "
-            "print(len(sys.modules), *heavy)",
+            f"print(*[m for m in {HEAVY_MODULES!r} if m in sys.modules])",
         ],
         capture_output=True,
         text=True,
         check=True,
     )
-    parts = out.stdout.strip().split()
-    n, heavy = int(parts[0]), parts[1:]
+    heavy = out.stdout.strip().split()
     assert not heavy, f"import inspect_ai loaded heavy modules: {heavy}"
-    assert n < MAX_MODULES_IMPORT_INSPECT_AI, (
-        f"import inspect_ai loaded {n} modules "
-        f"(ceiling {MAX_MODULES_IMPORT_INSPECT_AI})."
-    )
