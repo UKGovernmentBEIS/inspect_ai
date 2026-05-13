@@ -44,9 +44,7 @@ def test_sample_layer_uses_sample_config_type() -> None:
     assert not hasattr(sample, "retention")
 
     out = merge_checkpoint_configs(
-        task=CheckpointConfig(
-            trigger=TurnInterval(every=5), checkpoints_dir="/tmp"
-        ),
+        task=CheckpointConfig(trigger=TurnInterval(every=5), checkpoints_dir="/tmp"),
         sample=sample,
     )
     assert out is not None

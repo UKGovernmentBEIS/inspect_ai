@@ -393,7 +393,7 @@ Each host-repo snapshot contains up to six files, sourced from a host-local work
 -   **`events_data.json`** — `{messages, calls}` dedup pools that `events.json` indexes into. Built incrementally: each fire processes only the new event slice against persisted indexes, so total hashing cost over a sample is O(N) rather than O(N) per fire. Both this and `events.json` have a byte-stable prefix across fires (only the tail grows), which tightens restic CDC dedup.
 -   **`attachments.json`** — hash → original-content pool that `ModelEvent.call` refs (`attachment://<hash>`) point into. Captured live by `Transcript._process_event` as call payloads >100 chars are rewritten to `attachment://` refs; serialized here so the snapshot is self-contained.
 -   **`store.json`** — the sample's `Store` key/value state.
--   **`agent_state.json`** *(opt-in)* — agent-defined property bag. Written only when the agent has registered a callback via `Checkpointer.on_checkpoint(callback)`; the callback is invoked at each fire and its returned `dict[str, Any]` is serialized. Presence on disk signals that the agent opted in. `react()` registers a callback that captures `attempt_count` so retries can resume mid-attempt.
+-   **`agent_state.json`** *(opt-in)* — agent-defined property bag. Written only when the agent has registered at least one callback via `Checkpointer.track(key, callback, initial_value)`. Each registered key becomes a top-level field; its value is whatever the corresponding callback returns (a `JsonValue`). Presence on disk signals that the agent opted in. `react()` registers a callback under `"attempt_count"` so retries can resume mid-attempt.
 
 Customer-facing checkpoint metadata (trigger, turn, duration, sandbox snapshot ids, etc.) lives in the per-checkpoint sidecar at the attempt root (§1), not inside the snapshot.
 
@@ -513,32 +513,37 @@ class TaskState:
 
 The flag is `True` for the entire lifetime of a resumed sample, not just the first call. Solvers, scorers, tool implementations, and hooks can read it to skip one-shot setup or take resume-aware paths the same way the agent uses its `resume` parameter.
 
-### 7c. Checkpointer.resume()
+### 7c. Checkpointer.track
 
-The `Checkpointer` protocol exposes `resume() -> ResumeInfo | None` so the agent can recover its own previously-persisted property bag (the dict it returned from its `on_checkpoint` callback — see §5's `agent_state.json`). The agent calls `resume()` immediately after entering the checkpointer context.
+The `Checkpointer` protocol exposes a keyed, strongly-typed affordance for agent property-bag persistence:
 
 ```python
-@dataclass(frozen=True)
-class ResumeInfo:
-    state: dict[str, Any]   # {} when prior run persisted nothing
+def track(
+    self,
+    key: str,
+    callback: Callable[[], T],
+    initial_value: T,
+) -> T: ...   # T bound to JsonValue
 ```
 
-Two outcomes:
+On a single call this both:
 
--   `None` — fresh run; not a retry/resumption.
--   `ResumeInfo` — IS a retry/resumption. `ResumeInfo.state` is the dict persisted at the last fire of the prior run, or `{}` if the agent did not register an `on_checkpoint` callback in the prior run (no `agent_state.json` on disk).
+-   **Registers** `callback` under `key` for future fires. At each fire every registered callback is invoked and the results are merged into one dict, written to `agent_state.json` (see §5). Each key may be tracked only once — a duplicate call raises `ValueError`.
+-   **Returns** the value previously persisted under `key` (on a retry / resumption), or `initial_value` when there is no prior value (fresh run, or key never stored).
 
-`ResumeInfo` is always truthy regardless of whether `state` is empty, so `if resumed:` cleanly distinguishes resume from fresh runs. The empty-`state` case is meaningful and distinct from `None`: an agent can use it to detect resumption even when it has nothing of its own to restore.
+Generic over `T: JsonValue` so the value is strongly typed end-to-end: a typed `initial_value` constrains both the callback's return type and the method's return type.
+
+The "is this a resume?" signal is *not* surfaced here — use `TaskState.resumed` (§7b) if an agent needs to branch on resume status independent of the stored values.
 
 Idiomatic use, illustrated by the built-in React agent:
 
 ```python
 async with checkpointer() as cp:
-    resumed = cp.resume()
-    attempt_count = resumed.state.get("attempt_count", 0) if resumed else 0
-    cp.on_checkpoint(lambda: {"attempt_count": attempt_count})
+    attempt_count = cp.track("attempt_count", lambda: attempt_count, 0)
     ...
 ```
+
+The lambda closes over the local `attempt_count` cell, so subsequent rebinds (`attempt_count += 1`) are visible at fire time.
 
 ## 8. Lifecycle and observability
 

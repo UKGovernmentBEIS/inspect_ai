@@ -232,11 +232,14 @@ together because the work fell out that way naturally. Resume
   - `store.json` — `store_jsonable(state.store)`, pulled from
     `sample_state().store`.
   - `agent_state.json` *(opt-in)* — agent-defined property bag.
-    The agent registers a callback via `cp.on_checkpoint(callback)`;
-    the callback is invoked at each fire and the returned dict is
-    written here. Absent if no callback was registered. `react()`
-    registers a callback that captures `attempt_count` so retries
-    can resume mid-attempt.
+    The agent registers one or more keyed callbacks via
+    `cp.track(key, callback, initial_value)` — a single combined
+    affordance that also returns the prior value (or `initial_value`
+    when none). Each callback is invoked at fire time and its result is
+    stored under its key in the merged dict. Duplicate keys raise.
+    File is absent when no callback was registered. `react()`
+    registers a callback under `"attempt_count"` so retries can
+    resume mid-attempt.
   All files serialize via `to_jsonable_python(..., exclude_none=True)`.
   `events.json` and `events_data.json` both have a byte-stable prefix
   across fires (only the tail grows), which tightens restic CDC
@@ -333,13 +336,14 @@ together they're one coherent body.
   that opt in receive the rehydrated `TaskState`.
 - `TaskState.resumed: bool` so agents can branch on it without
   re-reading the sidecar themselves.
-- `Checkpointer.resume()` plumbing: the agent-facing method and
-  `_Checkpointer`'s `resume_state` constructor param are already in
-  place (return `None` until this phase wires it through). This
-  phase reads `agent_state.json` out of the rehydrated host working
-  dir and passes the parsed dict (or `{}` if absent on a resume)
-  into `_Checkpointer` via `build_impl()`. `react()` already calls
-  `cp.resume()` and restores `attempt_count`; no change there.
+- `Checkpointer.track` plumbing: the agent-facing method and
+  `_Checkpointer`'s `resume_state: dict[str, JsonValue] | None`
+  constructor param are already in place (`initial_value` is
+  returned until this phase wires resume state through). This phase
+  reads `agent_state.json` out of the rehydrated host working dir
+  and passes the parsed dict into `_Checkpointer` via `build_impl()`.
+  `react()`'s `cp.track("attempt_count", ..., 0)` call then resolves
+  to the stored value automatically — no change in agent code.
 - Integration with `inspect eval retry <log>` and eval-set retry —
   both pathways resolve into the same sample source, so wiring in
   the partial-sample state lights both up.

@@ -16,8 +16,11 @@ from __future__ import annotations
 import contextlib
 from collections.abc import AsyncIterator, Sequence
 from contextvars import ContextVar
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Protocol
+from typing import TYPE_CHECKING, Callable, Protocol, TypeVar
+
+from pydantic import JsonValue
+
+T = TypeVar("T", bound=JsonValue)
 
 if TYPE_CHECKING:
     # Type-checking only: importing `ChatMessage` eagerly here pulls in
@@ -27,19 +30,6 @@ if TYPE_CHECKING:
     # `_json`). `from __future__ import annotations` above means the
     # name is only needed by the type-checker, not at runtime.
     from inspect_ai.model._chat_message import ChatMessage
-
-
-@dataclass(frozen=True)
-class ResumeInfo:
-    """Returned by :meth:`Checkpointer.resume` on a retry/resumption.
-
-    ``state`` is the dict the agent persisted via its
-    :meth:`Checkpointer.on_checkpoint` callback in the prior run, or
-    ``{}`` when the prior run did not register a callback (no
-    ``agent_state.json`` on disk).
-    """
-
-    state: dict[str, Any] = field(default_factory=dict)
 
 
 class Checkpointer(Protocol):
@@ -61,31 +51,26 @@ class Checkpointer(Protocol):
         """
         ...
 
-    def on_checkpoint(self, callback: Callable[[], dict[str, Any]]) -> None:
-        """Register a callback invoked at each checkpoint fire.
+    def track(
+        self,
+        key: str,
+        callback: Callable[[], T],
+        initial_value: T,
+    ) -> T:
+        """Track ``key`` as part of the agent's checkpointed state.
 
-        The returned dict is the agent's property bag, serialized as
-        ``agent_state.json`` in the host snapshot. Subsequent calls
-        replace any prior callback. The file is written only when a
-        callback is registered — its presence on disk signals that the
-        agent opted in.
-        """
-        ...
+        ``callback`` is invoked at every checkpoint fire to capture
+        the value of the tracked state. On a retry of this sample, the
+        captured value is returned; on a fresh run, ``initial_value``
+        is returned.
 
-    def resume(self) -> ResumeInfo | None:
-        """Return resume info for this sample, or ``None`` on a fresh run.
+        Generic over ``T: JsonValue`` for end-to-end typing — the
+        callback's return type, this method's return type, and the
+        captured value all share ``T`` (inferred from
+        ``initial_value``).
 
-        Call this immediately after entering the checkpointer context to
-        detect retry/resumption and (if applicable) recover prior state.
-
-        - ``None`` — this sample is not a retry/resumption (fresh run).
-        - :class:`ResumeInfo` — this is a retry/resumption. Its
-          ``state`` field is the dict the agent persisted via
-          :meth:`on_checkpoint` in the prior run, or ``{}`` if no
-          callback was registered (no ``agent_state.json`` on disk).
-
-        Truthiness is reliable: ``if resumed:`` distinguishes resume
-        from fresh runs regardless of whether ``state`` is empty.
+        A key may be tracked only once per session; a duplicate call
+        raises ``ValueError``.
         """
         ...
 

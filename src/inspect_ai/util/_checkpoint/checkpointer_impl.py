@@ -17,7 +17,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import Any
+from typing import TypeVar, cast
 
 import anyio
 from pydantic import JsonValue
@@ -39,7 +39,7 @@ from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._store import Store, store_jsonable
 
-from .checkpointer import Checkpointer, ResumeInfo
+from .checkpointer import Checkpointer
 from .config import CheckpointConfig, TimeInterval, TurnInterval
 from .eval_checkpoints_dir import eval_checkpoints_dir, read_eval_manifest
 from .layout import CheckpointTriggerKind, SnapshotInfo
@@ -56,6 +56,8 @@ from .sample_checkpoints_dir import ensure_sample_checkpoints_dir, write_sidecar
 from .working_dir import ensure_sample_working_dir
 
 logger = getLogger(__name__)
+
+T = TypeVar("T", bound=JsonValue)
 
 prevent_use = True
 
@@ -127,11 +129,13 @@ class _NoopCheckpointer:
     async def checkpoint(self, messages: Sequence[ChatMessage]) -> None:
         return None
 
-    def on_checkpoint(self, callback: Callable[[], dict[str, Any]]) -> None:
-        return None
-
-    def resume(self) -> ResumeInfo | None:
-        return None
+    def track(
+        self,
+        key: str,
+        callback: Callable[[], T],
+        initial_value: T,
+    ) -> T:
+        return initial_value
 
 
 class _Checkpointer:
@@ -144,7 +148,7 @@ class _Checkpointer:
         sample_working_dir: str,
         host_restic: Path,
         restic_password: str,
-        resume_state: dict[str, Any] | None = None,
+        resume_state: dict[str, JsonValue] | None = None,
     ) -> None:
         self._config = config
         self._sample_checkpoints_dir = sample_checkpoints_dir
@@ -153,6 +157,7 @@ class _Checkpointer:
         self._host_repo = f"{sample_checkpoints_dir}/host"
         self._restic_password = restic_password
         self._resume_state = resume_state
+        self._on_checkpoint_callbacks: dict[str, Callable[[], JsonValue]] = {}
         self._turn = 0
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
@@ -166,7 +171,6 @@ class _Checkpointer:
         self._call_pool: list[JsonValue] = []
         self._call_index: dict[str, int] = {}
         self._events_consumed = 0
-        self._on_checkpoint_callback: Callable[[], dict[str, Any]] | None = None
 
     async def tick(self, messages: Sequence[ChatMessage]) -> None:
         self._turn += 1
@@ -177,13 +181,20 @@ class _Checkpointer:
     async def checkpoint(self, messages: Sequence[ChatMessage]) -> None:
         await self._fire("manual", messages)
 
-    def on_checkpoint(self, callback: Callable[[], dict[str, Any]]) -> None:
-        self._on_checkpoint_callback = callback
-
-    def resume(self) -> ResumeInfo | None:
-        if self._resume_state is None:
-            return None
-        return ResumeInfo(state=self._resume_state)
+    def track(
+        self,
+        key: str,
+        callback: Callable[[], T],
+        initial_value: T,
+    ) -> T:
+        if key in self._on_checkpoint_callbacks:
+            raise ValueError(
+                f"track already registered for key {key!r}; keys must be unique"
+            )
+        self._on_checkpoint_callbacks[key] = callback
+        if self._resume_state is None or key not in self._resume_state:
+            return initial_value
+        return cast(T, self._resume_state[key])
 
     def _should_fire(self) -> bool:
         policy = self._config.trigger
@@ -287,9 +298,10 @@ class _Checkpointer:
           here so the snapshot is self-contained.
         - ``store.json`` — Store key/value as a single JSON object.
         - ``agent_state.json`` — agent-defined property bag, written
-          only when the agent registered a callback via
-          :meth:`Checkpointer.on_checkpoint`. Presence on disk signals
-          opt-in.
+          only when the agent registered at least one callback via
+          :meth:`Checkpointer.track`. Each registered key
+          becomes a top-level field in the dict. Presence on disk
+          signals opt-in.
         """
         # Pool ModelEvent input + call messages — the big O(N²) redundancy.
         # We process only the new event slice each fire and append to the
@@ -323,10 +335,11 @@ class _Checkpointer:
             _json_dump(dict(attachments))
         )
         await (sample_dir / "store.json").write_text(_json_dump(store_jsonable(store)))
-        if self._on_checkpoint_callback is not None:
-            await (sample_dir / "agent_state.json").write_text(
-                _json_dump(self._on_checkpoint_callback())
-            )
+        if self._on_checkpoint_callbacks:
+            agent_state = {
+                key: cb() for key, cb in self._on_checkpoint_callbacks.items()
+            }
+            await (sample_dir / "agent_state.json").write_text(_json_dump(agent_state))
 
     async def _backup_host(self) -> ResticBackupSummary:
         return await run_host_backup(

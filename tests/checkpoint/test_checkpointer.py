@@ -31,7 +31,6 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.util._checkpoint import (
     CheckpointConfig,
-    ResumeInfo,
     TimeInterval,
     TurnInterval,
     checkpointer,
@@ -426,114 +425,84 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
     assert [len(e.input) for e in model_events] == [2, 4, 5]
 
 
-async def test_on_checkpoint_callback_writes_file(tmp_path: Path) -> None:
-    """Registered callback's dict lands in agent_state.json."""
-    work = tmp_path / "work"
-    work.mkdir()
-    cp = _Checkpointer(
+def _make_cp(tmp_path: Path, **kwargs: object) -> _Checkpointer:
+    return _Checkpointer(
         config=CheckpointConfig(trigger=TurnInterval(every=1)),
         sample_checkpoints_dir=str(tmp_path / "ckpts"),
-        sample_working_dir=str(work),
+        sample_working_dir=str(tmp_path / "work"),
         host_restic=Path("/fake"),
         restic_password="pwd",
+        **kwargs,  # type: ignore[arg-type]
     )
-    cp.on_checkpoint(lambda: {"attempt_count": 3, "phase": "explore"})
-    await cp._write_host_context(str(work), [], [], {}, Store())
 
+
+def test_track_returns_initial_when_no_resume_state(tmp_path: Path) -> None:
+    """Fresh run: no resume state, so the initial_value is returned."""
+    cp = _make_cp(tmp_path)
+    out = cp.track("attempt_count", lambda: 7, 0)
+    assert out == 0
+
+
+def test_track_returns_initial_when_key_missing(tmp_path: Path) -> None:
+    """Resume context exists but the key wasn't stored last time."""
+    cp = _make_cp(tmp_path, resume_state={"other": 1})
+    out = cp.track("attempt_count", lambda: 7, 0)
+    assert out == 0
+
+
+def test_track_returns_resumed_value(tmp_path: Path) -> None:
+    """Resume context has the key — its value is returned, not the initial_value."""
+    cp = _make_cp(tmp_path, resume_state={"attempt_count": 5})
+    out = cp.track("attempt_count", lambda: 7, 0)
+    assert out == 5
+
+
+def test_track_duplicate_key_raises(tmp_path: Path) -> None:
+    cp = _make_cp(tmp_path)
+    cp.track("attempt_count", lambda: 1, 0)
+    with pytest.raises(ValueError, match="unique"):
+        cp.track("attempt_count", lambda: 2, 0)
+
+
+async def test_track_single_key_writes_file(tmp_path: Path) -> None:
+    """Registered callback's return value lands in agent_state.json."""
+    work = tmp_path / "work"
+    work.mkdir()
+    cp = _make_cp(tmp_path)
+    value = 3
+    cp.track("attempt_count", lambda: value, 0)
+    await cp._write_host_context(str(work), [], [], {}, Store())
+    assert json.loads((work / "agent_state.json").read_text()) == {"attempt_count": 3}
+
+
+async def test_track_multiple_keys_merge(tmp_path: Path) -> None:
+    """Multiple registered keys merge into one top-level dict."""
+    work = tmp_path / "work"
+    work.mkdir()
+    cp = _make_cp(tmp_path)
+    cp.track("attempt_count", lambda: 3, 0)
+    cp.track("phase", lambda: "explore", "")
+    await cp._write_host_context(str(work), [], [], {}, Store())
     assert json.loads((work / "agent_state.json").read_text()) == {
         "attempt_count": 3,
         "phase": "explore",
     }
 
 
-async def test_on_checkpoint_not_registered_no_file(tmp_path: Path) -> None:
-    """Without a callback, agent_state.json is not written."""
+async def test_track_not_registered_no_file(tmp_path: Path) -> None:
+    """Without any callback, agent_state.json is not written."""
     work = tmp_path / "work"
     work.mkdir()
-    cp = _Checkpointer(
-        config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        sample_checkpoints_dir=str(tmp_path / "ckpts"),
-        sample_working_dir=str(work),
-        host_restic=Path("/fake"),
-        restic_password="pwd",
-    )
+    cp = _make_cp(tmp_path)
     await cp._write_host_context(str(work), [], [], {}, Store())
     assert not (work / "agent_state.json").exists()
 
 
-async def test_on_checkpoint_callback_replaces(tmp_path: Path) -> None:
-    """Re-registering swaps the callback; latest fire reflects the latest cb."""
-    work = tmp_path / "work"
-    work.mkdir()
-    cp = _Checkpointer(
-        config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        sample_checkpoints_dir=str(tmp_path / "ckpts"),
-        sample_working_dir=str(work),
-        host_restic=Path("/fake"),
-        restic_password="pwd",
-    )
-    cp.on_checkpoint(lambda: {"v": 1})
-    await cp._write_host_context(str(work), [], [], {}, Store())
-    assert json.loads((work / "agent_state.json").read_text()) == {"v": 1}
-
-    cp.on_checkpoint(lambda: {"v": 2, "extra": True})
-    await cp._write_host_context(str(work), [], [], {}, Store())
-    assert json.loads((work / "agent_state.json").read_text()) == {
-        "v": 2,
-        "extra": True,
-    }
-
-
-def test_on_checkpoint_noop_session() -> None:
-    """`_NoopCheckpointer.on_checkpoint()` is a no-op and never raises."""
+def test_track_noop_session() -> None:
+    """`_NoopCheckpointer.track()` returns initial_value and never registers."""
     cp = _NoopCheckpointer()
-    cp.on_checkpoint(lambda: {"anything": 42})
-
-
-def test_resume_returns_none_when_no_state(tmp_path: Path) -> None:
-    """Default construction: no resume state, so `resume()` returns None."""
-    cp = _Checkpointer(
-        config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        sample_checkpoints_dir=str(tmp_path / "ckpts"),
-        sample_working_dir=str(tmp_path / "work"),
-        host_restic=Path("/fake"),
-        restic_password="pwd",
-    )
-    assert cp.resume() is None
-
-
-def test_resume_returns_persisted_state(tmp_path: Path) -> None:
-    """Phase-4 plumbing: constructor's `resume_state` flows out via ResumeInfo.state."""
-    cp = _Checkpointer(
-        config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        sample_checkpoints_dir=str(tmp_path / "ckpts"),
-        sample_working_dir=str(tmp_path / "work"),
-        host_restic=Path("/fake"),
-        restic_password="pwd",
-        resume_state={"attempt_count": 2, "phase": "explore"},
-    )
-    resumed = cp.resume()
-    assert resumed == ResumeInfo(state={"attempt_count": 2, "phase": "explore"})
-
-
-def test_resume_returns_empty_state_is_truthy(tmp_path: Path) -> None:
-    """Resume-with-no-prior-state: ResumeInfo with `state={}`; still truthy (vs None)."""
-    cp = _Checkpointer(
-        config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        sample_checkpoints_dir=str(tmp_path / "ckpts"),
-        sample_working_dir=str(tmp_path / "work"),
-        host_restic=Path("/fake"),
-        restic_password="pwd",
-        resume_state={},
-    )
-    resumed = cp.resume()
-    assert resumed == ResumeInfo(state={})
-    assert bool(resumed) is True  # `if resumed:` distinguishes from None
-
-
-def test_resume_noop_session() -> None:
-    """`_NoopCheckpointer.resume()` returns None (never resumes)."""
-    assert _NoopCheckpointer().resume() is None
+    out = cp.track("attempt_count", lambda: 42, 0)
+    assert out == 0
 
 
 async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
