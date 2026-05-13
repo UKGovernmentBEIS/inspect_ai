@@ -15,7 +15,7 @@ from inspect_ai import Task, eval, task
 from inspect_ai._util.environ import environ_var
 from inspect_ai.agent import react
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.model import GenerateConfig, get_model
+from inspect_ai.model import get_model
 from inspect_ai.solver import solver
 from inspect_ai.tool import (
     MCPServer,
@@ -269,7 +269,7 @@ def react_mcp_task():
             prompt="Use the available tools to solve the problem.",
             tools=[mcp_tools(server)],
         ),
-        config=GenerateConfig(max_messages=10),
+        message_limit=10,
     )
 
 
