@@ -1,8 +1,4 @@
-from importlib.metadata import version
-
 import click
-
-from inspect_ai._util.constants import PKG_NAME
 
 from ._lazy_group import LazyGroup
 
@@ -92,7 +88,9 @@ def inspect(ctx: click.Context, version: bool) -> None:
 
 
 def _version() -> str:
-    return version(PKG_NAME)
+    from inspect_ai import __version__
+
+    return __version__
 
 
 def main() -> None:

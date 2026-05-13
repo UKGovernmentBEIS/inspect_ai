@@ -87,6 +87,7 @@ HEAVY_MODULES = (
     "inspect_ai._eval.eval",
     "inspect_ai.model._model",
     "inspect_ai.log._log",
+    "importlib.metadata",
     "pydantic",
     "fsspec",
     "anyio",

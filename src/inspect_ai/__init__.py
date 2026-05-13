@@ -1,13 +1,8 @@
 # ruff: noqa: F401
 
-from importlib.metadata import version as importlib_version
 from typing import TYPE_CHECKING
 
-from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.lazy import lazy_attributes
-
-__version__ = importlib_version(PKG_NAME)
-
 
 __all__ = [
     "__version__",
@@ -33,6 +28,7 @@ __all__ = [
 
 
 if TYPE_CHECKING:
+    __version__: str
     from inspect_ai._eval.eval import eval, eval_async, eval_retry, eval_retry_async
     from inspect_ai._eval.evalset import eval_set
     from inspect_ai._eval.list import list_tasks
@@ -46,6 +42,18 @@ if TYPE_CHECKING:
     from inspect_ai.log._metric import recompute_metrics
     from inspect_ai.log._score import edit_score
     from inspect_ai.solver._human_agent import human_agent
+
+
+def __getattr__(name: str) -> object:
+    # ``importlib.metadata`` pulls in email/zipfile/inspect/urllib (~45ms),
+    # so resolve the version lazily on first access. ``lazy_attributes``
+    # below chains to this for names it doesn't own.
+    if name == "__version__":
+        from importlib.metadata import version
+
+        globals()["__version__"] = v = version("inspect_ai")
+        return v
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 lazy_attributes(
