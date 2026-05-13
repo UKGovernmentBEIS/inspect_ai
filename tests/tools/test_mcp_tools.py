@@ -69,25 +69,38 @@ async def test_mcp_filter():
 
 @skip_if_no_mcp_package
 async def test_mcp_tool_call_timeout_becomes_tool_error():
-    """A timeout in the underlying transport should surface as ToolError.
+    """A sandbox-style transport timeout should surface as ToolError.
 
-    Regression test: previously a TimeoutError raised by the sandbox MCP
-    transport (or similar) bubbled up to the top of the sample stack
-    instead of being converted to a ToolError visible to the model.
+    Sandbox MCP must not raise TimeoutError from the writer task: that collapses
+    the task group and the client sees CancelledError. Instead the writer sends
+    a JSON-RPC error for the pending request (see ``sandbox_client``); the MCP
+    client raises ``McpError``, which ``_local.py`` maps to ``ToolError``.
     """
     from anyio.streams.memory import (
         MemoryObjectReceiveStream,
         MemoryObjectSendStream,
     )
-    from mcp.types import JSONRPCRequest
+    from mcp.shared.message import SessionMessage
+    from mcp.types import (
+        INTERNAL_ERROR,
+        ErrorData,
+        InitializeResult,
+        Implementation,
+        JSONRPCError,
+        JSONRPCMessage,
+        JSONRPCNotification,
+        JSONRPCRequest,
+        JSONRPCResponse,
+        LATEST_PROTOCOL_VERSION,
+        ServerCapabilities,
+    )
     from mcp.types import Tool as MCPTool
 
     from inspect_ai.tool._mcp._local import MCPServerLocalSession
 
     @contextlib.asynccontextmanager
     async def timing_out_client() -> AsyncIterator[Any]:
-        # Mirrors the structure of sandbox_client: a task group with a
-        # writer task that raises TimeoutError when forwarding requests.
+        # Mirrors sandbox_client: writer forwards or injects JSON-RPC errors.
         read_stream_writer: MemoryObjectSendStream
         read_stream: MemoryObjectReceiveStream
         write_stream: MemoryObjectSendStream
@@ -100,9 +113,52 @@ async def test_mcp_tool_call_timeout_becomes_tool_error():
             try:
                 async with write_stream_reader:
                     async for message in write_stream_reader:
-                        if isinstance(message.message.root, JSONRPCRequest):
-                            await anyio.sleep(0.05)
-                            raise TimeoutError("simulated transport timeout")
+                        root = message.message.root
+                        if isinstance(root, JSONRPCRequest):
+                            if root.method == "initialize":
+                                init = InitializeResult(
+                                    protocolVersion=LATEST_PROTOCOL_VERSION,
+                                    capabilities=ServerCapabilities(),
+                                    serverInfo=Implementation(name="test", version="1"),
+                                )
+                                await read_stream_writer.send(
+                                    SessionMessage(
+                                        message=JSONRPCMessage(
+                                            JSONRPCResponse(
+                                                jsonrpc="2.0",
+                                                id=root.id,
+                                                result=init.model_dump(
+                                                    by_alias=True, exclude_none=True
+                                                ),
+                                            )
+                                        )
+                                    )
+                                )
+                            elif root.method == "tools/call":
+                                await anyio.sleep(0.05)
+                                await read_stream_writer.send(
+                                    SessionMessage(
+                                        message=JSONRPCMessage(
+                                            JSONRPCError(
+                                                jsonrpc="2.0",
+                                                id=root.id,
+                                                error=ErrorData(
+                                                    code=INTERNAL_ERROR,
+                                                    message="simulated transport timeout",
+                                                    data=None,
+                                                ),
+                                            )
+                                        )
+                                    )
+                                )
+                            else:
+                                pytest.fail(
+                                    f"unexpected JSON-RPC method {root.method!r}"
+                                )
+                        elif isinstance(root, JSONRPCNotification):
+                            pass
+                        else:
+                            pytest.fail(f"unexpected message type {message!r}")
             except anyio.ClosedResourceError:
                 pass
 
@@ -125,8 +181,17 @@ async def test_mcp_tool_call_timeout_becomes_tool_error():
     )
     tool_def = session._tool_def_from_mcp_tool(fake_tool)
 
-    with pytest.raises(ToolError, match="slow_tool.*timed out"):
+    def _flatten(exc: BaseException) -> list[BaseException]:
+        if isinstance(exc, BaseExceptionGroup):
+            return [leaf for sub in exc.exceptions for leaf in _flatten(sub)]
+        return [exc]
+
+    with pytest.raises(BaseExceptionGroup) as exc_info:
         await tool_def.tool()
+    assert any(
+        isinstance(exc, ToolError) and "simulated transport timeout" in str(exc)
+        for exc in _flatten(exc_info.value)
+    )
 
 
 @skip_if_no_mcp_package
