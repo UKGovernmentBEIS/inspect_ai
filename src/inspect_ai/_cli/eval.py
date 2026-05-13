@@ -25,8 +25,6 @@ if TYPE_CHECKING:
     from inspect_ai.model._generate_config import ResponseSchema
     from inspect_ai.util import AdaptiveConcurrency
 
-    from ._run_config import RunConfigInput as RunConfigInput  # noqa: F401
-
 from .common import (
     CommonOptions,
     common_options,
@@ -1299,28 +1297,6 @@ def eval_set_command(
 
     # exit code indicating whether the evals are all complete
     ctx.exit(0 if success else 1)
-
-
-_RUN_CONFIG_REEXPORTS = frozenset(
-    {
-        "TaskInput",
-        "SolverInput",
-        "RunConfigInput",
-        "parse_run_config",
-        "merge_run_config_params",
-    }
-)
-
-
-def __getattr__(name: str) -> Any:
-    # Lazy re-export of run-config helpers so this module stays import-light
-    # (the underlying pydantic models pull in inspect_ai.model / log / util at
-    # class-definition time). See _run_config.py for details.
-    if name in _RUN_CONFIG_REEXPORTS:
-        from . import _run_config
-
-        return getattr(_run_config, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def eval_exec(
