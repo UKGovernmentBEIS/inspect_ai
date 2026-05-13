@@ -1,8 +1,7 @@
+import math
 import statistics
 from collections import Counter
 from typing import Callable, cast
-
-import numpy as np
 
 from inspect_ai.scorer._metric import Score, Value, ValueToFloat, value_to_float
 
@@ -114,7 +113,7 @@ def at_least(
         else:
             return _count_scalar(scores, gte_n)
 
-    setattr(at_least, REDUCER_NAME, f"at_least_{k}")
+    setattr(reduce, REDUCER_NAME, f"at_least_{k}")
     return reduce
 
 
@@ -132,8 +131,16 @@ def pass_at(
 
     def reduce(scores: list[Score]) -> Score:
         def pass_at_k(values: list[float]) -> float:
+            import numpy as np
+
             total = len(values)
             correct = sum(1 for v in values if v >= value)
+            if total < k:
+                # NaN-filtering left fewer than k scored epochs, so the
+                # pass@k estimator is undefined; surface the unscored
+                # sentinel rather than the spurious 1.0 the short-circuit
+                # below would otherwise produce.
+                return float("nan")
             if total - correct < k:
                 return 1.0
             else:
@@ -152,7 +159,7 @@ def pass_at(
         else:
             return _compute_scalar_stat(scores, value_to_float, pass_at_k)
 
-    setattr(pass_at, REDUCER_NAME, f"pass_at_{k}")
+    setattr(reduce, REDUCER_NAME, f"pass_at_{k}")
     return reduce
 
 
@@ -173,26 +180,34 @@ def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
             dict_result: dict[str, str | int | float | bool | None] = {}
             keys = dict_scores[0].value.keys()  # type: ignore
             for key in keys:
-                max_value = max(
-                    [score.value[key] for score in dict_scores],  # type: ignore
-                    key=value_to_float,  # type: ignore
-                )
-                dict_result[key] = max_value
+                key_values = [
+                    cast(str | int | float | bool, score.value[key])  # type: ignore
+                    for score in dict_scores
+                    if _is_reducible(score.value[key])  # type: ignore
+                ]
+                if len(key_values) == 0:
+                    dict_result[key] = float("nan")
+                else:
+                    dict_result[key] = max(key_values, key=value_to_float)  # type: ignore
             return _reduced_score(dict_result, scores)
         elif isinstance(representative.value, list):
             list_scores = _partition_list_scores(scores)
             list_result: list[str | int | float | bool] = []
             list_size = len(list_scores[0].value)  # type: ignore
             for i in range(list_size):
-                max_value = max(
-                    [score.value[i] for score in list_scores],  # type:ignore
-                    key=value_to_float,  # type: ignore
-                )
-                if max_value is None:
-                    raise ValueError(
-                        "List of scores values unexpectedly had a `None` max score"
-                    )
+                index_values = [
+                    cast(str | int | float | bool, score.value[i])  # type: ignore
+                    for score in list_scores
+                    if _is_reducible(score.value[i])  # type: ignore
+                ]
+                if len(index_values) == 0:
+                    list_result.append(float("nan"))
                 else:
+                    max_value = max(index_values, key=value_to_float)  # type: ignore
+                    if max_value is None:
+                        raise ValueError(
+                            "List of scores values unexpectedly had a `None` max score"
+                        )
                     list_result.append(max_value)
             return _reduced_score(list_result, scores)
         else:
@@ -387,7 +402,7 @@ def _compute_scalar_stat(
 
 def _is_unscored(value: Value) -> bool:
     r"""Check if a score value is the NaN-at-root unscored sentinel."""
-    return isinstance(value, float) and np.isnan(value)
+    return isinstance(value, float) and math.isnan(value)
 
 
 def _first_scored(scores: list[Score]) -> Score | None:
@@ -476,4 +491,4 @@ def _nan_score(scores: list[Score]) -> Score:
 
 def _is_reducible(value: str | int | float | bool) -> bool:
     """Check if a value is reducible (not a NaN float)."""
-    return not (isinstance(value, float) and np.isnan(value))
+    return not (isinstance(value, float) and math.isnan(value))

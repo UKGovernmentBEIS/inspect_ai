@@ -449,6 +449,44 @@ def test_react_agent_on_continue_func_with_braces():
     assert messages[-2].text == 'You said "I refuse. {pwned}". Please call submit.'
 
 
+def test_react_agent_assistant_prompt_with_braces():
+    # a user-supplied assistant_prompt / submit_prompt may legitimately contain
+    # literal braces (e.g. a JSON output schema). Only the documented {submit}
+    # placeholder is substituted; other braces must be left intact and must
+    # not raise via str.format().
+    assistant_prompt = 'You are helpful. Output {"json": true}. Use {submit} to finish.'
+    log = run_react_agent(
+        prompt=AgentPrompt(assistant_prompt=assistant_prompt),
+        tools=[addition()],
+    )
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].error is None
+    system_msg = next(
+        m for m in log.samples[0].messages if isinstance(m, ChatMessageSystem)
+    )
+    assert '{"json": true}' in system_msg.text
+    assert f"Use {AGENT_SUBMIT_TOOL_NAME} to finish." in system_msg.text
+
+    # also exercise the branch where assistant_prompt has no {submit} so the
+    # separate submit_prompt (with braces of its own) is appended
+    log = run_react_agent(
+        prompt=AgentPrompt(
+            assistant_prompt='Respond with {"done": false} until ready.',
+            submit_prompt='When ready call {submit}() with {"done": true}.',
+        ),
+        tools=[addition()],
+    )
+    assert log.status == "success"
+    assert log.samples
+    assert log.samples[0].error is None
+    system_msg = next(
+        m for m in log.samples[0].messages if isinstance(m, ChatMessageSystem)
+    )
+    assert '{"done": false}' in system_msg.text
+    assert f'call {AGENT_SUBMIT_TOOL_NAME}() with {{"done": true}}.' in system_msg.text
+
+
 def test_react_agent_on_continue_func():
     async def on_continue(state: AgentState) -> bool | str:
         if state.output.completion == "5":

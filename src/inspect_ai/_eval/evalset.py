@@ -124,6 +124,7 @@ def eval_set(
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     score: bool = True,
+    score_display: bool | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
@@ -208,6 +209,7 @@ def eval_set(
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
         score: Score output (defaults to True)
+        score_display: Show scoring metrics in realtime (defaults to True)
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -349,6 +351,7 @@ def eval_set(
             log_shared=log_shared,
             log_header_only=True,
             score=score,
+            score_display=score_display,
             eval_set_id=eval_set_id,
             task_retry_attempts=task_retry_attempts,
             **kwargs,
