@@ -120,8 +120,9 @@ class CheckpointConfig:
     dir lands. ``None`` = sibling of the eval log file. When set,
     inspect places ``<log-base>.checkpoints/`` under this root.
     Supports any fsspec-resolvable path (``s3://``, ``gs://``, plain
-    local). May only be set at the task or eval level — per-sample
-    overrides are rejected by :func:`merge_checkpoint_configs`."""
+    local). The sample layer is permitted to set this field, but
+    cannot **override** a value already set at the task or eval
+    layer — see :func:`merge_checkpoint_configs`."""
 
     sandbox_paths: dict[str, list[str]] | None = None
     """Per-sandbox-name list of absolute paths to capture inside the
@@ -154,8 +155,13 @@ def merge_checkpoint_configs(
     replacement), not key-wise merged.
 
     ``checkpoints_dir`` is the one exception to per-field overriding:
-    it may only be set at the task or eval level. Setting it on the
-    sample layer raises ``ValueError``.
+    the sample layer is not permitted to **override** it. A
+    sample-layer value is allowed when it would not change the
+    resolved value — i.e. when the task and eval layers don't set
+    ``checkpoints_dir`` (nothing to override), or when the sample's
+    value matches what the task / eval layers already resolve to (a
+    redundant restatement). A sample-layer value that differs from
+    a non-None task or eval value raises ``ValueError``.
 
     Returns ``None`` if no layer supplied a config (checkpointing
     disabled). Returns a materialized :class:`CheckpointConfig`
@@ -164,14 +170,20 @@ def merge_checkpoint_configs(
     their canonical defaults.
 
     Raises ``ValueError`` if at least one layer was supplied but no
-    layer set a `trigger`, or if the sample layer sets
-    ``checkpoints_dir``.
+    layer set a `trigger`, or if the sample layer's ``checkpoints_dir``
+    would override the task / eval layers' value.
     """
     if sample is not None and sample.checkpoints_dir is not None:
-        raise ValueError(
-            "checkpoints_dir cannot be set on a per-sample CheckpointConfig; "
-            "set it at the task or eval level"
+        baseline = (
+            eval_.checkpoints_dir
+            if eval_ is not None and eval_.checkpoints_dir is not None
+            else (task.checkpoints_dir if task is not None else None)
         )
+        if baseline is not None and sample.checkpoints_dir != baseline:
+            raise ValueError(
+                "sample-level checkpoints_dir cannot override the task / eval "
+                f"value (sample={sample.checkpoints_dir!r}, baseline={baseline!r})"
+            )
 
     provided = [c for c in (task, sample, eval_) if c is not None]
     if not provided:
