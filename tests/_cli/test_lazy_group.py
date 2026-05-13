@@ -108,13 +108,15 @@ def _heavy_loaded_after(argv: list[str]) -> list[str]:
         "    import inspect_ai._cli.main as m; m.main()\n"
         "except SystemExit:\n"
         "    pass\n"
-        f"print(*[m for m in {HEAVY_MODULES!r} if m in sys.modules])\n"
+        f"print('HEAVY:', *[m for m in {HEAVY_MODULES!r} if m in sys.modules])\n"
     )
     out = subprocess.run(
         [sys.executable, "-c", probe], capture_output=True, text=True, check=False
     )
     assert out.returncode == 0, out.stderr
-    return out.stdout.strip().splitlines()[-1].split()
+    # help text also goes to stdout; locate the sentinel line
+    marker = next(ln for ln in out.stdout.splitlines() if ln.startswith("HEAVY:"))
+    return marker.split()[1:]
 
 
 def test_root_help_import_footprint() -> None:
