@@ -19,6 +19,7 @@ from upath import UPath
 from inspect_ai import Task, eval_set, task
 from inspect_ai.dataset import Sample
 from inspect_ai.solver import Generate, TaskState, generate, solver
+from inspect_ai.solver._solver import Solver
 
 # inspect_scout is an optional runtime dep; skip these tests if unavailable.
 inspect_scout = pytest.importorskip("inspect_scout")
@@ -400,7 +401,7 @@ def test_eval_set_id_in_scan_dir_name() -> None:
 # --- failure + resume tests -------------------------------------------------
 
 
-def _first_attempt_fails():
+def _first_attempt_fails() -> Solver:
     """Solver that fails on first attempt for each sample, succeeds after.
 
     State lives in a closure-captured set so a single solver instance reused

@@ -1,5 +1,7 @@
 import pytest
+from pydantic import ValidationError
 
+from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.model import GenerateConfig
 from inspect_ai.util import AdaptiveConcurrency
 
@@ -22,6 +24,29 @@ def test_generate_config_merge_copies_nested_override_values() -> None:
 
     assert override.extra_body == {"background": True}
     assert override.extra_headers == {"x-test-header": "value"}
+
+
+def test_generate_config_rejects_unknown_fields() -> None:
+    with pytest.raises(ValidationError, match="response_format"):
+        GenerateConfig.model_validate(
+            {
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+            }
+        )
+
+
+def test_generate_config_drops_unknown_fields_when_deserializing() -> None:
+    config = GenerateConfig.model_validate(
+        {
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+        },
+        context=get_deserializing_context(),
+    )
+
+    assert config.temperature == 0
+    assert "response_format" not in config.model_dump()
 
 
 # AdaptiveConcurrency tests

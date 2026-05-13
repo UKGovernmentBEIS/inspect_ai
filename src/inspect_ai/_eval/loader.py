@@ -96,6 +96,11 @@ def resolve_tasks(
             for sequence, task in enumerate(tasks)
         ]
 
+    # an empty list is equivalent to None (load tasks from cwd) — but it
+    # must short-circuit before any tasks[0] access below
+    if isinstance(tasks, list) and len(tasks) == 0:
+        return as_resolved_tasks(load_tasks(None, task_args))
+
     # reflect resolved tasks right back
     if isinstance(tasks, ResolvedTask):
         return [tasks]
@@ -109,10 +114,6 @@ def resolve_tasks(
         return resolve_previous_tasks(
             tasks, sample_shuffle=sample_shuffle, model=model, model_roles=model_roles
         )
-
-    # take empty lists out of play
-    if isinstance(tasks, list) and len(tasks) == 0:
-        return as_resolved_tasks(load_tasks(None, task_args))
 
     # simple cases of passing us Task objects
     if isinstance(tasks, Task):

@@ -19,7 +19,7 @@ from inspect_ai._util.answer import answer_character, answer_index
 from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai.model import ChatMessage
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
-from inspect_ai.util._checkpoint.config import CheckpointConfig
+from inspect_ai.util._checkpoint.config import CheckpointSampleConfig
 from inspect_ai.util._sandbox.environment import resolve_sandbox_environment
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ class Sample(BaseModel):
         sandbox: SandboxEnvironmentType | None = None,
         files: dict[str, str] | None = None,
         setup: str | None = None,
-        checkpoint: CheckpointConfig | None = None,
+        checkpoint: CheckpointSampleConfig | None = None,
     ) -> None:
         r"""Create a Sample.
 
@@ -109,9 +109,12 @@ class Sample(BaseModel):
     setup: str | None = Field(default=None)
     """Setup script to run for sample (run within default SandboxEnvironment)."""
 
-    checkpoint: CheckpointConfig | None = Field(default=None)
-    """Checkpoint configuration for this sample. Overridden by task- or
-    eval-level `checkpoint` when set."""
+    checkpoint: CheckpointSampleConfig | None = Field(default=None)
+    """Checkpoint configuration for this sample. Per-sample configs are
+    restricted to the :class:`CheckpointSampleConfig` base class — the
+    eval-wide fields (``checkpoints_dir``, ``retention``) live only on
+    :class:`CheckpointConfig` at the task / eval layers. Overridden by
+    task- or eval-level `checkpoint` when set."""
 
 
 def sample_input_len(sample: Sample) -> int:

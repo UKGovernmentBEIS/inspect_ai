@@ -19082,7 +19082,7 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--bs-primary);
   filter: brightness(1.05);
 }
-._stickyWrapper_1ox4y_1 {
+._stickyWrapper_14ib7_1 {
   position: sticky;
   top: var(--inspect-event-panel-sticky-top, 0px);
   /* Full-bleed: cancel the parent card's padding so the sticky bar
@@ -19094,43 +19094,43 @@ a._citationLink_1ggvf_9:hover {
   border-bottom: solid 1px transparent;
 }
 
-._stickyWrapper_1ox4y_1[data-useStickyObserver-stuck] {
+._stickyWrapper_14ib7_1[data-useStickyObserver-stuck] {
   background-color: var(--bs-light);
   border-bottom-color: var(--bs-light-border-subtle);
 }
 
-._label_1ox4y_18 {
+._label_14ib7_18 {
   margin-right: 0.2em;
   justify-self: end;
 }
 
-._title_1ox4y_23 {
+._title_14ib7_23 {
   min-width: 0;
   line-height: 1.6;
 }
 
-._titleExtra_1ox4y_28 {
+._titleExtra_14ib7_28 {
   display: inline-flex;
   align-items: center;
   vertical-align: middle;
   margin-left: 0.5em;
 }
 
-._navs_1ox4y_35 {
+._navs_14ib7_35 {
   display: flex;
   align-items: baseline;
   justify-content: flex-end;
   min-width: 0;
 }
 
-._turnLabel_1ox4y_42 {
+._turnLabel_14ib7_42 {
   margin-left: 1rem;
   margin-top: 0.2rem;
   opacity: 0.5;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._card_1ox4y_49 {
+._card_14ib7_49 {
   position: relative;
   background-color: var(--bs-body-bg);
   padding: 0.625rem;
@@ -19138,20 +19138,20 @@ a._citationLink_1ggvf_9:hover {
   border-radius: var(--bs-border-radius);
 }
 
-._cardContent_1ox4y_57 {
+._cardContent_14ib7_57 {
   padding: 0;
   display: inherit;
 }
 
-._cardContent_1ox4y_57._hidden_1ox4y_62 {
+._cardContent_14ib7_57._hidden_14ib7_62 {
   display: none;
 }
 
-._hidden_1ox4y_62 {
+._hidden_14ib7_62 {
   display: none;
 }
 
-._copyLink_1ox4y_70 {
+._copyLink_14ib7_70 {
   font-size: 1.2em;
   opacity: 0;
   padding-left: 0.2em;
@@ -19161,16 +19161,23 @@ a._citationLink_1ggvf_9:hover {
   margin-left: 0.25em;
 }
 
-._hover_1ox4y_80 ._copyLink_1ox4y_70 {
+._hover_14ib7_80 ._copyLink_14ib7_70 {
   opacity: 0.75;
 }
 
-._root_1ox4y_84 {
+/* The event labels look like [E7], and those square brackets sit really low.
+   Sliding them down a little looks more balanced 
+*/
+._eventLabel_14ib7_87 {
+  transform: translateY(-1px);
+}
+
+._root_14ib7_91 {
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
 
-._bottomDongle_1ox4y_89 {
+._bottomDongle_14ib7_96 {
   display: block;
   position: absolute;
   margin: 0 auto;
@@ -19186,12 +19193,12 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._dongleIcon_1ox4y_105 {
+._dongleIcon_14ib7_112 {
   padding-right: 0.3em;
 }
 
 @media print {
-  ._card_1ox4y_49 {
+  ._card_14ib7_49 {
     break-inside: avoid;
   }
 }
@@ -21249,22 +21256,37 @@ a._citationLink_1ggvf_9:hover {
 ._subtaskLabel_ac4z2_17 {
   padding: 0 2em;
 }
-._summary_1gtzx_1 {
+._summary_1hdvz_1 {
   margin: 0.5em 0;
   width: 100%;
 }
 
-._approvalWrap_1gtzx_6 {
+._labeledToolCall_1hdvz_6 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  row-gap: 0;
+}
+
+._label_1hdvz_6 {
+  padding-top: 0.7rem;
+  margin-left: 0.4em;
+}
+
+._labeledToolContent_1hdvz_17 {
+  min-width: 0;
+}
+
+._approvalWrap_1hdvz_21 {
   margin-top: 0.5rem;
 }
 
-._approval_1gtzx_6 {
+._approval_1hdvz_21 {
   border: none;
   padding: 0;
   margin-bottom: 0;
 }
 
-._progress_1gtzx_16 {
+._progress_1hdvz_31 {
   margin-left: 0.5em;
 }
 ._node_miohh_1 {
