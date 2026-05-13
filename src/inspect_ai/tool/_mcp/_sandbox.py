@@ -81,6 +81,8 @@ async def sandbox_client(  # type: ignore
             try:
                 await read_stream_writer.send(item)
             except anyio.ClosedResourceError:
+                # Let any pending cancellation propagate even though we swallowed
+                # the closed-stream error.
                 await anyio.lowlevel.checkpoint()
 
         try:
@@ -101,12 +103,20 @@ async def sandbox_client(  # type: ignore
                                 error_mapper=SandboxToolsErrorMapper,
                                 timeout=timeout,
                             )
-                        except TimeoutError as ex:
-                            # Do not let this propagate: it would collapse the task
-                            # group and cancel the MCP client, which surfaces as a bare
-                            # CancelledError on call_tool. Turn it into a JSON-RPC error
-                            # on the same request id so ClientSession raises McpError and
-                            # _local.py can map it to ToolError.
+                        except Exception as ex:
+                            # Do not let transport failures propagate: that would
+                            # collapse the task group and cancel the MCP client,
+                            # which surfaces as a bare CancelledError on call_tool.
+                            # Turn it into a JSON-RPC error on the same request id
+                            # so ClientSession raises McpError and _local.py maps
+                            # it to ToolError. (Cancelled / KeyboardInterrupt
+                            # inherit from BaseException and still propagate.)
+                            if isinstance(ex, TimeoutError):
+                                error_message = (
+                                    "MCP request timed out before completing."
+                                )
+                            else:
+                                error_message = f"MCP request failed before completing ({type(ex).__name__}): {ex}"
                             await send_to_read_stream(
                                 SessionMessage(
                                     message=JSONRPCMessage(
@@ -115,10 +125,7 @@ async def sandbox_client(  # type: ignore
                                             id=root.id,
                                             error=ErrorData(
                                                 code=INTERNAL_ERROR,
-                                                message=(
-                                                    "MCP request timed out "
-                                                    f"before completing: {ex}"
-                                                ),
+                                                message=error_message,
                                                 data=None,
                                             ),
                                         )
@@ -140,16 +147,23 @@ async def sandbox_client(  # type: ignore
                                 transport=transport,
                                 timeout=timeout,
                             )
-                        except TimeoutError as ex:
+                        except Exception as ex:
+                            # Notifications are fire-and-forget per JSON-RPC: there
+                            # is no request id to attach an error to, and the MCP
+                            # client does not block on them. Log and continue —
+                            # subsequent requests may still succeed.
                             logger.warning(
                                 "Sandbox MCP notification dropped after transport "
-                                "timeout: %s",
+                                "failure (%s): %s",
+                                type(ex).__name__,
                                 ex,
                             )
                     else:
                         assert False, f"Unexpected message type {message=}"
 
         except anyio.ClosedResourceError:
+            # Let any pending cancellation propagate even though we swallowed
+            # the closed-stream error.
             await anyio.lowlevel.checkpoint()
 
     async with anyio.create_task_group() as tg:
