@@ -99,7 +99,9 @@ async def build_impl() -> Checkpointer:
         raise RuntimeError(
             "Checkpointer cannot initialize: ActiveSample.sample.id is None."
         )
-    eval_ckpts_dir = eval_checkpoints_dir(active.log_location, config.checkpoints_dir)
+    eval_ckpts_dir = eval_checkpoints_dir(
+        active.log_location, config.checkpoints_location
+    )
     sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
         eval_ckpts_dir, active.sample.id, active.epoch, active.eval_id
     )

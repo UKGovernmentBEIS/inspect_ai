@@ -114,6 +114,10 @@ from inspect_ai.util._checkpoint.config import (
     CheckpointConfig,
     merge_checkpoint_configs,
 )
+from inspect_ai.util._checkpoint.sample_checkpoints_dir import (
+    has_sample_checkpoint,
+    sample_checkpoints_dir,
+)
 from inspect_ai.util._early_stopping import (
     EarlyStop,
     EarlyStopping,
@@ -157,7 +161,16 @@ from .util import sample_messages, slice_dataset
 py_logger = getLogger(__name__)
 
 
-EvalSampleSource = Callable[[int | str, int], Awaitable[EvalSample | None]]
+@dataclass
+class ResumeCheckpoint:
+    """Per-sample resume info: where the on-disk checkpoint lives."""
+
+    sample_checkpoints_dir: str
+
+
+EvalSampleSource = Callable[
+    [int | str, int], Awaitable[EvalSample | ResumeCheckpoint | None]
+]
 
 # Units allocated for sample progress - the total units
 # represents the total units of progress for an individual sample
@@ -456,7 +469,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     sample_id = sample_store[sample_index].id
                     if sample_source and sample_id is not None:
                         previous_sample = await sample_source(sample_id, epoch)
-                        if previous_sample:
+                        if isinstance(previous_sample, EvalSample):
                             progress(SAMPLE_TOTAL_PROGRESS_UNITS)
                             if logger and log_samples:
                                 await logger.complete_sample(
@@ -488,6 +501,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             )
                             await sample_complete(sample_id, epoch, sample_scores)
                             return sample_scores
+                        elif isinstance(previous_sample, ResumeCheckpoint):
+                            raise NotImplementedError(
+                                "resuming an incomplete sample from a checkpoint is not yet implemented"
+                            )
 
                     # factory to create sample+state lazily (after semaphore)
                     # so only concurrently executing samples consume memory
@@ -1525,10 +1542,24 @@ def eval_log_sample_source(
     eval_log: EvalLog | None,
     eval_log_info: EvalLogInfo | None,
     dataset: Dataset,
+    eval_checkpoints_dir: str | None = None,
 ) -> EvalSampleSource:
     # return dummy function for no sample source
     async def no_sample_source(id: int | str, epoch: int) -> None:
         return None
+
+    async def _resume_if_checkpointed(
+        id: int | str, epoch: int
+    ) -> ResumeCheckpoint | None:
+        if eval_checkpoints_dir is None:
+            return None
+        if not await has_sample_checkpoint(eval_checkpoints_dir, id, epoch):
+            return None
+        return ResumeCheckpoint(
+            sample_checkpoints_dir=sample_checkpoints_dir(
+                eval_checkpoints_dir, id, epoch
+            )
+        )
 
     # take care of no log or no samples in log
     if not eval_log:
@@ -1559,7 +1590,9 @@ def eval_log_sample_source(
     elif eval_log_info:
         reader: AsyncZipReader | None = None
 
-        async def read_from_file(id: int | str, epoch: int) -> EvalSample | None:
+        async def read_from_file(
+            id: int | str, epoch: int
+        ) -> EvalSample | ResumeCheckpoint | None:
             nonlocal reader
             if not reader:
                 reader = AsyncZipReader(get_async_filesystem(), eval_log_info.name)
@@ -1567,17 +1600,19 @@ def eval_log_sample_source(
                 sample = await read_eval_log_sample_async(
                     eval_log_info, id, epoch, reader=reader
                 )
-                if sample.error is not None or sample.invalidation is not None:
-                    return None
-                return sample
+                if sample.error is None and sample.invalidation is None:
+                    return sample
             except IndexError:
-                return None
+                pass
+            return await _resume_if_checkpointed(id, epoch)
 
         return read_from_file
     else:
 
-        async def read_from_memory(id: int | str, epoch: int) -> EvalSample | None:
-            return next(
+        async def read_from_memory(
+            id: int | str, epoch: int
+        ) -> EvalSample | ResumeCheckpoint | None:
+            clean = next(
                 (
                     sample
                     for sample in (eval_log.samples or [])
@@ -1588,6 +1623,9 @@ def eval_log_sample_source(
                 ),
                 None,
             )
+            if clean is not None:
+                return clean
+            return await _resume_if_checkpointed(id, epoch)
 
         return read_from_memory
 

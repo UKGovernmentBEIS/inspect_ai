@@ -33,6 +33,9 @@ from inspect_ai.solver._bridge import bridge
 from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
+from inspect_ai.util._checkpoint.eval_checkpoints_dir import (
+    eval_checkpoints_dir_from_config,
+)
 from inspect_ai.util._sandbox.compose import (
     is_docker_compatible_config,
     is_docker_compatible_sandbox_type,
@@ -214,7 +217,16 @@ def resolve_previous_task(
         sequence=sequence,
         id=previous_task.id,
         sample_source=eval_log_sample_source(
-            previous_task.log, previous_task.log_info, loaded_task.dataset
+            previous_task.log,
+            previous_task.log_info,
+            loaded_task.dataset,
+            eval_checkpoints_dir_from_config(
+                previous_task.log_info.name
+                if previous_task.log_info is not None
+                else previous_task.log.location,
+                loaded_task.checkpoint,
+                None,
+            ),
         ),
         initial_model_usage=initial_model_usage,
         initial_role_usage=initial_role_usage,

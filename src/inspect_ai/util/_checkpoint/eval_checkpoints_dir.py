@@ -20,6 +20,7 @@ import anyio
 
 from inspect_ai._util.file import basename, dirname, file, filesystem
 
+from .config import CheckpointConfig
 from .layout import CheckpointManifest
 
 # Serialize manifest init within a single inspect process. Multiple
@@ -52,6 +53,27 @@ def eval_checkpoints_dir(log_location: str, override_root: str | None) -> str:
         base = base[: -len(_LOG_SUFFIX)]
     parent = override_root if override_root else dirname(log_location)
     return f"{parent}/{base}.checkpoints"
+
+
+def eval_checkpoints_dir_from_config(
+    log_location: str,
+    task: CheckpointConfig | None,
+    eval_: CheckpointConfig | None,
+) -> str | None:
+    """Resolve the eval checkpoints dir from task + eval config layers.
+
+    Returns ``None`` if neither layer supplies a config — meaning the
+    eval was run without checkpointing. Otherwise computes the dir,
+    honoring an explicit ``checkpoints_dir`` override (eval layer wins
+    over task; sample layer cannot set this field).
+    """
+    if task is None and eval_ is None:
+        return None
+    override: str | None = None
+    for layer in (task, eval_):
+        if layer is not None and layer.checkpoints_location is not None:
+            override = layer.checkpoints_location
+    return eval_checkpoints_dir(log_location, override)
 
 
 async def init_eval_checkpoints_dir(eval_dir: str, eval_id: str) -> None:

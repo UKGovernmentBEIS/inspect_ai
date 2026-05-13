@@ -139,7 +139,7 @@ class CheckpointConfig(CheckpointSampleConfig):
     See ``design/plans/checkpointing-working.md`` §2.
     """
 
-    checkpoints_dir: str | None = None
+    checkpoints_location: str | None = None
     """Override the parent directory under which the eval checkpoints
     dir lands. ``None`` = sibling of the eval log file. When set,
     inspect places ``<log-base>.checkpoints/`` under this root.
@@ -203,8 +203,8 @@ def merge_checkpoint_configs(
     for layer in (task, eval_):
         if layer is None:
             continue
-        if layer.checkpoints_dir is not None:
-            checkpoints_dir = layer.checkpoints_dir
+        if layer.checkpoints_location is not None:
+            checkpoints_dir = layer.checkpoints_location
         if layer.retention is not None:
             retention = layer.retention
 
@@ -215,7 +215,7 @@ def merge_checkpoint_configs(
 
     return CheckpointConfig(
         trigger=trigger,
-        checkpoints_dir=checkpoints_dir,
+        checkpoints_location=checkpoints_dir,
         sandbox_paths=sandbox_paths if sandbox_paths is not None else {},
         max_consecutive_failures=max_consecutive_failures,
         retention=retention if retention is not None else Retention(),
