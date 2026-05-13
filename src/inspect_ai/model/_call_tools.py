@@ -35,7 +35,6 @@ if TYPE_CHECKING:
 import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
-from jsonschema import Draft7Validator
 from pydantic import BaseModel
 from typing_extensions import is_typeddict
 
@@ -907,6 +906,8 @@ def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | No
 
 
 def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | None:
+    from jsonschema import Draft7Validator
+
     schema = parameters.model_dump(exclude_none=True)
     validator = Draft7Validator(schema)
     errors = list(validator.iter_errors(input))

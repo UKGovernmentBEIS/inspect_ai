@@ -26,9 +26,11 @@
 - Eval Set: Add `score_display` argument to `eval_set()` function.
 - Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don't implement conditional writes).
 - Eval Log: Make `log_file_info()` robust to non-standard filenames; added `log_file_info_async()` / `log_files_from_ls_async()` so view-server header reads don't block the event loop.
+- Imports: Delay importing heavier dependencies (e.g. s3fs, boto3, numpy, rich.markdown) for faster imports of `inspect_ai` module.
 - Logging: `INSPECT_PY_LOGGER_FORMAT` env var (`rich`/`plain`/`json`) for non-TTY-friendly single-line console logs.
 - Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
 - Task Display: Honor terminal `COLUMNS` and `LINES` for dumb terminals.
+- Validation: Reject unknown `GenerateConfig` fields with an error.
 - Memory: Log condensing no longer retains unchanged JSON copies in long evals.
 - Memory: Don't retain message lists in buffer DB (memory leak on long agentic samples).
 - Memory: Collapse user messages at compaction time to avoid carrying extra messages.

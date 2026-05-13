@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from functools import wraps
 from typing import Any, AsyncGenerator, Awaitable, Callable, Type, cast
 
-from jsonschema import Draft7Validator
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import to_json
 
@@ -433,6 +432,8 @@ def bridge(
     class BridgeResult(BaseModel):
         output: str
         messages: list[ChatCompletionMessageParam] | None = Field(default=None)
+
+    from jsonschema import Draft7Validator
 
     result_schema = BridgeResult.model_json_schema()
     result_validator = Draft7Validator(result_schema)

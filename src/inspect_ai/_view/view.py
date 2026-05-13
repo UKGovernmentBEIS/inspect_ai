@@ -14,7 +14,6 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.logger import init_logger
-from inspect_ai._view.server import view_server
 
 from .fastapi_prereqs import verify_fastapi_prerequisites
 from .notify import view_data_dir
@@ -71,6 +70,8 @@ def view(
             fs_options=fs_options,
         )
     else:
+        from .server import view_server
+
         view_server(
             log_dir=log_dir,
             recursive=recursive,

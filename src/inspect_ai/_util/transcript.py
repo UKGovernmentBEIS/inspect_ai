@@ -1,14 +1,18 @@
+from __future__ import annotations
+
 import html
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from rich.align import AlignMethod
 from rich.box import ROUNDED, Box
 from rich.console import Group, RenderableType
-from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.text import Text
+
+if TYPE_CHECKING:
+    from rich.markdown import Markdown
 
 from inspect_ai._util.content import ContentReasoning
 from inspect_ai._util.text import truncate_lines
@@ -21,6 +25,8 @@ def transcript_code_theme() -> str:
 
 
 def transcript_markdown(content: str, *, escape: bool = False) -> Markdown:
+    from rich.markdown import Markdown
+
     code_theme = transcript_code_theme()
     return Markdown(
         html_escape_markdown(content) if escape else content,
@@ -73,6 +79,8 @@ def transcript_panel(
     content: RenderableType | list[RenderableType] | None = None,
     level: int = 1,
 ) -> Panel:
+    from rich.markdown import Markdown
+
     # resolve content to list
     if content is None:
         content = []

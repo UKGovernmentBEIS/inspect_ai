@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import functools
 import io
 import shutil
 from contextlib import AbstractAsyncContextManager
@@ -9,14 +12,13 @@ from urllib.parse import urlparse
 
 import anyio
 import anyio.to_thread
-import boto3
-from aiobotocore.config import AioConfig
-from aiobotocore.response import StreamingBody
 from anyio import AsyncFile, EndOfStream, open_file
 from anyio.abc import ByteReceiveStream
-from boto3.s3.transfer import TransferConfig
-from botocore.config import Config
-from typing_extensions import override
+from typing_extensions import TYPE_CHECKING, override
+
+if TYPE_CHECKING:
+    from aiobotocore.response import StreamingBody
+    from boto3.s3.transfer import TransferConfig
 
 from inspect_ai._util._async import current_async_backend
 from inspect_ai._util.file import FileInfo, file, filesystem, local_path
@@ -290,7 +292,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
                     Fileobj=source,
                     Bucket=bucket,
                     Key=key,
-                    Config=_S3_TRANSFER_CONFIG,
+                    Config=_s3_transfer_config(),
                 )
             else:
                 await anyio.to_thread.run_sync(
@@ -337,7 +339,9 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
 
     def s3_client(self) -> Any:
         if self._s3_client is None:
+            import boto3
             from botocore import UNSIGNED
+            from botocore.config import Config
 
             config = Config(
                 max_pool_connections=50,
@@ -371,6 +375,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         anonymous: bool = False, region_name: str | None = None
     ) -> Any:
         import aioboto3
+        from aiobotocore.config import AioConfig
         from botocore import UNSIGNED
 
         session = aioboto3.Session()
@@ -434,7 +439,7 @@ def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> None:
 def s3_write_file_streaming(s3: Any, bucket: str, key: str, source: BinaryIO) -> None:
     """Upload a file-like stream to S3 using multipart upload."""
     s3.upload_fileobj(
-        Fileobj=source, Bucket=bucket, Key=key, Config=_S3_TRANSFER_CONFIG
+        Fileobj=source, Bucket=bucket, Key=key, Config=_s3_transfer_config()
     )
 
 
@@ -485,17 +490,22 @@ def get_async_filesystem() -> AsyncFilesystem:
     return fs
 
 
-# boto3 S3 multipart upload configuration for streaming writes.
-# Values are the boto3.s3.transfer.TransferConfig library defaults
-# as of 2026-03-07.
-# - multipart_threshold: use multipart upload for files larger than this
-# - multipart_chunksize: size of each part in a multipart upload
-# - max_concurrency: maximum threads for concurrent part uploads
-_S3_TRANSFER_CONFIG = TransferConfig(
-    multipart_threshold=8 * 1024 * 1024,  # 8 MB
-    multipart_chunksize=8 * 1024 * 1024,  # 8 MB
-    max_concurrency=10,
-)
+@functools.cache
+def _s3_transfer_config() -> TransferConfig:
+    # boto3 S3 multipart upload configuration for streaming writes.
+    # Values are the boto3.s3.transfer.TransferConfig library defaults
+    # as of 2026-03-07.
+    # - multipart_threshold: use multipart upload for files larger than this
+    # - multipart_chunksize: size of each part in a multipart upload
+    # - max_concurrency: maximum threads for concurrent part uploads
+    from boto3.s3.transfer import TransferConfig
+
+    return TransferConfig(
+        multipart_threshold=8 * 1024 * 1024,  # 8 MB
+        multipart_chunksize=8 * 1024 * 1024,  # 8 MB
+        max_concurrency=10,
+    )
+
 
 # fsspec write buffer size for cloud storage backends (GCS, Azure, etc.).
 # 4MB is the fsspec AbstractFileSystem.blocksize library default
