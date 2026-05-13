@@ -222,7 +222,12 @@ model: mockllm/model
         conflicts = [
             ["--generate-config", config_path("generate_config.yaml")],
             ["--task-config", config_path("task.yaml")],
-            ["--solver", "eval_config_solver", "--solver-config", config_path("solver.yaml")],
+            [
+                "--solver",
+                "eval_config_solver",
+                "--solver-config",
+                config_path("solver.yaml"),
+            ],
         ]
         for conflict in conflicts:
             result = subprocess.run(
