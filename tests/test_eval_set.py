@@ -370,6 +370,50 @@ def test_eval_zero_retries() -> None:
         assert not success
 
 
+def test_eval_set_unknown_task_raises_prerequisite_error() -> None:
+    # when no tasks resolve (e.g. user passes a task spec referencing a
+    # package that isn't installed), eval_set should fail fast with the same
+    # legible error that `eval` produces, not crash with an IndexError
+    # deeper in resolve_tasks
+    with tempfile.TemporaryDirectory() as log_dir:
+        with pytest.raises(PrerequisiteError, match="No inspect tasks were found"):
+            eval_set(
+                tasks="invalid_package_that_does_not_exist/some_task",
+                log_dir=log_dir,
+                retry_attempts=0,
+                model="mockllm/model",
+            )
+
+
+# Task file content used by the cwd-fallback tests below. Defined here so
+# `resolve_tasks` can load it from a temp dir representing the cwd.
+_CWD_TASK_FILE_SOURCE = """
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+
+@task
+def cwd_task():
+    return Task(dataset=[Sample(input="hello", target="hello")])
+"""
+
+
+@pytest.mark.parametrize("tasks_arg", [None, []])
+def test_resolve_tasks_loads_from_cwd_when_no_tasks(
+    tasks_arg: list | None, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # `Tasks` documents that `None` is a request to read tasks from the
+    # current working directory; an empty list has historically been treated
+    # the same way. Verify both forms continue to discover task files in cwd.
+    (tmp_path / "cwd_task.py").write_text(_CWD_TASK_FILE_SOURCE)
+    monkeypatch.chdir(tmp_path)
+
+    resolved = resolve_tasks(
+        tasks_arg, {}, get_model("mockllm/model"), None, None, None
+    )
+    assert len(resolved) == 1
+    assert resolved[0].task.name == "cwd_task"
+
+
 @skip_if_trio  # throwing the keyboardinterrupt corrupts trio's internals
 def test_eval_set_previous_task_args():
     with tempfile.TemporaryDirectory() as log_dir:
