@@ -1,23 +1,32 @@
-from inspect_ai._util.deprecation import relocated_module_attribute
+from typing import TYPE_CHECKING
 
-from ._basic_agent import basic_agent
-from ._bridge import bridge
-from ._chain import chain
-from ._critique import self_critique
-from ._fork import fork
-from ._human_agent import human_agent
-from ._multiple_choice import MultipleChoiceTemplate, multiple_choice
+from inspect_ai._util.deprecation import relocated_module_attribute
+from inspect_ai._util.lazy import lazy_attributes
+
+# eager: core types only; these reach into ``agent`` / ``scorer`` /
+# ``model`` but not back into ``log`` / ``event``, so they are safe to
+# import from any entry point.
 from ._plan import Plan, plan
-from ._prompt import (
-    assistant_message,
-    chain_of_thought,
-    prompt_template,
-    system_message,
-    user_message,
-)
 from ._solver import Generate, Solver, SolverSpec, generate, solver
 from ._task_state import Choice, Choices, TaskState
-from ._use_tools import use_tools
+
+if TYPE_CHECKING:
+    # lazy: built-in solver implementations.
+    from ._basic_agent import basic_agent
+    from ._bridge import bridge
+    from ._chain import chain
+    from ._critique import self_critique
+    from ._fork import fork
+    from ._human_agent import human_agent
+    from ._multiple_choice import MultipleChoiceTemplate, multiple_choice
+    from ._prompt import (
+        assistant_message,
+        chain_of_thought,
+        prompt_template,
+        system_message,
+        user_message,
+    )
+    from ._use_tools import use_tools
 
 __all__ = [
     "basic_agent",
@@ -141,4 +150,24 @@ relocated_module_attribute(
     "inspect_ai.util.LimitExceededError",
     _SAMPLE_LIMIT_VERSION,
     _REMOVED_IN,
+)
+
+lazy_attributes(
+    __name__,
+    {
+        "basic_agent": "inspect_ai.solver._basic_agent",
+        "bridge": "inspect_ai.solver._bridge",
+        "chain": "inspect_ai.solver._chain",
+        "self_critique": "inspect_ai.solver._critique",
+        "fork": "inspect_ai.solver._fork",
+        "human_agent": "inspect_ai.solver._human_agent",
+        "MultipleChoiceTemplate": "inspect_ai.solver._multiple_choice",
+        "multiple_choice": "inspect_ai.solver._multiple_choice",
+        "assistant_message": "inspect_ai.solver._prompt",
+        "chain_of_thought": "inspect_ai.solver._prompt",
+        "prompt_template": "inspect_ai.solver._prompt",
+        "system_message": "inspect_ai.solver._prompt",
+        "user_message": "inspect_ai.solver._prompt",
+        "use_tools": "inspect_ai.solver._use_tools",
+    },
 )

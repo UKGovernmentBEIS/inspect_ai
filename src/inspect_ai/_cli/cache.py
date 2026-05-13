@@ -1,16 +1,6 @@
-import click
-from rich import print
-from rich.table import Table
+from __future__ import annotations
 
-from inspect_ai._util.logger import init_logger
-from inspect_ai.model import (
-    ModelName,
-    cache_clear,
-    cache_list_expired,
-    cache_path,
-    cache_prune,
-    cache_size,
-)
+import click
 
 from .common import log_level_options
 
@@ -31,6 +21,9 @@ def _print_table(title: str, paths: list[tuple[str, int]]) -> None:
         title(str): Title of the table.
         paths(list[tuple[str, int]]): List of paths and their sizes (in bytes).
     """
+    from rich import print
+    from rich.table import Table
+
     table = Table(title=title)
     table.add_column("Model")
     table.add_column("Size", justify="right")
@@ -67,6 +60,9 @@ def cache_command() -> None:
 )
 def clear(all: bool, model: tuple[str, ...], log_level: str) -> None:
     """Clear all cache files. Requires either --all or --model flags."""
+    from inspect_ai._util.logger import init_logger
+    from inspect_ai.model import ModelName, cache_clear, cache_size
+
     init_logger(log_level)
 
     if model:
@@ -85,6 +81,10 @@ def clear(all: bool, model: tuple[str, ...], log_level: str) -> None:
 @cache_command.command()
 def path() -> None:
     """Prints the location of the cache directory."""
+    from rich import print
+
+    from inspect_ai.model import cache_path
+
     print(cache_path())
 
 
@@ -97,6 +97,10 @@ def path() -> None:
 )
 def list_caches(pruneable: bool) -> None:
     """Lists all current model caches with their sizes."""
+    from rich import print
+
+    from inspect_ai.model import cache_list_expired, cache_size
+
     if pruneable:
         expired_cache_entries = cache_list_expired()
         if expired_cache_entries:
@@ -127,6 +131,11 @@ def prune(log_level: str, model: tuple[str, ...]) -> None:
     expired. This command will remove all expired cache entries for ease of
     maintenance.
     """
+    from rich import print
+
+    from inspect_ai._util.logger import init_logger
+    from inspect_ai.model import cache_list_expired, cache_prune, cache_size
+
     init_logger(log_level)
 
     expired_cache_entries = cache_list_expired(list(model))

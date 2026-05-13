@@ -1,9 +1,10 @@
+from __future__ import annotations
+
 import functools
 import os
 from typing import Any, Callable, Literal, cast
 
 import click
-import rich
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import (
@@ -11,8 +12,6 @@ from inspect_ai._util.constants import (
     DEFAULT_DISPLAY,
     DEFAULT_LOG_LEVEL,
 )
-from inspect_ai._util.dotenv import init_cli_env
-from inspect_ai.util._display import init_display_type
 
 from .util import parse_cli_args
 
@@ -113,6 +112,11 @@ def common_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 
 
 def process_common_options(options: CommonOptions) -> None:
+    import rich
+
+    from inspect_ai._util.dotenv import init_cli_env
+    from inspect_ai.util._display import init_display_type
+
     # set environment variables
     env_args = parse_cli_args(options["env"])
     init_cli_env(env_args)

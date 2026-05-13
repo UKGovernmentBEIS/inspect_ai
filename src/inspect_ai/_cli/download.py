@@ -11,16 +11,14 @@ is ``inspect download <kind>`` so other downloadable artifacts can slot
 in without restructuring the namespace.
 """
 
-import anyio
-import click
-from rich import box
-from rich.console import Console
-from rich.table import Table
+from __future__ import annotations
 
-from inspect_ai._util._async import configured_async_backend
-from inspect_ai.util._restic import Platform, resolve_restic
-from inspect_ai.util._restic._platform import SUPPORTED_PLATFORMS
-from inspect_ai.util._restic._resolver import cache_path
+from typing import TYPE_CHECKING
+
+import click
+
+if TYPE_CHECKING:
+    from inspect_ai.util._restic import Platform
 
 
 @click.group("download", hidden=True)
@@ -31,10 +29,22 @@ def download_command() -> None:
 @download_command.command("restic", hidden=True)
 def restic_command() -> None:
     """Pre-warm the restic binary cache for every supported platform."""
+    import anyio
+
+    from inspect_ai._util._async import configured_async_backend
+
     anyio.run(_download_all_restic, backend=configured_async_backend())
 
 
 async def _download_all_restic() -> None:
+    from rich import box
+    from rich.console import Console
+    from rich.table import Table
+
+    from inspect_ai.util._restic import resolve_restic
+    from inspect_ai.util._restic._platform import SUPPORTED_PLATFORMS
+    from inspect_ai.util._restic._resolver import cache_path
+
     console = Console()
 
     for platform in SUPPORTED_PLATFORMS:

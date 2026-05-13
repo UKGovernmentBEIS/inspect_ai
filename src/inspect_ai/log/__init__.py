@@ -1,14 +1,14 @@
+from typing import TYPE_CHECKING
+
 from inspect_ai._util.deprecation import relocated_module_attribute
 from inspect_ai._util.error import EvalError, WriteConflictError
+from inspect_ai._util.lazy import lazy_attributes
 
-from ._bundle import bundle_log_dir
-from ._condense import (
-    condense_events,
-    condense_sample,
-    expand_events,
-    resolve_sample_attachments,
-)
-from ._convert import convert_eval_logs
+# eager: only ``_edit`` (a leaf module). ``inspect_ai.scorer._metric`` —
+# itself imported by ``inspect_ai.event`` — needs ``ProvenanceData`` from
+# here, so this package's ``__init__`` must be importable without touching
+# ``_log`` / ``_file`` / ``_condense`` (each of which reaches back into
+# ``event`` and would deadlock when ``event`` is the entry point).
 from ._edit import (
     LogEdit,
     LogUpdate,
@@ -19,54 +19,64 @@ from ._edit import (
     invalidate_samples,
     uninvalidate_samples,
 )
-from ._file import (
-    EvalLogInfo,
-    list_eval_logs,
-    read_eval_log,
-    read_eval_log_async,
-    read_eval_log_sample,
-    read_eval_log_sample_summaries,
-    read_eval_log_samples,
-    write_eval_log,
-    write_eval_log_async,
-    write_log_dir_manifest,
-)
-from ._log import (
-    ConnectionLimitChange,
-    EvalConfig,
-    EvalDataset,
-    EvalLog,
-    EvalMetric,
-    EvalPlan,
-    EvalPlanStep,
-    EvalResults,
-    EvalRetryError,
-    EvalRevision,
-    EvalSample,
-    EvalSampleLimit,
-    EvalSampleReductions,
-    EvalSampleScore,
-    EvalSampleSummary,
-    EvalScore,
-    EvalSpec,
-    EvalStats,
-    EvalStatus,
-    EventsData,
-)
-from ._metric import recompute_metrics
-from ._pool import resolve_sample_events_data
-from ._recover import (
-    RecoverableEvalLog,
-    RecoveryNotAvailable,
-    recover_eval_log,
-    recoverable_eval_logs,
-)
-from ._retry import retryable_eval_logs
-from ._score import edit_score
-from ._transcript import (
-    Transcript,
-    transcript,
-)
+
+if TYPE_CHECKING:
+    from ._bundle import bundle_log_dir
+    from ._condense import (
+        condense_events,
+        condense_sample,
+        expand_events,
+        resolve_sample_attachments,
+    )
+    from ._convert import convert_eval_logs
+    from ._file import (
+        EvalLogInfo,
+        list_eval_logs,
+        read_eval_log,
+        read_eval_log_async,
+        read_eval_log_sample,
+        read_eval_log_sample_summaries,
+        read_eval_log_samples,
+        write_eval_log,
+        write_eval_log_async,
+        write_log_dir_manifest,
+    )
+    from ._log import (
+        ConnectionLimitChange,
+        EvalConfig,
+        EvalDataset,
+        EvalLog,
+        EvalMetric,
+        EvalPlan,
+        EvalPlanStep,
+        EvalResults,
+        EvalRetryError,
+        EvalRevision,
+        EvalSample,
+        EvalSampleLimit,
+        EvalSampleReductions,
+        EvalSampleScore,
+        EvalSampleSummary,
+        EvalScore,
+        EvalSpec,
+        EvalStats,
+        EvalStatus,
+        EventsData,
+    )
+    from ._metric import recompute_metrics
+    from ._pool import resolve_sample_events_data
+    from ._recover import (
+        RecoverableEvalLog,
+        RecoveryNotAvailable,
+        recover_eval_log,
+        recoverable_eval_logs,
+    )
+    from ._retry import retryable_eval_logs
+    from ._score import edit_score
+    from ._transcript import (
+        Transcript,
+        transcript,
+    )
 
 __all__ = [
     "WriteConflictError",
@@ -279,4 +289,56 @@ relocated_module_attribute(
     "inspect_ai.event.event_tree",
     _EVENT_MODULE_VERSION_3_137,
     _REMOVED_IN,
+)
+
+lazy_attributes(
+    __name__,
+    {
+        "ConnectionLimitChange": "inspect_ai.log._log",
+        "EvalConfig": "inspect_ai.log._log",
+        "EvalDataset": "inspect_ai.log._log",
+        "EvalLog": "inspect_ai.log._log",
+        "EvalMetric": "inspect_ai.log._log",
+        "EvalPlan": "inspect_ai.log._log",
+        "EvalPlanStep": "inspect_ai.log._log",
+        "EvalResults": "inspect_ai.log._log",
+        "EvalRetryError": "inspect_ai.log._log",
+        "EvalRevision": "inspect_ai.log._log",
+        "EvalSample": "inspect_ai.log._log",
+        "EvalSampleLimit": "inspect_ai.log._log",
+        "EvalSampleReductions": "inspect_ai.log._log",
+        "EvalSampleScore": "inspect_ai.log._log",
+        "EvalSampleSummary": "inspect_ai.log._log",
+        "EvalScore": "inspect_ai.log._log",
+        "EvalSpec": "inspect_ai.log._log",
+        "EvalStats": "inspect_ai.log._log",
+        "EvalStatus": "inspect_ai.log._log",
+        "EventsData": "inspect_ai.log._log",
+        "EvalLogInfo": "inspect_ai.log._file",
+        "list_eval_logs": "inspect_ai.log._file",
+        "read_eval_log": "inspect_ai.log._file",
+        "read_eval_log_async": "inspect_ai.log._file",
+        "read_eval_log_sample": "inspect_ai.log._file",
+        "read_eval_log_sample_summaries": "inspect_ai.log._file",
+        "read_eval_log_samples": "inspect_ai.log._file",
+        "write_eval_log": "inspect_ai.log._file",
+        "write_eval_log_async": "inspect_ai.log._file",
+        "write_log_dir_manifest": "inspect_ai.log._file",
+        "condense_events": "inspect_ai.log._condense",
+        "condense_sample": "inspect_ai.log._condense",
+        "expand_events": "inspect_ai.log._condense",
+        "resolve_sample_attachments": "inspect_ai.log._condense",
+        "resolve_sample_events_data": "inspect_ai.log._pool",
+        "Transcript": "inspect_ai.log._transcript",
+        "transcript": "inspect_ai.log._transcript",
+        "bundle_log_dir": "inspect_ai.log._bundle",
+        "convert_eval_logs": "inspect_ai.log._convert",
+        "recompute_metrics": "inspect_ai.log._metric",
+        "RecoverableEvalLog": "inspect_ai.log._recover",
+        "RecoveryNotAvailable": "inspect_ai.log._recover",
+        "recover_eval_log": "inspect_ai.log._recover",
+        "recoverable_eval_logs": "inspect_ai.log._recover",
+        "retryable_eval_logs": "inspect_ai.log._retry",
+        "edit_score": "inspect_ai.log._score",
+    },
 )

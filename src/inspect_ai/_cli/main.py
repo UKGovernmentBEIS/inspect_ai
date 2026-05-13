@@ -1,22 +1,75 @@
+from importlib.metadata import version
+
 import click
 
-from inspect_ai._util.dotenv import init_dotenv
-from inspect_ai._util.error import set_exception_hook
+from inspect_ai._util.constants import PKG_NAME
 
-from .. import __version__
-from .cache import cache_command
-from .download import download_command
-from .eval import eval_command, eval_retry_command, eval_set_command
-from .info import info_command
-from .list import list_command
-from .log import log_command
-from .sandbox import sandbox_command
-from .score import score_command
-from .trace import trace_command
-from .view import view_command
+from ._lazy_group import LazyGroup
+
+# Registry of subcommands: name -> (import path, short help).
+#
+# The import path is resolved lazily the first time the subcommand is used,
+# so ``inspect --help`` only needs to import ``click`` and this module. The
+# short help string is duplicated here (rather than read from the command
+# docstring) so the top-level help screen can be rendered without importing
+# any subcommand module. An empty short help marks a hidden command.
+_SUBCOMMANDS: dict[str, tuple[str, str]] = {
+    "cache": (
+        "inspect_ai._cli.cache:cache_command",
+        "Manage the inspect model output cache.",
+    ),
+    "download": (
+        "inspect_ai._cli.download:download_command",
+        "",  # hidden
+    ),
+    "eval": (
+        "inspect_ai._cli.eval:eval_command",
+        "Evaluate tasks.",
+    ),
+    "eval-retry": (
+        "inspect_ai._cli.eval:eval_retry_command",
+        "Retry failed evaluation(s)",
+    ),
+    "eval-set": (
+        "inspect_ai._cli.eval:eval_set_command",
+        "Evaluate a set of tasks with retries.",
+    ),
+    "info": (
+        "inspect_ai._cli.info:info_command",
+        "Read configuration and log info.",
+    ),
+    "list": (
+        "inspect_ai._cli.list:list_command",
+        "List tasks on the filesystem.",
+    ),
+    "log": (
+        "inspect_ai._cli.log:log_command",
+        "Query, read, and convert logs.",
+    ),
+    "sandbox": (
+        "inspect_ai._cli.sandbox:sandbox_command",
+        "Manage Sandbox Environments.",
+    ),
+    "score": (
+        "inspect_ai._cli.score:score_command",
+        "Score a previous evaluation run.",
+    ),
+    "trace": (
+        "inspect_ai._cli.trace:trace_command",
+        "List and read execution traces.",
+    ),
+    "view": (
+        "inspect_ai._cli.view:view_command",
+        "Inspect log viewer.",
+    ),
+}
 
 
-@click.group(invoke_without_command=True)
+@click.group(
+    cls=LazyGroup,
+    lazy_subcommands=_SUBCOMMANDS,
+    invoke_without_command=True,
+)
 @click.option(
     "--version",
     type=bool,
@@ -31,30 +84,18 @@ def inspect(ctx: click.Context, version: bool) -> None:
         return
 
     if version:
-        print(__version__)
+        print(_version())
         ctx.exit()
     else:
         click.echo(ctx.get_help())
         ctx.exit()
 
 
-inspect.add_command(cache_command)
-inspect.add_command(download_command)
-inspect.add_command(eval_command)
-inspect.add_command(eval_set_command)
-inspect.add_command(eval_retry_command)
-inspect.add_command(info_command)
-inspect.add_command(list_command)
-inspect.add_command(log_command)
-inspect.add_command(score_command)
-inspect.add_command(view_command)
-inspect.add_command(sandbox_command)
-inspect.add_command(trace_command)
+def _version() -> str:
+    return version(PKG_NAME)
 
 
 def main() -> None:
-    set_exception_hook()
-    init_dotenv()
     inspect(auto_envvar_prefix="INSPECT")  # pylint: disable=no-value-for-parameter
 
 

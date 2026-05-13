@@ -1,24 +1,20 @@
+from __future__ import annotations
+
 import functools
 import os
 from json import dumps
-from typing import Any, Callable, Literal, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, cast
 from urllib.parse import urlparse
 
 import click
-from fsspec.core import split_protocol  # type: ignore
-from pydantic_core import to_jsonable_python
 from typing_extensions import Unpack
 
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
 from inspect_ai._cli.util import int_or_bool_flag_callback
 from inspect_ai._util.constants import PKG_PATH
-from inspect_ai.log import EvalStatus, list_eval_logs
-from inspect_ai.log._convert import convert_eval_logs
-from inspect_ai.log._file import (
-    eval_log_json_str,
-    read_eval_log,
-    read_eval_log_headers,
-)
+
+if TYPE_CHECKING:
+    from inspect_ai.log import EvalStatus
 
 
 @click.group("log")
@@ -79,6 +75,10 @@ def log_list(
     no_recursive: bool | None,
     **common: Unpack[CommonOptions],
 ) -> None:
+    from fsspec.core import split_protocol  # type: ignore
+
+    from inspect_ai.log import list_eval_logs
+
     process_common_options(common)
 
     # list the logs
@@ -157,6 +157,8 @@ def dump_command(
     path: str, header_only: bool, resolve_attachments: bool | Literal["full", "core"]
 ) -> None:
     """Print log file contents as JSON."""
+    from inspect_ai.log._file import eval_log_json_str, read_eval_log
+
     log = read_eval_log(
         path, header_only=header_only, resolve_attachments=resolve_attachments
     )
@@ -210,6 +212,8 @@ def convert_command(
     stream: int | bool = False,
 ) -> None:
     """Convert between log file formats."""
+    from inspect_ai.log._convert import convert_eval_logs
+
     convert_eval_logs(
         path,
         to,
@@ -229,6 +233,10 @@ def headers_command(files: tuple[str, ...]) -> None:
 
 def headers(files: tuple[str, ...]) -> None:
     """Print log file headers as JSON."""
+    from pydantic_core import to_jsonable_python
+
+    from inspect_ai.log._file import read_eval_log_headers
+
     headers = read_eval_log_headers(list(files))
     print(dumps(to_jsonable_python(headers, exclude_none=True), indent=2))
 

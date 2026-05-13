@@ -3,12 +3,34 @@ import sys
 from collections import deque
 from contextlib import AbstractContextManager, contextmanager
 from copy import deepcopy
-from pathlib import PurePath
+from pathlib import Path, PurePath
 from typing import Any, Iterator, overload
+from urllib.parse import urlparse
 
-from fsspec.implementations.local import LocalFileSystem  # type: ignore
 
-from inspect_ai._util.file import filesystem
+def absolute_file_path(file: str) -> str:
+    # check for a relative dir, if we find one then resolve to absolute
+    fs_scheme = urlparse(file).scheme
+    if not fs_scheme and not os.path.isabs(file):
+        file = Path(file).resolve().as_posix()
+    return strip_trailing_sep(file)
+
+
+def strip_trailing_sep(path: str) -> str:
+    r"""Remove trailing path separators, preserving the root.
+
+    Handles both local paths and fsspec URLs (``s3://...``, ``gs://...``).
+    Strips both ``/`` and ``\`` so Windows-native paths are normalised too.
+    Per POSIX, a path of exactly ``//`` is preserved; any other all-separator
+    input collapses to ``/``.
+    """
+    stripped = path.rstrip("/\\")
+    if stripped:
+        return stripped
+    # All separators — preserve exactly "//" per POSIX, otherwise collapse
+    if path == "//":
+        return path
+    return "/"
 
 
 @contextmanager
@@ -103,6 +125,10 @@ def cwd_relative_path(file: str | None, walk_up: bool = False) -> str | None:
 
 
 def pretty_path(file: str) -> str:
+    from fsspec.implementations.local import LocalFileSystem  # type: ignore
+
+    from inspect_ai._util.file import filesystem
+
     fs = filesystem(file)
     if fs.is_local():
         file = LocalFileSystem._strip_protocol(file)
@@ -112,6 +138,10 @@ def pretty_path(file: str) -> str:
 
 
 def native_path(file: str) -> str:
+    from fsspec.implementations.local import LocalFileSystem  # type: ignore
+
+    from inspect_ai._util.file import filesystem
+
     fs = filesystem(file)
     if fs.is_local():
         file = LocalFileSystem._strip_protocol(file)

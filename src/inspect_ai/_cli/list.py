@@ -1,15 +1,18 @@
+from __future__ import annotations
+
 from json import dumps
+from typing import TYPE_CHECKING
 
 import click
-from pydantic_core import to_jsonable_python
 from typing_extensions import Unpack
 
 from inspect_ai._cli.common import CommonOptions, common_options, process_common_options
 from inspect_ai._cli.log import list_logs_options, log_list
 from inspect_ai._cli.util import parse_cli_args
-from inspect_ai._eval.list import list_tasks
-from inspect_ai._eval.task import TaskInfo
-from inspect_ai.log import EvalStatus
+
+if TYPE_CHECKING:
+    from inspect_ai._eval.task import TaskInfo
+    from inspect_ai.log import EvalStatus
 
 
 @click.group("list")
@@ -49,6 +52,10 @@ def tasks(
     **kwargs: Unpack[CommonOptions],
 ) -> None:
     """List tasks in given directories."""
+    from pydantic_core import to_jsonable_python
+
+    from inspect_ai._eval.list import list_tasks
+
     # resolve common options
     process_common_options(kwargs)
 

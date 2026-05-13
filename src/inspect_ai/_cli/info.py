@@ -1,11 +1,11 @@
+from __future__ import annotations
+
 from json import dumps
 
 import click
 
 from inspect_ai import __version__
 from inspect_ai._util.constants import PKG_PATH
-from inspect_ai._view.common import resolve_header_only
-from inspect_ai.log._file import eval_log_json_str, read_eval_log
 
 from .log import headers, schema, types
 
@@ -44,6 +44,9 @@ def version(json: bool) -> None:
 )
 def log(path: str, header_only: int) -> None:
     """Print log file contents as JSON."""
+    from inspect_ai._view.common import resolve_header_only
+    from inspect_ai.log._file import eval_log_json_str, read_eval_log
+
     header_only = resolve_header_only(path, header_only)
 
     log = read_eval_log(path, header_only=header_only)

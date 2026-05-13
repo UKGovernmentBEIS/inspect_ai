@@ -1,25 +1,19 @@
+from __future__ import annotations
+
 import os
 import shlex
 import time
 from datetime import datetime
 from json import dumps
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 import click
-from pydantic_core import to_json
-from rich import print as r_print
-from rich.console import Console, RenderableType
-from rich.table import Column, Table
 
-from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.trace import (
-    ActionTraceRecord,
-    TraceRecord,
-    inspect_trace_dir,
-    list_trace_files,
-    read_trace_file,
-)
+if TYPE_CHECKING:
+    from rich.console import RenderableType
+
+    from inspect_ai._util.trace import ActionTraceRecord, TraceRecord
 
 
 @click.group("trace")
@@ -48,6 +42,11 @@ def list_command(json: bool) -> None:
 
 def list_command_impl(json: bool, trace_dir: Path | None = None) -> None:
     """List all trace files."""
+    from rich import print as r_print
+    from rich.table import Table
+
+    from inspect_ai._util.trace import list_trace_files
+
     trace_files = list_trace_files(trace_dir)
     if json:
         print(
@@ -84,6 +83,10 @@ def dump_command_impl(
     trace_file: str | None, filter: str | None, trace_dir: Path | None = None
 ) -> None:
     """Dump a trace file to stdout (as a JSON array of log records)."""
+    from pydantic_core import to_json
+
+    from inspect_ai._util.trace import read_trace_file
+
     trace_file_path = _resolve_trace_file_path(trace_file, trace_dir)
 
     traces = read_trace_file(trace_file_path)
@@ -123,6 +126,9 @@ def http_command_impl(
     trace_dir: Path | None = None,
 ) -> None:
     """View all HTTP requests in the trace log."""
+    from rich import print as r_print
+    from rich.table import Column, Table
+
     _, traces = _read_traces(trace_file, "HTTP", filter, trace_dir)
 
     last_timestamp = ""
@@ -164,6 +170,10 @@ def anomolies_command_impl(
     trace_file: str | None, filter: str | None, all: bool, trace_dir: Path | None = None
 ) -> None:
     """Look for anomalies in a trace file (never completed or cancelled actions)."""
+    from rich.console import Console
+
+    from inspect_ai._util.trace import ActionTraceRecord
+
     trace_file_path, traces = _read_traces(trace_file, None, filter, trace_dir)
 
     # Track started actions
@@ -265,6 +275,8 @@ def _read_traces(
     filter: str | None = None,
     trace_dir: Path | None = None,
 ) -> tuple[Path, list[TraceRecord]]:
+    from inspect_ai._util.trace import read_trace_file
+
     trace_file_path = _resolve_trace_file_path(trace_file, trace_dir)
     traces = read_trace_file(trace_file_path)
 
@@ -283,6 +295,8 @@ def _print_bucket(
     label: str,
     bucket: dict[str, ActionTraceRecord],
 ) -> None:
+    from rich.table import Column, Table
+
     if len(bucket) > 0:
         # Sort the items in chronological order of when
         # they finished so the first finished item is at the top
@@ -338,6 +352,9 @@ def _print_bucket(
 
 
 def _resolve_trace_file(trace_file: str | None, trace_dir: Path | None = None) -> str:
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai._util.trace import list_trace_files
+
     if trace_file is None:
         trace_files = list_trace_files(trace_dir)
         if len(trace_files) == 0:
@@ -349,6 +366,9 @@ def _resolve_trace_file(trace_file: str | None, trace_dir: Path | None = None) -
 def _resolve_trace_file_path(
     trace_file: str | None, trace_dir: Path | None = None
 ) -> Path:
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai._util.trace import inspect_trace_dir
+
     trace_dir = trace_dir or inspect_trace_dir()
     trace_file = _resolve_trace_file(trace_file, trace_dir)
     trace_file_path = Path(trace_file)

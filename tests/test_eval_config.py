@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from inspect_ai import Task, eval, task
-from inspect_ai._cli.eval import RunConfigInput
+from inspect_ai._cli._run_config import RunConfigInput
 from inspect_ai.log import EvalLog
 from inspect_ai.log._file import list_eval_logs, read_eval_log
 from inspect_ai.model import get_model

@@ -35,6 +35,25 @@ if TYPE_CHECKING:
 
 obj_type = type
 
+# Subpackages whose ``__init__`` is lazy (see ``inspect_ai._util.lazy``).
+# Built-in implementations registered via ``@scorer`` / ``@solver`` / etc.
+# only enter the registry when their defining module is imported, so a
+# bare ``registry_lookup("scorer", "match")`` can miss before anything has
+# touched ``inspect_ai.scorer.match``. ``registry_lookup`` consults this
+# table on a miss and pokes the package's ``__getattr__`` to give the lazy
+# loader a chance to register the symbol before retrying.
+_BUILTIN_PKG: dict[str, tuple[str, ...]] = {
+    "agent": ("inspect_ai.agent",),
+    "approver": ("inspect_ai.approval",),
+    "metric": ("inspect_ai.scorer",),
+    "modelapi": ("inspect_ai.model",),
+    "sandboxenv": ("inspect_ai.util",),
+    "score_reducer": ("inspect_ai.scorer",),
+    "scorer": ("inspect_ai.scorer",),
+    "solver": ("inspect_ai.solver",),
+    "tool": ("inspect_ai.tool", "inspect_ai.agent"),
+}
+
 RegistryType = Literal[
     "agent",
     "approver",
@@ -205,17 +224,35 @@ def registry_lookup(type: RegistryType, name: str) -> object | None:
             return None
 
     o = _lookup()
-
-    # try to recover
-    if o is None:
-        # load entry points for this package as required
-        if name.find("/") != -1 and name.find(".") == -1:
-            package = name.split("/")[0]
-            ensure_entry_points(package)
-
-        return _lookup()
-    else:
+    if o is not None:
         return o
+
+    # try to recover: built-in objects live behind lazy package attrs.
+    # first try the cheap path (touch just the requested name); if that
+    # doesn't register it (private name, or the decorator lives in a
+    # different module than the public attr), force-load the package's
+    # full ``__all__`` so every decorator in it fires.
+    short_name = name.removeprefix(f"{PKG_NAME}/")
+    for pkg_name in _BUILTIN_PKG.get(type, ()):
+        from importlib import import_module
+
+        pkg = import_module(pkg_name)
+        getattr(pkg, short_name, None)
+        o = _lookup()
+        if o is not None:
+            return o
+        for attr in getattr(pkg, "__all__", ()):
+            getattr(pkg, attr, None)
+        o = _lookup()
+        if o is not None:
+            return o
+
+    # external packages: load entry points for this package as required
+    if name.find("/") != -1 and name.find(".") == -1:
+        package = name.split("/")[0]
+        ensure_entry_points(package)
+
+    return _lookup()
 
 
 def registry_package_name(name: str) -> str | None:

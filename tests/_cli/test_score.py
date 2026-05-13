@@ -134,17 +134,19 @@ async def test_score_stream_preserves_log_updates(
     )
     write_eval_log(log, str(input_file))
 
-    monkeypatch.setattr(score_cli, "init_eval_context", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "inspect_ai._eval.context.init_eval_context", lambda *args, **kwargs: None
+    )
     monkeypatch.setattr(score_cli, "print_results", lambda *args, **kwargs: None)
     monkeypatch.setattr(
-        score_cli, "resolve_scorers", lambda *args, **kwargs: [object()]
+        "inspect_ai._eval.score.resolve_scorers", lambda *args, **kwargs: [object()]
     )
 
     async def fake_score_async(*, log, scorers, metrics, action, copy, samples):
         assert samples is not None
         return log
 
-    monkeypatch.setattr(score_cli, "score_async", fake_score_async)
+    monkeypatch.setattr("inspect_ai._eval.score.score_async", fake_score_async)
 
     await score(
         log_dir="",

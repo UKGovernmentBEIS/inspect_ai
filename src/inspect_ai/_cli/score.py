@@ -1,33 +1,17 @@
 from __future__ import annotations
 
 import contextlib
-from typing import AsyncGenerator
+from typing import TYPE_CHECKING, AsyncGenerator
 
-import anyio
 import click
-import rich
-from rich.panel import Panel
-from rich.prompt import Prompt
-from rich.table import Table
 from typing_extensions import Unpack
 
 from inspect_ai._cli.util import int_or_bool_flag_callback, parse_cli_config
-from inspect_ai._display import display
-from inspect_ai._display.core.results import task_scores
-from inspect_ai._display.core.rich import rich_theme
-from inspect_ai._eval.context import init_eval_context
-from inspect_ai._eval.loader import metric_from_spec
-from inspect_ai._eval.score import (
-    ScoreAction,
-    resolve_scorers,
-    score_async,
-)
-from inspect_ai._util._async import configured_async_backend
-from inspect_ai._util.file import filesystem
-from inspect_ai._util.platform import platform_init
-from inspect_ai.log._log import EvalLog, EvalSample
-from inspect_ai.log._recorders import create_recorder_for_location
-from inspect_ai.scorer._metric import Metric, MetricSpec
+
+if TYPE_CHECKING:
+    from inspect_ai._eval.score import ScoreAction
+    from inspect_ai.log._log import EvalLog, EvalSample
+    from inspect_ai.scorer._metric import Metric
 
 from .common import CommonOptions, common_options, process_common_options
 
@@ -96,6 +80,10 @@ def score_command(
     **common: Unpack[CommonOptions],
 ) -> None:
     """Score a previous evaluation run."""
+    import anyio
+
+    from inspect_ai._util._async import configured_async_backend
+
     process_common_options(common)
 
     async def run_score() -> None:
@@ -127,6 +115,13 @@ async def score(
     output_file: str | None = None,
     stream: int | bool = False,
 ) -> None:
+    import anyio
+
+    from inspect_ai._eval.context import init_eval_context
+    from inspect_ai._eval.score import resolve_scorers, score_async
+    from inspect_ai._util.platform import platform_init
+    from inspect_ai.log._recorders import create_recorder_for_location
+
     platform_init()
 
     init_eval_context(log_level, None, log_refusals=True)
@@ -206,6 +201,14 @@ async def score(
 
 
 def print_results(output_file: str, eval_log: EvalLog) -> None:
+    import rich
+    from rich.panel import Panel
+    from rich.table import Table
+
+    from inspect_ai._display import display
+    from inspect_ai._display.core.results import task_scores
+    from inspect_ai._display.core.rich import rich_theme
+
     # the theme
     theme = rich_theme()
 
@@ -236,6 +239,10 @@ def print_results(output_file: str, eval_log: EvalLog) -> None:
 def _resolve_output_file(
     log_file: str, output_file: str | None, overwrite: bool
 ) -> str:
+    from rich.prompt import Prompt
+
+    from inspect_ai._util.file import filesystem
+
     # resolve the output file (we may overwrite, use the passed file name, or suggest a new name)
     output_file = output_file or log_file
     output_fs = filesystem(output_file or log_file)
@@ -276,6 +283,9 @@ def _resolve_output_file(
 def resolve_metrics(
     metric: tuple[str, ...] | None,
 ) -> list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None:
+    from inspect_ai._eval.loader import metric_from_spec
+    from inspect_ai.scorer._metric import MetricSpec
+
     if metric is not None and len(metric) > 0:
         return [metric_from_spec(MetricSpec(m)) for m in metric]
     else:
@@ -283,6 +293,8 @@ def resolve_metrics(
 
 
 def resolve_action(eval_log: EvalLog, action: ScoreAction | None) -> ScoreAction:
+    from rich.prompt import Prompt
+
     if action is not None:
         return action
 
