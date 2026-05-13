@@ -52,7 +52,10 @@ logs/
                                              #    commit point — see §4d).
       host/                                  # restic repo: host state.
                                              #   each snapshot contains
-                                             #   context.json + store.json
+                                             #   messages, events (condensed),
+                                             #   events_data, attachments,
+                                             #   store, and optionally an
+                                             #   agent-defined property bag
                                              #   (see §5).
         config data/ index/ snapshots/ keys/ locks/
       sandboxes/
@@ -265,7 +268,7 @@ Inspect provides checkpointing support at two layers:
 
 The right paths are agent-specific. Native Python agents typically need none — their state lives in messages and `Store`, both captured by the host repo. **Sandbox CLI agents** (Claude Code, Codex CLI, Gemini CLI, etc.) typically need several directories: the agent's home directory, the project working directory (often `/workspace`), and any tool-state directories the agent writes to. Agent authors are expected to declare the paths their agent actually depends on.
 
-**Host repo** captures a small per-attempt host-local working tree containing exactly two files (`context.json`, `store.json`) — see §5.
+**Host repo** captures a small per-attempt host-local working tree containing the messages, condensed events + dedup pools, attachments, `Store`, and an optional agent-defined property bag — see §5.
 
 ### 4b. Engine: restic
 
@@ -369,10 +372,14 @@ Rationale: hiding the checkpoint mechanism from the agent prevents an adversaria
 
 ## 5. Host snapshot contents
 
-Each host-repo snapshot contains exactly two files, sourced from a host-local working tree at checkpoint time:
+Each host-repo snapshot contains up to six files, sourced from a host-local working tree at checkpoint time:
 
--   **`context.json`** — messages and events in the same **condensed representation** used inside a `.eval` log (avoids the O(N²) serialization cost). Carries events in condensed form (with `input_refs` / `call_refs`) and deduplication pools (`events_data` with `messages` and `calls`). Reuses `condense_sample()` / `resolve_sample_events_data()` from `src/inspect_ai/log/_pool.py` and `_condense.py`. Not a `.eval` file; no zip coupling.
+-   **`messages.json`** — JSON array of the sample's current `ChatMessage`s.
+-   **`events.json`** — condensed events from `transcript().events`, with `ModelEvent` inputs and tool-call payloads replaced by `input_refs` / `call_refs` into the pools in `events_data.json`. Same condensed representation used inside a `.eval` log (avoids the O(N²) serialization cost). Reuses `condense_model_event_inputs` / `condense_model_event_calls` from `src/inspect_ai/log/_pool.py`. Not a `.eval` file; no zip coupling.
+-   **`events_data.json`** — `{messages, calls}` dedup pools that `events.json` indexes into. Built incrementally: each fire processes only the new event slice against persisted indexes, so total hashing cost over a sample is O(N) rather than O(N) per fire. Both this and `events.json` have a byte-stable prefix across fires (only the tail grows), which tightens restic CDC dedup.
+-   **`attachments.json`** — hash → original-content pool that `ModelEvent.call` refs (`attachment://<hash>`) point into. Captured live by `Transcript._process_event` as call payloads >100 chars are rewritten to `attachment://` refs; serialized here so the snapshot is self-contained.
 -   **`store.json`** — the sample's `Store` key/value state.
+-   **`agent_state.json`** *(opt-in)* — agent-defined property bag. Written only when the agent has registered a callback via `Checkpointer.on_checkpoint(callback)`; the callback is invoked at each fire and its returned `dict[str, Any]` is serialized. Presence on disk signals that the agent opted in. `react()` registers a callback that captures `attempt_count` so retries can resume mid-attempt.
 
 Customer-facing checkpoint metadata (trigger, turn, duration, sandbox snapshot ids, etc.) lives in the per-checkpoint sidecar at the attempt root (§1), not inside the snapshot.
 
@@ -395,8 +402,12 @@ $XDG_CACHE_HOME/inspect_ai/checkpoints/      # working-tree root
   <log-basename>/                            # one per eval log
     <sample-id>__<epoch>[_<retry>]/          # one per attempt;
                                              #   shape mirrors §1.
-      context.json
+      messages.json
+      events.json
+      events_data.json
+      attachments.json
       store.json
+      agent_state.json                       # opt-in (see above)
 ```
 
 ## 6. Resumption
@@ -436,19 +447,20 @@ The **harness** performs the full restoration before the agent runs:
 
 1.  Read the chosen `ckpt-NNNNN.json` sidecar → host snapshot id + per-sandbox snapshot ids.
 2.  Restore each sandbox from its tagged snapshot in the sandbox repo.
-3.  Restore the host snapshot to a local working dir; parse `context.json` and `store.json`.
-4.  Rehydrate the context window (messages + events) into ambient inspect state.
+3.  Restore the host snapshot to a local working dir; parse the §5 host files.
+4.  Rehydrate the context window (messages + events + attachments) into ambient inspect state.
 5.  Rehydrate the `Store` into ambient inspect state.
-6.  Invoke the agent with `resume=True`.
+6.  Invoke the agent with `resume=True`. When present, `agent_state.json` is delivered to the agent so it can rehydrate its own state (e.g. `react()` restores `attempt_count`).
 
 The **agent** does not re-open the checkpoint, does not re-materialize the sandbox, and does not re-parse stored state.
 
 ## 7. Resume signaling
 
-Checkpointing exposes the resume signal in two places:
+Checkpointing exposes the resume signal in three places:
 
 -   **The agent's `resume` parameter** — for the agent function specifically (§7a).
 -   **`TaskState.resumed`** — for any code with access to `TaskState`: solvers, scorers, tool implementations, hooks (§7b).
+-   **`Checkpointer.resume()`** — for the agent to recover its own previously-persisted property bag (§7c).
 
 ### 7a. Agent parameter
 
@@ -486,6 +498,33 @@ class TaskState:
 ```
 
 The flag is `True` for the entire lifetime of a resumed sample, not just the first call. Solvers, scorers, tool implementations, and hooks can read it to skip one-shot setup or take resume-aware paths the same way the agent uses its `resume` parameter.
+
+### 7c. Checkpointer.resume()
+
+The `Checkpointer` protocol exposes `resume() -> ResumeInfo | None` so the agent can recover its own previously-persisted property bag (the dict it returned from its `on_checkpoint` callback — see §5's `agent_state.json`). The agent calls `resume()` immediately after entering the checkpointer context.
+
+```python
+@dataclass(frozen=True)
+class ResumeInfo:
+    state: dict[str, Any]   # {} when prior run persisted nothing
+```
+
+Two outcomes:
+
+-   `None` — fresh run; not a retry/resumption.
+-   `ResumeInfo` — IS a retry/resumption. `ResumeInfo.state` is the dict persisted at the last fire of the prior run, or `{}` if the agent did not register an `on_checkpoint` callback in the prior run (no `agent_state.json` on disk).
+
+`ResumeInfo` is always truthy regardless of whether `state` is empty, so `if resumed:` cleanly distinguishes resume from fresh runs. The empty-`state` case is meaningful and distinct from `None`: an agent can use it to detect resumption even when it has nothing of its own to restore.
+
+Idiomatic use, illustrated by the built-in React agent:
+
+```python
+async with checkpointer() as cp:
+    resumed = cp.resume()
+    attempt_count = resumed.state.get("attempt_count", 0) if resumed else 0
+    cp.on_checkpoint(lambda: {"attempt_count": attempt_count})
+    ...
+```
 
 ## 8. Lifecycle and observability
 

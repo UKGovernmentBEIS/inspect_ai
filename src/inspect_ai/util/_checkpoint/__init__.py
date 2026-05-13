@@ -8,7 +8,7 @@ import-from-leaf-module only (see ``layout.py``, ``parse.py``,
 for the full semantic model.
 """
 
-from .checkpointer import checkpointer
+from .checkpointer import ResumeInfo, checkpointer
 from .config import (
     BudgetPercent,
     CheckpointConfig,
@@ -24,6 +24,7 @@ __all__ = [
     "CheckpointConfig",
     "CostInterval",
     "Retention",
+    "ResumeInfo",
     "TimeInterval",
     "TokenInterval",
     "TurnInterval",

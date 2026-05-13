@@ -198,8 +198,10 @@ def react(
             # create compact function
             compact = _agent_compact(compaction, state.messages, tools, model)
 
-            # track attempts
-            attempt_count = 0
+            # track attempts (recovered from checkpoint state on resume)
+            resumed = cp.resume()
+            attempt_count = resumed.state.get("attempt_count", 0) if resumed else 0
+            cp.on_checkpoint(lambda: {"attempt_count": attempt_count})
 
             # track consecutive content_filter responses
             consecutive_content_filter = 0

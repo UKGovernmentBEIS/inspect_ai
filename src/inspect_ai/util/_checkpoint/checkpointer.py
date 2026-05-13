@@ -16,7 +16,8 @@ from __future__ import annotations
 import contextlib
 from collections.abc import AsyncIterator, Sequence
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Protocol
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any, Callable, Protocol
 
 if TYPE_CHECKING:
     # Type-checking only: importing `ChatMessage` eagerly here pulls in
@@ -26,6 +27,19 @@ if TYPE_CHECKING:
     # `_json`). `from __future__ import annotations` above means the
     # name is only needed by the type-checker, not at runtime.
     from inspect_ai.model._chat_message import ChatMessage
+
+
+@dataclass(frozen=True)
+class ResumeInfo:
+    """Returned by :meth:`Checkpointer.resume` on a retry/resumption.
+
+    ``state`` is the dict the agent persisted via its
+    :meth:`Checkpointer.on_checkpoint` callback in the prior run, or
+    ``{}`` when the prior run did not register a callback (no
+    ``agent_state.json`` on disk).
+    """
+
+    state: dict[str, Any] = field(default_factory=dict)
 
 
 class Checkpointer(Protocol):
@@ -44,6 +58,34 @@ class Checkpointer(Protocol):
 
         ``messages`` is the agent's current conversation — same role as
         in :meth:`tick`.
+        """
+        ...
+
+    def on_checkpoint(self, callback: Callable[[], dict[str, Any]]) -> None:
+        """Register a callback invoked at each checkpoint fire.
+
+        The returned dict is the agent's property bag, serialized as
+        ``agent_state.json`` in the host snapshot. Subsequent calls
+        replace any prior callback. The file is written only when a
+        callback is registered — its presence on disk signals that the
+        agent opted in.
+        """
+        ...
+
+    def resume(self) -> ResumeInfo | None:
+        """Return resume info for this sample, or ``None`` on a fresh run.
+
+        Call this immediately after entering the checkpointer context to
+        detect retry/resumption and (if applicable) recover prior state.
+
+        - ``None`` — this sample is not a retry/resumption (fresh run).
+        - :class:`ResumeInfo` — this is a retry/resumption. Its
+          ``state`` field is the dict the agent persisted via
+          :meth:`on_checkpoint` in the prior run, or ``{}`` if no
+          callback was registered (no ``agent_state.json`` on disk).
+
+        Truthiness is reliable: ``if resumed:`` distinguishes resume
+        from fresh runs regardless of whether ``state`` is empty.
         """
         ...
 
