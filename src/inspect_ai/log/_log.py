@@ -925,6 +925,9 @@ class EvalSpec(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional eval metadata."""
 
+    env_vars: dict[str, str] | None = Field(default=None)
+    """Environment variables to set when running this eval (preserved for eval-retry)."""
+
     viewer: ViewerConfig | None = Field(default=None)
     """Log viewer configuration — controls how scanner results are rendered
     in the sidebar. Authored via `Task(viewer=...)`."""

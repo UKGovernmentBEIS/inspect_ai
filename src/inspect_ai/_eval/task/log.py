@@ -125,6 +125,7 @@ class TaskLogger:
         model_args: dict[str, Any],
         eval_config: EvalConfig,
         metadata: dict[str, Any] | None,
+        env_vars: dict[str, str] | None,
         viewer: ViewerConfig | None,
         recorder: Recorder,
         header_only: bool,
@@ -220,6 +221,7 @@ class TaskLogger:
             revision=revision,
             packages=packages,
             metadata=metadata,
+            env_vars=env_vars,
             viewer=viewer,
         )
 
