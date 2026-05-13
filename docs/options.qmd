@@ -56,6 +56,12 @@ Below are sections for the various categories of options supported by `inspect e
 
 For more detail on the different methods of configuration, see [Task Configuration](task-configuration.qmd).
 
+## Run Configuration
+
+|  |  |
+|--|--|
+| `--run-config` | YAML or JSON file with the complete run configuration — task, model, model roles, generate config, solver, and eval config — in one place. Explicit CLI flags override values from this file. Cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. See [Run Config File](task-configuration.qmd#run-config). |
+
 ## Model Provider
 
 |                    |                                              |
