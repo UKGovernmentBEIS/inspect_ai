@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Add [run-config](https://inspect.aisi.org.uk/task-configuration.html#run-config) option to `inspect eval` for single-file run configuration. A YAML or JSON file can specify task, model, model roles, generate config, solver, and eval config in one place; explicit CLI flags override values from the file. Mutually exclusive with `--generate-config`, `--task-config`, and `--solver-config`.
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
 - Anthropic: Capture `extra_body` fields from `Message` response.

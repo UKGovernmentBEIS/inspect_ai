@@ -1,10 +1,11 @@
 import functools
 import json
-from typing import Any, Callable, Literal, cast
+from collections.abc import Callable
+from typing import Any, Literal, cast
 
 import click
 import yaml
-from pydantic import TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
@@ -24,7 +25,8 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
-from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.log._log import EvalConfig
+from inspect_ai.model import GenerateConfig, GenerateConfigArgs, get_model
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import (  # noqa: F811
     BatchConfig,
@@ -32,11 +34,13 @@ from inspect_ai.model._generate_config import (  # noqa: F811
     OutputModality,
     ResponseSchema,
 )
+from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
 from inspect_ai.util import AdaptiveConcurrency
 from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
 from inspect_ai.util._resource import resource
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from .common import (
     CommonOptions,
@@ -253,6 +257,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_MODEL_CONFIG",
         help="YAML or JSON config file with model arguments.",
+    )
+    @click.option(
+        "--run-config",
+        type=str,
+        envvar="INSPECT_EVAL_RUN_CONFIG",
+        help="YAML or JSON file with full run configuration (task, model, model roles, generate config, solver, eval config). CLI flags override values from this file. Cannot be combined with --generate-config, --task-config, or --solver-config.",
     )
     @click.option(
         "--model-role",
@@ -804,6 +814,7 @@ def eval_command(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -918,6 +929,7 @@ def eval_command(
         model_base_url=model_base_url,
         m=m,
         model_config=model_config,
+        run_config=run_config,
         model_role=model_role,
         t=t,
         task_config=task_config,
@@ -1064,6 +1076,7 @@ def eval_set_command(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -1184,6 +1197,7 @@ def eval_set_command(
         model_base_url=model_base_url,
         m=m,
         model_config=model_config,
+        run_config=run_config,
         model_role=model_role,
         t=t,
         task_config=task_config,
@@ -1259,6 +1273,143 @@ def eval_set_command(
     ctx.exit(0 if success else 1)
 
 
+class TaskInput(BaseModel):
+    task: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class SolverInput(BaseModel):
+    solver: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class RunConfigInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task: str | TaskInput | None = None
+    model: str | ModelConfig | None = None
+    model_roles: dict[str, ModelConfig] = Field(default_factory=dict)
+    generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
+    eval_config: EvalConfig = Field(default_factory=EvalConfig)
+    solver: str | SolverInput | None = None
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    sandbox: str | SandboxEnvironmentSpec | None = None
+
+    @field_validator("generate_config", mode="before")
+    @classmethod
+    def check_generate_config_fields(cls, v: Any) -> Any:
+        if isinstance(v, dict):
+            unknown = set(v.keys()) - set(GenerateConfig.model_fields.keys())
+            if unknown:
+                raise ValueError(f"Unknown generate_config fields: {unknown}")
+        return v
+
+    @field_validator("eval_config", mode="before")
+    @classmethod
+    def check_eval_config_fields(cls, v: Any) -> Any:
+        if isinstance(v, dict):
+            unknown = set(v.keys()) - set(EvalConfig.model_fields.keys())
+            if unknown:
+                raise ValueError(f"Unknown eval_config fields: {unknown}")
+        return v
+
+    def to_params(self) -> dict[str, Any]:
+        params: dict[str, Any] = {}
+
+        # Task
+        if self.task is not None:
+            if isinstance(self.task, str):
+                params["tasks"] = self.task
+            else:
+                params["tasks"] = self.task.task
+                if self.task.args:
+                    params["task_args"] = self.task.args
+
+        # Model
+        if self.model is not None:
+            if isinstance(self.model, str):
+                params["model"] = self.model
+            else:
+                params["model"] = self.model.model
+                if self.model.base_url is not None:
+                    params["model_base_url"] = self.model.base_url
+                if self.model.args:
+                    params["model_args"] = self.model.args
+                model_gc = self.model.config.model_dump(exclude_none=True)
+                if model_gc:
+                    params.update(model_gc)
+
+        # Top-level generate_config overrides any model-level config
+        top_gc = self.generate_config.model_dump(exclude_none=True)
+        if top_gc:
+            params.update(top_gc)
+
+        # Model roles
+        if self.model_roles:
+            params["model_roles"] = {
+                role: get_model(
+                    mc.model, config=mc.config, base_url=mc.base_url, **mc.args
+                )
+                for role, mc in self.model_roles.items()
+            }
+
+        # Solver
+        if self.solver is not None:
+            if isinstance(self.solver, str):
+                params["solver"] = SolverSpec(self.solver, {}, {})
+            else:
+                params["solver"] = SolverSpec(
+                    self.solver.solver, self.solver.args, self.solver.args
+                )
+
+        # Eval config — combine epochs + epochs_reducer into Epochs
+        ec = self.eval_config.model_dump(exclude_none=True)
+        epochs = ec.pop("epochs", None)
+        epochs_reducer = ec.pop("epochs_reducer", None)
+        if epochs is not None:
+            ec["epochs"] = Epochs(epochs, create_reducers(epochs_reducer))
+        params.update(ec)
+
+        # Tags and metadata
+        if self.tags:
+            params["tags"] = self.tags
+        if self.metadata:
+            params["metadata"] = self.metadata
+
+        # Sandbox
+        if self.sandbox is not None:
+            if isinstance(self.sandbox, str):
+                params["sandbox"] = parse_sandbox(self.sandbox)
+            else:
+                params["sandbox"] = self.sandbox
+
+        return params
+
+
+def parse_run_config(config: str) -> dict[str, Any]:
+    run_config = RunConfigInput.model_validate(resolve_args(config))
+    return run_config.to_params()
+
+
+def merge_run_config_params(
+    run_params: dict[str, Any], cli_params: dict[str, Any]
+) -> dict[str, Any]:
+    params = dict(run_params)
+    for key, value in cli_params.items():
+        if value is None or value == {}:
+            continue
+        if key == "score" and value is True:
+            continue
+        if key in ("task_args", "model_args") and key in params:
+            params[key] = params[key] | value
+        elif key == "model_roles" and key in params:
+            params[key] = params[key] | value
+        else:
+            params[key] = value
+    return params
+
+
 def eval_exec(
     tasks: tuple[str, ...] | None,
     solver: str | None,
@@ -1270,6 +1421,7 @@ def eval_exec(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
@@ -1340,6 +1492,15 @@ def eval_exec(
     eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
+    if run_config and is_eval_set:
+        raise PrerequisiteError("--run-config is only supported by inspect eval.")
+    if run_config and task_config:
+        raise PrerequisiteError("--run-config cannot be used with --task-config.")
+    if run_config and solver_config:
+        raise PrerequisiteError("--run-config cannot be used with --solver-config.")
+
+    run_params = parse_run_config(run_config) if run_config else {}
+
     # parse task, solver, and model args
     task_args = parse_cli_config(t, task_config)
     solver_args = parse_cli_config(s, solver_config)
@@ -1440,7 +1601,7 @@ def eval_exec(
     score_display = False if no_score_display else None
 
     # build params
-    params: dict[str, Any] = (
+    cli_params: dict[str, Any] = (
         dict(
             tasks=list(tasks) if tasks else None,
             model=model,
@@ -1492,6 +1653,9 @@ def eval_exec(
             score_display=score_display,
         )
         | kwargs
+    )
+    params = (
+        merge_run_config_params(run_params, cli_params) if run_params else cli_params
     )
 
     # evaluate
@@ -1553,7 +1717,10 @@ def _parse_adaptive_connections_cli(
 def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
     # start with config file if specified
     adapter = TypeAdapter(GenerateConfigArgs)
+    run_config_file = locals.get("run_config")
     generate_config_file = locals.pop("generate_config", None)
+    if run_config_file and generate_config_file:
+        raise PrerequisiteError("--run-config cannot be used with --generate-config.")
     if generate_config_file:
         # read file
         generate_config = resolve_args(generate_config_file)
