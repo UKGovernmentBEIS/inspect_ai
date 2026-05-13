@@ -127,7 +127,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         "--run-config",
         type=str,
         envvar="INSPECT_EVAL_RUN_CONFIG",
-        help="YAML or JSON config file with full run configuration.",
+        help="YAML or JSON file with full run configuration (task, model, model roles, generate config, solver, eval config). CLI flags override values from this file. Cannot be combined with --generate-config, --task-config, or --solver-config.",
     )
     @click.option(
         "--model-role",
@@ -1190,16 +1190,6 @@ def parse_run_config(config: str) -> dict[str, Any]:
     return run_config.to_params()
 
 
-def validate_generate_config_args(config: Any, source: str) -> dict[str, Any]:
-    if not isinstance(config, dict):
-        raise PrerequisiteError(f"Run config {source} must be an object.")
-    extra_keys = config.keys() - GenerateConfigArgs.__annotations__.keys()
-    if extra_keys:
-        raise PrerequisiteError(
-            f"Unexpected GenerateConfig fields in run config {source}: {extra_keys}"
-        )
-    adapter = TypeAdapter(GenerateConfigArgs)
-    return dict(adapter.validate_python(config, strict=True))
 
 
 def merge_run_config_params(
