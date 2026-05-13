@@ -9,8 +9,8 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import Model, get_model
-from inspect_ai.solver import solver
+from inspect_ai.model import GenerateConfig, Model, get_model
+from inspect_ai.solver import Solver, solver
 
 RED_TEAM = "red_team"
 RED_TEAM_DEFAULT = "openai/gpt-4o"
@@ -325,3 +325,70 @@ def test_model_role_merge_preserves_unspecified() -> None:
     model_events = [e for e in log.samples[0].events if e.event == "model"]
     reviewer_event = next(e for e in model_events if e.role == REVIEWER)
     assert reviewer_event.model == MOCK_B
+
+
+@pytest.mark.xfail(
+    reason=(
+        "get_model(role=X, config=defaults) silently drops `defaults` when "
+        "the role is found, rather than using it as a fallback for fields the "
+        "role config does not specify. See https://github.com/UKGovernmentBEIS/inspect_ai/issues/3666"
+    ),
+    strict=True,
+)
+def test_model_role_config_merges_caller_defaults() -> None:
+    """Caller config should fill in fields not set by the model role's own config.
+
+    When a model role is set with only some fields specified (e.g. temperature
+    only), the caller's config passed to get_model(role=X, config=...) should
+    supply defaults for the unspecified fields.
+
+    Currently the role lookup short-circuits and returns the role model as-is,
+    ignoring the caller config entirely.
+    """
+    JUDGE_ROLE = "judge"
+    captured: list[GenerateConfig] = []
+
+    @solver
+    def capturing_solver() -> Solver:
+        async def solve(state, generate):
+            judge = get_model(
+                role=JUDGE_ROLE,
+                default="mockllm/model",
+                config=GenerateConfig(max_tokens=500),
+            )
+            original = judge.api.generate
+
+            async def spy(input, tools, tool_choice, config, *args, **kwargs):
+                captured.append(config)
+                return await original(
+                    input, tools, tool_choice, config, *args, **kwargs
+                )
+
+            from unittest.mock import patch
+
+            with patch.object(judge.api, "generate", side_effect=spy):
+                await judge.generate(state.messages)
+
+            return state
+
+        return solve
+
+    # Role is set with temperature only — max_tokens deliberately omitted
+    role_model = get_model(
+        "mockllm/model", config=GenerateConfig(temperature=0.7), memoize=False
+    )
+
+    eval(
+        Task(
+            dataset=[Sample(input="Say hello", target="hello")],
+            solver=[capturing_solver()],
+            model_roles={JUDGE_ROLE: role_model},
+        ),
+        model="mockllm/model",
+    )
+
+    assert captured, "Judge was never called"
+    assert captured[0].max_tokens == 500, (
+        f"Expected caller default max_tokens=500 to fill in for the role's "
+        f"unspecified max_tokens, but got {captured[0].max_tokens}"
+    )
