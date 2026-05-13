@@ -454,37 +454,32 @@ def _reduced_score(value: Value, scores: list[Score]) -> Score:
 
     Args:
         value: the reduced Value
-        scores: ths list of scores being reduced
+        scores: the list of scores being reduced
     """
+    answers = [score.answer for score in scores]
+    explanations = [score.explanation for score in scores]
+    rep = _closest_epoch_score(value, scores)
     return Score(
         value=value,
-        # retain remaining fields only if equal across all Scores
-        answer=scores[0].answer
-        if len(set(score.answer for score in scores)) == 1
-        else None,
-        explanation=scores[0].explanation
-        if len(set(score.explanation for score in scores)) == 1
-        else None,
+        answer=answers[0] if len(set(answers)) == 1 else rep.answer,
+        explanation=explanations[0] if len(set(explanations)) == 1 else rep.explanation,
         metadata=scores[0].metadata,
     )
 
 
 def _nan_score(scores: list[Score]) -> Score:
-    r"""Create a NaN Score based upon a single Value and list of Scores that produced it
+    r"""Create a NaN Score based upon a list of Scores that produced it
 
     Args:
-        value: the reduced Value
-        scores: ths list of scores being reduced
+        scores: the list of scores being reduced
     """
+    answers = [score.answer for score in scores]
+    explanations = [score.explanation for score in scores]
+    rep = _first_scored(scores) or scores[0]
     return Score(
         value=float("nan"),
-        # retain remaining fields only if equal across all Scores
-        answer=scores[0].answer
-        if len(set(score.answer for score in scores)) == 1
-        else None,
-        explanation=scores[0].explanation
-        if len(set(score.explanation for score in scores)) == 1
-        else None,
+        answer=answers[0] if len(set(answers)) == 1 else rep.answer,
+        explanation=explanations[0] if len(set(explanations)) == 1 else rep.explanation,
         metadata=scores[0].metadata,
     )
 
@@ -492,3 +487,31 @@ def _nan_score(scores: list[Score]) -> Score:
 def _is_reducible(value: str | int | float | bool) -> bool:
     """Check if a value is reducible (not a NaN float)."""
     return not (isinstance(value, float) and math.isnan(value))
+
+
+def _closest_epoch_score(value: Value, scores: list[Score]) -> Score:
+    r"""Return the epoch Score whose value is numerically closest to `value`.
+
+    When answer/explanation differ across epochs, the reduced score inherits
+    these fields from the epoch that most closely represents the reduced value
+    (e.g. the max-value epoch for max_score, the epoch nearest the mean for
+    mean_score). Falls back to the first scored (non-NaN) epoch, or scores[0]
+    when value is non-numeric or all epochs are unscored.
+
+    Args:
+        value: the reduced Value to match against
+        scores: the list of per-epoch Scores
+    """
+    if isinstance(value, (int, float)) and not _is_unscored(value):
+        target = float(value)
+        best: Score | None = None
+        best_diff = float("inf")
+        for score in scores:
+            if isinstance(score.value, (int, float)) and not _is_unscored(score.value):
+                diff = abs(float(score.value) - target)
+                if diff < best_diff:
+                    best = score
+                    best_diff = diff
+        if best is not None:
+            return best
+    return _first_scored(scores) or scores[0]

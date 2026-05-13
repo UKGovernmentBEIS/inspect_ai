@@ -277,12 +277,21 @@ def test_reducer_preserve_metadata() -> None:
         pass_at_2_no_threshhold,
     ]
 
-    # verify that other fields are set only if equal across all samples
+    # When answers/explanations differ across epochs, the reduced score
+    # inherits them from the epoch whose value is closest to the reduced
+    # value (rather than dropping them to None).
     for reducer in reducers:
         # reduce all scores _including_ the last one that's different
         reduced = reducer(simple_scores)
-        assert reduced.answer is None
-        assert reduced.explanation is None
+        if reducer is max_reducer:
+            # max_score reduces to 2; the epoch with value=2 is closest.
+            assert reduced.answer == simple_scores[-1].answer
+            assert reduced.explanation == simple_scores[-1].explanation
+        else:
+            # All other reducers (mean≈1.17, median=1, mode=1, at_least=1,
+            # pass_at=1) reduce to a value ≤1.5, closest to value=1 epochs.
+            assert reduced.answer == simple_scores[0].answer
+            assert reduced.explanation == simple_scores[0].explanation
         assert reduced.metadata == simple_scores[0].metadata
         # reduce all scores _except_ the last one
         reduced = reducer(simple_scores[:-1])
