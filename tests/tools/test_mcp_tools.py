@@ -27,6 +27,9 @@ from inspect_ai.tool import (
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util import sandbox
 
+if sys.version_info < (3, 11):
+    from exceptiongroup import BaseExceptionGroup
+
 MCP_TEST_SERVER = str(Path(__file__).parent / "mcp_test_server.py")
 
 
@@ -83,15 +86,15 @@ async def test_mcp_tool_call_timeout_becomes_tool_error():
     from mcp.shared.message import SessionMessage
     from mcp.types import (
         INTERNAL_ERROR,
+        LATEST_PROTOCOL_VERSION,
         ErrorData,
-        InitializeResult,
         Implementation,
+        InitializeResult,
         JSONRPCError,
         JSONRPCMessage,
         JSONRPCNotification,
         JSONRPCRequest,
         JSONRPCResponse,
-        LATEST_PROTOCOL_VERSION,
         ServerCapabilities,
     )
     from mcp.types import Tool as MCPTool
