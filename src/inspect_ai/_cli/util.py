@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable
 
 import click
+import yaml
 
 if TYPE_CHECKING:
     from inspect_ai.model import Model
@@ -129,8 +130,6 @@ def parse_cli_config(
 def parse_cli_args(
     args: tuple[str, ...] | list[str] | None, force_str: bool = False
 ) -> dict[str, Any]:
-    import yaml
-
     params: dict[str, Any] = dict()
     if args:
         for arg in list(args):

@@ -6,6 +6,8 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal, cast
 
 import click
+import yaml
+from typing_extensions import Unpack
 
 from inspect_ai._util.constants import (
     ALL_LOG_LEVELS,
@@ -19,8 +21,6 @@ from inspect_ai._util.constants import (
 )
 
 if TYPE_CHECKING:
-    from typing_extensions import Unpack
-
     from inspect_ai.model import GenerateConfigArgs
     from inspect_ai.model._generate_config import ResponseSchema
     from inspect_ai.util import AdaptiveConcurrency
@@ -1699,8 +1699,6 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
 
 def parse_modalities(value: str) -> list[Any]:
     """Parse modalities from comma-separated names or YAML/JSON file."""
-    import yaml
-
     from inspect_ai._util.error import PrerequisiteError
     from inspect_ai._util.file import filesystem
     from inspect_ai.model._generate_config import ImageOutput, OutputModality

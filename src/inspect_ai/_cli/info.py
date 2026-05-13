@@ -4,6 +4,9 @@ from json import dumps
 
 import click
 
+from inspect_ai import __version__
+from inspect_ai._util.constants import PKG_PATH
+
 from .log import headers, schema, types
 
 
@@ -23,9 +26,6 @@ def info_command() -> None:
 )
 def version(json: bool) -> None:
     """Output version and path info."""
-    from inspect_ai import __version__
-    from inspect_ai._util.constants import PKG_PATH
-
     if json:
         print(dumps(dict(version=__version__, path=PKG_PATH.as_posix()), indent=2))
     else:
