@@ -56,6 +56,24 @@ class SampleData(BaseModel):
     call_pool: list[CallPoolData] = []
 
 
+class SegmentRef(BaseModel):
+    id: int
+    """Segment id (matches `Segment.id` in the manifest)."""
+    member_name: str
+    """File inside the segment zip to extract (e.g. "42_0.json")."""
+    direct_url: str | None
+    """Presigned URL for the segment zip, or None when unavailable."""
+
+
+class PendingSampleUrls(BaseModel):
+    segments: list[SegmentRef]
+    """Segments to fetch, already pruned by the server against the cursors."""
+    complete: bool
+    """Whether the sample has completed (matches EvalSampleSummary.completed)."""
+    has_more: bool = False
+    """True when the server truncated the segment list (more remain past this chunk)."""
+
+
 class SampleBuffer(abc.ABC):
     @classmethod
     @abc.abstractmethod

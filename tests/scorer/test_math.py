@@ -98,6 +98,33 @@ async def test_no_boxed(output, target, expected):
     assert result.value == expected
 
 
+@pytest.mark.parametrize(
+    "output,target,expected",
+    [
+        ("{1, 2}", "{1, 2}", CORRECT),
+        ("{2, 1}", "{1, 2}", CORRECT),  # order-insensitive
+        ("{1, 2, 3}", "{1, 2}", INCORRECT),  # different cardinality
+        ("{1, 3}", "{1, 2}", INCORRECT),  # different element
+    ],
+)
+async def test_list_valued_answers(output, target, expected):
+    # Brace-delimited sets parse to Python lists; identical sets must score
+    # CORRECT rather than being unconditionally rejected.
+    scorer = math()
+    state = simple_task_state(model_output=output)
+    result = await scorer(state, Target([target]))
+    assert result.value == expected
+
+
+@pytest.mark.parametrize("output", [r"\boxed{inf}", r"\boxed{Infinity}", "-inf"])
+async def test_infinite_float_does_not_crash(output):
+    # float("inf") must not crash the scorer with OverflowError from int(inf).
+    scorer = math()
+    state = simple_task_state(model_output=output)
+    result = await scorer(state, Target(["0"]))
+    assert result.value == INCORRECT
+
+
 # ============================================================================
 # EXTRACTION FUNCTION TESTS
 # ============================================================================

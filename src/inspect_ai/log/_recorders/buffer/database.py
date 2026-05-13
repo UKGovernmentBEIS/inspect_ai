@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import sqlite3
+import threading
 import time
 from contextlib import contextmanager
 from logging import getLogger
@@ -57,6 +58,7 @@ from .types import (
 )
 
 logger = getLogger(__name__)
+SYNC_CLEANUP_TIMEOUT = 30
 
 
 class TaskData(BaseModel):
@@ -165,13 +167,12 @@ class SampleBufferDatabase(SampleBuffer):
             else:
                 raise FileNotFoundError("Log database for '{location}' not found.")
 
-        # Per-sample pool indices for message/call dedup
-        self._msg_pools: dict[
-            tuple[str | int, int], tuple[list[ChatMessage], dict[str, int]]
-        ] = {}
-        self._call_pools: dict[
-            tuple[str | int, int], tuple[list[JsonValue], dict[str, int]]
-        ] = {}
+        # Per-sample hash → pool index maps; full pool entries live in SQLite.
+        self._msg_indices: dict[tuple[str | int, int], dict[str, int]] = {}
+        self._call_indices: dict[tuple[str | int, int], dict[str, int]] = {}
+
+        # Prevent late ModelEvents from restarting indices at 0 after completion.
+        self._completed_samples: set[tuple[str | int, int]] = set()
 
         # create sync filestore if log_shared
         self._sync_filestore = (
@@ -180,6 +181,11 @@ class SampleBufferDatabase(SampleBuffer):
             else None
         )
         self._sync_time = time.monotonic()
+        self._sync_lock = threading.Lock()
+        self._sync_wakeup = threading.Condition(self._sync_lock)
+        self._sync_thread: threading.Thread | None = None
+        self._sync_pending = False
+        self._sync_closed = False
 
     def start_sample(self, sample: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
@@ -227,6 +233,11 @@ class SampleBufferDatabase(SampleBuffer):
                 (to_json_str_safe(summary), str(summary.id), summary.epoch),
             )
 
+            key = (summary.id, summary.epoch)
+            self._msg_indices.pop(key, None)
+            self._call_indices.pop(key, None)
+            self._completed_samples.add(key)
+
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         with self._get_connection(write=True) as conn:
             conn.execute(
@@ -243,10 +254,11 @@ class SampleBufferDatabase(SampleBuffer):
         if len(samples) == 0:
             return
 
-        # clear in-memory pool state
+        # clear in-memory state
         for key in samples:
-            self._msg_pools.pop(key, None)
-            self._call_pools.pop(key, None)
+            self._msg_indices.pop(key, None)
+            self._call_indices.pop(key, None)
+            self._completed_samples.discard(key)
 
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
@@ -289,6 +301,28 @@ class SampleBufferDatabase(SampleBuffer):
 
     @override
     def cleanup(self) -> None:
+        sync_thread: threading.Thread | None = None
+        with self._sync_lock:
+            self._sync_closed = True
+            self._sync_wakeup.notify_all()
+            sync_thread = self._sync_thread
+
+        if sync_thread is threading.current_thread():
+            logger.warning(
+                "Skipping log buffer cleanup from active sync worker for %s",
+                self.location,
+            )
+            return
+
+        if sync_thread is not None and sync_thread.is_alive():
+            sync_thread.join(timeout=SYNC_CLEANUP_TIMEOUT)
+            if sync_thread.is_alive():
+                logger.warning(
+                    "Timed out waiting for log buffer sync; skipping cleanup for %s",
+                    self.location,
+                )
+                return
+
         cleanup_sample_buffer_db(self.db_path)
         if self._sync_filestore is not None:
             self._sync_filestore.cleanup()
@@ -440,11 +474,63 @@ class SampleBufferDatabase(SampleBuffer):
                 self._sync()
 
     def _sync(self) -> None:
-        if self.log_shared is not None and self._sync_filestore is not None:
-            if (time.monotonic() - self._sync_time) > self.log_shared:
-                with trace_action(logger, "Log Sync", self.location):
-                    sync_to_filestore(self, self._sync_filestore)
+        sync_filestore = self._sync_filestore
+        if self.log_shared is None or sync_filestore is None:
+            return
 
+        with self._sync_lock:
+            if self._sync_closed:
+                return
+
+            if self._sync_thread is not None:
+                self._sync_pending = True
+                return
+
+            if (time.monotonic() - self._sync_time) <= self.log_shared:
+                return
+
+            self._sync_time = time.monotonic()
+            self._sync_thread = threading.Thread(
+                target=self._sync_to_filestore,
+                args=(sync_filestore,),
+                daemon=True,
+                name="inspect-buffer-sync",
+            )
+            self._sync_thread.start()
+
+    def _sync_to_filestore(self, sync_filestore: SampleBufferFilestore) -> None:
+        while True:
+            try:
+                with trace_action(logger, "Log Sync", self.location):
+                    sync_to_filestore(self, sync_filestore)
+            except Exception:
+                logger.exception("Log Sync failed for %s", self.location)
+            except BaseException:
+                with self._sync_lock:
+                    self._sync_pending = False
+                    self._sync_thread = None
+                raise
+
+            with self._sync_lock:
+                if self._sync_closed or not self._sync_pending:
+                    self._sync_pending = False
+                    self._sync_thread = None
+                    return
+
+                assert self.log_shared is not None
+                while True:
+                    if self._sync_closed:
+                        self._sync_pending = False
+                        self._sync_thread = None
+                        return
+
+                    remaining = self.log_shared - (time.monotonic() - self._sync_time)
+                    if remaining <= 0:
+                        break
+
+                    self._sync_wakeup.wait(timeout=remaining)
+
+                self._sync_pending = False
                 self._sync_time = time.monotonic()
 
     def _increment_version(self, conn: Connection) -> None:
@@ -643,26 +729,32 @@ class SampleBufferDatabase(SampleBuffer):
         # message/call pool dedup for ModelEvents
         if isinstance(event.event, ModelEvent):
             key = (event.id, event.epoch)
+            if key in self._completed_samples:
+                raise RuntimeError(
+                    f"ModelEvent for sample {key} arrived after "
+                    "complete_sample; this would corrupt buffer DB pool "
+                    "indices."
+                )
 
             # message pool
-            msg_pool, msg_index = self._msg_pools.get(key, ([], {}))
-            [condensed_event], msg_pool, msg_index, new_msgs = (
-                condense_model_event_inputs([event.event], msg_pool, msg_index)
+            msg_index = self._msg_indices.get(key, {})
+            [condensed_event], msg_index, new_msgs = condense_model_event_inputs(
+                [event.event], len(msg_index), msg_index
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
             for h, msg in new_msgs:
                 self._insert_message_pool_entry(conn, event.id, event.epoch, h, msg)
-            self._msg_pools[key] = (msg_pool, msg_index)
+            self._msg_indices[key] = msg_index
 
             # call pool
-            call_pool, call_index = self._call_pools.get(key, ([], {}))
-            [condensed_event], call_pool, call_index, new_calls = (
-                condense_model_event_calls([event.event], call_pool, call_index)
+            call_index = self._call_indices.get(key, {})
+            [condensed_event], call_index, new_calls = condense_model_event_calls(
+                [event.event], len(call_index), call_index
             )
             event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
             for h, call_msg in new_calls:
                 self._insert_call_pool_entry(conn, event.id, event.epoch, h, call_msg)
-            self._call_pools[key] = (call_pool, call_index)
+            self._call_indices[key] = call_index
 
         return event
 

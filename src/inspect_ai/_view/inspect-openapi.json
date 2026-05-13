@@ -15,7 +15,7 @@
             "type": "number"
           },
           "max": {
-            "default": 200,
+            "default": 100,
             "title": "Max",
             "type": "integer"
           },
@@ -494,6 +494,31 @@
           "from_anchor"
         ],
         "title": "BranchEvent",
+        "type": "object"
+      },
+      "BudgetPercent": {
+        "description": "Fire at percentage milestones of a named budget. Not yet implemented (Phase 5).\n\nExample: ``BudgetPercent(budget=\"cost\", percent=10)`` fires at 10%, 20%, \u2026\nof the ``cost_limit`` configured on the task or sample.",
+        "properties": {
+          "budget": {
+            "enum": [
+              "token",
+              "cost",
+              "time",
+              "working"
+            ],
+            "title": "Budget",
+            "type": "string"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "number"
+          }
+        },
+        "required": [
+          "budget",
+          "percent"
+        ],
+        "title": "BudgetPercent",
         "type": "object"
       },
       "CachePolicy": {
@@ -1073,6 +1098,89 @@
           "role"
         ],
         "title": "ChatMessageUser",
+        "type": "object"
+      },
+      "CheckpointConfig": {
+        "description": "User-facing checkpoint configuration.\n\nSpecify on ``Sample(checkpoint=...)``, ``Task(checkpoint=...)``, or\n``eval(checkpoint=...)``. All fields default to ``None`` so that\neach level can supply a partial config; the layers are combined\nper-field at sample-run time (precedence: eval > sample > task).\n\nConstruct a config at the level that \"owns\" each value:\n- **Task**: defaults common to every sample (typical trigger,\n  sandbox paths).\n- **Sample**: per-row overrides (e.g. a particular sample needs a\n  tighter cadence or a different captured path).\n- **Eval / CLI**: run-level overrides (e.g. operator switches\n  cadence or destination for one run).\n\nSee ``design/plans/checkpointing-working.md`` \u00a72.",
+        "properties": {
+          "checkpoints_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkpoints Dir"
+          },
+          "max_consecutive_failures": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Consecutive Failures"
+          },
+          "retention": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Retention"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sandbox_paths": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sandbox Paths"
+          },
+          "trigger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeInterval"
+              },
+              {
+                "$ref": "#/components/schemas/TurnInterval"
+              },
+              {
+                "$ref": "#/components/schemas/TokenInterval"
+              },
+              {
+                "$ref": "#/components/schemas/CostInterval"
+              },
+              {
+                "$ref": "#/components/schemas/BudgetPercent"
+              },
+              {
+                "const": "manual",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger"
+          }
+        },
+        "title": "CheckpointConfig",
         "type": "object"
       },
       "Citation": {
@@ -1748,6 +1856,20 @@
           "format"
         ],
         "title": "ContentVideo",
+        "type": "object"
+      },
+      "CostInterval": {
+        "description": "Fire every $N spent. Not yet implemented (Phase 5).",
+        "properties": {
+          "every": {
+            "title": "Every",
+            "type": "number"
+          }
+        },
+        "required": [
+          "every"
+        ],
+        "title": "CostInterval",
         "type": "object"
       },
       "DocumentCitation": {
@@ -4479,6 +4601,9 @@
                 "type": "boolean"
               },
               {
+                "type": "integer"
+              },
+              {
                 "$ref": "#/components/schemas/AdaptiveConcurrency"
               },
               {
@@ -6444,6 +6569,33 @@
         "title": "OutlineNode",
         "type": "object"
       },
+      "PendingSampleUrls": {
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentRef"
+            },
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "segments",
+          "complete",
+          "has_more"
+        ],
+        "title": "PendingSampleUrls",
+        "type": "object"
+      },
       "ProvenanceData": {
         "description": "Metadata about who made an edit and why.",
         "properties": {
@@ -6521,9 +6673,38 @@
         "title": "ResponseSchema",
         "type": "object"
       },
+      "Retention": {
+        "description": "Controls when checkpoint data is deleted.",
+        "properties": {
+          "after_eval": {
+            "default": "delete",
+            "enum": [
+              "delete",
+              "retain"
+            ],
+            "title": "After Eval",
+            "type": "string"
+          }
+        },
+        "required": [
+          "after_eval"
+        ],
+        "title": "Retention",
+        "type": "object"
+      },
       "Sample": {
         "description": "Sample for an evaluation task.",
         "properties": {
+          "checkpoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckpointConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "choices": {
             "anyOf": [
               {
@@ -7941,6 +8122,35 @@
         "title": "ScoreEvent",
         "type": "object"
       },
+      "SegmentRef": {
+        "properties": {
+          "direct_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direct Url"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "member_name": {
+            "title": "Member Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "member_name"
+        ],
+        "title": "SegmentRef",
+        "type": "object"
+      },
       "SpanBeginEvent": {
         "description": "Mark the beginning of a transcript span.",
         "properties": {
@@ -8586,6 +8796,21 @@
         "title": "TaskDisplayMetric",
         "type": "object"
       },
+      "TimeInterval": {
+        "description": "Fire every N of wall-clock time.",
+        "properties": {
+          "every": {
+            "format": "duration",
+            "title": "Every",
+            "type": "string"
+          }
+        },
+        "required": [
+          "every"
+        ],
+        "title": "TimeInterval",
+        "type": "object"
+      },
       "Timeline": {
         "description": "A named timeline view over a transcript.\n\nMultiple timelines allow different interpretations of the same event\nstream \u2014 e.g. a default agent-centric view alongside an alternative\ngrouping or filtered view.",
         "properties": {
@@ -8743,6 +8968,20 @@
           "tool_invoked"
         ],
         "title": "TimelineSpan",
+        "type": "object"
+      },
+      "TokenInterval": {
+        "description": "Fire every N tokens generated. Not yet implemented (Phase 5).",
+        "properties": {
+          "every": {
+            "title": "Every",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "every"
+        ],
+        "title": "TokenInterval",
         "type": "object"
       },
       "ToolCall": {
@@ -9299,6 +9538,20 @@
           "logprob"
         ],
         "title": "TopLogprob",
+        "type": "object"
+      },
+      "TurnInterval": {
+        "description": "Fire every N agent turns.",
+        "properties": {
+          "every": {
+            "title": "Every",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "every"
+        ],
+        "title": "TurnInterval",
         "type": "object"
       },
       "UrlCitation": {
@@ -10155,6 +10408,143 @@
           }
         },
         "summary": "Api Sample Events"
+      }
+    },
+    "/pending-sample-data-urls": {
+      "get": {
+        "operationId": "api_pending_sample_data_urls_pending_sample_data_urls_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "epoch",
+            "required": true,
+            "schema": {
+              "title": "Epoch",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-attachment-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Attachment-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-message-pool-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Message-Pool-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-call-pool-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Call-Pool-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max-segments",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max-Segments"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tail",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Tail",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingSampleUrls"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Pending Sample Data Urls"
       }
     },
     "/pending-samples": {
