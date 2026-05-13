@@ -10,6 +10,7 @@ active session).
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -285,9 +286,9 @@ def _patch_restic(tmp_path: Path) -> Iterator[None]:
 
 
 @contextmanager
-def _patch_prevent_use_off() -> Iterator[None]:
-    """Disable the WIP `prevent_use` kill switch so `build_impl()` runs its real path."""
-    with patch("inspect_ai.util._checkpoint.checkpointer_impl.prevent_use", False):
+def _patch_checkpointing_enabled() -> Iterator[None]:
+    """Set INSPECT_CHECKPOINTING=1 so `build_impl()` runs its real path."""
+    with patch.dict(os.environ, {"INSPECT_CHECKPOINTING": "1"}):
         yield
 
 
@@ -301,7 +302,7 @@ def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
         _patch_cache_dir(tmp_path),
         _patch_restic(tmp_path),
         _patch_sample_runtime(),
-        _patch_prevent_use_off(),
+        _patch_checkpointing_enabled(),
     ):
         yield fake
 

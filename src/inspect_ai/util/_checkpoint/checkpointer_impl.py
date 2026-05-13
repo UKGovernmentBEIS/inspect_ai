@@ -12,6 +12,7 @@ sample-run time, via :func:`build_session` (called from
 from __future__ import annotations
 
 import json
+import os
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from functools import partial
@@ -59,8 +60,6 @@ logger = getLogger(__name__)
 
 T = TypeVar("T")
 
-prevent_use = False
-
 
 async def build_impl() -> Checkpointer:
     """Build the concrete session for the current sample.
@@ -71,8 +70,12 @@ async def build_impl() -> Checkpointer:
     sample has no checkpoint config; otherwise pre-ensures on-disk
     dirs and initializes the host + per-sandbox restic repos, then
     returns an :class:`_Checkpointer`.
+
+    Checkpointing is gated off by default while still under
+    development — the function returns a no-op session unless the
+    ``INSPECT_CHECKPOINTING`` env var is set to ``"1"``.
     """
-    if prevent_use:
+    if os.environ.get("INSPECT_CHECKPOINTING") != "1":
         warn_once(logger, "Checkpointing is still not yet fully implemented")
         return _NoopCheckpointer()
 
