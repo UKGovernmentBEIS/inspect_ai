@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Add `--run-config` option to `inspect eval` for single-file run configuration. A YAML or JSON file can specify task, model, model roles, generate config, solver, and eval config in one place; explicit CLI flags override values from the file. Mutually exclusive with `--generate-config`, `--task-config`, and `--solver-config`.
 - Google: Support Gemini 3+ native web search and code execution alongside function tools.
 - HuggingFace: Add `trust_remote_code` model argument (defaults to `False`).
 - OpenRouter: Coalesce adjacent system messages before request.
