@@ -77,8 +77,8 @@ partial §3 (built-in support primitives).
   policies. `TokenInterval` / `CostInterval` / `BudgetPercent` raise
   `NotImplementedError` at session construction (scheduled for
   Phase 6).
-- `cp.checkpoint(messages)` on the yielded session forces a fire
-  regardless of policy.
+- `cp.checkpoint()` on the yielded session forces a fire regardless
+  of policy.
 - 10 unit tests (`tests/checkpoint/test_checkpointer.py`) covering
   all policies, fire counts, mocked-time semantics,
   NotImplementedError paths, and the outside-context error case.
@@ -99,10 +99,12 @@ context var.
 **What landed:**
 
 - `react()` and `react_no_submit()` enter `checkpointer()` (zero-arg)
-  around the agent loop and call `await cp.tick(state.messages)` per
-  iteration. Config is ambient: the harness installs the resolved
-  `CheckpointConfig` on `ActiveSample.checkpoint` before the agent
-  runs, and the factory reads `sample_active()` on entry. If no
+  around the agent loop and call `await cp.tick()` per iteration.
+  Conversation messages are tracked by the agent itself via
+  `state.messages = cp.track("messages", lambda: state.messages,
+  state.messages)`. Config is ambient: the harness installs the
+  resolved `CheckpointConfig` on `ActiveSample.checkpoint` before the
+  agent runs, and the factory reads `sample_active()` on entry. If no
   config is installed (or no sample is active), the factory dispatches
   to the no-op session.
 - `build_impl()` (called by the factory) captures `sample_id`, `epoch`,
@@ -211,11 +213,8 @@ together because the work fell out that way naturally. Resume
   restic's `data_added_packed` (post-compression on-disk cost);
   `duration_ms` from restic's `total_duration`. Top-level
   `size_bytes` on the sidecar is the rolled-up total.
-- **Host snapshot: up to six files, condensed + pooled.** The host
+- **Host snapshot: up to five files, condensed + pooled.** The host
   working dir is overwritten each fire with:
-  - `messages.json` — JSON array of `ChatMessage`s, plumbed via
-    `tick(messages)` / `checkpoint(messages)` (`react()` passes
-    `state.messages`).
   - `events.json` — condensed events; `ModelEvent.input` and
     `ModelEvent.call` messages are replaced with `input_refs` /
     `call_refs` into the pools.
@@ -235,11 +234,12 @@ together because the work fell out that way naturally. Resume
     The agent registers one or more keyed callbacks via
     `cp.track(key, callback, initial_value)` — a single combined
     affordance that also returns the prior value (or `initial_value`
-    when none). Each callback is invoked at fire time and its result is
-    stored under its key in the merged dict. Duplicate keys raise.
+    when none). Each callback is invoked at fire time and its result
+    is stored under its key in the merged dict. Duplicate keys raise.
     File is absent when no callback was registered. `react()`
-    registers a callback under `"attempt_count"` so retries can
-    resume mid-attempt.
+    registers two callbacks: `"messages"` (the conversation, which
+    the protocol no longer privileges as a separate top-level file)
+    and `"attempt_count"` (so retries resume at the right attempt).
   All files serialize via `to_jsonable_python(..., exclude_none=True)`.
   `events.json` and `events_data.json` both have a byte-stable prefix
   across fires (only the tail grows), which tightens restic CDC
@@ -337,13 +337,20 @@ together they're one coherent body.
 - `TaskState.resumed: bool` so agents can branch on it without
   re-reading the sidecar themselves.
 - `Checkpointer.track` plumbing: the agent-facing method and
-  `_Checkpointer`'s `resume_state: dict[str, JsonValue] | None`
-  constructor param are already in place (`initial_value` is
-  returned until this phase wires resume state through). This phase
-  reads `agent_state.json` out of the rehydrated host working dir
-  and passes the parsed dict into `_Checkpointer` via `build_impl()`.
-  `react()`'s `cp.track("attempt_count", ..., 0)` call then resolves
-  to the stored value automatically — no change in agent code.
+  `_Checkpointer`'s `resume_state: dict[str, Any] | None` constructor
+  param are already in place (`initial_value` is returned until this
+  phase wires resume state through). `T` is unbounded — the contract
+  on captured values is "anything `to_jsonable_python` can serialize"
+  (JSON primitives, Pydantic models, dataclasses, and nesting). This
+  phase reads `agent_state.json` out of the rehydrated host working
+  dir and passes the parsed dict into `_Checkpointer` via
+  `build_impl()`, applying a deserialization heuristic from the
+  initial-value's type (BaseModel subclass → validate via that class;
+  non-empty list of BaseModel instances → validate element-wise;
+  else return JSON-loaded value as-is). `react()`'s
+  `cp.track("messages", ..., state.messages)` and
+  `cp.track("attempt_count", ..., 0)` calls then resolve to stored
+  values automatically — no change in agent code.
 - Integration with `inspect eval retry <log>` and eval-set retry —
   both pathways resolve into the same sample source, so wiring in
   the partial-sample state lights both up.

@@ -17,7 +17,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast
 
 import anyio
 from pydantic import JsonValue
@@ -57,9 +57,9 @@ from .working_dir import ensure_sample_working_dir
 
 logger = getLogger(__name__)
 
-T = TypeVar("T", bound=JsonValue)
+T = TypeVar("T")
 
-prevent_use = True
+prevent_use = False
 
 
 async def build_impl() -> Checkpointer:
@@ -123,10 +123,10 @@ async def build_impl() -> Checkpointer:
 class _NoopCheckpointer:
     """No-op session for ``Checkpointer()`` with no resolved config."""
 
-    async def tick(self, messages: Sequence[ChatMessage]) -> None:
+    async def tick(self) -> None:
         return None
 
-    async def checkpoint(self, messages: Sequence[ChatMessage]) -> None:
+    async def checkpoint(self) -> None:
         return None
 
     def track(
@@ -148,7 +148,7 @@ class _Checkpointer:
         sample_working_dir: str,
         host_restic: Path,
         restic_password: str,
-        resume_state: dict[str, JsonValue] | None = None,
+        resume_state: dict[str, Any] | None = None,
     ) -> None:
         self._config = config
         self._sample_checkpoints_dir = sample_checkpoints_dir
@@ -157,7 +157,7 @@ class _Checkpointer:
         self._host_repo = f"{sample_checkpoints_dir}/host"
         self._restic_password = restic_password
         self._resume_state = resume_state
-        self._on_checkpoint_callbacks: dict[str, Callable[[], JsonValue]] = {}
+        self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
@@ -172,14 +172,14 @@ class _Checkpointer:
         self._call_index: dict[str, int] = {}
         self._events_consumed = 0
 
-    async def tick(self, messages: Sequence[ChatMessage]) -> None:
+    async def tick(self) -> None:
         self._turn += 1
         self._turns_since_fire += 1
         if self._should_fire():
-            await self._fire(self._policy_trigger(), messages)
+            await self._fire(self._policy_trigger())
 
-    async def checkpoint(self, messages: Sequence[ChatMessage]) -> None:
-        await self._fire("manual", messages)
+    async def checkpoint(self) -> None:
+        await self._fire("manual")
 
     def track(
         self,
@@ -219,9 +219,7 @@ class _Checkpointer:
         # construction time.
         raise AssertionError(f"unexpected policy: {policy!r}")
 
-    async def _fire(
-        self, trigger: CheckpointTriggerKind, messages: Sequence[ChatMessage]
-    ) -> None:
+    async def _fire(self, trigger: CheckpointTriggerKind) -> None:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
         # the per-checkpoint sidecar.
@@ -233,7 +231,6 @@ class _Checkpointer:
         ts = transcript()
         await self._write_host_context(
             self._sample_working_dir,
-            messages,
             ts.events,
             ts.attachments,
             state.store,
@@ -281,14 +278,12 @@ class _Checkpointer:
     async def _write_host_context(
         self,
         sample_working_dir: str,
-        messages: Sequence[ChatMessage],
         events: Sequence[Event],
         attachments: Mapping[str, str],
         store: Store,
     ) -> None:
-        """Write the host context across up to six files.
+        """Write the host context across up to five files.
 
-        - ``messages.json`` — JSON array of ChatMessage.
         - ``events.json`` — condensed events; ModelEvent inputs / calls
           replaced with refs into the pools below.
         - ``events_data.json`` — ``{messages, calls}`` dedup pools.
@@ -299,9 +294,11 @@ class _Checkpointer:
         - ``store.json`` — Store key/value as a single JSON object.
         - ``agent_state.json`` — agent-defined property bag, written
           only when the agent registered at least one callback via
-          :meth:`Checkpointer.track`. Each registered key
-          becomes a top-level field in the dict. Presence on disk
-          signals opt-in.
+          :meth:`Checkpointer.track`. Each registered key becomes a
+          top-level field in the dict. The agent's conversation
+          messages typically live here (e.g. under the ``"messages"``
+          key) — the protocol no longer privileges them as a top-level
+          file. Presence on disk signals opt-in.
         """
         # Pool ModelEvent input + call messages — the big O(N²) redundancy.
         # We process only the new event slice each fire and append to the
@@ -326,7 +323,6 @@ class _Checkpointer:
             self._events_consumed = len(events)
         events_data = EventsData(messages=self._msg_pool, calls=self._call_pool)
         sample_dir = anyio.Path(sample_working_dir)
-        await (sample_dir / "messages.json").write_text(_json_dump(messages))
         await (sample_dir / "events.json").write_text(
             _json_dump(self._condensed_events)
         )

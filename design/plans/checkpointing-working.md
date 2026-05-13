@@ -386,14 +386,13 @@ Rationale: hiding the checkpoint mechanism from the agent prevents an adversaria
 
 ## 5. Host snapshot contents
 
-Each host-repo snapshot contains up to six files, sourced from a host-local working tree at checkpoint time:
+Each host-repo snapshot contains up to five files, sourced from a host-local working tree at checkpoint time:
 
--   **`messages.json`** — JSON array of the sample's current `ChatMessage`s.
 -   **`events.json`** — condensed events from `transcript().events`, with `ModelEvent` inputs and tool-call payloads replaced by `input_refs` / `call_refs` into the pools in `events_data.json`. Same condensed representation used inside a `.eval` log (avoids the O(N²) serialization cost). Reuses `condense_model_event_inputs` / `condense_model_event_calls` from `src/inspect_ai/log/_pool.py`. Not a `.eval` file; no zip coupling.
 -   **`events_data.json`** — `{messages, calls}` dedup pools that `events.json` indexes into. Built incrementally: each fire processes only the new event slice against persisted indexes, so total hashing cost over a sample is O(N) rather than O(N) per fire. Both this and `events.json` have a byte-stable prefix across fires (only the tail grows), which tightens restic CDC dedup.
 -   **`attachments.json`** — hash → original-content pool that `ModelEvent.call` refs (`attachment://<hash>`) point into. Captured live by `Transcript._process_event` as call payloads >100 chars are rewritten to `attachment://` refs; serialized here so the snapshot is self-contained.
 -   **`store.json`** — the sample's `Store` key/value state.
--   **`agent_state.json`** *(opt-in)* — agent-defined property bag. Written only when the agent has registered at least one callback via `Checkpointer.track(key, callback, initial_value)`. Each registered key becomes a top-level field; its value is whatever the corresponding callback returns (a `JsonValue`). Presence on disk signals that the agent opted in. `react()` registers a callback under `"attempt_count"` so retries can resume mid-attempt.
+-   **`agent_state.json`** *(opt-in)* — agent-defined property bag. Written only when the agent has registered at least one callback via `Checkpointer.track(key, callback, initial_value)`. Each registered key becomes a top-level field; its value is whatever the corresponding callback returns. The agent's conversation messages typically live here under the `"messages"` key — the protocol no longer privileges them as a top-level file. `react()` registers two callbacks: `"messages"` (the conversation) and `"attempt_count"` (so retries resume at the correct attempt index).
 
 Customer-facing checkpoint metadata (trigger, turn, duration, sandbox snapshot ids, etc.) lives in the per-checkpoint sidecar at the attempt root (§1), not inside the snapshot.
 
@@ -416,7 +415,6 @@ $XDG_CACHE_HOME/inspect_ai/checkpoints/      # working-tree root
   <log-basename>/                            # one per eval log
     <sample-id>__<epoch>[_<retry>]/          # one per attempt;
                                              #   shape mirrors §1.
-      messages.json
       events.json
       events_data.json
       attachments.json
@@ -462,9 +460,9 @@ The **harness** performs the full restoration before the agent runs:
 1.  Read the chosen `ckpt-NNNNN.json` sidecar → host snapshot id + per-sandbox snapshot ids.
 2.  Restore each sandbox from its tagged snapshot in the sandbox repo.
 3.  Restore the host snapshot to a local working dir; parse the §5 host files.
-4.  Rehydrate the context window (messages + events + attachments) into ambient inspect state.
+4.  Rehydrate events + attachments into ambient inspect state.
 5.  Rehydrate the `Store` into ambient inspect state.
-6.  Invoke the agent with `resume=True`. When present, `agent_state.json` is delivered to the agent so it can rehydrate its own state (e.g. `react()` restores `attempt_count`).
+6.  Invoke the agent with `resume=True`. When present, `agent_state.json` is delivered to the agent so the agent's `track(...)` calls return its previously-captured values — that's how messages, `attempt_count`, and any other agent-tracked state come back (e.g. `state.messages = cp.track("messages", lambda: state.messages, state.messages)`).
 
 The **agent** does not re-open the checkpoint, does not re-materialize the sandbox, and does not re-parse stored state.
 

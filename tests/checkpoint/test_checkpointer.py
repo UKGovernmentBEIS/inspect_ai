@@ -10,7 +10,7 @@ active session).
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -118,10 +118,8 @@ class _CountingCheckpointer(_Checkpointer):
 
     fire_count: int = 0
 
-    async def _fire(
-        self, trigger: CheckpointTriggerKind, messages: Sequence[ChatMessage]
-    ) -> None:
-        await super()._fire(trigger, messages)
+    async def _fire(self, trigger: CheckpointTriggerKind) -> None:
+        await super()._fire(trigger)
         self.fire_count += 1
 
     async def _backup_host(self) -> ResticBackupSummary:
@@ -144,22 +142,22 @@ def _counting(config: CheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
 async def test_turn_interval_fires_at_each_threshold(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(trigger=TurnInterval(every=3)), dirs)
     for _ in range(9):
-        await cp.tick([])
+        await cp.tick()
     assert cp.fire_count == 3
 
 
 async def test_turn_interval_resets_counter_on_fire(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(trigger=TurnInterval(every=4)), dirs)
     for _ in range(3):
-        await cp.tick([])
+        await cp.tick()
     assert cp.fire_count == 0
-    await cp.tick([])
+    await cp.tick()
     assert cp.fire_count == 1
     # counter reset; next fire requires another 4 ticks
     for _ in range(3):
-        await cp.tick([])
+        await cp.tick()
     assert cp.fire_count == 1
-    await cp.tick([])
+    await cp.tick()
     assert cp.fire_count == 2
 
 
@@ -178,19 +176,19 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
             CheckpointConfig(trigger=TimeInterval(every=timedelta(seconds=10))), dirs
         )
         fake_now[0] = 1004.0
-        await cp.tick([])
+        await cp.tick()
         assert cp.fire_count == 0
 
         fake_now[0] = 1010.0
-        await cp.tick([])
+        await cp.tick()
         assert cp.fire_count == 1
 
         # immediately again at t=1010 → does not fire (counter just reset)
-        await cp.tick([])
+        await cp.tick()
         assert cp.fire_count == 1
 
         fake_now[0] = 1025.0
-        await cp.tick([])
+        await cp.tick()
         assert cp.fire_count == 2
 
 
@@ -200,15 +198,15 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
 async def test_manual_policy_tick_never_fires(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(trigger="manual"), dirs)
     for _ in range(50):
-        await cp.tick([])
+        await cp.tick()
     assert cp.fire_count == 0
 
 
 async def test_checkpoint_method_fires(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(trigger="manual"), dirs)
-    await cp.tick([])
-    await cp.checkpoint([])
-    await cp.checkpoint([])
+    await cp.tick()
+    await cp.checkpoint()
+    await cp.checkpoint()
     assert cp.fire_count == 2
 
 
@@ -316,8 +314,8 @@ async def test_none_config_works_without_active_sample() -> None:
     with _patch_sample_active(None):
         async with checkpointer() as cp:
             for _ in range(5):
-                await cp.tick([])
-            await cp.checkpoint([])
+                await cp.tick()
+            await cp.checkpoint()
 
 
 # --- no active sample → no-op ---------------------------------------------
@@ -328,8 +326,8 @@ async def test_aenter_without_active_sample_noops() -> None:
     with _patch_sample_active(None):
         async with checkpointer() as cp:
             for _ in range(5):
-                await cp.tick([])
-            await cp.checkpoint([])
+                await cp.tick()
+            await cp.checkpoint()
 
 
 # === e2e: outer facade through to disk =====================================
@@ -344,10 +342,10 @@ async def test_fire_writes_manifest_and_sidecars(
     active_sample.checkpoint = CheckpointConfig(trigger=TurnInterval(every=2))
 
     async with checkpointer() as cp:
-        await cp.tick([])  # turn 1, no fire
-        await cp.tick([])  # turn 2, fires
-        await cp.tick([])  # turn 3, no fire
-        await cp.tick([])  # turn 4, fires
+        await cp.tick()  # turn 1, no fire
+        await cp.tick()  # turn 2, fires
+        await cp.tick()  # turn 3, no fire
+        await cp.tick()  # turn 4, fires
 
     log = Path(active_sample.log_location)
     eval_dir = log.parent / f"{log.stem}.checkpoints"
@@ -358,7 +356,6 @@ async def test_fire_writes_manifest_and_sidecars(
 
     sample_working = tmp_path / "cache/checkpoints/test/s7__2"
     assert sample_working.is_dir()
-    assert (sample_working / "messages.json").is_file()
     assert (sample_working / "events.json").is_file()
     assert (sample_working / "events_data.json").is_file()
     assert (sample_working / "attachments.json").is_file()
@@ -404,9 +401,8 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
         host_restic=Path("/fake"),
         restic_password="pwd",
     )
-    await cp._write_host_context(str(work), messages, events, {}, Store())
+    await cp._write_host_context(str(work), events, {}, Store())
 
-    assert (work / "messages.json").is_file()
     assert (work / "events.json").is_file()
     assert (work / "events_data.json").is_file()
     assert (work / "attachments.json").is_file()
@@ -471,8 +467,26 @@ async def test_track_single_key_writes_file(tmp_path: Path) -> None:
     cp = _make_cp(tmp_path)
     value = 3
     cp.track("attempt_count", lambda: value, 0)
-    await cp._write_host_context(str(work), [], [], {}, Store())
+    await cp._write_host_context(str(work), [], {}, Store())
     assert json.loads((work / "agent_state.json").read_text()) == {"attempt_count": 3}
+
+
+async def test_track_messages_via_track(tmp_path: Path) -> None:
+    """Messages persist via `track('messages', ...)` — Pydantic model lists serialize."""
+    work = tmp_path / "work"
+    work.mkdir()
+    cp = _make_cp(tmp_path)
+    messages: list[ChatMessage] = [
+        ChatMessageSystem(content="sys"),
+        ChatMessageUser(content="hi"),
+    ]
+    cp.track("messages", lambda: messages, messages)
+    await cp._write_host_context(str(work), [], {}, Store())
+
+    state = json.loads((work / "agent_state.json").read_text())
+    assert "messages" in state
+    assert [m["role"] for m in state["messages"]] == ["system", "user"]
+    assert [m["content"] for m in state["messages"]] == ["sys", "hi"]
 
 
 async def test_track_multiple_keys_merge(tmp_path: Path) -> None:
@@ -482,7 +496,7 @@ async def test_track_multiple_keys_merge(tmp_path: Path) -> None:
     cp = _make_cp(tmp_path)
     cp.track("attempt_count", lambda: 3, 0)
     cp.track("phase", lambda: "explore", "")
-    await cp._write_host_context(str(work), [], [], {}, Store())
+    await cp._write_host_context(str(work), [], {}, Store())
     assert json.loads((work / "agent_state.json").read_text()) == {
         "attempt_count": 3,
         "phase": "explore",
@@ -494,7 +508,7 @@ async def test_track_not_registered_no_file(tmp_path: Path) -> None:
     work = tmp_path / "work"
     work.mkdir()
     cp = _make_cp(tmp_path)
-    await cp._write_host_context(str(work), [], [], {}, Store())
+    await cp._write_host_context(str(work), [], {}, Store())
     assert not (work / "agent_state.json").exists()
 
 
@@ -518,7 +532,7 @@ async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
         host_restic=Path("/fake"),
         restic_password="pwd",
     )
-    await cp._write_host_context(str(work), [], [], attachments, Store())
+    await cp._write_host_context(str(work), [], attachments, Store())
 
     assert json.loads((work / "attachments.json").read_text()) == attachments
 
@@ -557,14 +571,14 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
         restic_password="pwd",
     )
 
-    await cp._write_host_context(str(work), [], fire1_events, {}, Store())
+    await cp._write_host_context(str(work), fire1_events, {}, Store())
     pool_after_1 = json.loads((work / "events_data.json").read_text())["messages"]
     events_after_1 = json.loads((work / "events.json").read_text())
     assert len(pool_after_1) == 3  # sys, u1, a1
     assert len(events_after_1) == 2
     assert cp._events_consumed == 2
 
-    await cp._write_host_context(str(work), [], fire2_events, {}, Store())
+    await cp._write_host_context(str(work), fire2_events, {}, Store())
     pool_after_2 = json.loads((work / "events_data.json").read_text())["messages"]
     events_after_2 = json.loads((work / "events.json").read_text())
     # Append-only: pool grew by exactly one (u2); first 3 entries unchanged.

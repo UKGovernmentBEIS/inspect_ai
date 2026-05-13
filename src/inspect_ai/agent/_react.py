@@ -192,6 +192,11 @@ def react(
             if system_message:
                 state.messages.insert(0, system_message)
 
+            # track conversation messages (restored to prior value on resume)
+            state.messages = cp.track(
+                "messages", lambda: state.messages, state.messages
+            )
+
             # resolve overflow handling
             overflow = _resolve_overflow(truncation)
 
@@ -208,7 +213,7 @@ def react(
             # or if a message or token limit is hit
             while True:
                 # checkpoint at turn boundary (no-op when policy says so)
-                await cp.tick(state.messages)
+                await cp.tick()
 
                 # generate output and append assistant message
                 state = await _agent_generate(
@@ -369,6 +374,11 @@ def react_no_submit(
             if system_message:
                 state.messages.insert(0, system_message)
 
+            # track conversation messages (restored to prior value on resume)
+            state.messages = cp.track(
+                "messages", lambda: state.messages, state.messages
+            )
+
             # resolve overflow handling
             overflow = _resolve_overflow(truncation)
 
@@ -381,7 +391,7 @@ def react_no_submit(
             # main loop
             while True:
                 # checkpoint at turn boundary (no-op when policy says so)
-                await cp.tick(state.messages)
+                await cp.tick()
 
                 # generate output and append assistant message
                 state = await _agent_generate(
