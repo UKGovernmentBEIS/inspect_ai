@@ -8,6 +8,7 @@ import pytest
 
 from inspect_ai.util._checkpoint import (
     CheckpointConfig,
+    CheckpointSampleConfig,
     Retention,
     TimeInterval,
     TurnInterval,
@@ -34,6 +35,21 @@ def test_single_layer_passes_through() -> None:
 def test_layer_without_trigger_raises() -> None:
     with pytest.raises(ValueError, match="no trigger"):
         merge_checkpoint_configs(CheckpointConfig(checkpoints_dir="/tmp"))
+
+
+def test_sample_layer_uses_sample_config_type() -> None:
+    """Sample-layer configs are typed CheckpointSampleConfig — no checkpoints_dir field."""
+    sample = CheckpointSampleConfig(trigger=TurnInterval(every=2))
+    assert not hasattr(sample, "checkpoints_dir")
+    assert not hasattr(sample, "retention")
+
+    out = merge_checkpoint_configs(
+        task=CheckpointConfig(trigger=TurnInterval(every=5), checkpoints_dir="/tmp"),
+        sample=sample,
+    )
+    assert out is not None
+    assert out.checkpoints_dir == "/tmp"  # from task
+    assert out.trigger == TurnInterval(every=2)  # from sample
 
 
 def test_higher_priority_overrides_trigger() -> None:
