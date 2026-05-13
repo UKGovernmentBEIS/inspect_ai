@@ -5,7 +5,14 @@ from typing import Any, Literal, cast
 
 import click
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+)
 from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
@@ -807,7 +814,32 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 @click.command("eval", cls=EvalCommand)
 @click.argument("tasks", nargs=-1)
 @eval_options
-def eval_command(
+@click.pass_context
+def eval_command(ctx: click.Context, /, **params: Any) -> None:
+    """Evaluate tasks."""
+    # When --run-config is used, env-sourced CLI values (INSPECT_EVAL_*) defer
+    # to the run config — only explicit CLI flags override. Common-options env
+    # vars (INSPECT_LOG_LEVEL, INSPECT_LOG_DIR, ...) are not cleared because
+    # they describe how the run is logged/displayed, not what is run.
+    if params.get("run_config"):
+        from click.core import ParameterSource
+
+        for param in ctx.command.params:
+            name = param.name
+            if name is None or name == "run_config":
+                continue
+            envvar = getattr(param, "envvar", None)
+            if not (isinstance(envvar, str) and envvar.startswith("INSPECT_EVAL_")):
+                continue
+            if ctx.get_parameter_source(name) != ParameterSource.ENVIRONMENT:
+                continue
+            value = params.get(name)
+            params[name] = () if isinstance(value, tuple) else None
+
+    _eval_command_impl(**params)
+
+
+def _eval_command_impl(
     tasks: tuple[str, ...] | None,
     solver: str | None,
     model: str | None,
@@ -910,7 +942,6 @@ def eval_command(
     log_level_transcript: str,
     **common: Unpack[CommonOptions],
 ) -> None:
-    """Evaluate tasks."""
     # read config
     config = config_from_locals(dict(locals()))
 
@@ -1388,7 +1419,25 @@ class RunConfigInput(BaseModel):
 
 
 def parse_run_config(config: str) -> dict[str, Any]:
-    run_config = RunConfigInput.model_validate(resolve_args(config))
+    from jsonschema import Draft7Validator
+
+    config_dict = resolve_args(config)
+    try:
+        run_config = RunConfigInput.model_validate(config_dict)
+    except ValidationError as ex:
+        # Surface a more readable error via Draft7Validator. Fall back to
+        # pydantic's message when the JSON schema doesn't capture the
+        # failure (e.g. custom field_validators on generate_config/eval_config).
+        schema = RunConfigInput.model_json_schema()
+        errors = list(Draft7Validator(schema).iter_errors(config_dict))
+        if errors:
+            message = "\n".join(
+                [f"Invalid run config '{config}':"]
+                + [f" - {error.message}" for error in errors]
+            )
+        else:
+            message = f"Invalid run config '{config}': {ex}"
+        raise PrerequisiteError(message)
     return run_config.to_params()
 
 

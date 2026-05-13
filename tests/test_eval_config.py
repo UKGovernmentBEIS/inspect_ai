@@ -1,3 +1,4 @@
+import os
 import subprocess
 import tempfile
 from pathlib import Path
@@ -160,6 +161,70 @@ eval_config:
         assert log.eval.model_roles["grader"].model == "mockllm/model"
         assert log.eval.model_roles["grader"].config.temperature == 0.5
         assert log.eval.model_roles["grader"].config.max_tokens == 1000
+
+
+def test_eval_run_config_cli_env_var_overridden_by_run_config():
+    """INSPECT_EVAL_MODEL must not override a model set in --run-config."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        log_dir = temp_path / "logs"
+        run_config = temp_path / "run.yaml"
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+model: mockllm/model
+eval_config:
+  limit: 1
+""".strip()
+        )
+
+        subprocess.run(
+            [
+                "inspect",
+                "eval",
+                "--run-config",
+                run_config.as_posix(),
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            env={**os.environ, "INSPECT_EVAL_MODEL": "anthropic/claude-sonnet-4-6"},
+            check=True,
+        )
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.model == "mockllm/model"
+
+
+def test_eval_run_config_cli_env_var_overridden_by_explicit_flag():
+    """An explicit --model flag must beat both INSPECT_EVAL_MODEL and --run-config."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        log_dir = temp_path / "logs"
+        run_config = temp_path / "run.yaml"
+        run_config.write_text(
+            """
+task: tests/test_eval_config.py@eval_config_task
+model: mockllm/from_run_config
+eval_config:
+  limit: 1
+""".strip()
+        )
+
+        subprocess.run(
+            [
+                "inspect",
+                "eval",
+                "--run-config",
+                run_config.as_posix(),
+                "--model",
+                "mockllm/from_cli",
+                "--log-dir",
+                log_dir.as_posix(),
+            ],
+            env={**os.environ, "INSPECT_EVAL_MODEL": "mockllm/from_env"},
+            check=True,
+        )
+        log = read_eval_log(list_eval_logs(log_dir.as_posix())[0])
+        assert log.eval.model == "mockllm/from_cli"
 
 
 def test_eval_run_config_cli_paper_config():
