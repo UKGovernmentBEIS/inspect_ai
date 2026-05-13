@@ -818,11 +818,25 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
 def eval_command(ctx: click.Context, /, **params: Any) -> None:
     """Evaluate tasks."""
     # When --run-config is used, env-sourced CLI values (INSPECT_EVAL_*) defer
-    # to the run config — only explicit CLI flags override. Common-options env
-    # vars (INSPECT_LOG_LEVEL, INSPECT_LOG_DIR, ...) are not cleared because
+    # to the run config _for fields the run config actually provides_. Env
+    # values still apply to fields the run config leaves unset. Common-options
+    # env vars (INSPECT_LOG_LEVEL, INSPECT_LOG_DIR, ...) are never cleared —
     # they describe how the run is logged/displayed, not what is run.
     if params.get("run_config"):
         from click.core import ParameterSource
+
+        run_params = parse_run_config(params["run_config"])
+
+        # Map Click parameter name -> the cli_params key it ultimately produces
+        # in eval_exec. Most are identity; these are the exceptions.
+        click_to_cli_key = {
+            "m": "model_args",
+            "t": "task_args",
+            "model_role": "model_roles",
+            "no_sandbox_cleanup": "sandbox_cleanup",
+            "s": "solver",
+            "solver_config": "solver",
+        }
 
         for param in ctx.command.params:
             name = param.name
@@ -832,6 +846,9 @@ def eval_command(ctx: click.Context, /, **params: Any) -> None:
             if not (isinstance(envvar, str) and envvar.startswith("INSPECT_EVAL_")):
                 continue
             if ctx.get_parameter_source(name) != ParameterSource.ENVIRONMENT:
+                continue
+            cli_key = click_to_cli_key.get(name, name)
+            if cli_key not in run_params:
                 continue
             value = params.get(name)
             params[name] = () if isinstance(value, tuple) else None
