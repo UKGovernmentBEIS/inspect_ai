@@ -77,3 +77,32 @@ def test_bash_profile() -> None:
     tool_call_response = get_tool_response(messages, tool_call)
     assert tool_call_response is not None
     assert tool_call_response.content == "custom_value\n"
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_bash_null_byte() -> None:
+    """A null byte in a bash command surfaces as a tool error, not a sample crash."""
+    task = minimal_task_for_tool_use(bash())
+    result = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name=bash.__name__,
+                    tool_arguments={"command": "echo -n '\x00' > /tmp/poc"},
+                ),
+            ],
+        ),
+    )[0]
+    assert result.samples
+    sample = result.samples[0]
+    assert sample.error is None
+    tool_call = get_tool_call(sample.messages, bash.__name__)
+    assert tool_call is not None
+    tool_response = get_tool_response(sample.messages, tool_call)
+    assert tool_response is not None
+    assert tool_response.error is not None
+    assert "embedded null byte" in tool_response.error.message
