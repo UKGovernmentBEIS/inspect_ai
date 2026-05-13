@@ -91,21 +91,17 @@ class Retention:
 
 
 @dataclass
-class CheckpointConfig:
-    """User-facing checkpoint configuration.
+class CheckpointSampleConfig:
+    """Checkpoint configuration fields that may be set at the sample layer.
 
-    Specify on ``Sample(checkpoint=...)``, ``Task(checkpoint=...)``, or
-    ``eval(checkpoint=...)``. All fields default to ``None`` so that
-    each level can supply a partial config; the layers are combined
-    per-field at sample-run time (precedence: eval > sample > task).
+    These fields can be specified on ``Sample(checkpoint=...)`` and are
+    also accepted at the task and eval layers (where they participate in
+    the per-field merge — precedence: eval > sample > task).
 
-    Construct a config at the level that "owns" each value:
-    - **Task**: defaults common to every sample (typical trigger,
-      sandbox paths).
-    - **Sample**: per-row overrides (e.g. a particular sample needs a
-      tighter cadence or a different captured path).
-    - **Eval / CLI**: run-level overrides (e.g. operator switches
-      cadence or destination for one run).
+    The fields excluded from this base class — ``checkpoints_dir`` and
+    ``retention`` — are eval-wide concerns that the sample layer must
+    not influence. They live only on the derived :class:`CheckpointConfig`,
+    which is the type used at the task and eval layers.
 
     See ``design/plans/checkpointing-working.md`` §2.
     """
@@ -114,13 +110,6 @@ class CheckpointConfig:
     """Checkpoint trigger. See :data:`CheckpointTrigger`. ``None`` means
     "inherit from a lower-priority layer"; the final merged config must
     have a non-None trigger or resolution raises."""
-
-    checkpoints_dir: str | None = None
-    """Override the parent directory under which the eval checkpoints
-    dir lands. ``None`` = sibling of the eval log file. When set,
-    inspect places ``<log-base>.checkpoints/`` under this root.
-    Supports any fsspec-resolvable path (``s3://``, ``gs://``, plain
-    local)."""
 
     sandbox_paths: dict[str, list[str]] | None = None
     """Per-sandbox-name list of absolute paths to capture inside the
@@ -132,25 +121,57 @@ class CheckpointConfig:
     attempts. ``None`` = inherit / unlimited tolerance. ``0`` = any
     failure is fatal."""
 
+
+@dataclass
+class CheckpointConfig(CheckpointSampleConfig):
+    """User-facing checkpoint configuration for the task and eval layers.
+
+    Specify on ``Task(checkpoint=...)`` or ``eval(checkpoint=...)``. All
+    fields default to ``None`` so that each level can supply a partial
+    config; the layers are combined per-field at sample-run time
+    (precedence: eval > sample > task).
+
+    Adds the eval-wide fields (``checkpoints_dir``, ``retention``) to
+    the sample-permitted base class. Sample-layer configs use the base
+    :class:`CheckpointSampleConfig` directly — these fields cannot be
+    set per-sample.
+
+    See ``design/plans/checkpointing-working.md`` §2.
+    """
+
+    checkpoints_dir: str | None = None
+    """Override the parent directory under which the eval checkpoints
+    dir lands. ``None`` = sibling of the eval log file. When set,
+    inspect places ``<log-base>.checkpoints/`` under this root.
+    Supports any fsspec-resolvable path (``s3://``, ``gs://``, plain
+    local). Eval-wide — settable only at the task or eval layer."""
+
     retention: Retention | None = None
     """Controls when checkpoint data is deleted. ``None`` = inherit /
-    use the default :class:`Retention` (``after_eval="delete"``)."""
+    use the default :class:`Retention` (``after_eval="delete"``).
+    Eval-wide — settable only at the task or eval layer."""
 
 
 def merge_checkpoint_configs(
-    *layers: CheckpointConfig | None,
+    task: CheckpointConfig | None = None,
+    sample: CheckpointSampleConfig | None = None,
+    eval_: CheckpointConfig | None = None,
 ) -> CheckpointConfig | None:
-    """Merge :class:`CheckpointConfig` layers in priority order, lowest first.
+    """Merge checkpoint config layers across task, sample, and eval.
 
-    Configs at the eval, task, and sample levels each supply a partial
-    :class:`CheckpointConfig`; the harness combines them at sample-run
-    time. Precedence: **eval > sample > task** — i.e. the layer closest
-    to the run wins on per-field conflicts.
+    Precedence: **eval > sample > task** — the layer closest to the run
+    wins on per-field conflicts.
 
-    For every field, the later (higher-priority) layer with a non-None
-    value wins; lower layers supply defaults that higher layers can
-    override. ``sandbox_paths`` is treated as a single value (whole-
-    dict replacement), not key-wise merged.
+    The sample layer is typed :class:`CheckpointSampleConfig`, so it can
+    only contribute to fields shared with that base class
+    (``trigger``, ``sandbox_paths``, ``max_consecutive_failures``). The
+    eval-wide fields (``checkpoints_dir``, ``retention``) come only
+    from the task or eval layers.
+
+    For every field, the highest-priority layer with a non-None value
+    wins; lower layers supply defaults that higher layers can override.
+    ``sandbox_paths`` is treated as a single value (whole-dict
+    replacement), not key-wise merged.
 
     Returns ``None`` if no layer supplied a config (checkpointing
     disabled). Returns a materialized :class:`CheckpointConfig`
@@ -161,25 +182,29 @@ def merge_checkpoint_configs(
     Raises ``ValueError`` if at least one layer was supplied but no
     layer set a `trigger`.
     """
-    provided = [c for c in layers if c is not None]
-    if not provided:
+    if task is None and sample is None and eval_ is None:
         return None
 
-    trigger = None
-    checkpoints_dir = None
+    trigger: CheckpointTrigger | None = None
     sandbox_paths: dict[str, list[str]] | None = None
-    max_consecutive_failures = None
-    retention: Retention | None = None
-
-    for layer in provided:
+    max_consecutive_failures: int | None = None
+    for layer in (task, sample, eval_):
+        if layer is None:
+            continue
         if layer.trigger is not None:
             trigger = layer.trigger
-        if layer.checkpoints_dir is not None:
-            checkpoints_dir = layer.checkpoints_dir
         if layer.sandbox_paths is not None:
             sandbox_paths = layer.sandbox_paths
         if layer.max_consecutive_failures is not None:
             max_consecutive_failures = layer.max_consecutive_failures
+
+    checkpoints_dir: str | None = None
+    retention: Retention | None = None
+    for layer in (task, eval_):
+        if layer is None:
+            continue
+        if layer.checkpoints_dir is not None:
+            checkpoints_dir = layer.checkpoints_dir
         if layer.retention is not None:
             retention = layer.retention
 
