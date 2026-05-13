@@ -30,6 +30,15 @@ def inspect_trace_file(trace_dir: Path | None = None) -> Path:
     return trace_dir / f"trace-{os.getpid()}.log"
 
 
+def _is_cancelled_exception(ex: BaseException) -> bool:
+    try:
+        cancelled_exc_class = anyio.get_cancelled_exc_class()
+    except Exception:
+        return False
+    else:
+        return isinstance(ex, cancelled_exc_class)
+
+
 @contextmanager
 def trace_action(
     logger: Logger, action: str, message: str, *args: Any, **kwargs: Any
@@ -84,50 +93,47 @@ def trace_action(
                 "duration": duration,
             },
         )
-    except (KeyboardInterrupt, anyio.get_cancelled_exc_class()):
+    except BaseException as ex:
         duration = time.monotonic() - start_monotonic
-        logger.log(
-            TRACE,
-            trace_message("cancel"),
-            extra={
-                "action": action,
-                "detail": detail,
-                "event": "cancel",
-                "trace_id": str(trace_id),
-                "duration": duration,
-            },
-        )
-        raise
-    except TimeoutError:
-        duration = time.monotonic() - start_monotonic
-        logger.log(
-            TRACE,
-            trace_message("timeout"),
-            extra={
-                "action": action,
-                "detail": detail,
-                "event": "timeout",
-                "trace_id": str(trace_id),
-                "duration": duration,
-            },
-        )
-        raise
-    except Exception as ex:
-        duration = time.monotonic() - start_monotonic
-        logger.log(
-            TRACE,
-            trace_message("error"),
-            extra={
-                "action": action,
-                "detail": detail,
-                "event": "error",
-                "trace_id": str(trace_id),
-                "duration": duration,
-                "error": getattr(ex, "message", str(ex)) or repr(ex),
-                "error_type": type(ex).__name__,
-                "stacktrace": traceback.format_exc(),
-            },
-        )
+        if isinstance(ex, KeyboardInterrupt) or _is_cancelled_exception(ex):
+            logger.log(
+                TRACE,
+                trace_message("cancel"),
+                extra={
+                    "action": action,
+                    "detail": detail,
+                    "event": "cancel",
+                    "trace_id": str(trace_id),
+                    "duration": duration,
+                },
+            )
+        elif isinstance(ex, TimeoutError):
+            logger.log(
+                TRACE,
+                trace_message("timeout"),
+                extra={
+                    "action": action,
+                    "detail": detail,
+                    "event": "timeout",
+                    "trace_id": str(trace_id),
+                    "duration": duration,
+                },
+            )
+        elif isinstance(ex, Exception):
+            logger.log(
+                TRACE,
+                trace_message("error"),
+                extra={
+                    "action": action,
+                    "detail": detail,
+                    "event": "error",
+                    "trace_id": str(trace_id),
+                    "duration": duration,
+                    "error": getattr(ex, "message", str(ex)) or repr(ex),
+                    "error_type": type(ex).__name__,
+                    "stacktrace": traceback.format_exc(),
+                },
+            )
         raise
 
 

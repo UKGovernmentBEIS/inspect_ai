@@ -7,12 +7,12 @@ google-genai>=1.69.0
 griffe>=2
 groq>=0.28.0
 huggingface_hub>=1.0.0
-inspect_scout
+inspect-scout>=0.4.34
 ipython
 jsonpath-ng
 markdown
 mcp>=1.10.0
-mistralai>=2.0.0
+mistralai @ git+https://github.com/mistralai/client-python.git@v2.4.5
 moto[server]>=5.1.5
 mypy>=1.17.0
 nbformat

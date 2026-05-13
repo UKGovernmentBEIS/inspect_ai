@@ -8,8 +8,9 @@ import tempfile
 from logging import getLogger
 from typing import IO
 
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 
+from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.event._sample_init import SampleInitEvent
@@ -28,8 +29,12 @@ from inspect_ai.log._log import (
     EventsData,
 )
 from inspect_ai.log._pool import (
+    _build_call_index,
+    _build_msg_index,
     condense_model_event_calls,
     condense_model_event_inputs,
+    resolve_model_event_calls,
+    resolve_model_event_inputs,
 )
 from inspect_ai.log._recorders.buffer.filestore import Manifest, SampleBufferFilestore
 from inspect_ai.log._recorders.eval import ZipLogFile, _sample_filename
@@ -39,6 +44,8 @@ from ._attachments import StreamingAttachmentStore, write_attachments_field
 from ._reconstruct import MessageAccumulator, _deserialize_events
 
 logger = getLogger(__name__)
+
+_CHAT_MESSAGES_ADAPTER: TypeAdapter[list[ChatMessage]] = TypeAdapter(list[ChatMessage])
 
 
 def _write_json_field(
@@ -161,6 +168,43 @@ def _write_sample_streaming(
                 for att in seg_data.attachments:
                     attachments[att.hash] = att.content
 
+                # Segment files written by sync_to_filestore already carry
+                # condensed events; their pools live alongside the events.
+                if seg_data.message_pool:
+                    new_messages = _CHAT_MESSAGES_ADAPTER.validate_python(
+                        [
+                            json_module.loads(entry.data)
+                            for entry in sorted(
+                                seg_data.message_pool, key=lambda entry: entry.id
+                            )
+                        ],
+                        context=get_deserializing_context(),
+                    )
+                    pool_start = len(message_pool)
+                    message_pool.extend(new_messages)
+                    msg_index.update(
+                        {
+                            key: pool_start + index
+                            for key, index in _build_msg_index(new_messages).items()
+                        }
+                    )
+
+                if seg_data.call_pool:
+                    new_calls = [
+                        json_module.loads(entry.data)
+                        for entry in sorted(
+                            seg_data.call_pool, key=lambda entry: entry.id
+                        )
+                    ]
+                    pool_start = len(call_pool)
+                    call_pool.extend(new_calls)
+                    call_index.update(
+                        {
+                            key: pool_start + index
+                            for key, index in _build_call_index(new_calls).items()
+                        }
+                    )
+
                 # Deserialize events from this segment
                 raw_events = _deserialize_events([ed.event for ed in seg_data.events])
                 if not raw_events:
@@ -177,8 +221,11 @@ def _write_sample_streaming(
                     if isinstance(ev, SampleLimitEvent):
                         sample_limit_event = ev  # keep the last
 
-                # Feed to message accumulator (before condensing)
-                accumulator.process_events(raw_events)
+                # Feed resolved events to the message accumulator. The events
+                # written to the recovered log stay condensed below.
+                resolved_events = resolve_model_event_inputs(raw_events, message_pool)
+                resolved_events = resolve_model_event_calls(resolved_events, call_pool)
+                accumulator.process_events(resolved_events)
 
                 if include_events:
                     # Attachment walking per event
@@ -187,14 +234,16 @@ def _write_sample_streaming(
                         for ev in raw_events
                     ]
 
-                    # Pool dedup (carrying state across segments)
-                    condensed, message_pool, msg_index, _ = condense_model_event_inputs(
-                        condensed, message_pool, msg_index
+                    # Pool dedup (carrying state across segments).
+                    condensed, msg_index, new_msgs = condense_model_event_inputs(
+                        condensed, len(message_pool), msg_index
                     )
+                    message_pool.extend(msg for _, msg in new_msgs)
 
-                    condensed, call_pool, call_index, _ = condense_model_event_calls(
-                        condensed, call_pool, call_index
+                    condensed, call_index, new_calls = condense_model_event_calls(
+                        condensed, len(call_pool), call_index
                     )
+                    call_pool.extend(call_msg for _, call_msg in new_calls)
 
                     # Write condensed events to the stream
                     for ev in condensed:

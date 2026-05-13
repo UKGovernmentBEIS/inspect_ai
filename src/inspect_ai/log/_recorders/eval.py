@@ -509,6 +509,14 @@ async def _s3_conditional_put_object(
 ) -> None:
     """Helper function to perform S3 conditional write with aioboto3."""
     s3_client = await async_fs.s3_client_async()
+    # Preflight HEAD: some S3-compatible backends (notably moto) do not honor the
+    # IfMatch header on put_object, so verify the current ETag matches before writing.
+    current = await s3_client.head_object(Bucket=bucket, Key=key)
+    current_etag = str(current["ETag"]).strip('"')
+    if current_etag != etag:
+        raise WriteConflictError(
+            f"Log file was modified by another process. Expected ETag: {etag}"
+        )
     await s3_client.put_object(
         Bucket=bucket,
         Key=key,
@@ -624,6 +632,13 @@ class ZipLogFile:
                 summary_file = _journal_summary_file(self._summary_counter)
                 summary_path = _journal_summary_path(summary_file)
                 self._zip_writestr(summary_path, summaries)
+                # replace any existing summaries for the same (id, epoch)
+                # (e.g. when re-logging completed samples after log_init
+                # with clean=False during eval_retry / score --overwrite)
+                new_keys = {(s.id, s.epoch) for s in summaries}
+                self._summaries = [
+                    s for s in self._summaries if (s.id, s.epoch) not in new_keys
+                ]
                 self._summaries.extend(summaries)
 
     async def write(self, filename: str, data: Any) -> None:

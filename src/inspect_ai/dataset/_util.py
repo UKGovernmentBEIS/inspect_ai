@@ -1,4 +1,5 @@
 import json
+import math
 from typing import Any, Iterable, cast
 
 from pydantic import ValidationError
@@ -170,10 +171,11 @@ def read_messages(messages: list[dict[str, Any]]) -> list[ChatMessage]:
 
 
 def read_target(obj: Any | None) -> str | list[str]:
-    if obj is not None:
-        return [str(item) for item in obj] if isinstance(obj, list) else str(obj)
-    else:
+    # treat float NaN (commonly produced by HuggingFace / pandas for missing
+    # string values) the same as None rather than stringifying it to "nan"
+    if obj is None or (isinstance(obj, float) and math.isnan(obj)):
         return ""
+    return [str(item) for item in obj] if isinstance(obj, list) else str(obj)
 
 
 def read_choices(obj: Any | None) -> list[str] | None:

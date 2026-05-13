@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 from zipfile import ZipFile
 
 import pytest
@@ -26,6 +27,10 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     EvalSpec,
 )
+from inspect_ai.log._recorders.buffer.database import (
+    SampleBufferDatabase,
+    sync_to_filestore,
+)
 from inspect_ai.log._recorders.buffer.filestore import (
     Manifest,
     SampleBufferFilestore,
@@ -40,6 +45,7 @@ from inspect_ai.log._recorders.buffer.types import (
     SampleData,
 )
 from inspect_ai.log._recorders.eval import LogStart
+from inspect_ai.log._recorders.types import SampleEvent
 from inspect_ai.log._recover import (
     recover_eval_log_async,
     recoverable_eval_logs,
@@ -650,6 +656,75 @@ async def test_streaming_recovery_has_events_data() -> None:
             for me in read_model_events:
                 assert len(me.input) > 0
                 assert me.input_refs is None
+
+
+async def test_streaming_recovery_preserves_synced_message_pool() -> None:
+    """Recovery keeps pools from segments produced by sync_to_filestore."""
+    async with AsyncFilesystem():
+        with tempfile.TemporaryDirectory() as temp_dir:
+            eval_path = os.path.join(temp_dir, "test.eval")
+            db_dir = Path(temp_dir) / "db"
+            db_dir.mkdir()
+
+            db = SampleBufferDatabase(location=eval_path, create=True, db_dir=db_dir)
+            filestore = SampleBufferFilestore(eval_path, create=True)
+
+            db.start_sample(_make_summary(id="sample1", epoch=1, completed=False))
+            db.log_events(
+                [
+                    SampleEvent(
+                        id="sample1",
+                        epoch=1,
+                        event=ModelEvent(
+                            model="mockllm/model",
+                            input=[ChatMessageUser(content="pooled user message")],
+                            tools=[],
+                            tool_choice="auto",
+                            config=GenerateConfig(),
+                            output=ModelOutput.from_content(
+                                model="mockllm/model", content="pooled response"
+                            ),
+                        ),
+                    )
+                ]
+            )
+            db.complete_sample(_make_summary(id="sample1", epoch=1, completed=True))
+            sync_to_filestore(db, filestore)
+
+            _write_crashed_eval(eval_path)
+            output_path = os.path.join(temp_dir, "test-recovered.eval")
+
+            await recover_eval_log_async(
+                eval_path,
+                output=output_path,
+                cleanup=False,
+                _db_dir=os.path.join(temp_dir, "empty_db_dir"),
+            )
+
+            with ZipFile(output_path, "r") as zf:
+                sample_names = [
+                    n
+                    for n in zf.namelist()
+                    if n.startswith("samples/") and n.endswith(".json")
+                ]
+                raw = json.loads(zf.read(sample_names[0]))
+
+            assert raw["events_data"] is not None
+            assert raw["events_data"]["messages"][0]["content"] == (
+                "pooled user message"
+            )
+            [model_event] = [e for e in raw["events"] if e.get("event") == "model"]
+            assert model_event["input"] == []
+            assert model_event["input_refs"] == [[0, 1]]
+
+            read_log = read_eval_log(output_path)
+            assert read_log.samples is not None
+            [read_sample] = read_log.samples
+            [read_model_event] = [
+                e for e in read_sample.events if isinstance(e, ModelEvent)
+            ]
+            assert read_model_event.input[0].content == "pooled user message"
+            assert read_sample.messages[0].content == "pooled user message"
 
 
 async def test_streaming_recovery_sample_with_no_events() -> None:

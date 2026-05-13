@@ -1,0 +1,102 @@
+"""Sample checkpoints dir and sidecar writes.
+
+Each ``(sample, epoch[, retry])`` attempt gets its own sample
+checkpoints dir under the eval checkpoints dir; sidecars
+(``ckpt-NNNNN.json``) live inside it as the plaintext index for each
+fired checkpoint. See ``design/plans/checkpointing-working.md`` §1.
+
+The optional ``_<retry>`` suffix is omitted until ``ActiveSample``
+exposes the attempt index — see the TODO at the
+``Checkpointer.__aenter__`` identity capture.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+import anyio
+
+from inspect_ai._util.file import file, filesystem
+
+from .eval_checkpoints_dir import init_eval_checkpoints_dir
+from .layout import CheckpointSidecar, CheckpointTriggerKind, SnapshotInfo
+
+
+def _sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
+    return f"{eval_dir}/{sample_id}__{epoch}"
+
+
+async def ensure_sample_checkpoints_dir(
+    eval_dir: str, sample_id: int | str, epoch: int, eval_id: str
+) -> str:
+    """Create (idempotent) and return the sample checkpoints dir path.
+
+    Also ensures the eval checkpoints dir + manifest exist; that's an
+    implementation detail callers shouldn't have to repeat.
+    """
+    await init_eval_checkpoints_dir(eval_dir, eval_id)
+    return await anyio.to_thread.run_sync(
+        _ensure_sample_checkpoints_dir_blocking, eval_dir, sample_id, epoch
+    )
+
+
+def _ensure_sample_checkpoints_dir_blocking(
+    eval_dir: str, sample_id: int | str, epoch: int
+) -> str:
+    sample_dir = _sample_checkpoints_dir(eval_dir, sample_id, epoch)
+    filesystem(sample_dir).mkdir(sample_dir, exist_ok=True)
+    return sample_dir
+
+
+async def write_sidecar(
+    *,
+    sample_checkpoints_dir: str,
+    checkpoint_id: int,
+    trigger: CheckpointTriggerKind,
+    turn: int,
+    host: SnapshotInfo,
+    sandboxes: dict[str, SnapshotInfo],
+    duration_ms: int,
+) -> str:
+    """Write ``ckpt-NNNNN.json`` for this checkpoint. Returns the path."""
+    return await anyio.to_thread.run_sync(
+        _write_sidecar_blocking,
+        sample_checkpoints_dir,
+        checkpoint_id,
+        trigger,
+        turn,
+        host,
+        sandboxes,
+        duration_ms,
+    )
+
+
+def _write_sidecar_blocking(
+    sample_checkpoints_dir: str,
+    checkpoint_id: int,
+    trigger: CheckpointTriggerKind,
+    turn: int,
+    host: SnapshotInfo,
+    sandboxes: dict[str, SnapshotInfo],
+    duration_ms: int,
+) -> str:
+    sidecar = CheckpointSidecar(
+        checkpoint_id=checkpoint_id,
+        trigger=trigger,
+        turn=turn,
+        created_at=datetime.now(timezone.utc),
+        duration_ms=duration_ms,
+        size_bytes=host.size_bytes + sum(s.size_bytes for s in sandboxes.values()),
+        host=host,
+        sandboxes=sandboxes,
+    )
+
+    sidecar_path = f"{sample_checkpoints_dir}/ckpt-{checkpoint_id:05d}.json"
+    # Non-atomic on purpose. Per §4d, the commit point is "sidecar that
+    # parses": resume globs `ckpt-*.json`, parse-and-skips torn / missing
+    # entries, and falls back to the prior parseable sidecar. A
+    # mid-write crash costs at most one checkpoint's progress — same as
+    # crashing before the sidecar starts.
+    with file(sidecar_path, "w") as f:
+        f.write(sidecar.model_dump_json(indent=2))
+    return sidecar_path

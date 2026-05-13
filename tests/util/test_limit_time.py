@@ -123,6 +123,19 @@ async def test_can_get_remaining() -> None:
 
 
 @pytest.mark.anyio
+async def test_does_not_mask_exception_raised_after_deadline() -> None:
+    # If the deadline fires AND the body subsequently raises a non-Cancelled
+    # exception (e.g. cleanup in a `finally` crashes), the original exception
+    # must propagate rather than being masked by LimitExceededError.
+    with pytest.raises(RuntimeError, match="cleanup crashed"):
+        with time_limit(0.05):
+            try:
+                await anyio.sleep(1.0)
+            finally:
+                raise RuntimeError("cleanup crashed")
+
+
+@pytest.mark.anyio
 async def test_cannot_reuse_context_manager() -> None:
     limit = time_limit(10)
     with limit:

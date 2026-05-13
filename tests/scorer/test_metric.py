@@ -388,6 +388,20 @@ def test_clustered_stderr():
     assert round(se, 3) == 0.645
 
 
+def test_clustered_stderr_single_cluster():
+    # Regression: with a single cluster, cluster_count / (cluster_count - 1)
+    # divides by zero. Should return 0.0 (mirroring the non-clustered n < 2
+    # guard) rather than NaN/inf.
+    metric = stderr(cluster="my_cluster")
+    se = metric(
+        [
+            SampleScore(score=Score(value=v), sample_metadata={"my_cluster": "only"})
+            for v in [1.0, 0.0, 1.0]
+        ]
+    )
+    assert se == 0.0
+
+
 def test_grouped_mean_single():
     metric = grouped(mean(), group_key="group")
     result = metric(
@@ -492,6 +506,24 @@ def test_no_all():
 
     assert all(key in result for key in ["A", "B", "C", "D"])
     assert "all" not in result
+
+
+def test_grouped_all_label_collision():
+    # Regression: when a group's name collides with all_label (default "all"),
+    # the per-group metric was silently overwritten by the aggregate. Now this
+    # should raise so the user knows to pick a different all_label.
+    metric = grouped(accuracy(), group_key="category")
+    with pytest.raises(ValueError, match="all_label"):
+        metric(
+            [
+                SampleScore(
+                    score=Score(value="C"), sample_metadata={"category": "easy"}
+                ),
+                SampleScore(
+                    score=Score(value="I"), sample_metadata={"category": "all"}
+                ),
+            ]
+        )
 
 
 def test_custom_all():
