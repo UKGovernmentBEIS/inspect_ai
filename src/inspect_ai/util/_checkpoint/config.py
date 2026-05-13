@@ -120,7 +120,8 @@ class CheckpointConfig:
     dir lands. ``None`` = sibling of the eval log file. When set,
     inspect places ``<log-base>.checkpoints/`` under this root.
     Supports any fsspec-resolvable path (``s3://``, ``gs://``, plain
-    local)."""
+    local). May only be set at the task or eval level — per-sample
+    overrides are rejected by :func:`merge_checkpoint_configs`."""
 
     sandbox_paths: dict[str, list[str]] | None = None
     """Per-sandbox-name list of absolute paths to capture inside the
@@ -138,19 +139,23 @@ class CheckpointConfig:
 
 
 def merge_checkpoint_configs(
-    *layers: CheckpointConfig | None,
+    task: CheckpointConfig | None = None,
+    sample: CheckpointConfig | None = None,
+    eval_: CheckpointConfig | None = None,
 ) -> CheckpointConfig | None:
-    """Merge :class:`CheckpointConfig` layers in priority order, lowest first.
+    """Merge :class:`CheckpointConfig` layers across task, sample, and eval.
 
-    Configs at the eval, task, and sample levels each supply a partial
-    :class:`CheckpointConfig`; the harness combines them at sample-run
-    time. Precedence: **eval > sample > task** — i.e. the layer closest
-    to the run wins on per-field conflicts.
+    Precedence: **eval > sample > task** — the layer closest to the run
+    wins on per-field conflicts.
 
-    For every field, the later (higher-priority) layer with a non-None
-    value wins; lower layers supply defaults that higher layers can
-    override. ``sandbox_paths`` is treated as a single value (whole-
-    dict replacement), not key-wise merged.
+    For every field, the highest-priority layer with a non-None value
+    wins; lower layers supply defaults that higher layers can override.
+    ``sandbox_paths`` is treated as a single value (whole-dict
+    replacement), not key-wise merged.
+
+    ``checkpoints_dir`` is the one exception to per-field overriding:
+    it may only be set at the task or eval level. Setting it on the
+    sample layer raises ``ValueError``.
 
     Returns ``None`` if no layer supplied a config (checkpointing
     disabled). Returns a materialized :class:`CheckpointConfig`
@@ -159,9 +164,16 @@ def merge_checkpoint_configs(
     their canonical defaults.
 
     Raises ``ValueError`` if at least one layer was supplied but no
-    layer set a `trigger`.
+    layer set a `trigger`, or if the sample layer sets
+    ``checkpoints_dir``.
     """
-    provided = [c for c in layers if c is not None]
+    if sample is not None and sample.checkpoints_dir is not None:
+        raise ValueError(
+            "checkpoints_dir cannot be set on a per-sample CheckpointConfig; "
+            "set it at the task or eval level"
+        )
+
+    provided = [c for c in (task, sample, eval_) if c is not None]
     if not provided:
         return None
 

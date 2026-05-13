@@ -36,6 +36,13 @@ def test_layer_without_trigger_raises() -> None:
         merge_checkpoint_configs(CheckpointConfig(checkpoints_dir="/tmp"))
 
 
+def test_sample_checkpoints_dir_rejected() -> None:
+    with pytest.raises(ValueError, match="checkpoints_dir"):
+        merge_checkpoint_configs(
+            sample=CheckpointConfig(checkpoints_dir="/tmp"),
+        )
+
+
 def test_higher_priority_overrides_trigger() -> None:
     task = CheckpointConfig(trigger=TurnInterval(every=5))
     sample = CheckpointConfig(trigger=TurnInterval(every=2))
