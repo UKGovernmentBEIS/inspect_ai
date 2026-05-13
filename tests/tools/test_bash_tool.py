@@ -106,3 +106,60 @@ def test_bash_null_byte() -> None:
     assert tool_response is not None
     assert tool_response.error is not None
     assert "embedded null byte" in tool_response.error.message
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_bash_chmodless_script() -> None:
+    """Running a non-executable script surfaces as a tool response with stderr, not a sample crash."""
+    task = minimal_task_for_tool_use(bash())
+    result = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name=bash.__name__,
+                    tool_arguments={
+                        "command": "echo 'true' > /tmp/myscript && /tmp/myscript"
+                    },
+                ),
+            ],
+        ),
+    )[0]
+    assert result.samples
+    sample = result.samples[0]
+    assert sample.error is None, f"unexpected sample error: {sample.error}"
+    tool_call = get_tool_call(sample.messages, bash.__name__)
+    assert tool_call is not None
+    tool_response = get_tool_response(sample.messages, tool_call)
+    assert tool_response is not None
+    assert "Permission denied" in str(tool_response.content)
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+def test_bash_invalid_utf8() -> None:
+    """Non-UTF-8 command output does not crash the sample."""
+    task = minimal_task_for_tool_use(bash())
+    result = eval(
+        task,
+        model=get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name=bash.__name__,
+                    tool_arguments={"command": "printf '\\xff'"},
+                ),
+            ],
+        ),
+    )[0]
+    assert result.samples
+    sample = result.samples[0]
+    assert sample.error is None
+    # The sandbox interface allows `exec` to raise UnicodeDecodeError (which
+    # the tool call framework converts to a friendly result), but built-in
+    # sandboxes use lossy decoding instead of raising. This test does not
+    # insist on either behavior.
