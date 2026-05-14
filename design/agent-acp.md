@@ -885,15 +885,58 @@ Verification: `pytest tests/log/test_interrupt_event.py` (12 passed); `pytest te
 
 ### Phase 3: Turn scope and cancellation mechanics
 
-The core cancel/inject machinery on `AcpSession`. No `react()` integration yet — exercised against synthetic turn bodies.
+The core cancel/inject machinery on `AcpSession`. No `react()` integration — exercised purely by unit tests against synthetic turn bodies.
 
-- `turn_scope()` synchronous context manager wrapping an anyio `CancelScope`, with the `_pending_turn_cancel` flag dance to distinguish client cancel from sample-level cancel.
-- `TurnCancelled` exception, raised on scope exit when the cancel was client-driven.
-- `before_turn(state)` queue draining with first-call blocking semantics (block only if `state.messages` has no user content yet).
-- `after_cancel()` returning a flat `list[ChatMessage]` — synthetic `ChatMessageTool(error="cancelled by user")` for cancelled tool calls plus drained user messages, in order ready to extend onto `state.messages`.
-- `submit_user_message()` and `cancel_current_turn()` producer-side methods.
+**Files created:**
+- `tests/agent/acp/test_cancel.py` — 18 unit tests covering all turn/cancel/inject paths under both asyncio and trio.
 
-**Tests.** Simulate cancel during a mock turn body — assert `TurnCancelled` when the flag is set, `CancelledError` propagates otherwise; race test where the turn body completes simultaneously with cancel (queued message survives, no exception); `after_cancel` produces correct repair messages when a tool was mid-flight at cancel time; `before_turn` blocking behavior under both empty and non-empty `state.messages`.
+**Files modified:**
+- `src/inspect_ai/agent/_acp/_session.py` — extended Protocol, `_LiveAcpSession`, and `_NoOpAcpSession` with the Phase 3 surface; added `TurnCancelled` exception. ~300 → ~545 LoC, still single-file.
+- `src/inspect_ai/tool/_tool_call.py` — added `"cancelled"` to `ToolCallError.type` Literal.
+- `src/inspect_ai/_view/inspect-openapi.json` — regenerated to include the extended `ToolCallError.type` enum.
+- `src/inspect_ai/_view/ts-mono/packages/inspect-common/src/types/generated.ts` and `apps/scout/src/types/generated.ts` — regenerated TS types for the new `"cancelled"` enum value.
+
+**What landed:**
+- `TurnCancelled(Exception)` — distinct from `CancelledError`. Raised on scope exit only when the cancel was client-driven (via `cancel_current_turn`). Sample-level `CancelledError` propagates through unchanged.
+- `acp.turn_scope()` — sync `@contextmanager` wrapping an `anyio.CancelScope`. Resets `_pending_turn_cancel` and `_cancelled_tool_call_ids` at entry; on exit, raises `TurnCancelled` iff `scope.cancelled_caught and _pending_turn_cancel`. Discriminator works because anyio's inner scope only catches cancels targeted at it; outer-scope cancels propagate unswallowed.
+- `acp.before_turn(state)` — drains queued user messages. Blocks only on the *first call* and only if `state.messages` has no `ChatMessageUser` yet — covers the "no dataset prompt, operator types the first message" case. Subsequent calls drain non-blockingly. Uses an `anyio.Event` reset-after-wait pattern (copied from `_util/future.py`).
+- `acp.after_cancel()` — returns synthetic `ChatMessageTool(error=ToolCallError(type="cancelled", ...))` for every cancelled tool call followed by drained operator user messages. Blocks until at least one user message is available. Returned list is ready to extend onto `state.messages`.
+- `acp.submit_user_message(msg)` — normalizes provenance (always sets `source="operator"` via `model_copy`, even if the caller passed `source=None` or `source="input"`) so the canonical Phase 2 provenance marker is applied uniformly; queues and signals the event. The caller's original instance is not mutated.
+- `acp.cancel_current_turn()` — fire-and-forget. Snapshots in-flight state (active tool calls > `_active_model_event` > "between_turns"), emits `InterruptEvent(source="user_cancel", ...)` via Phase 2's `record_interrupt_event`, and cancels the turn scope if one is active.
+- `acp.track_tool_call(tool_call_id)` — sync `@contextmanager` that pushes/pops onto the in-flight tool list. Phase 4 wires it into `_call_tools.py`; Phase 3 tests use it directly to simulate "a tool is mid-flight". Because nested-agent tool calls go to the no-op session (Phase 1's shadowing rule), only top-level tool calls land here — exactly what the ACP-visible interrupt record needs.
+- `acp.track_model_event(event)` — sibling `@contextmanager` storing the in-flight `ModelEvent` **on the session** (save/restore semantics for nesting). Phase 4 will wrap each model generation in it. Critical: the previous design read from the existing `_active_model_event` ContextVar, which is task-local and invisible to a cancelling transport task running in a sibling task — so cancels would have been mis-recorded as `between_turns`. Storing on the session ensures the cancelling task sees the right value.
+- `_NoOpAcpSession` — no-op implementations of every Phase 3 method. `cancel_current_turn()` deliberately does **not** call `record_interrupt_event` (sub-agents must not emit cancel events into the top-level transcript).
+
+**Design decisions during implementation:**
+- `AgentState` and `ModelEvent` typed via `TYPE_CHECKING` forward references to avoid runtime import cycles (`inspect_ai.agent._agent` may import from `_acp` in Phase 4; `inspect_ai.event._model` pulls in the whole event/scorer/log subsystem).
+- Multi-tool-call cancel: `InterruptEvent.interrupted_tool_call_id` records only the *first* in-flight id (schema is a single string); `after_cancel()` synthesizes repair messages for *all* in-flight tool calls so `state.messages` stays consistent. Acceptable v1 tradeoff per the design doc — schema can be widened later (forward-compatible).
+- Cancel between turns (no active scope): the `InterruptEvent` is still recorded; the scope-cancel call is skipped; queued messages survive for the next `before_turn`. Tested explicitly.
+- `"cancelled"` value added to `ToolCallError.type` Literal — same forward-compatible additive pattern Phase 2 used for `source="operator"`; triggered the standard schema + TS regen flow.
+
+**Test coverage (21 tests, all pass under asyncio + trio):**
+1. `turn_scope` exits cleanly with no cancel.
+2. Client cancel raises `TurnCancelled`.
+3. Sample-level (outer-tg) cancel propagates as `CancelledError`, not `TurnCancelled`.
+4. `submit_user_message` then non-blocking `before_turn` returns the message.
+5. `before_turn` blocks on first call with empty `state.messages`.
+6. `before_turn` non-blocking on second call with empty state (`anyio.move_on_after` verifies).
+7. `after_cancel` drains queued messages.
+8. `after_cancel` synthesizes `ChatMessageTool` for in-flight tool, then queued user message.
+9. Multiple in-flight tool calls each get a repair message.
+10. `after_cancel` blocks until a message arrives if the queue is empty.
+11. Cancel during tool call emits `InterruptEvent(interrupted="tool_call", interrupted_tool_call_id=...)`.
+12. Cancel during generate emits `InterruptEvent(interrupted="generate", interrupted_model_event_id=...)`.
+13. Cancel between turns emits `InterruptEvent(interrupted="between_turns")` with no ids.
+14. Cancel between turns preserves queued messages.
+15. `turn_scope` resets `_pending_turn_cancel` and `_cancelled_tool_call_ids` between turns.
+16. `track_tool_call` removes id on exception cleanup.
+17. `_NoOpAcpSession` variants are all safe; no `InterruptEvent` recorded.
+18. Race: cancel arrives just as turn completes — no exception, queued message survives.
+19. Cancel during generate (`track_model_event` + cancel from sibling task) emits `InterruptEvent(interrupted="generate", interrupted_model_event_id=...)` — proves cross-task visibility via the session-stored event.
+20. `track_model_event` nested save/restore — outer event is restored after inner exits.
+21. `submit_user_message` normalizes source: `None`, `"operator"`, and `"input"` all end up as `"operator"`. Caller's instance is not mutated (`model_copy` is used).
+
+Verification: `pytest tests/agent/acp/` (33 passed asyncio + 33 passed trio across Phase 1 + Phase 3); `pytest tests/log/test_interrupt_event.py tests/model/test_trim_messages.py tests/model/test_compaction.py` (75 passed, no regressions); `ruff format` / `ruff check` clean; `mypy --exclude tests/test_package` clean (6 source files); `pnpm typecheck` / `lint` / `test` across ts-mono all clean (348 TS tests pass, no regressions in inspect/scout apps from the `ToolCallError.type` extension).
 
 ### Phase 4: `react()` integration
 

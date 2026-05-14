@@ -1,27 +1,35 @@
 """Agent Client Protocol session foundation.
 
-Phase 1 of the Agent ACP feature: types, factory, and accessors only. No
-agent integration, no cancellation mechanics, no schema changes — those
-land in later phases (see ``design/agent-acp.md``).
-
-An ``AcpSession`` is the per-agent ACP facade. There are two
+The ``AcpSession`` is the per-agent ACP facade. There are two
 implementations:
 
 - ``_NoOpAcpSession`` — null object used as the default ContextVar value
   and as the shadow when ``acp_session()`` is opened inside an already
   active session (sub-agent case).
 - ``_LiveAcpSession`` — the active implementation that owns the
-  in-process pub/sub bus.
+  in-process pub/sub bus, the user-message queue, and the turn cancel
+  scope.
 
-Future phases hang user-message queueing, turn cancel scopes, and
-``session/update`` event publishing on this foundation.
+Phase 1 landed types, factory, and pub/sub. Phase 2 landed the transcript
+primitives (``InterruptEvent`` and ``source="operator"``). Phase 3 adds
+the cancel/inject machinery: ``turn_scope``, ``before_turn``,
+``after_cancel``, plus producer-side ``submit_user_message`` and
+``cancel_current_turn``.
 """
 
 import contextlib
 from contextvars import ContextVar
 from logging import getLogger
 from types import TracebackType
-from typing import Any, AsyncIterator, Protocol, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Iterator,
+    Literal,
+    Protocol,
+    runtime_checkable,
+)
 
 import anyio
 from anyio.streams.memory import (
@@ -29,6 +37,18 @@ from anyio.streams.memory import (
     MemoryObjectSendStream,
 )
 from shortuuid import uuid
+
+from inspect_ai.log._transcript import record_interrupt_event
+from inspect_ai.model._chat_message import (
+    ChatMessage,
+    ChatMessageTool,
+    ChatMessageUser,
+)
+from inspect_ai.tool._tool_call import ToolCallError
+
+if TYPE_CHECKING:
+    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.event._model import ModelEvent
 
 logger = getLogger(__name__)
 
@@ -45,13 +65,24 @@ _SUBSCRIBER_BUFFER_SIZE = 256
 _NOOP_SESSION_ID = "noop"
 
 
+class TurnCancelled(Exception):
+    """Raised inside :meth:`AcpSession.turn_scope` when a client cancels.
+
+    Distinct from ``CancelledError``, which is reserved for
+    sample-level hard cancels propagating from the enclosing task
+    group (limit exceeded, eval shutdown). The agent loop catches
+    ``TurnCancelled`` to recover and continue with a fresh user
+    message; ``CancelledError`` continues to unwind the sample.
+    """
+
+
 @runtime_checkable
 class AcpSession(Protocol):
     """Per-agent ACP session facade.
 
-    Phase 1 surface only: an async context manager plus an in-process
-    pub/sub interface for ``session/update``-shaped payloads. Cancel,
-    turn, and user-message-queue methods are added in Phase 3.
+    Provides the in-process pub/sub bus (Phase 1), plus the
+    cancel/inject machinery (Phase 3): turn scopes, user-message queue,
+    and producer-side cancel/submit methods.
     """
 
     @property
@@ -113,6 +144,84 @@ class AcpSession(Protocol):
         """
         ...
 
+    def turn_scope(self) -> contextlib.AbstractContextManager[None]:
+        """Wrap one agent turn so an ACP client cancel can interrupt it.
+
+        Synchronous context manager. ACP ``session/cancel`` causes the
+        wrapped block to raise :class:`TurnCancelled`. Sample-level
+        cancels (limit, eval shutdown) continue to propagate as
+        ``CancelledError`` past this scope unchanged.
+        """
+        ...
+
+    async def before_turn(self, state: "AgentState") -> list[ChatMessageUser]:
+        """Drain queued operator messages and return them.
+
+        On the very first call to this method, if ``state.messages``
+        contains no user message yet, blocks until at least one is
+        submitted. On subsequent calls, drains non-blockingly and
+        returns immediately (possibly with an empty list).
+        """
+        ...
+
+    async def after_cancel(self) -> list[ChatMessage]:
+        """Return repair + follow-up messages after a turn cancel.
+
+        Returns synthetic :class:`ChatMessageTool` results for any tool
+        calls that were in flight at cancel time, followed by drained
+        operator user messages. Blocks until at least one user message
+        is available if the queue is empty. Returned list is ready to
+        extend onto ``state.messages``.
+        """
+        ...
+
+    def submit_user_message(self, msg: ChatMessageUser) -> None:
+        """Queue a user message for the next turn or after-cancel drain.
+
+        Called by transports (Phase 7+: TUI, sockets) when an ACP
+        client sends ``session/prompt``.
+        """
+        ...
+
+    def cancel_current_turn(self) -> None:
+        """Cancel the current turn and record an :class:`InterruptEvent`.
+
+        Snapshots :data:`_active_model_event` and the current
+        in-flight tool calls (via :meth:`track_tool_call`) to populate
+        the event's ``interrupted`` / id fields. Fire-and-forget — never
+        raises on the caller's side.
+        """
+        ...
+
+    def track_tool_call(
+        self, tool_call_id: str
+    ) -> contextlib.AbstractContextManager[None]:
+        """Mark a tool call as in flight for the lifetime of the scope.
+
+        Wraps each top-level tool execution so :meth:`cancel_current_turn`
+        knows which tool call ids to record in :class:`InterruptEvent`
+        and which to repair with synthetic results in :meth:`after_cancel`.
+        Nested-agent tool calls go to the no-op session and are not
+        tracked here.
+        """
+        ...
+
+    def track_model_event(
+        self, event: "ModelEvent"
+    ) -> contextlib.AbstractContextManager[None]:
+        """Mark a model call as in flight for the lifetime of the scope.
+
+        Stored on the session (not a ContextVar) so a cancel coming
+        from a sibling transport task can read it. The agent / generate
+        path wraps each ``ModelEvent`` in this so
+        :meth:`cancel_current_turn` can populate
+        :attr:`InterruptEvent.interrupted_model_event_id`. Sibling to
+        :func:`inspect_ai.log._samples.track_active_model_event` (which
+        sets the ContextVar consumed by transcript/log writers); both
+        coexist.
+        """
+        ...
+
 
 class _NoOpAcpSession:
     """No-op session installed when ACP is not active or shadowed.
@@ -159,6 +268,41 @@ class _NoOpAcpSession:
         """No-op publish — updates are discarded."""
         return None
 
+    @contextlib.contextmanager
+    def turn_scope(self) -> Iterator[None]:
+        """No-op turn scope — yields once and exits without cancellation handling."""
+        yield
+
+    async def before_turn(self, state: "AgentState") -> list[ChatMessageUser]:
+        """No-op — never blocks, returns an empty list."""
+        return []
+
+    async def after_cancel(self) -> list[ChatMessage]:
+        """No-op — never reachable on the no-op session (no cancel can fire)."""
+        return []
+
+    def submit_user_message(self, msg: ChatMessageUser) -> None:
+        """No-op submit — message is discarded."""
+        return None
+
+    def cancel_current_turn(self) -> None:
+        """No-op cancel.
+
+        Does not call ``record_interrupt_event`` — sub-agents must not
+        emit cancel events into the top-level transcript.
+        """
+        return None
+
+    @contextlib.contextmanager
+    def track_tool_call(self, tool_call_id: str) -> Iterator[None]:
+        """No-op tool-call tracker — yields once."""
+        yield
+
+    @contextlib.contextmanager
+    def track_model_event(self, event: "ModelEvent") -> Iterator[None]:
+        """No-op model-event tracker — yields once."""
+        yield
+
 
 class _LiveAcpSession:
     """Active ACP session: owns the in-process pub/sub bus.
@@ -177,6 +321,24 @@ class _LiveAcpSession:
                 MemoryObjectReceiveStream[AcpUpdate],
             ]
         ] = []
+        # User-message queue: simple list + event for "wait for next message".
+        self._user_messages: list[ChatMessageUser] = []
+        self._user_message_event = anyio.Event()
+        self._first_before_turn_called = False
+        # Turn cancel scope: set inside turn_scope, used by cancel_current_turn.
+        self._turn_cancel_scope: anyio.CancelScope | None = None
+        # Flag discriminates a client-driven cancel (we cancelled the scope)
+        # from a sample-level cancel propagating from outside.
+        self._pending_turn_cancel = False
+        # Top-level tool calls currently executing — push/pop by track_tool_call.
+        self._in_flight_tool_calls: list[str] = []
+        # Snapshot taken at cancel_current_turn time so after_cancel knows
+        # what synthetic ChatMessageTool repair messages to produce.
+        self._cancelled_tool_call_ids: list[str] = []
+        # In-flight model call — set by track_model_event. Stored on the
+        # session (not a ContextVar) so a transport task firing a cancel
+        # from a sibling task can read it.
+        self._active_model_event: "ModelEvent | None" = None
 
     @property
     def session_id(self) -> str:
@@ -249,6 +411,165 @@ class _LiveAcpSession:
         for i in reversed(dead):
             send, _ = self._subscribers.pop(i)
             send.close()
+
+    @contextlib.contextmanager
+    def turn_scope(self) -> Iterator[None]:
+        """Wrap one agent turn so a client cancel can interrupt it.
+
+        Opens a fresh anyio ``CancelScope``. If
+        :meth:`cancel_current_turn` is called while this scope is
+        active, the wrapped block raises :class:`TurnCancelled`. A
+        sample-level cancel (outer task group) propagates through
+        unchanged — the inner scope only catches what was targeted
+        at it.
+        """
+        self._pending_turn_cancel = False
+        self._cancelled_tool_call_ids.clear()
+        with anyio.CancelScope() as scope:
+            self._turn_cancel_scope = scope
+            try:
+                yield
+            finally:
+                self._turn_cancel_scope = None
+        if scope.cancelled_caught and self._pending_turn_cancel:
+            self._pending_turn_cancel = False
+            raise TurnCancelled()
+
+    async def before_turn(self, state: "AgentState") -> list[ChatMessageUser]:
+        """Drain queued operator messages and return them.
+
+        On the first call, if ``state.messages`` has no user content
+        yet, blocks for at least one queued message — covers the
+        "no dataset prompt, operator types the first message" case.
+        Subsequent calls drain immediately.
+        """
+        if not self._first_before_turn_called:
+            self._first_before_turn_called = True
+            if not any(isinstance(m, ChatMessageUser) for m in state.messages):
+                while not self._user_messages:
+                    evt = self._user_message_event
+                    await evt.wait()
+        drained = list(self._user_messages)
+        self._user_messages.clear()
+        self._user_message_event = anyio.Event()
+        return drained
+
+    async def after_cancel(self) -> list[ChatMessage]:
+        """Return synthetic tool repair messages + drained user messages.
+
+        The agent loop catches :class:`TurnCancelled` and extends
+        ``state.messages`` with the result of this call. Synthetic
+        :class:`ChatMessageTool` results come first (one per cancelled
+        tool call) so the assistant's pending tool calls have matching
+        responses; the new operator user message(s) come next. Blocks
+        if the user-message queue is empty.
+        """
+        results: list[ChatMessage] = []
+        for tool_call_id in self._cancelled_tool_call_ids:
+            results.append(
+                ChatMessageTool(
+                    tool_call_id=tool_call_id,
+                    content="Tool call cancelled by user.",
+                    error=ToolCallError(
+                        type="cancelled",
+                        message="Tool call cancelled by user.",
+                    ),
+                )
+            )
+        self._cancelled_tool_call_ids.clear()
+        if not self._user_messages:
+            while not self._user_messages:
+                evt = self._user_message_event
+                await evt.wait()
+        drained = list(self._user_messages)
+        self._user_messages.clear()
+        self._user_message_event = anyio.Event()
+        results.extend(drained)
+        return results
+
+    def submit_user_message(self, msg: ChatMessageUser) -> None:
+        """Queue ``msg`` and wake any awaiter blocked on it.
+
+        Normalizes provenance: any message queued through this API is
+        treated as operator-injected, so ``source`` is set to
+        ``"operator"`` if it isn't already. Callers don't have to
+        remember to set it themselves.
+        """
+        if msg.source != "operator":
+            msg = msg.model_copy(update={"source": "operator"})
+        self._user_messages.append(msg)
+        self._user_message_event.set()
+
+    def cancel_current_turn(self) -> None:
+        """Cancel the current turn and record an :class:`InterruptEvent`.
+
+        Fire-and-forget. Snapshots the in-flight tool call (if any) or
+        the active :class:`ModelEvent` (if any) to populate the event's
+        cross-reference fields. If no turn is active, the event is
+        still recorded with ``interrupted="between_turns"`` and the
+        cancel is a no-op (the queued user message, if any, will be
+        picked up by the next :meth:`before_turn`).
+        """
+        interrupted_model_event_id: str | None = None
+        interrupted_tool_call_id: str | None = None
+        interrupted: Literal["generate", "tool_call", "between_turns"]
+        if self._in_flight_tool_calls:
+            interrupted = "tool_call"
+            interrupted_tool_call_id = self._in_flight_tool_calls[0]
+            self._cancelled_tool_call_ids = list(self._in_flight_tool_calls)
+        elif self._active_model_event is not None:
+            interrupted = "generate"
+            interrupted_model_event_id = self._active_model_event.uuid
+        else:
+            interrupted = "between_turns"
+
+        record_interrupt_event(
+            source="user_cancel",
+            interrupted=interrupted,
+            interrupted_tool_call_id=interrupted_tool_call_id,
+            interrupted_model_event_id=interrupted_model_event_id,
+        )
+
+        if self._turn_cancel_scope is not None:
+            self._pending_turn_cancel = True
+            self._turn_cancel_scope.cancel()
+
+    @contextlib.contextmanager
+    def track_tool_call(self, tool_call_id: str) -> Iterator[None]:
+        """Push/pop ``tool_call_id`` on the in-flight tool list.
+
+        Phase 4 will wrap each top-level tool execution in this so the
+        session knows which tool call ids to record on cancel and
+        repair afterwards. Safe under exceptions — the id is removed
+        in the ``finally`` block.
+        """
+        self._in_flight_tool_calls.append(tool_call_id)
+        try:
+            yield
+        finally:
+            try:
+                self._in_flight_tool_calls.remove(tool_call_id)
+            except ValueError:
+                pass
+
+    @contextlib.contextmanager
+    def track_model_event(self, event: "ModelEvent") -> Iterator[None]:
+        """Save/restore the in-flight model event on the session.
+
+        Phase 4 will wrap each top-level model generation in this. We
+        store on the session rather than relying on
+        :func:`inspect_ai.log._samples.track_active_model_event` (which
+        sets a ContextVar) because the transport task that fires the
+        cancel runs in a sibling task with its own ContextVar copy and
+        would see ``None``. Save/restore (not push/pop) handles nested
+        generates correctly without growing a stack.
+        """
+        prev = self._active_model_event
+        self._active_model_event = event
+        try:
+            yield
+        finally:
+            self._active_model_event = prev
 
 
 def _is_noop(session: AcpSession) -> bool:
