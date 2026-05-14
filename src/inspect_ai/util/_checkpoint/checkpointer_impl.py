@@ -18,7 +18,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import Any, TypeVar, cast
+from typing import Any, TypeVar
 
 import anyio
 from pydantic import JsonValue
@@ -130,7 +130,6 @@ class _Checkpointer:
         sample_working_dir: str,
         host_restic: Path,
         restic_password: str,
-        resume_state: dict[str, Any] | None = None,
         resume_checkpoint: ResumeCheckpoint | None = None,
     ) -> None:
         self._config = config
@@ -139,7 +138,6 @@ class _Checkpointer:
         self._host_restic = host_restic
         self._host_repo = f"{sample_checkpoints_dir}/host"
         self._restic_password = restic_password
-        self._resume_state = resume_state
         self._resume_checkpoint = resume_checkpoint
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
@@ -180,9 +178,9 @@ class _Checkpointer:
                 f"track already registered for key {key!r}; keys must be unique"
             )
         self._on_checkpoint_callbacks[key] = callback
-        if self._resume_state is None or key not in self._resume_state:
-            return initial_value
-        return cast(T, self._resume_state[key])
+        # Resume hydration is not yet implemented — until it is, every
+        # `track()` call gets the fresh-run `initial_value`.
+        return initial_value
 
     def _should_fire(self) -> bool:
         policy = self._config.trigger

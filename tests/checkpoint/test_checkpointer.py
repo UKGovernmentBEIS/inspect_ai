@@ -447,25 +447,11 @@ def _make_cp(tmp_path: Path, **kwargs: object) -> _Checkpointer:
     )
 
 
-def test_track_returns_initial_when_no_resume_state(tmp_path: Path) -> None:
-    """Fresh run: no resume state, so the initial_value is returned."""
+def test_track_returns_initial_value(tmp_path: Path) -> None:
+    """Without resume hydration, `track()` always returns initial_value."""
     cp = _make_cp(tmp_path)
     out = cp.track("attempt_count", lambda: 7, 0)
     assert out == 0
-
-
-def test_track_returns_initial_when_key_missing(tmp_path: Path) -> None:
-    """Resume context exists but the key wasn't stored last time."""
-    cp = _make_cp(tmp_path, resume_state={"other": 1})
-    out = cp.track("attempt_count", lambda: 7, 0)
-    assert out == 0
-
-
-def test_track_returns_resumed_value(tmp_path: Path) -> None:
-    """Resume context has the key — its value is returned, not the initial_value."""
-    cp = _make_cp(tmp_path, resume_state={"attempt_count": 5})
-    out = cp.track("attempt_count", lambda: 7, 0)
-    assert out == 5
 
 
 def test_track_duplicate_key_raises(tmp_path: Path) -> None:
