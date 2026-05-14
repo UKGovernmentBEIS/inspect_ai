@@ -222,7 +222,7 @@ async def acp_session():
     current = _acp_var.get()
     # If a real (non-no-op) session is already active, this scope gets a
     # no-op. Otherwise build and install the real one.
-    install = _NoOp() if not isinstance(current, _NoOp) else _RealAcpSession(...)
+    install = _NoOp() if not isinstance(current, _NoOp) else _LiveAcpSession(...)
     token = _acp_var.set(install)
     try:
         async with install:
@@ -786,14 +786,49 @@ Anyone reading the codebase mid-implementation should be able to use the feature
 
 ### Phase 1: `AcpSession` types, factory, and accessors
 
-Foundation types only — no agent integration yet. Lands:
+Foundation types only — no agent integration, no cancellation mechanics, no schema changes (all deferred to later phases).
 
-- `AcpSession` async context manager protocol plus a default `_NoOp` implementation.
-- A real `AcpSession` shell that owns the user-message queue, the per-turn cancel scope slot, and an in-process pub/sub interface (subscribers register a callback for `session/update`-shaped payloads; the same interface will serve the TUI and the socket transport in later phases).
-- `acp_session()` factory implementing the "shadow with no-op if a real session is already active" rule via a ContextVar.
-- `current_acp_session()` peek-only accessor that returns whatever is in the ContextVar without entering a new scope.
+**Files created:**
+- `src/inspect_ai/agent/_acp/__init__.py` — package re-exports.
+- `src/inspect_ai/agent/_acp/_session.py` — Protocol, no-op impl, real impl, ContextVar, factory, accessor (all in one module).
+- `tests/agent/acp/__init__.py` — test package marker.
+- `tests/agent/acp/test_session.py` — 15 unit tests.
 
-**Tests.** Factory shadowing under nested `async with acp_session()` entries; `__aenter__` / `__aexit__` ordering; pub/sub subscribers receive published events and are unsubscribed on session exit; `current_acp_session()` returns the active session inside scope and the no-op outside.
+**Files modified:**
+- `src/inspect_ai/agent/__init__.py` — added `AcpSession` and `acp_session` to imports and `__all__`. `current_acp_session` is intentionally *not* surfaced at the top level — agent authors don't need it, only internal code that wants to peek the active session without entering a scope does. Import it via `from inspect_ai.agent._acp import current_acp_session` if needed.
+
+**What landed:**
+- `AcpSession` — `@runtime_checkable` Protocol with Phase 1 surface only: `session_id`, `__aenter__`, `__aexit__`, `attach()`, `detach()`, `publish()`. Cancel / turn / user-message-queue methods are explicitly *not* on the Protocol — those are added in Phase 3.
+- `_NoOpAcpSession` — null-object impl; `session_id == "noop"` sentinel; `attach()` returns an already-closed receive stream; `detach()` / `publish()` are no-ops.
+- `_LiveAcpSession` — owns the in-process pub/sub bus. Per-subscriber `anyio.create_memory_object_stream` with bounded buffer (256). `publish()` uses `send_nowait`; on `WouldBlock` logs a warning naming the session and drops the update. `__aexit__` closes every subscriber send-half so receivers see clean EOF.
+- `acp_session()` — `@asynccontextmanager` factory; installs a fresh `_LiveAcpSession` on the outermost entry, a fresh `_NoOpAcpSession` on any nested entry (shadow-if-active rule).
+- `current_acp_session()` — peek accessor returning the ContextVar's value (no-op singleton by default). Exported from `inspect_ai.agent._acp` only; not surfaced at the top-level `inspect_ai.agent` namespace.
+- `AcpUpdate = dict[str, Any]` placeholder; Phase 6 will tighten to a `session/update` union.
+
+**Design decisions made during implementation:**
+- Fresh `_NoOpAcpSession` per shadowed scope (rather than reusing the global singleton): one extra allocation per nested entry, but cleaner identity semantics — `inner is outer` is always false in nested scopes.
+- `_NOOP_SESSION_ID = "noop"` sentinel string returned by the no-op's `session_id` avoids `isinstance` guards in downstream code.
+- `_is_noop(session)` helper centralizes the type check; the factory uses it rather than raw `isinstance`.
+- The user-message queue slot and turn cancel scope slot mentioned in the original phase description were *deferred to Phase 3* — Phase 1 strictly delivers types, factory, accessors, and pub/sub. Adding queue/cancel slots without their consumers would leave dead state.
+
+**Test coverage (15 tests, all pass under both asyncio and trio):**
+1. `current_acp_session()` outside any scope returns no-op (`session_id == "noop"`).
+2. Real session installed inside `async with acp_session()`; `session_id` stable across reads.
+3. ContextVar resets to no-op after scope exits.
+4. Nested scope is no-op shadow; `current_acp_session()` returns inner inside, outer after inner exits.
+5. Publish reaches a single subscriber.
+6. Publish fans out to multiple subscribers.
+7. Detach closes the subscriber; subsequent publish does not raise.
+8. Publish after detach is safe for remaining subscribers.
+9. Subscriber sees `anyio.EndOfStream` after session exits.
+10. No-op `attach()` returns an already-closed stream.
+11. No-op `publish()` / `detach()` are safe.
+12. Concurrent `anyio` tasks with overlapping `acp_session()` scopes (both held open via two events) each see their own session via `current_acp_session()` — proves ContextVar isolation under genuine overlap, not just sequential entry.
+13. `publish()` prunes a subscriber whose receive half was closed by the consumer — prevents dead streams from accumulating across calls.
+14. Bounded-buffer drop-on-full: filling the buffer is silent; the next publish drops with a single logger.warning naming the session.
+15. Both real and no-op satisfy the `AcpSession` Protocol via `isinstance`.
+
+Verification: `pytest tests/agent/acp/ -v` (14 passed asyncio); `pytest tests/agent/acp/ --runtrio -v` (14 passed trio); `mypy --exclude tests/test_package src/inspect_ai/agent/_acp src/inspect_ai/agent/__init__.py tests/agent/acp` clean; `ruff format` / `ruff check --fix` clean; public API import smoke succeeds.
 
 ### Phase 2: Transcript primitives — `InterruptEvent` and `source="operator"`
 
