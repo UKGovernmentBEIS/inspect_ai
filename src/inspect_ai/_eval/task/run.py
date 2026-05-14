@@ -461,6 +461,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     # check for cached result from previous eval (before
                     # materialization to avoid unnecessary deepcopy + image I/O)
                     sample_id = sample_store[sample_index].id
+                    resume_checkpoint: ResumeCheckpoint | None = None
                     if sample_source and sample_id is not None:
                         previous_sample = await sample_source(sample_id, epoch)
                         if isinstance(previous_sample, EvalSample):
@@ -496,9 +497,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             await sample_complete(sample_id, epoch, sample_scores)
                             return sample_scores
                         elif isinstance(previous_sample, ResumeCheckpoint):
-                            raise NotImplementedError(
-                                "resuming an incomplete sample from a checkpoint is not yet implemented"
-                            )
+                            # signal intent — agent code can branch on
+                            # `cp.is_resuming`. No state hydration yet.
+                            resume_checkpoint = previous_sample
 
                     # factory to create sample+state lazily (after semaphore)
                     # so only concurrently executing samples consume memory
@@ -534,6 +535,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         sandbox=sandbox,
                         checkpoint=checkpoint,
                         eval_checkpoint=eval_checkpoint,
+                        resume_checkpoint=resume_checkpoint,
                         max_sandboxes=config.max_sandboxes,
                         sandbox_cleanup=sandbox_cleanup,
                         plan=plan,
@@ -808,6 +810,7 @@ async def task_run_sample(
     sandbox: SandboxEnvironmentSpec | None,
     checkpoint: CheckpointConfig | None,
     eval_checkpoint: CheckpointConfig | None,
+    resume_checkpoint: ResumeCheckpoint | None,
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
     plan: Plan,
@@ -945,6 +948,7 @@ async def task_run_sample(
             fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
             checkpoint=resolved_checkpoint,
+            resume_checkpoint=resume_checkpoint,
             eval_set_id=eval_set_id,
             run_id=run_id,
             eval_id=task_id,
@@ -1418,6 +1422,7 @@ async def task_run_sample(
             sandbox=sandbox,
             checkpoint=checkpoint,
             eval_checkpoint=eval_checkpoint,
+            resume_checkpoint=resume_checkpoint,
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
             plan=plan,

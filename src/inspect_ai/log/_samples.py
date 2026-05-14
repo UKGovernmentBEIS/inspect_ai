@@ -14,7 +14,7 @@ from anyio.abc import TaskGroup
 from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
-from inspect_ai.util._checkpoint.checkpointer import Checkpointer
+from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_impl import build_impl
 from inspect_ai.util._checkpoint.config import CheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
@@ -141,6 +141,7 @@ async def active_sample(
     fails_on_error: bool,
     transcript: Transcript,
     checkpoint: CheckpointConfig | None = None,
+    resume_checkpoint: ResumeCheckpoint | None = None,
     eval_set_id: str | None = None,
     run_id: str | None = None,
     eval_id: str | None = None,
@@ -166,6 +167,7 @@ async def active_sample(
             sample_id=sample.id,
             epoch=epoch,
             eval_id=eval_id,
+            resume_checkpoint=resume_checkpoint,
         ),
         eval_set_id=eval_set_id,
         run_id=run_id,

@@ -32,6 +32,16 @@ class ResumeCheckpoint:
 class Checkpointer(Protocol):
     """The session yielded by ``async with checkpointer() as cp:``."""
 
+    @property
+    def is_resuming(self) -> bool:
+        """True iff this sample is being resumed from a prior checkpoint.
+
+        Agents can branch on this to skip one-time setup that was
+        already performed on the original run, or to log/handle resume
+        specially. Stable across the lifetime of the session.
+        """
+        ...
+
     async def tick(self) -> None:
         """Invoke at each turn boundary; may fire a checkpoint.
 
@@ -71,6 +81,10 @@ class Checkpointer(Protocol):
 
 class _NoopCheckpointer:
     """No-op session used when no sample is active or no config is set."""
+
+    @property
+    def is_resuming(self) -> bool:
+        return False
 
     async def tick(self) -> None:
         return None

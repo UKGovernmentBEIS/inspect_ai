@@ -534,6 +534,23 @@ def test_track_noop_session() -> None:
     assert out == 0
 
 
+def test_is_resuming_noop_false() -> None:
+    assert _NoopCheckpointer().is_resuming is False
+
+
+def test_is_resuming_reflects_resume_checkpoint(tmp_path: Path) -> None:
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+
+    assert _make_cp(tmp_path).is_resuming is False
+    assert (
+        _make_cp(
+            tmp_path,
+            resume_checkpoint=ResumeCheckpoint(sample_checkpoints_dir="/x"),
+        ).is_resuming
+        is True
+    )
+
+
 async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
     """transcript.attachments survives the checkpoint as attachments.json."""
     attachments = {"abc123": "data:image/png;base64,iVBORw0", "def456": "long-text"}

@@ -39,7 +39,7 @@ from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._store import Store, store_jsonable
 
-from .checkpointer import Checkpointer, _NoopCheckpointer
+from .checkpointer import Checkpointer, ResumeCheckpoint, _NoopCheckpointer
 from .config import CheckpointConfig, TimeInterval, TurnInterval
 from .eval_checkpoints_dir import eval_checkpoints_dir, read_eval_manifest
 from .layout import CheckpointTriggerKind, SnapshotInfo
@@ -67,6 +67,7 @@ async def build_impl(
     sample_id: int | str | None,
     epoch: int,
     eval_id: str | None,
+    resume_checkpoint: ResumeCheckpoint | None = None,
 ) -> Checkpointer:
     """Build the concrete checkpointer for a sample.
 
@@ -115,6 +116,7 @@ async def build_impl(
         sample_working_dir=sample_work_dir,
         host_restic=host_restic,
         restic_password=manifest.restic_password,
+        resume_checkpoint=resume_checkpoint,
     )
 
 
@@ -129,6 +131,7 @@ class _Checkpointer:
         host_restic: Path,
         restic_password: str,
         resume_state: dict[str, Any] | None = None,
+        resume_checkpoint: ResumeCheckpoint | None = None,
     ) -> None:
         self._config = config
         self._sample_checkpoints_dir = sample_checkpoints_dir
@@ -137,6 +140,7 @@ class _Checkpointer:
         self._host_repo = f"{sample_checkpoints_dir}/host"
         self._restic_password = restic_password
         self._resume_state = resume_state
+        self._resume_checkpoint = resume_checkpoint
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
         self._turns_since_fire = 0
@@ -151,6 +155,10 @@ class _Checkpointer:
         self._call_pool: list[JsonValue] = []
         self._call_index: dict[str, int] = {}
         self._events_consumed = 0
+
+    @property
+    def is_resuming(self) -> bool:
+        return self._resume_checkpoint is not None
 
     async def tick(self) -> None:
         self._turn += 1
