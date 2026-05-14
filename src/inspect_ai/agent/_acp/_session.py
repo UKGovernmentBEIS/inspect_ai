@@ -38,9 +38,10 @@ from anyio.streams.memory import (
 )
 from shortuuid import uuid
 
-from inspect_ai.log._transcript import record_interrupt_event
+from inspect_ai.log._transcript import record_interrupt_event, transcript
 from inspect_ai.model._chat_message import (
     ChatMessage,
+    ChatMessageAssistant,
     ChatMessageTool,
     ChatMessageUser,
 )
@@ -49,6 +50,7 @@ from inspect_ai.tool._tool_call import ToolCallError
 if TYPE_CHECKING:
     from inspect_ai.agent._agent import AgentState
     from inspect_ai.event._model import ModelEvent
+    from inspect_ai.event._tool import ToolEvent
 
 logger = getLogger(__name__)
 
@@ -164,7 +166,9 @@ class AcpSession(Protocol):
         """
         ...
 
-    async def after_cancel(self) -> list[ChatMessage]:
+    async def after_cancel(
+        self, messages: list[ChatMessage] | None = None
+    ) -> list[ChatMessage]:
         """Return repair + follow-up messages after a turn cancel.
 
         Returns synthetic :class:`ChatMessageTool` results for any tool
@@ -172,6 +176,13 @@ class AcpSession(Protocol):
         operator user messages. Blocks until at least one user message
         is available if the queue is empty. Returned list is ready to
         extend onto ``state.messages``.
+
+        When ``messages`` is provided, scans the last assistant
+        message's ``tool_calls`` and synthesizes a repair for every id
+        that doesn't yet have a matching :class:`ChatMessageTool`
+        result. This catches partially-completed tool batches that
+        anyio cancellation interrupts before ``_execute_tools_impl``
+        can return.
         """
         ...
 
@@ -194,13 +205,16 @@ class AcpSession(Protocol):
         ...
 
     def track_tool_call(
-        self, tool_call_id: str
+        self, tool_call_id: str, event: "ToolEvent | None" = None
     ) -> contextlib.AbstractContextManager[None]:
         """Mark a tool call as in flight for the lifetime of the scope.
 
         Wraps each top-level tool execution so :meth:`cancel_current_turn`
         knows which tool call ids to record in :class:`InterruptEvent`
         and which to repair with synthetic results in :meth:`after_cancel`.
+        When ``event`` is provided, :meth:`cancel_current_turn` also
+        clears its ``pending`` flag on cancellation (otherwise the
+        transcript shows cancelled tool rows as still in-flight).
         Nested-agent tool calls go to the no-op session and are not
         tracked here.
         """
@@ -277,7 +291,9 @@ class _NoOpAcpSession:
         """No-op — never blocks, returns an empty list."""
         return []
 
-    async def after_cancel(self) -> list[ChatMessage]:
+    async def after_cancel(
+        self, messages: list[ChatMessage] | None = None
+    ) -> list[ChatMessage]:
         """No-op — never reachable on the no-op session (no cancel can fire)."""
         return []
 
@@ -294,7 +310,9 @@ class _NoOpAcpSession:
         return None
 
     @contextlib.contextmanager
-    def track_tool_call(self, tool_call_id: str) -> Iterator[None]:
+    def track_tool_call(
+        self, tool_call_id: str, event: "ToolEvent | None" = None
+    ) -> Iterator[None]:
         """No-op tool-call tracker — yields once."""
         yield
 
@@ -332,8 +350,13 @@ class _LiveAcpSession:
         self._pending_turn_cancel = False
         # Top-level tool calls currently executing — push/pop by track_tool_call.
         self._in_flight_tool_calls: list[str] = []
+        # Tool events keyed by call id so cancel_current_turn can clear
+        # `pending=True` on cancellation (otherwise the transcript shows
+        # cancelled tool rows as still in-flight forever).
+        self._in_flight_tool_events: dict[str, "ToolEvent"] = {}
         # Snapshot taken at cancel_current_turn time so after_cancel knows
-        # what synthetic ChatMessageTool repair messages to produce.
+        # what synthetic ChatMessageTool repair messages to produce (used as
+        # a fallback when caller doesn't pass state.messages).
         self._cancelled_tool_call_ids: list[str] = []
         # In-flight model call — set by track_model_event. Stored on the
         # session (not a ContextVar) so a transport task firing a cancel
@@ -454,7 +477,9 @@ class _LiveAcpSession:
         self._user_message_event = anyio.Event()
         return drained
 
-    async def after_cancel(self) -> list[ChatMessage]:
+    async def after_cancel(
+        self, messages: list[ChatMessage] | None = None
+    ) -> list[ChatMessage]:
         """Return synthetic tool repair messages + drained user messages.
 
         The agent loop catches :class:`TurnCancelled` and extends
@@ -463,9 +488,25 @@ class _LiveAcpSession:
         tool call) so the assistant's pending tool calls have matching
         responses; the new operator user message(s) come next. Blocks
         if the user-message queue is empty.
+
+        When ``messages`` is provided (the normal Phase 4+ case), this
+        scans the last assistant message's ``tool_calls`` and synthesizes
+        a repair for every id that doesn't yet have a matching
+        :class:`ChatMessageTool` result. That covers three cases under
+        sequential tool execution: tools that were in flight at cancel,
+        tools that never started because an earlier call was cancelled,
+        and tools whose completed results were lost when
+        ``_execute_tools_impl`` was interrupted before returning. When
+        ``messages`` is ``None`` (Phase 3 unit tests), falls back to
+        ``_cancelled_tool_call_ids`` (snapshotted in
+        :meth:`cancel_current_turn`).
         """
         results: list[ChatMessage] = []
-        for tool_call_id in self._cancelled_tool_call_ids:
+        if messages is not None:
+            repair_ids = _unanswered_tool_call_ids(messages)
+        else:
+            repair_ids = list(self._cancelled_tool_call_ids)
+        for tool_call_id in repair_ids:
             results.append(
                 ChatMessageTool(
                     tool_call_id=tool_call_id,
@@ -505,10 +546,14 @@ class _LiveAcpSession:
 
         Fire-and-forget. Snapshots the in-flight tool call (if any) or
         the active :class:`ModelEvent` (if any) to populate the event's
-        cross-reference fields. If no turn is active, the event is
-        still recorded with ``interrupted="between_turns"`` and the
-        cancel is a no-op (the queued user message, if any, will be
-        picked up by the next :meth:`before_turn`).
+        cross-reference fields. Also clears ``pending=True`` on the
+        in-flight model and tool events so the transcript / log viewer
+        doesn't show them as still in-flight after the cancel (anyio
+        cancellation bypasses the normal completion paths that would
+        otherwise have cleared the flag). If no turn is active, the
+        event is still recorded with ``interrupted="between_turns"``
+        and the cancel is a no-op (the queued user message, if any,
+        will be picked up by the next :meth:`before_turn`).
         """
         interrupted_model_event_id: str | None = None
         interrupted_tool_call_id: str | None = None
@@ -530,20 +575,49 @@ class _LiveAcpSession:
             interrupted_model_event_id=interrupted_model_event_id,
         )
 
+        # Clear pending on the in-flight events so the transcript / log
+        # viewer doesn't render them as forever-running. Mirror the
+        # normal-completion paths in `_model.py:_generate_with_event`
+        # (`complete()`) and `_call_tools.py:_execute_tools_impl` —
+        # both clear `pending = None` then call
+        # `transcript()._event_updated(event)` to notify log writers /
+        # hook subscribers. Without the `_event_updated` call,
+        # downstream consumers buffer the original pending event and
+        # never see the cancellation.
+        cancelled_events: list[Any] = []
+        if self._active_model_event is not None:
+            self._active_model_event.pending = None
+            cancelled_events.append(self._active_model_event)
+        for tc_id in self._in_flight_tool_calls:
+            event = self._in_flight_tool_events.get(tc_id)
+            if event is not None:
+                event.pending = None
+                cancelled_events.append(event)
+        if cancelled_events:
+            tr = transcript()
+            for ev in cancelled_events:
+                tr._event_updated(ev)
+
         if self._turn_cancel_scope is not None:
             self._pending_turn_cancel = True
             self._turn_cancel_scope.cancel()
 
     @contextlib.contextmanager
-    def track_tool_call(self, tool_call_id: str) -> Iterator[None]:
+    def track_tool_call(
+        self, tool_call_id: str, event: "ToolEvent | None" = None
+    ) -> Iterator[None]:
         """Push/pop ``tool_call_id`` on the in-flight tool list.
 
-        Phase 4 will wrap each top-level tool execution in this so the
+        Phase 4 wraps each top-level tool execution in this so the
         session knows which tool call ids to record on cancel and
-        repair afterwards. Safe under exceptions — the id is removed
-        in the ``finally`` block.
+        repair afterwards. When ``event`` is provided, also registers
+        the ``ToolEvent`` so :meth:`cancel_current_turn` can clear its
+        ``pending`` flag. Safe under exceptions — the id and event are
+        removed in the ``finally`` block.
         """
         self._in_flight_tool_calls.append(tool_call_id)
+        if event is not None:
+            self._in_flight_tool_events[tool_call_id] = event
         try:
             yield
         finally:
@@ -551,6 +625,7 @@ class _LiveAcpSession:
                 self._in_flight_tool_calls.remove(tool_call_id)
             except ValueError:
                 pass
+            self._in_flight_tool_events.pop(tool_call_id, None)
 
     @contextlib.contextmanager
     def track_model_event(self, event: "ModelEvent") -> Iterator[None]:
@@ -615,3 +690,31 @@ def current_acp_session() -> AcpSession:
     call from anywhere; never blocks; never raises.
     """
     return _acp_var.get()
+
+
+def _unanswered_tool_call_ids(messages: list[ChatMessage]) -> list[str]:
+    """Return tool_call ids from the last assistant message that lack a result.
+
+    Used by :meth:`AcpSession.after_cancel` to synthesize repair
+    :class:`ChatMessageTool` results for every tool call the assistant
+    issued whose response is missing — covers tools that were in flight,
+    tools that never started because an earlier call was cancelled, and
+    tools whose results were lost when an anyio cancellation interrupted
+    ``_execute_tools_impl`` before it could return.
+    """
+    last_assistant_idx: int | None = None
+    for i in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[i], ChatMessageAssistant):
+            last_assistant_idx = i
+            break
+    if last_assistant_idx is None:
+        return []
+    last_assistant = messages[last_assistant_idx]
+    assert isinstance(last_assistant, ChatMessageAssistant)
+    if not last_assistant.tool_calls:
+        return []
+    answered: set[str] = set()
+    for m in messages[last_assistant_idx + 1 :]:
+        if isinstance(m, ChatMessageTool) and m.tool_call_id:
+            answered.add(m.tool_call_id)
+    return [tc.id for tc in last_assistant.tool_calls if tc.id not in answered]

@@ -158,11 +158,25 @@ async def _execute_tools_impl(
             agent_span_id: str | None = None
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
+            # Track this tool call on the ACP session so a client cancel can
+            # snapshot the in-flight tool id into InterruptEvent and so
+            # after_cancel can synthesize a repair message. No-op when no ACP
+            # session is active or when called from a sub-agent's shadowed
+            # session.
+            from inspect_ai.agent._acp import current_acp_session
+
             try:
                 try:
-                    result, messages, output, agent, agent_span_id = await call_tool(
-                        tdefs, message.text, call, event, conversation
-                    )
+                    with current_acp_session().track_tool_call(call.id, event):
+                        (
+                            result,
+                            messages,
+                            output,
+                            agent,
+                            agent_span_id,
+                        ) = await call_tool(
+                            tdefs, message.text, call, event, conversation
+                        )
                 # unwrap exception group
                 except Exception as ex:
                     inner_ex = inner_exception(ex)

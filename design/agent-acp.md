@@ -940,21 +940,49 @@ Verification: `pytest tests/agent/acp/` (33 passed asyncio + 33 passed trio acro
 
 ### Phase 4: `react()` integration
 
-Splice ACP into `agent/_react.py`:
+The cancel/inject contract from Phase 3 wired into the real agent loops. No production API changes; Phase 1's shadow-with-no-op factory rule stays exactly as-is.
 
-- Wrap the agent body in `async with acp_session() as acp:`.
-- `state.messages.extend(await acp.before_turn(state))` at the top of each loop iteration.
-- Wrap the turn body (generate + execute_tools) in `with acp.turn_scope():`.
-- Catch `TurnCancelled` to extend with `await acp.after_cancel()` and continue.
-- Suppress agent-keeps-alive: when react would naturally exit (model returns no tool calls / submits), it exits — the `async with` block ends, clients disconnect, scoring runs.
+**Files modified:**
+- `src/inspect_ai/agent/_react.py` — spliced `react()` and `react_no_submit()`. `acp_session()` opens alongside `checkpointer()` and `mcp_connection()` in the top-level `async with`. Each loop iteration calls `await acp.before_turn(state)` to drain operator messages. The turn body (generate + execute_tools + submission handling) runs inside `with acp.turn_scope():`. `TurnCancelled` is caught immediately after; `await acp.after_cancel(state.messages)` returns repair + follow-up messages and the loop continues. `on_continue` hook and checkpointer `tick` stay *outside* the turn scope.
+- `src/inspect_ai/agent/_acp/_session.py` — `after_cancel()` now accepts an optional `messages` parameter and (when provided) scans the last assistant message's `tool_calls` to synthesize a repair for *every* unanswered id, not just those in `_cancelled_tool_call_ids`. This handles the sequential-execution case where the model returned multiple tool calls in one message and a later call was cancelled — the earlier completed call's result is lost when `_execute_tools_impl` is interrupted before returning, and the never-started later calls have no result either. Without this fix, providers that require complete tool_call/result pairing reject the next turn. Also: `cancel_current_turn` now clears `pending=True` on the in-flight `ModelEvent` and `ToolEvent`s — anyio cancellation bypasses the normal completion paths that would otherwise clear the flag, leaving cancelled rows shown as forever in-flight in the transcript / log viewer. `track_tool_call` accepts an optional `event` parameter so the session can register it for that purpose.
+- `src/inspect_ai/model/_call_tools.py` — each individual tool call dispatch is wrapped with `current_acp_session().track_tool_call(call.id, event)` so the session's `_in_flight_tool_calls` is accurate at cancel time and the event's `pending` flag can be cleared on cancel. Local import to avoid circular dependency.
+- `src/inspect_ai/model/_model.py` — `current_acp_session().track_model_event(event)` nested inside the existing `track_active_model_event(event)` so cancels see the right `ModelEvent.uuid` from sibling tasks. Both contexts coexist in a tuple `with` statement.
+- `src/inspect_ai/model/_providers/mockllm.py` — `generate()`'s callable path now awaits if the result is awaitable, letting tests use `async def` callables that `await anyio.sleep(...)` to simulate slow generates.
 
-**Tests** (mockllm + direct adapter manipulation in unit tests):
+**Files created:**
+- `tests/agent/test_acp/_capture.py` — test helper: `capture_session_tool(captured, ready)` (captures the live `AcpSession` from inside react via a tool call) and `slow_tool_with_event(release)` (blocks until the test releases it).
+- `tests/agent/test_acp/test_react_integration.py` — 8 end-to-end tests.
 
-- Cancel mid-generate → `TurnCancelled` raised, queued user message picked up, loop continues.
-- Cancel mid-tool-call → synthetic `ChatMessageTool(error="cancelled by user")` appears in `state.messages`, then queued user message.
-- Inject user message between turns → picked up by next `before_turn`.
-- Cancel arrives simultaneously with turn completion → message survives, no error.
-- Model returns no tool calls → react exits normally, ACP session terminates, no hang.
+**Files renamed:**
+- `tests/agent/acp/` → `tests/agent/test_acp/` (with all existing tests) — avoids a sys.path collision with the installed Zed `acp` Python package, which broke `inspect_swe._registry` entrypoint loading. The collision didn't bite Phases 1/3 but Phase 4's import chain triggered it.
+
+**What landed (production):**
+- Splicing react with `async with acp_session() as acp:` is unconditional. Production code without an ACP client transparently gets the live-session-then-discard path; the session's pub/sub bus has no subscribers; cancel methods never fire; transcript stays unchanged.
+- Sub-agent isolation is preserved by Phase 1's existing shadowing rule: a sub-agent invoked via `as_tool`/`handoff` opens its own `acp_session()` which shadows the parent's session with a no-op. `track_tool_call` / `track_model_event` called from sub-agent code paths target the no-op; nothing leaks into the parent's ACP-visible record. No new mechanism added for this.
+- The `acp_session()` lifecycle wraps everything below it: when react exits naturally (model returns no tool calls / submits), the `async with` block ends, `__aexit__` closes pub/sub subscribers, scoring runs as before. No agent-keeps-alive behavior in v1.
+
+**Design decisions during implementation:**
+- Hoisted `acp_session()` up alongside `checkpointer()` and `mcp_connection()` in the top-level `async with` (per user feedback) — cleaner symmetry; all three lifecycle context managers share the same scope.
+- Per-tool-call wrap lives in `call_tool_task` (the per-call inner async function in `_call_tools.py`) so parallel tool calls each get their own track scope. The session's `_in_flight_tool_calls` correctly tracks all in-flight ids; cancel records the first and `after_cancel` repairs all.
+- The model event wrap uses a tuple `with` statement nested inside `track_active_model_event` — both ContextVar (for log writers) and session-level (for ACP cancel snapshot) tracking coexist cleanly.
+- **Test strategy: capture-via-tool.** Tests can't reach react's internal `_LiveAcpSession` from a sibling task (ContextVar task-inheritance forks before react's `acp_session()` enters). The test helper provides a tiny `capture_session` tool that captures `current_acp_session()` *from inside* react's execution and exports it to the test via a shared dict + `anyio.Event`. The producer task awaits the event, then drives the captured session externally. Zero production-API changes; uses real code paths.
+- `get_model(...)` must be called with `memoize=False` in tests — Inspect memoizes by default, so without it the same mockllm instance (with its custom_outputs already exhausted) gets reused across tests in the same pytest run.
+- mockllm tweak (`await output if awaitable`) is a small additive enhancement; existing sync-callable usage unchanged.
+
+**Test coverage (11 tests, asyncio + trio):**
+1. `react()` runs unchanged when no ACP producer is attached (no-op default path).
+2. `track_model_event` populates `session._active_model_event` during a slow generate.
+3. `track_tool_call` populates `session._in_flight_tool_calls` during slow tool execution.
+4. Cancel mid-generate → `TurnCancelled` handled, follow-up message picked up, react completes via a later mockllm output.
+5. Cancel mid-tool-call → synthetic `ChatMessageTool(error=ToolCallError(type="cancelled", ...))` lands in `state.messages` followed by the queued user message.
+6. Cancel mid-generate also emits an `InterruptEvent(source="user_cancel", interrupted="generate", interrupted_model_event_id=<uuid>)` to the transcript.
+7. Operator message submitted between turns appears in next iteration's `state.messages` with `source="operator"` (Phase 3 normalization).
+8. `react_no_submit()` honors the splice (cancel-mid-tool test against it).
+9. Cancel during a multi-tool batch produces a synthetic repair `ChatMessageTool` for *every* unanswered tool_call_id in the last assistant message — not just the one in flight at cancel time.
+10. Cancelled `ModelEvent` and `ToolEvent` rows have `pending` cleared (`is None`) in the transcript — verifying the workaround for anyio-bypassed completion paths.
+11. `cancel_current_turn` calls `transcript()._event_updated(event)` on each cancelled event — verified via a spy on the transcript hook. Without this notification, log writers / hook subscribers would never see the cleared pending state even though the in-memory list shows it.
+
+Verification: `pytest tests/agent/test_acp/` (47 passed asyncio + 47 passed trio); `pytest tests/agent/test_agent_react.py` (21 passed, no regressions); `pytest tests/agent/test_acp/ tests/agent/test_agent_react.py` combined (68 passed); `ruff format`/`check` clean across all 9 modified/created files; `mypy` clean. No TS/OpenAPI regen needed (Phase 4 is pure Python wiring).
 
 ### Phase 5: `@agent` sub-agent boundary span
 

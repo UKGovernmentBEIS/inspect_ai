@@ -1112,7 +1112,13 @@ class Model:
                 time_start = time.monotonic()
                 try:
                     assert isinstance(event, ModelEvent)
-                    with track_active_model_event(event):
+                    # Local import to avoid an import cycle (agent → model → agent).
+                    from inspect_ai.agent._acp import current_acp_session
+
+                    with (
+                        track_active_model_event(event),
+                        current_acp_session().track_model_event(event),
+                    ):
                         with timeout_cm:
                             result = await self.api.generate(
                                 input=input,
