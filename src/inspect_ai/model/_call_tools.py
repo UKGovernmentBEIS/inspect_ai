@@ -177,6 +177,14 @@ async def _execute_tools_impl(
                     "unicode_decode",
                     f"Error decoding bytes to {ex.encoding}: {ex.reason}",
                 )
+            except ValueError as ex:
+                if "embedded null byte" in str(ex):
+                    tool_error = ToolCallError(
+                        "unknown",
+                        "A command argument contained an embedded null byte.",
+                    )
+                else:
+                    raise
             except PermissionError as ex:
                 err = f"{ex.strerror or str(ex)}."
                 if isinstance(ex.filename, str):
