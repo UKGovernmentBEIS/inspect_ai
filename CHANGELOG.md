@@ -17,6 +17,7 @@
 - Datasets: Treat NaN from HuggingFace dataset as `None` is treated (converted to `""`).
 - Datasets: Use HuggingFace revision in cache key for downloaded datasets.
 - Datasets: Propagate `hf_dataset(..., shuffle=True)` to `EvalDataset.shuffled`.
+- Tool Calling: Raise a `ToolError` if there is a null byte in command input.
 - Scoring: Store and aggregate results for cancelled eval runs.
 - Scoring: `match(numeric=True)` no longer matches digit-substrings (e.g. target `5` against `25`); now correctly handles negative, decimal, and scientific-notation targets, and recognises unicode-formatted numbers (unicode minus, vulgar fractions like `½`, Chinese numerals, fullwidth digits) in both targets and model output.
 - Scoring: `match(numeric=True, location="exact")` is now strict — values like `"5 some text"` no longer match target `"5"`.

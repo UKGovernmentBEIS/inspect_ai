@@ -105,6 +105,7 @@ def test_bash_null_byte() -> None:
     tool_response = get_tool_response(sample.messages, tool_call)
     assert tool_response is not None
     assert tool_response.error is not None
+    assert tool_response.error.type == "parsing"
     assert "embedded null byte" in tool_response.error.message
 
 
@@ -159,7 +160,13 @@ def test_bash_invalid_utf8() -> None:
     assert result.samples
     sample = result.samples[0]
     assert sample.error is None
+    tool_call = get_tool_call(sample.messages, bash.__name__)
+    assert tool_call is not None
+    tool_response = get_tool_response(sample.messages, tool_call)
+    assert tool_response is not None
     # The sandbox interface allows `exec` to raise UnicodeDecodeError (which
     # the tool call framework converts to a friendly result), but built-in
-    # sandboxes use lossy decoding instead of raising. This test does not
-    # insist on either behavior.
+    # sandboxes use lossy decoding instead of raising. Either is acceptable.
+    assert (
+        tool_response.error is not None and tool_response.error.type == "unicode_decode"
+    ) or tool_response.content is not None
