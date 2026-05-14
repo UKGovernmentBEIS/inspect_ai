@@ -63,6 +63,7 @@
 - Bugfix: `grouped()` — raise instead of silently overwriting a per-group metric when a group name collides with `all_label`.
 - Bugfix: `stderr(cluster=...)` — return 0 with a single cluster (was `NaN`/`inf` from divide-by-zero).
 - Bugfix: `value_to_float()` — reject `"nan"`/`"inf"` string values so a single non-finite Score doesn't poison `accuracy()` and friends.
+- Bugfix: `inspect log recover` — preserve `sample.uuid` for crashed in-progress samples (initial buffer summary now carries `state.uuid`; recovery synthesizes a fallback uuid for legacy buffer rows).
 
 ## 0.3.220 (08 May 2026)
 
