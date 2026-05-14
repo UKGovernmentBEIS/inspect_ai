@@ -60,7 +60,7 @@ logger = getLogger(__name__)
 T = TypeVar("T")
 
 
-async def build_impl(
+def build_impl(
     *,
     config: CheckpointConfig | None,
     log_location: str,
@@ -69,11 +69,12 @@ async def build_impl(
     eval_id: str | None,
     resume_checkpoint: ResumeCheckpoint | None = None,
 ) -> Checkpointer:
-    """Build the concrete checkpointer for a sample.
+    """Build the per-sample checkpointer.
 
-    Returns a :class:`_NoopCheckpointer` when ``config`` is ``None``;
-    otherwise pre-ensures on-disk dirs and initializes the host +
-    per-sandbox restic repos, then returns an :class:`_Checkpointer`.
+    Returns a :class:`_NoopCheckpointer` when ``config`` is ``None`` or
+    the development gate is off; otherwise returns a :class:`_Checkpointer`
+    whose on-disk setup is deferred to ``__aenter__`` (so it runs after
+    the sample's sandbox context is established).
 
     Checkpointing is gated off by default while still under
     development — the function returns a no-op session unless the
@@ -92,53 +93,49 @@ async def build_impl(
     # so it's symmetric with `epoch`.
     if config is None:
         return _NoopCheckpointer()
-    if eval_id is None:
-        raise RuntimeError("Checkpointer cannot initialize: eval_id is None.")
-    if sample_id is None:
-        raise RuntimeError("Checkpointer cannot initialize: sample id is None.")
 
-    eval_ckpts_dir = eval_checkpoints_dir(log_location, config.checkpoints_location)
-    sample_ckpts_dir = await ensure_sample_checkpoints_dir(
-        eval_ckpts_dir, sample_id, epoch, eval_id
-    )
-    sample_work_dir = await ensure_sample_working_dir(log_location, sample_id, epoch)
-    manifest = await read_eval_manifest(eval_ckpts_dir)
-    host_restic = await resolve_restic()
-    host_repo = f"{sample_ckpts_dir}/host"
-    await init_host_repo(host_restic, host_repo, manifest.restic_password)
-    for sandbox_name in config.sandbox_paths or {}:
-        env = sandbox(sandbox_name)
-        await inject_restic(env)
-        await init_sandbox_repo(env, manifest.restic_password)
     return _Checkpointer(
         config=config,
-        sample_checkpoints_dir=sample_ckpts_dir,
-        sample_working_dir=sample_work_dir,
-        host_restic=host_restic,
-        restic_password=manifest.restic_password,
+        log_location=log_location,
+        sample_id=sample_id,
+        epoch=epoch,
+        eval_id=eval_id,
         resume_checkpoint=resume_checkpoint,
     )
 
 
 class _Checkpointer:
-    """Session with all on-disk dependencies pre-ensured."""
+    """Session that lazily initializes its on-disk + sandbox dependencies.
+
+    Construction is cheap and synchronous (stashes inputs only). The
+    actual I/O setup — ensure dirs, read manifest, resolve restic,
+    init host repo, inject restic + init repo per sandbox — runs in
+    ``__aenter__``, after the sample's sandbox context is established.
+    """
 
     def __init__(
         self,
         config: CheckpointConfig,
-        sample_checkpoints_dir: str,
-        sample_working_dir: str,
-        host_restic: Path,
-        restic_password: str,
+        log_location: str,
+        sample_id: int | str | None,
+        epoch: int,
+        eval_id: str | None,
         resume_checkpoint: ResumeCheckpoint | None = None,
     ) -> None:
         self._config = config
-        self._sample_checkpoints_dir = sample_checkpoints_dir
-        self._sample_working_dir = sample_working_dir
-        self._host_restic = host_restic
-        self._host_repo = f"{sample_checkpoints_dir}/host"
-        self._restic_password = restic_password
+        self._log_location = log_location
+        self._sample_id = sample_id
+        self._epoch = epoch
+        self._eval_id = eval_id
         self._resume_checkpoint = resume_checkpoint
+        # I/O-derived state — populated in __aenter__
+        self._sample_checkpoints_dir: str | None = None
+        self._sample_working_dir: str | None = None
+        self._host_restic: Path | None = None
+        self._host_repo: str | None = None
+        self._restic_password: str | None = None
+        self._initialized = False
+        # Sync per-session state — turn counters, callbacks, pools
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
         self._turns_since_fire = 0
@@ -157,6 +154,38 @@ class _Checkpointer:
     @property
     def is_resuming(self) -> bool:
         return self._resume_checkpoint is not None
+
+    async def __aenter__(self) -> "_Checkpointer":
+        if self._initialized:
+            return self
+        if self._eval_id is None:
+            raise RuntimeError("Checkpointer cannot initialize: eval_id is None.")
+        if self._sample_id is None:
+            raise RuntimeError("Checkpointer cannot initialize: sample id is None.")
+
+        eval_ckpts_dir = eval_checkpoints_dir(
+            self._log_location, self._config.checkpoints_location
+        )
+        self._sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
+            eval_ckpts_dir, self._sample_id, self._epoch, self._eval_id
+        )
+        self._sample_working_dir = await ensure_sample_working_dir(
+            self._log_location, self._sample_id, self._epoch
+        )
+        manifest = await read_eval_manifest(eval_ckpts_dir)
+        self._host_restic = await resolve_restic()
+        self._host_repo = f"{self._sample_checkpoints_dir}/host"
+        self._restic_password = manifest.restic_password
+        await init_host_repo(self._host_restic, self._host_repo, self._restic_password)
+        for sandbox_name in self._config.sandbox_paths or {}:
+            env = sandbox(sandbox_name)
+            await inject_restic(env)
+            await init_sandbox_repo(env, self._restic_password)
+        self._initialized = True
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
 
     async def tick(self) -> None:
         self._turn += 1
@@ -209,6 +238,11 @@ class _Checkpointer:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
         # the per-checkpoint sidecar.
+        # The fire path is only reachable via tick/checkpoint inside an
+        # `async with checkpointer()` block, so __aenter__ has populated
+        # all the I/O-derived fields.
+        assert self._sample_working_dir is not None
+        assert self._sample_checkpoints_dir is not None
         cycle_start = time.monotonic()
 
         state = sample_state()
@@ -324,6 +358,10 @@ class _Checkpointer:
             await (sample_dir / "agent_state.json").write_text(_json_dump(agent_state))
 
     async def _backup_host(self) -> ResticBackupSummary:
+        assert self._host_restic is not None
+        assert self._host_repo is not None
+        assert self._restic_password is not None
+        assert self._sample_working_dir is not None
         return await run_host_backup(
             self._host_restic,
             self._host_repo,
@@ -335,6 +373,9 @@ class _Checkpointer:
     async def _backup_and_egress_sandbox(
         self, name: str, paths: list[str]
     ) -> ResticBackupSummary:
+        assert self._restic_password is not None
+        assert self._sample_checkpoints_dir is not None
+        assert self._host_restic is not None
         env = sandbox(name)
         summary = await run_sandbox_backup(
             env, self._restic_password, paths, self._next_checkpoint_id

@@ -17,6 +17,7 @@ from __future__ import annotations
 import contextlib
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from types import TracebackType
 from typing import Callable, Protocol, TypeVar
 
 T = TypeVar("T")
@@ -41,6 +42,22 @@ class Checkpointer(Protocol):
         specially. Stable across the lifetime of the session.
         """
         ...
+
+    async def __aenter__(self) -> "Checkpointer":
+        """Lazily perform on-disk setup (idempotent).
+
+        The agent invokes via ``async with checkpointer() as cp:``;
+        by that point the sample's sandbox context is established,
+        which the inner restic injection needs.
+        """
+        ...
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None: ...
 
     async def tick(self) -> None:
         """Invoke at each turn boundary; may fire a checkpoint.
@@ -86,6 +103,12 @@ class _NoopCheckpointer:
     def is_resuming(self) -> bool:
         return False
 
+    async def __aenter__(self) -> "_NoopCheckpointer":
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
     async def tick(self) -> None:
         return None
 
@@ -121,4 +144,6 @@ async def checkpointer() -> AsyncIterator[Checkpointer]:
     from inspect_ai.log._samples import sample_active
 
     active = sample_active()
-    yield active.checkpointer if active is not None else _NoopCheckpointer()
+    cp = active.checkpointer if active is not None else _NoopCheckpointer()
+    async with cp:
+        yield cp

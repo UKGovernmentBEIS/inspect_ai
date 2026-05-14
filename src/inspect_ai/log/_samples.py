@@ -161,7 +161,7 @@ async def active_sample(
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
-        checkpointer=await build_impl(
+        checkpointer=build_impl(
             config=checkpoint,
             log_location=log_location,
             sample_id=sample.id,
