@@ -984,11 +984,49 @@ The cancel/inject contract from Phase 3 wired into the real agent loops. No prod
 
 Verification: `pytest tests/agent/test_acp/` (47 passed asyncio + 47 passed trio); `pytest tests/agent/test_agent_react.py` (21 passed, no regressions); `pytest tests/agent/test_acp/ tests/agent/test_agent_react.py` combined (68 passed); `ruff format`/`check` clean across all 9 modified/created files; `mypy` clean. No TS/OpenAPI regen needed (Phase 4 is pure Python wiring).
 
-### Phase 5: `@agent` sub-agent boundary span
+### Phase 5: `@agent` sub-agent boundary marker
 
-Tag the span emitted by the `@agent` decorator with an attribute (e.g. `span.attributes["agent.boundary"] = True`) so downstream consumers can identify sub-agent boundaries from the event stream without relying on agent names. Verify the decorator's current span emission shape; add the attribute consistently. No filtering happens here — this is instrumentation only.
+Lock in the existing `type="agent"` span convention so Phase 6's event router can identify sub-agent boundaries from the transcript event stream. **Simplification from the original design** — exploration showed the marker already exists at every agent-invocation path, so no new `attributes` field on `SpanBeginEvent` is needed; no schema change, no TS regen.
 
-**Tests.** Decorating an agent function results in a span carrying the boundary attribute; nested `@agent` invocations each emit their own boundary span; span end events also carry the marker (or pair correctly with begin events).
+**Files modified:**
+- `src/inspect_ai/util/_span.py` — added `AGENT_SPAN_TYPE = "agent"` constant with a docstring explaining the convention.
+- `src/inspect_ai/agent/_run.py:93` — replaced literal `type="agent"` with `type=AGENT_SPAN_TYPE`.
+- `src/inspect_ai/agent/_as_tool.py:67` — same.
+- `src/inspect_ai/agent/_as_solver.py:71` — same.
+- `src/inspect_ai/model/_call_tools.py:583` — same (handoff dispatch's inner agent span; the outer `type="handoff"` and `type="tool"` spans are unrelated).
+
+**Files created:**
+- `tests/agent/test_acp/test_span_boundary.py` — 7 regression tests.
+
+**What landed:**
+- A single `AGENT_SPAN_TYPE` constant in `src/inspect_ai/util/_span.py` is the shared name for both producers (the four span call sites that wrap agent invocations) and Phase 6's eventual consumer (the router that counts nesting depth).
+- All five known agent-invocation paths bottom out through `span(name=..., type=AGENT_SPAN_TYPE)`:
+  - `agent.run()` invocation
+  - `as_tool(agent)` invocation
+  - `as_solver(agent)` invocation
+  - `handoff(agent)` dispatch (inside `_call_tools.py`'s handoff branch)
+  - deepagent task_tool → routes through `agent.run()`
+
+**Design decisions during implementation:**
+- The original design doc proposed adding a new `attributes["agent.boundary"] = True` marker on `SpanBeginEvent`. Rejected because:
+  - `SpanBeginEvent.type` is already a serialized string field; using `type == "agent"` requires no schema change.
+  - Adding a Pydantic `attributes` field would trigger OpenAPI/TS regen + scout submodule regen for zero functional gain.
+  - The router can simply check `span.type == AGENT_SPAN_TYPE`, no new infrastructure.
+- The `@agent` decorator itself does **not** emit spans. Spans are emitted at every invocation path. Phase 5 marks all of them via the constant; no decorator change needed.
+- Sub-agent isolation now has two complementary layers in the codebase:
+  1. **ACP session shadowing** (Phase 1's `acp_session()` factory rule) — sub-agents that call `react()` open their own no-op session and can't drive the parent's ACP client.
+  2. **Span-boundary marking** (Phase 5) — Phase 6 will count nested boundary spans and drop events at depth > 1 from the `session/update` stream.
+
+**Test coverage (7 tests):**
+1. `AGENT_SPAN_TYPE` is the literal `"agent"` — protects against accidental renames that would break the wire format.
+2. `agent.run(agent, ...)` opens a single `type="agent"` `SpanBeginEvent` with the agent's name.
+3. `as_solver(agent)` invocation opens the boundary span.
+4. react with an `as_tool` sub-agent: assert **two** boundary spans (parent + sub) — the canonical Phase 6 nesting case.
+5. react with a `handoff(agent)` invocation: assert the handoff's inner boundary span is emitted.
+6. Top-level `react()` invoked via `run()` opens its own boundary span.
+7. **Grep-style guard**: walks the entire `src/inspect_ai` tree for `span(...type="agent"...)` literal usage and fails if any remain — protects against new agent-invocation paths silently skipping the marker.
+
+Verification: `pytest tests/agent/test_acp/` (52 passed asyncio + 52 passed trio); `pytest tests/agent/test_acp/ tests/agent/test_agent_react.py` combined (75 passed, no regressions); `ruff format`/`check` clean; `mypy` clean (6 source files). No OpenAPI/TS regen needed.
 
 ### Phase 6: Event router with top-level filter
 

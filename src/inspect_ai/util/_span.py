@@ -9,6 +9,19 @@ from shortuuid import uuid as shortuuid
 
 logger = getLogger(__name__)
 
+
+AGENT_SPAN_TYPE = "agent"
+"""Span ``type`` value marking an agent-invocation boundary.
+
+Every code path that invokes an ``Agent`` opens a span with this type
+(``agent.run``, ``as_tool``, ``as_solver``, ``handoff``, and deepagent
+task dispatch). The ACP event router counts concurrently-open spans
+with this type to determine sub-agent nesting depth when filtering
+transcript events for ``session/update`` notifications — events at
+depth > 1 originated from a nested agent and are dropped.
+"""
+
+
 SpanIdProvider = Callable[[str, str | None, str | None], Awaitable[str]]
 """Signature for a span-ID provider: ``await provider(name, parent_id, requested_id)`` → span id.
 

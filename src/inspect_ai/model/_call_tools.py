@@ -70,7 +70,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError, apply_limits
-from inspect_ai.util._span import span
+from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
 from ._chat_message import (
     ChatMessage,
@@ -580,7 +580,7 @@ async def agent_handoff(
         # The agent_tool's limits will be applied multiple times if the agent is handed
         # off to multiple times which is not supported, so create a copy of each limit.
         with apply_limits(deepcopy(agent_tool.limits)):
-            async with span(name=agent_name, type="agent"):
+            async with span(name=agent_name, type=AGENT_SPAN_TYPE):
                 agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
         limit_error = ex
