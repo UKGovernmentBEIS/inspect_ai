@@ -14,36 +14,49 @@ time, so the cycle never arises in practice.
 from __future__ import annotations
 
 import contextlib
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Protocol
+from typing import Callable, Protocol, TypeVar
 
-if TYPE_CHECKING:
-    # Type-checking only: importing `ChatMessage` eagerly here pulls in
-    # `inspect_ai.model._chat_message` → `inspect_ai.tool`, which is
-    # mid-load when this module is first reached during
-    # `inspect_ai.util.__init__` (the tool package triggers util via
-    # `_json`). `from __future__ import annotations` above means the
-    # name is only needed by the type-checker, not at runtime.
-    from inspect_ai.model._chat_message import ChatMessage
+T = TypeVar("T")
 
 
 class Checkpointer(Protocol):
     """The session yielded by ``async with checkpointer() as cp:``."""
 
-    async def tick(self, messages: Sequence[ChatMessage]) -> None:
+    async def tick(self) -> None:
         """Invoke at each turn boundary; may fire a checkpoint.
 
-        ``messages`` is the agent's current conversation — the source of
-        the messages written into ``context.json`` if this tick fires.
+        Triggered by the agent at points where a checkpoint is
+        permissible. State persisted at the fire is whatever the agent
+        has registered via :meth:`track`.
         """
         ...
 
-    async def checkpoint(self, messages: Sequence[ChatMessage]) -> None:
-        """Force a fire regardless of policy (used by manual triggers).
+    async def checkpoint(self) -> None:
+        """Force a fire regardless of policy (used by manual triggers)."""
+        ...
 
-        ``messages`` is the agent's current conversation — same role as
-        in :meth:`tick`.
+    def track(
+        self,
+        key: str,
+        callback: Callable[[], T],
+        initial_value: T,
+    ) -> T:
+        """Track ``key`` as part of the agent's checkpointed state.
+
+        ``callback`` is invoked at every checkpoint fire to capture
+        the value of the tracked state. On a retry of this sample, the
+        captured value is returned; on a fresh run, ``initial_value``
+        is returned.
+
+        Generic over ``T``. The runtime contract on the captured value
+        is "any value that ``pydantic_core.to_jsonable_python`` can
+        serialize" — JSON primitives, lists, dicts, Pydantic models,
+        dataclasses, and arbitrary nesting of these.
+
+        A key may be tracked only once per session; a duplicate call
+        raises ``ValueError``.
         """
         ...
 

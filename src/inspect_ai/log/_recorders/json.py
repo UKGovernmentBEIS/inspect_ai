@@ -351,7 +351,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
             elif k == "eval":
                 eval = EvalSpec.model_validate(v, context=get_deserializing_context())
             elif k == "plan":
-                plan = EvalPlan.model_validate(v)
+                plan = EvalPlan.model_validate(v, context=get_deserializing_context())
             elif k == "results":
                 results = EvalResults.model_validate(v)
             elif k == "stats":

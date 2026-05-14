@@ -5,6 +5,7 @@
 - Anthropic: Capture `extra_body` fields from `Message` response.
 - VLLM: Preserve dotted vLLM server arg keys.
 - Bedrock: Drop unsupported sampling params for Claude 4.7+.
+- Bedrock: Route `top_k` correctly for Nova models.
 - SageMaker: Add `prompt_logprobs` support in chat mode via `GenerateConfig`, parse prompt logprobs from completion mode responses, enabling `perplexity()` and `target_perplexity()` scorers end-to-end.
 - Model API: `--adaptive-connections` is now enabled by default (defaults to 100 per model connection).
 - Model API: Cache lookup of openai and anthropic packages at sample initialization.
@@ -21,13 +22,17 @@
 - Scoring: `match(numeric=True, location="exact")` is now strict — values like `"5 some text"` no longer match target `"5"`.
 - Analysis: Use score reducer in `evals_df()` column name when there are multiple reducers.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
+- Config: Add `--run-config` option to `inspect eval` for single-file run configuration.
 - Eval Set: Run [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scanners over each task's logs as part of `eval_set` (CLI `--scanner` / `EvalScannerConfig`). Scans incrementally as logs land, reuses prior results across resumes, and renders progress alongside the existing eval view.
+- Eval Set: Fail fast with "No inspect tasks were found at the specified paths." when a task spec resolves to nothing (e.g. uninstalled package); previously crashed with `IndexError` inside `resolve_tasks` after passing an empty task list to `eval`.
 - Eval Set: Add `score_display` argument to `eval_set()` function.
 - Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don't implement conditional writes).
 - Eval Log: Make `log_file_info()` robust to non-standard filenames; added `log_file_info_async()` / `log_files_from_ls_async()` so view-server header reads don't block the event loop.
+- Imports: Delay importing heavier dependencies (e.g. s3fs, boto3, numpy, rich.markdown) for faster imports of `inspect_ai` module.
 - Logging: `INSPECT_PY_LOGGER_FORMAT` env var (`rich`/`plain`/`json`) for non-TTY-friendly single-line console logs.
 - Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
 - Task Display: Honor terminal `COLUMNS` and `LINES` for dumb terminals.
+- Validation: Reject unknown `GenerateConfig` fields with an error.
 - Memory: Log condensing no longer retains unchanged JSON copies in long evals.
 - Memory: Don't retain message lists in buffer DB (memory leak on long agentic samples).
 - Memory: Collapse user messages at compaction time to avoid carrying extra messages.

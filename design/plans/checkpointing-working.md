@@ -52,7 +52,10 @@ logs/
                                              #    commit point — see §4d).
       host/                                  # restic repo: host state.
                                              #   each snapshot contains
-                                             #   context.json + store.json
+                                             #   messages, events (condensed),
+                                             #   events_data, attachments,
+                                             #   store, and optionally an
+                                             #   agent-defined property bag
                                              #   (see §5).
         config data/ index/ snapshots/ keys/ locks/
       sandboxes/
@@ -112,13 +115,20 @@ one attempt are not shared with or consulted by another.
 
 ## 2. Configuration surface
 
-`CheckpointConfig` is specified at one of three levels — mirroring how `sandbox` is specified — with **per-field merge** across the three layers in precedence order **eval > sample > task**. Each level supplies a partial config (every field defaults to `None`); the harness combines them at sample-run time, with the higher-priority layer winning on a field-by-field basis. When unset at every level, checkpointing is disabled.
+Checkpoint config is specified at one of three levels — mirroring how `sandbox` is specified — with **per-field merge** across the three layers in precedence order **eval > sample > task**. Each level supplies a partial config (every field defaults to `None`); the harness combines them at sample-run time, with the higher-priority layer winning on a field-by-field basis. When unset at every level, checkpointing is disabled.
+
+The config is split into two classes:
+
+-   **`CheckpointSampleConfig`** — fields that may be set at *any* layer including the sample (`trigger`, `sandbox_paths`, `max_consecutive_failures`).
+-   **`CheckpointConfig(CheckpointSampleConfig)`** — adds the eval-wide fields (`checkpoints_dir`, `retention`) that must be set at the task or eval layer. This is the type used at the task and eval layers; the sample layer is typed `CheckpointSampleConfig` so the eval-wide fields aren't even accessible there.
+
+The split is structural: a sample physically cannot express `checkpoints_dir` or `retention` — those are eval-wide concerns. To change `checkpoints_dir` from its default (log-sibling), set it at the task or eval layer.
 
 Rationale for the precedence direction (sample > task): task defines the agent's standard policy for *all* of its samples; an individual sample specializes — e.g. tighter cadence, an extra captured path, more failure tolerance for a flaky row. Eval/CLI is always the highest priority because it's the operator's run-time override.
 
 `sandbox_paths` is treated as a single value (whole-dict replacement) — not per-key merged. To add a path to an existing sandbox, the higher-priority layer redeclares the full list.
 
--   **Sample**: `Sample(checkpoint=CheckpointConfig(...))` — dataset-author default.
+-   **Sample**: `Sample(checkpoint=CheckpointSampleConfig(...))` — dataset-author default.
 -   **Task**: `Task(checkpoint=CheckpointConfig(...))` — task-level default.
 -   **Eval / CLI**: `eval(checkpoint=CheckpointConfig(...))` and `inspect eval --checkpoint=...` — run-level override.
 
@@ -195,16 +205,12 @@ class Retention:
     successfully. "delete" (default) removes it; "retain" keeps it for
     later inspection or replay. See §8d."""
 
-class CheckpointConfig:
+class CheckpointSampleConfig:
+    """Fields settable at any layer including the sample."""
+
     trigger: CheckpointTrigger
     """Checkpoint trigger. All triggers fire at the next turn boundary
     after the trigger condition is reached. See bullets below."""
-
-    checkpoints_dir: str | None = None
-    """Override the parent root under which the eval checkpoints dir
-    lands. None (default) = sibling of the eval log file. When set,
-    inspect places <log-base>.checkpoints/ under this root. Any
-    fsspec-resolvable path (s3://, local, etc.). See §1."""
 
     sandbox_paths: dict[str, list[str]] = {}
     """Per-sandbox-name list of absolute paths to capture inside the sandbox.
@@ -214,8 +220,19 @@ class CheckpointConfig:
     """If set, the sample fails after N consecutive failed checkpoint attempts.
     None = unlimited tolerance (default). 0 = any failure is fatal. See §8c."""
 
+class CheckpointConfig(CheckpointSampleConfig):
+    """Adds eval-wide fields; used at the task and eval layers only."""
+
+    checkpoints_dir: str | None = None
+    """Override the parent root under which the eval checkpoints dir
+    lands. None (default) = sibling of the eval log file. When set,
+    inspect places <log-base>.checkpoints/ under this root. Any
+    fsspec-resolvable path (s3://, local, etc.). Eval-wide — settable
+    only at the task or eval layer. See §1."""
+
     retention: Retention = Retention()
-    """Controls when checkpoint data is deleted. See §8d."""
+    """Controls when checkpoint data is deleted. Eval-wide — settable
+    only at the task or eval layer. See §8d."""
 ```
 
 All triggers fire at turn boundaries only; an agent is never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint. To disable checkpointing, omit the ``CheckpointConfig`` at every level.
@@ -265,7 +282,7 @@ Inspect provides checkpointing support at two layers:
 
 The right paths are agent-specific. Native Python agents typically need none — their state lives in messages and `Store`, both captured by the host repo. **Sandbox CLI agents** (Claude Code, Codex CLI, Gemini CLI, etc.) typically need several directories: the agent's home directory, the project working directory (often `/workspace`), and any tool-state directories the agent writes to. Agent authors are expected to declare the paths their agent actually depends on.
 
-**Host repo** captures a small per-attempt host-local working tree containing exactly two files (`context.json`, `store.json`) — see §5.
+**Host repo** captures a small per-attempt host-local working tree containing the messages, condensed events + dedup pools, attachments, `Store`, and an optional agent-defined property bag — see §5.
 
 ### 4b. Engine: restic
 
@@ -369,10 +386,13 @@ Rationale: hiding the checkpoint mechanism from the agent prevents an adversaria
 
 ## 5. Host snapshot contents
 
-Each host-repo snapshot contains exactly two files, sourced from a host-local working tree at checkpoint time:
+Each host-repo snapshot contains up to five files, sourced from a host-local working tree at checkpoint time:
 
--   **`context.json`** — messages and events in the same **condensed representation** used inside a `.eval` log (avoids the O(N²) serialization cost). Carries events in condensed form (with `input_refs` / `call_refs`) and deduplication pools (`events_data` with `messages` and `calls`). Reuses `condense_sample()` / `resolve_sample_events_data()` from `src/inspect_ai/log/_pool.py` and `_condense.py`. Not a `.eval` file; no zip coupling.
+-   **`events.json`** — condensed events from `transcript().events`, with `ModelEvent` inputs and tool-call payloads replaced by `input_refs` / `call_refs` into the pools in `events_data.json`. Same condensed representation used inside a `.eval` log (avoids the O(N²) serialization cost). Reuses `condense_model_event_inputs` / `condense_model_event_calls` from `src/inspect_ai/log/_pool.py`. Not a `.eval` file; no zip coupling.
+-   **`events_data.json`** — `{messages, calls}` dedup pools that `events.json` indexes into. Built incrementally: each fire processes only the new event slice against persisted indexes, so total hashing cost over a sample is O(N) rather than O(N) per fire. Both this and `events.json` have a byte-stable prefix across fires (only the tail grows), which tightens restic CDC dedup.
+-   **`attachments.json`** — hash → original-content pool that `ModelEvent.call` refs (`attachment://<hash>`) point into. Captured live by `Transcript._process_event` as call payloads >100 chars are rewritten to `attachment://` refs; serialized here so the snapshot is self-contained.
 -   **`store.json`** — the sample's `Store` key/value state.
+-   **`agent_state.json`** *(opt-in)* — agent-defined property bag. Written only when the agent has registered at least one callback via `Checkpointer.track(key, callback, initial_value)`. Each registered key becomes a top-level field; its value is whatever the corresponding callback returns. The agent's conversation messages typically live here under the `"messages"` key — the protocol no longer privileges them as a top-level file. `react()` registers two callbacks: `"messages"` (the conversation) and `"attempt_count"` (so retries resume at the correct attempt index).
 
 Customer-facing checkpoint metadata (trigger, turn, duration, sandbox snapshot ids, etc.) lives in the per-checkpoint sidecar at the attempt root (§1), not inside the snapshot.
 
@@ -395,8 +415,11 @@ $XDG_CACHE_HOME/inspect_ai/checkpoints/      # working-tree root
   <log-basename>/                            # one per eval log
     <sample-id>__<epoch>[_<retry>]/          # one per attempt;
                                              #   shape mirrors §1.
-      context.json
+      events.json
+      events_data.json
+      attachments.json
       store.json
+      agent_state.json                       # opt-in (see above)
 ```
 
 ## 6. Resumption
@@ -436,19 +459,20 @@ The **harness** performs the full restoration before the agent runs:
 
 1.  Read the chosen `ckpt-NNNNN.json` sidecar → host snapshot id + per-sandbox snapshot ids.
 2.  Restore each sandbox from its tagged snapshot in the sandbox repo.
-3.  Restore the host snapshot to a local working dir; parse `context.json` and `store.json`.
-4.  Rehydrate the context window (messages + events) into ambient inspect state.
+3.  Restore the host snapshot to a local working dir; parse the §5 host files.
+4.  Rehydrate events + attachments into ambient inspect state.
 5.  Rehydrate the `Store` into ambient inspect state.
-6.  Invoke the agent with `resume=True`.
+6.  Invoke the agent with `resume=True`. When present, `agent_state.json` is delivered to the agent so the agent's `track(...)` calls return its previously-captured values — that's how messages, `attempt_count`, and any other agent-tracked state come back (e.g. `state.messages = cp.track("messages", lambda: state.messages, state.messages)`).
 
 The **agent** does not re-open the checkpoint, does not re-materialize the sandbox, and does not re-parse stored state.
 
 ## 7. Resume signaling
 
-Checkpointing exposes the resume signal in two places:
+Checkpointing exposes the resume signal in three places:
 
 -   **The agent's `resume` parameter** — for the agent function specifically (§7a).
 -   **`TaskState.resumed`** — for any code with access to `TaskState`: solvers, scorers, tool implementations, hooks (§7b).
+-   **`Checkpointer.resume()`** — for the agent to recover its own previously-persisted property bag (§7c).
 
 ### 7a. Agent parameter
 
@@ -486,6 +510,38 @@ class TaskState:
 ```
 
 The flag is `True` for the entire lifetime of a resumed sample, not just the first call. Solvers, scorers, tool implementations, and hooks can read it to skip one-shot setup or take resume-aware paths the same way the agent uses its `resume` parameter.
+
+### 7c. Checkpointer.track
+
+The `Checkpointer` protocol exposes a keyed, strongly-typed affordance for agent property-bag persistence:
+
+```python
+def track(
+    self,
+    key: str,
+    callback: Callable[[], T],
+    initial_value: T,
+) -> T: ...   # T bound to JsonValue
+```
+
+On a single call this both:
+
+-   **Registers** `callback` under `key` for future fires. At each fire every registered callback is invoked and the results are merged into one dict, written to `agent_state.json` (see §5). Each key may be tracked only once — a duplicate call raises `ValueError`.
+-   **Returns** the value previously persisted under `key` (on a retry / resumption), or `initial_value` when there is no prior value (fresh run, or key never stored).
+
+Generic over `T: JsonValue` so the value is strongly typed end-to-end: a typed `initial_value` constrains both the callback's return type and the method's return type.
+
+The "is this a resume?" signal is *not* surfaced here — use `TaskState.resumed` (§7b) if an agent needs to branch on resume status independent of the stored values.
+
+Idiomatic use, illustrated by the built-in React agent:
+
+```python
+async with checkpointer() as cp:
+    attempt_count = cp.track("attempt_count", lambda: attempt_count, 0)
+    ...
+```
+
+The lambda closes over the local `attempt_count` cell, so subsequent rebinds (`attempt_count += 1`) are visible at fire time.
 
 ## 8. Lifecycle and observability
 
