@@ -5,6 +5,7 @@
 - Anthropic: Capture `extra_body` fields from `Message` response.
 - VLLM: Preserve dotted vLLM server arg keys.
 - Bedrock: Drop unsupported sampling params for Claude 4.7+.
+- Bedrock: Route `top_k` correctly for Nova models.
 - SageMaker: Add `prompt_logprobs` support in chat mode via `GenerateConfig`, parse prompt logprobs from completion mode responses, enabling `perplexity()` and `target_perplexity()` scorers end-to-end.
 - Model API: `--adaptive-connections` is now enabled by default (defaults to 100 per model connection).
 - Model API: Cache lookup of openai and anthropic packages at sample initialization.
@@ -67,6 +68,7 @@
 - Bugfix: `grouped()` — raise instead of silently overwriting a per-group metric when a group name collides with `all_label`.
 - Bugfix: `stderr(cluster=...)` — return 0 with a single cluster (was `NaN`/`inf` from divide-by-zero).
 - Bugfix: `value_to_float()` — reject `"nan"`/`"inf"` string values so a single non-finite Score doesn't poison `accuracy()` and friends.
+- Bugfix: `inspect log recover` — preserve `sample.uuid` for crashed in-progress samples (initial buffer summary now carries `state.uuid`; recovery synthesizes a fallback uuid for legacy buffer rows).
 
 ## 0.3.220 (08 May 2026)
 

@@ -475,3 +475,15 @@ def test_message_accumulator_compaction_across_chunks() -> None:
     assert messages[4].text == "[Summary]"
     assert messages[6].text == "6"
     assert output.choices[0].message.content == "6"
+
+
+def test_reconstruct_in_progress_summary_without_uuid_synthesizes_one() -> None:
+    """Legacy in-flight buffer rows lack a uuid; recovery synthesizes one."""
+    summary = EvalSampleSummary(id="some-sample", epoch=1, input="2+2?", target="4")
+    assert summary.uuid is None
+
+    sample = reconstruct_eval_sample(
+        summary, SampleData(events=[], attachments=[]), cancelled=True
+    )
+
+    assert sample.uuid is not None
