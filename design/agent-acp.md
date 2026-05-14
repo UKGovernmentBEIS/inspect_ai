@@ -467,7 +467,7 @@ class InterruptEvent(BaseEvent):
     source: Literal["user_cancel", "limit", "system"] = "user_cancel"
     # what was interrupted, drawn from active_model_event / active tool call
     interrupted: Literal["generate", "tool_call", "between_turns"]
-    interrupted_tool_id: str | None = None
+    interrupted_tool_call_id: str | None = None
     interrupted_model_event_id: str | None = None
 ```
 
@@ -832,12 +832,56 @@ Verification: `pytest tests/agent/acp/ -v` (14 passed asyncio); `pytest tests/ag
 
 ### Phase 2: Transcript primitives — `InterruptEvent` and `source="operator"`
 
-Schema-level changes to record cancels and operator-injected messages in the transcript.
+Schema-level changes to record cancels and operator-injected messages in the transcript. No agent integration; primitives only.
 
-- Extend `ChatMessageUser.source` from `Literal["input", "generate"] | None` to `Literal["input", "generate", "operator"] | None`. Audit existing references for switch/match statements that need updating.
-- Add `InterruptEvent` to the transcript event union with fields `source` (`"user_cancel" | "limit" | "system"`), `interrupted` (`"generate" | "tool_call" | "between_turns"`), and ids for the active model event / cancelled tool call where applicable.
+**Files created:**
+- `src/inspect_ai/event/_interrupt.py` — `InterruptEvent` class.
+- `tests/log/test_interrupt_event.py` — 12 unit tests.
+- `src/inspect_ai/_view/ts-mono/packages/inspect-components/src/transcript/InterruptEventView.tsx` — new ts-mono view component.
 
-**Tests.** Schema serialization roundtrip for `InterruptEvent`; `ChatMessageUser(source="operator")` constructs and serializes; log read-back of a transcript containing both new elements; verify exhaustive matches across the codebase still cover the union.
+**Files modified:**
+- `src/inspect_ai/model/_chat_message.py` — extended `ChatMessageBase.source` from `Literal["input", "generate"] | None` to `Literal["input", "generate", "operator"] | None`.
+- `src/inspect_ai/event/_event.py` — added `InterruptEvent` to the `Event` union.
+- `src/inspect_ai/event/__init__.py` — re-exported `InterruptEvent`.
+- `src/inspect_ai/log/_transcript.py` — added module-level `record_interrupt_event(...)` helper that appends to the current transcript via `transcript()._event(...)`. Kept as a module function rather than a `Transcript` method since callers are internal-only (Phase 3's cancellation machinery) and we don't want to grow the public `Transcript` API for it.
+- `src/inspect_ai/_view/inspect-openapi.json` — regenerated to include the new event and the extended source Literal.
+- `src/inspect_ai/_view/ts-mono/packages/inspect-common/src/types/generated.ts` — regenerated TypeScript types.
+- `src/inspect_ai/_view/ts-mono/packages/inspect-common/src/types/index.ts` — exported `InterruptEvent`.
+- `src/inspect_ai/_view/ts-mono/packages/inspect-components/src/transcript/types.ts` — added `InterruptEvent` to `EventType` union and `"interrupt"` to `eventTypeValues`.
+- `src/inspect_ai/_view/ts-mono/packages/inspect-components/src/transcript/icons.ts` — added `interrupt: "bi bi-slash-circle"`.
+- `src/inspect_ai/_view/ts-mono/packages/inspect-components/src/transcript/TranscriptVirtualList.tsx` — added `case "interrupt":` dispatch to `InterruptEventView`.
+
+**What landed (Python):**
+- `InterruptEvent(BaseEvent)` — `event: Literal["interrupt"]` discriminator; required fields `source: Literal["user_cancel", "limit", "system"]` and `interrupted: Literal["generate", "tool_call", "between_turns"]`; optional `interrupted_tool_call_id: str | None` (cross-ref to `ToolEvent.id`) and `interrupted_model_event_id: str | None` (cross-ref to `ModelEvent.uuid`).
+- `record_interrupt_event(...)` — module-level keyword-only helper that constructs and appends the event to the current transcript. Internal API; not surfaced on `Transcript` itself.
+- `ChatMessageBase.source` now accepts `"operator"` for ACP-injected user messages. No `_trim.partition_messages` change: operator messages flow into `conversation` (not `input`) because `"input"` is reserved for the original sample input; runtime injections belong with the model-generated conversation.
+
+**What landed (TypeScript ts-mono):**
+- `InterruptEvent` type generated from the OpenAPI schema, exported from `@tsmono/inspect-common/types`.
+- `InterruptEventView` renders the event with a `bi-slash-circle` icon and human-readable titles (e.g. "Interrupted by user" / "during model generation"). Wired into the transcript dispatch switch.
+- `"interrupt"` added to the `eventTypeValues` runtime array.
+
+**Design decisions:**
+- Field name: `interrupted_tool_call_id` (not `interrupted_tool_id` as the earlier design sketch had) — disambiguates from "tool name" and matches Inspect's `ToolCall.id` convention. Design-doc schema sketch updated to match.
+- Helper exposed as a module-level `record_interrupt_event(...)` rather than `Transcript.interrupt(...)` — keeps the public `Transcript` API lean since the only callers are internal Inspect code (Phase 3's cancellation machinery). Implementation just calls `transcript()._event(InterruptEvent(...))`.
+- `partition_messages` left untouched: operator messages should flow into `conversation` per the rationale above (`"input"` is reserved for original sample input).
+- Bootstrap icon `bi bi-slash-circle` chosen for `interrupt` — semantically signals "stopped / cancelled" and is consistent with the icons.ts hardcoded-string convention.
+
+**Test coverage (12 tests):**
+1. Construct `InterruptEvent` with required fields; optional ids default to None.
+2. Construct with both optional ids set; values preserved.
+3. Inherits `BaseEvent` fields (`uuid`, `timestamp` auto-populated).
+4. `source="bogus"` raises `ValidationError`.
+5. `interrupted="bogus"` raises `ValidationError`.
+6. Roundtrip via `TypeAdapter(Event).validate_python(model_dump())` — restored instance is an `InterruptEvent` with matching `uuid` and all fields preserved.
+7. `record_interrupt_event(...)` appends correctly to the active transcript (via `_transcript.set`).
+8. `ChatMessageUser(source="operator")` constructs.
+9. All three source values (`"input"`, `"generate"`, `"operator"`) accepted.
+10. `source="bogus"` on `ChatMessageUser` raises.
+11. `ChatMessageUser(source="operator")` model_dump roundtrips.
+12. `partition_messages` puts operator messages in `conversation`, not `input` — confirms the deliberate design choice.
+
+Verification: `pytest tests/log/test_interrupt_event.py` (12 passed); `pytest tests/log/ tests/model/test_trim_messages.py tests/model/test_compaction.py tests/agent/acp/` (502 passed, no regressions); `ruff format` / `ruff check` clean; `mypy --exclude tests/test_package` clean (30 source files); `pnpm --filter @tsmono/inspect-common typecheck` / `pnpm --filter @tsmono/inspect-components typecheck` / `lint` all clean; `prettier --write` clean.
 
 ### Phase 3: Turn scope and cancellation mechanics
 

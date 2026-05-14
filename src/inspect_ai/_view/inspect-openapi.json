@@ -740,7 +740,8 @@
               {
                 "enum": [
                   "input",
-                  "generate"
+                  "generate",
+                  "operator"
                 ],
                 "type": "string"
               },
@@ -848,7 +849,8 @@
               {
                 "enum": [
                   "input",
-                  "generate"
+                  "generate",
+                  "operator"
                 ],
                 "type": "string"
               },
@@ -963,7 +965,8 @@
               {
                 "enum": [
                   "input",
-                  "generate"
+                  "generate",
+                  "operator"
                 ],
                 "type": "string"
               },
@@ -1068,7 +1071,8 @@
               {
                 "enum": [
                   "input",
-                  "generate"
+                  "generate",
+                  "operator"
                 ],
                 "type": "string"
               },
@@ -2930,6 +2934,9 @@
                       "$ref": "#/components/schemas/InputEvent"
                     },
                     {
+                      "$ref": "#/components/schemas/InterruptEvent"
+                    },
+                    {
                       "$ref": "#/components/schemas/ScoreEvent"
                     },
                     {
@@ -3124,6 +3131,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/InputEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/InterruptEvent"
                 },
                 {
                   "$ref": "#/components/schemas/ScoreEvent"
@@ -4468,6 +4478,9 @@
             "$ref": "#/components/schemas/InputEvent"
           },
           {
+            "$ref": "#/components/schemas/InterruptEvent"
+          },
+          {
             "$ref": "#/components/schemas/ScoreEvent"
           },
           {
@@ -5249,6 +5262,119 @@
           "input_ansi"
         ],
         "title": "InputEvent",
+        "type": "object"
+      },
+      "InterruptEvent": {
+        "description": "Records that an agent's turn or sample was cut short.\n\nEmitted in three cases:\n\n- ``source=\"user_cancel\"`` \u2014 an ACP client (e.g. an editor or TUI)\n  called ``session/cancel`` while a turn was in flight.\n- ``source=\"limit\"`` \u2014 a sample-level limit (tokens, time, cost,\n  messages) tripped during execution.\n- ``source=\"system\"`` \u2014 the eval is shutting down for an external\n  reason and is cancelling active samples.\n\nThe ``interrupted`` field records what was running at the moment\nthe cancel reached the cancel scope. ``interrupted_tool_call_id``\nand ``interrupted_model_event_id`` give cross-references when\napplicable so downstream consumers can correlate this event with\nthe in-flight ``ToolEvent`` or ``ModelEvent``.",
+        "properties": {
+          "event": {
+            "const": "interrupt",
+            "default": "interrupt",
+            "title": "Event",
+            "type": "string"
+          },
+          "interrupted": {
+            "enum": [
+              "generate",
+              "tool_call",
+              "between_turns"
+            ],
+            "title": "Interrupted",
+            "type": "string"
+          },
+          "interrupted_model_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interrupted Model Event Id"
+          },
+          "interrupted_tool_call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interrupted Tool Call Id"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "source": {
+            "enum": [
+              "user_cancel",
+              "limit",
+              "system"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "source",
+          "interrupted"
+        ],
+        "title": "InterruptEvent",
         "type": "object"
       },
       "JSONSchema": {

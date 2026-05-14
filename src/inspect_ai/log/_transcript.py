@@ -4,6 +4,7 @@ from logging import getLogger
 from typing import (
     Callable,
     Iterator,
+    Literal,
     Sequence,
     TypeVar,
     overload,
@@ -17,6 +18,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.event._base import BaseEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._timeline import Timeline
@@ -159,6 +161,38 @@ class Transcript:
 def transcript() -> Transcript:
     """Get the current `Transcript`."""
     return _transcript.get()
+
+
+def record_interrupt_event(
+    *,
+    source: Literal["user_cancel", "limit", "system"],
+    interrupted: Literal["generate", "tool_call", "between_turns"],
+    interrupted_tool_call_id: str | None = None,
+    interrupted_model_event_id: str | None = None,
+) -> None:
+    """Append an `InterruptEvent` to the current transcript.
+
+    Internal helper used by Inspect's cancellation machinery — the ACP
+    `cancel_current_turn` path, sample-level limit handlers, and system
+    shutdown. Not a public API for agent authors.
+
+    Args:
+        source: What caused the interrupt — an ACP client cancel,
+            a sample limit, or system shutdown.
+        interrupted: What was running at the moment of the interrupt.
+        interrupted_tool_call_id: ``ToolEvent.id`` of the in-flight
+            tool call, if any.
+        interrupted_model_event_id: ``ModelEvent.uuid`` of the
+            in-flight model call, if any.
+    """
+    transcript()._event(
+        InterruptEvent(
+            source=source,
+            interrupted=interrupted,
+            interrupted_tool_call_id=interrupted_tool_call_id,
+            interrupted_model_event_id=interrupted_model_event_id,
+        )
+    )
 
 
 @contextlib.contextmanager

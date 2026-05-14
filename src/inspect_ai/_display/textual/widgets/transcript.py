@@ -28,6 +28,7 @@ from inspect_ai.event._event import (
 )
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._input import InputEvent
+from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._logger import LoggerEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
@@ -232,6 +233,13 @@ def render_sample_limit_event(event: SampleLimitEvent) -> EventDisplay:
     return EventDisplay(f"limit: {event.type}", Text(event.message))
 
 
+def render_interrupt_event(event: InterruptEvent) -> EventDisplay:
+    return EventDisplay(
+        f"interrupt: {event.source}",
+        Text(f"interrupted during {event.interrupted}"),
+    )
+
+
 def render_model_event(event: ModelEvent) -> EventDisplay:
     # content
     prefix: list[RenderableType] = []
@@ -428,6 +436,7 @@ EventRenderer = Callable[[Any], EventDisplay | list[EventDisplay] | None]
 _renderers: list[tuple[Type[Event], EventRenderer]] = [
     (SampleInitEvent, render_sample_init_event),
     (SampleLimitEvent, render_sample_limit_event),
+    (InterruptEvent, render_interrupt_event),
     (ModelEvent, render_model_event),
     (SubtaskEvent, render_subtask_event),
     (ScoreEvent, render_score_event),
