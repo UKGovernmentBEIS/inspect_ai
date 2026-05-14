@@ -1560,10 +1560,18 @@ def eval_log_sample_source(
             )
         )
 
-    # take care of no log or no samples in log
+    # take care of no log or no samples in log. Note we still proceed when
+    # in-memory samples and `eval_log_info` are both absent if a
+    # `eval_checkpoints_dir` is available — the prior eval may have been
+    # killed before writing any sample, and on-disk sidecars can still
+    # drive resume detection in `read_from_memory` below.
     if not eval_log:
         return no_sample_source
-    elif (not eval_log.samples or len(eval_log.samples) == 0) and not eval_log_info:
+    elif (
+        (not eval_log.samples or len(eval_log.samples) == 0)
+        and not eval_log_info
+        and not eval_checkpoints_dir
+    ):
         return no_sample_source
 
     # determine whether all samples in the dataset have ids (if not, then we can't
