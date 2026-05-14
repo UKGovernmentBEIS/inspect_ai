@@ -48,14 +48,17 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.tool._tool_call import ToolCallError
 
 if TYPE_CHECKING:
+    from inspect_ai.agent._acp._router import _AcpEventRouter
     from inspect_ai.agent._agent import AgentState
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
 logger = getLogger(__name__)
 
-# Phase 1 placeholder; Phase 6 will tighten this to a session/update union.
-AcpUpdate = dict[str, Any]
+# Loose heterogeneous payload — Phase 1's tests publish dicts, Phase 6's
+# router publishes ``acp.SessionNotification`` Pydantic instances. The
+# bus does not narrow; subscribers narrow with ``isinstance`` as needed.
+AcpUpdate = Any
 
 # Bounded subscriber buffer. A slow subscriber drops updates rather than
 # stalling the agent; replay-on-attach (Phase 10) handles lossless catch-up
@@ -362,6 +365,14 @@ class _LiveAcpSession:
         # session (not a ContextVar) so a transport task firing a cancel
         # from a sibling task can read it.
         self._active_model_event: "ModelEvent | None" = None
+        # When True, the router (Phase 6) drops events emitted inside
+        # sub-agents (depth>0). Standard ACP semantic for editor clients.
+        # Disabled by consumers (debugging tooling, raw-stream TUIs) that
+        # want full sub-agent visibility through the pub/sub bus.
+        self._filter_subagent_events: bool = True
+        # Router attached at __aenter__; detached at __aexit__. Owns the
+        # transcript subscription that maps events to SessionNotifications.
+        self._router: "_AcpEventRouter | None" = None
 
     @property
     def session_id(self) -> str:
@@ -369,7 +380,11 @@ class _LiveAcpSession:
         return self._session_id
 
     async def __aenter__(self) -> "AcpSession":
-        """Enter the session scope; returns ``self``."""
+        """Enter the session scope; attach the event router and return ``self``."""
+        from inspect_ai.agent._acp._router import _AcpEventRouter
+
+        self._router = _AcpEventRouter(self)
+        self._router.attach()
         return self
 
     async def __aexit__(
@@ -378,14 +393,29 @@ class _LiveAcpSession:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Close every attached subscriber's send half and clear the list.
+        """Detach the router, close subscribers' send halves, clear the list.
 
         Receivers see clean EOF (``anyio.EndOfStream``) and their
         ``async for`` loops terminate.
         """
+        if self._router is not None:
+            self._router.detach()
+            self._router = None
         for send, _ in self._subscribers:
             send.close()
         self._subscribers.clear()
+
+    def disable_subagent_filtering(self) -> None:
+        """Allow sub-agent transcript events through to the pub/sub bus.
+
+        By default the Phase 6 router drops any transcript event emitted
+        while a sub-agent boundary is open — the standard ACP semantic
+        where the editor sees only the outer agent's conversation. Some
+        consumers (debugging tooling, raw-event TUIs) want every event
+        instead; calling this method disables the filter for the rest of
+        the session.
+        """
+        self._filter_subagent_events = False
 
     def attach(self) -> MemoryObjectReceiveStream[AcpUpdate]:
         """Create a new subscriber stream pair, keep the send half, return the receive half.
@@ -592,6 +622,16 @@ class _LiveAcpSession:
             event = self._in_flight_tool_events.get(tc_id)
             if event is not None:
                 event.pending = None
+                # Mark the ToolEvent as cancelled so downstream consumers
+                # (transcript renderers, the Phase 6 ACP router) don't
+                # mis-render it as a successful completion. Mirrors the
+                # synthetic `ChatMessageTool` repair message produced by
+                # :meth:`after_cancel`.
+                event.error = ToolCallError(
+                    type="cancelled",
+                    message="Tool call cancelled by user.",
+                )
+                event.failed = True
                 cancelled_events.append(event)
         if cancelled_events:
             tr = transcript()

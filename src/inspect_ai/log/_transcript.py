@@ -60,6 +60,7 @@ class Transcript:
         self._timelines: list[Timeline] = []
         self._model_call_counts: dict[str, int] = {}
         self._kept_event_ids: set[int] = set()
+        self._additional_subscribers: list[Callable[[Event], None]] = []
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -149,6 +150,12 @@ class Transcript:
         if self._event_logger:
             self._event_logger(event)
 
+        for sub in self._additional_subscribers:
+            try:
+                sub(event)
+            except Exception:
+                logger.exception("Transcript subscriber raised; continuing")
+
         # condense model event calls immediately to prevent O(N) memory usage
         if isinstance(event, ModelEvent) and event.call is not None:
             event_fn = events_attachment_fn(self.attachments)
@@ -156,6 +163,26 @@ class Transcript:
 
     def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
         self._event_logger = event_logger
+
+    def _add_subscriber(self, callback: Callable[[Event], None]) -> Callable[[], None]:
+        """Register an additive event subscriber.
+
+        Unlike :meth:`_subscribe` (single-slot, used by the eval runner's
+        log writer), multiple subscribers coexist and all fire on every
+        event. Each subscriber runs in a try/except so one failing
+        subscriber does not block others or interrupt the agent loop.
+
+        Returns an idempotent unsubscribe callable.
+        """
+        self._additional_subscribers.append(callback)
+
+        def unsubscribe() -> None:
+            try:
+                self._additional_subscribers.remove(callback)
+            except ValueError:
+                pass
+
+        return unsubscribe
 
 
 def transcript() -> Transcript:

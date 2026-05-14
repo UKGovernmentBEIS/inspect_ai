@@ -1028,16 +1028,27 @@ Lock in the existing `type="agent"` span convention so Phase 6's event router ca
 
 Verification: `pytest tests/agent/test_acp/` (52 passed asyncio + 52 passed trio); `pytest tests/agent/test_acp/ tests/agent/test_agent_react.py` combined (75 passed, no regressions); `ruff format`/`check` clean; `mypy` clean (6 source files). No OpenAPI/TS regen needed.
 
-### Phase 6: Event router with top-level filter
+### Phase 6: Event router with top-level filter ✅
 
-Implement the in-process event router that converts top-level transcript events into ACP `session/update` payloads.
+Landed an in-process event router that converts top-level transcript events into `acp.SessionNotification` payloads and publishes them onto the Phase 1 pub/sub bus.
 
-- Subscribe to the active sample's transcript event stream.
-- Maintain a per-stream "sub-agent depth" counter via Phase 5's boundary spans (incremented on `SpanBeginEvent` of a tagged span, decremented on the matching `SpanEndEvent`).
-- Drop events whose enclosing depth is > 0 (i.e. inside a sub-agent).
-- Map remaining events to `session/update` shapes (table in the design doc) and publish them via the `AcpSession` pub/sub from Phase 1.
+**What was built:**
 
-**Tests.** Feed a synthetic stream of events including nested sub-agent spans; assert only outer-level events emerge; assert the event → `session/update` mapping table is exhaustive for the events we care about; verify ordering is preserved.
+1. **Multi-cast `Transcript._add_subscriber(cb) -> unsubscribe`** in `src/inspect_ai/log/_transcript.py`. Coexists with the legacy single-slot `_subscribe()` used by the eval runner's log writer. Multiple subscribers all fire on every event; each runs in a try/except so a failing subscriber doesn't block siblings or the agent loop.
+2. **`_AcpEventRouter`** in `src/inspect_ai/agent/_acp/_router.py`. Attached at `_LiveAcpSession.__aenter__`, detached at `__aexit__`. Tracks sub-agent nesting depth by pairing `SpanBeginEvent(type=AGENT_SPAN_TYPE)` / `SpanEndEvent` by id (defensive against unknown ends). Maps `ModelEvent` text blocks → `AgentMessageChunk(TextContentBlock)`, reasoning blocks → `AgentThoughtChunk(TextContentBlock)`, `ToolEvent` first sight → `ToolCallStart(in_progress|completed)`, post-completion updates → `ToolCallProgress(completed|failed)`. Tracks first-sight tool ids so the pending → completed transition routes correctly.
+3. **Configurable sub-agent filter.** `_LiveAcpSession._filter_subagent_events: bool = True` (default ACP semantic — editors see only the outer conversation) with public-ish `disable_subagent_filtering()` method. The router consults the flag on every event; the in-process TUI (Phase 7) and other consumers who want full granularity can opt out.
+4. **No `inspect.events` extension yet.** Mapping the Inspect-native event family (`InfoEvent`, `CompactionEvent`, `InterruptEvent`, etc.) onto ACP's `_meta` extension point is deferred to Phase 8+. ACP's `session/update` discriminated union is strict (no unknown variants accepted), and none of the existing variants (`SessionInfoUpdate`, `UsageUpdate`, `AgentPlanUpdate`) are inert no-op carriers — `SessionInfoUpdate.title=null` and `updated_at=null` are *destructive* clears per the schema docs. Without the `initialize` handshake (Phase 8+) there's no capability-negotiation path for clients to opt in, so Phase 6 ships the safer minimum: silently drop these events. The router's `_map` dispatch is keyed on `type(event)` so adding the mapping later is a one-line change.
+
+**Phase 7 implication (decided during planning):** the Inspect-native TUI will **not** subscribe to the router's `SessionNotification` stream — instead it'll subscribe to the transcript directly, preserving the existing event-stream display (which shows sub-agent internals at full granularity). The TUI only uses `AcpSession` for the producer-side `cancel_current_turn()` and `submit_user_message()`. This avoids dragging users from the current per-event view into an editor-shaped chunked-message view.
+
+**Test coverage:**
+
+- `tests/log/test_transcript_subscribers.py` (5 tests): subscriber ordering, multi-cast, legacy `_subscribe` coexistence, unsubscribe idempotence, exception isolation.
+- `tests/agent/test_acp/test_router.py` (21 tests): depth tracking (agent vs non-agent spans, unknown-end defense), filter behavior (default ON drops sub-agent events; `disable_subagent_filtering()` flips it), detach removes subscription, mapping (`ModelEvent` text → `AgentMessageChunk`, reasoning → `AgentThoughtChunk`, mixed-block order, pending/empty drop), `ToolEvent` first sight → `ToolCallStart(in_progress)`, second sight → `ToolCallProgress(completed|failed)`, `_tool_call_status` helper, all currently-unmapped events drop silently, plus three integration tests against react/mockllm (notifications publish end-to-end, sub-agent isolation by default, sub-agent visibility when filter disabled).
+
+**Phase 5 pivot ratified by the integration tests.** Sub-agent isolation works because every agent-invocation path opens a `type="agent"` boundary span; the router relies on this to scope its filter without coupling to react internals.
+
+Verification: `pytest tests/agent/test_acp/ tests/log/test_transcript_subscribers.py` (101 passed asyncio); `--runtrio` passes (55 trio variants); `ruff format`/`check` clean; `mypy` clean. No OpenAPI/TS regen needed — Phase 6 is pure consumer code reading existing Inspect event types and producing acp-package objects.
 
 ### Phase 7: TUI as in-process ACP client
 
