@@ -36,10 +36,8 @@ from inspect_ai.util._checkpoint import (
     TurnInterval,
     checkpointer,
 )
-from inspect_ai.util._checkpoint.checkpointer_impl import (
-    _Checkpointer,
-    _NoopCheckpointer,
-)
+from inspect_ai.util._checkpoint.checkpointer import _NoopCheckpointer
+from inspect_ai.util._checkpoint.checkpointer_impl import _Checkpointer
 from inspect_ai.util._checkpoint.layout import CheckpointTriggerKind
 from inspect_ai.util._checkpoint.restic import ResticBackupSummary
 from inspect_ai.util._store import Store
@@ -128,13 +126,23 @@ class _CountingCheckpointer(_Checkpointer):
 
 
 def _counting(config: CheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
-    return _CountingCheckpointer(
+    cp = _CountingCheckpointer(
         config=config,
-        sample_checkpoints_dir=dirs.checkpoints,
-        sample_working_dir=dirs.working,
-        host_restic=Path("/fake/restic"),
-        restic_password="test-pwd",
+        log_location="/tmp/t.eval",
+        sample_id="s",
+        epoch=0,
+        eval_id="e",
     )
+    # Bypass __aenter__: pre-seed the I/O-derived state that the fire
+    # path reads. Tests drive cp.tick()/cp.checkpoint() directly without
+    # going through the async ctx mgr.
+    cp._sample_checkpoints_dir = dirs.checkpoints
+    cp._sample_working_dir = dirs.working
+    cp._host_restic = Path("/fake/restic")
+    cp._restic_password = "test-pwd"
+    cp._host_repo = f"{dirs.checkpoints}/host"
+    cp._initialized = True
+    return cp
 
 
 # --- turn-based -----------------------------------------------------------
@@ -226,12 +234,14 @@ class _FakeActiveSample:
     log_location: str = ""  # filled in by the `active_sample` fixture
     eval_id: str | None = "test-eval-001"
     checkpoint: CheckpointConfig | None = None
+    # E2E tests assign this after building via `build_impl`.
+    checkpointer: object = field(default_factory=_NoopCheckpointer)
 
 
 @contextmanager
 def _patch_sample_active(value: object) -> Iterator[None]:
     with patch(
-        "inspect_ai.util._checkpoint.checkpointer_impl.sample_active",
+        "inspect_ai.log._samples.sample_active",
         return_value=value,
     ):
         yield
@@ -342,6 +352,20 @@ async def test_fire_writes_manifest_and_sidecars(
     active_sample.epoch = 2
     active_sample.checkpoint = CheckpointConfig(trigger=TurnInterval(every=2))
 
+    # Inject a real checkpointer into the fake, mirroring what
+    # `task_run_sample` does in production before opening `active_sample`.
+    from inspect_ai.util._checkpoint.checkpointer_impl import build_impl
+
+    assert active_sample.sample.id is not None
+    assert active_sample.eval_id is not None
+    active_sample.checkpointer = build_impl(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=active_sample.sample.id,
+        epoch=active_sample.epoch,
+        eval_id=active_sample.eval_id,
+    )
+
     async with checkpointer() as cp:
         await cp.tick()  # turn 1, no fire
         await cp.tick()  # turn 2, fires
@@ -397,10 +421,10 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
     work.mkdir()
     cp = _Checkpointer(
         config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        sample_checkpoints_dir=str(tmp_path / "ckpts"),
-        sample_working_dir=str(work),
-        host_restic=Path("/fake"),
-        restic_password="pwd",
+        log_location="/tmp/t.eval",
+        sample_id="s",
+        epoch=0,
+        eval_id="e",
     )
     await cp._write_host_context(str(work), events, {}, Store())
 
@@ -422,40 +446,26 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
     assert [len(e.input) for e in model_events] == [2, 4, 5]
 
 
-def _make_cp(tmp_path: Path, **kwargs: object) -> _Checkpointer:
+def _make_cp(**kwargs: object) -> _Checkpointer:
     return _Checkpointer(
         config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        sample_checkpoints_dir=str(tmp_path / "ckpts"),
-        sample_working_dir=str(tmp_path / "work"),
-        host_restic=Path("/fake"),
-        restic_password="pwd",
+        log_location="/tmp/t.eval",
+        sample_id="s",
+        epoch=0,
+        eval_id="e",
         **kwargs,  # type: ignore[arg-type]
     )
 
 
-def test_track_returns_initial_when_no_resume_state(tmp_path: Path) -> None:
-    """Fresh run: no resume state, so the initial_value is returned."""
-    cp = _make_cp(tmp_path)
+def test_track_returns_initial_value(tmp_path: Path) -> None:
+    """Without resume hydration, `track()` always returns initial_value."""
+    cp = _make_cp()
     out = cp.track("attempt_count", lambda: 7, 0)
     assert out == 0
-
-
-def test_track_returns_initial_when_key_missing(tmp_path: Path) -> None:
-    """Resume context exists but the key wasn't stored last time."""
-    cp = _make_cp(tmp_path, resume_state={"other": 1})
-    out = cp.track("attempt_count", lambda: 7, 0)
-    assert out == 0
-
-
-def test_track_returns_resumed_value(tmp_path: Path) -> None:
-    """Resume context has the key — its value is returned, not the initial_value."""
-    cp = _make_cp(tmp_path, resume_state={"attempt_count": 5})
-    out = cp.track("attempt_count", lambda: 7, 0)
-    assert out == 5
 
 
 def test_track_duplicate_key_raises(tmp_path: Path) -> None:
-    cp = _make_cp(tmp_path)
+    cp = _make_cp()
     cp.track("attempt_count", lambda: 1, 0)
     with pytest.raises(ValueError, match="unique"):
         cp.track("attempt_count", lambda: 2, 0)
@@ -465,7 +475,7 @@ async def test_track_single_key_writes_file(tmp_path: Path) -> None:
     """Registered callback's return value lands in agent_state.json."""
     work = tmp_path / "work"
     work.mkdir()
-    cp = _make_cp(tmp_path)
+    cp = _make_cp()
     value = 3
     cp.track("attempt_count", lambda: value, 0)
     await cp._write_host_context(str(work), [], {}, Store())
@@ -476,7 +486,7 @@ async def test_track_messages_via_track(tmp_path: Path) -> None:
     """Messages persist via `track('messages', ...)` — Pydantic model lists serialize."""
     work = tmp_path / "work"
     work.mkdir()
-    cp = _make_cp(tmp_path)
+    cp = _make_cp()
     messages: list[ChatMessage] = [
         ChatMessageSystem(content="sys"),
         ChatMessageUser(content="hi"),
@@ -494,7 +504,7 @@ async def test_track_multiple_keys_merge(tmp_path: Path) -> None:
     """Multiple registered keys merge into one top-level dict."""
     work = tmp_path / "work"
     work.mkdir()
-    cp = _make_cp(tmp_path)
+    cp = _make_cp()
     cp.track("attempt_count", lambda: 3, 0)
     cp.track("phase", lambda: "explore", "")
     await cp._write_host_context(str(work), [], {}, Store())
@@ -508,7 +518,7 @@ async def test_track_not_registered_no_file(tmp_path: Path) -> None:
     """Without any callback, agent_state.json is not written."""
     work = tmp_path / "work"
     work.mkdir()
-    cp = _make_cp(tmp_path)
+    cp = _make_cp()
     await cp._write_host_context(str(work), [], {}, Store())
     assert not (work / "agent_state.json").exists()
 
@@ -520,6 +530,104 @@ def test_track_noop_session() -> None:
     assert out == 0
 
 
+def test_is_resuming_noop_false() -> None:
+    assert _NoopCheckpointer().is_resuming is False
+
+
+def test_is_resuming_reflects_resume_checkpoint() -> None:
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+
+    assert _make_cp().is_resuming is False
+    assert (
+        _make_cp(
+            resume_checkpoint=ResumeCheckpoint(sample_checkpoints_dir="/x"),
+        ).is_resuming
+        is True
+    )
+
+
+async def test_aenter_defers_io_setup(tmp_path: Path) -> None:
+    """All I/O setup (incl. sandbox loop) runs in __aenter__, not __init__."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    cp = _Checkpointer(
+        config=CheckpointConfig(
+            trigger=TurnInterval(every=1),
+            sandbox_paths={"web": ["/var/www"]},
+        ),
+        log_location=str(tmp_path / "t.eval"),
+        sample_id="s",
+        epoch=0,
+        eval_id="e",
+    )
+
+    fake_env = MagicMock()
+    fake_manifest = MagicMock(restic_password="pwd")
+
+    with (
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.ensure_sample_checkpoints_dir",
+            new=AsyncMock(return_value=str(tmp_path / "ckpts" / "s__0")),
+        ) as ensure_ckpt,
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.ensure_sample_working_dir",
+            new=AsyncMock(return_value=str(tmp_path / "work" / "s__0")),
+        ) as ensure_work,
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.read_eval_manifest",
+            new=AsyncMock(return_value=fake_manifest),
+        ) as read_manifest,
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.resolve_restic",
+            new=AsyncMock(return_value=Path("/fake/restic")),
+        ) as resolve,
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.init_host_repo",
+            new=AsyncMock(),
+        ) as init_host,
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.sandbox",
+            return_value=fake_env,
+        ) as get_sandbox,
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.inject_restic",
+            new=AsyncMock(),
+        ) as inject,
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.init_sandbox_repo",
+            new=AsyncMock(),
+        ) as init_sandbox,
+    ):
+        # construction did NOT touch any I/O
+        for m in (
+            ensure_ckpt,
+            ensure_work,
+            read_manifest,
+            resolve,
+            init_host,
+            get_sandbox,
+            inject,
+            init_sandbox,
+        ):
+            m.assert_not_called()
+
+        async with cp:
+            # __aenter__ ran every I/O step exactly once
+            ensure_ckpt.assert_awaited_once()
+            ensure_work.assert_awaited_once()
+            read_manifest.assert_awaited_once()
+            resolve.assert_awaited_once()
+            init_host.assert_awaited_once()
+            get_sandbox.assert_called_once_with("web")
+            inject.assert_awaited_once_with(fake_env)
+            init_sandbox.assert_awaited_once_with(fake_env, "pwd")
+
+        # re-entering is idempotent — no extra calls
+        async with cp:
+            ensure_ckpt.assert_awaited_once()
+            init_sandbox.assert_awaited_once()
+
+
 async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
     """transcript.attachments survives the checkpoint as attachments.json."""
     attachments = {"abc123": "data:image/png;base64,iVBORw0", "def456": "long-text"}
@@ -528,10 +636,10 @@ async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
     work.mkdir()
     cp = _Checkpointer(
         config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        sample_checkpoints_dir=str(tmp_path / "ckpts"),
-        sample_working_dir=str(work),
-        host_restic=Path("/fake"),
-        restic_password="pwd",
+        log_location="/tmp/t.eval",
+        sample_id="s",
+        epoch=0,
+        eval_id="e",
     )
     await cp._write_host_context(str(work), [], attachments, Store())
 
@@ -566,10 +674,10 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
     work.mkdir()
     cp = _Checkpointer(
         config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        sample_checkpoints_dir=str(tmp_path / "ckpts"),
-        sample_working_dir=str(work),
-        host_restic=Path("/fake"),
-        restic_password="pwd",
+        log_location="/tmp/t.eval",
+        sample_id="s",
+        epoch=0,
+        eval_id="e",
     )
 
     await cp._write_host_context(str(work), fire1_events, {}, Store())

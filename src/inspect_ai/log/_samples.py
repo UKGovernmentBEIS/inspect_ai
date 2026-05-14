@@ -14,6 +14,8 @@ from anyio.abc import TaskGroup
 from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
+from inspect_ai.util._checkpoint.checkpointer_impl import build_impl
 from inspect_ai.util._checkpoint.config import CheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxConnection
@@ -40,7 +42,7 @@ class ActiveSample:
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
-        checkpoint: CheckpointConfig | None = None,
+        checkpointer: Checkpointer,
         eval_set_id: str | None = None,
         run_id: str | None = None,
         eval_id: str | None = None,
@@ -65,7 +67,7 @@ class ActiveSample:
         self.total_cost: float | None = None
         self.transcript = transcript
         self.sandboxes = sandboxes
-        self.checkpoint = checkpoint
+        self.checkpointer = checkpointer
         self.eval_set_id = eval_set_id
         self.run_id = run_id
         self.eval_id = eval_id
@@ -139,6 +141,7 @@ async def active_sample(
     fails_on_error: bool,
     transcript: Transcript,
     checkpoint: CheckpointConfig | None = None,
+    resume_checkpoint: ResumeCheckpoint | None = None,
     eval_set_id: str | None = None,
     run_id: str | None = None,
     eval_id: str | None = None,
@@ -158,7 +161,14 @@ async def active_sample(
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
-        checkpoint=checkpoint,
+        checkpointer=build_impl(
+            config=checkpoint,
+            log_location=log_location,
+            sample_id=sample.id,
+            epoch=epoch,
+            eval_id=eval_id,
+            resume_checkpoint=resume_checkpoint,
+        ),
         eval_set_id=eval_set_id,
         run_id=run_id,
         eval_id=eval_id,

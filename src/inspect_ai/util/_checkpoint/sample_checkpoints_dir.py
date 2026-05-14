@@ -26,6 +26,34 @@ def _sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> 
     return f"{eval_dir}/{sample_id}__{epoch}"
 
 
+def sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
+    """Return the per-sample checkpoints dir path (no FS side effects)."""
+    return _sample_checkpoints_dir(eval_dir, sample_id, epoch)
+
+
+async def has_sample_checkpoint(
+    eval_dir: str, sample_id: int | str, epoch: int
+) -> bool:
+    """Return True if any ``ckpt-*.json`` sidecar exists for this sample attempt."""
+    return await anyio.to_thread.run_sync(
+        _has_sample_checkpoint_blocking, eval_dir, sample_id, epoch
+    )
+
+
+def _has_sample_checkpoint_blocking(
+    eval_dir: str, sample_id: int | str, epoch: int
+) -> bool:
+    sample_dir = _sample_checkpoints_dir(eval_dir, sample_id, epoch)
+    fs = filesystem(sample_dir)
+    if not fs.exists(sample_dir):
+        return False
+    for entry in fs.ls(sample_dir):
+        name = entry.name.rsplit("/", 1)[-1]
+        if name.startswith("ckpt-") and name.endswith(".json"):
+            return True
+    return False
+
+
 async def ensure_sample_checkpoints_dir(
     eval_dir: str, sample_id: int | str, epoch: int, eval_id: str
 ) -> str:

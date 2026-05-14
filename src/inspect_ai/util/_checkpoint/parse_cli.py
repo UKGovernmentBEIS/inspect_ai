@@ -163,7 +163,7 @@ class _CheckpointConfigModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     trigger: _TriggerModel | Literal["manual"]
-    checkpoints_dir: str | None = None
+    checkpoints_location: str | None = None
     sandbox_paths: dict[str, list[str]] = Field(default_factory=dict)
     max_consecutive_failures: int | None = None
     retention: _RetentionModel = Field(default_factory=_RetentionModel)
@@ -171,7 +171,7 @@ class _CheckpointConfigModel(BaseModel):
     def to_dataclass(self) -> CheckpointConfig:
         return CheckpointConfig(
             trigger=_trigger_model_to_dataclass(self.trigger),
-            checkpoints_dir=self.checkpoints_dir,
+            checkpoints_location=self.checkpoints_location,
             sandbox_paths=self.sandbox_paths,
             max_consecutive_failures=self.max_consecutive_failures,
             retention=Retention(after_eval=self.retention.after_eval),

@@ -2073,6 +2073,15 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
     help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
 )
+@click.option(
+    "--checkpoint",
+    is_flag=False,
+    flag_value="turn:5",
+    default=None,
+    help=CHECKPOINT_HELP
+    + " For resume to find sidecars, pass the same `--checkpoint` value used on the original eval.",
+    envvar="INSPECT_EVAL_CHECKPOINT",
+)
 @scanner_options
 @common_options
 def eval_retry_command(
@@ -2103,6 +2112,7 @@ def eval_retry_command(
     timeout: int | None,
     attempt_timeout: int | None,
     log_level_transcript: str,
+    checkpoint: str | None,
     scanner: str | None,
     scanner_arg: tuple[str, ...] | None,
     scans: str | None,
@@ -2222,4 +2232,5 @@ def eval_retry_command(
         attempt_timeout=attempt_timeout,
         max_connections=max_connections,
         adaptive_connections=adaptive_connections_value,
+        checkpoint=parse_checkpoint(checkpoint),
     )

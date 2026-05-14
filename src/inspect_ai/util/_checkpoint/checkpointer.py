@@ -7,22 +7,57 @@ the active-session implementation in :mod:`.checkpointer` pulls in
 (that chain loops back to ``inspect_ai.dataset.Sample`` and breaks
 during initial package load otherwise).
 
-The factory defers the import of the heavy build function to call
-time, so the cycle never arises in practice.
+The factory looks up the checkpointer instance built eagerly by
+:func:`inspect_ai.log._samples.active_sample`, so no heavy import is
+needed here at call time.
 """
 
 from __future__ import annotations
 
 import contextlib
 from collections.abc import AsyncIterator
-from contextvars import ContextVar
+from dataclasses import dataclass
+from types import TracebackType
 from typing import Callable, Protocol, TypeVar
 
 T = TypeVar("T")
 
 
+@dataclass
+class ResumeCheckpoint:
+    """Per-sample resume info: where the on-disk checkpoint lives."""
+
+    sample_checkpoints_dir: str
+
+
 class Checkpointer(Protocol):
     """The session yielded by ``async with checkpointer() as cp:``."""
+
+    @property
+    def is_resuming(self) -> bool:
+        """True iff this sample is being resumed from a prior checkpoint.
+
+        Agents can branch on this to skip one-time setup that was
+        already performed on the original run, or to log/handle resume
+        specially. Stable across the lifetime of the session.
+        """
+        ...
+
+    async def __aenter__(self) -> "Checkpointer":
+        """Lazily perform on-disk setup (idempotent).
+
+        The agent invokes via ``async with checkpointer() as cp:``;
+        by that point the sample's sandbox context is established,
+        which the inner restic injection needs.
+        """
+        ...
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> None: ...
 
     async def tick(self) -> None:
         """Invoke at each turn boundary; may fire a checkpoint.
@@ -61,38 +96,54 @@ class Checkpointer(Protocol):
         ...
 
 
-# Set by `checkpointer()` for either impl, so free functions (e.g. the
-# manual `checkpoint()` trigger) get back whichever session is active
-# — including the no-op one. Outside any `checkpointer()` context,
-# lookups return None.
-_active_checkpointer: ContextVar[Checkpointer | None] = ContextVar(
-    "inspect_ai_active_checkpointer", default=None
-)
+class _NoopCheckpointer:
+    """No-op session used when no sample is active or no config is set."""
+
+    @property
+    def is_resuming(self) -> bool:
+        return False
+
+    async def __aenter__(self) -> "_NoopCheckpointer":
+        return self
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+    async def tick(self) -> None:
+        return None
+
+    async def checkpoint(self) -> None:
+        return None
+
+    def track(
+        self,
+        key: str,
+        callback: Callable[[], T],
+        initial_value: T,
+    ) -> T:
+        return initial_value
 
 
 @contextlib.asynccontextmanager
 async def checkpointer() -> AsyncIterator[Checkpointer]:
-    """Enter a checkpointer for the current sample.
+    """Enter the checkpointer bound to the active sample.
 
-    Picks one of two concrete impls on entry: a no-op session when the
-    active sample has no checkpoint config (or no sample is active at
-    all), or an active session bound to the current sample. Either
-    way, the yielded object satisfies :class:`CheckpointSession` and
-    is registered as the active session for the current async context.
+    Returns the per-sample :class:`Checkpointer` instance built eagerly
+    by :func:`inspect_ai.log._samples.active_sample` (a
+    :class:`_NoopCheckpointer` if the active sample has no checkpoint
+    config). Falls back to a no-op when called outside any active
+    sample.
 
     The resolved :class:`CheckpointConfig` lives on
     :class:`inspect_ai.log._samples.ActiveSample` — installed by the
     harness at sample-run setup time per eval / task / sample
     precedence. Agents do not pass a config here.
     """
-    # Function-scoped import of the heavy build function: keeps this
-    # module light enough to be imported during initial inspect_ai load
-    # without triggering the dataset/Sample cycle.
-    from .checkpointer_impl import build_impl
+    # Function-scoped import to avoid a load-time cycle between this
+    # module and `inspect_ai.log._samples`.
+    from inspect_ai.log._samples import sample_active
 
-    impl = await build_impl()
-    token = _active_checkpointer.set(impl)
-    try:
-        yield impl
-    finally:
-        _active_checkpointer.reset(token)
+    active = sample_active()
+    cp = active.checkpointer if active is not None else _NoopCheckpointer()
+    async with cp:
+        yield cp
