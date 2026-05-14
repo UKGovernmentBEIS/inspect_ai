@@ -6,6 +6,7 @@
 - Anthropic: Capture `extra_body` fields from `Message` response.
 - VLLM: Preserve dotted vLLM server arg keys.
 - Bedrock: Drop unsupported sampling params for Claude 4.7+.
+- Bedrock: Route `top_k` correctly for Nova models.
 - SageMaker: Add `prompt_logprobs` support in chat mode via `GenerateConfig`, parse prompt logprobs from completion mode responses, enabling `perplexity()` and `target_perplexity()` scorers end-to-end.
 - Model API: `--adaptive-connections` is now enabled by default (defaults to 100 per model connection).
 - Model API: Cache lookup of openai and anthropic packages at sample initialization.
@@ -17,6 +18,7 @@
 - Datasets: Treat NaN from HuggingFace dataset as `None` is treated (converted to `""`).
 - Datasets: Use HuggingFace revision in cache key for downloaded datasets.
 - Datasets: Propagate `hf_dataset(..., shuffle=True)` to `EvalDataset.shuffled`.
+- Tool Calling: Raise a `ToolError` if there is a null byte in command input.
 - Scoring: Store and aggregate results for cancelled eval runs.
 - Scoring: `match(numeric=True)` no longer matches digit-substrings (e.g. target `5` against `25`); now correctly handles negative, decimal, and scientific-notation targets, and recognises unicode-formatted numbers (unicode minus, vulgar fractions like `½`, Chinese numerals, fullwidth digits) in both targets and model output.
 - Scoring: `match(numeric=True, location="exact")` is now strict — values like `"5 some text"` no longer match target `"5"`.
@@ -68,6 +70,7 @@
 - Bugfix: `grouped()` — raise instead of silently overwriting a per-group metric when a group name collides with `all_label`.
 - Bugfix: `stderr(cluster=...)` — return 0 with a single cluster (was `NaN`/`inf` from divide-by-zero).
 - Bugfix: `value_to_float()` — reject `"nan"`/`"inf"` string values so a single non-finite Score doesn't poison `accuracy()` and friends.
+- Bugfix: `inspect log recover` — preserve `sample.uuid` for crashed in-progress samples (initial buffer summary now carries `state.uuid`; recovery synthesizes a fallback uuid for legacy buffer rows).
 
 ## 0.3.220 (08 May 2026)
 
