@@ -26,7 +26,7 @@ from inspect_ai._display.core.active import (
     init_task_screen,
 )
 from inspect_ai._display.core.display import CancelType, TaskCancel, TaskSpec
-from inspect_ai._eval.task.scan import EvalScanners
+from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._util.error import PrerequisiteError, exception_message
 from inspect_ai._util.path import chdir
 from inspect_ai.dataset._dataset import Dataset
@@ -75,7 +75,7 @@ async def eval_run(
     header_only: bool,
     epochs_reducer: list[ScoreReducer] | None = None,
     solver: Solver | SolverSpec | None = None,
-    scanner: "EvalScanners | None" = None,
+    scanner: "Scanners | None" = None,
     scan_id: str | None = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,

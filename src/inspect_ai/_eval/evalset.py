@@ -24,7 +24,7 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
-from inspect_ai._eval.task.scan import EvalScanners, scan_already_clean
+from inspect_ai._eval.task.scan import Scanners, scan_already_clean
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.error import PrerequisiteError
@@ -117,7 +117,7 @@ def eval_set(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "EvalScanners | None" = None,
+    scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
@@ -697,7 +697,7 @@ def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str
 
 
 def _resume_scan_tasks(
-    scanner: "EvalScanners | None",
+    scanner: "Scanners | None",
     success_logs: list[Log],
     resolved_tasks: list[ResolvedTask],
     eval_set_args: EvalSetArgsInTaskIdentifier,
