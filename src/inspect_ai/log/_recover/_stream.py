@@ -41,7 +41,11 @@ from inspect_ai.log._recorders.eval import ZipLogFile, _sample_filename
 from inspect_ai.model._chat_message import ChatMessage
 
 from ._attachments import StreamingAttachmentStore, write_attachments_field
-from ._reconstruct import MessageAccumulator, _deserialize_events
+from ._reconstruct import (
+    MessageAccumulator,
+    _deserialize_events,
+    _summary_with_uuid_fallback,
+)
 
 logger = getLogger(__name__)
 
@@ -98,6 +102,7 @@ def _write_sample_streaming(
     ``Sample`` payload on ``SampleInitEvent``, so we must look at raw
     events before condensing.
     """
+    summary = _summary_with_uuid_fallback(summary)
     filename = _sample_filename(summary.id, summary.epoch)
 
     # State accumulated across segments

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from logging import getLogger
 from typing import Any
 
 from pydantic import TypeAdapter
+from shortuuid import uuid as _shortuuid
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.error import EvalError
@@ -15,6 +17,27 @@ from inspect_ai.log._log import EvalSample, EvalSampleSummary
 from inspect_ai.log._recorders.buffer.types import SampleData
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model_output import ModelOutput
+
+logger = getLogger(__name__)
+
+
+def _summary_with_uuid_fallback(summary: EvalSampleSummary) -> EvalSampleSummary:
+    """Synthesize a uuid for legacy buffer rows that lack one.
+
+    The original state.uuid wasn't persisted; the crashed sample run had no
+    external consumers, so a fresh uuid is safe.
+    """
+    if summary.uuid is not None:
+        return summary
+    fallback = _shortuuid()
+    logger.warning(
+        "Sample summary missing uuid during recovery; synthesizing %s "
+        "(sample_id=%s epoch=%s)",
+        fallback,
+        summary.id,
+        summary.epoch,
+    )
+    return summary.model_copy(update={"uuid": fallback})
 
 
 def reconstruct_eval_sample(
@@ -39,6 +62,8 @@ def reconstruct_eval_sample(
         A fully resolved EvalSample (not condensed — condensing happens
         at write time in Step 4).
     """
+    summary = _summary_with_uuid_fallback(summary)
+
     # Deserialize events from JSON dicts
     events = _deserialize_events(
         [event_data.event for event_data in sample_data.events]

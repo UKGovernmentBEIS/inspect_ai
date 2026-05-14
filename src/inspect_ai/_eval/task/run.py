@@ -991,6 +991,7 @@ async def task_run_sample(
                 sample_summary = EvalSampleSummary(
                     id=sample_id,
                     epoch=state.epoch,
+                    uuid=state.uuid,
                     input=sample.input,
                     choices=sample.choices,
                     target=sample.target,
