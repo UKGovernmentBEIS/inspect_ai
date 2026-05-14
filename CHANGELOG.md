@@ -2,8 +2,8 @@
 
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
-- OpenRouter: Enable Anthropic prompt caching by default for `openrouter/anthropic/*` models via per-block `cache_control` markers (works across Anthropic-direct, Bedrock, and Vertex routing). Cache writes (`cache_creation_input_tokens`) are parsed into `ModelUsage.input_tokens_cache_write`. Set `cache_prompt=False` in `GenerateConfig` to disable.
 - Anthropic: Capture `extra_body` fields from `Message` response.
+- OpenRouter: Enable Anthropic prompt caching by default for `openrouter/anthropic/*` models.
 - VLLM: Preserve dotted vLLM server arg keys.
 - Bedrock: Drop unsupported sampling params for Claude 4.7+.
 - Bedrock: Route `top_k` correctly for Nova models.
