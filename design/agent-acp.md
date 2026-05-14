@@ -1050,16 +1050,29 @@ Landed an in-process event router that converts top-level transcript events into
 
 Verification: `pytest tests/agent/test_acp/ tests/log/test_transcript_subscribers.py` (101 passed asyncio); `--runtrio` passes (55 trio variants); `ruff format`/`check` clean; `mypy` clean. No OpenAPI/TS regen needed — Phase 6 is pure consumer code reading existing Inspect event types and producing acp-package objects.
 
-### Phase 7: TUI as in-process ACP client
+### Phase 7: Inspect-native TUI — Interrupt + interject prompt ✅
 
-Make the existing Textual TUI (`--display full`) a first-class ACP client *without* needing `--agent-acp`. The TUI subscribes to the active sample's `AcpSession` directly via Phase 1's in-process pub/sub.
+Wires producer-side ACP interactivity into the existing Textual TUI (`--display full`'s Running Samples view), **deliberately scoped down** from the original plan: the TUI does NOT subscribe to `SessionNotification`s. It keeps rendering events via the existing transcript-based display (preserving sub-agent granularity that power users rely on for debugging) and uses the `AcpSession` channel only for two producer-side actions: `cancel_current_turn()` and `submit_user_message()`.
 
-- Conversation pane renders `session/update` events.
-- Input line submits `session/prompt` (calls `submit_user_message`).
-- Interrupt key fires `session/cancel` (calls `cancel_current_turn`).
-- Acknowledge `end` notification and display final state + score when the session closes.
+The motivation: typing-at-the-model as a *primary* always-on UI element is too aggressive — one-keystroke interventions are easy to fire by accident and inherently non-reproducible. Phase 7 gates injection behind a deliberate Interrupt button + transient prompt input, so operator messages are a considered action with a clear boundary in the transcript (the `InterruptEvent` from Phase 2 + the `ChatMessageUser(source="operator")` returned by `after_cancel`).
 
-**Tests.** Scripted TUI session (Textual offers a test driver) driving a mockllm-backed agent: type a prompt → observe agent activity → interrupt mid-tool → type follow-up → observe recovery → agent completes → session ends. Verify no leaked sub-agent events when the agent is a deepagent (depends on Phase 12 ordering — until then, test with `react()`).
+**What was built:**
+
+1. **`ActiveSample.acp_session` field** in `src/inspect_ai/log/_samples.py`. `TYPE_CHECKING`-guarded import for the `AcpSession` type hint; default `None`.
+2. **`_LiveAcpSession.__aenter__`/`__aexit__` splice** in `src/inspect_ai/agent/_acp/_session.py`. On entry looks up `sample_active()` and assigns `self` to its `acp_session`. On exit clears with an `is self` identity guard so a stale `__aexit__` from a race never clobbers a different live session. `_NoOpAcpSession` continues to do nothing on enter/exit, so sub-agent shadow sessions never overwrite the outer live session.
+3. **Interrupt button** on the `SampleInfo` header (`samples.py`) at the top-right alongside the existing "View Log" link. `Button(variant="warning")` with id `interrupt-sample`. Visibility is recomputed on every `sync_sample` based on `sample.acp_session is not None and acp_session.session_id != "noop"` — explicitly OUTSIDE the early-return guard, since the ACP session can come and go without the sample identity changing. Click handler fires `acp.cancel_current_turn()` and switches the sibling `SampleToolbar` into prompt mode via direct widget reference.
+4. **Prompt mode on `SampleToolbar`**. Adds an `Input(placeholder="Type a message for the model (e.g. 'please continue')")` and a `Send` button, both hidden by default. The Interrupt click flips a `_prompt_mode` flag, hides the status group + cancel buttons, reveals + auto-focuses the Input. Submission (Enter or Send) builds `ChatMessageUser(content=text)` and calls `acp.submit_user_message(msg)` — Phase 3's normalization stamps `source="operator"`. Empty input is silently ignored (spec: user must enter something to resume the agent). `sync_sample` auto-exits prompt mode on sample switch, sample completion, or ACP session loss, so the toolbar always recovers cleanly.
+5. **Interrupt button styled `warning`** (yellow). The pre-existing Timeout Tool / Cancel (Score) / Cancel (Error) buttons retain their original neutral styling — the yellow Interrupt is distinct enough on its own without recoloring the others.
+
+**Why fire-and-forget on `cancel_current_turn()`?** Phase 3 made the method synchronous and idempotent — it records the `InterruptEvent`, snapshots in-flight tool/model events for repair, marks cancelled tool events as `failed` with `ToolCallError(type="cancelled")` (per the Phase 6 fixes), clears their `pending` flags, and cancels the turn scope. The agent's `react()` loop catches `TurnCancelled` inside `turn_scope()`, calls `after_cancel(messages)` which synthesizes any tool repair messages and **blocks** until the user-message queue is non-empty. Our TUI submission unblocks it. The TUI's button-click → cancel → mode-switch sequence is purely synchronous; resume happens out-of-band on the agent task.
+
+**Test coverage:**
+
+- `tests/agent/test_acp/test_active_sample_link.py` (6 tests): no-ACP baseline; live session registers; exit clears; sub-agent shadow does not clobber outer registration; no-op never touches `ActiveSample` (both outside-any-sample and nested-shadow scenarios); `is self` identity guard protects an in-place registration from a stale `__aexit__`.
+
+Pilot-based widget tests are deliberately deferred: the bulk of correctness lives in the link layer (covered above) and the producer-side `cancel_current_turn`/`submit_user_message` calls (already tested in Phase 3/4). The widget layer is a thin shim around those primitives; manual smoke + the link tests are sufficient confidence for v1.
+
+Verification: `pytest tests/agent/test_acp/ tests/log/test_transcript_subscribers.py tests/agent/test_agent_react.py` (112 passed asyncio); `--runtrio` passes (61 trio variants); `ruff format`/`check` clean; `mypy` clean (1006 source files).
 
 ### Phase 8: `AcpServer` transport
 

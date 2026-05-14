@@ -1,3 +1,7 @@
+## Future
+
+- Ability to interrupt and send messages to agents from the running sample display.
+
 ## Unreleased
 
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.

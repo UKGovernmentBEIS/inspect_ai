@@ -380,11 +380,20 @@ class _LiveAcpSession:
         return self._session_id
 
     async def __aenter__(self) -> "AcpSession":
-        """Enter the session scope; attach the event router and return ``self``."""
+        """Enter the session scope; attach the event router and return ``self``.
+
+        Also registers ``self`` on the current :class:`ActiveSample`
+        (if any) so out-of-task consumers like the Phase 7 Inspect TUI
+        can locate the live session by sample reference.
+        """
         from inspect_ai.agent._acp._router import _AcpEventRouter
+        from inspect_ai.log._samples import sample_active
 
         self._router = _AcpEventRouter(self)
         self._router.attach()
+        active = sample_active()
+        if active is not None:
+            active.acp_session = self
         return self
 
     async def __aexit__(
@@ -393,14 +402,21 @@ class _LiveAcpSession:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Detach the router, close subscribers' send halves, clear the list.
+        """Detach the router, deregister from ActiveSample, close subscribers.
 
         Receivers see clean EOF (``anyio.EndOfStream``) and their
         ``async for`` loops terminate.
         """
+        from inspect_ai.log._samples import sample_active
+
         if self._router is not None:
             self._router.detach()
             self._router = None
+        active = sample_active()
+        # `is self` identity guard: don't clear someone else's registration
+        # if a stale __aexit__ ever races with a sibling live session.
+        if active is not None and active.acp_session is self:
+            active.acp_session = None
         for send, _ in self._subscribers:
             send.close()
         self._subscribers.clear()

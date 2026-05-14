@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, AsyncGenerator, Iterator, Literal
 if TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
+    from inspect_ai.agent._acp._session import AcpSession
     from inspect_ai.hooks._hooks import SampleEvent
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
 
@@ -74,6 +75,11 @@ class ActiveSample:
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
         self.event_done: anyio.Event | None = None
+        # Live ACP session for this sample, if any. Set by
+        # `_LiveAcpSession.__aenter__` on entry; cleared at `__aexit__`.
+        # The Phase 7 TUI reads this to decide whether to render the
+        # Interrupt button and to dispatch session/cancel + session/prompt.
+        self.acp_session: "AcpSession | None" = None
 
     def start(self, tg: TaskGroup) -> None:
         self.started = datetime.now(timezone.utc).timestamp()

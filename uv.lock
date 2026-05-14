@@ -2093,7 +2093,7 @@ requires-dist = [
     { name = "shortuuid" },
     { name = "sniffio" },
     { name = "tenacity" },
-    { name = "textual", specifier = ">=2.1.0" },
+    { name = "textual", specifier = ">=3.2.0" },
     { name = "textual-dev", marker = "extra == 'dev'", specifier = ">=0.86.2" },
     { name = "tiktoken", specifier = ">=0.12.0" },
     { name = "together", marker = "extra == 'dev'", specifier = ">=2.0.0" },

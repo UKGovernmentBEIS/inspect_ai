@@ -19,6 +19,7 @@ from textual.widget import Widget
 from textual.widgets import (
     Button,
     Collapsible,
+    Input,
     Link,
     LoadingIndicator,
     OptionList,
@@ -49,7 +50,7 @@ class SamplesView(Widget):
         padding: 0 1 0 1;
         layout: grid;
         grid-size: 2 3;
-        grid-rows: auto 1fr 3;
+        grid-rows: auto 1fr 4;
         grid-columns: 32 1fr;
         grid-gutter: 1;
     }
@@ -292,6 +293,17 @@ class SampleInfo(Vertical):
         color: $accent;
         background: $background;
     }
+    SampleInfo #sample-interrupt {
+        height: auto;
+        width: auto;
+        padding: 0;
+    }
+    SampleInfo #interrupt-sample {
+        min-width: 0;
+        width: auto;
+        margin: 0;
+        color: $warning-darken-3;
+    }
     """
 
     def __init__(self) -> None:
@@ -305,10 +317,42 @@ class SampleInfo(Vertical):
                 yield SampleLimits()
                 yield SandboxesView()
             yield Right(id="sample-link")
+            yield Right(
+                Button(
+                    Text("⏸ Interrupt"),
+                    id="interrupt-sample",
+                    compact=True,
+                    tooltip=(
+                        "Pause the agent mid-turn and inject a message. "
+                        "The agent will resume after you submit."
+                    ),
+                ),
+                id="sample-interrupt",
+            )
 
         yield SampleVNC()
 
+    def on_mount(self) -> None:
+        # Interrupt button only shows when the sample has a live ACP session.
+        self.query_one("#interrupt-sample", Button).display = False
+
     async def sync_sample(self, sample: ActiveSample | None) -> None:
+        # Interrupt button visibility tracks the sample's ACP session and
+        # has to be re-evaluated even when the sample identity hasn't
+        # changed (a sample can gain/lose its live session over time).
+        # Also hide it while the toolbar is in prompt mode so a repeat
+        # click can't fire a duplicate cancel_current_turn (which would
+        # record a redundant InterruptEvent) before the operator submits.
+        interrupt_btn = self.query_one("#interrupt-sample", Button)
+        acp = sample.acp_session if sample is not None else None
+        try:
+            in_prompt = self.app.query_one(SampleToolbar).in_prompt_mode
+        except NoMatches:
+            in_prompt = False
+        interrupt_btn.display = (
+            acp is not None and acp.session_id != "noop" and not in_prompt
+        )
+
         if sample is None:
             self.display = False
             self._sample = None
@@ -355,6 +399,31 @@ class SampleInfo(Vertical):
                 EXTENSION_COMMAND_OPEN_SAMPLE,
             )
             link_container.mount(link)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id != "interrupt-sample":
+            return
+        sample = self._sample
+        if sample is None:
+            return
+        acp = sample.acp_session
+        if acp is None or acp.session_id == "noop":
+            return
+        # Hide the button immediately so a fast double-click can't fire
+        # cancel_current_turn() twice before sync_sample re-evaluates
+        # visibility. sync_sample will re-show it once prompt mode exits
+        # (and the ACP session is still live).
+        event.button.display = False
+        # Fire-and-forget cancel; the agent's react() loop will catch
+        # TurnCancelled inside turn_scope and block in after_cancel
+        # until our prompt submission queues a user message.
+        acp.cancel_current_turn()
+        # Switch the toolbar (sibling widget) into prompt mode.
+        try:
+            toolbar = self.app.query_one(SampleToolbar)
+        except NoMatches:
+            return
+        toolbar.enter_prompt_mode(sample)
 
 
 class SampleLimits(Widget):
@@ -460,6 +529,9 @@ class SampleToolbar(Horizontal):
     CANCEL_RAISE_ERROR = "cancel_raise_error"
     PENDING_STATUS = "pending_status"
     PENDING_CAPTION = "pending_caption"
+    TOOLBAR_SPACER = "toolbar_spacer"
+    INTERJECT_INPUT = "interject-input"
+    INTERJECT_SEND = "interject-send"
 
     TIMEOUT_TOOL_CALL_ENABLED = (
         "Cancel the tool call and report a timeout to the model."
@@ -470,6 +542,8 @@ class SampleToolbar(Horizontal):
     )
     CANCEL_RAISE_ERROR_ENABLED = "Cancel the sample and raise an error"
     CANCEL_DISABLED = "Cancelling sample..."
+
+    INTERJECT_PLACEHOLDER = "Type a message for the model (e.g. 'please continue')"
 
     DEFAULT_CSS = f"""
     SampleToolbar #{STATUS_GROUP} {{
@@ -488,13 +562,36 @@ class SampleToolbar(Horizontal):
         color: $primary-darken-3;
     }}
     SampleToolbar #{CANCEL_RAISE_ERROR} {{
-        color: $warning-darken-3;
+        color: $error-darken-2;
+    }}
+    SampleToolbar #{INTERJECT_INPUT} {{
+        width: 1fr;
+        margin-right: 1;
+        margin-bottom: 1;
+    }}
+    SampleToolbar #{INTERJECT_SEND} {{
+        min-width: 10;
     }}
     """
 
     def __init__(self) -> None:
         super().__init__()
         self.sample: ActiveSample | None = None
+        # When True, the toolbar replaces its status indicator + cancel
+        # buttons with an interject Input + Send button. Driven by the
+        # Interrupt button on the SampleInfo header.
+        self._prompt_mode: bool = False
+
+    @property
+    def in_prompt_mode(self) -> bool:
+        """True while the toolbar is awaiting an interject submission.
+
+        SampleInfo reads this to hide the Interrupt button so a repeat
+        click can't fire a second :meth:`AcpSession.cancel_current_turn`
+        (which would record a redundant InterruptEvent) while we're
+        already waiting on the operator's reply.
+        """
+        return self._prompt_mode
 
     def compose(self) -> ComposeResult:
         with HorizontalGroup(id=self.STATUS_GROUP):
@@ -506,7 +603,7 @@ class SampleToolbar(Horizontal):
             id=self.TIMEOUT_TOOL_CALL,
             tooltip=self.TIMEOUT_TOOL_CALL_ENABLED,
         )
-        yield Horizontal()
+        yield Horizontal(id=self.TOOLBAR_SPACER)
         yield Button(
             Text("Cancel (Score)"),
             id=self.CANCEL_SCORE_OUTPUT,
@@ -517,14 +614,66 @@ class SampleToolbar(Horizontal):
             id=self.CANCEL_RAISE_ERROR,
             tooltip=self.CANCEL_RAISE_ERROR_ENABLED,
         )
+        yield Input(
+            placeholder=self.INTERJECT_PLACEHOLDER,
+            id=self.INTERJECT_INPUT,
+        )
+        yield Button(
+            Text("Send"),
+            id=self.INTERJECT_SEND,
+            variant="primary",
+        )
 
     def on_mount(self) -> None:
         self.query_one("#" + self.PENDING_STATUS).visible = False
         self.query_one("#" + self.TIMEOUT_TOOL_CALL).display = False
         self.query_one("#" + self.CANCEL_SCORE_OUTPUT).display = False
         self.query_one("#" + self.CANCEL_RAISE_ERROR).display = False
+        self.query_one("#" + self.INTERJECT_INPUT).display = False
+        self.query_one("#" + self.INTERJECT_SEND).display = False
+
+    def enter_prompt_mode(self, sample: ActiveSample) -> None:
+        """Switch the toolbar into interject-prompt mode for ``sample``.
+
+        Called from the Interrupt button click handler on SampleInfo
+        right after firing ``acp.cancel_current_turn()``. Hides the
+        status indicator and cancel buttons; reveals the Input + Send
+        button and focuses the Input.
+        """
+        if sample is not self.sample:
+            return
+        self._prompt_mode = True
+        self.query_one("#" + self.STATUS_GROUP).display = False
+        self.query_one("#" + self.TIMEOUT_TOOL_CALL).display = False
+        self.query_one("#" + self.CANCEL_SCORE_OUTPUT).display = False
+        self.query_one("#" + self.CANCEL_RAISE_ERROR).display = False
+        # Collapse the flex spacer so the Input can claim the full width.
+        self.query_one("#" + self.TOOLBAR_SPACER).display = False
+        send = cast(Button, self.query_one("#" + self.INTERJECT_SEND))
+        send.display = True
+        interject = cast(Input, self.query_one("#" + self.INTERJECT_INPUT))
+        interject.display = True
+        interject.value = ""
+        interject.focus()
+
+    def _exit_prompt_mode(self) -> None:
+        """Revert from prompt mode back to status mode.
+
+        Hides the Input + Send button. ``sync_sample`` will re-show the
+        status group / cancel buttons on the next refresh cycle.
+        """
+        self._prompt_mode = False
+        self.query_one("#" + self.INTERJECT_INPUT).display = False
+        self.query_one("#" + self.INTERJECT_SEND).display = False
+        self.query_one("#" + self.STATUS_GROUP).display = True
+        # Restore the flex spacer that pushes the cancel buttons to the right.
+        self.query_one("#" + self.TOOLBAR_SPACER).display = True
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == self.INTERJECT_SEND:
+            interject = cast(Input, self.query_one("#" + self.INTERJECT_INPUT))
+            self._submit_interject(interject.value)
+            return
         if self.sample:
             if event.button.id == self.TIMEOUT_TOOL_CALL:
                 last_event = (
@@ -536,7 +685,7 @@ class SampleToolbar(Horizontal):
                     last_event._cancel()
                     event.button.disabled = True
                     event.button.tooltip = self.TIMEOUT_TOOL_CALL_DISABLED
-            else:
+            elif event.button.id in (self.CANCEL_SCORE_OUTPUT, self.CANCEL_RAISE_ERROR):
                 if event.button.id == self.CANCEL_SCORE_OUTPUT:
                     self.sample.interrupt("score")
                 elif event.button.id == self.CANCEL_RAISE_ERROR:
@@ -548,14 +697,55 @@ class SampleToolbar(Horizontal):
                 cancel_with_error.disabled = True
                 cancel_with_error.tooltip = self.CANCEL_DISABLED
 
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == self.INTERJECT_INPUT:
+            self._submit_interject(event.value)
+
+    def _submit_interject(self, text: str) -> None:
+        """Forward the interject message to the live ACP session, then exit prompt mode.
+
+        Empty input is silently ignored (per spec: the user must enter
+        something to resume the agent). If the sample no longer has a
+        live ACP session by the time the user hits Enter, we just exit
+        prompt mode without submitting — the agent is presumably done.
+        """
+        from inspect_ai.model._chat_message import ChatMessageUser
+
+        clean = text.strip()
+        if not clean:
+            return
+        sample = self.sample
+        if sample is None or sample.acp_session is None:
+            self._exit_prompt_mode()
+            return
+        sample.acp_session.submit_user_message(ChatMessageUser(content=clean))
+        self._exit_prompt_mode()
+
     async def sync_sample(self, sample: ActiveSample | None) -> None:
         from inspect_ai.event._model import ModelEvent
 
         # is it a new sample?
         new_sample = sample != self.sample
 
+        # If we were in prompt mode and the world changed underneath us
+        # (sample switched, completed, or lost its ACP session), exit
+        # prompt mode and let the normal status sync take over.
+        if self._prompt_mode and (
+            sample is None
+            or new_sample
+            or sample.completed
+            or sample.acp_session is None
+        ):
+            self._exit_prompt_mode()
+
         # track the sample
         self.sample = sample
+
+        # While in prompt mode, the interject Input owns the toolbar row;
+        # skip the status / cancel-button refresh path below.
+        if self._prompt_mode:
+            self.display = True
+            return
 
         status_group = self.query_one("#" + self.STATUS_GROUP)
         pending_status = self.query_one("#" + self.PENDING_STATUS)
