@@ -18,6 +18,11 @@ description: Tasks, evaluation, and scoring.
 ### TaskInfo
 ### Tasks
 
+## Scanning
+
+### Scanners
+### ScannerConfig
+
 ## View
 
 ### view

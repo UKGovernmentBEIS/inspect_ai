@@ -27,7 +27,7 @@ from typing_extensions import Unpack
 from inspect_ai._cli.util import parse_cli_args
 from inspect_ai._display.core.active import active_display as active_task_display
 from inspect_ai._display.core.active import display as task_display
-from inspect_ai._eval.task.scan import EvalScanners, scan_context
+from inspect_ai._eval.task.scan import Scanners, scan_context
 from inspect_ai._util.asyncfiles import with_async_fs
 from inspect_ai._util.config import resolve_args
 from inspect_ai._util.constants import (
@@ -98,7 +98,7 @@ def eval(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "EvalScanners | None" = None,
+    scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
@@ -352,7 +352,7 @@ async def eval_async(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "EvalScanners | None" = None,
+    scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -569,7 +569,7 @@ async def _eval_async_inner(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "EvalScanners | None" = None,
+    scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -925,7 +925,7 @@ def eval_retry(
     log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
-    scanner: "EvalScanners | None" = None,
+    scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
@@ -1088,7 +1088,7 @@ async def eval_retry_async(
     log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
-    scanner: "EvalScanners | None" = None,
+    scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
     attempt_timeout: int | None = None,
