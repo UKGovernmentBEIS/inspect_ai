@@ -203,7 +203,6 @@ def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) ->
     result = anyio.run(call)
     assert isinstance(result, ResumeCheckpoint)
     assert result.sample_checkpoints_dir == str(sample_dir)
-    assert result.log_location == log.location
 
 
 def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) -> None:

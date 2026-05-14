@@ -32,11 +32,6 @@ def _sample_working_dir(log_location: str, sample_id: int | str, epoch: int) -> 
     return f"{_eval_working_dir(log_location)}/{sample_id}__{epoch}"
 
 
-def sample_working_dir(log_location: str, sample_id: int | str, epoch: int) -> str:
-    """Return the per-sample working dir path (no FS side effects)."""
-    return _sample_working_dir(log_location, sample_id, epoch)
-
-
 async def ensure_sample_working_dir(
     log_location: str, sample_id: int | str, epoch: int
 ) -> str:

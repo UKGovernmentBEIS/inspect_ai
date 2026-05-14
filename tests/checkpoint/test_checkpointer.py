@@ -354,7 +354,6 @@ async def test_fire_writes_manifest_and_sidecars(
         sample_id=active_sample.sample.id,
         epoch=active_sample.epoch,
         eval_id=active_sample.eval_id,
-        resume_checkpoint=None,
     )
 
     async with checkpointer() as cp:
@@ -533,51 +532,6 @@ def test_track_noop_session() -> None:
     cp = _NoopCheckpointer()
     out = cp.track("attempt_count", lambda: 42, 0)
     assert out == 0
-
-
-# --- _load_resume_state ----------------------------------------------------
-
-
-def test_load_resume_state_loads_from_original_working_dir(tmp_path: Path) -> None:
-    """Reads agent_state.json from the prior run's working dir."""
-    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
-    from inspect_ai.util._checkpoint.checkpointer_impl import _load_resume_state
-
-    original_log = tmp_path / "logs" / "original.eval"
-    original_log.parent.mkdir(parents=True)
-    resume = ResumeCheckpoint(
-        sample_checkpoints_dir=str(tmp_path / "irrelevant"),
-        log_location=str(original_log),
-    )
-
-    with _patch_cache_dir(tmp_path):
-        # working dir is derived from ORIGINAL log basename, not the retry's
-        orig_work = tmp_path / "cache" / "checkpoints" / "original" / "s7__2"
-        orig_work.mkdir(parents=True)
-        (orig_work / "agent_state.json").write_text('{"attempt_count": 5}')
-
-        loaded = _load_resume_state(resume, "s7", 2)
-
-    assert loaded == {"attempt_count": 5}
-
-
-def test_load_resume_state_none_when_no_resume_requested() -> None:
-    from inspect_ai.util._checkpoint.checkpointer_impl import _load_resume_state
-
-    assert _load_resume_state(None, "s1", 0) is None
-
-
-def test_load_resume_state_none_when_agent_state_missing(tmp_path: Path) -> None:
-    """Resume requested but no agent_state.json on disk → None (degenerate OK)."""
-    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
-    from inspect_ai.util._checkpoint.checkpointer_impl import _load_resume_state
-
-    resume = ResumeCheckpoint(
-        sample_checkpoints_dir=str(tmp_path / "x"),
-        log_location=str(tmp_path / "orig.eval"),
-    )
-    with _patch_cache_dir(tmp_path):
-        assert _load_resume_state(resume, "s1", 0) is None
 
 
 async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:

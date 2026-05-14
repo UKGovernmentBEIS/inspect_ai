@@ -24,19 +24,9 @@ T = TypeVar("T")
 
 @dataclass
 class ResumeCheckpoint:
-    """Per-sample resume info: where the on-disk checkpoint lives.
-
-    Produced by ``eval_log_sample_source`` when an incomplete sample
-    has a ``ckpt-*.json`` sidecar on disk. The consumer hydrates the
-    checkpointer's resume state from this; same-machine retry reads
-    the agent-state snapshot from the original run's working dir
-    (derived from ``log_location``).
-    """
+    """Per-sample resume info: where the on-disk checkpoint lives."""
 
     sample_checkpoints_dir: str
-    log_location: str
-    """Original eval log location — used to derive the original
-    working dir for same-machine resume."""
 
 
 class Checkpointer(Protocol):

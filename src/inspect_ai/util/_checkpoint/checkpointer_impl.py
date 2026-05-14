@@ -39,7 +39,7 @@ from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._store import Store, store_jsonable
 
-from .checkpointer import Checkpointer, ResumeCheckpoint, _NoopCheckpointer
+from .checkpointer import Checkpointer, _NoopCheckpointer
 from .config import CheckpointConfig, TimeInterval, TurnInterval
 from .eval_checkpoints_dir import eval_checkpoints_dir, read_eval_manifest
 from .layout import CheckpointTriggerKind, SnapshotInfo
@@ -53,7 +53,7 @@ from .restic import (
     run_sandbox_backup,
 )
 from .sample_checkpoints_dir import ensure_sample_checkpoints_dir, write_sidecar
-from .working_dir import ensure_sample_working_dir, sample_working_dir
+from .working_dir import ensure_sample_working_dir
 
 logger = getLogger(__name__)
 
@@ -67,7 +67,6 @@ async def build_impl(
     sample_id: int | str | None,
     epoch: int,
     eval_id: str | None,
-    resume_checkpoint: ResumeCheckpoint | None,
 ) -> Checkpointer:
     """Build the concrete checkpointer for a sample.
 
@@ -116,32 +115,7 @@ async def build_impl(
         sample_working_dir=sample_work_dir,
         host_restic=host_restic,
         restic_password=manifest.restic_password,
-        resume_state=_load_resume_state(resume_checkpoint, sample_id, epoch),
     )
-
-
-def _load_resume_state(
-    resume_checkpoint: ResumeCheckpoint | None,
-    sample_id: int | str,
-    epoch: int,
-) -> dict[str, Any] | None:
-    """Load persisted agent-state for resume.
-
-    Same-machine-only: reads ``agent_state.json`` from the working dir
-    of the *original* run (derived from
-    ``resume_checkpoint.log_location``). Returns ``None`` when no resume
-    is requested or the file is absent.
-    """
-    if resume_checkpoint is None:
-        return None
-    original_work_dir = sample_working_dir(
-        resume_checkpoint.log_location, sample_id, epoch
-    )
-    agent_state_path = Path(original_work_dir) / "agent_state.json"
-    if not agent_state_path.is_file():
-        return None
-    loaded: dict[str, Any] = json.loads(agent_state_path.read_text())
-    return loaded
 
 
 class _Checkpointer:
