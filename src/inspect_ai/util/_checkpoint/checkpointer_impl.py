@@ -32,7 +32,6 @@ from inspect_ai.log._pool import (
     condense_model_event_calls,
     condense_model_event_inputs,
 )
-from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.solver._task_state import sample_state
@@ -40,7 +39,7 @@ from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._store import Store, store_jsonable
 
-from .checkpointer import Checkpointer, _NoopCheckpointer
+from .checkpointer import Checkpointer, ResumeCheckpoint, _NoopCheckpointer
 from .config import CheckpointConfig, TimeInterval, TurnInterval
 from .eval_checkpoints_dir import eval_checkpoints_dir, read_eval_manifest
 from .layout import CheckpointTriggerKind, SnapshotInfo
@@ -54,20 +53,27 @@ from .restic import (
     run_sandbox_backup,
 )
 from .sample_checkpoints_dir import ensure_sample_checkpoints_dir, write_sidecar
-from .working_dir import ensure_sample_working_dir
+from .working_dir import ensure_sample_working_dir, sample_working_dir
 
 logger = getLogger(__name__)
 
 T = TypeVar("T")
 
 
-async def build_impl(active: ActiveSample) -> Checkpointer:
-    """Build the concrete session for ``active``.
+async def build_impl(
+    *,
+    config: CheckpointConfig | None,
+    log_location: str,
+    sample_id: int | str | None,
+    epoch: int,
+    eval_id: str | None,
+    resume_checkpoint: ResumeCheckpoint | None,
+) -> Checkpointer:
+    """Build the concrete checkpointer for a sample.
 
-    Returns a :class:`_NoopCheckpointer` when the active sample has no
-    checkpoint config; otherwise pre-ensures on-disk dirs and
-    initializes the host + per-sandbox restic repos, then returns an
-    :class:`_Checkpointer`.
+    Returns a :class:`_NoopCheckpointer` when ``config`` is ``None``;
+    otherwise pre-ensures on-disk dirs and initializes the host +
+    per-sandbox restic repos, then returns an :class:`_Checkpointer`.
 
     Checkpointing is gated off by default while still under
     development — the function returns a no-op session unless the
@@ -84,30 +90,21 @@ async def build_impl(active: ActiveSample) -> Checkpointer:
     # `design/plans/checkpointing-working.md` §1 (re: sample-level
     # retries) — likely we add an `attempt` field to `ActiveSample`
     # so it's symmetric with `epoch`.
-    if active.checkpoint is None:
+    if config is None:
         return _NoopCheckpointer()
-    config = active.checkpoint
+    if eval_id is None:
+        raise RuntimeError("Checkpointer cannot initialize: eval_id is None.")
+    if sample_id is None:
+        raise RuntimeError("Checkpointer cannot initialize: sample id is None.")
 
-    if active.eval_id is None:
-        raise RuntimeError(
-            "Checkpointer cannot initialize: ActiveSample.eval_id is None."
-        )
-    if active.sample.id is None:
-        raise RuntimeError(
-            "Checkpointer cannot initialize: ActiveSample.sample.id is None."
-        )
-    eval_ckpts_dir = eval_checkpoints_dir(
-        active.log_location, config.checkpoints_location
+    eval_ckpts_dir = eval_checkpoints_dir(log_location, config.checkpoints_location)
+    sample_ckpts_dir = await ensure_sample_checkpoints_dir(
+        eval_ckpts_dir, sample_id, epoch, eval_id
     )
-    sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
-        eval_ckpts_dir, active.sample.id, active.epoch, active.eval_id
-    )
-    sample_working_dir = await ensure_sample_working_dir(
-        active.log_location, active.sample.id, active.epoch
-    )
+    sample_work_dir = await ensure_sample_working_dir(log_location, sample_id, epoch)
     manifest = await read_eval_manifest(eval_ckpts_dir)
     host_restic = await resolve_restic()
-    host_repo = f"{sample_checkpoints_dir}/host"
+    host_repo = f"{sample_ckpts_dir}/host"
     await init_host_repo(host_restic, host_repo, manifest.restic_password)
     for sandbox_name in config.sandbox_paths or {}:
         env = sandbox(sandbox_name)
@@ -115,11 +112,36 @@ async def build_impl(active: ActiveSample) -> Checkpointer:
         await init_sandbox_repo(env, manifest.restic_password)
     return _Checkpointer(
         config=config,
-        sample_checkpoints_dir=sample_checkpoints_dir,
-        sample_working_dir=sample_working_dir,
+        sample_checkpoints_dir=sample_ckpts_dir,
+        sample_working_dir=sample_work_dir,
         host_restic=host_restic,
         restic_password=manifest.restic_password,
+        resume_state=_load_resume_state(resume_checkpoint, sample_id, epoch),
     )
+
+
+def _load_resume_state(
+    resume_checkpoint: ResumeCheckpoint | None,
+    sample_id: int | str,
+    epoch: int,
+) -> dict[str, Any] | None:
+    """Load persisted agent-state for resume.
+
+    Same-machine-only: reads ``agent_state.json`` from the working dir
+    of the *original* run (derived from
+    ``resume_checkpoint.log_location``). Returns ``None`` when no resume
+    is requested or the file is absent.
+    """
+    if resume_checkpoint is None:
+        return None
+    original_work_dir = sample_working_dir(
+        resume_checkpoint.log_location, sample_id, epoch
+    )
+    agent_state_path = Path(original_work_dir) / "agent_state.json"
+    if not agent_state_path.is_file():
+        return None
+    loaded: dict[str, Any] = json.loads(agent_state_path.read_text())
+    return loaded
 
 
 class _Checkpointer:

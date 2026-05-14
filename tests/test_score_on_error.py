@@ -4,10 +4,11 @@ import anyio
 from test_helpers.utils import failing_solver_deterministic
 
 from inspect_ai import Task, eval
-from inspect_ai._eval.task.run import ResumeCheckpoint, eval_log_sample_source
+from inspect_ai._eval.task.run import eval_log_sample_source
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
+from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -202,6 +203,7 @@ def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) ->
     result = anyio.run(call)
     assert isinstance(result, ResumeCheckpoint)
     assert result.sample_checkpoints_dir == str(sample_dir)
+    assert result.log_location == log.location
 
 
 def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) -> None:

@@ -224,10 +224,7 @@ class _FakeActiveSample:
     log_location: str = ""  # filled in by the `active_sample` fixture
     eval_id: str | None = "test-eval-001"
     checkpoint: CheckpointConfig | None = None
-    # Mirrors the real `ActiveSample.checkpointer` field. End-to-end
-    # tests reassign this after invoking `build_impl` themselves, since
-    # they bypass the production `active_sample()` async ctx mgr that
-    # would otherwise have eagerly built it.
+    # E2E tests assign this after building via `build_impl`.
     checkpointer: object = field(default_factory=_NoopCheckpointer)
 
 
@@ -345,11 +342,20 @@ async def test_fire_writes_manifest_and_sidecars(
     active_sample.epoch = 2
     active_sample.checkpoint = CheckpointConfig(trigger=TurnInterval(every=2))
 
-    # Mirror what `active_sample()` does in production: eagerly build
-    # the per-sample checkpointer and stash it on the active sample.
+    # Inject a real checkpointer into the fake, mirroring what
+    # `task_run_sample` does in production before opening `active_sample`.
     from inspect_ai.util._checkpoint.checkpointer_impl import build_impl
 
-    active_sample.checkpointer = await build_impl(active_sample)  # type: ignore[arg-type]
+    assert active_sample.sample.id is not None
+    assert active_sample.eval_id is not None
+    active_sample.checkpointer = await build_impl(
+        config=active_sample.checkpoint,
+        log_location=active_sample.log_location,
+        sample_id=active_sample.sample.id,
+        epoch=active_sample.epoch,
+        eval_id=active_sample.eval_id,
+        resume_checkpoint=None,
+    )
 
     async with checkpointer() as cp:
         await cp.tick()  # turn 1, no fire
@@ -527,6 +533,51 @@ def test_track_noop_session() -> None:
     cp = _NoopCheckpointer()
     out = cp.track("attempt_count", lambda: 42, 0)
     assert out == 0
+
+
+# --- _load_resume_state ----------------------------------------------------
+
+
+def test_load_resume_state_loads_from_original_working_dir(tmp_path: Path) -> None:
+    """Reads agent_state.json from the prior run's working dir."""
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+    from inspect_ai.util._checkpoint.checkpointer_impl import _load_resume_state
+
+    original_log = tmp_path / "logs" / "original.eval"
+    original_log.parent.mkdir(parents=True)
+    resume = ResumeCheckpoint(
+        sample_checkpoints_dir=str(tmp_path / "irrelevant"),
+        log_location=str(original_log),
+    )
+
+    with _patch_cache_dir(tmp_path):
+        # working dir is derived from ORIGINAL log basename, not the retry's
+        orig_work = tmp_path / "cache" / "checkpoints" / "original" / "s7__2"
+        orig_work.mkdir(parents=True)
+        (orig_work / "agent_state.json").write_text('{"attempt_count": 5}')
+
+        loaded = _load_resume_state(resume, "s7", 2)
+
+    assert loaded == {"attempt_count": 5}
+
+
+def test_load_resume_state_none_when_no_resume_requested() -> None:
+    from inspect_ai.util._checkpoint.checkpointer_impl import _load_resume_state
+
+    assert _load_resume_state(None, "s1", 0) is None
+
+
+def test_load_resume_state_none_when_agent_state_missing(tmp_path: Path) -> None:
+    """Resume requested but no agent_state.json on disk → None (degenerate OK)."""
+    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
+    from inspect_ai.util._checkpoint.checkpointer_impl import _load_resume_state
+
+    resume = ResumeCheckpoint(
+        sample_checkpoints_dir=str(tmp_path / "x"),
+        log_location=str(tmp_path / "orig.eval"),
+    )
+    with _patch_cache_dir(tmp_path):
+        assert _load_resume_state(resume, "s1", 0) is None
 
 
 async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
