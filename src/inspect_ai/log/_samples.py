@@ -14,6 +14,7 @@ from anyio.abc import TaskGroup
 from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.util._checkpoint.checkpointer import Checkpointer, _NoopCheckpointer
 from inspect_ai.util._checkpoint.config import CheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxConnection
@@ -66,6 +67,7 @@ class ActiveSample:
         self.transcript = transcript
         self.sandboxes = sandboxes
         self.checkpoint = checkpoint
+        self.checkpointer: Checkpointer = _NoopCheckpointer()
         self.eval_set_id = eval_set_id
         self.run_id = run_id
         self.eval_id = eval_id
@@ -163,6 +165,12 @@ async def active_sample(
         run_id=run_id,
         eval_id=eval_id,
     )
+
+    # Eager-build the per-sample checkpointer. Function-scope import
+    # keeps the heavy `checkpointer_impl` module out of initial load.
+    from inspect_ai.util._checkpoint.checkpointer_impl import build_impl
+
+    active.checkpointer = await build_impl(active)
 
     _active_samples.append(active)
     _sample_active.set(active)

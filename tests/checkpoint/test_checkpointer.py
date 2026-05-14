@@ -36,10 +36,8 @@ from inspect_ai.util._checkpoint import (
     TurnInterval,
     checkpointer,
 )
-from inspect_ai.util._checkpoint.checkpointer_impl import (
-    _Checkpointer,
-    _NoopCheckpointer,
-)
+from inspect_ai.util._checkpoint.checkpointer import _NoopCheckpointer
+from inspect_ai.util._checkpoint.checkpointer_impl import _Checkpointer
 from inspect_ai.util._checkpoint.layout import CheckpointTriggerKind
 from inspect_ai.util._checkpoint.restic import ResticBackupSummary
 from inspect_ai.util._store import Store
@@ -226,12 +224,17 @@ class _FakeActiveSample:
     log_location: str = ""  # filled in by the `active_sample` fixture
     eval_id: str | None = "test-eval-001"
     checkpoint: CheckpointConfig | None = None
+    # Mirrors the real `ActiveSample.checkpointer` field. End-to-end
+    # tests reassign this after invoking `build_impl` themselves, since
+    # they bypass the production `active_sample()` async ctx mgr that
+    # would otherwise have eagerly built it.
+    checkpointer: object = field(default_factory=_NoopCheckpointer)
 
 
 @contextmanager
 def _patch_sample_active(value: object) -> Iterator[None]:
     with patch(
-        "inspect_ai.util._checkpoint.checkpointer_impl.sample_active",
+        "inspect_ai.log._samples.sample_active",
         return_value=value,
     ):
         yield
@@ -341,6 +344,12 @@ async def test_fire_writes_manifest_and_sidecars(
     active_sample.sample.id = "s7"
     active_sample.epoch = 2
     active_sample.checkpoint = CheckpointConfig(trigger=TurnInterval(every=2))
+
+    # Mirror what `active_sample()` does in production: eagerly build
+    # the per-sample checkpointer and stash it on the active sample.
+    from inspect_ai.util._checkpoint.checkpointer_impl import build_impl
+
+    active_sample.checkpointer = await build_impl(active_sample)  # type: ignore[arg-type]
 
     async with checkpointer() as cp:
         await cp.tick()  # turn 1, no fire

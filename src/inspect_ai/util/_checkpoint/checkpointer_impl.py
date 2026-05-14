@@ -32,7 +32,7 @@ from inspect_ai.log._pool import (
     condense_model_event_calls,
     condense_model_event_inputs,
 )
-from inspect_ai.log._samples import sample_active
+from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.solver._task_state import sample_state
@@ -40,7 +40,7 @@ from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._store import Store, store_jsonable
 
-from .checkpointer import Checkpointer
+from .checkpointer import Checkpointer, _NoopCheckpointer
 from .config import CheckpointConfig, TimeInterval, TurnInterval
 from .eval_checkpoints_dir import eval_checkpoints_dir, read_eval_manifest
 from .layout import CheckpointTriggerKind, SnapshotInfo
@@ -61,15 +61,13 @@ logger = getLogger(__name__)
 T = TypeVar("T")
 
 
-async def build_impl() -> Checkpointer:
-    """Build the concrete session for the current sample.
+async def build_impl(active: ActiveSample) -> Checkpointer:
+    """Build the concrete session for ``active``.
 
-    Reads the resolved :class:`CheckpointConfig` from the active sample
-    (set by the harness in :func:`active_sample`). Returns a
-    :class:`_NoopCheckpointer` when no sample is active or the active
-    sample has no checkpoint config; otherwise pre-ensures on-disk
-    dirs and initializes the host + per-sandbox restic repos, then
-    returns an :class:`_Checkpointer`.
+    Returns a :class:`_NoopCheckpointer` when the active sample has no
+    checkpoint config; otherwise pre-ensures on-disk dirs and
+    initializes the host + per-sandbox restic repos, then returns an
+    :class:`_Checkpointer`.
 
     Checkpointing is gated off by default while still under
     development — the function returns a no-op session unless the
@@ -86,8 +84,7 @@ async def build_impl() -> Checkpointer:
     # `design/plans/checkpointing-working.md` §1 (re: sample-level
     # retries) — likely we add an `attempt` field to `ActiveSample`
     # so it's symmetric with `epoch`.
-    active = sample_active()
-    if active is None or active.checkpoint is None:
+    if active.checkpoint is None:
         return _NoopCheckpointer()
     config = active.checkpoint
 
@@ -123,24 +120,6 @@ async def build_impl() -> Checkpointer:
         host_restic=host_restic,
         restic_password=manifest.restic_password,
     )
-
-
-class _NoopCheckpointer:
-    """No-op session for ``Checkpointer()`` with no resolved config."""
-
-    async def tick(self) -> None:
-        return None
-
-    async def checkpoint(self) -> None:
-        return None
-
-    def track(
-        self,
-        key: str,
-        callback: Callable[[], T],
-        initial_value: T,
-    ) -> T:
-        return initial_value
 
 
 class _Checkpointer:
