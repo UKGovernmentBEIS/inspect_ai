@@ -25,7 +25,7 @@
 - Analysis: Use score reducer in `evals_df()` column name when there are multiple reducers.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
 - Config: Add `--run-config` option to `inspect eval` for single-file run configuration.
-- Eval Set: Run [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scanners over each task's logs as part of `eval_set` (CLI `--scanner` / `EvalScannerConfig`). Scans incrementally as logs land, reuses prior results across resumes, and renders progress alongside the existing eval view.
+- Eval Set: Run [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scanners over each task's logs as part of `eval_set` (CLI `--scanner` / `ScannerConfig`). Scans incrementally as logs land, reuses prior results across resumes, and renders progress alongside the existing eval view.
 - Eval Set: Fail fast with "No inspect tasks were found at the specified paths." when a task spec resolves to nothing (e.g. uninstalled package); previously crashed with `IndexError` inside `resolve_tasks` after passing an empty task list to `eval`.
 - Eval Set: Add `score_display` argument to `eval_set()` function.
 - Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don't implement conditional writes).
