@@ -1081,6 +1081,9 @@ class Model:
 
                     _request_was_cache_hit.set(True)
                     if existing.usage:
+                        record_and_check_model_usage(
+                            f"{self}", existing.usage, role=self.role
+                        )
                         await emit_model_cache_usage(
                             model_name=str(self), usage=existing.usage
                         )
