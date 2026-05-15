@@ -376,7 +376,7 @@ def short_data_dir(monkeypatch):
         return path
 
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._server.inspect_data_dir",
+        "inspect_ai.agent._acp._discovery.inspect_data_dir",
         _stub_data_dir,
     )
     try:

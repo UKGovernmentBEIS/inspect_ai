@@ -1263,25 +1263,56 @@ Both methods differ from standard `session/cancel` (a per-turn, recoverable canc
 **Out of scope (deferred).** Read-side "generation in flight / retry count / tool in flight" indicators — already derivable from the Phase 10 `inspect/event` raw event stream (`ModelEvent.pending` / `ModelEvent.retries` / `ToolEvent.pending`); no new outbound notifications needed. Bulk cancel and status/introspection methods — not requested; the single-target form composes.
 
 
-### Phase 13: `inspect acp` CLI
+### Phase 13: `inspect acp --stdio` (editor bridge) ✅
 
-Add the `inspect acp` subcommand with two modes:
+Shipped the `inspect acp` subcommand in its minimum-viable form: a stdio↔socket bridge that lets external editors (Zed etc.) speak ACP to a running eval through the standard "spawn an agent subprocess on stdio" contract those editors already support. Phase 13 is *just* a transport adapter — one bridge process, one eval, line-framed byte forwarding. The TUI client (Phase 15) and approval UI (Phase 14) are independent concerns that layer on top of the same surface.
 
-- **Default (no flag)**: Textual TUI client speaking ACP over the eval socket. Shares the conversation UI with Phase 7's in-process TUI; only the transport differs (extract shared rendering code into a reusable widget).
-- **`--stdio`**: stdio↔socket bridge for editors (Zed etc.) — forwards ACP traffic 1:1.
+**Components landed:**
 
-Both modes resolve the target eval via the discovery directory; if multiple evals are running, prompt the user or accept `--eval-id`.
+- **`inspect acp --stdio`** — bridge mode. Forwards newline-delimited JSON-RPC frames 1:1 between the editor's stdio and the eval's AF_UNIX (or loopback TCP) socket. Bare `inspect acp` (no `--stdio`) exits non-zero with a "TUI not yet implemented, use --stdio (Phase 15)" message — Phase 15's PR lifts this gate.
+- **Discovery resolution** — `src/inspect_ai/agent/_acp/_discovery.py`. Public surface: `discovery_dir()`, `pid_alive()`, `parse_host_port()`, `has_unix_sockets()`, `cleanup_stale_discovery_files()` (all moved out of `_server.py` so the CLI can import them without server internals), plus the new `TargetAddress`, `DiscoveredEval`, `TargetResolutionError`, `list_discovered_evals()`, and `resolve_target()`. Policy: `--socket` wins (parses path or `host:port`); else `--eval-id` looks up the file; else auto-discover. Auto-discovery picks the most-recently-started alive eval; emits a stderr notice naming the choice + the candidate list when more than one is available, so editor debug panes show what happened.
+- **Bridge** — `src/inspect_ai/agent/_acp/_stdio.py`. Two concurrent forwarders (stdin→socket, socket→stdout) with `asyncio.wait(return_when=FIRST_COMPLETED)` semantics so the bridge exits as soon as either side hits EOF — needed because the sibling forwarder may be blocked on `readline()` from a still-open reader. Line-framed via `StreamReader.readline()`; raw-byte forwarding could split or merge frames at chunk boundaries.
+- **CLI** — `src/inspect_ai/_cli/acp.py`. Click subcommand registered in `_cli/main.py`. Uses `acp.stdio.stdio_streams()` (cross-platform — POSIX `loop.connect_read_pipe`, Windows thread-fed feeder + custom stdout transport) to get the stdio streams; calls `bridge_stdio()` with them. Rejects `--eval-id` + `--socket` together (mutually exclusive — different intents); translates `ConnectionRefusedError` / `FileNotFoundError` to clean stderr diagnostics + exit 2.
 
-**Tests.** Stdio fixture test that scripts an editor-shaped client through `inspect acp --stdio`; TUI smoke via Textual test driver; multi-eval resolution; manual smoke against Zed.
+**Test coverage:** 29 new tests, all green under asyncio. Discovery (`tests/agent/test_acp/test_discovery.py`, 15) covers `--socket` parsing for UNIX paths + IPv4/IPv6 `host:port`, `--eval-id` hit/miss, auto-discovery zero/one/many (including the pinned no-flags happy path), stale-PID filtering, malformed-JSON resilience, and newest-wins ordering. Bridge (`tests/agent/test_acp/test_stdio_bridge.py`, 6) drives a real `acp_server` over a real AF_UNIX socket with in-memory `StreamReader`/`StreamWriter` stand-ins for editor stdio: initialize round-trip, `session/load` round-trip, an end-to-end `inspect/cancel_tool_call` flow through the bridge, EOF on stdin → clean exit, EOF on socket → clean exit, and a multi-line framing-integrity test. CLI (`tests/_cli/test_acp_cli.py`, 8) covers the click surface: bare command exits with Phase 15 hint, mutex enforcement, empty discovery, unknown `--eval-id`, bad `--socket`, multi-eval newest-picks + stderr notice, single-eval quiet path, `--help` content.
+
+**Key design decisions:**
+
+- **Asyncio-only concurrency** (not anyio). `acp.stdio_streams()` returns asyncio types directly; the bridge is a one-process CLI leaf that never composes with anyio agent code; wrapping the streams into anyio would be cost-for-no-gain. The bridge's tests skip under trio for this reason — the trio variants are present so the harness doesn't lose them silently if a future refactor goes anyio.
+- **Discovery helpers moved, not copied.** The five test fixtures across `test_server.py` / `test_server_dispatch.py` / `test_server_forwarding.py` / `test_raw_events.py` / `test_action_methods.py` that patch `inspect_data_dir` were updated to point at the `_discovery` module's import instead of the `_server` re-export. Underscored back-compat aliases remain on `_server` so existing imports there still resolve.
+- **Multi-eval policy = "pick the newest" (with stderr notice), not "error and require --eval-id".** Editor configs that hard-code `inspect acp --stdio` should keep working when the developer happens to spawn a second eval mid-session. Stderr notice naming the chosen eval + the candidate list gives the user a paper trail.
+- **Enumeration across evals is a Phase 15 (TUI) concern, not Phase 13.** Once multiple evals are running, presenting a unified picker is a UI feature. The bridge stays as a 1:1 transport; Phase 15's TUI calls `list_discovered_evals()` (already shipped here) to build its own picker view.
+
+**Verification:** `pytest tests/agent/test_acp/ tests/_cli/test_acp_server_flag.py tests/_cli/test_acp_cli.py` → 293 passed (was 264 in Phase 12). `ruff format` / `ruff check` clean. `mypy --exclude tests/test_package src tests` clean (1024 source files). Manual smoke: `inspect acp --help` shows the three flags; `inspect acp` exits 2 with the Phase-15 message; `inspect acp --stdio` against an empty discovery dir exits 2 with the "no running evals" hint.
+
+**Out of scope (deferred):**
+
+- **TUI client** — Phase 15. Will reuse `list_discovered_evals()`, `TargetAddress`, and `resolve_target()` already shipped here.
+- **Approval UI (`session/request_permission`)** — Phase 14. The bridge forwards it transparently when it lands; no Phase-13 follow-up needed.
+- **Bridge stderr logging** — silent in Phase 13. Editors surface subprocess stderr in debug panes; if we need visibility a `--verbose` flag routing to the existing log infra can come later.
+- **Hot-swap eval target mid-session / reconnect-on-restart** — bridge attaches once at startup.
+- **Authentication** — same trust model as the rest of the ACP server (loopback-only TCP / AF_UNIX). Real auth is a Phase 16+ concern.
 
 
 ### Phase 14: Approval UI via `session/request_permission`
 
+With the stdio bridge from Phase 13 in place, editors are already wired up enough to surface UI to the user — which is the prerequisite for asking the user to approve a tool call. This phase lands the approval round-trip before the Inspect-native TUI client (Phase 15) so both the editor and (later) the TUI inherit the same primitive.
+
 Wire Inspect's `approval` framework so that when one or more clients are attached, an approval prompt is broadcast as `session/request_permission` to all attached clients; first response wins; others receive a `session/update` marking the prompt resolved. Falls back to the existing approver behavior when no clients are attached. Configurable timeout with default-deny fallback.
 
-**Tests.** Approver framework with mockllm; single-client approve/deny round-trip; multi-client broadcast + first-wins; client disconnect mid-prompt does not deadlock; timeout fallback; no-client fallback to existing approver.
+**Tests.** Approver framework with mockllm; single-client approve/deny round-trip; multi-client broadcast + first-wins; client disconnect mid-prompt does not deadlock; timeout fallback; no-client fallback to existing approver; an end-to-end approval round-trip through `inspect acp --stdio` (proves the bridge passes `session/request_permission` cleanly).
 
-### Phase 14: Token-level streaming
+
+### Phase 15: `inspect acp` (Textual TUI client)
+
+The default `inspect acp` mode (no `--stdio`): an Inspect-native Textual client that speaks ACP over the eval socket instead of the in-process channel Phase 7's TUI uses. Shares the conversation UI with Phase 7 (extract shared rendering code into a reusable widget so the in-process TUI and the ACP-client TUI render identical conversation views); only the transport differs.
+
+Reuses the `_resolve_target()` helper from Phase 13 for eval discovery and the `session/request_permission` machinery from Phase 14 so the TUI can render approval prompts the same way an editor would. New surface area is just (a) the client-side ACP I/O loop pointed at the socket and (b) the UI shell wrapping the shared conversation widget.
+
+**Tests.** TUI smoke via Textual test driver (load → render initial state → drive a prompt → assert rendered output); approval-prompt rendering in the client UI; multi-eval picker resolution path matches `--stdio`'s behavior; shared-widget equivalence test (in-process TUI render ≡ ACP-client TUI render for the same event sequence).
+
+
+### Phase 16: Token-level streaming
 
 Hook into provider streaming generators to emit partial assistant message content as token-chunked `session/update`s (`agent_message_chunk` with incremental content). Wired at the provider boundary, not the transcript fan-out — transcript events fire only at message completion.
 

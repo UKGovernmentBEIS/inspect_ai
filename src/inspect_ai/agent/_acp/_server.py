@@ -30,7 +30,6 @@ import json
 import math
 import os
 import stat
-import sys
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -63,7 +62,14 @@ from acp.schema import (
 from pydantic import BaseModel, Field
 from shortuuid import uuid
 
-from inspect_ai._util.appdirs import inspect_data_dir
+from inspect_ai.agent._acp._discovery import (
+    _cleanup_stale_discovery_files,
+    _default_socket_path,
+    _discovery_dir,
+    _has_unix_sockets,
+    _parse_host_port,
+    _pid_alive,  # noqa: F401 — re-exported for back-compat with existing tests
+)
 from inspect_ai.agent._acp._picker import (
     PICKER_META_KEY,
     _PickerTarget,
@@ -1528,100 +1534,9 @@ async def acp_server(
 # Helpers
 # ---------------------------------------------------------------------------
 
-
-def _discovery_dir() -> Path:
-    """The directory where discovery JSON files + default sockets live."""
-    return inspect_data_dir("acp")
-
-
-def _default_socket_path(eval_id: str) -> Path:
-    """Default AF_UNIX socket path for a given eval_id."""
-    return _discovery_dir() / f"{eval_id}.sock"
-
-
-def _cleanup_stale_discovery_files() -> None:
-    """Remove discovery JSON files whose owning PID is no longer alive.
-
-    Called by :meth:`_AcpServer.start` before writing our own discovery
-    file. Also unlinks the orphaned AF_UNIX socket node recorded in the
-    stale file so subsequent binds on the same path don't trip over a
-    leftover inode.
-    """
-    acp_dir = _discovery_dir()
-    if not acp_dir.exists():
-        return
-    for path in acp_dir.glob("*.json"):
-        try:
-            data = json.loads(path.read_text())
-            pid = int(data.get("pid", -1))
-            if pid <= 0 or _pid_alive(pid):
-                continue
-            path.unlink(missing_ok=True)
-            sock = data.get("socket_path")
-            if sock:
-                try:
-                    Path(sock).unlink(missing_ok=True)
-                except OSError:
-                    pass
-        except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError):
-            # Best effort — skip malformed entries.
-            continue
-
-
-def _pid_alive(pid: int) -> bool:
-    """Return ``True`` if a process with ``pid`` is currently alive."""
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)  # signal 0 = existence check only
-        return True
-    except (ProcessLookupError, OSError):
-        return False
-
-
-def _parse_host_port(value: str) -> tuple[str, int] | None:
-    """Parse a ``host:port`` or ``[ipv6]:port`` string.
-
-    Returns ``(host, port)`` if ``value`` is a well-formed network
-    address, else ``None`` (treat the value as a UNIX socket path).
-
-    A bare integer is intentionally NOT parsed here — the caller
-    handles ``int`` transports separately for the loopback-port shape.
-    """
-    if not value:
-        return None
-    # IPv6 bracket form: [::1]:4444
-    if value.startswith("["):
-        end = value.find("]:")
-        if end == -1:
-            return None
-        host = value[1:end]
-        port_str = value[end + 2 :]
-        try:
-            return host, int(port_str)
-        except ValueError:
-            return None
-    # Path-like values never have ``host:port`` semantics — a UNIX socket
-    # at ``/tmp/foo`` should not be misread as host "" port "foo".
-    if "/" in value or "\\" in value:
-        return None
-    if ":" not in value:
-        return None
-    host, _, port_str = value.rpartition(":")
-    if not host or not port_str:
-        return None
-    try:
-        return host, int(port_str)
-    except ValueError:
-        return None
-
-
-def _has_unix_sockets() -> bool:
-    """Whether the current platform supports AF_UNIX sockets.
-
-    POSIX always supports them. Windows 10/11 do; older Windows
-    versions don't expose :func:`asyncio.start_unix_server`.
-    """
-    if sys.platform != "win32":
-        return True
-    return hasattr(asyncio, "start_unix_server")
+# Discovery / socket helpers (``_discovery_dir``, ``_default_socket_path``,
+# ``_pid_alive``, ``_parse_host_port``, ``_has_unix_sockets``,
+# ``_cleanup_stale_discovery_files``) now live in ``_discovery.py`` so
+# the CLI bridge and Phase 15 TUI can import them without pulling in
+# server internals. The names are still re-exported here via the
+# top-of-file import for back-compat.
