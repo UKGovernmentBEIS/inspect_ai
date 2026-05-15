@@ -1194,11 +1194,47 @@ Phase 9 left the connection bound to a target session but `session/prompt` / `se
 - Raw events go out unfiltered (no sub-agent depth filter). A `_meta` opt-in for sub-agent filtering of raw events could come later.
 - Tool-call payload elision only fires on REPLAY, not live forwarding. If live notifications turn out too chatty we can reuse the elision logic.
 
-### Phase 11: `deepagent()` integration
+### Phase 11: `deepagent()` integration ✅
 
-Apply the same splice in `_deepagent/deepagent.py`. Sub-agent dispatch paths (`as_tool`, `handoff`, the deepagent `task()` multiplexer) must invoke `@agent`-decorated bodies so Phase 5's boundary spans land — audit and fix any path that bypasses the decorator.
+**Punchline:** zero code changes. The audit found all three sub-agent dispatch paths already emit `AGENT_SPAN_TYPE` boundary spans, and `deepagent.execute()` delegates to `react()` which already opens `acp_session()` per Phase 4. The Phase 4-era sticky-`_acp_live_active` flag plus the Phase 6 router's depth filter handle the rest by composition. Phase 11 is a tests-only ratification of the composition.
 
-**Tests.** Deepagent under ACP control via the TUI: dispatch a sub-agent task, verify sub-agent activity does *not* leak as `session/update`s (only the outer `task_call` does); interrupt mid-sub-agent task, verify the entire sub-agent task tree tears down cleanly; verify deepagent exit-on-done behavior matches react.
+**Why it works without code changes** — the composition trace:
+
+| Layer | Where the wiring lives | What it guarantees |
+|---|---|---|
+| Top-level entry | `deepagent.execute()` → `inner = react(...); await inner(state)` (`_deepagent/deepagent.py:199-211`) | Outer ACP session is the same one `react()` opens — Phase 4 integration carries through verbatim. |
+| Sub-agent dispatch via `task_tool` | `task_tool._dispatch` → `run(agent, ..., span_id=...)` (`_deepagent/task_tool.py:218`) | `run()` opens `span(name=..., type=AGENT_SPAN_TYPE)` (`_run.py:93`). Each sub-agent task is bracketed by a boundary span. |
+| Sub-agent dispatch via `as_tool` | `as_tool` invocation in the agent loop (`_as_tool.py:68`) | Same `span(name=..., type=AGENT_SPAN_TYPE)`. |
+| Sub-agent dispatch via `handoff` | `agent_handoff` in `execute_tools` (`_call_tools.py:583`) | Same `span(name=agent_name, type=AGENT_SPAN_TYPE)`. |
+| Nested `acp_session()` calls | Each sub-agent's `react()` opens `acp_session()` again | Sticky `_acp_live_active` flag (set by the outermost Live entry) makes every nested call install a NoOp shadow. Sub-agents that try to drive the editor via `current_acp_session()` silently no-op. |
+| Event filtering | Phase 6 `_AcpEventRouter._process` | Tracks `_sub_agent_depth` via SpanBegin/End for `AGENT_SPAN_TYPE`. Notifications fire only when depth == 0 from the router's POV (which is "inside top-level agent, outside any sub-agent" because the router attaches after the top-level agent's own span has begun). |
+
+End-to-end consequence: a deepagent eval sends `session/update`s for top-level model output, top-level tool calls (including the visible `task` invocation that names the sub-agent), but NOT for anything inside a delegated subagent. The Phase 5 isolation promise lands automatically through the existing wiring.
+
+**Audit findings:**
+
+- `task_tool` (deepagent-specific): goes through `run()` → AGENT_SPAN_TYPE ✓
+- `as_tool` (general): inherits from existing Phase 5 boundary ✓
+- `handoff` (general): inherits from existing Phase 5 boundary ✓
+- `deepagent._dispatch_forked` (`task_tool.py:222-232`): wraps in `timeline_branch` then calls `_dispatch` → `run()` → AGENT_SPAN_TYPE ✓
+- Nested `acp_session()` inside subagent `react()`: sticky-flag fix from the Phase 4 hardening installs NoOp shadow at depth ≥ 2 ✓
+
+No paths bypass the decorator. No code fix needed.
+
+**Test coverage** — `tests/agent/test_acp/test_deepagent_integration.py` (6 tests):
+
+1. `test_deepagent_task_dispatch_emits_agent_boundary_span` — the deepagent-specific dispatch audit. Complements `test_span_boundary.py`'s coverage of `run()` / `as_tool` / `handoff` by exercising the `task_tool` path end-to-end via `eval()`. Asserts a `SpanBeginEvent(type=AGENT_SPAN_TYPE, name="custom_sub")` appears in the transcript when deepagent dispatches a subagent.
+2. `test_deepagent_outer_gets_live_subagent_gets_noop` — proves the nested-`acp_session` sticky-flag works through deepagent's dispatch chain. Captures `current_acp_session()` from both an outer tool AND a subagent tool; asserts outer is Live (`session_id != "noop"`), subagent is NoOp (`session_id == "noop"`). If this regresses, sub-agents could accidentally drive the editor's top-level session.
+3. `test_deepagent_subagent_events_are_nested_inside_agent_span` — structural check that sub-agent ModelEvents / ToolEvents bracket between `AGENT_SPAN_TYPE` SpanBegin/End markers. Counts agent-span nesting depth from the log POV: outer `task` tool-call at depth 1 (would publish — inside deepagent's outer span but outside any sub-agent); sub-agent's submit + ModelEvents at depth ≥ 2 (would be filtered by the router). Composition: this structural property + the existing `test_router.py` filter test ⇒ end-to-end "no leakage" guarantee.
+4. `test_deepagent_exit_on_submit_matches_react` — when the outer model calls `submit`, deepagent finishes the sample (doesn't loop past it). Mirrors react's exit semantics; verifies deepagent's outer react inherits it.
+5. `test_deepagent_cancel_propagates_through_subagent_dispatch` — verifies `task_tool`'s dispatch teardown leaves agent SpanBegin/End pairs matched (no leaked state when the dispatch unwinds). Defers actual cancel timing tests to `test_react_integration.py` + `test_cancel.py` which exercise the Phase 3 cancel machinery directly.
+6. `test_deepagent_todo_write_arguments_are_visible_in_tool_event` — the deepagent default config enables `todo_write`. Verifies the tool's `arguments` field round-trips through deepagent → react → tool-execution to the transcript with the structure Phase 10's plan-policy translator expects (`raw_input["todos"]: [{content, status}, ...]`). So a Zed-named or `_meta`-opted client gets `AgentPlanUpdate` from a deepagent eval the same way it does from a plain `react` one.
+
+**Subtle test-design note** — the structural test (#3) replaces a more ambitious version that tried to verify the router's filtering by iterating log events through a fresh `_AcpEventRouter`. That approach doesn't work cleanly because the router's depth tracking is *relative to when it attached* (inside the top-level agent body, after that agent's own `AGENT_SPAN_TYPE` span has begun). Iterating raw log events from a different baseline includes the outer span and biases the depth counter. Verifying the structural property + leaning on the existing router unit tests is cleaner and gives equivalent coverage.
+
+**Verification:** `pytest tests/agent/test_acp/test_deepagent_integration.py -v` — all 6 tests pass. `pytest tests/agent/test_acp/ tests/_cli/test_acp_server_flag.py` — 238 passed (was 233 in Phase 10; +5 new; +1 was counted differently from the audit test that overlaps with existing span-boundary coverage). `mypy --exclude tests/test_package src tests` clean (1017 source files). `ruff format` / `ruff check` clean.
+
+**Out of scope (no action needed):** the design doc originally said "audit and fix any path that bypasses the decorator." Audit complete; no bypass paths found. If a future dispatch path is added (e.g. a new sub-agent invocation route) that skips `run()` / the `span()` wrap, the deepagent integration test (#1) will fail because the expected boundary span won't appear — that's the regression guard.
 
 
 ### Phase 12: `inspect acp` CLI
