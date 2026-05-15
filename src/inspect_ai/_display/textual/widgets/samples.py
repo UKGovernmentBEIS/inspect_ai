@@ -1,5 +1,5 @@
 import time
-from typing import cast
+from typing import Callable, cast
 from urllib.parse import urlencode, urlparse, urlunparse
 
 from rich.console import RenderableType
@@ -659,6 +659,21 @@ class SampleToolbar(Horizontal):
         # buttons with an interject Input + Send button. Driven by the
         # Interrupt button on the SampleInfo header.
         self._prompt_mode: bool = False
+        # Subscriptions on the current sample's AcpSession (multi-client
+        # interrupt-prompt coordination). When a sibling client triggers
+        # the cancel, the interrupted hook fires and we enter prompt
+        # mode locally; when a sibling client submits the resumption
+        # text, the resolved hook fires and we exit prompt mode without
+        # waiting for the user to type in this TUI. Only the in-proc
+        # TUI subscribes — generic ACP clients have no modal state to
+        # coordinate. See AcpSession.subscribe_interrupted /
+        # subscribe_prompt_resolved.
+        self._unsubscribe_interrupted: Callable[[], None] | None = None
+        self._unsubscribe_prompt_resolved: Callable[[], None] | None = None
+        # Track which acp_session we're attached to so sync_sample can
+        # re-subscribe if the sample's session changes (e.g. eval
+        # transitioned to a new sample, or the session was re-entered).
+        self._subscribed_acp_session_id: str | None = None
 
     @property
     def in_prompt_mode(self) -> bool:
@@ -834,6 +849,135 @@ class SampleToolbar(Horizontal):
         sample.acp_session.submit_user_message(ChatMessageUser(content=clean))
         self._exit_prompt_mode()
 
+    def _sync_interrupt_subscriptions(self, sample: ActiveSample | None) -> None:
+        """Keep our subscriptions aligned with the sample's AcpSession.
+
+        Subscribes to ``subscribe_interrupted`` and
+        ``subscribe_prompt_resolved`` on the bound session, capturing
+        the originating session id in each closure so scheduled
+        handlers can re-validate against ``self.sample`` at execution
+        time (the sample may have changed between event-fire and the
+        Textual call_later landing). Called from :meth:`sync_sample`
+        so subscriptions re-aim if the sample (or its session)
+        changes.
+
+        After subscribing, also catches up against the session's
+        current ``interrupt_pending`` state — covers the case where
+        the cancel arrived before the TUI was subscribed (sample
+        switch, late attach, reattach window).
+        """
+        target_session = sample.acp_session if sample is not None else None
+        target_id = target_session.session_id if target_session is not None else None
+
+        # No change → no work.
+        if target_id == self._subscribed_acp_session_id:
+            return
+
+        # Detach from the previous session, if any.
+        if self._unsubscribe_interrupted is not None:
+            try:
+                self._unsubscribe_interrupted()
+            except Exception:
+                pass
+            self._unsubscribe_interrupted = None
+        if self._unsubscribe_prompt_resolved is not None:
+            try:
+                self._unsubscribe_prompt_resolved()
+            except Exception:
+                pass
+            self._unsubscribe_prompt_resolved = None
+        self._subscribed_acp_session_id = None
+
+        # Subscribe to the new session, if any. Skip no-op sessions
+        # (sub-agent shadow): they have no cancel events and the
+        # subscribe call returns a no-op unsubscribe.
+        if target_session is None or target_id == "noop":
+            return
+
+        # Capture the originating session id in closures so the
+        # scheduled handlers can re-validate against the current
+        # sample's session at execution time. Without this, a sample
+        # switch between event-fire and call_later landing could
+        # enter prompt mode for the wrong sample, or exit it for an
+        # unrelated session.
+        sid = target_id
+
+        def _on_interrupted() -> None:
+            try:
+                self.app.call_later(self._handle_interrupted, sid)
+            except Exception:
+                # Widget unmounted or app shutting down — drop silently.
+                pass
+
+        def _on_resolved() -> None:
+            try:
+                self.app.call_later(self._handle_prompt_resolved, sid)
+            except Exception:
+                pass
+
+        self._unsubscribe_interrupted = target_session.subscribe_interrupted(
+            _on_interrupted
+        )
+        self._unsubscribe_prompt_resolved = target_session.subscribe_prompt_resolved(
+            _on_resolved
+        )
+        self._subscribed_acp_session_id = target_id
+
+        # Catch-up: if the session is already mid-interrupt at
+        # subscribe time, schedule the entry handler. Without this
+        # the TUI silently misses interrupts triggered before its
+        # subscription landed (external ACP cancel during a sample
+        # switch, reattach window, etc.).
+        if target_session.interrupt_pending:
+            try:
+                self.app.call_later(self._handle_interrupted, sid)
+            except Exception:
+                pass
+
+    def _handle_interrupted(self, originating_session_id: str) -> None:
+        """Enter prompt mode on cancel from a sibling client (Textual task).
+
+        Re-validates that the sample STILL has the session the event
+        originated from AND that the interrupt is still pending —
+        guards against (a) the user switching samples between the
+        event firing and call_later landing, and (b) the interrupt
+        having already been resolved (e.g. by ``after_cancel``
+        draining a pre-queued message). Without these checks a stale
+        callback could enter prompt mode for the wrong sample or
+        after the interrupt is moot.
+        """
+        if self._prompt_mode:
+            return
+        sample = self.sample
+        if sample is None or sample.acp_session is None:
+            return
+        if sample.acp_session.session_id != originating_session_id:
+            # Sample switched between event-fire and execution.
+            return
+        if not sample.acp_session.interrupt_pending:
+            # Already resolved (e.g. another client submitted the
+            # resumption text first, or after_cancel drained a
+            # pre-queued message).
+            return
+        self.enter_prompt_mode(sample)
+
+    def _handle_prompt_resolved(self, originating_session_id: str) -> None:
+        """Exit prompt mode when a sibling client resolves the cancel.
+
+        Re-validates the originating session matches the current
+        sample's session before exiting — a resolved event for
+        session A shouldn't dismiss a prompt that's now showing for
+        session B.
+        """
+        if not self._prompt_mode:
+            return
+        sample = self.sample
+        if sample is None or sample.acp_session is None:
+            return
+        if sample.acp_session.session_id != originating_session_id:
+            return
+        self._exit_prompt_mode()
+
     async def sync_sample(self, sample: ActiveSample | None) -> None:
         from inspect_ai.event._model import ModelEvent
 
@@ -850,6 +994,13 @@ class SampleToolbar(Horizontal):
             or sample.acp_session is None
         ):
             self._exit_prompt_mode()
+
+        # Multi-client interrupt-prompt coordination: keep our hook
+        # subscriptions aligned with the sample's current AcpSession so
+        # a cancel triggered by a sibling client (Phase 13 ACP bridge)
+        # auto-enters prompt mode locally, and a resumption text
+        # submitted by a sibling client auto-exits it.
+        self._sync_interrupt_subscriptions(sample)
 
         # track the sample
         self.sample = sample

@@ -252,6 +252,43 @@ class AcpSession(Protocol):
         """
         ...
 
+    @property
+    def interrupt_pending(self) -> bool:
+        """True while an interrupt is open and not yet resolved.
+
+        Set by :meth:`cancel_current_turn`; cleared by the next
+        :meth:`submit_user_message`. Modal-prompt clients observe
+        this via :meth:`subscribe_interrupted` /
+        :meth:`subscribe_prompt_resolved`.
+        """
+        ...
+
+    def subscribe_interrupted(self, callback: Callable[[], None]) -> Callable[[], None]:
+        """Register a callback fired on every :meth:`cancel_current_turn`.
+
+        Used by modal-prompt clients (in-proc TUI; Inspect-aware ACP
+        clients via the connection handler's
+        ``inspect/prompt_resolved`` wiring) to auto-enter prompt
+        mode regardless of who triggered the cancel. Returns an
+        idempotent unsubscribe callable. No-op session returns a
+        no-op unsubscribe.
+        """
+        ...
+
+    def subscribe_prompt_resolved(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Register a callback fired when an open interrupt is resolved.
+
+        Fires when :meth:`submit_user_message` lands while
+        :attr:`interrupt_pending` is True. Used by modal-prompt
+        clients to auto-exit their prompt UI when a sibling client
+        provides the resumption text. Returns an idempotent
+        unsubscribe callable. No-op session returns a no-op
+        unsubscribe.
+        """
+        ...
+
     def track_tool_call(
         self, tool_call_id: str, event: "ToolEvent | None" = None
     ) -> contextlib.AbstractContextManager[None]:
@@ -389,6 +426,29 @@ class _NoOpAcpSession:
         """No-op snapshot — empty sequence (nothing to replay)."""
         return []
 
+    @property
+    def interrupt_pending(self) -> bool:
+        """No-op session never has a pending interrupt."""
+        return False
+
+    def subscribe_interrupted(self, callback: Callable[[], None]) -> Callable[[], None]:
+        """No-op subscribe — no cancels can fire on the no-op session."""
+
+        def _noop_unsubscribe() -> None:
+            return None
+
+        return _noop_unsubscribe
+
+    def subscribe_prompt_resolved(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """No-op subscribe — no prompts can be resolved on the no-op session."""
+
+        def _noop_unsubscribe() -> None:
+            return None
+
+        return _noop_unsubscribe
+
 
 class _LiveAcpSession:
     """Active ACP session: owns the in-process pub/sub bus.
@@ -447,6 +507,20 @@ class _LiveAcpSession:
         # in-flight events. Capture at session entry while we're still
         # inside the sample's task.
         self._transcript: "Transcript | None" = None
+        # Multi-client interrupt-prompt coordination (the in-proc TUI
+        # and Inspect-aware ACP clients both render a modal prompt mode
+        # on interrupt). ``_interrupt_pending`` is True between
+        # ``cancel_current_turn`` and the next ``submit_user_message``
+        # — i.e. while an interrupt is open and not yet resolved.
+        # Subscribers fire when that state transitions:
+        # ``_interrupted_subscribers`` on ``cancel_current_turn``,
+        # ``_prompt_resolved_subscribers`` when the next
+        # ``submit_user_message`` clears the pending flag.
+        # See design/agent-acp.md Phase 14's open-issue subsection on
+        # multi-client prompt coordination.
+        self._interrupt_pending: bool = False
+        self._interrupted_subscribers: list[Callable[[], None]] = []
+        self._prompt_resolved_subscribers: list[Callable[[], None]] = []
 
     @property
     def session_id(self) -> str:
@@ -499,6 +573,12 @@ class _LiveAcpSession:
         for send, _ in self._subscribers:
             send.close()
         self._subscribers.clear()
+        # Drop interrupt-coordination subscribers so a late listener
+        # (TUI widget unmount race, connection-handler unbind race)
+        # doesn't end up holding a callback that fires into a closed
+        # context.
+        self._interrupted_subscribers.clear()
+        self._prompt_resolved_subscribers.clear()
 
     def disable_subagent_filtering(self) -> None:
         """Allow sub-agent transcript events through to the pub/sub bus.
@@ -685,6 +765,20 @@ class _LiveAcpSession:
         self._user_messages.clear()
         self._user_message_event = anyio.Event()
         results.extend(drained)
+
+        # The agent has now consumed the resumption text, so the
+        # interrupt is logically resolved — clear the pending flag and
+        # notify prompt-resolved subscribers if they haven't already
+        # been fired. ``submit_user_message`` clears + fires when the
+        # message arrives AFTER the cancel; this branch covers the
+        # other ordering (message queued BEFORE the cancel, then
+        # drained here without ``submit_user_message`` being called
+        # post-cancel). Without this, a modal-prompt client would be
+        # stuck in pending state forever after that sequence.
+        if self._interrupt_pending:
+            self._interrupt_pending = False
+            self._fire_prompt_resolved()
+
         return results
 
     def submit_user_message(self, msg: ChatMessageUser) -> None:
@@ -694,11 +788,80 @@ class _LiveAcpSession:
         treated as operator-injected, so ``source`` is set to
         ``"operator"`` if it isn't already. Callers don't have to
         remember to set it themselves.
+
+        If an interrupt is pending (``cancel_current_turn`` fired and
+        wasn't yet resolved), clear the pending flag and notify
+        prompt-resolved subscribers. The in-proc TUI's modal prompt
+        mode and Inspect-aware ACP clients use this to dismiss their
+        prompt UI when a sibling client provides the resumption text.
         """
         if msg.source != "operator":
             msg = msg.model_copy(update={"source": "operator"})
         self._user_messages.append(msg)
         self._user_message_event.set()
+
+        if self._interrupt_pending:
+            self._interrupt_pending = False
+            self._fire_prompt_resolved()
+
+    def _fire_prompt_resolved(self) -> None:
+        """Notify prompt-resolved subscribers. Robust to subscriber errors."""
+        for cb in list(self._prompt_resolved_subscribers):
+            try:
+                cb()
+            except Exception:
+                logger.exception("prompt_resolved subscriber raised; continuing")
+
+    def _fire_interrupted(self) -> None:
+        """Notify interrupted subscribers. Robust to subscriber errors."""
+        for cb in list(self._interrupted_subscribers):
+            try:
+                cb()
+            except Exception:
+                logger.exception("interrupted subscriber raised; continuing")
+
+    @property
+    def interrupt_pending(self) -> bool:
+        """True between ``cancel_current_turn`` and the next ``submit_user_message``."""
+        return self._interrupt_pending
+
+    def subscribe_interrupted(self, callback: Callable[[], None]) -> Callable[[], None]:
+        """Register a callback fired on every ``cancel_current_turn``.
+
+        Returns an idempotent unsubscribe callable. Callbacks run
+        synchronously in the producer's task; exceptions are logged
+        and swallowed so one broken subscriber can't block others.
+        """
+        self._interrupted_subscribers.append(callback)
+
+        def _unsubscribe() -> None:
+            try:
+                self._interrupted_subscribers.remove(callback)
+            except ValueError:
+                pass
+
+        return _unsubscribe
+
+    def subscribe_prompt_resolved(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Register a callback fired when an interrupt is resolved.
+
+        Fires when ``submit_user_message`` lands while ``interrupt_pending``
+        is True (i.e. the message resolves an open interrupt). Does NOT
+        fire for ordinary user messages outside an interrupt cycle.
+
+        Returns an idempotent unsubscribe callable.
+        """
+        self._prompt_resolved_subscribers.append(callback)
+
+        def _unsubscribe() -> None:
+            try:
+                self._prompt_resolved_subscribers.remove(callback)
+            except ValueError:
+                pass
+
+        return _unsubscribe
 
     def cancel_current_turn(self) -> None:
         """Cancel the current turn and record an :class:`InterruptEvent`.
@@ -792,6 +955,14 @@ class _LiveAcpSession:
         if self._turn_cancel_scope is not None:
             self._pending_turn_cancel = True
             self._turn_cancel_scope.cancel()
+
+        # Mark the interrupt as pending and notify subscribers so
+        # prompt-mode clients (the in-proc TUI; Inspect-aware ACP
+        # clients via inspect/prompt_resolved) can render their
+        # modal prompt UI. The next ``submit_user_message`` clears
+        # the flag and fires the resolved subscribers.
+        self._interrupt_pending = True
+        self._fire_interrupted()
 
     @contextlib.contextmanager
     def track_tool_call(

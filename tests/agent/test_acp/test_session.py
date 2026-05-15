@@ -216,3 +216,202 @@ async def test_acp_session_satisfies_protocol() -> None:
     async with acp_session() as acp:
         assert isinstance(acp, AcpSession)
     assert isinstance(current_acp_session(), AcpSession)
+
+
+# ---------------------------------------------------------------------------
+# Multi-client prompt coordination (interrupt_pending + subscribers)
+#
+# Only the in-proc TUI has modal prompt state, so the subscribers are
+# the in-process hook the TUI uses to auto-enter / auto-exit prompt
+# mode regardless of who triggered the cancel. Tests pin the state
+# machine: cancel sets pending and fires interrupted; submit clears
+# pending and fires prompt_resolved; submit without a prior cancel
+# does NOT fire prompt_resolved. Also covers subscriber-error
+# robustness (one broken subscriber doesn't block others) and the
+# no-op session's pass-through behavior.
+# ---------------------------------------------------------------------------
+
+
+from inspect_ai.model._chat_message import ChatMessageUser  # noqa: E402
+
+
+async def test_interrupt_pending_starts_false() -> None:
+    async with acp_session() as acp:
+        assert acp.interrupt_pending is False
+
+
+async def test_cancel_sets_interrupt_pending_and_fires_interrupted() -> None:
+    """``cancel_current_turn`` flips the pending flag + fires interrupted hook."""
+    async with acp_session() as acp:
+        fires: list[None] = []
+        acp.subscribe_interrupted(lambda: fires.append(None))
+        acp.cancel_current_turn()
+        assert acp.interrupt_pending is True
+        assert len(fires) == 1
+
+
+async def test_submit_after_cancel_clears_pending_and_fires_resolved() -> None:
+    """``submit_user_message`` after a cancel clears pending + fires resolved hook."""
+    async with acp_session() as acp:
+        resolved: list[None] = []
+        acp.subscribe_prompt_resolved(lambda: resolved.append(None))
+        acp.cancel_current_turn()
+        assert acp.interrupt_pending is True
+        acp.submit_user_message(ChatMessageUser(content="resume"))
+        assert acp.interrupt_pending is False
+        assert len(resolved) == 1
+
+
+async def test_submit_without_cancel_does_not_fire_resolved() -> None:
+    """A plain ``submit_user_message`` (no preceding cancel) must NOT fire resolved.
+
+    Pinned because the in-proc TUI's auto-exit hook would otherwise
+    dismiss prompt mode on every queued user message, including
+    ordinary turn-starting messages — making the modal flicker out
+    of existence.
+    """
+    async with acp_session() as acp:
+        resolved: list[None] = []
+        acp.subscribe_prompt_resolved(lambda: resolved.append(None))
+        acp.submit_user_message(ChatMessageUser(content="hello"))
+        assert acp.interrupt_pending is False
+        assert resolved == []
+
+
+async def test_multiple_subscribers_all_fire() -> None:
+    async with acp_session() as acp:
+        interrupted_calls: list[str] = []
+        resolved_calls: list[str] = []
+        acp.subscribe_interrupted(lambda: interrupted_calls.append("a"))
+        acp.subscribe_interrupted(lambda: interrupted_calls.append("b"))
+        acp.subscribe_prompt_resolved(lambda: resolved_calls.append("a"))
+        acp.subscribe_prompt_resolved(lambda: resolved_calls.append("b"))
+        acp.cancel_current_turn()
+        acp.submit_user_message(ChatMessageUser(content="ok"))
+        assert sorted(interrupted_calls) == ["a", "b"]
+        assert sorted(resolved_calls) == ["a", "b"]
+
+
+async def test_unsubscribe_stops_firing() -> None:
+    async with acp_session() as acp:
+        fires: list[None] = []
+        unsub = acp.subscribe_interrupted(lambda: fires.append(None))
+        acp.cancel_current_turn()
+        assert len(fires) == 1
+        # Reset for next cycle.
+        acp.submit_user_message(ChatMessageUser(content="ok"))
+        unsub()
+        acp.cancel_current_turn()
+        # Subscriber removed; count unchanged.
+        assert len(fires) == 1
+
+
+async def test_unsubscribe_is_idempotent() -> None:
+    """Double-unsubscribe is safe (no exception) — supports cleanup races."""
+    async with acp_session() as acp:
+        unsub = acp.subscribe_prompt_resolved(lambda: None)
+        unsub()
+        unsub()  # should not raise
+
+
+async def test_broken_subscriber_does_not_block_others() -> None:
+    """One subscriber raising must not prevent siblings from firing.
+
+    Mirrors the resilience contract on
+    ``Transcript._add_subscriber`` — the producer's task continues
+    even if a downstream listener is broken.
+    """
+
+    def broken() -> None:
+        raise RuntimeError("boom")
+
+    async with acp_session() as acp:
+        good_calls: list[None] = []
+        acp.subscribe_interrupted(broken)
+        acp.subscribe_interrupted(lambda: good_calls.append(None))
+        acp.cancel_current_turn()
+        assert len(good_calls) == 1
+
+
+async def test_noop_session_subscribe_returns_noop_unsubscribe() -> None:
+    """No-op session accepts subscribe + returns a no-op unsubscribe.
+
+    Lets callers use a uniform subscribe/unsubscribe pattern without
+    isinstance-guarding the session type.
+    """
+    from inspect_ai.agent._acp._session import _NoOpAcpSession
+
+    noop = _NoOpAcpSession()
+    unsub_i = noop.subscribe_interrupted(lambda: None)
+    unsub_r = noop.subscribe_prompt_resolved(lambda: None)
+    assert noop.interrupt_pending is False
+    # Should not raise.
+    unsub_i()
+    unsub_r()
+
+
+async def test_after_cancel_clears_pending_when_draining_prequeued_message() -> None:
+    """When ``after_cancel`` drains a message that was queued BEFORE the cancel.
+
+    Submit-then-cancel never goes through ``submit_user_message`` again,
+    so ``_interrupt_pending`` would stay True forever without
+    ``after_cancel`` clearing it. Late subscribers (TUI re-attach after
+    sample switch) would see stale pending state. Pinned to keep the
+    state machine consistent across both orderings of submit/cancel.
+    """
+    async with acp_session() as acp:
+        resolved: list[None] = []
+        acp.subscribe_prompt_resolved(lambda: resolved.append(None))
+        # Order: submit FIRST, then cancel. submit doesn't fire resolved
+        # (no pending yet); cancel sets pending.
+        acp.submit_user_message(ChatMessageUser(content="resume"))
+        assert acp.interrupt_pending is False
+        assert resolved == []
+        acp.cancel_current_turn()
+        assert acp.interrupt_pending is True
+        # Agent loop runs after_cancel — drains the queued message.
+        # Should clear pending and fire resolved.
+        drained = await acp.after_cancel(messages=[])
+        # Drained contents include the pre-queued user message.
+        assert any(isinstance(m, ChatMessageUser) for m in drained)
+        assert acp.interrupt_pending is False
+        assert len(resolved) == 1
+
+
+async def test_after_cancel_no_double_fire_when_submit_already_cleared() -> None:
+    """``after_cancel`` must NOT fire resolved again when submit already did.
+
+    The common ordering — cancel first, then user submits, then
+    after_cancel drains — already cleared pending in
+    submit_user_message. after_cancel sees pending=False and shouldn't
+    re-fire (would cause the TUI to attempt a redundant exit).
+    """
+    async with acp_session() as acp:
+        resolved: list[None] = []
+        acp.subscribe_prompt_resolved(lambda: resolved.append(None))
+        acp.cancel_current_turn()
+        # Submit BEFORE after_cancel — clears pending + fires.
+        acp.submit_user_message(ChatMessageUser(content="ok"))
+        assert acp.interrupt_pending is False
+        assert len(resolved) == 1
+        await acp.after_cancel(messages=[])
+        # No second fire.
+        assert len(resolved) == 1
+
+
+async def test_repeated_cancel_keeps_pending_and_re_fires_interrupted() -> None:
+    """Cancel-cancel (without intervening submit) re-fires + keeps pending.
+
+    A second Interrupt click while already-pending shouldn't silently
+    swallow the cancel — the InterruptEvent is still recorded and
+    subscribers still fire. Pinned because the in-proc TUI guards
+    against this via its own UI but the session layer doesn't (and
+    shouldn't — that's a UI concern).
+    """
+    async with acp_session() as acp:
+        fires: list[None] = []
+        acp.subscribe_interrupted(lambda: fires.append(None))
+        acp.cancel_current_turn()
+        acp.cancel_current_turn()
+        assert acp.interrupt_pending is True
+        assert len(fires) == 2
