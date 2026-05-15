@@ -40,7 +40,7 @@ from anyio.streams.memory import (
 )
 from shortuuid import uuid
 
-from inspect_ai.log._transcript import record_interrupt_event, transcript
+from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -53,6 +53,7 @@ if TYPE_CHECKING:
     from inspect_ai.agent._acp._router import _AcpEventRouter
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
+    from inspect_ai.log._transcript import Transcript
 
 logger = getLogger(__name__)
 
@@ -387,6 +388,15 @@ class _LiveAcpSession:
         # Router attached at __aenter__; detached at __aexit__. Owns the
         # transcript subscription that maps events to SessionNotifications.
         self._router: "_AcpEventRouter | None" = None
+        # Transcript captured at __aenter__ time. We can't call
+        # ``transcript()`` from ``cancel_current_turn`` because the
+        # producer task (TUI button click, socket transport) runs in a
+        # sibling task with its own ContextVar copy and would resolve to
+        # the default empty Transcript — silently losing the
+        # InterruptEvent and the pending-flag updates on cancelled
+        # in-flight events. Capture at session entry while we're still
+        # inside the sample's task.
+        self._transcript: "Transcript | None" = None
 
     @property
     def session_id(self) -> str:
@@ -403,6 +413,11 @@ class _LiveAcpSession:
         from inspect_ai.agent._acp._router import _AcpEventRouter
         from inspect_ai.log._samples import sample_active
 
+        # Capture the active transcript NOW (while we're in the sample's
+        # task context); cancel_current_turn fires from sibling tasks
+        # where the ContextVar lookup would resolve to a default empty
+        # transcript and silently lose the InterruptEvent.
+        self._transcript = transcript()
         self._router = _AcpEventRouter(self)
         self._router.attach()
         active = sample_active()
@@ -627,11 +642,24 @@ class _LiveAcpSession:
         else:
             interrupted = "between_turns"
 
-        record_interrupt_event(
-            source="user_cancel",
-            interrupted=interrupted,
-            interrupted_tool_call_id=interrupted_tool_call_id,
-            interrupted_model_event_id=interrupted_model_event_id,
+        # Append InterruptEvent to the sample's transcript via the
+        # captured reference (NOT ``transcript()``). The caller usually
+        # runs in a sibling task — see the comment in __init__ on
+        # ``self._transcript``. Fall back to the ContextVar lookup when
+        # the session wasn't entered through ``__aenter__`` (test
+        # constructs a bare _LiveAcpSession and sets the transcript
+        # ContextVar directly). Deferred import: ``inspect_ai.event``
+        # circularly references this module via the event union.
+        from inspect_ai.event._interrupt import InterruptEvent
+
+        tr = self._transcript if self._transcript is not None else transcript()
+        tr._event(
+            InterruptEvent(
+                source="user_cancel",
+                interrupted=interrupted,
+                interrupted_tool_call_id=interrupted_tool_call_id,
+                interrupted_model_event_id=interrupted_model_event_id,
+            )
         )
 
         # Clear pending on the in-flight events so the transcript / log
@@ -663,7 +691,7 @@ class _LiveAcpSession:
                 event.failed = True
                 cancelled_events.append(event)
         if cancelled_events:
-            tr = transcript()
+            tr = self._transcript if self._transcript is not None else transcript()
             for ev in cancelled_events:
                 tr._event_updated(ev)
 
