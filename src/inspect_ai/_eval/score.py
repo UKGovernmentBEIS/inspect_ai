@@ -496,14 +496,24 @@ def resolve_scorers(
             for score in log.eval.scorers
         ]
 
-    # Otherwise, perhaps we can re-create them from the results
-    return (
-        [
-            scorer_from_spec(
-                spec=ScorerSpec(scorer=score.name), task_path=task_path, **score.params
+    # Otherwise, perhaps we can re-create them from the results. The score names in
+    # log.results.scores may legitimately not be registered scorers (e.g. tasks that
+    # declare metrics but no scorers, where a solver writes Score objects into
+    # state.scores under arbitrary keys). Skip names we can't resolve via the registry;
+    # eval_results will synthesize ScorerInfo for those via ScorerInfo.from_name and
+    # apply log.eval.metrics to them.
+    if log.results is None:
+        return []
+    resolved: list[Scorer] = []
+    for score in log.results.scores:
+        try:
+            resolved.append(
+                scorer_from_spec(
+                    spec=ScorerSpec(scorer=score.name),
+                    task_path=task_path,
+                    **score.params,
+                )
             )
-            for score in log.results.scores
-        ]
-        if log.results
-        else []
-    )
+        except Exception:
+            continue
+    return resolved

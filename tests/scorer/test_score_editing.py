@@ -11,7 +11,8 @@ from inspect_ai.log._score import edit_score
 from inspect_ai.scorer import Score, Target, accuracy, mean, scorer
 from inspect_ai.scorer._metric import ScoreEdit
 from inspect_ai.scorer._scorer import Scorer
-from inspect_ai.solver import TaskState
+from inspect_ai.solver import Generate, TaskState, solver
+from inspect_ai.solver._solver import Solver
 
 
 @scorer(metrics=[mean()])
@@ -522,3 +523,47 @@ async def test_add_new_score_with_recompute_metrics():
     assert "new_custom_score" in sample.scores
     assert sample.scores["new_custom_score"].value == 0.75
     assert log.results.scores[0].metrics["mean"].value == original_mean
+
+
+@solver
+def solver_writes_score() -> Solver:
+    async def run(state: TaskState, generate: Generate) -> TaskState:
+        state.scores = {} if state.scores is None else state.scores
+        state.scores["custom_key"] = Score(value=1.0)
+        return state
+
+    return run
+
+
+@task
+def task_with_metrics_no_scorer():
+    return Task(
+        dataset=MemoryDataset([Sample(input="") for _ in range(4)]),
+        solver=solver_writes_score(),
+        metrics=[mean()],
+    )
+
+
+@pytest.mark.anyio
+async def test_recompute_metrics_when_task_has_no_scorers():
+    """recompute_metrics must work when log.eval.scorers is None and score keys
+    aren't registered scorers (tasks that declare metrics but no scorer, with the
+    solver writing Score objects directly into state.scores under arbitrary keys)."""
+    logs = await eval_async(task_with_metrics_no_scorer(), model="mockllm/model")
+    log = logs[0]
+
+    assert log.eval.scorers is None
+    assert log.results.scores[0].name == "custom_key"
+    assert log.results.scores[0].metrics["mean"].value == 1.0
+
+    edit_score(
+        log,
+        log.samples[0].id,
+        "custom_key",
+        ScoreEdit(value=0.0),
+        recompute_metrics=False,
+    )
+    recompute_metrics(log)
+
+    assert log.results.scores[0].name == "custom_key"
+    assert log.results.scores[0].metrics["mean"].value == 0.75  # (0 + 1 + 1 + 1) / 4
