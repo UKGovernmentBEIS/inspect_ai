@@ -219,6 +219,25 @@ class _AcpServer:
 
     async def start(self) -> None:
         """Bind the socket, write the discovery file, start accepting."""
+        # Fail fast when running under trio: the underlying ``acp``
+        # library uses asyncio.StreamReader/Writer/Future directly,
+        # so ``asyncio.start_unix_server`` / ``asyncio.start_server``
+        # below need an asyncio loop. The rest of inspect_ai runs
+        # fine under trio (anyio-native); only ``--acp-server`` is
+        # incompatible. Error here rather than surfacing the asyncio
+        # call's confusing "no running event loop" message. See
+        # ``design/agent-acp.md`` "asyncio / anyio boundary" for the
+        # full rationale.
+        from inspect_ai._util._async import current_async_backend
+
+        if current_async_backend() == "trio":
+            raise RuntimeError(
+                "--acp-server (Agent Client Protocol server) cannot be used "
+                "with the trio async backend — the underlying `acp` library "
+                "is asyncio-only. Either unset INSPECT_ASYNC_BACKEND (default "
+                "asyncio) or omit --acp-server."
+            )
+
         # Clean up any stale discovery files / orphan sockets from
         # processes that crashed without unregistering.
         _cleanup_stale_discovery_files()

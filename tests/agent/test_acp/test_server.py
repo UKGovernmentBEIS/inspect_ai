@@ -94,6 +94,32 @@ async def test_falsy_transport_yields_none(falsy: bool | int | str) -> None:
         assert server is None
 
 
+async def test_acp_server_raises_clearly_under_trio_backend(monkeypatch) -> None:
+    """``--acp-server`` under trio raises a clear RuntimeError.
+
+    Raised in preference to the opaque asyncio "no running event loop"
+    that would otherwise surface from ``asyncio.start_unix_server``.
+    The underlying ``acp`` library is asyncio-only (uses
+    asyncio.StreamReader/Writer/Future directly), so the server can't
+    bind under trio. Without this check, users would see a confusing
+    error from ``asyncio.start_unix_server``. With it, the message
+    names the constraint and points at how to fix it.
+    """
+    # Simulate trio backend without actually running under trio (which
+    # would skip this whole test under the default asyncio test run).
+    monkeypatch.setattr(
+        "inspect_ai._util._async.current_async_backend",
+        lambda: "trio",
+    )
+    with pytest.raises(RuntimeError) as exc:
+        async with acp_server(eval_id="t1", transport=True):
+            pass
+    msg = str(exc.value)
+    assert "trio" in msg.lower()
+    assert "--acp-server" in msg
+    assert "asyncio-only" in msg
+
+
 # ---------------------------------------------------------------------------
 # AF_UNIX binding
 # ---------------------------------------------------------------------------
