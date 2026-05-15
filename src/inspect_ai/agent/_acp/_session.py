@@ -753,40 +753,67 @@ class _LiveAcpSession:
             self._active_model_event = prev
 
 
-def _is_noop(session: AcpSession) -> bool:
-    return isinstance(session, _NoOpAcpSession)
-
-
 _NOOP_SINGLETON: AcpSession = _NoOpAcpSession()
 
 _acp_var: ContextVar[AcpSession] = ContextVar("_acp_session", default=_NOOP_SINGLETON)
+
+# Sticky "a Live session is active somewhere upstream" flag,
+# inherited like any ContextVar by spawned child tasks. The first
+# ``acp_session()`` entry in a context chain flips this to True; every
+# subsequent ``acp_session()`` block in that chain — at any nesting
+# depth — sees True and installs a NoOp shadow.
+#
+# Reading the immediate parent's session shape via ``_acp_var`` is not
+# sufficient on its own. A sub-agent installs a NoOp shadow into
+# ``_acp_var``, so a sub-sub-agent that consulted the parent alone
+# would see a NoOp, conclude "no live session here", and install a
+# second Live session — overwriting ``ActiveSample.acp_session`` and
+# double-registering the event router. This separate flag breaks that
+# false symmetry.
+_acp_live_active: ContextVar[bool] = ContextVar("_acp_live_active", default=False)
 
 
 @contextlib.asynccontextmanager
 async def acp_session() -> AsyncIterator[AcpSession]:
     """Open an ACP session for the enclosing scope.
 
-    If an ACP session is already active in this context (e.g. we are
-    inside a sub-agent invoked from a top-level agent that already
-    opened one), this scope installs a no-op shadow so nested agents
-    never accidentally drive the outer session. The first non-shadowed
-    entry installs the real session.
+    The first ``acp_session()`` entry in a context chain installs a
+    real ``_LiveAcpSession``. Every nested ``acp_session()`` block —
+    sub-agents invoked via handoff / ``as_tool`` / dispatch, at any
+    depth — installs a no-op shadow instead, so nested code can call
+    ``current_acp_session().submit_user_message(...)`` /
+    ``cancel_current_turn()`` without accidentally driving the
+    top-level session.
 
     Usage::
 
         async with acp_session() as acp:
             ...
     """
-    current = _acp_var.get()
-    install: AcpSession = (
-        _NoOpAcpSession() if not _is_noop(current) else _LiveAcpSession()
-    )
-    token = _acp_var.set(install)
-    try:
-        async with install:
-            yield install
-    finally:
-        _acp_var.reset(token)
+    if _acp_live_active.get():
+        # Upstream already owns the live session — shadow regardless
+        # of how deep we are. ``_acp_var`` still gets the shadow so
+        # ``current_acp_session()`` inside this scope returns it
+        # rather than leaking the upstream Live one.
+        install: AcpSession = _NoOpAcpSession()
+        token_var = _acp_var.set(install)
+        try:
+            async with install:
+                yield install
+        finally:
+            _acp_var.reset(token_var)
+    else:
+        # First entry — become the live session and mark the chain
+        # so all descendants shadow.
+        install = _LiveAcpSession()
+        token_live = _acp_live_active.set(True)
+        token_var = _acp_var.set(install)
+        try:
+            async with install:
+                yield install
+        finally:
+            _acp_var.reset(token_var)
+            _acp_live_active.reset(token_live)
 
 
 def current_acp_session() -> AcpSession:

@@ -38,6 +38,40 @@ async def test_nested_scope_is_noop_shadow() -> None:
         assert current_acp_session() is outer
 
 
+async def test_triple_nested_scope_stays_noop_shadow() -> None:
+    """Nested `acp_session()` calls install no-op shadows at ANY depth.
+
+    Regression: an earlier implementation decided shadow-vs-live by
+    inspecting the immediate parent's session shape via the
+    ``_acp_var`` ContextVar alone. At depth 2 the parent was itself a
+    NoOp shadow, so the predicate flipped back to "install Live" and
+    silently produced a second real session — overwriting
+    ``ActiveSample.acp_session`` and double-registering the event
+    router. The sticky ``_acp_live_active`` flag fixes this; depth 3+
+    blocks see the upstream Live and shadow correctly.
+    """
+    async with acp_session() as level0:
+        assert level0.session_id != "noop"
+        async with acp_session() as level1:
+            assert level1.session_id == "noop"
+            async with acp_session() as level2:
+                assert level2.session_id == "noop", (
+                    "depth-2 acp_session() incorrectly installed a Live "
+                    "session — sticky live-active flag is not in effect."
+                )
+                # All three are distinct instances.
+                assert level0 is not level1
+                assert level1 is not level2
+                assert level0 is not level2
+                assert current_acp_session() is level2
+            # After level2 exits, level1 (still a shadow) is restored.
+            assert current_acp_session() is level1
+        # After level1 exits, level0 (the live one) is restored.
+        assert current_acp_session() is level0
+    # After level0 exits, default singleton is restored.
+    assert current_acp_session().session_id == "noop"
+
+
 async def test_publish_to_single_subscriber() -> None:
     async with acp_session() as acp:
         stream = acp.attach()
