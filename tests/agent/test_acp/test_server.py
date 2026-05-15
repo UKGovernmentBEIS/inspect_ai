@@ -281,12 +281,13 @@ def test_parse_host_port_not_a_network_address(value: str) -> None:
 async def test_unknown_method_returns_method_not_found(
     short_data_dir: Path,
 ) -> None:
-    """Unknown methods get the JSON-RPC `method not found` error.
+    """A method outside the ACP surface returns JSON-RPC `method not found`.
 
-    A request for a method the empty MessageRouter doesn't know about
-    returns the standard JSON-RPC ``method not found`` error. This is
-    the canonical Phase 8 contract: the transport works end-to-end,
-    but no methods are routed yet.
+    Phase 9 implements the picker handlers (initialize, session/new,
+    session/load, session/prompt, session/cancel); everything else
+    (including unimplemented ACP methods like session/fork and
+    completely-bogus methods) still surfaces ``method not found`` so
+    the transport contract holds.
     """
     async with acp_server(eval_id="evt-conn", transport=True) as server:
         assert server is not None and server.socket_path is not None
@@ -297,7 +298,7 @@ async def test_unknown_method_returns_method_not_found(
                     {
                         "jsonrpc": "2.0",
                         "id": 1,
-                        "method": "initialize",
+                        "method": "definitely/not/a/method",
                         "params": {},
                     }
                 ).encode("utf-8")

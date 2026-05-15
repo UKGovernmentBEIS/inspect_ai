@@ -356,34 +356,27 @@ Started when `--agent-acp` is passed. Lifecycle tied to the eval run.
   (process gone) are deleted as a side effect. This keeps the directory
   from accumulating cruft when evals crash or terminate abruptly.
 - Accepts JSON-RPC 2.0 connections; each connection is its own ACP "agent server" session from the client's POV.
-- Each connection auto-attaches to a synthetic **control session** on connect, then transparently rebinds to a chosen target session after the user picks one (see below).
+- Each connection's binding depends on which method the client uses:
+  - `session/load(<known live uuid>)` binds directly to that target.
+  - `session/load(<unknown uuid>)` returns `invalid_params` (call `session/new` instead if you want the picker).
+  - `session/new` triggers the picker (or auto-binds when exactly one target is available).
 - The server is a JSON-RPC mux: many concurrent connections, each independently bound to its own target session, fully supported.
 
 The server is wired into the eval lifecycle similarly to `--display`: started before sample execution, drained on shutdown.
 
 #### In-channel session picker
 
-Rather than CLI-args-driven selection, the picker is exposed *through* the
-ACP channel so editors with no Inspect-specific UI still get a usable flow:
+The picker is exposed *through* the ACP channel so editors with no Inspect-specific UI still get a usable flow. The path depends on which method the client called:
 
 1. Client connects + calls `initialize`. Server responds with capabilities.
-2. Client calls `newSession` (or `loadSession`). Server returns a
-   sessionId for a synthetic **control session** unique to this
-   connection.
-3. Server immediately pushes a `session/update` on the control session
-   containing the list of available targets (formatted as an
-   `agent_message_chunk` with a numbered list, plus a structured
-   `plan`-style payload for richer clients).
-4. Client's first `session/prompt` is the user's selection (a number or
-   sessionId). Server validates, then **rebinds** this connection: future
-   traffic on the same sessionId routes to the chosen target. From the
-   editor's POV the sessionId is stable; the rebind is invisible.
-5. If only one target is available, the server skips the picker prompt
-   and rebinds immediately, pushing a `session/update` confirming the
-   target.
+2. Client calls `session/new`. Server mints a synthetic **control session** uuid unique to this connection (the client's stable `wire_session_id` for the rest of the conversation) and returns it. **If only one target is available, the server skips the picker entirely** — the response sessionId IS the target's id and a `session/update` confirms the binding.
+3. With multiple targets, server immediately pushes a `session/update` on the control session containing the list (numbered `agent_message_chunk` text body for editors, plus a structured `_meta["inspect.picker.targets"]: [{sessionId, task, sampleId, epoch}, ...]` payload for capability-aware clients).
+4. Client's first `session/prompt` is the user's selection (a number resolved against the picker's snapshot, or a uuid from `_meta`). Server validates the resolved sessionId is still in the live target list (redisplays the picker if the sample finished in the window) and then **rebinds** this connection's `target_session_id`. The client's `wire_session_id` stays unchanged; subsequent `session/update` notifications continue to use it with target details surfaced via `_meta`. From the editor's POV the sessionId is stable; the rebind is invisible.
+5. Alternative direct-attach path: `session/load(<known live uuid>)` binds straight to that target without going through the picker. Useful for resume / reconnect scenarios where the client already knows the sessionId.
 
-This stays within standard ACP semantics (no custom JSON-RPC methods
-required for the picker) while giving us a flexible UX.
+The server validates incoming `session_id` on `session/prompt` and `session/cancel` against the connection's `wire_session_id`; mismatches surface as `invalid_params` (prompt) or are silently dropped (cancel notification).
+
+This stays within standard ACP semantics (no custom JSON-RPC methods required for the picker) while giving us a flexible UX.
 
 ### 4. `inspect acp` — TUI + editor stub
 
@@ -734,6 +727,10 @@ strings only matter at the picker step.
   *external* (socket) exposure only.
 - Session selection happens **in-channel** (synthetic control session +
   rebind) rather than via CLI args. Stable from the client's POV.
+  `session/new` triggers the picker (or auto-binds on single target);
+  `session/load(<known>)` binds directly; `session/load(<unknown>)`
+  returns `invalid_params` rather than falling back to picker — silent
+  rebind of an explicit `session/load` call would surprise the client.
 - **Multiple concurrent connections to different sessions** are supported
   by default. Within one session: one driver + read-only observers.
 - A **`InterruptEvent`** in the transcript records every cancellation
@@ -1115,18 +1112,28 @@ Verification: `pytest tests/agent/test_acp/ tests/_cli/test_acp_server_flag.py t
 - Client SDK / `inspect acp` CLI (Phase 11).
 - Replay-on-attach for late-joining clients (Phase 10).
 
-### Phase 9: In-channel session picker
+### Phase 9: In-channel session picker ✅
 
 Layer session selection on top of Phase 8's transport using only standard ACP semantics.
 
-- On `newSession` / `loadSession`, server creates a synthetic control session unique to the connection.
-- Server immediately pushes a `session/update` containing the list of attachable targets (filtered to `ActiveSample`s that have claimed ACP).
-- Client's first `session/prompt` is the selection; server validates and **rebinds** the connection to the target session transparently (client's `sessionId` stays stable).
-- If exactly one target exists, auto-rebind without prompting.
+**Three refinements landed during implementation:**
 
-**Tests.** Multi-session enumeration over a real socket; pick-by-number; pick-by-id; auto-rebind on single target; client `sessionId` remains stable across rebind.
+1. **`loadSession` is split from `newSession`.** Original sketch had both methods trigger the picker. Implementation distinguishes:
+   - `loadSession(sessionId=<known live target>)` → bind directly, no picker. Standard ACP reads "load *this* session".
+   - `loadSession(sessionId=<unknown>)` → `invalid_params` error. Clients who want the picker call `newSession` instead. (Falling back to picker would silently rebind the client to a different session than they asked for, which is worse than an explicit error.)
+   - `newSession` → picker (or auto-bind on single target).
+2. **Picker payload carries `_meta`.** The notification body is an `agent_message_chunk` with a numbered list (for editors), AND a structured `_meta["inspect.picker.targets"]: [{sessionId, task, sampleId, epoch}, ...]` for capability-aware clients (the future `inspect acp` CLI). Pure ACP — no custom JSON-RPC methods, no overloaded sessionId fields.
+3. **Wire sessionId is stable across rebind.** Client's `sessionId` stays whatever they got back from `session/new` / `session/load`. The picker rebind switches only an internal `target_session_id`; all outbound `session/update` notifications use the client-facing `wire_session_id`. Target details live in `_meta`.
+
+**Picker selection robustness.** Numeric selections (`"1"`, `"2"`, ...) resolve against a **snapshot** of the target list captured at picker-push time, so samples that start/finish/reorder between push and selection don't shift the meaning of the indices. After snapshot resolution, the chosen sessionId is re-validated against a fresh `list_picker_targets()` enumeration — if the target finished in the window, we redisplay the picker rather than binding to a dead session.
+
+**`session_id` validation.** Both `session/prompt` and `session/cancel` validate the incoming `session_id` against the connection's `wire_session_id`. Mismatched prompts return `invalid_params`; mismatched cancel notifications are silently dropped (notifications can't return errors).
+
+**Tests.** `test_picker.py` (25 unit tests) and `test_server_dispatch.py` (16 integration tests over a real socket): initialize handshake; multi-target picker; single-target auto-bind; zero-target empty picker; `loadSession`-known direct bind; `loadSession`-unknown `invalid_params`; picker selection by index / by uuid / bad selection redisplay; bound-mode `prompt` returns `method_not_found` (Phase 10 boundary); cancel silent accept; `session_id` validation on prompt + cancel; snapshot pinning under reorder; redisplay when picked target has finished; concurrent-connection isolation.
 
 ### Phase 10: Full SessionRouter + replay-on-attach
+
+Also, consider an AgentPlanUpdate tied specifically to Inspect's update_plan and todo_write tools.
 
 Wire the inbound and outbound ACP method surface.
 
@@ -1138,7 +1145,14 @@ Wire the inbound and outbound ACP method surface.
 
 **Tests.** End-to-end from a second process: connect, pick, prompt, observe `session/update`, cancel mid-turn, prompt again, see recovery, agent completes; late attach receives replay; replay respects N + elision threshold; multi-modal content survives translation.
 
-### Phase 11: `inspect acp` CLI
+### Phase 11: `deepagent()` integration
+
+Apply the same splice in `_deepagent/deepagent.py`. Sub-agent dispatch paths (`as_tool`, `handoff`, the deepagent `task()` multiplexer) must invoke `@agent`-decorated bodies so Phase 5's boundary spans land — audit and fix any path that bypasses the decorator.
+
+**Tests.** Deepagent under ACP control via the TUI: dispatch a sub-agent task, verify sub-agent activity does *not* leak as `session/update`s (only the outer `task_call` does); interrupt mid-sub-agent task, verify the entire sub-agent task tree tears down cleanly; verify deepagent exit-on-done behavior matches react.
+
+
+### Phase 12: `inspect acp` CLI
 
 Add the `inspect acp` subcommand with two modes:
 
@@ -1149,11 +1163,6 @@ Both modes resolve the target eval via the discovery directory; if multiple eval
 
 **Tests.** Stdio fixture test that scripts an editor-shaped client through `inspect acp --stdio`; TUI smoke via Textual test driver; multi-eval resolution; manual smoke against Zed.
 
-### Phase 12: `deepagent()` integration
-
-Apply the same splice in `_deepagent/deepagent.py`. Sub-agent dispatch paths (`as_tool`, `handoff`, the deepagent `task()` multiplexer) must invoke `@agent`-decorated bodies so Phase 5's boundary spans land — audit and fix any path that bypasses the decorator.
-
-**Tests.** Deepagent under ACP control via the TUI: dispatch a sub-agent task, verify sub-agent activity does *not* leak as `session/update`s (only the outer `task_call` does); interrupt mid-sub-agent task, verify the entire sub-agent task tree tears down cleanly; verify deepagent exit-on-done behavior matches react.
 
 ### Phase 13: Approval UI via `session/request_permission`
 

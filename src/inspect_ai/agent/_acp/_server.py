@@ -1,4 +1,4 @@
-"""Phase 8 — JSON-RPC 2.0 transport server for ACP clients.
+"""Phase 8/9 — JSON-RPC 2.0 transport server for ACP clients.
 
 When an eval is launched with ``agent_acp`` enabled (via the
 ``--agent-acp`` CLI flag or the ``EvalConfig.agent_acp`` field), the
@@ -7,13 +7,20 @@ bound to either an AF_UNIX socket (default) or a TCP loopback port,
 writes a discovery JSON file so clients can enumerate running evals,
 and accepts incoming connections.
 
-Phase 8 is transport-only — connections are wrapped in
-:class:`acp.connection.Connection` with an **empty**
-:class:`acp.router.MessageRouter`, so any incoming JSON-RPC request
-returns a standard "method not found" error. Method dispatch
-(``initialize`` / ``newSession`` / ``session/prompt`` / ``session/cancel``
-/ ``session/update`` notifications, etc.) is the subject of Phase 9
-(session picker) and Phase 10 (full SessionRouter + replay-on-attach).
+Phase 8 landed the transport (bind / accept / connection lifecycle)
+with an empty router that returned ``method not found`` for every
+request. Phase 9 installs **per-connection** method dispatch for the
+in-channel session picker: ``initialize``, ``session/new``,
+``session/load``, plus ``session/prompt`` and ``session/cancel`` in
+their control-session (picker) form. Each accepted connection gets
+its own handler instance + state so two concurrent clients can pick
+different target sessions independently.
+
+Phase 9 does NOT implement ``session/prompt`` forwarding to a bound
+target's :func:`AcpSession.submit_user_message`, ``session/cancel``
+forwarding to :func:`AcpSession.cancel_current_turn`, or
+``session/update`` replay from the in-process bus to the socket.
+Those land in Phase 10.
 """
 
 from __future__ import annotations
@@ -25,16 +32,48 @@ import stat
 import sys
 import time
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import AsyncIterator
+from typing import Any, AsyncIterator, cast
 
+from acp.agent.router import build_agent_router
 from acp.connection import Connection
-from acp.router import MessageRouter
+from acp.exceptions import RequestError
+from acp.interfaces import Agent
+from acp.meta import CLIENT_METHODS, PROTOCOL_VERSION
+from acp.schema import (
+    AgentCapabilities,
+    AgentMessageChunk,
+    Implementation,
+    InitializeResponse,
+    LoadSessionResponse,
+    NewSessionResponse,
+    PromptResponse,
+    SessionCapabilities,
+    TextContentBlock,
+)
+from shortuuid import uuid
 
 from inspect_ai._util.appdirs import inspect_data_dir
+from inspect_ai.agent._acp._picker import (
+    PICKER_META_KEY,
+    _PickerTarget,
+    build_picker_notification,
+    list_picker_targets,
+    resolve_selection,
+)
 
 logger = getLogger(__name__)
+
+# Version banner included in InitializeResponse. The eval is the
+# server in the ACP relationship.
+_AGENT_NAME = "inspect-ai"
+_AGENT_VERSION = "0.9"  # Phase 9 picker; bumps with each protocol phase.
+
+# JSON-RPC method name for the picker confirmation / target list
+# notification sent on `session/update`.
+_SESSION_UPDATE_METHOD = CLIENT_METHODS["session_update"]
 
 
 class _AcpServer:
@@ -227,12 +266,27 @@ class _AcpServer:
     ) -> None:
         """Wrap a newly accepted socket in an :class:`acp.connection.Connection`.
 
-        Phase 8: the router is empty, so every incoming method call
-        gets a "method not found" response. The framing + lifecycle
-        still works end-to-end — clients can connect, send JSON-RPC,
-        get well-formed responses, and disconnect cleanly.
+        Each accepted connection gets its own :class:`_ConnectionHandler`
+        instance plus a fresh :class:`MessageRouter` (built by
+        :func:`acp.agent.router.build_agent_router`). Per-connection
+        state — synthetic control sessionId, bound target sessionId —
+        lives on the handler so two concurrent clients can pick
+        different target sessions without interference.
+
+        Phase 9 handles ``initialize`` / ``session/new`` /
+        ``session/load`` / ``session/prompt`` (picker selection only)
+        / ``session/cancel`` (silent no-op). Other methods fall
+        through ``build_agent_router``'s standard registration with
+        no implementation → ``method not found``.
         """
-        router = MessageRouter()
+        handler = _ConnectionHandler()
+        # The ACP `Agent` protocol declares the full method surface;
+        # we implement the subset Phase 9 needs (initialize, new/load
+        # session, prompt, cancel) and leave the rest as
+        # method-not-found via `build_agent_router`'s `func=None` fall-
+        # through. `cast` avoids a structural-typing complaint about
+        # the partial implementation.
+        router = build_agent_router(cast(Agent, handler))
         # ``listening=False`` lets us drive the receive loop here and
         # know when the peer disconnects, so we can clean up tracking.
         conn = Connection(
@@ -241,6 +295,9 @@ class _AcpServer:
             reader=reader,
             listening=False,
         )
+        # Attach the connection back-reference so handlers can push
+        # `session/update` notifications via `conn.send_notification`.
+        handler.connection = conn
         self._connections.add(conn)
         try:
             await conn.main_loop()
@@ -257,6 +314,332 @@ class _AcpServer:
                 await writer.wait_closed()
             except Exception:
                 pass
+
+
+@dataclass
+class _ConnectionState:
+    """Per-connection routing state.
+
+    Three independent fields combine into the connection's mode:
+
+    - ``wire_session_id``: the sessionId the client knows. Returned
+      from ``session/new`` (synthetic control id when the picker is
+      shown, or the target id on single-target auto-bind) or passed
+      in by the client to ``session/load`` (always equals the matched
+      target id). **Stable across rebind** — the picker flow's
+      contract is "client's sessionId stays stable from their POV",
+      so a successful picker selection keeps ``wire_session_id``
+      unchanged while ``target_session_id`` switches from None to
+      the chosen target.
+    - ``target_session_id``: the internal ``_LiveAcpSession.session_id``
+      this connection is bound to. None while the picker is pending.
+    - ``picker_targets``: snapshot of the target list shown to the
+      client when picker mode was entered (or re-displayed). Numeric
+      picker selections (``"1"``, ``"2"``) are resolved against this
+      snapshot rather than a fresh enumeration — if samples start /
+      finish / reorder between the picker push and the selection
+      prompt, the index the user picked still resolves to the same
+      target they saw.
+
+    Mode derivation:
+
+    - **Unbound**: ``wire_session_id is None`` (client hasn't called
+      ``session/new`` or ``session/load`` yet).
+    - **Control / picker**: ``wire_session_id`` set,
+      ``target_session_id is None``, ``picker_targets`` is a list.
+    - **Bound**: ``target_session_id`` set (``wire_session_id`` is
+      also set; ``picker_targets`` is None).
+
+    Validation: every incoming ``session/prompt`` and
+    ``session/cancel`` must carry the same sessionId as the
+    connection's ``wire_session_id`` — mismatches are rejected
+    rather than silently re-routed.
+    """
+
+    wire_session_id: str | None = None
+    target_session_id: str | None = None
+    picker_targets: list[_PickerTarget] | None = None
+
+
+class _ConnectionHandler:
+    """Per-connection method handler. Plays the ACP ``Agent`` role."""
+
+    def __init__(self) -> None:
+        self.connection: Connection | None = None
+        self.state = _ConnectionState()
+
+    # ------------------------------------------------------------------
+    # ACP Agent surface — implemented methods
+    # ------------------------------------------------------------------
+
+    async def initialize(
+        self,
+        protocol_version: int,
+        client_capabilities: Any = None,
+        client_info: Any = None,
+        **kwargs: Any,
+    ) -> InitializeResponse:
+        """Standard ACP handshake. Negotiate protocol version + advertise capabilities."""
+        # Server speaks PROTOCOL_VERSION; if the client asked for an
+        # older version we currently still answer with our version
+        # (acp protocol contract: respond with min(client, server)
+        # eventually, but Phase 9 only supports the latest).
+        return InitializeResponse(
+            protocol_version=min(protocol_version, PROTOCOL_VERSION),
+            agent_capabilities=AgentCapabilities(
+                load_session=True,
+                session_capabilities=SessionCapabilities(),
+            ),
+            agent_info=Implementation(name=_AGENT_NAME, version=_AGENT_VERSION),
+        )
+
+    async def new_session(
+        self,
+        cwd: str,  # unused but required by the ACP method signature
+        mcp_servers: Any = None,  # unused — Phase 9 doesn't host MCP servers
+        **kwargs: Any,
+    ) -> NewSessionResponse:
+        """Create a session. With a single target → auto-bind; else picker."""
+        targets = list_picker_targets()
+        if len(targets) == 1:
+            return await self._auto_bind(targets[0])
+        return await self._enter_picker_mode(targets)
+
+    async def load_session(
+        self,
+        cwd: str,  # unused but required by the ACP method signature
+        session_id: str,
+        mcp_servers: Any = None,
+        **kwargs: Any,
+    ) -> LoadSessionResponse:
+        """Bind directly to a known target sessionId; error if unknown.
+
+        Standard ACP semantics: ``session/load`` is "load *this*
+        specific session". If the id is unknown we return
+        ``invalid_params`` rather than silently falling back to a
+        picker — clients can call ``session/new`` for the picker.
+        """
+        targets = list_picker_targets()
+        match = next((t for t in targets if t.session_id == session_id), None)
+        if match is None:
+            raise RequestError.invalid_params(
+                {
+                    "reason": "unknown session_id",
+                    "session_id": session_id,
+                    "hint": "call session/new for the picker flow",
+                }
+            )
+        # On a successful load the wire sessionId IS the target's id
+        # (the client passed it in, we matched it, no rebind happens).
+        self.state.wire_session_id = match.session_id
+        self.state.target_session_id = match.session_id
+        self.state.picker_targets = None
+        await self._notify_binding(match)
+        return LoadSessionResponse()
+
+    async def prompt(
+        self,
+        prompt: list[Any],
+        session_id: str,
+        message_id: str | None = None,
+        **kwargs: Any,
+    ) -> PromptResponse:
+        """Handle a prompt request. Selection in control mode; placeholder otherwise."""
+        # Unbound: client skipped session/new and session/load.
+        if self.state.wire_session_id is None:
+            raise RequestError.invalid_request(
+                {"reason": ("session/prompt called before session/new or session/load")}
+            )
+        # Reject if the prompt names a different sessionId than the
+        # one this connection is currently keyed to. This blocks
+        # cross-session prompts on a misbehaving / confused client.
+        if session_id != self.state.wire_session_id:
+            raise RequestError.invalid_params(
+                {
+                    "reason": "session_id does not match this connection's session",
+                    "session_id": session_id,
+                    "expected": self.state.wire_session_id,
+                }
+            )
+
+        if self.state.picker_targets is not None:
+            # Picker selection — first prompt in control mode resolves
+            # to a target and rebinds the connection.
+            return await self._handle_picker_selection(prompt)
+        if self.state.target_session_id is not None:
+            # Bound mode. Phase 10 will forward to the target's
+            # submit_user_message; Phase 9 stops here with a clear
+            # method-not-found so users know they're hitting the
+            # deferred boundary, not a generic bug.
+            raise RequestError.method_not_found("session/prompt")
+        # Defensive — wire is set but neither picker nor bound (should
+        # be unreachable given the new/load handlers leave the state
+        # in one of those two states).
+        raise RequestError.internal_error({"reason": "connection in unknown state"})
+
+    async def cancel(self, session_id: str, **kwargs: Any) -> None:
+        """No-op in Phase 9. Phase 10 forwards to cancel_current_turn.
+
+        Notifications can't return errors, so a mismatched sessionId
+        is silently dropped — the alternative of routing it through
+        anyway risks cross-session interference once Phase 10 wires
+        the real forwarding.
+        """
+        if (
+            self.state.wire_session_id is None
+            or session_id != self.state.wire_session_id
+        ):
+            return None
+        # Phase 10 will dispatch to the bound target's
+        # cancel_current_turn here. Phase 9 just accepts silently.
+        return None
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    async def _enter_picker_mode(
+        self, targets: list[_PickerTarget]
+    ) -> NewSessionResponse:
+        """Mint a control sessionId, snapshot targets, push picker payload."""
+        control_id = uuid()
+        self.state.wire_session_id = control_id
+        self.state.target_session_id = None
+        # Snapshot the target list so that the numeric selection (1, 2,
+        # ...) resolves against the exact list the client was shown.
+        # A fresh enumeration at selection time could disagree if a
+        # sample finished or a new one started in between.
+        self.state.picker_targets = list(targets)
+        notif = build_picker_notification(control_id, targets)
+        await self._send_session_update(notif)
+        return NewSessionResponse(session_id=control_id)
+
+    async def _auto_bind(self, target: _PickerTarget) -> NewSessionResponse:
+        """Skip the picker for the single-target case; bind immediately.
+
+        On the auto-bind path the wire sessionId IS the target's id
+        (it's what we hand back in the NewSessionResponse), so the
+        client and server agree on the same id.
+        """
+        self.state.wire_session_id = target.session_id
+        self.state.target_session_id = target.session_id
+        self.state.picker_targets = None
+        await self._notify_binding(target)
+        return NewSessionResponse(session_id=target.session_id)
+
+    async def _handle_picker_selection(
+        self, prompt_blocks: list[Any]
+    ) -> PromptResponse:
+        """Parse selection from prompt content, rebind the connection.
+
+        Two-step resolution so we never bind to a sample that has
+        already finished:
+
+        1. Resolve the selection against the **snapshot** taken at
+           picker-push time. This is what makes the client's numeric
+           pick ("1", "2", ...) line up with what they actually saw —
+           samples that started/finished/reordered since don't move
+           the meaning of the indices.
+        2. Re-validate the resolved sessionId is still present in a
+           **fresh** ``list_picker_targets()`` enumeration. If the
+           sample finished between picker push and selection prompt,
+           binding would attach to a sessionId no agent owns; Phase
+           10's prompt/cancel forwarding would have nowhere to forward.
+           Fall through to redisplay in that case.
+
+        On any miss (bad selection OR stale target), we redisplay and
+        re-snapshot so the next numeric pick refers to the redisplayed
+        list.
+        """
+        assert self.state.wire_session_id is not None
+        assert self.state.picker_targets is not None
+        selection_text = _prompt_text(prompt_blocks)
+        target = resolve_selection(selection_text, self.state.picker_targets)
+
+        if target is not None:
+            # Confirm the resolved target is still live before binding.
+            fresh_targets = list_picker_targets()
+            still_active = any(t.session_id == target.session_id for t in fresh_targets)
+            if not still_active:
+                target = None  # Fall through to the redisplay path.
+
+        if target is None:
+            # Redisplay with a fresh enumeration. Re-snapshot too so
+            # the client's next numeric pick maps onto the new list.
+            fresh_targets = list_picker_targets()
+            self.state.picker_targets = list(fresh_targets)
+            notif = build_picker_notification(self.state.wire_session_id, fresh_targets)
+            await self._send_session_update(notif)
+            return PromptResponse(stop_reason="end_turn")
+
+        # Rebind: set the target, clear the picker snapshot. The wire
+        # sessionId stays unchanged — the design contract is that the
+        # client's sessionId is stable across rebind, so all subsequent
+        # outbound notifications continue to use wire_session_id.
+        self.state.target_session_id = target.session_id
+        self.state.picker_targets = None
+        await self._notify_binding(target)
+        return PromptResponse(stop_reason="end_turn")
+
+    async def _notify_binding(self, target: _PickerTarget) -> None:
+        """Push a confirmation `session/update` carrying the bound target.
+
+        The notification's sessionId is the connection's
+        ``wire_session_id`` (NOT necessarily the target's id) so the
+        client sees updates on the session id they already know.
+        Target details live in the structured ``_meta`` payload.
+        """
+        assert self.state.wire_session_id is not None
+        notif = build_picker_notification(self.state.wire_session_id, [target])
+        # Override the visible text so it reads as a confirmation
+        # rather than a "pick one" prompt. We built this notification
+        # from build_picker_notification which always returns an
+        # AgentMessageChunk with a TextContentBlock — assert for mypy.
+        assert isinstance(notif.update, AgentMessageChunk)
+        notif.update.content = TextContentBlock(
+            type="text",
+            text=(
+                f"Bound to {target.task} / sample {target.sample_id} / "
+                f"epoch {target.epoch} [{target.session_id}]."
+            ),
+        )
+        # Keep the structured target list under the same _meta key
+        # for consistency with the picker flow.
+        assert notif.field_meta is not None
+        notif.field_meta[PICKER_META_KEY] = [
+            {
+                "sessionId": target.session_id,
+                "task": target.task,
+                "sampleId": target.sample_id,
+                "epoch": target.epoch,
+            }
+        ]
+        await self._send_session_update(notif)
+
+    async def _send_session_update(self, notification: Any) -> None:
+        """Send a session/update notification over the connection."""
+        if self.connection is None:
+            # Defensive — this only happens in tests that construct
+            # the handler without going through _on_connection.
+            logger.warning(
+                "Dropped session/update notification: connection not attached"
+            )
+            return
+        payload = notification.model_dump(mode="json", by_alias=True, exclude_none=True)
+        await self.connection.send_notification(_SESSION_UPDATE_METHOD, payload)
+
+
+def _prompt_text(prompt_blocks: list[Any]) -> str:
+    """Concatenate text-block content from a prompt request.
+
+    Picker selection is a short string; only text blocks contribute.
+    Image / audio / resource blocks are ignored at this stage.
+    """
+    parts: list[str] = []
+    for block in prompt_blocks:
+        if isinstance(block, TextContentBlock):
+            parts.append(block.text)
+    return "".join(parts).strip()
 
 
 @asynccontextmanager
