@@ -61,6 +61,7 @@ from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
+from inspect_ai.tool._tool_call import ToolCallContent
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 if TYPE_CHECKING:
@@ -300,8 +301,8 @@ def _short_summary(text: str, max_len: int = _TITLE_SUMMARY_MAX_LEN) -> str:
     return ""
 
 
-def _descriptive_title(event: ToolEvent) -> str:
-    """Build a descriptive one-line title from the tool's args.
+def descriptive_title(fn: str, arguments: dict[str, Any] | None) -> str:
+    """Build a descriptive one-line title from a tool's name + args.
 
     Editor cards (Zed et al.) collapse to a single title line in the
     transcript view. A generic title like ``"bash"`` makes a list of
@@ -315,11 +316,13 @@ def _descriptive_title(event: ToolEvent) -> str:
     like queries / patterns / element references are quoted; paths
     and URLs are not.
 
-    Falls back to ``event.function`` when no heuristic matches —
-    custom user tools keep their bare function name.
+    Falls back to ``fn`` when no heuristic matches — custom user
+    tools keep their bare function name.
+
+    Public-to-the-module so the Phase 14 approval shim (which sees
+    a ``ToolCall`` rather than a ``ToolEvent``) can reuse it.
     """
-    fn = event.function
-    args = event.arguments or {}
+    args = arguments or {}
 
     def _str(key: str) -> str | None:
         v = args.get(key)
@@ -392,28 +395,37 @@ def _descriptive_title(event: ToolEvent) -> str:
     if fn in ("think", "todo_write", "update_plan"):
         return fn
 
-    return event.function
+    return fn
 
 
-def _content_from_view(event: ToolEvent) -> list[ContentToolCallContent] | None:
-    """Build ACP ``ContentToolCallContent`` from Inspect's tool view.
+def _descriptive_title(event: ToolEvent) -> str:
+    """ToolEvent-flavored adapter around :func:`descriptive_title`."""
+    return descriptive_title(event.function, event.arguments)
+
+
+def content_blocks_from_view(
+    view: ToolCallContent | None,
+) -> list[ContentToolCallContent] | None:
+    """Build ACP ``ContentToolCallContent`` from an Inspect tool view.
 
     Inspect tools register a custom ``ToolCallViewer`` via the
     ``@tool(viewer=...)`` decorator (see ``code_viewer`` in
     ``tool/_tools/_execute.py`` for the bash/python pattern). The
-    viewer's output is captured into ``ToolEvent.view`` at tool-call
-    creation time with a rendered markdown ``content`` string. We
-    forward that as a ``ContentToolCallContent`` so editors (Zed
-    etc.) can render the input richly — e.g. bash commands as
-    syntax-highlighted code blocks — instead of falling back to the
-    raw arguments dict (which most editors don't render inline).
+    viewer's output is a ``ToolCallContent`` carrying rendered
+    markdown. We forward that as a ``ContentToolCallContent`` so
+    editors (Zed etc.) can render the input richly — e.g. bash
+    commands as syntax-highlighted code blocks — instead of falling
+    back to the raw arguments dict (which most editors don't render
+    inline).
 
     Returns ``None`` when no view is attached (the tool didn't
-    declare a viewer) so the start notification's ``content`` field
-    stays unset and the client falls back to its own rendering of
-    ``raw_input``.
+    declare a viewer) or the view has empty content, so the start
+    notification's ``content`` field stays unset and the client
+    falls back to its own rendering of ``raw_input``.
+
+    Public-to-the-module so the Phase 14 approval shim (which
+    builds permission prompts from a ``ToolCallView``) can reuse it.
     """
-    view = event.view
     if view is None or not view.content:
         return None
     return [
@@ -422,6 +434,11 @@ def _content_from_view(event: ToolEvent) -> list[ContentToolCallContent] | None:
             content=TextContentBlock(type="text", text=view.content),
         )
     ]
+
+
+def _content_from_view(event: ToolEvent) -> list[ContentToolCallContent] | None:
+    """ToolEvent-flavored adapter around :func:`content_blocks_from_view`."""
+    return content_blocks_from_view(event.view)
 
 
 # Cap result-as-content payloads so a multi-megabyte tool output

@@ -1294,13 +1294,39 @@ Shipped the `inspect acp` subcommand in its minimum-viable form: a stdio↔socke
 - **Authentication** — same trust model as the rest of the ACP server (loopback-only TCP / AF_UNIX). Real auth is a Phase 16+ concern.
 
 
-### Phase 14: Approval UI via `session/request_permission`
+### Phase 14: Approval UI via `session/request_permission` ✅
 
-With the stdio bridge from Phase 13 in place, editors are already wired up enough to surface UI to the user — which is the prerequisite for asking the user to approve a tool call. This phase lands the approval round-trip before the Inspect-native TUI client (Phase 15) so both the editor and (later) the TUI inherit the same primitive.
+Routes the **human leaf** of the configured approval chain through ACP `session/request_permission` when one or more ACP clients are attached to the running sample. The rest of the chain (auto-approvers, model-judgment approvers, ApprovalPolicy matching, the global `apply_tool_approval` dispatch) is untouched — only `human_approver`'s "ask the person at the keyboard" step changes behavior. When no clients are attached, the existing in-proc Textual panel / console prompt flow runs unchanged.
 
-Wire Inspect's `approval` framework so that when one or more clients are attached, an approval prompt is broadcast as `session/request_permission` to all attached clients; first response wins; others receive a `session/update` marking the prompt resolved. Falls back to the existing approver behavior when no clients are attached. Configurable timeout with default-deny fallback.
+**Why scoped to the human leaf and not the whole approval pipeline.** Original sketch spoke of intercepting at the framework level with timeout + default-deny. Real-world configs commonly mix auto-approve for safe tools (`grep`, `read_file`) with human approval for destructive ones (`bash`, `text_editor`); a global intercept would have skipped the auto rules and prompted the editor for every tool. Scoping to the human leaf keeps the configured policy in charge of *what* needs approval; ACP only changes *who renders the prompt* when there's a better surface available.
 
-**Tests.** Approver framework with mockllm; single-client approve/deny round-trip; multi-client broadcast + first-wins; client disconnect mid-prompt does not deadlock; timeout fallback; no-client fallback to existing approver; an end-to-end approval round-trip through `inspect acp --stdio` (proves the bridge passes `session/request_permission` cleanly).
+**Components landed:**
+
+- **Per-session approver-client registry** (`src/inspect_ai/agent/_acp/_session.py`). `ApproverClient` Protocol (one method: `async def request_permission(request) -> response`) + `_LiveAcpSession.attach_approver_client(client) → unsubscribe` / `has_approver_clients()` / `approver_clients()`. NoOp session returns empty / False / no-op unsubscribe so callers don't need isinstance guards. Cleared on `__aexit__` so a late callback can't fire into a closed connection. Same hook pattern as the existing interrupted-subscriber registry.
+- **Connection handler implements `ApproverClient`** (`_server.py`). `_ConnectionHandler.request_permission` wraps `conn.send_request("session/request_permission", payload)` and validates the response. Self-registers in `_start_forwarders` after the bind completes; deregisters in `_stop_forwarders`. Lifecycle mirrors the semantic / raw event forwarder tasks exactly.
+- **Approval shim** (`src/inspect_ai/approval/_human/acp.py`). `request_human_approval_via_acp(message, call, view, choices) → Approval | None`. Returns `None` to signal "fall through to in-proc panel/console" when no clients attached or every client raised. Otherwise builds a `RequestPermissionRequest` (reusing the router's `descriptive_title` + `content_blocks_from_view` for visual consistency with live tool-call rendering), races attached clients via `asyncio.wait(FIRST_COMPLETED)`, cancels losers, maps the first-non-exception response back to `Approval` via `optionId` round-trip. Wait-forever (no timeout — the human at the editor is the source of truth).
+- **`human_approver` checks ACP first** (`src/inspect_ai/approval/_human/approver.py`). One added line: call the shim before falling through to `panel_approval` / `console_approval`. Zero behavior change in the no-client case — the ACP routing is a strict superset.
+- **Router helpers refactored** (`_router.py`). Extracted `descriptive_title(fn, args)` and `content_blocks_from_view(view)` to take primitives so they're shareable between the live-event router (which has `ToolEvent`) and the approval shim (which has `ToolCall` + `ToolCallView`). `_descriptive_title(event)` / `_content_from_view(event)` remain as thin adapters for the router's own use.
+
+**Decisions settled with the user:**
+
+- **Multi-client: broadcast + race.** First non-exception response wins; in-flight requests on losing clients are cancelled (their futures resolve with CancelledError on the client side).
+- **Timeout: wait forever.** Mirrors the in-proc human approver's blocking behavior; default-deny on timeout would be surprising.
+- **Disconnect mid-prompt: fall back gracefully.** If other clients are still racing, their responses still count; if every client raises (typically `ConnectionError` after disconnect), shim returns `None` and the existing in-proc panel/console path runs.
+- **Option mapping: configured `choices` is the source of truth.** Each `PermissionOption.optionId` is the literal `ApprovalDecision` string (`"approve"` / `"reject"` / `"terminate"` / `"escalate"` / `"modify"`) so the response round-trips losslessly. `PermissionOptionKind` is a best-effort visual hint (`approve` → `allow_once`, `reject` → `reject_once`, `terminate` → `reject_always`).
+- **No conflict with the in-proc TUI.** When ACP is attached, ACP "gets the stick" — the in-proc panel never opens. When ACP is not attached, the in-proc flow is unchanged.
+
+**Test coverage** — 40 new tests in `tests/agent/test_acp/test_session.py` (7 — registry mechanics) and `tests/agent/test_acp/test_approval.py` (~22 — option mapping, response round-trip, race semantics, entry-point predicates, end-to-end over real AF_UNIX socket). Plus several integration tests in the existing suites verifying nothing regressed (382 ACP+CLI+approval passing total).
+
+**Out of scope (deferred):**
+
+- **`modify` decision over ACP.** ACP's `PermissionOption` doesn't have a "modify the call before approving" affordance; `Approval.modified` (a new `ToolCall`) would need a custom UI surface. If a configured `human_approver` includes `modify` in its choices, the optionId round-trips but downstream `apply_tool_approval` degenerates to using the original call (no modification). Could add a richer flow later via an `_meta`-flagged option for Inspect-aware clients.
+- **`escalate` decision over ACP.** Same shape problem — sends and round-trips, but ACP options are binary allow/deny variants and most editors render it as a generic button without the escalation-chain semantics.
+- **Timeout / approval expiry.** Wait-forever per the decision above. If a future deployment needs unattended fallback, an opt-in `timeout=` parameter on `human_approver` could become the ACP race deadline.
+- **Telemetry / audit for "approval came from ACP client X vs in-proc".** `Approval.metadata` could carry it; not in v1.
+- **Live approval card with diff preview for `edit` tools.** Currently the prompt content is the same markdown the live tool-call notification carries; richer per-kind formatting (e.g. `FileEditToolCallContent` for diff previews) is a follow-up.
+
+**Verification.** `pytest tests/agent/test_acp/ tests/_cli/test_acp_server_flag.py tests/_cli/test_acp_cli.py tests/approval/` — 382 passed. `ruff format` + `ruff check` clean across all modified source and test files. `mypy --exclude tests/test_package src tests` clean (1026 source files). Manual smoke against Zed via `inspect eval <task> --acp-server --approval=human` confirms the permission card renders with the bash command and the user's response advances the eval.
 
 
 ### Phase 15: `inspect acp` (Textual TUI client)

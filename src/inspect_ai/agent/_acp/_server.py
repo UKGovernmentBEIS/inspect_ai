@@ -35,7 +35,15 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator, Iterator, Literal, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncIterator,
+    Callable,
+    Iterator,
+    Literal,
+    cast,
+)
 
 import anyio
 from acp.agent.router import build_agent_router
@@ -53,6 +61,8 @@ from acp.schema import (
     LoadSessionResponse,
     NewSessionResponse,
     PromptResponse,
+    RequestPermissionRequest,
+    RequestPermissionResponse,
     SessionCapabilities,
     SessionNotification,
     TextContentBlock,
@@ -501,6 +511,13 @@ class _ConnectionHandler:
         # own), we can build the AgentPlanUpdate from the original
         # arguments. Cleared per tool on emit.
         self._plan_tool_stash: dict[str, dict[str, Any]] = {}
+        # Phase 14: unsubscribe callable returned by
+        # ``_LiveAcpSession.attach_approver_client(self)`` when this
+        # handler is bound to a target. Cleared on unbind / disconnect.
+        # While set, this handler is eligible to receive
+        # ``session/request_permission`` prompts from the configured
+        # ``human_approver``.
+        self._approver_unsub: Callable[[], None] | None = None
 
     # ------------------------------------------------------------------
     # ACP Agent surface — implemented methods
@@ -1022,6 +1039,34 @@ class _ConnectionHandler:
         await self.connection.send_notification(_SESSION_UPDATE_METHOD, payload)
 
     # ------------------------------------------------------------------
+    # Phase 14 — ApproverClient implementation
+    # ------------------------------------------------------------------
+
+    async def request_permission(
+        self, request: RequestPermissionRequest
+    ) -> RequestPermissionResponse:
+        """Send ``session/request_permission`` to this client and await response.
+
+        Implements the :class:`ApproverClient` protocol. The
+        ``_LiveAcpSession`` registers this handler when the
+        connection binds (``_start_forwarders``); the configured
+        ``human_approver`` calls this method (via the
+        ``approval/_human/acp.py`` race orchestrator) when a tool
+        needs approval.
+
+        Raises :class:`ConnectionError` if the connection is missing
+        (race with disconnect during binding) so the race
+        orchestrator treats this as a losing entrant. Any other
+        exception (transport failure, malformed response) also
+        propagates so the orchestrator can drop us from the race.
+        """
+        if self.connection is None:
+            raise ConnectionError("approver client connection is not attached")
+        payload = request.model_dump(mode="json", by_alias=True, exclude_none=True)
+        raw = await self.connection.send_request("session/request_permission", payload)
+        return RequestPermissionResponse.model_validate(raw)
+
+    # ------------------------------------------------------------------
     # Phase 10 — per-connection forwarders
     # ------------------------------------------------------------------
 
@@ -1081,6 +1126,13 @@ class _ConnectionHandler:
                 self._on_raw_event
             )
 
+        # Phase 14: register as an approver client so the configured
+        # ``human_approver`` can route tool-approval prompts here.
+        # The handler implements ``ApproverClient.request_permission``
+        # below — sends ``session/request_permission`` and awaits the
+        # client's response.
+        self._approver_unsub = target.attach_approver_client(self)
+
         # REPLAY — emit historical notifications synchronously before
         # live ones. Raw replay (if enabled) first, then semantic.
         await self._run_replay(snapshot)
@@ -1099,6 +1151,15 @@ class _ConnectionHandler:
 
     async def _stop_forwarders(self) -> None:
         """Cancel forwarder tasks + detach subscribers. Idempotent."""
+        # Phase 14: deregister as an approver client so a pending or
+        # post-disconnect approval prompt doesn't try to send through
+        # a closed connection.
+        if self._approver_unsub is not None:
+            try:
+                self._approver_unsub()
+            except Exception:
+                logger.exception("Error detaching ACP approver client")
+            self._approver_unsub = None
         # Unsubscribe from the transcript first so no more raw events
         # land in the queue while we're tearing down.
         if self._raw_unsubscribe is not None:

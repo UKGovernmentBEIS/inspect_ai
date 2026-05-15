@@ -51,6 +51,8 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.tool._tool_call import ToolCallError
 
 if TYPE_CHECKING:
+    from acp.schema import RequestPermissionRequest, RequestPermissionResponse
+
     from inspect_ai.agent._acp._router import _AcpEventRouter
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
@@ -76,6 +78,36 @@ _SUBSCRIBER_BUFFER_SIZE: float = math.inf
 # Sentinel session_id for the no-op variant so callers never need
 # isinstance guards.
 _NOOP_SESSION_ID = "noop"
+
+
+@runtime_checkable
+class ApproverClient(Protocol):
+    """A client capable of handling ``session/request_permission``.
+
+    Phase 14: an attached ACP client that can render an approval
+    prompt for the user and return their decision. ``_LiveAcpSession``
+    keeps a registry of these so the ``human_approver`` can route
+    tool-approval prompts through ACP when at least one client is
+    attached, falling back to the in-proc panel / console flow when
+    none are.
+
+    Implementations: ``_ConnectionHandler`` in ``_server.py`` (wraps
+    ``conn.send_request("session/request_permission", ...)``); tests
+    pass small stubs to exercise the race semantics without a real
+    socket.
+    """
+
+    async def request_permission(
+        self, request: "RequestPermissionRequest"
+    ) -> "RequestPermissionResponse":
+        """Send the request to the underlying client and await the response.
+
+        Raises (typically :class:`ConnectionError`) if the client
+        disconnected before responding — the race orchestrator in
+        ``approval/_human/acp.py`` treats that as one entrant's loss
+        and waits for any remaining clients.
+        """
+        ...
 
 
 class TurnCancelled(Exception):
@@ -289,6 +321,36 @@ class AcpSession(Protocol):
         """
         ...
 
+    def attach_approver_client(self, client: ApproverClient) -> Callable[[], None]:
+        """Register an ACP client capable of handling approval prompts.
+
+        Phase 14: when the configured ``human_approver`` is reached
+        and at least one client is attached, the approval prompt is
+        routed via ACP ``session/request_permission`` to all attached
+        clients (first response wins). When no clients are attached,
+        the existing in-proc panel / console flow runs unchanged.
+
+        Returns an idempotent unsubscribe callable. No-op session
+        returns a no-op unsubscribe (no clients can attach).
+        """
+        ...
+
+    def has_approver_clients(self) -> bool:
+        """True if at least one :class:`ApproverClient` is currently attached.
+
+        Cheap predicate used by the human-approver to decide whether
+        to route via ACP. No-op session always returns False.
+        """
+        ...
+
+    def approver_clients(self) -> list[ApproverClient]:
+        """Snapshot of currently-attached approver clients.
+
+        Returns a copy so iteration is stable against concurrent
+        attach/detach (clients can disconnect mid-race).
+        """
+        ...
+
     def track_tool_call(
         self, tool_call_id: str, event: "ToolEvent | None" = None
     ) -> contextlib.AbstractContextManager[None]:
@@ -449,6 +511,22 @@ class _NoOpAcpSession:
 
         return _noop_unsubscribe
 
+    def attach_approver_client(self, client: ApproverClient) -> Callable[[], None]:
+        """No-op attach — no approver clients can attach to the no-op session."""
+
+        def _noop_unsubscribe() -> None:
+            return None
+
+        return _noop_unsubscribe
+
+    def has_approver_clients(self) -> bool:
+        """No-op session never has attached approver clients."""
+        return False
+
+    def approver_clients(self) -> list[ApproverClient]:
+        """No-op session returns an empty list."""
+        return []
+
 
 class _LiveAcpSession:
     """Active ACP session: owns the in-process pub/sub bus.
@@ -521,6 +599,14 @@ class _LiveAcpSession:
         self._interrupt_pending: bool = False
         self._interrupted_subscribers: list[Callable[[], None]] = []
         self._prompt_resolved_subscribers: list[Callable[[], None]] = []
+        # Phase 14: attached ACP clients that can handle
+        # ``session/request_permission`` prompts. The configured
+        # ``human_approver`` routes tool-approval prompts through these
+        # when at least one is attached; falls back to the existing
+        # in-proc panel / console flow when none are. Clients
+        # register on bind (``_ConnectionHandler._start_forwarders``)
+        # and detach on unbind / disconnect (``_stop_forwarders``).
+        self._approver_clients: list[ApproverClient] = []
 
     @property
     def session_id(self) -> str:
@@ -579,6 +665,10 @@ class _LiveAcpSession:
         # context.
         self._interrupted_subscribers.clear()
         self._prompt_resolved_subscribers.clear()
+        # Drop approver-client registrations — a late-arriving
+        # approval prompt after session exit would otherwise try to
+        # call into a closed connection.
+        self._approver_clients.clear()
 
     def disable_subagent_filtering(self) -> None:
         """Allow sub-agent transcript events through to the pub/sub bus.
@@ -862,6 +952,35 @@ class _LiveAcpSession:
                 pass
 
         return _unsubscribe
+
+    def attach_approver_client(self, client: ApproverClient) -> Callable[[], None]:
+        """Register ``client`` as a recipient for approval prompts.
+
+        Returns an idempotent unsubscribe callable. Re-attaching the
+        same client multiple times is allowed (and adds N entries) —
+        each attach is paired with one returned unsubscribe.
+        """
+        self._approver_clients.append(client)
+
+        def _unsubscribe() -> None:
+            try:
+                self._approver_clients.remove(client)
+            except ValueError:
+                pass
+
+        return _unsubscribe
+
+    def has_approver_clients(self) -> bool:
+        """True if at least one approver client is currently attached."""
+        return bool(self._approver_clients)
+
+    def approver_clients(self) -> list[ApproverClient]:
+        """Snapshot copy of attached clients.
+
+        Returns a copy so iteration is stable against concurrent
+        attach / detach (a client can disconnect mid-race).
+        """
+        return list(self._approver_clients)
 
     def cancel_current_turn(self) -> None:
         """Cancel the current turn and record an :class:`InterruptEvent`.

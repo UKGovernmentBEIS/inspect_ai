@@ -415,3 +415,100 @@ async def test_repeated_cancel_keeps_pending_and_re_fires_interrupted() -> None:
         acp.cancel_current_turn()
         assert acp.interrupt_pending is True
         assert len(fires) == 2
+
+
+# ---------------------------------------------------------------------------
+# Phase 14: approver-client registry on _LiveAcpSession
+#
+# Tracks ACP clients that can handle ``session/request_permission``.
+# The configured ``human_approver`` checks this registry at prompt
+# time and routes through ACP when at least one is attached, falling
+# back to the in-proc panel / console flow when none are.
+# ---------------------------------------------------------------------------
+
+
+class _StubApproverClient:
+    """Minimal ApproverClient — just needed for registry assertions."""
+
+    async def request_permission(self, request):
+        raise NotImplementedError  # not exercised in registry tests
+
+
+async def test_approver_clients_starts_empty() -> None:
+    async with acp_session() as acp:
+        assert acp.has_approver_clients() is False
+        assert acp.approver_clients() == []
+
+
+async def test_attach_approver_client_flips_predicate_and_unsubscribe_reverts() -> None:
+    """One attach → True; calling the returned unsubscribe → False."""
+    async with acp_session() as acp:
+        client = _StubApproverClient()
+        unsub = acp.attach_approver_client(client)
+        assert acp.has_approver_clients() is True
+        assert acp.approver_clients() == [client]
+        unsub()
+        assert acp.has_approver_clients() is False
+        assert acp.approver_clients() == []
+
+
+async def test_attach_multiple_clients_independent_unsubscribe() -> None:
+    """N clients attach independently; per-client unsubscribe removes only its entry."""
+    async with acp_session() as acp:
+        client_a = _StubApproverClient()
+        client_b = _StubApproverClient()
+        unsub_a = acp.attach_approver_client(client_a)
+        unsub_b = acp.attach_approver_client(client_b)
+        assert acp.approver_clients() == [client_a, client_b]
+        unsub_a()
+        assert acp.approver_clients() == [client_b]
+        unsub_b()
+        assert acp.approver_clients() == []
+
+
+async def test_approver_clients_returns_snapshot_copy() -> None:
+    """``approver_clients()`` returns a copy — mutating it doesn't affect the registry.
+
+    Pinned because the race orchestrator iterates the returned list
+    concurrently with possible attach/detach. A live reference
+    would race.
+    """
+    async with acp_session() as acp:
+        client = _StubApproverClient()
+        acp.attach_approver_client(client)
+        snapshot = acp.approver_clients()
+        snapshot.clear()
+        assert acp.approver_clients() == [client]  # registry unchanged
+
+
+async def test_session_exit_clears_approver_clients() -> None:
+    """``__aexit__`` drops registrations so late callbacks can't fire into a closed connection."""
+    fake_session = None
+    async with acp_session() as acp:
+        acp.attach_approver_client(_StubApproverClient())
+        assert acp.has_approver_clients() is True
+        fake_session = acp
+    # Outside the context manager, the session is closed.
+    assert fake_session.has_approver_clients() is False
+    assert fake_session.approver_clients() == []
+
+
+async def test_attach_unsubscribe_is_idempotent() -> None:
+    """Double-unsubscribe is safe (no exception) — supports cleanup races."""
+    async with acp_session() as acp:
+        unsub = acp.attach_approver_client(_StubApproverClient())
+        unsub()
+        unsub()  # should not raise
+
+
+async def test_noop_session_approver_client_is_no_op() -> None:
+    """No-op session: predicate False, attach returns no-op unsubscribe, list empty."""
+    from inspect_ai.agent._acp._session import _NoOpAcpSession
+
+    noop = _NoOpAcpSession()
+    assert noop.has_approver_clients() is False
+    assert noop.approver_clients() == []
+    unsub = noop.attach_approver_client(_StubApproverClient())
+    # Still False — the no-op session doesn't actually register.
+    assert noop.has_approver_clients() is False
+    unsub()  # no-op, no raise
