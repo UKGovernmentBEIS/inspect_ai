@@ -50,11 +50,32 @@ class SamplesView(Widget):
         width: 1fr;
         height: 1fr;
         padding: 0 1 0 1;
+        layout: horizontal;
+    }
+    SamplesView > SamplesList {
+        width: 32;
+        margin-right: 1;
+    }
+    SamplesView > #sample-detail {
+        width: 1fr;
+        height: 1fr;
         layout: grid;
-        grid-size: 2 3;
+        grid-size: 1 3;
         grid-rows: auto 1fr 4;
-        grid-columns: 32 1fr;
         grid-gutter: 1;
+    }
+    /* In prompt mode the toolbar docks to the bottom of the right
+       column (``#sample-detail``), removing it from the grid flow.
+       The TranscriptView keeps its full grid allocation; the docked
+       toolbar overlays the bottom rows of the transcript. Because
+       the dock is scoped to ``#sample-detail`` (not SamplesView),
+       it doesn't extend over the samples list on the left. When
+       prompt mode exits, the toolbar snaps back into its grid cell. */
+    SamplesView.prompt-mode #sample-detail SampleToolbar {
+        dock: bottom;
+        height: auto;
+        min-height: 4;
+        max-height: 12;
     }
     """
 
@@ -65,9 +86,10 @@ class SamplesView(Widget):
 
     def compose(self) -> ComposeResult:
         yield SamplesList()
-        yield SampleInfo()
-        yield TranscriptView()
-        yield SampleToolbar()
+        with Vertical(id="sample-detail"):
+            yield SampleInfo()
+            yield TranscriptView()
+            yield SampleToolbar()
 
     def on_mount(self) -> None:
         self.watch(
@@ -115,10 +137,9 @@ class SamplesView(Widget):
 class SamplesList(OptionList):
     DEFAULT_CSS = """
     SamplesList {
-        height: 100%;
+        height: 1fr;
         scrollbar-size-vertical: 1;
-        margin-bottom: 1;
-        row-span: 3;
+        margin-bottom: 5;
         background: transparent;
     }
     SamplesList:focus > .option-list--option-highlighted {
@@ -595,6 +616,9 @@ class SampleToolbar(Horizontal):
     INTERJECT_PLACEHOLDER = "Type a message for the model (e.g. 'please continue')"
 
     DEFAULT_CSS = f"""
+    SampleToolbar {{
+        align-vertical: bottom;
+    }}
     SampleToolbar #{STATUS_GROUP} {{
         width: 22;
     }}
@@ -696,10 +720,12 @@ class SampleToolbar(Horizontal):
         right after firing ``acp.cancel_current_turn()``. Hides the
         status indicator and cancel buttons; reveals the TextArea +
         Send button and focuses the TextArea. Adds the ``prompt-mode``
-        class on the parent :class:`SamplesView` so its grid row 3
-        switches from fixed ``4`` to ``auto`` — combined with
-        ``min-height: 4`` and ``align-vertical: bottom`` on the toolbar,
-        this lets the TextArea grow upward as the user types.
+        class on the parent :class:`SamplesView` which docks the
+        toolbar to the bottom — the toolbar pops out of the grid flow
+        so the transcript keeps its full height, and the docked
+        toolbar overlays the bottom rows of the transcript. With
+        ``align-vertical: bottom`` and ``height: auto`` the TextArea
+        grows *upward* from the panel bottom as the user types.
         """
         if sample is not self.sample:
             return
@@ -716,12 +742,15 @@ class SampleToolbar(Horizontal):
         interject.display = True
         interject.text = ""
         interject.focus()
+        self._set_prompt_mode_class(True)
 
     def _exit_prompt_mode(self) -> None:
         """Revert from prompt mode back to status mode.
 
         Hides the Input + Send button. ``sync_sample`` will re-show the
         status group / cancel buttons on the next refresh cycle.
+        Removes the ``prompt-mode`` class so the toolbar grid row
+        snaps back to its idle 4-cell height.
         """
         self._prompt_mode = False
         self.query_one("#" + self.INTERJECT_INPUT).display = False
@@ -729,6 +758,23 @@ class SampleToolbar(Horizontal):
         self.query_one("#" + self.STATUS_GROUP).display = True
         # Restore the flex spacer that pushes the cancel buttons to the right.
         self.query_one("#" + self.TOOLBAR_SPACER).display = True
+        self._set_prompt_mode_class(False)
+
+    def _set_prompt_mode_class(self, on: bool) -> None:
+        """Add/remove ``prompt-mode`` class on the parent SamplesView.
+
+        Drives the grid-rows switch (4 ↔ 10 cells) that gives the
+        toolbar more vertical room when actively accepting interject
+        input.
+        """
+        try:
+            samples_view = self.app.query_one(SamplesView)
+        except NoMatches:
+            return
+        if on:
+            samples_view.add_class("prompt-mode")
+        else:
+            samples_view.remove_class("prompt-mode")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == self.INTERJECT_SEND:
