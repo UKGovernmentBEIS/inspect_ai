@@ -201,8 +201,10 @@ class EvalConfig(BaseModel):
 
     `True` enables a default AF_UNIX socket at
     `<inspect_data_dir>/acp/<eval_id>.sock`; an integer binds a TCP
-    loopback port; a string is taken as a custom AF_UNIX socket path;
-    `None` (default) does not start an ACP server.
+    loopback port (127.0.0.1:<int>); a string of the form `host:port`
+    (e.g. `0.0.0.0:4444`) binds TCP on a specific interface; any other
+    string is taken as a custom AF_UNIX socket path; `None` (default)
+    does not start an ACP server.
     """
 
     @property

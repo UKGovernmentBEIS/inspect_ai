@@ -55,6 +55,7 @@ class _AcpServer:
         self._transport = transport
         self._server: asyncio.base_events.Server | None = None
         self._socket_path: Path | None = None
+        self._host: str | None = None
         self._port: int | None = None
         self._discovery_path: Path | None = None
         # Live connections; each entry has its own background receive task.
@@ -74,6 +75,16 @@ class _AcpServer:
         return self._port
 
     @property
+    def host(self) -> str | None:
+        """The bound TCP host, or None if bound to AF_UNIX.
+
+        Defaults to ``127.0.0.1`` when only a port is supplied; user-
+        specified via ``host:port`` (e.g. ``0.0.0.0:4444``) to bind on
+        a non-loopback interface.
+        """
+        return self._host
+
+    @property
     def discovery_path(self) -> Path | None:
         """Path to this server's discovery JSON file, if started."""
         return self._discovery_path
@@ -89,7 +100,12 @@ class _AcpServer:
         elif isinstance(self._transport, int) and not isinstance(self._transport, bool):
             await self._bind_tcp(self._transport)
         elif isinstance(self._transport, str):
-            await self._bind_unix(Path(self._transport))
+            host_port = _parse_host_port(self._transport)
+            if host_port is not None:
+                host, port = host_port
+                await self._bind_tcp(port, host=host)
+            else:
+                await self._bind_unix(Path(self._transport))
         else:
             # ``transport`` was falsy — the caller should have skipped us
             # via the asynccontextmanager guard. Defensive check.
@@ -105,6 +121,7 @@ class _AcpServer:
                     "socket_path": (
                         str(self._socket_path) if self._socket_path else None
                     ),
+                    "host": self._host,
                     "port": self._port,
                     "started_at": time.time(),
                 }
@@ -144,10 +161,10 @@ class _AcpServer:
         )
         self._socket_path = path
 
-    async def _bind_tcp(self, port: int) -> None:
+    async def _bind_tcp(self, port: int, host: str = "127.0.0.1") -> None:
         self._server = await asyncio.start_server(
             self._on_connection,
-            host="127.0.0.1",
+            host=host,
             port=port,
         )
         # Resolve the actual bound port (in case the caller passed 0 for
@@ -157,6 +174,7 @@ class _AcpServer:
             self._port = sockets[0].getsockname()[1]
         else:
             self._port = port
+        self._host = host
 
     async def stop(self) -> None:
         """Stop accepting, close all connections, remove socket + discovery file."""
@@ -320,6 +338,43 @@ def _pid_alive(pid: int) -> bool:
         return True
     except (ProcessLookupError, OSError):
         return False
+
+
+def _parse_host_port(value: str) -> tuple[str, int] | None:
+    """Parse a ``host:port`` or ``[ipv6]:port`` string.
+
+    Returns ``(host, port)`` if ``value`` is a well-formed network
+    address, else ``None`` (treat the value as a UNIX socket path).
+
+    A bare integer is intentionally NOT parsed here — the caller
+    handles ``int`` transports separately for the loopback-port shape.
+    """
+    if not value:
+        return None
+    # IPv6 bracket form: [::1]:4444
+    if value.startswith("["):
+        end = value.find("]:")
+        if end == -1:
+            return None
+        host = value[1:end]
+        port_str = value[end + 2 :]
+        try:
+            return host, int(port_str)
+        except ValueError:
+            return None
+    # Path-like values never have ``host:port`` semantics — a UNIX socket
+    # at ``/tmp/foo`` should not be misread as host "" port "foo".
+    if "/" in value or "\\" in value:
+        return None
+    if ":" not in value:
+        return None
+    host, _, port_str = value.rpartition(":")
+    if not host or not port_str:
+        return None
+    try:
+        return host, int(port_str)
+    except ValueError:
+        return None
 
 
 def _has_unix_sockets() -> bool:

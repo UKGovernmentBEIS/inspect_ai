@@ -368,9 +368,11 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         callback=int_bool_or_str_flag_callback(True, None),
         help=(
             "Expose this eval via an Agent Client Protocol server for various "
-            "clients (e.g. the `inspect acp` command). Bare flag "
-            "enables a default AF_UNIX socket; pass an integer to bind a TCP "
-            "loopback port; pass a path for a custom UNIX socket."
+            "clients (e.g. the `inspect acp` command). Bare flag enables a "
+            "default AF_UNIX socket; pass an integer to bind a TCP loopback "
+            "port (e.g. `--acp-server=4444`); pass `host:port` to bind on a "
+            "specific interface (e.g. `--acp-server=0.0.0.0:4444`); pass a "
+            "filesystem path for a custom UNIX socket."
         ),
         envvar="INSPECT_EVAL_ACP_SERVER",
     )
@@ -2074,9 +2076,10 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=(
         "Override the original eval's Agent Client Protocol server. "
         "Bare flag enables a default AF_UNIX socket; pass an integer "
-        "to bind a TCP loopback port; pass a path for a custom UNIX socket; "
-        "pass `false` to disable. Omit to replay whatever transport "
-        "the original log used."
+        "to bind a TCP loopback port; pass `host:port` to bind on a "
+        "specific interface (e.g. `0.0.0.0:4444`); pass a filesystem "
+        "path for a custom UNIX socket; pass `false` to disable. Omit "
+        "to replay whatever transport the original log used."
     ),
     envvar="INSPECT_EVAL_ACP_SERVER",
 )

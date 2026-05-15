@@ -19,6 +19,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp._server import (
     _cleanup_stale_discovery_files,
+    _parse_host_port,
     _pid_alive,
     acp_server,
 )
@@ -123,6 +124,7 @@ async def test_unix_default_socket_path(short_data_dir: Path) -> None:
         assert data["pid"] == os.getpid()
         assert data["socket_path"] == str(server.socket_path)
         assert data["port"] is None
+        assert data["host"] is None
     # After exit: both removed.
     assert not expected_socket.exists()
     assert not (short_data_dir / "acp" / f"{os.getpid()}.json").exists()
@@ -178,9 +180,11 @@ async def test_tcp_loopback_bind(short_data_dir: Path) -> None:
         assert server is not None
         assert server.socket_path is None
         assert server.port == port
+        assert server.host == "127.0.0.1"
         assert server.discovery_path is not None
         data = _read_discovery(server.discovery_path)
         assert data["port"] == port
+        assert data["host"] == "127.0.0.1"
         assert data["socket_path"] is None
         # Verify a real connect succeeds.
         reader, writer = await asyncio.open_connection("127.0.0.1", port)
@@ -189,6 +193,79 @@ async def test_tcp_loopback_bind(short_data_dir: Path) -> None:
             await writer.wait_closed()
         except Exception:
             pass
+
+
+@skip_if_trio
+async def test_tcp_host_port_bind(short_data_dir: Path) -> None:
+    """``transport='host:port'`` binds TCP on the supplied interface.
+
+    Uses ``0.0.0.0:<port>`` to verify the host parameter is honored;
+    the actual interface bound is reflected in ``server.host`` and the
+    discovery JSON, so clients enumerating discovery files know which
+    address to dial.
+    """
+    port = _free_port()
+    target = f"0.0.0.0:{port}"
+    async with acp_server(eval_id="evt-host-port", transport=target) as server:
+        assert server is not None
+        assert server.socket_path is None
+        assert server.port == port
+        assert server.host == "0.0.0.0"
+        data = _read_discovery(server.discovery_path)  # type: ignore[arg-type]
+        assert data["host"] == "0.0.0.0"
+        assert data["port"] == port
+        # Bound on 0.0.0.0 so localhost connect succeeds.
+        reader, writer = await asyncio.open_connection("127.0.0.1", port)
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except Exception:
+            pass
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("0.0.0.0:4444", ("0.0.0.0", 4444)),
+        ("127.0.0.1:8000", ("127.0.0.1", 8000)),
+        ("localhost:8080", ("localhost", 8080)),
+        ("[::1]:4444", ("::1", 4444)),
+        ("[2001:db8::1]:9999", ("2001:db8::1", 9999)),
+    ],
+)
+def test_parse_host_port_valid(value: str, expected: tuple[str, int]) -> None:
+    """Valid ``host:port`` shapes parse cleanly, including IPv6 brackets."""
+    assert _parse_host_port(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        # Plain socket paths.
+        "/tmp/foo.sock",
+        "./relative/path",
+        "C:\\windows\\path",
+        # Path-like with colon: still a path, not a network address.
+        "/var/run/app:foo.sock",
+        # Malformed network addresses.
+        "no_colon_at_all",
+        ":4444",  # missing host
+        "host:",  # missing port
+        "host:not_a_number",
+        "[unclosed_bracket",
+        "[empty]:not_a_port",
+        # Empty / falsy.
+        "",
+    ],
+)
+def test_parse_host_port_not_a_network_address(value: str) -> None:
+    """Anything that doesn't unambiguously look like host:port returns None.
+
+    The caller then falls back to treating the value as a UNIX socket
+    path. Ambiguous inputs intentionally err on the side of UNIX so a
+    user-supplied path with a colon isn't silently misrouted to TCP.
+    """
+    assert _parse_host_port(value) is None
 
 
 # ---------------------------------------------------------------------------
