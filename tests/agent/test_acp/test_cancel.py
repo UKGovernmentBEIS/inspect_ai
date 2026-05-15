@@ -98,7 +98,7 @@ async def test_sample_level_cancel_re_propagates() -> None:
 async def test_submit_then_before_turn_returns_message() -> None:
     async with acp_session() as acp:
         acp.submit_user_message(ChatMessageUser(content="hi"))
-        messages = await acp.before_turn(_state_with_user())
+        messages = await acp.before_turn(_state_with_user().messages)
         assert len(messages) == 1
         assert messages[0].content == "hi"
 
@@ -110,7 +110,7 @@ async def test_before_turn_blocks_on_first_call_with_empty_state() -> None:
         async with anyio.create_task_group() as tg:
 
             async def agent() -> None:
-                messages = await acp.before_turn(_empty_state())
+                messages = await acp.before_turn(_empty_state().messages)
                 result.append(messages)
 
             async def producer() -> None:
@@ -128,10 +128,10 @@ async def test_before_turn_blocks_on_first_call_with_empty_state() -> None:
 async def test_before_turn_does_not_block_on_second_call() -> None:
     async with acp_session() as acp:
         # First call with non-empty state — doesn't block, sets the flag.
-        await acp.before_turn(_state_with_user())
+        await acp.before_turn(_state_with_user().messages)
         # Second call with empty state — must not block.
         with anyio.move_on_after(0.5) as scope:
-            messages = await acp.before_turn(_empty_state())
+            messages = await acp.before_turn(_empty_state().messages)
         assert not scope.cancelled_caught, "before_turn blocked when it shouldn't"
         assert messages == []
 
@@ -390,7 +390,7 @@ async def test_submit_user_message_normalizes_source_to_operator() -> None:
         # the message is being injected by an ACP client.
         acp.submit_user_message(ChatMessageUser(content="was input", source="input"))
 
-        messages = await acp.before_turn(_state_with_user())
+        messages = await acp.before_turn(_state_with_user().messages)
         assert [m.source for m in messages] == ["operator", "operator", "operator"]
         assert [m.content for m in messages] == ["no source", "explicit", "was input"]
 
@@ -433,7 +433,7 @@ async def test_cancel_between_turns_preserves_queued_message() -> None:
             acp.submit_user_message(ChatMessageUser(content="next"))
             # First-call flag already tripped by the cancel? No — cancel doesn't
             # call before_turn. State has user message so won't block anyway.
-            messages = await acp.before_turn(_state_with_user())
+            messages = await acp.before_turn(_state_with_user().messages)
             assert len(messages) == 1
             assert messages[0].content == "next"
     finally:
@@ -515,7 +515,7 @@ async def test_noop_session_variants_are_safe() -> None:
         with noop.turn_scope():
             pass
         # before_turn: returns empty list.
-        assert await noop.before_turn(_empty_state()) == []
+        assert await noop.before_turn(_empty_state().messages) == []
         # after_cancel: returns empty list, does not block.
         assert await noop.after_cancel() == []
         # submit_user_message: no-op, no error.
@@ -560,7 +560,7 @@ async def test_race_cancel_arrives_as_turn_completes() -> None:
                 tg.start_soon(producer)
 
             # The submitted message should survive for the next before_turn.
-            messages = await acp.before_turn(_state_with_user())
+            messages = await acp.before_turn(_state_with_user().messages)
             assert len(messages) == 1
             assert messages[0].content == "queued"
     finally:

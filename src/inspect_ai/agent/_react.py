@@ -218,7 +218,7 @@ def react(
             # or if a message or token limit is hit
             while True:
                 # drain any operator-injected messages from an ACP client
-                state.messages.extend(await acp.before_turn(state))
+                state.messages.extend(await acp.before_turn(state.messages))
 
                 # checkpoint at turn boundary (no-op when policy says so)
                 await cp.tick()
@@ -410,7 +410,7 @@ def react_no_submit(
             # main loop
             while True:
                 # drain any operator-injected messages from an ACP client
-                state.messages.extend(await acp.before_turn(state))
+                state.messages.extend(await acp.before_turn(state.messages))
 
                 # checkpoint at turn boundary (no-op when policy says so)
                 await cp.tick()

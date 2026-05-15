@@ -28,6 +28,7 @@ from typing import (
     Iterator,
     Literal,
     Protocol,
+    Sequence,
     runtime_checkable,
 )
 
@@ -49,7 +50,6 @@ from inspect_ai.tool._tool_call import ToolCallError
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp._router import _AcpEventRouter
-    from inspect_ai.agent._agent import AgentState
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
@@ -159,13 +159,19 @@ class AcpSession(Protocol):
         """
         ...
 
-    async def before_turn(self, state: "AgentState") -> list[ChatMessageUser]:
+    async def before_turn(
+        self, messages: Sequence[ChatMessage]
+    ) -> list[ChatMessageUser]:
         """Drain queued operator messages and return them.
 
-        On the very first call to this method, if ``state.messages``
-        contains no user message yet, blocks until at least one is
-        submitted. On subsequent calls, drains non-blockingly and
-        returns immediately (possibly with an empty list).
+        On the very first call to this method, if ``messages`` contains
+        no user message yet, blocks until at least one is submitted. On
+        subsequent calls, drains non-blockingly and returns immediately
+        (possibly with an empty list).
+
+        Takes a plain message sequence (not an ``AgentState``) so
+        custom solvers can pass ``state.messages`` directly without
+        needing the agent framework.
         """
         ...
 
@@ -290,7 +296,9 @@ class _NoOpAcpSession:
         """No-op turn scope — yields once and exits without cancellation handling."""
         yield
 
-    async def before_turn(self, state: "AgentState") -> list[ChatMessageUser]:
+    async def before_turn(
+        self, messages: Sequence[ChatMessage]
+    ) -> list[ChatMessageUser]:
         """No-op — never blocks, returns an empty list."""
         return []
 
@@ -504,17 +512,19 @@ class _LiveAcpSession:
             self._pending_turn_cancel = False
             raise TurnCancelled()
 
-    async def before_turn(self, state: "AgentState") -> list[ChatMessageUser]:
+    async def before_turn(
+        self, messages: Sequence[ChatMessage]
+    ) -> list[ChatMessageUser]:
         """Drain queued operator messages and return them.
 
-        On the first call, if ``state.messages`` has no user content
-        yet, blocks for at least one queued message — covers the
-        "no dataset prompt, operator types the first message" case.
-        Subsequent calls drain immediately.
+        On the first call, if ``messages`` has no user content yet,
+        blocks for at least one queued message — covers the "no dataset
+        prompt, operator types the first message" case. Subsequent
+        calls drain immediately.
         """
         if not self._first_before_turn_called:
             self._first_before_turn_called = True
-            if not any(isinstance(m, ChatMessageUser) for m in state.messages):
+            if not any(isinstance(m, ChatMessageUser) for m in messages):
                 while not self._user_messages:
                     evt = self._user_message_event
                     await evt.wait()
