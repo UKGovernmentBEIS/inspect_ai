@@ -38,8 +38,7 @@ from inspect_ai.util._checkpoint import (
 )
 from inspect_ai.util._checkpoint.checkpointer_impl import (
     _Checkpointer,
-    _CheckpointerSetup,
-    _LiveState,
+    _EnteredCheckpointer,
 )
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._checkpoint.layout import CheckpointTriggerKind
@@ -116,7 +115,7 @@ def dirs(tmp_path: Path) -> Iterator[_Dirs]:
         yield _Dirs(checkpoints=str(checkpoints), working=str(working))
 
 
-class _CountingCheckpointer(_Checkpointer):
+class _CountingCheckpointer(_EnteredCheckpointer):
     """Counts fires on top of the real fire path; stubs out restic."""
 
     fire_count: int = 0
@@ -132,13 +131,11 @@ class _CountingCheckpointer(_Checkpointer):
 def _counting(config: CheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
     return _CountingCheckpointer(
         config=config,
-        state=_LiveState(
-            sample_checkpoints_dir=dirs.checkpoints,
-            sample_working_dir=dirs.working,
-            host_restic=Path("/fake/restic"),
-            host_repo=f"{dirs.checkpoints}/host",
-            restic_password="test-pwd",
-        ),
+        sample_checkpoints_dir=dirs.checkpoints,
+        sample_working_dir=dirs.working,
+        host_restic=Path("/fake/restic"),
+        host_repo=f"{dirs.checkpoints}/host",
+        restic_password="test-pwd",
         resume_checkpoint=None,
     )
 
@@ -404,10 +401,10 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
 
     work = tmp_path / "work"
     work.mkdir()
-    cp = _Checkpointer(
+    cp = _EnteredCheckpointer(
         config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        state=_fake_live_state(),
         resume_checkpoint=None,
+        **_fake_live_kwargs(),  # type: ignore[arg-type]
     )
     await cp._write_host_context(str(work), events, {}, Store())
 
@@ -429,25 +426,25 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
     assert [len(e.input) for e in model_events] == [2, 4, 5]
 
 
-def _fake_live_state(tmp_path: Path | None = None) -> _LiveState:
+def _fake_live_kwargs(tmp_path: Path | None = None) -> dict[str, object]:
     base = tmp_path if tmp_path is not None else Path("/tmp/cp-test")
-    return _LiveState(
-        sample_checkpoints_dir=str(base / "ckpts"),
-        sample_working_dir=str(base / "work"),
-        host_restic=Path("/fake/restic"),
-        host_repo=str(base / "ckpts/host"),
-        restic_password="test-pwd",
-    )
+    return {
+        "sample_checkpoints_dir": str(base / "ckpts"),
+        "sample_working_dir": str(base / "work"),
+        "host_restic": Path("/fake/restic"),
+        "host_repo": str(base / "ckpts/host"),
+        "restic_password": "test-pwd",
+    }
 
 
-def _make_cp(**kwargs: object) -> _Checkpointer:
+def _make_cp(**kwargs: object) -> _EnteredCheckpointer:
     defaults: dict[str, object] = {
         "config": CheckpointConfig(trigger=TurnInterval(every=1)),
-        "state": _fake_live_state(),
         "resume_checkpoint": None,
+        **_fake_live_kwargs(),
     }
     defaults.update(kwargs)
-    return _Checkpointer(**defaults)  # type: ignore[arg-type]
+    return _EnteredCheckpointer(**defaults)  # type: ignore[arg-type]
 
 
 def test_track_returns_initial_value(tmp_path: Path) -> None:
@@ -543,7 +540,7 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
     """All I/O setup (incl. sandbox loop) runs in _CheckpointerSetup.__aenter__."""
     from unittest.mock import AsyncMock, MagicMock
 
-    setup = _CheckpointerSetup(
+    setup = _Checkpointer(
         config=CheckpointConfig(
             trigger=TurnInterval(every=1),
             sandbox_paths={"web": ["/var/www"]},
@@ -605,7 +602,7 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             m.assert_not_called()
 
         async with setup as cp:
-            assert isinstance(cp, _Checkpointer)
+            assert isinstance(cp, _EnteredCheckpointer)
             # __aenter__ ran every I/O step exactly once
             ensure_ckpt.assert_awaited_once()
             ensure_work.assert_awaited_once()
@@ -629,10 +626,10 @@ async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
 
     work = tmp_path / "work"
     work.mkdir()
-    cp = _Checkpointer(
+    cp = _EnteredCheckpointer(
         config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        state=_fake_live_state(),
         resume_checkpoint=None,
+        **_fake_live_kwargs(),  # type: ignore[arg-type]
     )
     await cp._write_host_context(str(work), [], attachments, Store())
 
@@ -665,10 +662,10 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
 
     work = tmp_path / "work"
     work.mkdir()
-    cp = _Checkpointer(
+    cp = _EnteredCheckpointer(
         config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        state=_fake_live_state(),
         resume_checkpoint=None,
+        **_fake_live_kwargs(),  # type: ignore[arg-type]
     )
 
     await cp._write_host_context(str(work), fire1_events, {}, Store())

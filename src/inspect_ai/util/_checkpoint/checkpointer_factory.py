@@ -3,7 +3,7 @@ from contextlib import AbstractAsyncContextManager
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
-from inspect_ai.util._checkpoint.checkpointer_impl import _CheckpointerSetup, logger
+from inspect_ai.util._checkpoint.checkpointer_impl import _Checkpointer, logger
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._checkpoint.config import CheckpointConfig
 
@@ -43,7 +43,7 @@ def create_checkpointer(
     if config is None:
         return _NoopCheckpointer()
 
-    return _CheckpointerSetup(
+    return _Checkpointer(
         config=config,
         log_location=log_location,
         sample_id=sample_id,

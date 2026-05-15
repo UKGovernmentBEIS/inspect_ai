@@ -15,7 +15,6 @@ import json
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass
 from functools import partial
 from logging import getLogger
 from pathlib import Path
@@ -63,18 +62,7 @@ logger = getLogger(__name__)
 T = TypeVar("T")
 
 
-@dataclass(frozen=True)
-class _LiveState:
-    """All on-disk + restic state needed by a live :class:`_Checkpointer`."""
-
-    sample_checkpoints_dir: str
-    sample_working_dir: str
-    host_restic: Path
-    host_repo: str
-    restic_password: str
-
-
-class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
+class _Checkpointer(AbstractAsyncContextManager[Checkpointer]):
     """Pre-entry phase — stashes inputs; runs the I/O on ``__aenter__``.
 
     Lives on :class:`ActiveSample`. Its ``__aenter__`` performs the
@@ -100,7 +88,7 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         self._epoch = epoch
         self._eval_id = eval_id
         self._resume_checkpoint = resume_checkpoint
-        self._cached: _Checkpointer | None = None
+        self._cached: _EnteredCheckpointer | None = None
 
     async def __aenter__(self) -> Checkpointer:
         if self._cached is not None:
@@ -123,15 +111,13 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
             env = sandbox(sandbox_name)
             await inject_restic(env)
             await init_sandbox_repo(env, manifest.restic_password)
-        self._cached = _Checkpointer(
+        self._cached = _EnteredCheckpointer(
             config=self._config,
-            state=_LiveState(
-                sample_checkpoints_dir=sample_ckpts_dir,
-                sample_working_dir=sample_work_dir,
-                host_restic=host_restic,
-                host_repo=host_repo,
-                restic_password=manifest.restic_password,
-            ),
+            sample_checkpoints_dir=sample_ckpts_dir,
+            sample_working_dir=sample_work_dir,
+            host_restic=host_restic,
+            host_repo=host_repo,
+            restic_password=manifest.restic_password,
             resume_checkpoint=self._resume_checkpoint,
         )
         return self._cached
@@ -140,7 +126,7 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         return None
 
 
-class _Checkpointer:
+class _EnteredCheckpointer:
     """Fully-formed agent-facing checkpointer.
 
     Constructed by :class:`_CheckpointerSetup.__aenter__` once the
@@ -153,11 +139,19 @@ class _Checkpointer:
         self,
         *,
         config: CheckpointConfig,
-        state: _LiveState,
+        sample_checkpoints_dir: str,
+        sample_working_dir: str,
+        host_restic: Path,
+        host_repo: str,
+        restic_password: str,
         resume_checkpoint: ResumeCheckpoint | None,
     ) -> None:
         self._config = config
-        self._state = state
+        self._sample_checkpoints_dir = sample_checkpoints_dir
+        self._sample_working_dir = sample_working_dir
+        self._host_restic = host_restic
+        self._host_repo = host_repo
+        self._restic_password = restic_password
         self._resume_checkpoint = resume_checkpoint
         # Sync per-session state — turn counters, callbacks, pools.
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
@@ -230,7 +224,6 @@ class _Checkpointer:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
         # the per-checkpoint sidecar.
-        live = self._state  # single presence check; narrows for the rest
         cycle_start = time.monotonic()
 
         state = sample_state()
@@ -238,7 +231,7 @@ class _Checkpointer:
             raise RuntimeError("Checkpointer must find sample state")
         ts = transcript()
         await self._write_host_context(
-            live.sample_working_dir,
+            self._sample_working_dir,
             ts.events,
             ts.attachments,
             state.store,
@@ -271,7 +264,7 @@ class _Checkpointer:
         duration_ms = int((time.monotonic() - cycle_start) * 1000)
 
         await write_sidecar(
-            sample_checkpoints_dir=live.sample_checkpoints_dir,
+            sample_checkpoints_dir=self._sample_checkpoints_dir,
             checkpoint_id=self._next_checkpoint_id,
             trigger=trigger,
             turn=self._turn,
@@ -346,29 +339,27 @@ class _Checkpointer:
             await (sample_dir / "agent_state.json").write_text(_json_dump(agent_state))
 
     async def _backup_host(self) -> ResticBackupSummary:
-        live = self._state
         return await run_host_backup(
-            live.host_restic,
-            live.host_repo,
-            live.restic_password,
-            live.sample_working_dir,
+            self._host_restic,
+            self._host_repo,
+            self._restic_password,
+            self._sample_working_dir,
             self._next_checkpoint_id,
         )
 
     async def _backup_and_egress_sandbox(
         self, name: str, paths: list[str]
     ) -> ResticBackupSummary:
-        live = self._state
         env = sandbox(name)
         summary = await run_sandbox_backup(
-            env, live.restic_password, paths, self._next_checkpoint_id
+            env, self._restic_password, paths, self._next_checkpoint_id
         )
-        dest_repo = f"{live.sample_checkpoints_dir}/sandboxes/{name}"
+        dest_repo = f"{self._sample_checkpoints_dir}/sandboxes/{name}"
         await egress_sandbox(
             env,
             dest_repo=dest_repo,
-            password=live.restic_password,
-            host_restic=live.host_restic,
+            password=self._restic_password,
+            host_restic=self._host_restic,
             checkpoint_id=self._next_checkpoint_id,
             snapshot_id=summary.snapshot_id,
         )
