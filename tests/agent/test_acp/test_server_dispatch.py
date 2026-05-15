@@ -319,6 +319,138 @@ async def test_session_new_with_no_targets_pushes_empty_picker(
 
 
 # ---------------------------------------------------------------------------
+# inspect/new_session — direct bind via task/sample_id/epoch tuple,
+# skipping the picker. Inspect-aware clients (Phase 15 TUI, editors
+# that already know which sample to attach to) use this to avoid the
+# "browse and pick" round-trip when they have the identifier from a
+# prior session.
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_new_session_direct_target_auto_binds(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """target=task/sample/epoch matches an active sample → immediate bind."""
+    stub_targets(
+        [
+            _make_sample(task="t1", sample_id="s1", epoch=0, session_id="uuid-a"),
+            _make_sample(task="t2", sample_id="s2", epoch=1, session_id="uuid-b"),
+        ]
+    )
+    async with acp_server(eval_id="evt-ins-new", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request(
+                "inspect/new_session",
+                {"cwd": "/tmp", "mcpServers": [], "target": "t2/s2/1"},
+            )
+            assert "result" in resp, resp
+            # Response carries the canonical uuid for the matched target.
+            assert resp["result"]["sessionId"] == "uuid-b"
+            # Binding confirmation notification lands.
+            notif = await client.next_notification()
+            params = notif["params"]
+            assert params["sessionId"] == "uuid-b"
+            assert "Bound to" in params["update"]["content"]["text"]
+            assert "t2" in params["update"]["content"]["text"]
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_new_session_target_with_no_match_errors(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Unknown target → invalid_params with the available list.
+
+    Pinned because the explicit-ask path must NEVER silently fall
+    through to the picker — clients that asked for a specific sample
+    should get a clear miss diagnostic, not a surprise picker
+    notification.
+    """
+    stub_targets(
+        [_make_sample(task="real", sample_id="s1", epoch=0, session_id="uuid-r")]
+    )
+    async with acp_server(eval_id="evt-ins-miss", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request(
+                "inspect/new_session",
+                {"cwd": "/tmp", "mcpServers": [], "target": "ghost/sX/9"},
+            )
+            assert "error" in resp, resp
+            assert resp["error"]["code"] == -32602
+            assert "ghost/sX/9" in str(resp["error"])
+            # Available list is included so the client can render a useful
+            # diagnostic (or rebind to a valid option).
+            data = resp["error"]["data"]
+            assert "available" in data
+            assert "real/s1/0" in data["available"]
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_new_session_malformed_target_errors(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Target without 3 slash-separated parts → invalid_params at parse time.
+
+    Catches the miss before touching the picker target list — even if
+    the parse succeeds-by-coincidence with garbage, the match step
+    would fail; this just produces a more pointed error message.
+    """
+    stub_targets([_make_sample(task="t", sample_id="s", epoch=0, session_id="u")])
+    async with acp_server(eval_id="evt-ins-bad", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            for bad in ("noslashes", "only/one", "epoch/not/integer"):
+                resp = await client.request(
+                    "inspect/new_session",
+                    {"cwd": "/tmp", "mcpServers": [], "target": bad},
+                )
+                assert "error" in resp, (bad, resp)
+                assert resp["error"]["code"] == -32602, bad
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_new_session_target_with_empty_sample_id(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Sample with no explicit id (``sample.id is None``) stringifies to ``""``.
+
+    Spec for such a sample is ``task//epoch`` (two consecutive
+    slashes). Pinned because the parse uses ``rpartition`` and would
+    otherwise reject the empty middle segment.
+    """
+    stub_targets(
+        [_make_sample(task="t", sample_id="", epoch=0, session_id="uuid-empty")]
+    )
+    async with acp_server(eval_id="evt-ins-empty", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request(
+                "inspect/new_session",
+                {"cwd": "/tmp", "mcpServers": [], "target": "t//0"},
+            )
+            assert "result" in resp, resp
+            assert resp["result"]["sessionId"] == "uuid-empty"
+        finally:
+            await client.close()
+
+
+# ---------------------------------------------------------------------------
 # session/load — direct bind on known id; invalid_params on unknown
 # ---------------------------------------------------------------------------
 

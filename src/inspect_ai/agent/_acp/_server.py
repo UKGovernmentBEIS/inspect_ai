@@ -367,6 +367,15 @@ class _AcpServer:
                 kind="request",
             )
         )
+        router.add_route(
+            Route(
+                method="inspect/new_session",
+                func=_wrap_action_handler(
+                    handler.inspect_new_session, _NewSessionParams
+                ),
+                kind="request",
+            )
+        )
         # ``listening=False`` lets us drive the receive loop here and
         # know when the peer disconnects, so we can clean up tracking.
         conn = Connection(
@@ -656,6 +665,57 @@ class _ConnectionHandler:
     # ------------------------------------------------------------------
     # `inspect/*` action methods (non-standard ACP extension)
     # ------------------------------------------------------------------
+
+    async def inspect_new_session(
+        self,
+        cwd: str,  # unused but kept for shape parity with session/new
+        target: str,
+        mcp_servers: Any = None,  # unused — Phase 9 doesn't host MCP servers
+    ) -> NewSessionResponse:
+        """Bind directly to ``target`` without going through the picker.
+
+        ``target`` is a ``task/sample_id/epoch`` slash-delimited
+        string. If it matches an active sample, bind immediately
+        (same auto-bind path used by ``session/new`` when there's
+        exactly one running sample). On miss, raise ``invalid_params``
+        with the list of available targets so the client can show a
+        helpful diagnostic — never silently fall through to the
+        picker, which would mask an explicit-but-stale ask.
+
+        Returns a standard :class:`NewSessionResponse` so the client
+        learns the canonical sessionId (the target's uuid) to use on
+        subsequent requests.
+        """
+        parsed = _parse_target_spec(target)
+        if parsed is None:
+            raise RequestError.invalid_params(
+                {
+                    "reason": (
+                        "target must be a 'task/sample_id/epoch' string "
+                        "(epoch must be an integer)"
+                    ),
+                    "value": target,
+                }
+            )
+        task, sample_id, epoch = parsed
+        targets = list_picker_targets()
+        match = next(
+            (
+                t
+                for t in targets
+                if t.task == task and t.sample_id == sample_id and t.epoch == epoch
+            ),
+            None,
+        )
+        if match is None:
+            raise RequestError.invalid_params(
+                {
+                    "reason": "no active session matches the requested target",
+                    "requested": target,
+                    "available": [f"{t.task}/{t.sample_id}/{t.epoch}" for t in targets],
+                }
+            )
+        return await self._auto_bind(match)
 
     async def cancel_sample(
         self,
@@ -1389,6 +1449,23 @@ class _CancelToolCallParams(BaseModel):
     tool_call_id: str = Field(alias="toolCallId")
 
 
+class _NewSessionParams(BaseModel):
+    """Pydantic param model for ``inspect/new_session``.
+
+    Inspect-aware clients (the Phase 15 TUI, editors that already
+    know which sample to attach to) pass the ``task/sample_id/epoch``
+    triple directly to skip the picker. The standard ACP
+    ``session/new`` pydantic schema (``NewSessionRequest``) doesn't
+    allow extra top-level fields so this lives as a separate
+    inspect-namespace method with its own model.
+    """
+
+    cwd: str
+    mcp_servers: Any = Field(default=None, alias="mcpServers")
+    target: str
+    """``task/sample_id/epoch`` direct-bind spec — slash-delimited."""
+
+
 def _wrap_action_handler(func: Any, model: type[BaseModel]) -> Any:
     """Build a router wrapper that validates params + unpacks kwargs.
 
@@ -1533,6 +1610,38 @@ async def acp_server(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+def _parse_target_spec(spec: str) -> tuple[str, str, int] | None:
+    """Parse a ``task/sample_id/epoch`` direct-target string.
+
+    Returns ``(task, sample_id, epoch)`` on success, ``None`` on
+    malformed input. Splits on the LAST two slashes so a task name
+    containing slashes still parses correctly (sample_id with
+    embedded slashes is unsupported — uncommon in practice; if it
+    matters later, switch to a different delimiter or URL-encode).
+
+    Empty task or empty sample_id is allowed (the latter happens when
+    a sample has no explicit id — see ``list_picker_targets`` which
+    stringifies a missing id to ``""``). Epoch must be an integer.
+    """
+    if not spec:
+        return None
+    # Strip the epoch (rightmost segment).
+    rest, sep, epoch_str = spec.rpartition("/")
+    if not sep:
+        return None
+    try:
+        epoch = int(epoch_str)
+    except ValueError:
+        return None
+    # Strip the sample_id (next-rightmost segment); whatever remains
+    # is the task name.
+    task, sep, sample_id = rest.rpartition("/")
+    if not sep:
+        return None
+    return task, sample_id, epoch
+
 
 # Discovery / socket helpers (``_discovery_dir``, ``_default_socket_path``,
 # ``_pid_alive``, ``_parse_host_port``, ``_has_unix_sockets``,
