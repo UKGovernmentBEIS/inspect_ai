@@ -43,9 +43,9 @@ class ActiveSample:
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
         checkpointer: Checkpointer,
+        eval_id: str,
         eval_set_id: str | None = None,
         run_id: str | None = None,
-        eval_id: str | None = None,
     ) -> None:
         self.id = uuid()
         self.started: float | None = None
@@ -140,12 +140,14 @@ async def active_sample(
     working_limit: int | None,
     fails_on_error: bool,
     transcript: Transcript,
+    eval_id: str,
     checkpoint: CheckpointConfig | None = None,
     resume_checkpoint: ResumeCheckpoint | None = None,
     eval_set_id: str | None = None,
     run_id: str | None = None,
-    eval_id: str | None = None,
 ) -> AsyncGenerator[ActiveSample, None]:
+    if sample.id is None:
+        raise ValueError("active_sample requires sample.id to be set")
     # create the sample
     active = ActiveSample(
         task=task,

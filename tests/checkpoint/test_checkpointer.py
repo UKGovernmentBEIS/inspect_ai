@@ -136,12 +136,15 @@ def _counting(config: CheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
     # Bypass __aenter__: pre-seed the I/O-derived state that the fire
     # path reads. Tests drive cp.tick()/cp.checkpoint() directly without
     # going through the async ctx mgr.
-    cp._sample_checkpoints_dir = dirs.checkpoints
-    cp._sample_working_dir = dirs.working
-    cp._host_restic = Path("/fake/restic")
-    cp._restic_password = "test-pwd"
-    cp._host_repo = f"{dirs.checkpoints}/host"
-    cp._initialized = True
+    from inspect_ai.util._checkpoint.checkpointer_impl import _LiveState
+
+    cp._live = _LiveState(
+        sample_checkpoints_dir=dirs.checkpoints,
+        sample_working_dir=dirs.working,
+        host_restic=Path("/fake/restic"),
+        host_repo=f"{dirs.checkpoints}/host",
+        restic_password="test-pwd",
+    )
     return cp
 
 

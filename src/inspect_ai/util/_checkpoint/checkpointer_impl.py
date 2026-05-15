@@ -15,6 +15,7 @@ import json
 import os
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass
 from functools import partial
 from logging import getLogger
 from pathlib import Path
@@ -64,9 +65,9 @@ def build_impl(
     *,
     config: CheckpointConfig | None,
     log_location: str,
-    sample_id: int | str | None,
+    sample_id: int | str,
     epoch: int,
-    eval_id: str | None,
+    eval_id: str,
     resume_checkpoint: ResumeCheckpoint | None = None,
 ) -> Checkpointer:
     """Build the per-sample checkpointer.
@@ -104,6 +105,23 @@ def build_impl(
     )
 
 
+@dataclass(frozen=True)
+class _LiveState:
+    """State populated by ``_Checkpointer.__aenter__`` (post-I/O).
+
+    Holding these together as a single non-Optional object lets the
+    fire path read them without per-field None checks; the outer
+    ``_Checkpointer._live`` is the only Optional, and a single assert
+    in the ``_state`` property narrows the entire bundle.
+    """
+
+    sample_checkpoints_dir: str
+    sample_working_dir: str
+    host_restic: Path
+    host_repo: str
+    restic_password: str
+
+
 class _Checkpointer:
     """Session that lazily initializes its on-disk + sandbox dependencies.
 
@@ -117,25 +135,21 @@ class _Checkpointer:
         self,
         config: CheckpointConfig,
         log_location: str,
-        sample_id: int | str | None,
+        sample_id: int | str,
         epoch: int,
-        eval_id: str | None,
+        eval_id: str,
         resume_checkpoint: ResumeCheckpoint | None = None,
     ) -> None:
+        # Construction-time inputs — always present.
         self._config = config
         self._log_location = log_location
         self._sample_id = sample_id
         self._epoch = epoch
         self._eval_id = eval_id
         self._resume_checkpoint = resume_checkpoint
-        # I/O-derived state — populated in __aenter__
-        self._sample_checkpoints_dir: str | None = None
-        self._sample_working_dir: str | None = None
-        self._host_restic: Path | None = None
-        self._host_repo: str | None = None
-        self._restic_password: str | None = None
-        self._initialized = False
-        # Sync per-session state — turn counters, callbacks, pools
+        # Entered-state — single Optional that flips at __aenter__.
+        self._live: _LiveState | None = None
+        # Sync per-session state — turn counters, callbacks, pools.
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
         self._turns_since_fire = 0
@@ -155,33 +169,40 @@ class _Checkpointer:
     def is_resuming(self) -> bool:
         return self._resume_checkpoint is not None
 
+    @property
+    def _state(self) -> _LiveState:
+        """Return the live state, asserting the session has been entered."""
+        assert self._live is not None, "Checkpointer not entered"
+        return self._live
+
     async def __aenter__(self) -> "_Checkpointer":
-        if self._initialized:
+        if self._live is not None:
             return self
-        if self._eval_id is None:
-            raise RuntimeError("Checkpointer cannot initialize: eval_id is None.")
-        if self._sample_id is None:
-            raise RuntimeError("Checkpointer cannot initialize: sample id is None.")
 
         eval_ckpts_dir = eval_checkpoints_dir(
             self._log_location, self._config.checkpoints_location
         )
-        self._sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
+        sample_ckpts_dir = await ensure_sample_checkpoints_dir(
             eval_ckpts_dir, self._sample_id, self._epoch, self._eval_id
         )
-        self._sample_working_dir = await ensure_sample_working_dir(
+        sample_work_dir = await ensure_sample_working_dir(
             self._log_location, self._sample_id, self._epoch
         )
         manifest = await read_eval_manifest(eval_ckpts_dir)
-        self._host_restic = await resolve_restic()
-        self._host_repo = f"{self._sample_checkpoints_dir}/host"
-        self._restic_password = manifest.restic_password
-        await init_host_repo(self._host_restic, self._host_repo, self._restic_password)
+        host_restic = await resolve_restic()
+        host_repo = f"{sample_ckpts_dir}/host"
+        await init_host_repo(host_restic, host_repo, manifest.restic_password)
         for sandbox_name in self._config.sandbox_paths or {}:
             env = sandbox(sandbox_name)
             await inject_restic(env)
-            await init_sandbox_repo(env, self._restic_password)
-        self._initialized = True
+            await init_sandbox_repo(env, manifest.restic_password)
+        self._live = _LiveState(
+            sample_checkpoints_dir=sample_ckpts_dir,
+            sample_working_dir=sample_work_dir,
+            host_restic=host_restic,
+            host_repo=host_repo,
+            restic_password=manifest.restic_password,
+        )
         return self
 
     async def __aexit__(self, *exc: object) -> None:
@@ -238,11 +259,7 @@ class _Checkpointer:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
         # the per-checkpoint sidecar.
-        # The fire path is only reachable via tick/checkpoint inside an
-        # `async with checkpointer()` block, so __aenter__ has populated
-        # all the I/O-derived fields.
-        assert self._sample_working_dir is not None
-        assert self._sample_checkpoints_dir is not None
+        live = self._state  # single presence check; narrows for the rest
         cycle_start = time.monotonic()
 
         state = sample_state()
@@ -250,7 +267,7 @@ class _Checkpointer:
             raise RuntimeError("Checkpointer must find sample state")
         ts = transcript()
         await self._write_host_context(
-            self._sample_working_dir,
+            live.sample_working_dir,
             ts.events,
             ts.attachments,
             state.store,
@@ -283,7 +300,7 @@ class _Checkpointer:
         duration_ms = int((time.monotonic() - cycle_start) * 1000)
 
         await write_sidecar(
-            sample_checkpoints_dir=self._sample_checkpoints_dir,
+            sample_checkpoints_dir=live.sample_checkpoints_dir,
             checkpoint_id=self._next_checkpoint_id,
             trigger=trigger,
             turn=self._turn,
@@ -358,34 +375,29 @@ class _Checkpointer:
             await (sample_dir / "agent_state.json").write_text(_json_dump(agent_state))
 
     async def _backup_host(self) -> ResticBackupSummary:
-        assert self._host_restic is not None
-        assert self._host_repo is not None
-        assert self._restic_password is not None
-        assert self._sample_working_dir is not None
+        live = self._state
         return await run_host_backup(
-            self._host_restic,
-            self._host_repo,
-            self._restic_password,
-            self._sample_working_dir,
+            live.host_restic,
+            live.host_repo,
+            live.restic_password,
+            live.sample_working_dir,
             self._next_checkpoint_id,
         )
 
     async def _backup_and_egress_sandbox(
         self, name: str, paths: list[str]
     ) -> ResticBackupSummary:
-        assert self._restic_password is not None
-        assert self._sample_checkpoints_dir is not None
-        assert self._host_restic is not None
+        live = self._state
         env = sandbox(name)
         summary = await run_sandbox_backup(
-            env, self._restic_password, paths, self._next_checkpoint_id
+            env, live.restic_password, paths, self._next_checkpoint_id
         )
-        dest_repo = f"{self._sample_checkpoints_dir}/sandboxes/{name}"
+        dest_repo = f"{live.sample_checkpoints_dir}/sandboxes/{name}"
         await egress_sandbox(
             env,
             dest_repo=dest_repo,
-            password=self._restic_password,
-            host_restic=self._host_restic,
+            password=live.restic_password,
+            host_restic=live.host_restic,
             checkpoint_id=self._next_checkpoint_id,
             snapshot_id=summary.snapshot_id,
         )
