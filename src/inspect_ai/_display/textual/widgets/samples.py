@@ -5,6 +5,7 @@ from urllib.parse import urlencode, urlparse, urlunparse
 from rich.console import RenderableType
 from rich.table import Table
 from rich.text import Text
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import (
     Horizontal,
@@ -14,16 +15,17 @@ from textual.containers import (
     VerticalGroup,
 )
 from textual.css.query import NoMatches
+from textual.message import Message
 from textual.reactive import reactive
 from textual.widget import Widget
 from textual.widgets import (
     Button,
     Collapsible,
-    Input,
     Link,
     LoadingIndicator,
     OptionList,
     Static,
+    TextArea,
 )
 from textual.widgets.option_list import Option, OptionDoesNotExist
 
@@ -522,6 +524,53 @@ class SandboxesView(Vertical):
             self.display = False
 
 
+class InterjectTextArea(TextArea):
+    r"""TextArea where Enter submits and Ctrl+J inserts a newline.
+
+    Chat-input convention rather than the standard text-editor
+    convention (Enter = newline). Textual's :class:`Key` event has no
+    modifier-state fields, and most terminals can't distinguish
+    Shift+Enter from plain Enter at the byte level — both arrive as
+    ``Key(key='enter', character='\r')``. So we use Ctrl+J for the
+    newline shortcut: Enter sends CR (0x0D) and Ctrl+J sends LF
+    (0x0A), which terminals universally distinguish. Posts an
+    :class:`Submitted` message on submit; the parent toolbar listens.
+    """
+
+    class Submitted(Message):
+        """Posted when the user presses Enter to submit the message."""
+
+        def __init__(self, text: str) -> None:
+            super().__init__()
+            self.text = text
+
+    async def _on_key(self, event: events.Key) -> None:
+        if event.key == "enter":
+            event.prevent_default()
+            event.stop()
+            # Heuristic for terminals (e.g. macOS Terminal.app) that
+            # emit Shift+Enter as two events: a backslash key followed
+            # by a plain Enter. By the time we see Enter the backslash
+            # is already in the buffer. If the text ends with a single
+            # backslash, treat the sequence as Shift+Enter: strip the
+            # backslash and insert a newline instead of submitting.
+            # Side-effect: messages that intentionally end with a
+            # single ``\`` can't be submitted with Enter — add another
+            # character or use the Send button.
+            if self.text.endswith("\\"):
+                self.action_delete_left()
+                self.insert("\n")
+                return
+            self.post_message(self.Submitted(self.text))
+            return
+        if event.key == "ctrl+j":
+            event.prevent_default()
+            event.stop()
+            self.insert("\n")
+            return
+        await super()._on_key(event)
+
+
 class SampleToolbar(Horizontal):
     STATUS_GROUP = "status_group"
     TIMEOUT_TOOL_CALL = "timeout_tool_call"
@@ -566,6 +615,9 @@ class SampleToolbar(Horizontal):
     }}
     SampleToolbar #{INTERJECT_INPUT} {{
         width: 1fr;
+        height: auto;
+        min-height: 1;
+        max-height: 10;
         margin-right: 1;
         margin-bottom: 1;
     }}
@@ -616,9 +668,11 @@ class SampleToolbar(Horizontal):
             id=self.CANCEL_RAISE_ERROR,
             tooltip=self.CANCEL_RAISE_ERROR_ENABLED,
         )
-        yield Input(
-            placeholder=self.INTERJECT_PLACEHOLDER,
+        yield InterjectTextArea(
             id=self.INTERJECT_INPUT,
+            placeholder=self.INTERJECT_PLACEHOLDER,
+            soft_wrap=True,
+            show_line_numbers=False,
         )
         yield Button(
             Text("⬆"),
@@ -640,8 +694,12 @@ class SampleToolbar(Horizontal):
 
         Called from the Interrupt button click handler on SampleInfo
         right after firing ``acp.cancel_current_turn()``. Hides the
-        status indicator and cancel buttons; reveals the Input + Send
-        button and focuses the Input.
+        status indicator and cancel buttons; reveals the TextArea +
+        Send button and focuses the TextArea. Adds the ``prompt-mode``
+        class on the parent :class:`SamplesView` so its grid row 3
+        switches from fixed ``4`` to ``auto`` — combined with
+        ``min-height: 4`` and ``align-vertical: bottom`` on the toolbar,
+        this lets the TextArea grow upward as the user types.
         """
         if sample is not self.sample:
             return
@@ -650,13 +708,13 @@ class SampleToolbar(Horizontal):
         self.query_one("#" + self.TIMEOUT_TOOL_CALL).display = False
         self.query_one("#" + self.CANCEL_SCORE_OUTPUT).display = False
         self.query_one("#" + self.CANCEL_RAISE_ERROR).display = False
-        # Collapse the flex spacer so the Input can claim the full width.
+        # Collapse the flex spacer so the TextArea can claim the full width.
         self.query_one("#" + self.TOOLBAR_SPACER).display = False
         send = cast(Button, self.query_one("#" + self.INTERJECT_SEND))
         send.display = True
-        interject = cast(Input, self.query_one("#" + self.INTERJECT_INPUT))
+        interject = cast(InterjectTextArea, self.query_one("#" + self.INTERJECT_INPUT))
         interject.display = True
-        interject.value = ""
+        interject.text = ""
         interject.focus()
 
     def _exit_prompt_mode(self) -> None:
@@ -674,8 +732,10 @@ class SampleToolbar(Horizontal):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == self.INTERJECT_SEND:
-            interject = cast(Input, self.query_one("#" + self.INTERJECT_INPUT))
-            self._submit_interject(interject.value)
+            interject = cast(
+                InterjectTextArea, self.query_one("#" + self.INTERJECT_INPUT)
+            )
+            self._submit_interject(interject.text)
             return
         if self.sample:
             if event.button.id == self.TIMEOUT_TOOL_CALL:
@@ -700,17 +760,21 @@ class SampleToolbar(Horizontal):
                 cancel_with_error.disabled = True
                 cancel_with_error.tooltip = self.CANCEL_DISABLED
 
-    def on_input_submitted(self, event: Input.Submitted) -> None:
-        if event.input.id == self.INTERJECT_INPUT:
-            self._submit_interject(event.value)
+    def on_interject_text_area_submitted(
+        self, event: "InterjectTextArea.Submitted"
+    ) -> None:
+        self._submit_interject(event.text)
 
     def _submit_interject(self, text: str) -> None:
         """Forward the interject message to the live ACP session, then exit prompt mode.
 
-        Empty input is silently ignored (per spec: the user must enter
-        something to resume the agent). If the sample no longer has a
-        live ACP session by the time the user hits Enter, we just exit
-        prompt mode without submitting — the agent is presumably done.
+        Triggered exclusively by the Send button — the TextArea's Enter
+        key inserts a newline (matching standard text-editor semantics)
+        so multi-line messages compose naturally. Empty input is
+        silently ignored (per spec: the user must enter something to
+        resume the agent). If the sample no longer has a live ACP
+        session by submit time, we just exit prompt mode without
+        submitting — the agent is presumably done.
         """
         from inspect_ai.model._chat_message import ChatMessageUser
 

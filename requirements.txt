@@ -30,7 +30,7 @@ semver>=3.0.0
 shortuuid
 sniffio
 tenacity
-textual>=3.2.0
+textual>=6.2.0
 tiktoken>=0.12.0
 typing_extensions>=4.14.0
 universal-pathlib>=0.2.6
