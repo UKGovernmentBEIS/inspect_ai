@@ -36,8 +36,12 @@ from inspect_ai.util._checkpoint import (
     TurnInterval,
     checkpointer,
 )
-from inspect_ai.util._checkpoint.checkpointer import _NoopCheckpointer
-from inspect_ai.util._checkpoint.checkpointer_impl import _Checkpointer
+from inspect_ai.util._checkpoint.checkpointer_impl import (
+    _Checkpointer,
+    _CheckpointerSetup,
+    _LiveState,
+)
+from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._checkpoint.layout import CheckpointTriggerKind
 from inspect_ai.util._checkpoint.restic import ResticBackupSummary
 from inspect_ai.util._store import Store
@@ -126,26 +130,17 @@ class _CountingCheckpointer(_Checkpointer):
 
 
 def _counting(config: CheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
-    cp = _CountingCheckpointer(
+    return _CountingCheckpointer(
         config=config,
-        log_location="/tmp/t.eval",
-        sample_id="s",
-        epoch=0,
-        eval_id="e",
+        state=_LiveState(
+            sample_checkpoints_dir=dirs.checkpoints,
+            sample_working_dir=dirs.working,
+            host_restic=Path("/fake/restic"),
+            host_repo=f"{dirs.checkpoints}/host",
+            restic_password="test-pwd",
+        ),
+        resume_checkpoint=None,
     )
-    # Bypass __aenter__: pre-seed the I/O-derived state that the fire
-    # path reads. Tests drive cp.tick()/cp.checkpoint() directly without
-    # going through the async ctx mgr.
-    from inspect_ai.util._checkpoint.checkpointer_impl import _LiveState
-
-    cp._live = _LiveState(
-        sample_checkpoints_dir=dirs.checkpoints,
-        sample_working_dir=dirs.working,
-        host_restic=Path("/fake/restic"),
-        host_repo=f"{dirs.checkpoints}/host",
-        restic_password="test-pwd",
-    )
-    return cp
 
 
 # --- turn-based -----------------------------------------------------------
@@ -320,28 +315,15 @@ def active_sample(tmp_path: Path) -> Iterator[_FakeActiveSample]:
         yield fake
 
 
-# --- disabled (None config) -----------------------------------------------
+# --- no active sample → contract violation --------------------------------
 
 
-async def test_none_config_works_without_active_sample() -> None:
-    """`checkpointer()` with no ambient config yields a no-op session."""
+async def test_checkpointer_raises_without_active_sample() -> None:
+    """`checkpointer()` outside an active sample is a contract violation."""
     with _patch_sample_active(None):
-        async with checkpointer() as cp:
-            for _ in range(5):
-                await cp.tick()
-            await cp.checkpoint()
-
-
-# --- no active sample → no-op ---------------------------------------------
-
-
-async def test_aenter_without_active_sample_noops() -> None:
-    """No ActiveSample means no checkpointing — `checkpointer()` is a no-op."""
-    with _patch_sample_active(None):
-        async with checkpointer() as cp:
-            for _ in range(5):
-                await cp.tick()
-            await cp.checkpoint()
+        with pytest.raises(RuntimeError, match="active sample"):
+            async with checkpointer():
+                pass
 
 
 # === e2e: outer facade through to disk =====================================
@@ -357,11 +339,11 @@ async def test_fire_writes_manifest_and_sidecars(
 
     # Inject a real checkpointer into the fake, mirroring what
     # `task_run_sample` does in production before opening `active_sample`.
-    from inspect_ai.util._checkpoint.checkpointer_impl import build_impl
+    from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 
     assert active_sample.sample.id is not None
     assert active_sample.eval_id is not None
-    active_sample.checkpointer = build_impl(
+    active_sample.checkpointer = create_checkpointer(
         config=active_sample.checkpoint,
         log_location=active_sample.log_location,
         sample_id=active_sample.sample.id,
@@ -424,10 +406,8 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
     work.mkdir()
     cp = _Checkpointer(
         config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        log_location="/tmp/t.eval",
-        sample_id="s",
-        epoch=0,
-        eval_id="e",
+        state=_fake_live_state(),
+        resume_checkpoint=None,
     )
     await cp._write_host_context(str(work), events, {}, Store())
 
@@ -449,15 +429,25 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
     assert [len(e.input) for e in model_events] == [2, 4, 5]
 
 
-def _make_cp(**kwargs: object) -> _Checkpointer:
-    return _Checkpointer(
-        config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        log_location="/tmp/t.eval",
-        sample_id="s",
-        epoch=0,
-        eval_id="e",
-        **kwargs,  # type: ignore[arg-type]
+def _fake_live_state(tmp_path: Path | None = None) -> _LiveState:
+    base = tmp_path if tmp_path is not None else Path("/tmp/cp-test")
+    return _LiveState(
+        sample_checkpoints_dir=str(base / "ckpts"),
+        sample_working_dir=str(base / "work"),
+        host_restic=Path("/fake/restic"),
+        host_repo=str(base / "ckpts/host"),
+        restic_password="test-pwd",
     )
+
+
+def _make_cp(**kwargs: object) -> _Checkpointer:
+    defaults: dict[str, object] = {
+        "config": CheckpointConfig(trigger=TurnInterval(every=1)),
+        "state": _fake_live_state(),
+        "resume_checkpoint": None,
+    }
+    defaults.update(kwargs)
+    return _Checkpointer(**defaults)  # type: ignore[arg-type]
 
 
 def test_track_returns_initial_value(tmp_path: Path) -> None:
@@ -549,11 +539,11 @@ def test_is_resuming_reflects_resume_checkpoint() -> None:
     )
 
 
-async def test_aenter_defers_io_setup(tmp_path: Path) -> None:
-    """All I/O setup (incl. sandbox loop) runs in __aenter__, not __init__."""
+async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
+    """All I/O setup (incl. sandbox loop) runs in _CheckpointerSetup.__aenter__."""
     from unittest.mock import AsyncMock, MagicMock
 
-    cp = _Checkpointer(
+    setup = _CheckpointerSetup(
         config=CheckpointConfig(
             trigger=TurnInterval(every=1),
             sandbox_paths={"web": ["/var/www"]},
@@ -614,7 +604,8 @@ async def test_aenter_defers_io_setup(tmp_path: Path) -> None:
         ):
             m.assert_not_called()
 
-        async with cp:
+        async with setup as cp:
+            assert isinstance(cp, _Checkpointer)
             # __aenter__ ran every I/O step exactly once
             ensure_ckpt.assert_awaited_once()
             ensure_work.assert_awaited_once()
@@ -625,8 +616,9 @@ async def test_aenter_defers_io_setup(tmp_path: Path) -> None:
             inject.assert_awaited_once_with(fake_env)
             init_sandbox.assert_awaited_once_with(fake_env, "pwd")
 
-        # re-entering is idempotent — no extra calls
-        async with cp:
+        # re-entering returns the cached _Checkpointer — no extra I/O calls
+        async with setup as cp2:
+            assert cp2 is cp
             ensure_ckpt.assert_awaited_once()
             init_sandbox.assert_awaited_once()
 
@@ -639,10 +631,8 @@ async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
     work.mkdir()
     cp = _Checkpointer(
         config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        log_location="/tmp/t.eval",
-        sample_id="s",
-        epoch=0,
-        eval_id="e",
+        state=_fake_live_state(),
+        resume_checkpoint=None,
     )
     await cp._write_host_context(str(work), [], attachments, Store())
 
@@ -677,10 +667,8 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
     work.mkdir()
     cp = _Checkpointer(
         config=CheckpointConfig(trigger=TurnInterval(every=1)),
-        log_location="/tmp/t.eval",
-        sample_id="s",
-        epoch=0,
-        eval_id="e",
+        state=_fake_live_state(),
+        resume_checkpoint=None,
     )
 
     await cp._write_host_context(str(work), fire1_events, {}, Store())

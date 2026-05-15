@@ -12,9 +12,9 @@ sample-run time, via :func:`build_session` (called from
 from __future__ import annotations
 
 import json
-import os
 import time
 from collections.abc import Awaitable, Callable, Mapping, Sequence
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from functools import partial
 from logging import getLogger
@@ -26,7 +26,6 @@ from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util._async import tg_collect
-from inspect_ai._util.logger import warn_once
 from inspect_ai.event._event import Event
 from inspect_ai.log import EventsData
 from inspect_ai.log._pool import (
@@ -40,7 +39,10 @@ from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._store import Store, store_jsonable
 
-from .checkpointer import Checkpointer, ResumeCheckpoint, _NoopCheckpointer
+from .checkpointer import (
+    Checkpointer,
+    ResumeCheckpoint,
+)
 from .config import CheckpointConfig, TimeInterval, TurnInterval
 from .eval_checkpoints_dir import eval_checkpoints_dir, read_eval_manifest
 from .layout import CheckpointTriggerKind, SnapshotInfo
@@ -61,59 +63,9 @@ logger = getLogger(__name__)
 T = TypeVar("T")
 
 
-def build_impl(
-    *,
-    config: CheckpointConfig | None,
-    log_location: str,
-    sample_id: int | str,
-    epoch: int,
-    eval_id: str,
-    resume_checkpoint: ResumeCheckpoint | None = None,
-) -> Checkpointer:
-    """Build the per-sample checkpointer.
-
-    Returns a :class:`_NoopCheckpointer` when ``config`` is ``None`` or
-    the development gate is off; otherwise returns a :class:`_Checkpointer`
-    whose on-disk setup is deferred to ``__aenter__`` (so it runs after
-    the sample's sandbox context is established).
-
-    Checkpointing is gated off by default while still under
-    development — the function returns a no-op session unless the
-    ``INSPECT_CHECKPOINTING`` env var is set to ``"1"``.
-    """
-    if os.environ.get("INSPECT_CHECKPOINTING") != "1":
-        warn_once(logger, "Checkpointing is still not yet fully implemented")
-        return _NoopCheckpointer()
-
-    # TODO(checkpointing-phase-3): capture the sample-level retry /
-    # attempt index. `ActiveSample` does not currently carry it; the
-    # value is published via the `on_sample_attempt_start` hook with
-    # `attempt: int` (1-based).  Resolution options are listed in
-    # `design/plans/checkpointing-working.md` §1 (re: sample-level
-    # retries) — likely we add an `attempt` field to `ActiveSample`
-    # so it's symmetric with `epoch`.
-    if config is None:
-        return _NoopCheckpointer()
-
-    return _Checkpointer(
-        config=config,
-        log_location=log_location,
-        sample_id=sample_id,
-        epoch=epoch,
-        eval_id=eval_id,
-        resume_checkpoint=resume_checkpoint,
-    )
-
-
 @dataclass(frozen=True)
 class _LiveState:
-    """State populated by ``_Checkpointer.__aenter__`` (post-I/O).
-
-    Holding these together as a single non-Optional object lets the
-    fire path read them without per-field None checks; the outer
-    ``_Checkpointer._live`` is the only Optional, and a single assert
-    in the ``_state`` property narrows the entire bundle.
-    """
+    """All on-disk + restic state needed by a live :class:`_Checkpointer`."""
 
     sample_checkpoints_dir: str
     sample_working_dir: str
@@ -122,17 +74,19 @@ class _LiveState:
     restic_password: str
 
 
-class _Checkpointer:
-    """Session that lazily initializes its on-disk + sandbox dependencies.
+class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
+    """Pre-entry phase — stashes inputs; runs the I/O on ``__aenter__``.
 
-    Construction is cheap and synchronous (stashes inputs only). The
-    actual I/O setup — ensure dirs, read manifest, resolve restic,
-    init host repo, inject restic + init repo per sandbox — runs in
-    ``__aenter__``, after the sample's sandbox context is established.
+    Lives on :class:`ActiveSample`. Its ``__aenter__`` performs the
+    on-disk + sandbox setup and constructs a fully-formed
+    :class:`_Checkpointer`. The instance is cached so re-entry within
+    the same sample reuses the same live checkpointer rather than
+    redoing the I/O.
     """
 
     def __init__(
         self,
+        *,
         config: CheckpointConfig,
         log_location: str,
         sample_id: int | str,
@@ -140,15 +94,71 @@ class _Checkpointer:
         eval_id: str,
         resume_checkpoint: ResumeCheckpoint | None = None,
     ) -> None:
-        # Construction-time inputs — always present.
         self._config = config
         self._log_location = log_location
         self._sample_id = sample_id
         self._epoch = epoch
         self._eval_id = eval_id
         self._resume_checkpoint = resume_checkpoint
-        # Entered-state — single Optional that flips at __aenter__.
-        self._live: _LiveState | None = None
+        self._cached: _Checkpointer | None = None
+
+    async def __aenter__(self) -> Checkpointer:
+        if self._cached is not None:
+            return self._cached
+
+        eval_ckpts_dir = eval_checkpoints_dir(
+            self._log_location, self._config.checkpoints_location
+        )
+        sample_ckpts_dir = await ensure_sample_checkpoints_dir(
+            eval_ckpts_dir, self._sample_id, self._epoch, self._eval_id
+        )
+        sample_work_dir = await ensure_sample_working_dir(
+            self._log_location, self._sample_id, self._epoch
+        )
+        manifest = await read_eval_manifest(eval_ckpts_dir)
+        host_restic = await resolve_restic()
+        host_repo = f"{sample_ckpts_dir}/host"
+        await init_host_repo(host_restic, host_repo, manifest.restic_password)
+        for sandbox_name in self._config.sandbox_paths or {}:
+            env = sandbox(sandbox_name)
+            await inject_restic(env)
+            await init_sandbox_repo(env, manifest.restic_password)
+        self._cached = _Checkpointer(
+            config=self._config,
+            state=_LiveState(
+                sample_checkpoints_dir=sample_ckpts_dir,
+                sample_working_dir=sample_work_dir,
+                host_restic=host_restic,
+                host_repo=host_repo,
+                restic_password=manifest.restic_password,
+            ),
+            resume_checkpoint=self._resume_checkpoint,
+        )
+        return self._cached
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+
+class _Checkpointer:
+    """Fully-formed agent-facing checkpointer.
+
+    Constructed by :class:`_CheckpointerSetup.__aenter__` once the
+    on-disk + sandbox dependencies are in place. No lifecycle methods
+    and no Optional state — the agent uses :meth:`tick`,
+    :meth:`checkpoint`, :meth:`track`, and :attr:`is_resuming` directly.
+    """
+
+    def __init__(
+        self,
+        *,
+        config: CheckpointConfig,
+        state: _LiveState,
+        resume_checkpoint: ResumeCheckpoint | None,
+    ) -> None:
+        self._config = config
+        self._state = state
+        self._resume_checkpoint = resume_checkpoint
         # Sync per-session state — turn counters, callbacks, pools.
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
@@ -168,45 +178,6 @@ class _Checkpointer:
     @property
     def is_resuming(self) -> bool:
         return self._resume_checkpoint is not None
-
-    @property
-    def _state(self) -> _LiveState:
-        """Return the live state, asserting the session has been entered."""
-        assert self._live is not None, "Checkpointer not entered"
-        return self._live
-
-    async def __aenter__(self) -> "_Checkpointer":
-        if self._live is not None:
-            return self
-
-        eval_ckpts_dir = eval_checkpoints_dir(
-            self._log_location, self._config.checkpoints_location
-        )
-        sample_ckpts_dir = await ensure_sample_checkpoints_dir(
-            eval_ckpts_dir, self._sample_id, self._epoch, self._eval_id
-        )
-        sample_work_dir = await ensure_sample_working_dir(
-            self._log_location, self._sample_id, self._epoch
-        )
-        manifest = await read_eval_manifest(eval_ckpts_dir)
-        host_restic = await resolve_restic()
-        host_repo = f"{sample_ckpts_dir}/host"
-        await init_host_repo(host_restic, host_repo, manifest.restic_password)
-        for sandbox_name in self._config.sandbox_paths or {}:
-            env = sandbox(sandbox_name)
-            await inject_restic(env)
-            await init_sandbox_repo(env, manifest.restic_password)
-        self._live = _LiveState(
-            sample_checkpoints_dir=sample_ckpts_dir,
-            sample_working_dir=sample_work_dir,
-            host_restic=host_restic,
-            host_repo=host_repo,
-            restic_password=manifest.restic_password,
-        )
-        return self
-
-    async def __aexit__(self, *exc: object) -> None:
-        return None
 
     async def tick(self) -> None:
         self._turn += 1

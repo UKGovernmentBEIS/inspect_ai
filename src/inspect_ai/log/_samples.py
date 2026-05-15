@@ -1,4 +1,5 @@
 import contextlib
+from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Iterator, Literal
@@ -15,7 +16,7 @@ from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
-from inspect_ai.util._checkpoint.checkpointer_impl import build_impl
+from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 from inspect_ai.util._checkpoint.config import CheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxConnection
@@ -42,7 +43,7 @@ class ActiveSample:
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
-        checkpointer: Checkpointer,
+        checkpointer: AbstractAsyncContextManager[Checkpointer],
         eval_id: str,
         eval_set_id: str | None = None,
         run_id: str | None = None,
@@ -163,7 +164,7 @@ async def active_sample(
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
-        checkpointer=build_impl(
+        checkpointer=create_checkpointer(
             config=checkpoint,
             log_location=log_location,
             sample_id=sample.id,

@@ -14,7 +14,7 @@ from inspect_ai.hooks._hooks import (
 )
 from inspect_ai.log._samples import ActiveSample, _sample_active
 from inspect_ai.log._transcript import Transcript, init_transcript
-from inspect_ai.util._checkpoint.checkpointer import _NoopCheckpointer
+from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 
 
 def test_emit_sample_event_unbounded_stream_never_blocks() -> None:
