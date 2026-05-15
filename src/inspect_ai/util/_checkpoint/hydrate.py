@@ -109,6 +109,11 @@ async def _hydrate(
     epoch: int,
     resume_checkpoint: ResumeCheckpoint | None,
 ) -> _HydrationResult:
+    mode = "resume" if resume_checkpoint is not None else "fresh"
+    print(f"[hydrate] start sample={sample_id} epoch={epoch} mode={mode}")
+    if resume_checkpoint is not None:
+        print(f"[hydrate]   resume from {resume_checkpoint.sample_checkpoints_dir}")
+
     # Phase 1: synchronous prologue. After this completes, every Phase 2
     # function can read the password from <new sample dir>/sample.json
     # and reach restic on the host.
@@ -118,7 +123,9 @@ async def _hydrate(
     new_sample_checkpoints_dir = await ensure_sample_checkpoints_dir(
         new_eval_checkpoints_dir, sample_id, epoch
     )
+    print(f"[hydrate] sample_checkpoints_dir={new_sample_checkpoints_dir}")
     sample_working_dir = await ensure_sample_working_dir(log_location, sample_id, epoch)
+    print(f"[hydrate] sample_working_dir={sample_working_dir}")
     if resume_checkpoint is not None:
         # Bring the cross-cutting bits over first so `ensure_sample_json`
         # reads the inherited password instead of minting a fresh one,
@@ -129,6 +136,7 @@ async def _hydrate(
             new_sample_checkpoints_dir,
         )
     sample_state = await ensure_sample_json(new_sample_checkpoints_dir)
+    print(f"[hydrate] restic_password={sample_state.restic_password[:8]}...")
     host_restic = await resolve_restic()
     host_repo = f"{new_sample_checkpoints_dir}/host"
 
@@ -149,6 +157,7 @@ async def _hydrate(
             sample_working_dir=sample_working_dir,
         )
 
+    print("[hydrate] phase-2 host + sandboxes start (parallel)")
     async with anyio.create_task_group() as tg:
         tg.start_soon(_run_host)
         tg.start_soon(
@@ -159,6 +168,8 @@ async def _hydrate(
             new_sample_checkpoints_dir,
         )
     assert host_result is not None  # task group ran _run_host to completion
+    print("[hydrate] phase-2 host + sandboxes done")
+    print(f"[hydrate] complete sample={sample_id} epoch={epoch}")
 
     return _HydrationResult(
         sample_checkpoints_dir=new_sample_checkpoints_dir,
@@ -179,18 +190,36 @@ async def _hydrate_host(
     sample_working_dir: str,
 ) -> _HostHydrationResult:
     if resume is None:
+        print(f"[hydrate.host] fresh init at {host_repo}")
         await init_host_repo(host_restic, host_repo, restic_password)
+        print("[hydrate.host] fresh init done")
         return _HostHydrationResult()
 
     # Resume: FS-copy the old host repo into the new one (preserves
     # snapshot IDs and password), restic-restore the latest snapshot
     # into the new sample working dir, then load the JSON files and
     # push framework state into the live Transcript + Store.
+    print(
+        f"[hydrate.host] resume: FS-copy {resume.sample_checkpoints_dir}/host"
+        f" -> {host_repo}"
+    )
     await anyio.to_thread.run_sync(
         _fs_copy_host_repo, resume.sample_checkpoints_dir, host_repo
     )
+    print(f"[hydrate.host] restic restore latest -> {sample_working_dir}")
     await restore_host_repo(host_restic, host_repo, restic_password, sample_working_dir)
-    return await anyio.to_thread.run_sync(_load_and_push_host_state, sample_working_dir)
+    print("[hydrate.host] load + push framework state")
+    result = await anyio.to_thread.run_sync(
+        _load_and_push_host_state, sample_working_dir
+    )
+    print(
+        f"[hydrate.host] resume done: "
+        f"events={len(result.condensed_events)} "
+        f"msgs={len(result.msg_pool)} "
+        f"calls={len(result.call_pool)} "
+        f"agent_state={'yes' if result.agent_state else 'no'}"
+    )
+    return result
 
 
 async def _hydrate_sandboxes(
@@ -225,22 +254,34 @@ async def _hydrate_sandbox(
     new_sample_checkpoints_dir: str,
 ) -> None:
     env = sandbox(name)
+    print(f"[hydrate.sandbox:{name}] inject restic")
     await inject_restic(env)
     if resume is None:
+        print(f"[hydrate.sandbox:{name}] fresh init in-container repo")
         await init_sandbox_repo(env, restic_password)
+        print(f"[hydrate.sandbox:{name}] fresh init done")
         return
 
     # Resume: FS-copy the old host-side sandbox repo into the new sample
     # checkpoints dir, then ingress it into the container (which also
     # runs restic-restore to put files at their original paths).
     new_host_side_repo = f"{new_sample_checkpoints_dir}/sandboxes/{name}"
+    print(
+        f"[hydrate.sandbox:{name}] resume: FS-copy"
+        f" {resume.sample_checkpoints_dir}/sandboxes/{name} -> {new_host_side_repo}"
+    )
     await anyio.to_thread.run_sync(
         _fs_copy_sandbox_repo,
         resume.sample_checkpoints_dir,
         name,
         new_host_side_repo,
     )
+    print(
+        f"[hydrate.sandbox:{name}] ingress into container + restic restore"
+        f" (paths={paths})"
+    )
     await ingress_sandbox(env, new_host_side_repo, restic_password)
+    print(f"[hydrate.sandbox:{name}] resume done")
 
 
 def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> None:
@@ -255,8 +296,11 @@ def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> None:
     src_sample_json = old / "sample.json"
     if src_sample_json.exists():
         shutil.copy(src_sample_json, new / "sample.json")
-    for sidecar in glob.glob(str(old / "ckpt-*.json")):
+        print(f"[hydrate.copy] sample.json: {src_sample_json} -> {new / 'sample.json'}")
+    sidecars = glob.glob(str(old / "ckpt-*.json"))
+    for sidecar in sidecars:
         shutil.copy(sidecar, new / Path(sidecar).name)
+    print(f"[hydrate.copy] sidecars copied: {len(sidecars)}")
 
 
 def _fs_copy_host_repo(old_sample_dir: str, new_host_repo: str) -> None:
@@ -264,7 +308,9 @@ def _fs_copy_host_repo(old_sample_dir: str, new_host_repo: str) -> None:
     src = Path(local_path(old_sample_dir)) / "host"
     if not src.is_dir():
         raise RuntimeError(f"resume: expected host repo at {src}, but it doesn't exist")
+    file_count = sum(1 for _ in src.rglob("*") if _.is_file())
     shutil.copytree(src, new_host_repo, dirs_exist_ok=True)
+    print(f"[hydrate.copy] host repo: {src} -> {new_host_repo} ({file_count} files)")
 
 
 def _fs_copy_sandbox_repo(
@@ -276,7 +322,12 @@ def _fs_copy_sandbox_repo(
         raise RuntimeError(
             f"resume: expected sandbox repo {name!r} at {src}, but it doesn't exist"
         )
+    file_count = sum(1 for _ in src.rglob("*") if _.is_file())
     shutil.copytree(src, new_host_side_repo, dirs_exist_ok=True)
+    print(
+        f"[hydrate.copy] sandbox repo {name!r}: {src} -> {new_host_side_repo}"
+        f" ({file_count} files)"
+    )
 
 
 def _load_and_push_host_state(sample_working_dir: str) -> _HostHydrationResult:
@@ -311,6 +362,13 @@ def _load_and_push_host_state(sample_working_dir: str) -> _HostHydrationResult:
         json.loads(agent_state_path.read_text()) if agent_state_path.is_file() else None
     )
 
+    print(
+        f"[hydrate.host] loaded: events={len(condensed_events)} "
+        f"msgs={len(msg_pool)} calls={len(call_pool)} "
+        f"attachments={len(attachments)} store_keys={len(store_data)} "
+        f"agent_state={'yes' if agent_state else 'no'}"
+    )
+
     # Push framework-owned state into the live transcript + store so the
     # agent's continued run appends to (rather than replaces) the prior
     # history. Direct mutation of the internal lists bypasses
@@ -324,6 +382,11 @@ def _load_and_push_host_state(sample_working_dir: str) -> _HostHydrationResult:
         raise RuntimeError("_hydrate_host: no active sample state to populate Store")
     for key, value in store_data.items():
         state.store.set(key, value)
+    print(
+        f"[hydrate.host] pushed: transcript.events={len(ts._events)} "
+        f"transcript.attachments={len(ts._attachments)} "
+        f"store_keys={len(list(state.store.keys()))}"
+    )
 
     return _HostHydrationResult(
         agent_state=agent_state,

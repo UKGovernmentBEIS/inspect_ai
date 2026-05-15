@@ -170,6 +170,7 @@ async def restore_host_repo(
     files up one level so callers see ``T/events.json`` rather than
     ``T/<deep absolute path>/events.json``.
     """
+    print(f"[hydrate.restic] restore_host_repo repo={repo} target={target}")
     proc = await anyio.run_process(
         [str(restic), "-r", repo, "snapshots", "latest", "--json"],
         env=_restic_env(password),
@@ -185,6 +186,10 @@ async def restore_host_repo(
             "expected exactly one (the sample working dir)"
         )
     source_path = source_paths[0]
+    print(
+        f"[hydrate.restic] snapshot id={snapshots[-1].get('short_id', '?')}"
+        f" source={source_path}"
+    )
 
     await anyio.run_process(
         [
@@ -205,14 +210,17 @@ async def restore_host_repo(
     # Files land at <target><source_path>/. Move them up to <target>/.
     restored_dir = Path(target + source_path)
     target_dir = Path(target)
+    moved = 0
     for entry in restored_dir.iterdir():
         entry.rename(target_dir / entry.name)
+        moved += 1
     # Walk back up removing now-empty intermediate dirs.
     current = restored_dir
     while current != target_dir and current.is_dir() and not any(current.iterdir()):
         parent = current.parent
         current.rmdir()
         current = parent
+    print(f"[hydrate.restic] restore moved {moved} entries into {target_dir}")
 
 
 async def ingress_sandbox(
@@ -243,6 +251,7 @@ async def ingress_sandbox(
         )
 
     tar_bytes = _build_repo_tar(src)
+    print(f"[hydrate.restic] ingress_sandbox src={src} tar_bytes={len(tar_bytes)}")
 
     extract_script = (
         f"set -e; "
@@ -264,6 +273,7 @@ async def ingress_sandbox(
     result = await env.exec(["sh", "-c", extract_script], input=tar_bytes, user="root")
     if not result.success:
         raise RuntimeError(f"Failed to ingress sandbox restic repo: {result.stderr}")
+    print("[hydrate.restic] ingress_sandbox extracted; running restic restore")
 
     restore = await env.exec(
         [
@@ -282,6 +292,7 @@ async def ingress_sandbox(
         raise RuntimeError(
             f"Failed to restore sandbox state from in-container repo: {restore.stderr}"
         )
+    print("[hydrate.restic] ingress_sandbox restore done")
 
 
 def _build_repo_tar(repo: Path) -> bytes:
