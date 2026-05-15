@@ -169,7 +169,6 @@ async def active_sample(
             log_location=log_location,
             sample_id=sample.id,
             epoch=epoch,
-            eval_id=eval_id,
             resume_checkpoint=resume_checkpoint,
         ),
         eval_set_id=eval_set_id,

@@ -124,8 +124,8 @@ class _CountingCheckpointer(_EnteredCheckpointer):
         await super()._fire(trigger)
         self.fire_count += 1
 
-    async def _backup_host(self) -> ResticBackupSummary:
-        return _fake_summary(self._next_checkpoint_id)
+    async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
+        return _fake_summary(checkpoint_id)
 
 
 def _counting(config: CheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
@@ -137,6 +137,7 @@ def _counting(config: CheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
         host_repo=f"{dirs.checkpoints}/host",
         restic_password="test-pwd",
         resume_checkpoint=None,
+        agent_state=None,
     )
 
 
@@ -275,11 +276,11 @@ def _patch_restic(tmp_path: Path) -> Iterator[None]:
 
     with (
         patch(
-            "inspect_ai.util._checkpoint.checkpointer_impl.resolve_restic",
+            "inspect_ai.util._checkpoint.hydrate.resolve_restic",
             side_effect=fake_resolve,
         ),
         patch(
-            "inspect_ai.util._checkpoint.checkpointer_impl.init_host_repo",
+            "inspect_ai.util._checkpoint.hydrate.init_host_repo",
             side_effect=fake_init_host_repo,
         ),
         patch(
@@ -326,7 +327,7 @@ async def test_checkpointer_raises_without_active_sample() -> None:
 # === e2e: outer facade through to disk =====================================
 
 
-async def test_fire_writes_manifest_and_sidecars(
+async def test_fire_writes_sample_json_and_sidecars(
     active_sample: _FakeActiveSample, tmp_path: Path
 ) -> None:
     """Driving the outer checkpointer end-to-end writes destination + working tree."""
@@ -339,13 +340,11 @@ async def test_fire_writes_manifest_and_sidecars(
     from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 
     assert active_sample.sample.id is not None
-    assert active_sample.eval_id is not None
     active_sample.checkpointer = create_checkpointer(
         config=active_sample.checkpoint,
         log_location=active_sample.log_location,
         sample_id=active_sample.sample.id,
         epoch=active_sample.epoch,
-        eval_id=active_sample.eval_id,
     )
 
     async with checkpointer() as cp:
@@ -356,8 +355,8 @@ async def test_fire_writes_manifest_and_sidecars(
 
     log = Path(active_sample.log_location)
     eval_dir = log.parent / f"{log.stem}.checkpoints"
-    assert (eval_dir / "manifest.json").is_file()
     sample_dir = eval_dir / "s7__2"
+    assert (sample_dir / "sample.json").is_file()
     sidecars = sorted(p.name for p in sample_dir.glob("ckpt-*.json"))
     assert sidecars == ["ckpt-00001.json", "ckpt-00002.json"]
 
@@ -434,6 +433,7 @@ def _fake_live_kwargs(tmp_path: Path | None = None) -> dict[str, object]:
         "host_restic": Path("/fake/restic"),
         "host_repo": str(base / "ckpts/host"),
         "restic_password": "test-pwd",
+        "agent_state": None,
     }
 
 
@@ -548,43 +548,42 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
         log_location=str(tmp_path / "t.eval"),
         sample_id="s",
         epoch=0,
-        eval_id="e",
     )
 
     fake_env = MagicMock()
-    fake_manifest = MagicMock(restic_password="pwd")
+    fake_sample_state = MagicMock(restic_password="pwd")
 
     with (
         patch(
-            "inspect_ai.util._checkpoint.checkpointer_impl.ensure_sample_checkpoints_dir",
+            "inspect_ai.util._checkpoint.hydrate.ensure_sample_checkpoints_dir",
             new=AsyncMock(return_value=str(tmp_path / "ckpts" / "s__0")),
         ) as ensure_ckpt,
         patch(
-            "inspect_ai.util._checkpoint.checkpointer_impl.ensure_sample_working_dir",
+            "inspect_ai.util._checkpoint.hydrate.ensure_sample_working_dir",
             new=AsyncMock(return_value=str(tmp_path / "work" / "s__0")),
         ) as ensure_work,
         patch(
-            "inspect_ai.util._checkpoint.checkpointer_impl.read_eval_manifest",
-            new=AsyncMock(return_value=fake_manifest),
-        ) as read_manifest,
+            "inspect_ai.util._checkpoint.hydrate.ensure_sample_json",
+            new=AsyncMock(return_value=fake_sample_state),
+        ) as ensure_sample_json_mock,
         patch(
-            "inspect_ai.util._checkpoint.checkpointer_impl.resolve_restic",
+            "inspect_ai.util._checkpoint.hydrate.resolve_restic",
             new=AsyncMock(return_value=Path("/fake/restic")),
         ) as resolve,
         patch(
-            "inspect_ai.util._checkpoint.checkpointer_impl.init_host_repo",
+            "inspect_ai.util._checkpoint.hydrate.init_host_repo",
             new=AsyncMock(),
         ) as init_host,
         patch(
-            "inspect_ai.util._checkpoint.checkpointer_impl.sandbox",
+            "inspect_ai.util._checkpoint.hydrate.sandbox",
             return_value=fake_env,
         ) as get_sandbox,
         patch(
-            "inspect_ai.util._checkpoint.checkpointer_impl.inject_restic",
+            "inspect_ai.util._checkpoint.hydrate.inject_restic",
             new=AsyncMock(),
         ) as inject,
         patch(
-            "inspect_ai.util._checkpoint.checkpointer_impl.init_sandbox_repo",
+            "inspect_ai.util._checkpoint.hydrate.init_sandbox_repo",
             new=AsyncMock(),
         ) as init_sandbox,
     ):
@@ -592,7 +591,7 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
         for m in (
             ensure_ckpt,
             ensure_work,
-            read_manifest,
+            ensure_sample_json_mock,
             resolve,
             init_host,
             get_sandbox,
@@ -606,7 +605,7 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             # __aenter__ ran every I/O step exactly once
             ensure_ckpt.assert_awaited_once()
             ensure_work.assert_awaited_once()
-            read_manifest.assert_awaited_once()
+            ensure_sample_json_mock.assert_awaited_once()
             resolve.assert_awaited_once()
             init_host.assert_awaited_once()
             get_sandbox.assert_called_once_with("web")

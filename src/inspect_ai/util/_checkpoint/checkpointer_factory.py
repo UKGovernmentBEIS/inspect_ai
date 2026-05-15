@@ -14,7 +14,6 @@ def create_checkpointer(
     log_location: str,
     sample_id: int | str,
     epoch: int,
-    eval_id: str,
     resume_checkpoint: ResumeCheckpoint | None = None,
 ) -> AbstractAsyncContextManager[Checkpointer]:
     """Build the per-sample checkpointer setup.
@@ -48,6 +47,5 @@ def create_checkpointer(
         log_location=log_location,
         sample_id=sample_id,
         epoch=epoch,
-        eval_id=eval_id,
         resume_checkpoint=resume_checkpoint,
     )

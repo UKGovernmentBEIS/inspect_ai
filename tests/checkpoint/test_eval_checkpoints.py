@@ -1,17 +1,8 @@
-"""Tests for the eval checkpoints dir init."""
+"""Tests for eval checkpoints dir path computation."""
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
-import pytest
-
-from inspect_ai.util._checkpoint.eval_checkpoints_dir import (
-    eval_checkpoints_dir,
-    init_eval_checkpoints_dir,
-)
-from inspect_ai.util._checkpoint.layout import CheckpointManifest
+from inspect_ai.util._checkpoint.eval_checkpoints_dir import eval_checkpoints_dir
 
 
 def test_eval_checkpoints_dir_strips_eval_suffix() -> None:
@@ -42,89 +33,3 @@ def test_eval_checkpoints_dir_with_s3_override() -> None:
         eval_checkpoints_dir("/logs/foo.eval", "s3://bucket/ckpts")
         == "s3://bucket/ckpts/foo.checkpoints"
     )
-
-
-async def test_init_creates_dir_and_manifest(tmp_path: Path) -> None:
-    eval_dir = str(tmp_path / "foo.checkpoints")
-
-    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
-
-    assert Path(eval_dir).is_dir()
-    manifest = CheckpointManifest.model_validate_json(
-        (Path(eval_dir) / "manifest.json").read_text()
-    )
-    assert manifest.eval_id == "eval-001"
-    assert manifest.layout_version == 1
-    assert manifest.engine == "restic"
-    assert manifest.restic_password
-
-
-async def test_init_is_idempotent(tmp_path: Path) -> None:
-    eval_dir = str(tmp_path / "foo.checkpoints")
-    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
-    manifest_path = Path(eval_dir) / "manifest.json"
-    original = manifest_path.read_text()
-
-    # Second call must not rewrite the manifest (password must survive).
-    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
-    assert manifest_path.read_text() == original
-
-
-async def test_init_rejects_mismatched_eval_id(tmp_path: Path) -> None:
-    eval_dir = str(tmp_path / "foo.checkpoints")
-    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
-
-    with pytest.raises(RuntimeError, match="different eval"):
-        await init_eval_checkpoints_dir(eval_dir, eval_id="eval-002")
-
-
-async def test_init_creates_parent_dirs(tmp_path: Path) -> None:
-    """Eval-dir parent may not exist yet (e.g. nested override root)."""
-    eval_dir = str(tmp_path / "nested" / "foo.checkpoints")
-
-    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
-    assert Path(eval_dir).is_dir()
-    assert (Path(eval_dir) / "manifest.json").is_file()
-
-
-async def test_manifest_is_valid_json(tmp_path: Path) -> None:
-    eval_dir = str(tmp_path / "foo.checkpoints")
-    await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
-    parsed = json.loads((Path(eval_dir) / "manifest.json").read_text())
-    assert parsed["eval_id"] == "eval-001"
-
-
-async def test_init_concurrent_callers_produce_single_manifest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Only one concurrent caller writes the manifest; the rest read it."""
-    import secrets as secrets_mod
-    from functools import partial
-
-    from inspect_ai._util._async import tg_collect
-
-    real_token_urlsafe = secrets_mod.token_urlsafe
-    write_count = 0
-
-    def counting_token_urlsafe(nbytes: int) -> str:
-        nonlocal write_count
-        write_count += 1
-        return real_token_urlsafe(nbytes)
-
-    monkeypatch.setattr(
-        "inspect_ai.util._checkpoint.eval_checkpoints_dir.secrets.token_urlsafe",
-        counting_token_urlsafe,
-    )
-
-    eval_dir = str(tmp_path / "foo.checkpoints")
-    await tg_collect(
-        [partial(init_eval_checkpoints_dir, eval_dir, "eval-001") for _ in range(20)]
-    )
-
-    # Lock serialized the 20 callers: exactly one generated a password
-    # and wrote the manifest; the other 19 saw it on disk and returned.
-    assert write_count == 1
-    manifest = CheckpointManifest.model_validate_json(
-        (Path(eval_dir) / "manifest.json").read_text()
-    )
-    assert manifest.eval_id == "eval-001"

@@ -1,14 +1,22 @@
-"""Tests for the sample checkpoints dir and sidecar writes."""
+"""Tests for the sample checkpoints dir, sample.json, and sidecar writes."""
 
 from __future__ import annotations
 
 import json
+from functools import partial
 from pathlib import Path
 
-from inspect_ai.util._checkpoint.layout import CheckpointSidecar, SnapshotInfo
+from inspect_ai._util._async import tg_collect
+from inspect_ai.util._checkpoint.layout import (
+    CheckpointSample,
+    CheckpointSidecar,
+    SnapshotInfo,
+)
 from inspect_ai.util._checkpoint.sample_checkpoints_dir import (
     _sample_checkpoints_dir,
     ensure_sample_checkpoints_dir,
+    ensure_sample_json,
+    read_sample_json,
     write_sidecar,
 )
 
@@ -35,22 +43,85 @@ def test_sample_checkpoints_dir_accepts_int_sample_id() -> None:
 
 async def test_ensure_creates_dir_and_returns_path(tmp_path: Path) -> None:
     eval_dir = str(tmp_path / "foo.checkpoints")
-    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0, "eval-1")
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
     assert Path(sample_dir).is_dir()
     assert sample_dir == f"{eval_dir}/s1__0"
 
 
 async def test_ensure_is_idempotent(tmp_path: Path) -> None:
     eval_dir = str(tmp_path / "foo.checkpoints")
-    a = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0, "eval-1")
-    b = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0, "eval-1")
+    a = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
+    b = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
     assert a == b
     assert Path(a).is_dir()
 
 
+async def test_ensure_creates_parent_eval_dir(tmp_path: Path) -> None:
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
+    assert Path(eval_dir).is_dir()
+
+
+async def test_ensure_sample_json_mints_password_on_first_call(tmp_path: Path) -> None:
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
+    sample = await ensure_sample_json(sample_dir)
+    assert sample.restic_password
+    assert (Path(sample_dir) / "sample.json").is_file()
+
+
+async def test_ensure_sample_json_preserves_password_on_second_call(
+    tmp_path: Path,
+) -> None:
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
+    first = await ensure_sample_json(sample_dir)
+    second = await ensure_sample_json(sample_dir)
+    assert first.restic_password == second.restic_password
+
+
+async def test_ensure_sample_json_different_samples_get_distinct_passwords(
+    tmp_path: Path,
+) -> None:
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    a_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
+    b_dir = await ensure_sample_checkpoints_dir(eval_dir, "s2", 0)
+    a = await ensure_sample_json(a_dir)
+    b = await ensure_sample_json(b_dir)
+    assert a.restic_password != b.restic_password
+
+
+async def test_read_sample_json_returns_written_value(tmp_path: Path) -> None:
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
+    written = await ensure_sample_json(sample_dir)
+    read = await read_sample_json(sample_dir)
+    assert read.restic_password == written.restic_password
+
+
+async def test_sample_json_round_trip_pydantic(tmp_path: Path) -> None:
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
+    await ensure_sample_json(sample_dir)
+    raw = (Path(sample_dir) / "sample.json").read_text()
+    parsed = CheckpointSample.model_validate_json(raw)
+    assert parsed.restic_password
+
+
+async def test_ensure_sample_json_concurrent_callers_mint_once(tmp_path: Path) -> None:
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
+    results = await tg_collect(
+        [partial(ensure_sample_json, sample_dir) for _ in range(20)]
+    )
+    # All 20 must see the same password (first writer wins; rest read).
+    passwords = {r.restic_password for r in results}
+    assert len(passwords) == 1
+
+
 async def test_write_sidecar_returns_zero_padded_path(tmp_path: Path) -> None:
     sample_dir = await ensure_sample_checkpoints_dir(
-        str(tmp_path / "foo.checkpoints"), "s1", 0, "eval-1"
+        str(tmp_path / "foo.checkpoints"), "s1", 0
     )
     path = await write_sidecar(
         sample_checkpoints_dir=sample_dir,
@@ -67,7 +138,7 @@ async def test_write_sidecar_returns_zero_padded_path(tmp_path: Path) -> None:
 
 async def test_sidecar_contents_round_trip(tmp_path: Path) -> None:
     sample_dir = await ensure_sample_checkpoints_dir(
-        str(tmp_path / "foo.checkpoints"), "s", 0, "eval-1"
+        str(tmp_path / "foo.checkpoints"), "s", 0
     )
     path = await write_sidecar(
         sample_checkpoints_dir=sample_dir,
@@ -91,7 +162,7 @@ async def test_sidecar_contents_round_trip(tmp_path: Path) -> None:
 
 async def test_sidecar_filename_zero_padded_for_lexical_sort(tmp_path: Path) -> None:
     sample_dir = await ensure_sample_checkpoints_dir(
-        str(tmp_path / "foo.checkpoints"), "s", 0, "eval-1"
+        str(tmp_path / "foo.checkpoints"), "s", 0
     )
     paths = [
         await write_sidecar(
@@ -117,7 +188,7 @@ async def test_sidecar_filename_zero_padded_for_lexical_sort(tmp_path: Path) -> 
 
 async def test_sidecar_is_pretty_printed_json(tmp_path: Path) -> None:
     sample_dir = await ensure_sample_checkpoints_dir(
-        str(tmp_path / "foo.checkpoints"), "s", 0, "eval-1"
+        str(tmp_path / "foo.checkpoints"), "s", 0
     )
     path = await write_sidecar(
         sample_checkpoints_dir=sample_dir,

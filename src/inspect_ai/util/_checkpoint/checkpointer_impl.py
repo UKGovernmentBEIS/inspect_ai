@@ -28,13 +28,14 @@ from inspect_ai._util._async import tg_collect
 from inspect_ai.event._event import Event
 from inspect_ai.log import EventsData
 from inspect_ai.log._pool import (
+    _build_call_index,
+    _build_msg_index,
     condense_model_event_calls,
     condense_model_event_inputs,
 )
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.solver._task_state import sample_state
-from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._store import Store, store_jsonable
 
@@ -43,19 +44,15 @@ from .checkpointer import (
     ResumeCheckpoint,
 )
 from .config import CheckpointConfig, TimeInterval, TurnInterval
-from .eval_checkpoints_dir import eval_checkpoints_dir, read_eval_manifest
+from .hydrate import _hydrate
 from .layout import CheckpointTriggerKind, SnapshotInfo
 from .restic import (
     ResticBackupSummary,
     egress_sandbox,
-    init_host_repo,
-    init_sandbox_repo,
-    inject_restic,
     run_host_backup,
     run_sandbox_backup,
 )
-from .sample_checkpoints_dir import ensure_sample_checkpoints_dir, write_sidecar
-from .working_dir import ensure_sample_working_dir
+from .sample_checkpoints_dir import write_sidecar
 
 logger = getLogger(__name__)
 
@@ -79,46 +76,37 @@ class _Checkpointer(AbstractAsyncContextManager[Checkpointer]):
         log_location: str,
         sample_id: int | str,
         epoch: int,
-        eval_id: str,
         resume_checkpoint: ResumeCheckpoint | None = None,
     ) -> None:
         self._config = config
         self._log_location = log_location
         self._sample_id = sample_id
         self._epoch = epoch
-        self._eval_id = eval_id
         self._resume_checkpoint = resume_checkpoint
         self._cached: _EnteredCheckpointer | None = None
 
     async def __aenter__(self) -> Checkpointer:
         if self._cached is not None:
             return self._cached
-
-        eval_ckpts_dir = eval_checkpoints_dir(
-            self._log_location, self._config.checkpoints_location
+        result = await _hydrate(
+            config=self._config,
+            log_location=self._log_location,
+            sample_id=self._sample_id,
+            epoch=self._epoch,
+            resume_checkpoint=self._resume_checkpoint,
         )
-        sample_ckpts_dir = await ensure_sample_checkpoints_dir(
-            eval_ckpts_dir, self._sample_id, self._epoch, self._eval_id
-        )
-        sample_work_dir = await ensure_sample_working_dir(
-            self._log_location, self._sample_id, self._epoch
-        )
-        manifest = await read_eval_manifest(eval_ckpts_dir)
-        host_restic = await resolve_restic()
-        host_repo = f"{sample_ckpts_dir}/host"
-        await init_host_repo(host_restic, host_repo, manifest.restic_password)
-        for sandbox_name in self._config.sandbox_paths or {}:
-            env = sandbox(sandbox_name)
-            await inject_restic(env)
-            await init_sandbox_repo(env, manifest.restic_password)
         self._cached = _EnteredCheckpointer(
             config=self._config,
-            sample_checkpoints_dir=sample_ckpts_dir,
-            sample_working_dir=sample_work_dir,
-            host_restic=host_restic,
-            host_repo=host_repo,
-            restic_password=manifest.restic_password,
+            sample_checkpoints_dir=result.sample_checkpoints_dir,
+            sample_working_dir=result.sample_working_dir,
+            host_restic=result.host_restic,
+            host_repo=result.host_repo,
+            restic_password=result.restic_password,
             resume_checkpoint=self._resume_checkpoint,
+            agent_state=result.host.agent_state,
+            condensed_events=result.host.condensed_events,
+            msg_pool=result.host.msg_pool,
+            call_pool=result.host.call_pool,
         )
         return self._cached
 
@@ -145,6 +133,10 @@ class _EnteredCheckpointer:
         host_repo: str,
         restic_password: str,
         resume_checkpoint: ResumeCheckpoint | None,
+        agent_state: dict[str, Any] | None = None,
+        condensed_events: list[Event] | None = None,
+        msg_pool: list[ChatMessage] | None = None,
+        call_pool: list[JsonValue] | None = None,
     ) -> None:
         self._config = config
         self._sample_checkpoints_dir = sample_checkpoints_dir
@@ -153,21 +145,24 @@ class _EnteredCheckpointer:
         self._host_repo = host_repo
         self._restic_password = restic_password
         self._resume_checkpoint = resume_checkpoint
+        self._agent_state = agent_state
         # Sync per-session state — turn counters, callbacks, pools.
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
-        self._next_checkpoint_id = 1
         # Persisted across fires: each fire processes only the new event slice
         # and appends to these accumulators. Safe because checkpoints fire at
         # turn boundaries, after which prior events are immutable.
-        self._condensed_events: list[Event] = []
-        self._msg_pool: list[ChatMessage] = []
-        self._msg_index: dict[str, int] = {}
-        self._call_pool: list[JsonValue] = []
-        self._call_index: dict[str, int] = {}
-        self._events_consumed = 0
+        # On resume, hydrate seeds the pools (and `_events_consumed` to the
+        # transcript-event count of pushed history) so the next fire writes
+        # a snapshot containing old + new events.
+        self._condensed_events: list[Event] = list(condensed_events or [])
+        self._msg_pool: list[ChatMessage] = list(msg_pool or [])
+        self._msg_index: dict[str, int] = _build_msg_index(self._msg_pool)
+        self._call_pool: list[JsonValue] = list(call_pool or [])
+        self._call_index: dict[str, int] = _build_call_index(self._call_pool)
+        self._events_consumed = len(self._condensed_events)
 
     @property
     def is_resuming(self) -> bool:
@@ -193,8 +188,9 @@ class _EnteredCheckpointer:
                 f"track already registered for key {key!r}; keys must be unique"
             )
         self._on_checkpoint_callbacks[key] = callback
-        # Resume hydration is not yet implemented — until it is, every
-        # `track()` call gets the fresh-run `initial_value`.
+        if self._agent_state is not None and key in self._agent_state:
+            value: T = self._agent_state[key]
+            return value
         return initial_value
 
     def _should_fire(self) -> bool:
@@ -226,6 +222,14 @@ class _EnteredCheckpointer:
         # the per-checkpoint sidecar.
         cycle_start = time.monotonic()
 
+        # Sidecar numbering continues from any sidecars already present
+        # in the dir (incl. those FS-copied from a prior eval on resume).
+        # Scanned per-fire rather than tracked in memory so the count
+        # naturally bridges resumed runs without an explicit handoff.
+        next_checkpoint_id = await anyio.to_thread.run_sync(
+            _scan_next_checkpoint_id, self._sample_checkpoints_dir
+        )
+
         state = sample_state()
         if not state:
             raise RuntimeError("Checkpointer must find sample state")
@@ -245,9 +249,11 @@ class _EnteredCheckpointer:
         # are only created at task-group start time.
         sandbox_items = list((self._config.sandbox_paths or {}).items())
         backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
-            self._backup_host,
+            partial(self._backup_host, next_checkpoint_id),
             *[
-                partial(self._backup_and_egress_sandbox, name, paths)
+                partial(
+                    self._backup_and_egress_sandbox, name, paths, next_checkpoint_id
+                )
                 for name, paths in sandbox_items
             ],
         ]
@@ -265,14 +271,13 @@ class _EnteredCheckpointer:
 
         await write_sidecar(
             sample_checkpoints_dir=self._sample_checkpoints_dir,
-            checkpoint_id=self._next_checkpoint_id,
+            checkpoint_id=next_checkpoint_id,
             trigger=trigger,
             turn=self._turn,
             host=host_info,
             sandboxes=sandbox_infos,
             duration_ms=duration_ms,
         )
-        self._next_checkpoint_id += 1
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
 
@@ -338,21 +343,21 @@ class _EnteredCheckpointer:
             }
             await (sample_dir / "agent_state.json").write_text(_json_dump(agent_state))
 
-    async def _backup_host(self) -> ResticBackupSummary:
+    async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
         return await run_host_backup(
             self._host_restic,
             self._host_repo,
             self._restic_password,
             self._sample_working_dir,
-            self._next_checkpoint_id,
+            checkpoint_id,
         )
 
     async def _backup_and_egress_sandbox(
-        self, name: str, paths: list[str]
+        self, name: str, paths: list[str], checkpoint_id: int
     ) -> ResticBackupSummary:
         env = sandbox(name)
         summary = await run_sandbox_backup(
-            env, self._restic_password, paths, self._next_checkpoint_id
+            env, self._restic_password, paths, checkpoint_id
         )
         dest_repo = f"{self._sample_checkpoints_dir}/sandboxes/{name}"
         await egress_sandbox(
@@ -360,10 +365,25 @@ class _EnteredCheckpointer:
             dest_repo=dest_repo,
             password=self._restic_password,
             host_restic=self._host_restic,
-            checkpoint_id=self._next_checkpoint_id,
+            checkpoint_id=checkpoint_id,
             snapshot_id=summary.snapshot_id,
         )
         return summary
+
+
+def _scan_next_checkpoint_id(sample_checkpoints_dir: str) -> int:
+    """Return the next sidecar ordinal for this sample.
+
+    Walks the sample checkpoints dir for ``ckpt-NNNNN.json`` filenames
+    and returns ``max(N) + 1`` — or 1 if none exist yet. Used by
+    ``_fire`` so the count continues across resume without an explicit
+    handoff through ``_hydrate``.
+    """
+    sample_dir = Path(sample_checkpoints_dir)
+    if not sample_dir.is_dir():
+        return 1
+    ids = [int(p.stem.removeprefix("ckpt-")) for p in sample_dir.glob("ckpt-*.json")]
+    return (max(ids) + 1) if ids else 1
 
 
 def _snapshot_info(summary: ResticBackupSummary) -> SnapshotInfo:

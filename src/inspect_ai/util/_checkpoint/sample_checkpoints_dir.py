@@ -1,25 +1,44 @@
-"""Sample checkpoints dir and sidecar writes.
+"""Sample checkpoints dir contents: ``sample.json`` + ``ckpt-*.json`` sidecars.
 
 Each ``(sample, epoch[, retry])`` attempt gets its own sample
-checkpoints dir under the eval checkpoints dir; sidecars
-(``ckpt-NNNNN.json``) live inside it as the plaintext index for each
-fired checkpoint. See ``design/plans/checkpointing-working.md`` §1.
+checkpoints dir under the eval checkpoints dir. The dir holds:
 
-The optional ``_<retry>`` suffix is omitted until ``ActiveSample``
-exposes the attempt index — see the TODO at the
+- ``sample.json`` — per-sample state (currently the restic password).
+- ``ckpt-NNNNN.json`` — one plaintext sidecar per fired checkpoint;
+  the index into the host + sandbox restic repos.
+- ``host/`` and ``sandboxes/<name>/`` — restic repos.
+
+See ``design/plans/checkpointing-working.md`` §1 and
+``design/plans/checkpointing-hydration.md``.
+
+The optional ``_<retry>`` suffix on the dir name is omitted until
+``ActiveSample`` exposes the attempt index — see the TODO at the
 ``Checkpointer.__aenter__`` identity capture.
 """
 
 from __future__ import annotations
 
+import secrets
+import threading
 from datetime import datetime, timezone
 
 import anyio
 
 from inspect_ai._util.file import file, filesystem
 
-from .eval_checkpoints_dir import init_eval_checkpoints_dir
-from .layout import CheckpointSidecar, CheckpointTriggerKind, SnapshotInfo
+from .layout import (
+    CheckpointSample,
+    CheckpointSidecar,
+    CheckpointTriggerKind,
+    SnapshotInfo,
+)
+
+# Serialize sample.json init within a single inspect process. Concurrent
+# callers in the same dir would each see "file missing" and mint
+# distinct passwords; this lock ensures the first writer wins and the
+# rest read its result. Cross-process races are not covered — each
+# inspect process owns its own sample dir tree.
+_sample_json_lock = threading.Lock()
 
 
 def _sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
@@ -55,14 +74,13 @@ def _has_sample_checkpoint_blocking(
 
 
 async def ensure_sample_checkpoints_dir(
-    eval_dir: str, sample_id: int | str, epoch: int, eval_id: str
+    eval_dir: str, sample_id: int | str, epoch: int
 ) -> str:
     """Create (idempotent) and return the sample checkpoints dir path.
 
-    Also ensures the eval checkpoints dir + manifest exist; that's an
+    Also ensures the eval checkpoints dir exists; that's an
     implementation detail callers shouldn't have to repeat.
     """
-    await init_eval_checkpoints_dir(eval_dir, eval_id)
     return await anyio.to_thread.run_sync(
         _ensure_sample_checkpoints_dir_blocking, eval_dir, sample_id, epoch
     )
@@ -72,8 +90,44 @@ def _ensure_sample_checkpoints_dir_blocking(
     eval_dir: str, sample_id: int | str, epoch: int
 ) -> str:
     sample_dir = _sample_checkpoints_dir(eval_dir, sample_id, epoch)
-    filesystem(sample_dir).mkdir(sample_dir, exist_ok=True)
+    fs = filesystem(sample_dir)
+    fs.mkdir(eval_dir, exist_ok=True)
+    fs.mkdir(sample_dir, exist_ok=True)
     return sample_dir
+
+
+async def ensure_sample_json(sample_dir: str) -> CheckpointSample:
+    """Ensure ``<sample_dir>/sample.json`` exists; return its contents.
+
+    Mints a fresh restic password and writes the file on first call.
+    Subsequent calls read and return the existing file. Idempotent
+    across concurrent samples (different sample dirs) — there is no
+    cross-sample race.
+    """
+    return await anyio.to_thread.run_sync(_ensure_sample_json_blocking, sample_dir)
+
+
+def _ensure_sample_json_blocking(sample_dir: str) -> CheckpointSample:
+    sample_json_path = f"{sample_dir}/sample.json"
+    fs = filesystem(sample_json_path)
+    with _sample_json_lock:
+        if fs.exists(sample_json_path):
+            with file(sample_json_path, "r") as f:
+                return CheckpointSample.model_validate_json(f.read())
+        sample = CheckpointSample(restic_password=secrets.token_urlsafe(32))
+        with file(sample_json_path, "w") as f:
+            f.write(sample.model_dump_json(indent=2))
+        return sample
+
+
+async def read_sample_json(sample_dir: str) -> CheckpointSample:
+    """Read ``<sample_dir>/sample.json``. Caller must have ensured it exists."""
+    return await anyio.to_thread.run_sync(_read_sample_json_blocking, sample_dir)
+
+
+def _read_sample_json_blocking(sample_dir: str) -> CheckpointSample:
+    with file(f"{sample_dir}/sample.json", "r") as f:
+        return CheckpointSample.model_validate_json(f.read())
 
 
 async def write_sidecar(

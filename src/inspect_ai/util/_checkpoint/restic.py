@@ -156,6 +156,143 @@ async def run_host_backup(
     return _parse_summary(proc.stdout.decode())
 
 
+async def restore_host_repo(
+    restic: Path, repo: str, password: str, target: str
+) -> None:
+    """Restore the latest snapshot in ``repo`` into ``target``.
+
+    The host snapshot backs up a single source directory (the sample
+    working dir); restic stores files at their original absolute paths.
+    Restoring with ``--target T`` plus ``--include <source>`` lands
+    files at ``T/<source>/*``. To get the contents directly under ``T``,
+    we read the snapshot's source path from ``restic snapshots --json``,
+    restore with ``--include`` to filter to that path, then move the
+    files up one level so callers see ``T/events.json`` rather than
+    ``T/<deep absolute path>/events.json``.
+    """
+    proc = await anyio.run_process(
+        [str(restic), "-r", repo, "snapshots", "latest", "--json"],
+        env=_restic_env(password),
+        check=True,
+    )
+    snapshots = json.loads(proc.stdout.decode())
+    if not snapshots:
+        raise RuntimeError(f"restic repo {repo} has no snapshots to restore")
+    source_paths = snapshots[-1]["paths"]
+    if len(source_paths) != 1:
+        raise RuntimeError(
+            f"restic snapshot in {repo} backs up {len(source_paths)} paths; "
+            "expected exactly one (the sample working dir)"
+        )
+    source_path = source_paths[0]
+
+    await anyio.run_process(
+        [
+            str(restic),
+            "-r",
+            repo,
+            "restore",
+            "latest",
+            "--target",
+            target,
+            "--include",
+            source_path,
+        ],
+        env=_restic_env(password),
+        check=True,
+    )
+
+    # Files land at <target><source_path>/. Move them up to <target>/.
+    restored_dir = Path(target + source_path)
+    target_dir = Path(target)
+    for entry in restored_dir.iterdir():
+        entry.rename(target_dir / entry.name)
+    # Walk back up removing now-empty intermediate dirs.
+    current = restored_dir
+    while current != target_dir and current.is_dir() and not any(current.iterdir()):
+        parent = current.parent
+        current.rmdir()
+        current = parent
+
+
+async def ingress_sandbox(
+    env: SandboxEnvironment, src_repo: str, password: str
+) -> None:
+    """Copy a host-side restic repo into the sandbox + restore from it.
+
+    Inverse of :func:`egress_sandbox`. Used on resume:
+
+    1. Tar the host-side ``<sample_checkpoints_dir>/sandboxes/<name>/``
+       repo (whose contents were FS-copied from the prior eval's host
+       side just before this call).
+    2. Stream the tarball into the sandbox via root ``sh`` so the agent
+       never sees the bytes in flight, extracting into the standard
+       in-sandbox repo location (``/opt/inspect-restic/repo``).
+    3. Run ``restic restore latest --target /`` inside the sandbox so
+       restored files land at their original absolute paths, replacing
+       whatever the fresh sandbox came up with.
+
+    Egress's two-phase manifest is reseeded by writing a manifest line
+    for every file in the freshly-populated repo, so the next fire's
+    diff treats the inherited snapshots as already-shipped.
+    """
+    src = Path(src_repo)
+    if not src.is_dir():
+        raise RuntimeError(
+            f"resume: expected sandbox repo at {src}, but it doesn't exist"
+        )
+
+    tar_bytes = _build_repo_tar(src)
+
+    extract_script = (
+        f"set -e; "
+        f"install -d -m 0700 {_SANDBOX_RESTIC_DIR}; "
+        f"rm -rf {_SANDBOX_RESTIC_REPO}; "
+        f"mkdir -p {_SANDBOX_RESTIC_REPO}; "
+        f"tar -xf - -C {_SANDBOX_RESTIC_REPO}; "
+        # Seed the manifest with every inherited file so the next
+        # egress only ships forward-progress entries.
+        f"mkdir -p {_EGRESS_STAGING}; "
+        f"(cd {_SANDBOX_RESTIC_REPO} && "
+        f"  {{ find config -type f 2>/dev/null; "
+        f"     find keys -type f 2>/dev/null; "
+        f"     find data -type f 2>/dev/null; "
+        f"     find index -type f 2>/dev/null; "
+        f"     find snapshots -type f 2>/dev/null; }} | "
+        f"  LC_ALL=C sort > {_EGRESS_MANIFEST})"
+    )
+    result = await env.exec(["sh", "-c", extract_script], input=tar_bytes, user="root")
+    if not result.success:
+        raise RuntimeError(f"Failed to ingress sandbox restic repo: {result.stderr}")
+
+    restore = await env.exec(
+        [
+            SANDBOX_RESTIC_PATH,
+            "-r",
+            _SANDBOX_RESTIC_REPO,
+            "restore",
+            "latest",
+            "--target",
+            "/",
+        ],
+        env={"RESTIC_PASSWORD": password},
+        user="root",
+    )
+    if not restore.success:
+        raise RuntimeError(
+            f"Failed to restore sandbox state from in-container repo: {restore.stderr}"
+        )
+
+
+def _build_repo_tar(repo: Path) -> bytes:
+    """Build an in-memory tarball of ``repo``'s contents, paths relative."""
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tar:
+        for entry in sorted(repo.rglob("*")):
+            tar.add(entry, arcname=str(entry.relative_to(repo)), recursive=False)
+    return buf.getvalue()
+
+
 async def init_sandbox_repo(env: SandboxEnvironment, password: str) -> None:
     """Initialize a restic repo inside the sandbox (idempotent).
 

@@ -1,8 +1,9 @@
 """Tests for the on-disk layout types.
 
-Phase 2 ships `CheckpointSidecar` and `CheckpointManifest` as pure data types.
-Verifies the contract: required fields, validation strictness on triggers and
-engines, JSON round-trip, and ``extra="allow"`` forward-compat.
+Pure data types: `CheckpointSidecar` (per-checkpoint `ckpt-NNNNN.json`)
+and `CheckpointSample` (per-sample `sample.json`).
+Verifies the contract: required fields, validation strictness on
+triggers, JSON round-trip, and ``extra="allow"`` forward-compat.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from datetime import datetime, timezone
 import pytest
 from pydantic import ValidationError
 
-from inspect_ai.util._checkpoint.layout import CheckpointManifest, CheckpointSidecar
+from inspect_ai.util._checkpoint.layout import CheckpointSample, CheckpointSidecar
 
 
 def _info(
@@ -40,10 +41,7 @@ _BASE_SIDECAR = {
     },
 }
 
-_BASE_MANIFEST = {
-    "eval_id": "test-eval-0001",
-    "layout_version": 1,
-    "engine": "restic",
+_BASE_SAMPLE = {
     "restic_password": "s3cr3t",
 }
 
@@ -101,28 +99,24 @@ def test_sidecar_empty_sandboxes_is_valid() -> None:
     assert sidecar.sandboxes == {}
 
 
-# --- CheckpointManifest ---------------------------------------------------
+# --- CheckpointSample -----------------------------------------------------
 
 
-def test_manifest_basic_round_trip() -> None:
-    manifest = CheckpointManifest.model_validate(_BASE_MANIFEST)
-    assert manifest.eval_id == "test-eval-0001"
-    assert manifest.layout_version == 1
-    assert manifest.engine == "restic"
-    assert manifest.restic_password == "s3cr3t"
+def test_sample_basic_round_trip() -> None:
+    sample = CheckpointSample.model_validate(_BASE_SAMPLE)
+    assert sample.restic_password == "s3cr3t"
 
-    rehydrated = CheckpointManifest.model_validate_json(manifest.model_dump_json())
-    assert rehydrated == manifest
+    rehydrated = CheckpointSample.model_validate_json(sample.model_dump_json())
+    assert rehydrated == sample
 
 
-def test_manifest_rejects_unknown_engine() -> None:
-    payload = {**_BASE_MANIFEST, "engine": "borg"}
+def test_sample_requires_password() -> None:
     with pytest.raises(ValidationError):
-        CheckpointManifest.model_validate(payload)
+        CheckpointSample.model_validate({})
 
 
-def test_manifest_extra_fields_preserved_round_trip() -> None:
-    payload = {**_BASE_MANIFEST, "future_field": "later"}
-    manifest = CheckpointManifest.model_validate(payload)
-    dumped = json.loads(manifest.model_dump_json())
+def test_sample_extra_fields_preserved_round_trip() -> None:
+    payload = {**_BASE_SAMPLE, "future_field": "later"}
+    sample = CheckpointSample.model_validate(payload)
+    dumped = json.loads(sample.model_dump_json())
     assert dumped["future_field"] == "later"
