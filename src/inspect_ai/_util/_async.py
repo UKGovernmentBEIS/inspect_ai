@@ -113,32 +113,32 @@ def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
     from inspect_ai._util.asyncfiles import AsyncFilesystem
     from inspect_ai._util.platform import running_in_notebook
 
-    if current_async_backend() == "trio":
-        raise RuntimeError("run_coroutine cannot be used with trio")
-
     async def _run_with_async_filesystem() -> T:
         async with AsyncFilesystem():
             return await coroutine
 
     if running_in_notebook():
+        if current_async_backend() == "trio":
+            raise RuntimeError(
+                "run_coroutine cannot be used from within a running trio task"
+            )
         init_nest_asyncio()
-        result = asyncio.run(_run_with_async_filesystem())
-        return result
+        return asyncio.run(_run_with_async_filesystem())
+
+    backend = current_async_backend()
+    if backend is None:
+        # No running event loop, so start one on the configured backend.
+        return anyio.run(_run_with_async_filesystem, backend=configured_async_backend())
+    elif backend == "trio":
+        # trio has no nest_asyncio equivalent so we cannot re-enter the
+        # running loop from sync code (callers should use the _async variant)
+        raise RuntimeError(
+            "run_coroutine cannot be used from within a running trio task"
+        )
     else:
-        try:
-            # this will throw if there is no running loop
-            asyncio.get_running_loop()
-
-            # initialize nest_asyncio then we are clear to run
-            init_nest_asyncio()
-
-        except RuntimeError:
-            # No running event loop so we are clear to run. Exit the exception handler
-            # and run it.
-            pass
-
-        result = asyncio.run(_run_with_async_filesystem())
-        return result
+        # Running asyncio loop -- re-enter it via nest_asyncio.
+        init_nest_asyncio()
+        return asyncio.run(_run_with_async_filesystem())
 
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:
