@@ -1131,21 +1131,68 @@ Layer session selection on top of Phase 8's transport using only standard ACP se
 
 **Tests.** `test_picker.py` (25 unit tests) and `test_server_dispatch.py` (16 integration tests over a real socket): initialize handshake; multi-target picker; single-target auto-bind; zero-target empty picker; `loadSession`-known direct bind; `loadSession`-unknown `invalid_params`; picker selection by index / by uuid / bad selection redisplay; bound-mode `prompt` returns `method_not_found` (Phase 10 boundary); cancel silent accept; `session_id` validation on prompt + cancel; snapshot pinning under reorder; redisplay when picked target has finished; concurrent-connection isolation.
 
-### Phase 10: Full SessionRouter + replay-on-attach
+### Phase 10: Full SessionRouter + replay + plan policy + raw events ✅
 
-Also, consider an AgentPlanUpdate tied specifically to Inspect's update_plan and todo_write tools.
+Phase 9 left the connection bound to a target session but `session/prompt` / `session/cancel` returned `method_not_found` / silently dropped. Phase 10 wires the full ACP method surface so a connected client can drive an Inspect agent end-to-end, plus adds two opt-in capabilities (`AgentPlanUpdate` for plan-rendering clients, raw transcript event stream).
 
-Will want a way for clients to optionally receive raw event streams not just ACP sematnic level updates. Let's talk about differnet ways to do this.
+**Four design refinements settled during planning:**
 
-Wire the inbound and outbound ACP method surface.
+1. **AgentPlanUpdate via per-connection client sniff + `_meta` opt-in.** Plan-capable clients receive `AgentPlanUpdate` for `update_plan` / `todo_write` tool invocations *instead of* the standard tool-call notifications (no duplication). Detection runs at `initialize` time: `client_info.name` against a small allowlist (`{"zed", "toad"}`, case-insensitive — the two confirmed clients with first-class Plan UI), OR `clientCapabilities._meta["inspect.plan_rendering"]: true` for explicit opt-in. Anything else gets the standard tool-call notifications. The translation defaults `priority="medium"` since neither Inspect planning tool carries priority.
+2. **Raw event stream opt-in via a new `inspect/event` JSON-RPC notification.** Clients set `clientCapabilities._meta["inspect.raw_events"]: true` at initialize. When enabled, the per-connection forwarder ALSO subscribes to the bound target's transcript directly and sends each event verbatim via a non-standard `inspect/event` JSON-RPC method (supplement, not replacement — runs alongside `session/update`). Standard editors ignore unknown methods; our future `inspect acp` client speaks it natively. Coverage is the full firehose — including events the semantic router drops (`InterruptEvent`, `ScoreEvent`, `InfoEvent`, `SandboxEvent`, `CompactionEvent`, etc.).
+3. **Replay-on-attach with bounded payload.** On bind, the connection iterates the captured `target._transcript.events` through the same Phase 6 mapping (with the same sub-agent depth filter), applies the plan-policy transformation, and elides oversized `raw_input` / `raw_output` payloads. Last `REPLAY_MAX_EVENTS = 100` events post-filter; elision threshold `ELISION_THRESHOLD_BYTES = 4096`. Elided fields are replaced with `{"_inspect.elided": true, "_inspect.original_size": N}`. Live forwarding does NOT elide. Raw replay (when opted in) fires before semantic replay so the client has full context before the friendly stream starts.
+4. **Pre-condensation forwarding guarantee.** The raw forwarder serializes events in the synchronous transcript-subscriber callback, NOT in the async task body. This is load-bearing: `Transcript._process_event` runs subscribers BEFORE the `walk_model_call` attachment-extraction step that reassigns `event.call` to a side-storage ref. Serializing in the callback captures the pre-condensation state. Deferred serialization (the obvious-but-wrong design) would see attachment refs by the time the task body picked up the event.
 
-- `session/prompt` → translate ACP content blocks (text/image/file refs) into `ChatMessageUser(source="operator")` and call `acp.submit_user_message()`.
-- `session/cancel` → call `acp.cancel_current_turn()`.
-- Forward `session/update` notifications from the in-process bus (Phase 6) out over the socket to attached clients.
-- On attach (post-rebind), replay last N messages of prior transcript as `session/update` notifications, eliding tool-call payloads above a size threshold.
-- Pick concrete defaults for N and elision threshold here.
+**What was built:**
 
-**Tests.** End-to-end from a second process: connect, pick, prompt, observe `session/update`, cancel mid-turn, prompt again, see recovery, agent completes; late attach receives replay; replay respects N + elision threshold; multi-modal content survives translation.
+1. **Phase 6 router enhancements** (`src/inspect_ai/agent/_acp/_router.py`):
+   - `_map_event` / `_map_model_event` / `_map_tool_event` hoisted to module scope so the replay path can reuse them without instantiating a full router.
+   - New `replay_transcript(events, session_id, filter_subagents=True) -> Iterator[SessionNotification]` standalone helper. Fresh depth-tracking + dedup state per call; no interference with the live router's state.
+   - `start_tool_call` notifications now populate `raw_input=event.arguments`. Useful for all clients (gives editors visibility into tool arguments via the standard ACP field) and required by the plan-policy translator (which reads the plan/todos array from `raw_input`).
+
+2. **`AcpSession` protocol additions** (`src/inspect_ai/agent/_acp/_session.py`):
+   - `subscribe_transcript_events(callback) -> unsubscribe` — wraps `Transcript._add_subscriber` without exposing private state. Used by the raw forwarder. NoOp variant returns a no-op unsubscribe so callers can use a uniform pattern.
+   - `transcript_events_snapshot() -> Sequence[Event]` — copy of the captured transcript's event list for replay. NoOp returns `[]`.
+
+3. **Capability detection at `initialize`** (`_server.py`): `_ConnectionState` extended with `client_renders_plan: bool` and `raw_events_enabled: bool` (both default False). `initialize` populates them from `client_info.name` (lowercased, matched against `PLAN_RENDERING_CLIENTS = frozenset({"zed", "toad"})`) and `clientCapabilities._meta` keys (`inspect.plan_rendering`, `inspect.raw_events`).
+
+4. **Inbound forwarding** (`_server.py` `prompt` / `cancel` handlers):
+   - `session/prompt` in bound mode: `_find_live_session(state.target_session_id)` walks `active_samples()` for the matching `acp_session`; if found, translates ACP content blocks via `_translate_prompt_blocks` (full support for `TextContentBlock`, text-only fallback for other variants with a one-shot warning) into a `ChatMessageUser(source="operator")`, then calls `target.submit_user_message(msg)`. Returns `PromptResponse(stop_reason="end_turn")`. If the target session has vanished (sample finished after bind), returns `internal_error` with `reason: bound session no longer active`.
+   - `session/cancel` in bound mode: same lookup, then `target.cancel_current_turn()`. Mismatched / unbound / vanished cases silently drop (notifications can't return errors).
+
+5. **Per-connection forwarder** (`_server.py`):
+   - `_start_forwarders(target_session_id)` runs on each bind path (`_auto_bind`, `_handle_picker_selection` success, `load_session` known-match). First action: `_stop_forwarders()` (idempotent — tears down any prior binding so rebinding doesn't leak the old subscriber or cross-stream the old target's notifications into the new connection).
+   - Three-step setup: SNAPSHOT (sync) → ATTACH live subscribers (sync) → emit REPLAY → start LIVE forwarder task(s). Snapshot + attach are both sync so no event can slip into both — events ≤ snapshot go through replay, events > snapshot go through live.
+   - `_run_semantic_forwarder`: drains `target.attach()`'s receive stream, applies `_maybe_transform_plan_tool` per notification, rewrites `session_id` to `wire_session_id` via `_rewrite_session_id` (no-op fast path when ids match — only the picker-selection path actually differs), forwards as `session/update`.
+   - `_run_raw_forwarder`: drains a per-connection memory-object-stream of payloads (already serialized at callback time per refinement #4), forwards as `inspect/event`.
+
+6. **Plan policy transformation** (`_server.py`):
+   - `_maybe_transform_plan_tool(notif)` returns a transformed notification, the original notification, or `None` (suppress). For plan-capable clients: ToolCallStart for a plan tool with `status="in_progress"` is stashed (raw_input + title) and suppressed; matching ToolCallProgress on completion looks up the stash and emits an `AgentPlanUpdate`. Instant-complete plan tools (no in_progress phase) emit Plan directly on start. Non-capable clients always pass through unchanged.
+   - `_build_plan_update(title, raw_input)` translates `update_plan`'s `{plan: [{step, status}, ...]}` and `todo_write`'s `{todos: [{content, status}, ...]}` into `AgentPlanUpdate(entries=[PlanEntry(content, status, priority="medium"), ...])`. Returns `None` on malformed input; caller falls back to passthrough.
+
+7. **Replay-on-attach** (`_server.py`):
+   - `_run_replay(snapshot)` emits raw replay first (if opted in) then semantic replay. Raw uses the full transcript (no sub-agent filter). Semantic filters via `_filter_subagent_events` (extracted depth-tracking helper) then maps via `replay_transcript`. Both are capped to `REPLAY_MAX_EVENTS = 100` post-filter.
+   - `_elide_tool_call_notification(notif, threshold)` returns a model_copy with `raw_input` / `raw_output` replaced by the elision marker when serialized size exceeds the threshold. `_elide_raw_event_payload(payload, threshold)` mutates a serialized event dict in place for ToolEvent's `arguments` / `result` fields.
+
+**Test coverage:**
+
+- `tests/agent/test_acp/test_plan_policy.py` (25 unit tests, no socket): capability detection (allowlist + `_meta` + case-insensitivity + missing fields), `_build_plan_update` translation for both update_plan and todo_write (well-formed + degenerate inputs), `_is_plan_tool_notification` predicate, forwarder transformation behavior (suppress in-progress, emit Plan on complete, instant-complete, passthrough for non-capable, passthrough for non-plan tools).
+- `tests/agent/test_acp/test_server_forwarding.py` (14 socket integration tests): inbound prompt/cancel forwarding to stubbed live sessions, outbound semantic forwarding via the bus, plan-tool live transformation for Zed-named clients + `_meta`-opted clients, non-plan-capable passthrough, forwarder cleanup on disconnect, bound-target-gone `internal_error`, replay-on-attach (cap + elision + sub-agent filter + plan policy + ordering), and the two P1/P2 regression tests (picker-selection sessionId rewrite, rebind cleanup).
+- `tests/agent/test_acp/test_raw_events.py` (9 socket integration tests): opt-in detection, opt-in default-off, supplement-not-replacement (both streams fire), coverage of router-dropped events (InterruptEvent, ScoreEvent, etc.), no-leak-to-non-opted clients, raw replay, transcript subscriber cleanup on disconnect, pre-condensation guarantee (raw client sees inline `event.call` even after the threshold), CompactionEvent visibility + non-mutation of prior events, raw replay elision for oversized ToolEvent arguments.
+
+**Code-review issues caught + fixed during implementation:**
+
+- **P1 (high)**: live forwarder originally forwarded `SessionNotification`s unchanged from the bus. Notifications were published with the target's `session.session_id`, but after a picker selection the connection's `wire_session_id` (control id minted at `session/new`) differs. Clients keyed on the control id never saw matching updates. Fixed by `_rewrite_session_id` in the forwarder loop. The auto-bind / direct-loadSession tests passed even without the fix (wire == target in those paths); the picker selection is the only case that exercises the divergence.
+- **P2 (medium)**: rebinding (`session/load` twice, or another `session/new` with picker re-select) installed new forwarders without stopping the old ones. The old target kept publishing into the same connection. Fixed by calling `_stop_forwarders()` at the top of `_start_forwarders` (idempotent on first bind).
+- **Pre-condensation race**: the original raw forwarder enqueued the event reference and called `model_dump` in the task body. By then `walk_model_call` had already reassigned `event.call` to an attachment-ref form, so raw consumers saw `attachment://hash` instead of the original inline payload. Caught by the test that pre-populates a ModelEvent with a >8KB inline `call` and asserts the raw stream payload contains the inline data. Fixed by serializing in the synchronous transcript-subscriber callback.
+
+**Tally:** 233 passed, 121 skipped (trio variants — socket integration tests use asyncio-specific `StreamReader`/`StreamWriter`), 0 failures. mypy clean (1016 source files). ruff clean.
+
+**Caveats deferred:**
+- Full multi-modal prompt translation (image/audio/resource blocks → Inspect content types). Phase 10 supports `TextContentBlock` fully and emits placeholder text for the others with a one-shot warning. Real multi-modal lands in Phase 13.
+- `REPLAY_MAX_EVENTS = 100` and `ELISION_THRESHOLD_BYTES = 4096` are hard-coded; a server-level config option or per-connection override is a follow-up.
+- The `_log_model_api` retention policy zeros `event.call` BEFORE subscribers fire once the per-model count threshold is crossed. Raw consumers past the threshold see `ModelEvent.call = None` even with our pre-condensation guarantee. Matches log-writer behavior — not a forwarder bug. Documented.
+- Raw events go out unfiltered (no sub-agent depth filter). A `_meta` opt-in for sub-agent filtering of raw events could come later.
+- Tool-call payload elision only fires on REPLAY, not live forwarding. If live notifications turn out too chatty we can reuse the elision logic.
 
 ### Phase 11: `deepagent()` integration
 
