@@ -522,13 +522,21 @@ async def test_picker_bad_selection_redisplays_picker(
 
 @skip_if_trio
 @unix_only
-async def test_bound_mode_prompt_returns_method_not_found(
+async def test_bound_mode_prompt_with_unreachable_target_returns_internal_error(
     short_data_dir: Path, stub_targets
 ) -> None:
-    """After binding (via auto-bind), a second `prompt` returns method_not_found.
+    """A bound prompt whose target can't be looked up returns internal_error.
 
-    This is the Phase 9 boundary: the binding works, but Phase 10 owns
-    forwarding `session/prompt` to the target's `submit_user_message`.
+    Phase 9's test was a placeholder asserting `method_not_found` for
+    bound-mode prompts. Phase 10 forwards them to the bound target's
+    ``submit_user_message`` via :func:`_find_live_session`, which walks
+    the real ``active_samples()`` registry. The dispatch tests use
+    ``stub_targets`` (monkeypatched at ``_picker.active_samples``)
+    which does NOT plug into the registry the forwarder reads, so
+    targets are present at picker time but unreachable at forward
+    time — surfaces as ``internal_error`` with a clear reason. Real
+    forwarding to a live ``_LiveAcpSession`` is exercised in
+    ``test_server_forwarding.py``.
     """
     stub_targets(
         [_make_sample(task="solo", sample_id="s", epoch=0, session_id="uuid-only")]
@@ -540,7 +548,6 @@ async def test_bound_mode_prompt_returns_method_not_found(
             resp = await client.request(
                 "session/new", {"cwd": "/tmp", "mcpServers": []}
             )
-            # Auto-bound, so the response sessionId IS the target.
             assert resp["result"]["sessionId"] == "uuid-only"
             await client.next_notification()  # drain bind confirmation
 
@@ -552,7 +559,12 @@ async def test_bound_mode_prompt_returns_method_not_found(
                 },
             )
             assert "error" in prompt_resp
-            assert prompt_resp["error"]["code"] == -32601  # method not found
+            # internal_error from the _find_live_session miss.
+            assert prompt_resp["error"]["code"] == -32603
+            assert (
+                prompt_resp["error"]["data"]["reason"]
+                == "bound session no longer active"
+            )
         finally:
             await client.close()
 

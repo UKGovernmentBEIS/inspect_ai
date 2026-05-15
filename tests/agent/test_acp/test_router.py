@@ -231,19 +231,26 @@ def test_detach_removes_the_subscription() -> None:
         _transcript.reset(token)
 
 
-def test_router_exception_does_not_propagate_to_loop() -> None:
+def test_router_exception_does_not_propagate_to_loop(monkeypatch) -> None:
     """A mapping error is logged but doesn't crash the producing _event() call."""
     tr = Transcript()
     token = _transcript.set(tr)
     try:
-        session = _new_session()
-        router, _ = _attach_router(session)
+        from inspect_ai.agent._acp import _router
 
-        def bad_map(_e: Any) -> Any:
+        session = _new_session()
+        _attach_router(session)
+
+        def bad_map(*_args: Any, **_kwargs: Any) -> Any:
             raise RuntimeError("boom")
 
-        router._map = bad_map  # type: ignore[method-assign,assignment]
-        # tr._event must not raise even though _process → _map → bad_map raises.
+        # Patch the module-level `_map_event` that `_process` consults.
+        # (Phase 10 hoisted the mapping logic out of the class so the
+        # replay path can reuse it; the router instance no longer has
+        # an own `_map` method.)
+        monkeypatch.setattr(_router, "_map_event", bad_map)
+        # tr._event must not raise even though _process → _map_event
+        # → bad_map raises.
         tr._event(_model_event(text="x"))
     finally:
         _transcript.reset(token)

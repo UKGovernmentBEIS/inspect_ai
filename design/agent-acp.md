@@ -1135,6 +1135,8 @@ Layer session selection on top of Phase 8's transport using only standard ACP se
 
 Also, consider an AgentPlanUpdate tied specifically to Inspect's update_plan and todo_write tools.
 
+Will want a way for clients to optionally receive raw event streams not just ACP sematnic level updates. Let's talk about differnet ways to do this.
+
 Wire the inbound and outbound ACP method surface.
 
 - `session/prompt` → translate ACP content blocks (text/image/file refs) into `ChatMessageUser(source="operator")` and call `acp.submit_user_message()`.

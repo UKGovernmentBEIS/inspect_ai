@@ -26,6 +26,7 @@ from typing import (
     TYPE_CHECKING,
     Any,
     AsyncIterator,
+    Callable,
     Iterator,
     Literal,
     Protocol,
@@ -220,6 +221,37 @@ class AcpSession(Protocol):
         """
         ...
 
+    def subscribe_transcript_events(
+        self, callback: Callable[[Any], None]
+    ) -> Callable[[], None]:
+        """Register a sync callback fired on every transcript event.
+
+        Used by the Phase 10 raw-event forwarder to stream Inspect-
+        native events out to opt-in clients. Wraps the underlying
+        ``Transcript._add_subscriber`` so callers don't reach into
+        private session state. Returns an idempotent unsubscribe
+        callable (calling it removes the subscriber; safe to call
+        multiple times).
+
+        The callback fires in the producer's task context, BEFORE the
+        log writer's attachment-extraction step — so consumers see
+        events with their full inline payloads.
+
+        Subscribers on the no-op session are silently dropped — the
+        returned unsubscribe callable is a no-op.
+        """
+        ...
+
+    def transcript_events_snapshot(self) -> Sequence[Any]:
+        """Snapshot the captured transcript's event list.
+
+        Used by the Phase 10 replay-on-attach path to push recent
+        transcript history to a late-joining client before live
+        forwarding starts. Returns an empty sequence for the no-op
+        session (nothing to replay).
+        """
+        ...
+
     def track_tool_call(
         self, tool_call_id: str, event: "ToolEvent | None" = None
     ) -> contextlib.AbstractContextManager[None]:
@@ -338,6 +370,24 @@ class _NoOpAcpSession:
     def track_model_event(self, event: "ModelEvent") -> Iterator[None]:
         """No-op model-event tracker — yields once."""
         yield
+
+    def subscribe_transcript_events(
+        self, callback: Callable[[Any], None]
+    ) -> Callable[[], None]:
+        """No-op subscribe — there's no transcript to subscribe to.
+
+        Returns a no-op unsubscribe callable so callers can use a
+        uniform attach/detach pattern.
+        """
+
+        def _noop_unsubscribe() -> None:
+            return None
+
+        return _noop_unsubscribe
+
+    def transcript_events_snapshot(self) -> Sequence[Any]:
+        """No-op snapshot — empty sequence (nothing to replay)."""
+        return []
 
 
 class _LiveAcpSession:
@@ -506,6 +556,41 @@ class _LiveAcpSession:
         for i in reversed(dead):
             send, _ = self._subscribers.pop(i)
             send.close()
+
+    def subscribe_transcript_events(
+        self, callback: Callable[[Any], None]
+    ) -> Callable[[], None]:
+        """Register a sync callback on this session's captured transcript.
+
+        Phase 10 raw-event forwarder hook. Wraps
+        :meth:`Transcript._add_subscriber` so callers can subscribe
+        without reaching into private session state and without the
+        ContextVar-lookup gotcha (we run from the connection's task,
+        not the sample's, so ``transcript()`` would return the empty
+        default).
+        """
+        if self._transcript is None:
+            # Session not entered yet — should be unreachable in
+            # practice (forwarders only start after binding). Return a
+            # no-op unsubscribe so the caller's cleanup is safe.
+            def _noop_unsubscribe() -> None:
+                return None
+
+            return _noop_unsubscribe
+        return self._transcript._add_subscriber(callback)
+
+    def transcript_events_snapshot(self) -> Sequence[Any]:
+        """Snapshot the captured transcript's event list for replay.
+
+        Returns an empty sequence if the session hasn't been entered
+        yet (defensive — should be unreachable in practice).
+        """
+        if self._transcript is None:
+            return []
+        # ``Transcript.events`` already returns a Sequence; wrap in
+        # list() so callers iterating concurrently with new ``_event``
+        # appends don't see size changes mid-iteration.
+        return list(self._transcript.events)
 
     @contextlib.contextmanager
     def turn_scope(self) -> Iterator[None]:
