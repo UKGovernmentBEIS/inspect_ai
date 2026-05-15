@@ -194,7 +194,10 @@ def react(
 
             # track conversation messages (restored to prior value on resume)
             state.messages = cp.track(
-                "messages", lambda: state.messages, state.messages
+                "messages",
+                lambda: state.messages,
+                state.messages,
+                value_type=list[ChatMessage],
             )
 
             # resolve overflow handling
@@ -376,7 +379,10 @@ def react_no_submit(
 
             # track conversation messages (restored to prior value on resume)
             state.messages = cp.track(
-                "messages", lambda: state.messages, state.messages
+                "messages",
+                lambda: state.messages,
+                state.messages,
+                value_type=list[ChatMessage],
             )
 
             # resolve overflow handling

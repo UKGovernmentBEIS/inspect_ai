@@ -34,5 +34,7 @@ class _NoopCheckpointer(contextlib.AbstractAsyncContextManager[Checkpointer]):
         key: str,
         callback: Callable[[], T],
         initial_value: T,
+        *,
+        value_type: type[T] | None = None,
     ) -> T:
         return initial_value

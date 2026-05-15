@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, TypeVar
 
 import anyio
-from pydantic import JsonValue
+from pydantic import BaseModel, JsonValue, TypeAdapter
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util._async import tg_collect
@@ -44,7 +44,7 @@ from .checkpointer import (
     ResumeCheckpoint,
 )
 from .config import CheckpointConfig, TimeInterval, TurnInterval
-from .hydrate import _hydrate
+from .hydrate import hydrate
 from .layout import CheckpointTriggerKind, SnapshotInfo
 from .restic import (
     ResticBackupSummary,
@@ -57,6 +57,11 @@ from .sample_checkpoints_dir import write_sidecar
 logger = getLogger(__name__)
 
 T = TypeVar("T")
+
+# JSON-primitive Python types; these round-trip identically through
+# `json.dumps`/`json.loads`, so `track()` can return them on resume
+# without a TypeAdapter.
+_JSON_PRIMITIVE_TYPES: tuple[type, ...] = (int, float, str, bool, type(None))
 
 
 class _Checkpointer(AbstractAsyncContextManager[Checkpointer]):
@@ -88,7 +93,7 @@ class _Checkpointer(AbstractAsyncContextManager[Checkpointer]):
     async def __aenter__(self) -> Checkpointer:
         if self._cached is not None:
             return self._cached
-        result = await _hydrate(
+        result = await hydrate(
             config=self._config,
             log_location=self._log_location,
             sample_id=self._sample_id,
@@ -145,7 +150,9 @@ class _EnteredCheckpointer:
         self._host_repo = host_repo
         self._restic_password = restic_password
         self._resume_checkpoint = resume_checkpoint
-        self._agent_state = agent_state
+        self._agent_state: dict[str, Any] = (
+            agent_state if agent_state is not None else {}
+        )
         # Sync per-session state — turn counters, callbacks, pools.
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
@@ -182,14 +189,44 @@ class _EnteredCheckpointer:
         key: str,
         callback: Callable[[], T],
         initial_value: T,
+        *,
+        value_type: type[T] | None = None,
     ) -> T:
         if key in self._on_checkpoint_callbacks:
             raise ValueError(
                 f"track already registered for key {key!r}; keys must be unique"
             )
+        if (
+            value_type is None
+            and not isinstance(initial_value, BaseModel)
+            and not isinstance(initial_value, _JSON_PRIMITIVE_TYPES)
+        ):
+            raise TypeError(
+                f"track({key!r}): initial_value of type "
+                f"{type(initial_value).__name__} requires a `value_type` "
+                "because its JSON round-trip is lossy. Single BaseModel "
+                "instances and JSON primitives (int, float, str, bool, "
+                "None) are auto-handled."
+            )
         self._on_checkpoint_callbacks[key] = callback
-        if self._agent_state is not None and key in self._agent_state:
-            value: T = self._agent_state[key]
+        if key in self._agent_state:
+            raw = self._agent_state[key]
+            if value_type is not None:
+                return TypeAdapter(value_type).validate_python(raw)
+            if isinstance(initial_value, BaseModel):
+                # Auto-handle the single-model case — the instance's runtime
+                # class is unambiguous, no caller help needed.
+                return type(initial_value).model_validate(raw)
+            # Primitive — saved type must still match. Catches schema drift
+            # (e.g. agent code changed the tracked value's type since the
+            # last fire) before the agent gets a wrong-shaped value back.
+            if not isinstance(raw, type(initial_value)):
+                raise TypeError(
+                    f"track({key!r}): saved value is "
+                    f"{type(raw).__name__}, expected "
+                    f"{type(initial_value).__name__}"
+                )
+            value: T = raw
             return value
         return initial_value
 

@@ -3,20 +3,18 @@
 from __future__ import annotations
 
 import json
-from functools import partial
 from pathlib import Path
 
-from inspect_ai._util._async import tg_collect
 from inspect_ai.util._checkpoint.layout import (
     CheckpointSample,
     CheckpointSidecar,
     SnapshotInfo,
 )
 from inspect_ai.util._checkpoint.sample_checkpoints_dir import (
+    _read_sample_json,
     _sample_checkpoints_dir,
     ensure_sample_checkpoints_dir,
     ensure_sample_json,
-    read_sample_json,
     write_sidecar,
 )
 
@@ -95,7 +93,7 @@ async def test_read_sample_json_returns_written_value(tmp_path: Path) -> None:
     eval_dir = str(tmp_path / "foo.checkpoints")
     sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
     written = await ensure_sample_json(sample_dir)
-    read = await read_sample_json(sample_dir)
+    read = await _read_sample_json(sample_dir)
     assert read.restic_password == written.restic_password
 
 
@@ -106,17 +104,6 @@ async def test_sample_json_round_trip_pydantic(tmp_path: Path) -> None:
     raw = (Path(sample_dir) / "sample.json").read_text()
     parsed = CheckpointSample.model_validate_json(raw)
     assert parsed.restic_password
-
-
-async def test_ensure_sample_json_concurrent_callers_mint_once(tmp_path: Path) -> None:
-    eval_dir = str(tmp_path / "foo.checkpoints")
-    sample_dir = await ensure_sample_checkpoints_dir(eval_dir, "s1", 0)
-    results = await tg_collect(
-        [partial(ensure_sample_json, sample_dir) for _ in range(20)]
-    )
-    # All 20 must see the same password (first writer wins; rest read).
-    passwords = {r.restic_password for r in results}
-    assert len(passwords) == 1
 
 
 async def test_write_sidecar_returns_zero_padded_path(tmp_path: Path) -> None:

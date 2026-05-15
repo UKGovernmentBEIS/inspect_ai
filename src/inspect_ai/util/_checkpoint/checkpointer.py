@@ -71,6 +71,8 @@ class Checkpointer(Protocol):
         key: str,
         callback: Callable[[], T],
         initial_value: T,
+        *,
+        value_type: type[T] | None = None,
     ) -> T:
         """Track ``key`` as part of the agent's checkpointed state.
 
@@ -83,6 +85,22 @@ class Checkpointer(Protocol):
         is "any value that ``pydantic_core.to_jsonable_python`` can
         serialize" — JSON primitives, lists, dicts, Pydantic models,
         dataclasses, and arbitrary nesting of these.
+
+        ``value_type`` is required for any ``T`` whose JSON form differs
+        from its in-memory form — collections of Pydantic models,
+        discriminated unions, models nested in generic containers, etc.
+        Two cases are auto-handled and do **not** need a ``value_type``:
+
+        * A single Pydantic model instance — the instance's runtime
+          class is unambiguous.
+        * A JSON-primitive value (``int``, ``float``, ``str``, ``bool``,
+          ``None``) — round-trips identically through ``json``.
+
+        Any other ``initial_value`` without a ``value_type`` raises
+        ``TypeError`` at register time. The check fires deterministically
+        on every run (fresh or resume) so the missing-``value_type`` bug
+        surfaces during development rather than mid-agent-loop after a
+        real failure-and-retry.
 
         A key may be tracked only once per session; a duplicate call
         raises ``ValueError``.

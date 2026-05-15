@@ -90,7 +90,7 @@ class _HostHydrationResult:
 
 
 @dataclass
-class _HydrationResult:
+class HydrationResult:
     """Everything ``_EnteredCheckpointer`` needs at construction."""
 
     sample_checkpoints_dir: str
@@ -101,17 +101,18 @@ class _HydrationResult:
     host: _HostHydrationResult
 
 
-async def _hydrate(
+async def hydrate(
     *,
     config: CheckpointConfig,
     log_location: str,
     sample_id: int | str,
     epoch: int,
     resume_checkpoint: ResumeCheckpoint | None,
-) -> _HydrationResult:
-    mode = "resume" if resume_checkpoint is not None else "fresh"
-    print(f"[hydrate] start sample={sample_id} epoch={epoch} mode={mode}")
-    if resume_checkpoint is not None:
+) -> HydrationResult:
+    print(
+        f"[hydrate] start sample={sample_id} epoch={epoch} mode={'resume' if resume_checkpoint else 'fresh'}"
+    )
+    if resume_checkpoint:
         print(f"[hydrate]   resume from {resume_checkpoint.sample_checkpoints_dir}")
 
     # Phase 1: synchronous prologue. After this completes, every Phase 2
@@ -126,7 +127,7 @@ async def _hydrate(
     print(f"[hydrate] sample_checkpoints_dir={new_sample_checkpoints_dir}")
     sample_working_dir = await ensure_sample_working_dir(log_location, sample_id, epoch)
     print(f"[hydrate] sample_working_dir={sample_working_dir}")
-    if resume_checkpoint is not None:
+    if resume_checkpoint:
         # Bring the cross-cutting bits over first so `ensure_sample_json`
         # reads the inherited password instead of minting a fresh one,
         # and so the sidecar count continues from the prior run.
@@ -171,7 +172,7 @@ async def _hydrate(
     print("[hydrate] phase-2 host + sandboxes done")
     print(f"[hydrate] complete sample={sample_id} epoch={epoch}")
 
-    return _HydrationResult(
+    return HydrationResult(
         sample_checkpoints_dir=new_sample_checkpoints_dir,
         sample_working_dir=sample_working_dir,
         host_restic=host_restic,
@@ -375,8 +376,17 @@ def _load_and_push_host_state(sample_working_dir: str) -> _HostHydrationResult:
     # ``_process_event`` — the events are already in their condensed,
     # attachment-ref form and must not be reprocessed.
     ts = transcript()
-    ts._events.extend(condensed_events)
-    ts._attachments.update(attachments)
+    pre = [_event_label(e) for e in ts._events]
+    restored = [_event_label(e) for e in condensed_events]
+    print(f"[hydrate.host] pre-hydration transcript.events (n={len(pre)}): {pre}")
+    print(f"[hydrate.host] restored events to push (n={len(restored)}): {restored}")
+    # Events hydration temporarily disabled — pushing OLD events into the
+    # transcript misorders the cumulative story (new-run setup events sit
+    # at indices [0..N), OLD events at [N..]). Pools / attachments travel
+    # with events, so they're paused together. Store + agent_state stay
+    # enabled.
+    # ts._events.extend(condensed_events)
+    # ts._attachments.update(attachments)
     state = sample_state()
     if state is None:
         raise RuntimeError("_hydrate_host: no active sample state to populate Store")
@@ -390,7 +400,42 @@ def _load_and_push_host_state(sample_working_dir: str) -> _HostHydrationResult:
 
     return _HostHydrationResult(
         agent_state=agent_state,
-        condensed_events=condensed_events,
-        msg_pool=msg_pool,
-        call_pool=call_pool,
+        # condensed_events=condensed_events,
+        # msg_pool=msg_pool,
+        # call_pool=call_pool,
     )
+
+
+def _event_label(e: Event) -> str:
+    """Compact one-line label for an event (debug logging only).
+
+    Adds a discriminator-adjacent field where one carries useful info:
+    sandbox action, span name+type, tool function, model name, etc.
+    """
+    base = e.event
+    detail: str | None = None
+    if base == "sandbox":
+        detail = getattr(e, "action", None)
+    elif base in ("span_begin", "span_end"):
+        name = getattr(e, "name", None)
+        type_ = getattr(e, "type", None)
+        detail = f"{name}/{type_}" if type_ else name
+    elif base == "step":
+        action = getattr(e, "action", None)
+        type_ = getattr(e, "type", None)
+        detail = f"{action}/{type_}" if type_ else action
+    elif base == "tool":
+        detail = getattr(e, "function", None)
+    elif base == "model":
+        detail = getattr(e, "model", None)
+    elif base == "subtask":
+        detail = getattr(e, "name", None)
+    elif base in ("compaction", "sample_limit"):
+        detail = getattr(e, "type", None)
+    elif base == "logger":
+        detail = getattr(e, "level", None)
+    elif base == "score_edit":
+        detail = getattr(e, "score_name", None)
+    elif base == "info":
+        detail = getattr(e, "source", None)
+    return f"{base}:{detail}" if detail else base

@@ -19,7 +19,6 @@ The optional ``_<retry>`` suffix on the dir name is omitted until
 from __future__ import annotations
 
 import secrets
-import threading
 from datetime import datetime, timezone
 
 import anyio
@@ -32,13 +31,6 @@ from .layout import (
     CheckpointTriggerKind,
     SnapshotInfo,
 )
-
-# Serialize sample.json init within a single inspect process. Concurrent
-# callers in the same dir would each see "file missing" and mint
-# distinct passwords; this lock ensures the first writer wins and the
-# rest read its result. Cross-process races are not covered — each
-# inspect process owns its own sample dir tree.
-_sample_json_lock = threading.Lock()
 
 
 def _sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
@@ -110,17 +102,16 @@ async def ensure_sample_json(sample_dir: str) -> CheckpointSample:
 def _ensure_sample_json_blocking(sample_dir: str) -> CheckpointSample:
     sample_json_path = f"{sample_dir}/sample.json"
     fs = filesystem(sample_json_path)
-    with _sample_json_lock:
-        if fs.exists(sample_json_path):
-            with file(sample_json_path, "r") as f:
-                return CheckpointSample.model_validate_json(f.read())
-        sample = CheckpointSample(restic_password=secrets.token_urlsafe(32))
-        with file(sample_json_path, "w") as f:
-            f.write(sample.model_dump_json(indent=2))
-        return sample
+    if fs.exists(sample_json_path):
+        with file(sample_json_path, "r") as f:
+            return CheckpointSample.model_validate_json(f.read())
+    sample = CheckpointSample(restic_password=secrets.token_urlsafe(32))
+    with file(sample_json_path, "w") as f:
+        f.write(sample.model_dump_json(indent=2))
+    return sample
 
 
-async def read_sample_json(sample_dir: str) -> CheckpointSample:
+async def _read_sample_json(sample_dir: str) -> CheckpointSample:
     """Read ``<sample_dir>/sample.json``. Caller must have ensured it exists."""
     return await anyio.to_thread.run_sync(_read_sample_json_blocking, sample_dir)
 

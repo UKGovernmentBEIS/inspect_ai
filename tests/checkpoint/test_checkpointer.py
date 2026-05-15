@@ -481,7 +481,12 @@ async def test_track_messages_via_track(tmp_path: Path) -> None:
         ChatMessageSystem(content="sys"),
         ChatMessageUser(content="hi"),
     ]
-    cp.track("messages", lambda: messages, messages)
+    cp.track(
+        "messages",
+        lambda: messages,
+        messages,
+        value_type=list[ChatMessage],
+    )
     await cp._write_host_context(str(work), [], {}, Store())
 
     state = json.loads((work / "agent_state.json").read_text())
