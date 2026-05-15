@@ -2113,6 +2113,23 @@
       "EvalConfig": {
         "description": "Configuration used for evaluation.",
         "properties": {
+          "acp_server": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acp Server"
+          },
           "approval": {
             "anyOf": [
               {

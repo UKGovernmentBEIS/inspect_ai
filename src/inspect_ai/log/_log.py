@@ -196,6 +196,15 @@ class EvalConfig(BaseModel):
     score_display: bool | None = Field(default=None)
     """Display scoring metrics realtime."""
 
+    acp_server: bool | int | str | None = Field(default=None)
+    """Expose this eval over an Agent Client Protocol server.
+
+    `True` enables a default AF_UNIX socket at
+    `<inspect_data_dir>/acp/<eval_id>.sock`; an integer binds a TCP
+    loopback port; a string is taken as a custom AF_UNIX socket path;
+    `None` (default) does not start an ACP server.
+    """
+
     @property
     def max_messages(self) -> int | None:
         """Deprecated max_messages property."""

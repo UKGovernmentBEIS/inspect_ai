@@ -10,6 +10,7 @@ import anyio
 from anyio.abc import TaskGroup
 
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
+from inspect_ai.agent._acp._server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
@@ -97,6 +98,7 @@ def eval(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
+    acp_server: bool | int | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -165,6 +167,10 @@ def eval(
             (defaults to True)
         checkpoint: Checkpoint configuration for this eval. Overrides
             any task- or sample-level `checkpoint` when set.
+        acp_server: Expose this eval over an Agent Client Protocol server.
+            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
+            an integer binds a TCP loopback port; a string is taken as a custom
+            UNIX socket path; `None` (default) does not start an ACP server.
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -309,6 +315,7 @@ def eval(
                 run_samples=run_samples,
                 score=score,
                 score_display=score_display,
+                acp_server=acp_server,
                 eval_set_id=eval_set_id,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
@@ -351,6 +358,7 @@ async def eval_async(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
+    acp_server: bool | int | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -411,6 +419,10 @@ async def eval_async(
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
         checkpoint: Checkpoint configuration for this eval. Overrides any task- or sample-level `checkpoint` when set.
+        acp_server: Expose this eval over an Agent Client Protocol server.
+            `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
+            an integer binds a TCP loopback port; a string is taken as a custom
+            UNIX socket path; `None` (default) does not start an ACP server.
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the sample completes.
         tags: Tags to associate with this evaluation run.
@@ -534,6 +546,7 @@ async def eval_async(
                 run_samples=run_samples,
                 score=score,
                 score_display=score_display,
+                acp_server=acp_server,
                 eval_set_id=eval_set_id,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
@@ -568,6 +581,7 @@ async def _eval_async_inner(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
+    acp_server: bool | int | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -780,6 +794,7 @@ async def _eval_async_inner(
             log_buffer=log_buffer,
             log_shared=log_shared,
             score_display=score_display,
+            acp_server=acp_server,
         )
 
         # run tasks - 2 codepaths, one for the traditional task at a time
@@ -816,69 +831,78 @@ async def _eval_async_inner(
         else:
             scan_cm = contextlib.nullcontext()
 
-        with scan_cm:
-            # single task definition (could be multi-model) or max_tasks capped to 1
-            if parallel == 1:
-                results: list[EvalLog] = []
-                for sequence in sorted(set(t.sequence for t in resolved_tasks)):
-                    task_batch = list(
-                        filter(lambda t: t.sequence == sequence, resolved_tasks)
-                    )
-                    results.extend(
-                        await eval_run(
-                            eval_set_id=eval_set_id,
-                            run_id=run_id,
-                            tasks=task_batch,
-                            parallel=parallel,
-                            eval_config=eval_config,
-                            eval_sandbox=sandbox,
-                            eval_checkpoint=checkpoint,
-                            recorder=recorder,
-                            header_only=log_header_only,
-                            epochs_reducer=epochs_reducer,
-                            solver=solver,
-                            scanner=scanner,
-                            scan_id=scan_id,
-                            tags=tags,
-                            metadata=metadata,
-                            run_samples=run_samples,
-                            score=score,
-                            debug_errors=debug_errors is True,
-                            task_retry_attempts=task_retry_attempts,
-                            **kwargs,
+        # Stand up the optional ACP server for this eval's run_id. When
+        # `acp_server` (the EvalConfig field / CLI flag value) is falsy
+        # the context manager yields None and binds nothing. The server
+        # lives for the duration of the eval_run loop so any agent that
+        # opens an `acp_session()` can be reached by external clients
+        # via the discovery file in `<inspect_data_dir>/acp/`. Nested
+        # rather than parenthesized because ``scan_cm`` is a sync
+        # context manager and Python disallows mixing in the comma form.
+        async with _acp_server(eval_id=run_id, transport=acp_server):
+            with scan_cm:
+                # single task definition (could be multi-model) or max_tasks capped to 1
+                if parallel == 1:
+                    results: list[EvalLog] = []
+                    for sequence in sorted(set(t.sequence for t in resolved_tasks)):
+                        task_batch = list(
+                            filter(lambda t: t.sequence == sequence, resolved_tasks)
                         )
+                        results.extend(
+                            await eval_run(
+                                eval_set_id=eval_set_id,
+                                run_id=run_id,
+                                tasks=task_batch,
+                                parallel=parallel,
+                                eval_config=eval_config,
+                                eval_sandbox=sandbox,
+                                eval_checkpoint=checkpoint,
+                                recorder=recorder,
+                                header_only=log_header_only,
+                                epochs_reducer=epochs_reducer,
+                                solver=solver,
+                                scanner=scanner,
+                                scan_id=scan_id,
+                                tags=tags,
+                                metadata=metadata,
+                                run_samples=run_samples,
+                                score=score,
+                                debug_errors=debug_errors is True,
+                                task_retry_attempts=task_retry_attempts,
+                                **kwargs,
+                            )
+                        )
+                        # exit the loop if there was a cancellation
+                        if any([result.status == "cancelled" for result in results]):
+                            break
+
+                    # return list of eval logs
+                    logs = EvalLogs(results)
+
+                # multiple task definitions AND tasks not capped at 1
+                else:
+                    results = await eval_run(
+                        eval_set_id=eval_set_id,
+                        run_id=run_id,
+                        tasks=resolved_tasks,
+                        parallel=parallel,
+                        eval_config=eval_config,
+                        eval_sandbox=sandbox,
+                        eval_checkpoint=checkpoint,
+                        recorder=recorder,
+                        header_only=log_header_only,
+                        epochs_reducer=epochs_reducer,
+                        solver=solver,
+                        scanner=scanner,
+                        scan_id=scan_id,
+                        tags=tags,
+                        metadata=metadata,
+                        run_samples=run_samples,
+                        score=score,
+                        task_retry_attempts=task_retry_attempts,
+                        **kwargs,
                     )
-                    # exit the loop if there was a cancellation
-                    if any([result.status == "cancelled" for result in results]):
-                        break
-
-                # return list of eval logs
-                logs = EvalLogs(results)
-
-            # multiple task definitions AND tasks not capped at 1
-            else:
-                results = await eval_run(
-                    eval_set_id=eval_set_id,
-                    run_id=run_id,
-                    tasks=resolved_tasks,
-                    parallel=parallel,
-                    eval_config=eval_config,
-                    eval_sandbox=sandbox,
-                    eval_checkpoint=checkpoint,
-                    recorder=recorder,
-                    header_only=log_header_only,
-                    epochs_reducer=epochs_reducer,
-                    solver=solver,
-                    scanner=scanner,
-                    scan_id=scan_id,
-                    tags=tags,
-                    metadata=metadata,
-                    run_samples=run_samples,
-                    score=score,
-                    task_retry_attempts=task_retry_attempts,
-                    **kwargs,
-                )
-                logs = EvalLogs(results)
+                    logs = EvalLogs(results)
 
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)
@@ -925,6 +949,7 @@ def eval_retry(
     log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
+    acp_server: bool | int | str | None = None,
     scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
@@ -982,6 +1007,11 @@ def eval_retry(
             to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        acp_server: Override the original eval's ACP server transport on retry.
+            `True` enables a default AF_UNIX socket; an integer binds a TCP
+            loopback port; a string is taken as a custom UNIX socket path;
+            `None` (default) replays whatever transport (or no transport) was
+            persisted in the original log's `EvalConfig.acp_server`.
         scanner: Scanner(s) to apply to each sample's transcript after the sample
             completes. When provided, the existing scan dir from the original
             eval (keyed by its `eval_set_id` or `run_id`) is reused — same resume
@@ -1039,6 +1069,7 @@ def eval_retry(
             log_shared=log_shared,
             score=score,
             score_display=score_display,
+            acp_server=acp_server,
             scanner=scanner,
             max_retries=max_retries,
             timeout=timeout,
@@ -1088,6 +1119,7 @@ async def eval_retry_async(
     log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
+    acp_server: bool | int | str | None = None,
     scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
@@ -1137,6 +1169,11 @@ async def eval_retry_async(
             additional syncing of realtime log data for Inspect View.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        acp_server: Override the original eval's ACP server transport on retry.
+            `True` enables a default AF_UNIX socket; an integer binds a TCP
+            loopback port; a string is taken as a custom UNIX socket path;
+            `None` (default) replays whatever transport (or no transport) was
+            persisted in the original log's `EvalConfig.acp_server`.
         scanner: Scanner(s) to apply to each sample's transcript after the sample
             completes. When provided, the existing scan dir from the original
             eval (keyed by its `eval_set_id` or `run_id`) is reused — same resume
@@ -1336,6 +1373,11 @@ async def eval_retry_async(
             if score_display is not None
             else eval_log.eval.config.score_display
         )
+        # ACP server: explicit retry-time value wins; otherwise replay
+        # whatever transport the original eval used.
+        acp_server = (
+            acp_server if acp_server is not None else eval_log.eval.config.acp_server
+        )
 
         config = eval_log.plan.config
         config.max_retries = max_retries or config.max_retries
@@ -1414,6 +1456,7 @@ async def eval_retry_async(
                 log_shared=log_shared,
                 score=score,
                 score_display=score_display,
+                acp_server=acp_server,
                 **dict(config),
             )
         )[0]

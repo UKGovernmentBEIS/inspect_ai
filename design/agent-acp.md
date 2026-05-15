@@ -1074,18 +1074,46 @@ Pilot-based widget tests are deliberately deferred: the bulk of correctness live
 
 Verification: `pytest tests/agent/test_acp/ tests/log/test_transcript_subscribers.py tests/agent/test_agent_react.py` (112 passed asyncio); `--runtrio` passes (61 trio variants); `ruff format`/`check` clean; `mypy` clean (1006 source files).
 
-### Phase 8: `AcpServer` transport
+### Phase 8: `AcpServer` transport ✅
 
-Stand up the JSON-RPC 2.0 mux server. No ACP method dispatch yet — just transport.
+Landed the JSON-RPC 2.0 mux server so external ACP clients can reach a running eval over a socket. **Transport only** — connected clients can complete the wire-level handshake but every `initialize`/`newSession`/etc. request returns the standard JSON-RPC "method not found" error. Real method routing comes in Phase 9 (session picker) and Phase 10 (full SessionRouter + replay-on-attach).
 
-- AF_UNIX socket (POSIX default) at `inspect_data_dir("acp") / f"{eval_id}.sock"`.
-- TCP loopback when `--agent-acp-port=N` is passed.
-- Discovery files at `inspect_data_dir("acp") / f"{pid}.json"` with `{eval_id, pid, socket_path, started}`.
-- PID-liveness check + stale-file cleanup on enumerate (`os.kill(pid, 0)` / Windows equivalent).
-- JSON-RPC 2.0 framing, multi-connection support, lifecycle hooks tied to the eval run.
-- CLI flag plumbing: `--agent-acp` (boolean), `--agent-acp-port=N` (TCP override), `--agent-acp-socket=PATH` (socket override).
+**Two simplifications from the original sketch** (both requested during planning):
 
-**Tests.** Spin up the server in-test, connect a JSON-RPC client, ping/echo a method; multi-connection isolation; stale-PID cleanup; socket-path override.
+1. **One CLI flag instead of three.** The original plan had `--agent-acp` (bool) + `--agent-acp-port=N` + `--agent-acp-socket=PATH`. Collapsed to a single `--acp-server` with a `bool | int | str | None` value reusing the existing `int_bool_or_str_flag_callback` helper (the same callback `--cache` and `--batch` use):
+   - `--acp-server` (or `--acp-server=true`) → default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`
+   - `--acp-server=12345` → TCP loopback on port 12345
+   - `--acp-server=/path/to.sock` → custom AF_UNIX path
+   - omitted or `--acp-server=false` → disabled
+2. **Persisted into the eval log** so `inspect eval-retry` brings the same transport back automatically. New `EvalConfig.acp_server: bool | int | str | None = None` field; retry follows the existing `value or eval_log.eval.config.field` override pattern.
+
+The name `--acp-server` (rather than `--acp` or `--agent-acp`) is deliberate: it pairs with the future `inspect acp` *client* subcommand. The asymmetric noun makes the role asymmetric obvious — one flag enables the server, the other command runs a client.
+
+**What was built:**
+
+1. **`EvalConfig.acp_server`** in `src/inspect_ai/log/_log.py` — Pydantic field, auto-persists, defaults to `None`, backward-compatible with old logs.
+2. **`--acp-server` CLI flag** in `src/inspect_ai/_cli/eval.py` — added to `eval_options()` (covers `inspect eval` + `inspect eval-set`) and a separate copy on `inspect eval-retry` so users can override the persisted value on retry. Env var: `INSPECT_EVAL_ACP_SERVER`.
+3. **`acp_server` parameter threaded through** `eval()` / `eval_async()` / `eval_retry()` / `eval_retry_async()` in `src/inspect_ai/_eval/eval.py`. Retry merge uses the same `value if value is not None else eval_log.eval.config.acp_server` pattern as the rest of the replay-able flags.
+4. **`_AcpServer` class + `acp_server()` async context manager** in `src/inspect_ai/agent/_acp/_server.py`. Binds the requested transport, writes a per-PID discovery JSON at `<inspect_data_dir>/acp/<pid>.json` (`{pid, eval_id, socket_path, port, started_at}`), accepts connections, wraps each in `acp.connection.Connection` with an empty `acp.router.MessageRouter`, and tears everything down at exit. PID-liveness checked via `os.kill(pid, 0)`; stale discovery files + orphan socket nodes are swept on each `start()`. AF_UNIX everywhere (Win 10+ supports it); older Windows errors with a hint to pass `--acp-server=<port>`.
+5. **Lifecycle integration** — the eval runner wraps its eval-loop body in `async with _acp_server(eval_id=run_id, transport=config.acp_server):` (`src/inspect_ai/_eval/eval.py`). When `config.acp_server` is falsy the context yields `None` and binds nothing; otherwise the server lives for the eval's duration. **Per-eval lifecycle** (chosen over per-process): each `eval()` call gets its own socket named after its `run_id`. In `eval-set`, each sub-eval rebinds.
+
+**Why empty `MessageRouter`?** `acp.connection.Connection` requires a handler. An empty `MessageRouter()` is the simplest valid handler — incoming requests match no route, so the dispatch raises `RequestError.method_not_found` which becomes a well-formed JSON-RPC error response. This is the correct Phase 8 behavior: clients can verify the transport handshake works without needing real ACP methods, and we avoid half-implementing methods whose shapes will change in Phase 9/10.
+
+**Test coverage:**
+
+- `tests/_cli/test_acp_server_flag.py` (8 tests): bare flag → True, =true/false, =N → int, =/path → str, omitted → None, env-var precedence.
+- `tests/agent/test_acp/test_eval_config_persistence.py` (9 tests): round-trip serialization for each value type (parametrized), backward-compat with old logs missing the field, three retry-override scenarios (log-only, retry-only, neither).
+- `tests/agent/test_acp/test_server.py` (14 tests): disabled/falsy transports yield None, AF_UNIX default + custom path, TCP loopback bind, JSON-RPC "method not found" for unknown method, stale-discovery cleanup (including malformed-file tolerance), multi-connection isolation, PID-liveness helper. Server tests use a `/tmp/<short>` data dir to fit inside the 104-char AF_UNIX path limit on macOS.
+
+Verification: `pytest tests/agent/test_acp/ tests/_cli/test_acp_server_flag.py tests/log/test_transcript_subscribers.py tests/agent/test_agent_react.py` (143 passed asyncio); `--runtrio` clean (server tests skip under trio because `acp.connection.Connection` uses asyncio-specific `StreamReader`/`StreamWriter`); `ruff format`/`check` clean; `mypy` clean (1010 source files).
+
+**Deferred to subsequent phases:**
+- ACP method dispatch (Phase 9 picker + Phase 10 SessionRouter).
+- Per-process server option for `eval-set`-wide attach UX.
+- TCP auth / TLS (loopback-only for v1).
+- Automatic TCP fallback on Windows where AF_UNIX isn't supported.
+- Client SDK / `inspect acp` CLI (Phase 11).
+- Replay-on-attach for late-joining clients (Phase 10).
 
 ### Phase 9: In-channel session picker
 
