@@ -5,6 +5,13 @@ bridge that lets editors (Zed etc.) spawn ``inspect acp --stdio`` as
 a subprocess and talk newline-delimited JSON-RPC to a running eval's
 ACP server. Phase 15 will lift the bare-command error and add the
 Inspect-native Textual TUI client.
+
+The entry point uses ``asyncio.run`` (not ``anyio.run``) because
+``acp.stdio.stdio_streams()`` requires an asyncio event loop —
+``loop.connect_read_pipe`` / ``loop.connect_write_pipe`` are
+asyncio-specific. The CLI is a leaf at the ACP transport boundary;
+the asyncio anchor is intentional and matches the ``_stdio.py``
+bridge it spawns.
 """
 
 from __future__ import annotations

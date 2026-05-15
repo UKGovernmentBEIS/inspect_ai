@@ -15,6 +15,24 @@ Why line-framed and not raw bytes: ``readline()`` preserves message
 boundaries; a chunk-based byte copy could split or merge frames if a
 partial write landed at a chunk boundary. The per-line cost is
 negligible at ACP traffic rates.
+
+asyncio boundary note
+=====================
+
+This module is intentionally **asyncio-bound** (not anyio). The
+bridge connects to the same socket the ACP server bound — via
+``asyncio.open_unix_connection`` / ``asyncio.open_connection`` —
+because the resulting ``asyncio.StreamReader`` / ``StreamWriter``
+pair is what the line-forwarders work on. The two-way race
+(``asyncio.create_task`` × 2 → ``asyncio.wait(FIRST_COMPLETED)`` →
+cancel-loser) is a deliberate idiom for the symmetric stdin↔socket
+forwarder topology; an anyio task-group equivalent would add scope
+nesting around the asyncio stream APIs for no functional gain.
+
+The bridge is a CLI-leaf — it doesn't compose with the rest of
+inspect_ai's anyio code. Cancellation catches use
+``anyio.get_cancelled_exc_class()`` so they're backend-agnostic
+even though the surrounding code is asyncio.
 """
 
 from __future__ import annotations
@@ -22,6 +40,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from logging import getLogger
+
+import anyio
 
 from inspect_ai.agent._acp._discovery import TargetAddress
 
@@ -115,14 +135,14 @@ async def bridge_stdio(
         for task in pending:
             task.cancel()
         for task in pending:
-            with contextlib.suppress(asyncio.CancelledError, Exception):
+            with contextlib.suppress(anyio.get_cancelled_exc_class(), Exception):
                 await task
         # Surface a real exception (not CancelledError) from whichever
         # forwarder finished first; tests rely on this to assert clean
         # exit vs error.
         for task in done:
             exc = task.exception()
-            if exc is not None and not isinstance(exc, asyncio.CancelledError):
+            if exc is not None and not isinstance(exc, anyio.get_cancelled_exc_class()):
                 raise exc
     finally:
         with contextlib.suppress(Exception):

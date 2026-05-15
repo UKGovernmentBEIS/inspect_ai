@@ -1343,3 +1343,27 @@ Reuses the `_resolve_target()` helper from Phase 13 for eval discovery and the `
 Hook into provider streaming generators to emit partial assistant message content as token-chunked `session/update`s (`agent_message_chunk` with incremental content). Wired at the provider boundary, not the transcript fan-out — transcript events fire only at message completion.
 
 **Tests.** Live streaming providers (Anthropic / OpenAI) emit incremental chunks; final assembled content equals the completed message; cancel mid-stream interrupts cleanly without leaving the connection in a bad state; `agent_thought_chunk` correctly distinguished from `agent_message_chunk` for thinking blocks.
+
+
+## asyncio / anyio boundary
+
+The rest of inspect_ai is **anyio-native** so the codebase can run under both asyncio and trio backends (per CLAUDE.md's `tg_collect`, `anyio.sleep`, `anyio.Event` conventions). The ACP implementation is an exception: it's intentionally **asyncio-bound** at the `acp`-library boundary. Documenting that here so future maintainers don't try to migrate the wrong things.
+
+**Why ACP is asyncio.** The underlying `acp` Python package returns / consumes `asyncio.StreamReader` / `asyncio.StreamWriter` / `asyncio.Future` directly:
+
+- `acp.Connection` is constructed from an asyncio reader/writer pair and drives `asyncio.create_task` for its internal dispatcher (`acp/task/supervisor.py`).
+- `acp.Connection.send_request` returns an awaitable backed by an `asyncio.Future`; `conn.send_notification` and `conn.main_loop` are asyncio coroutines.
+- `acp.stdio.stdio_streams()` requires `loop.connect_read_pipe` / `loop.connect_write_pipe` (asyncio-specific) on POSIX; thread-fed `StreamReader` on Windows.
+
+Every call site that crosses into `acp.Connection` is therefore asyncio-anchored. Migrating to anyio would require a 1:1 bridge for every `acp` API plus tracking asyncio futures across an asyncio↔anyio boundary — large maintenance burden, no functional gain (we still can't run on trio because `acp` itself is asyncio).
+
+**What IS anyio-native within ACP.** The in-process pub/sub layer in `_session.py` uses `anyio.create_memory_object_stream`, `anyio.Event`, `anyio.CancelScope`, and `anyio.BrokenResourceError` throughout. The session is the natural composition point with the rest of inspect_ai's agent framework (which IS anyio); the transport/JSON-RPC layer below it is the asyncio island.
+
+**Deliberate asyncio idioms (not just "haven't migrated yet").** Two patterns are kept in asyncio because the anyio equivalent would be strictly more complex:
+
+1. **Bridge two-way race** (`_stdio.py`): `asyncio.create_task` × 2 → `asyncio.wait(FIRST_COMPLETED)` → cancel-loser. The CLI bridge is a leaf that doesn't compose with anyio code elsewhere; the asyncio idiom is clean for the symmetric stdin↔socket forwarder topology.
+2. **Approval race + drain-losers** (`approval/_human/acp.py`): `asyncio.create_task` for the per-client request, with losers handed to a background drain (`asyncio.create_task(_drain_losing_response(t))`) that intentionally outlives the race scope. anyio's structured concurrency actively prevents loose-task spawning — a migration would require plumbing a session-scoped long-lived background task group through to the approval shim. More code, not less.
+
+**Backend-agnostic cancellation catches.** All `except asyncio.CancelledError` / `isinstance(exc, asyncio.CancelledError)` sites use `anyio.get_cancelled_exc_class()` instead (which resolves to `asyncio.CancelledError` on asyncio, `trio.Cancelled` on trio). Zero semantic change at runtime; strict superset for future portability if the `acp` library ever ships an anyio API.
+
+**Boundary modules carry inline notes** linking back to this section, so a future reader of the source isn't surprised by the asyncio anchor: `_server.py`, `_stdio.py`, `_cli/acp.py`, `approval/_human/acp.py`.

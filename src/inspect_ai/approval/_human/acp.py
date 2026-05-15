@@ -26,6 +26,21 @@ the pre-Phase-14 in-proc human approver's blocking behavior.
 Option round-trip: each ``PermissionOption.optionId`` is the
 literal :data:`ApprovalDecision` string (``"approve"``,
 ``"reject"``, etc.) so the response maps back losslessly.
+
+asyncio boundary note
+=====================
+
+This module is intentionally **asyncio-bound** (not anyio). The
+race awaits asyncio futures returned by ``conn.send_request``
+(the ``acp`` library is asyncio-only). The drain-losers pattern
+relies on ``asyncio.create_task`` for loose task spawning that
+intentionally outlives the race's scope — anyio's structured
+concurrency actively prevents this; a migration would require
+plumbing a long-lived session-scoped background task group through
+to here. The "drain instead of cancel" semantic is what's clean
+in asyncio; anyio would be more code, not less. Cancellation
+catches use ``anyio.get_cancelled_exc_class()`` so they're
+backend-agnostic even though the orchestration is asyncio.
 """
 
 from __future__ import annotations
@@ -34,6 +49,7 @@ import asyncio
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, cast
 
+import anyio
 from acp.schema import (
     PermissionOption,
     PermissionOptionKind,
@@ -276,7 +292,7 @@ async def _drain_losing_response(task: asyncio.Task[Any]) -> None:
     """
     try:
         await task
-    except (asyncio.CancelledError, Exception) as exc:
+    except (anyio.get_cancelled_exc_class(), Exception) as exc:
         logger.debug("losing ACP approval request drained: %s", exc)
 
 

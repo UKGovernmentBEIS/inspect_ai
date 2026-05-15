@@ -21,6 +21,26 @@ target's :func:`AcpSession.submit_user_message`, ``session/cancel``
 forwarding to :func:`AcpSession.cancel_current_turn`, or
 ``session/update`` replay from the in-process bus to the socket.
 Those land in Phase 10.
+
+asyncio boundary note
+=====================
+
+This module is intentionally **asyncio-bound** (not anyio), against
+the usual inspect_ai convention. The underlying ``acp`` library
+returns / consumes ``asyncio.StreamReader``, ``asyncio.StreamWriter``,
+and ``asyncio.Future`` directly — every ``conn.send_request`` /
+``conn.send_notification`` / ``conn.main_loop`` call crosses that
+boundary. Migrating to anyio would require wrapping the acp
+``Connection`` across an asyncio↔anyio bridge with no functional
+benefit (we can't run on trio anyway because acp is asyncio-only;
+session pub/sub IS already anyio-native in ``_session.py``).
+
+The per-connection forwarder lifecycle (``_start_forwarders`` /
+``_stop_forwarders``) uses ``asyncio.create_task`` because the
+forwarders restart on rebind — a single-entry anyio task group
+doesn't fit. Cancellation catches use
+``anyio.get_cancelled_exc_class()`` so they're backend-agnostic
+even though the surrounding code is asyncio.
 """
 
 from __future__ import annotations
@@ -1179,7 +1199,7 @@ class _ConnectionHandler:
                 task.cancel()
                 try:
                     await task
-                except (asyncio.CancelledError, Exception):
+                except (anyio.get_cancelled_exc_class(), Exception):
                     pass
         self._semantic_task = None
         self._raw_task = None
@@ -1214,7 +1234,7 @@ class _ConnectionHandler:
                     continue  # plan-policy suppressed this notification
                 out = self._rewrite_session_id(out)
                 await self._send_session_update(out)
-        except asyncio.CancelledError:
+        except anyio.get_cancelled_exc_class():
             raise
         except Exception:
             logger.exception("ACP semantic forwarder failed")
@@ -1275,7 +1295,7 @@ class _ConnectionHandler:
                 if self.connection is None:
                     return
                 await self.connection.send_notification(_RAW_EVENT_METHOD, payload)
-        except asyncio.CancelledError:
+        except anyio.get_cancelled_exc_class():
             raise
         except Exception:
             logger.exception("ACP raw forwarder failed")
