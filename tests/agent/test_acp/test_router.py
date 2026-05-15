@@ -450,6 +450,754 @@ def test_tool_call_status_helper() -> None:
     assert _tool_call_status(_tool_event()) == "completed"
 
 
+# ---------------------------------------------------------------------------
+# Tool kind heuristic + view content forwarding
+#
+# Phase 13 refinement: the ``start_tool_call`` notification needs both
+# a ``kind`` (so editors like Zed can pick the right icon/UI) and a
+# ``content`` array carrying any markdown produced by Inspect's tool
+# viewer (so the editor's row shows e.g. the bash command, not just
+# the word "bash").
+# ---------------------------------------------------------------------------
+
+
+def test_tool_kind_mapping_for_built_in_tools() -> None:
+    """Built-in Inspect tool names map to the appropriate ACP ToolKind.
+
+    Pins the mapping so a refactor that drops a tool from the table
+    doesn't silently regress Zed's icon/UI rendering for that tool.
+    Notably: shell-execution tools (bash, python, code_execution,
+    bash_session_*) NEVER map to ``"execute"`` — Zed pairs that kind
+    with the terminal-block content pattern which requires the
+    editor to execute commands locally, incompatible with Inspect's
+    sandbox model. See the module-level comment on
+    ``_TOOL_KIND_BY_NAME``.
+    """
+    from inspect_ai.agent._acp._router import _tool_kind_for
+
+    # Shell-execution tools: None (no kind). Title carries the
+    # command instead — see _descriptive_title.
+    assert _tool_kind_for("bash") is None
+    assert _tool_kind_for("python") is None
+    assert _tool_kind_for("bash_session") is None
+    assert _tool_kind_for("bash_session_run") is None
+    assert _tool_kind_for("code_execution") is None
+    assert _tool_kind_for("computer") is None
+    # Other built-ins keep their semantic kind.
+    assert _tool_kind_for("read_file") == "read"
+    assert _tool_kind_for("list_files") == "read"
+    assert _tool_kind_for("text_editor") == "edit"
+    assert _tool_kind_for("todo_write") == "edit"
+    assert _tool_kind_for("update_plan") == "edit"
+    assert _tool_kind_for("think") == "think"
+    assert _tool_kind_for("grep") == "search"
+    assert _tool_kind_for("web_search") == "search"
+    assert _tool_kind_for("web_fetch") == "fetch"
+    assert _tool_kind_for("web_browser_click") == "fetch"
+    # Unknown tools → None so the client falls back to a generic row.
+    assert _tool_kind_for("totally_custom_tool") is None
+    assert _tool_kind_for("") is None
+
+
+def test_tool_call_start_carries_kind_for_known_tools() -> None:
+    """start_tool_call notification includes the ToolKind for known tools."""
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        tr._event(_tool_event(tool_id="tc1", function="read_file", pending=True))
+        update = published[0].update
+        assert isinstance(update, ToolCallStart)
+        assert update.kind == "read"
+    finally:
+        _transcript.reset(token)
+
+
+def test_tool_call_start_omits_kind_for_shell_tools() -> None:
+    """Shell-execution tools deliberately have no kind (see _TOOL_KIND_BY_NAME).
+
+    Pinned so a well-meaning future addition of ``"bash": "execute"``
+    can't silently break Zed rendering. The descriptive title carries
+    the command for these tools instead.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        tr._event(
+            ToolEvent(
+                id="tc1",
+                function="bash",
+                arguments={"command": "ls -la"},
+                pending=True,
+            )
+        )
+        update = published[0].update
+        assert isinstance(update, ToolCallStart)
+        assert update.kind is None
+    finally:
+        _transcript.reset(token)
+
+
+def test_tool_call_start_omits_kind_for_unknown_tools() -> None:
+    """Unknown tool name → kind is None so client uses its default row."""
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        tr._event(_tool_event(tool_id="tc1", function="my_custom_tool", pending=True))
+        update = published[0].update
+        assert isinstance(update, ToolCallStart)
+        assert update.kind is None
+    finally:
+        _transcript.reset(token)
+
+
+def test_tool_call_start_forwards_view_content_as_markdown() -> None:
+    r"""A tool with a viewer attaches ContentToolCallContent with the markdown.
+
+    Without this, Zed (and other ACP editors) shows just the bare
+    tool name in the row — useless for distinguishing among many
+    bash calls. With it, the editor renders the markdown the
+    Inspect viewer already produced (e.g. ```\bash\nls -la\n```).
+    """
+    from acp.schema import ContentToolCallContent, TextContentBlock
+
+    from inspect_ai.tool._tool_call import ToolCallContent
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = ToolEvent(
+            id="tc1",
+            function="bash",
+            arguments={"command": "ls -la"},
+            pending=True,
+            view=ToolCallContent(
+                title="bash",
+                format="markdown",
+                content="```bash\nls -la\n```\n",
+            ),
+        )
+        tr._event(event)
+        update = published[0].update
+        assert isinstance(update, ToolCallStart)
+        assert update.content is not None
+        assert len(update.content) == 1
+        block = update.content[0]
+        assert isinstance(block, ContentToolCallContent)
+        assert isinstance(block.content, TextContentBlock)
+        assert "ls -la" in block.content.text
+        assert "```bash" in block.content.text
+
+    finally:
+        _transcript.reset(token)
+
+
+def test_tool_call_start_title_falls_back_to_function_without_view() -> None:
+    """No viewer → no content, title is the bare function name."""
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        tr._event(_tool_event(tool_id="tc1", function="my_tool", pending=True))
+        update = published[0].update
+        assert isinstance(update, ToolCallStart)
+        assert update.title == "my_tool"
+        assert update.content is None
+    finally:
+        _transcript.reset(token)
+
+
+def test_tool_call_start_uses_descriptive_title_for_known_tools() -> None:
+    """Per-tool heuristics produce informative titles instead of bare names.
+
+    The descriptive title (e.g. ``bash ls -la``) takes precedence
+    over view.title (which is typically just the language). Format
+    is always ``<literal function name> <arg summary>`` so the user
+    always sees exactly which tool was called.
+    """
+    from inspect_ai.tool._tool_call import ToolCallContent
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = ToolEvent(
+            id="tc1",
+            function="bash",
+            arguments={"command": "ls -la"},
+            pending=True,
+            view=ToolCallContent(
+                title="bash",  # generic; descriptive title beats this
+                format="markdown",
+                content="```bash\nls -la\n```\n",
+            ),
+        )
+        tr._event(event)
+        update = published[0].update
+        assert isinstance(update, ToolCallStart)
+        assert update.title == "bash ls -la"
+    finally:
+        _transcript.reset(token)
+
+
+def test_descriptive_title_per_known_tool() -> None:
+    """Pin the per-tool title format so Zed cards stay readable.
+
+    Uniform format: ``<literal function_name> <arg_summary>``.
+    String-typed args that look like patterns/queries/element refs
+    are quoted; paths and URLs are not.
+    """
+    from inspect_ai.agent._acp._router import _descriptive_title
+
+    def _ev(function: str, **args: Any) -> ToolEvent:
+        return ToolEvent(id="x", function=function, arguments=args)
+
+    # Shell-execution family — function name + command (no colon
+    # separator; uniform with other tools).
+    assert _descriptive_title(_ev("bash", command="ls -la")) == "bash ls -la"
+    assert _descriptive_title(_ev("python", code="print(1)")) == "python print(1)"
+    assert _descriptive_title(_ev("bash_session", cmd="pwd")) == "bash_session pwd"
+    assert (
+        _descriptive_title(_ev("bash_session_run", command="echo hi"))
+        == "bash_session_run echo hi"
+    )
+    # First non-empty line; multiline commands collapse.
+    assert (
+        _descriptive_title(_ev("bash", command="\n  pwd\n  ls\n  whoami")) == "bash pwd"
+    )
+    # Long commands truncate with ellipsis.
+    long = "x" * 200
+    title = _descriptive_title(_ev("bash", command=long))
+    assert title.startswith("bash ")
+    assert "…" in title
+    # File ops — path unquoted.
+    assert (
+        _descriptive_title(_ev("read_file", file="src/foo.py"))
+        == "read_file src/foo.py"
+    )
+    assert _descriptive_title(_ev("list_files", path="src/")) == "list_files src/"
+    assert (
+        _descriptive_title(_ev("text_editor", command="create", path="new.py"))
+        == "text_editor create new.py"
+    )
+    # text_editor with no sub-command — just the path.
+    assert _descriptive_title(_ev("text_editor", path="foo.py")) == "text_editor foo.py"
+    # Search — pattern/query quoted.
+    assert _descriptive_title(_ev("grep", pattern="TODO")) == 'grep "TODO"'
+    assert (
+        _descriptive_title(_ev("grep", pattern="TODO", path="src/"))
+        == 'grep "TODO" in src/'
+    )
+    assert (
+        _descriptive_title(_ev("web_search", query="python")) == 'web_search "python"'
+    )
+    # Fetch / browse — URL unquoted, element-ref quoted.
+    assert (
+        _descriptive_title(_ev("web_fetch", url="https://example.com"))
+        == "web_fetch https://example.com"
+    )
+    assert (
+        _descriptive_title(_ev("web_browser_go", url="https://example.com"))
+        == "web_browser_go https://example.com"
+    )
+    assert (
+        _descriptive_title(_ev("web_browser_click", element_id="ok-button"))
+        == 'web_browser_click "ok-button"'
+    )
+    # Planning / thinking — bare name reads fine.
+    assert _descriptive_title(_ev("think")) == "think"
+    assert _descriptive_title(_ev("todo_write")) == "todo_write"
+    # Unknown tools — fall back to function name.
+    assert _descriptive_title(_ev("my_custom_tool", foo="bar")) == "my_custom_tool"
+
+
+# ---------------------------------------------------------------------------
+# Tool result forwarded as content on completion
+#
+# Without this, ACP clients only see the input view (set at start)
+# and nothing about what the tool produced. Editors that render
+# tool-call rows can show both the command + the output (e.g. bash
+# input on one line, stdout below).
+# ---------------------------------------------------------------------------
+
+
+def test_shell_tool_result_wrapped_in_markdown_code_fence() -> None:
+    """Shell-execution result text is fenced as a markdown code block.
+
+    Without fencing, terminal output (``ls`` listings, ``wc`` column
+    output, etc.) gets rendered as flowed markdown text in Zed and
+    loses its alignment — totally illegible for tabular data. With
+    the fence, editors render it as monospace.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="bash", pending=True)
+        tr._event(event)
+        event.pending = None
+        event.result = (
+            "9898 304K  /app/sample/00001.json\n1234 56K   /app/sample/00002.json"
+        )
+        tr._event_updated(event)
+
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is not None
+        block = update.content[0]
+        assert isinstance(block.content, TextContentBlock)
+        text = block.content.text
+        # Fence opens + closes; original content preserved between.
+        assert text.startswith("```\n")
+        assert text.endswith("\n```")
+        assert "9898 304K" in text
+        assert "/app/sample/00002.json" in text
+
+    finally:
+        _transcript.reset(token)
+
+
+def test_non_shell_tool_result_not_fenced() -> None:
+    """Non-shell tools (web_search, web_fetch, etc.) get plain text.
+
+    Their results are typically descriptive markdown that already
+    flows correctly — fencing would force them into monospace and
+    break readable rendering of links, headings, etc.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="web_search", pending=True)
+        tr._event(event)
+        event.pending = None
+        event.result = "# Top hit\n\nSome **bold** text"
+        tr._event_updated(event)
+
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is not None
+        block = update.content[0]
+        assert isinstance(block.content, TextContentBlock)
+        text = block.content.text
+        # No fence wrapper for non-shell tools.
+        assert not text.startswith("```")
+        assert text == "# Top hit\n\nSome **bold** text"
+    finally:
+        _transcript.reset(token)
+
+
+def test_shell_tool_result_fence_survives_truncation() -> None:
+    r"""Fence is applied AFTER truncation so closing backticks always render.
+
+    Pinned because if fence were applied before truncation, the
+    closing ``\`\`\`\`\`\`\`\`\`` could be cut off, leaving the editor
+    rendering an unclosed code block that swallows everything after.
+    """
+    from inspect_ai.agent._acp._router import _RESULT_CONTENT_MAX_BYTES
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="bash", pending=True)
+        tr._event(event)
+        event.pending = None
+        event.result = "x" * (_RESULT_CONTENT_MAX_BYTES + 1000)
+        tr._event_updated(event)
+
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is not None
+        block = update.content[0]
+        assert isinstance(block.content, TextContentBlock)
+        text = block.content.text
+        # Fenced AND truncated.
+        assert text.startswith("```\n")
+        assert text.endswith("\n```")
+        assert "[truncated]" in text
+    finally:
+        _transcript.reset(token)
+
+
+def test_replay_completed_tool_carries_result_in_first_sight_start() -> None:
+    """Late-attach replay sees a completed tool ONCE; the start must carry the result.
+
+    Live flow: start fires with pending=True (view only), update
+    fires on completion with view+result. Replay flow (used on
+    late-attach): the event arrives already completed and gets a
+    single start emission — no follow-up update. If start doesn't
+    include the result, late clients see input but no output.
+    Pinned because previously ``_map_tool_event``'s first-sight
+    branch only ever sent ``_content_from_view`` (no result).
+    """
+    from inspect_ai.agent._acp._router import replay_transcript
+
+    # Build a transcript with one completed tool event (already has
+    # a result; no pending=True intermediate).
+    event = ToolEvent(
+        id="tc1",
+        function="bash",
+        arguments={"command": "ls -la"},
+        pending=None,
+        result="foo\nbar\nbaz",
+    )
+
+    notifications = list(replay_transcript([event], session_id="sess-1"))
+    # Replay yields exactly one notification per first-sight event.
+    assert len(notifications) == 1
+    update = notifications[0].update
+    assert isinstance(update, ToolCallStart)
+    # The result should be present in the start's content (fenced
+    # because bash is a shell-execution tool).
+    assert update.content is not None
+    texts = [
+        b.content.text
+        for b in update.content
+        if isinstance(b.content, TextContentBlock)
+    ]
+    joined = "\n".join(texts)
+    assert "foo" in joined and "baz" in joined
+    assert "```" in joined  # fenced for shell tool
+    # And status reflects completion.
+    assert update.status == "completed"
+
+
+def test_is_shell_execution_tool_membership() -> None:
+    """Pin the shell-execution family so a refactor can't silently drift it."""
+    from inspect_ai.agent._acp._router import _is_shell_execution_tool
+
+    assert _is_shell_execution_tool("bash")
+    assert _is_shell_execution_tool("python")
+    assert _is_shell_execution_tool("bash_session")
+    assert _is_shell_execution_tool("bash_session_run")
+    assert _is_shell_execution_tool("bash_session_create")
+    assert _is_shell_execution_tool("code_execution")
+    assert not _is_shell_execution_tool("read_file")
+    assert not _is_shell_execution_tool("grep")
+    assert not _is_shell_execution_tool("web_search")
+    assert not _is_shell_execution_tool("my_custom_tool")
+
+
+def test_completed_tool_emits_update_with_result_content() -> None:
+    """A completed tool's result gets forwarded as content on the update."""
+    from acp.schema import ContentToolCallContent
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="my_tool", pending=True)
+        tr._event(event)
+        # Complete with a string result.
+        event.pending = None
+        event.result = "the output of the tool"
+        tr._event_updated(event)
+
+        assert len(published) == 2
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is not None
+        assert len(update.content) == 1
+        block = update.content[0]
+        assert isinstance(block, ContentToolCallContent)
+        assert isinstance(block.content, TextContentBlock)
+        assert block.content.text == "the output of the tool"
+    finally:
+        _transcript.reset(token)
+
+
+def test_completed_tool_with_view_preserves_view_alongside_result() -> None:
+    """When the tool has BOTH view + result, content carries both — view first.
+
+    Pinned because ``ToolCallUpdate.content`` REPLACES the content
+    collection set by ``ToolCallStart`` (per the ACP schema). If we
+    sent only the result on update, the input view (the rendered
+    bash command etc.) would disappear from the editor's row. We
+    prepend the view block so the row continues to show both.
+    """
+    from acp.schema import ContentToolCallContent
+
+    from inspect_ai.tool._tool_call import ToolCallContent
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = ToolEvent(
+            id="tc1",
+            function="bash",
+            arguments={"command": "echo hi"},
+            pending=True,
+            view=ToolCallContent(
+                title="bash",
+                format="markdown",
+                content="```bash\necho hi\n```\n",
+            ),
+        )
+        tr._event(event)
+        event.pending = None
+        event.result = "hi\n"
+        tr._event_updated(event)
+
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is not None
+        assert len(update.content) == 2
+        # View first.
+        view_block, result_block = update.content
+        assert isinstance(view_block, ContentToolCallContent)
+        assert isinstance(view_block.content, TextContentBlock)
+        assert "```bash" in view_block.content.text
+        # Result second.
+        assert isinstance(result_block, ContentToolCallContent)
+        assert isinstance(result_block.content, TextContentBlock)
+        assert "hi" in result_block.content.text
+    finally:
+        _transcript.reset(token)
+
+
+def test_completed_tool_with_empty_result_does_not_overwrite_view() -> None:
+    """An empty / missing result leaves content unset on update.
+
+    Without this guard, the update would send ``content=None`` or
+    ``content=[view_only]`` — both of which would either replace
+    start's content (losing the view) or be wasteful re-sends. The
+    cleanest behavior is to omit ``content`` from the update when
+    there's no new payload, so the editor's existing view sticks.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="my_tool", pending=True)
+        tr._event(event)
+        # Complete with NO result (default empty string).
+        event.pending = None
+        tr._event_updated(event)
+
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is None
+    finally:
+        _transcript.reset(token)
+
+
+def test_completed_tool_result_truncated_when_oversized() -> None:
+    """Huge results get truncated with a marker; full payload is on the event."""
+    from inspect_ai.agent._acp._router import _RESULT_CONTENT_MAX_BYTES
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="my_tool", pending=True)
+        tr._event(event)
+        huge = "x" * (_RESULT_CONTENT_MAX_BYTES + 1000)
+        event.pending = None
+        event.result = huge
+        tr._event_updated(event)
+
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is not None
+        block = update.content[0]
+        assert isinstance(block.content, TextContentBlock)
+        text = block.content.text
+        assert len(text) <= _RESULT_CONTENT_MAX_BYTES + len("\n…[truncated]") + 10
+        assert "[truncated]" in text
+        # Full result stays available on the source event for log
+        # writers / replay.
+        assert event.result == huge
+    finally:
+        _transcript.reset(token)
+
+
+def test_completed_tool_with_image_data_uri_result_forwarded() -> None:
+    """A ``ContentImage`` data-URI result becomes an ``ImageContentBlock``."""
+    from acp.schema import ContentToolCallContent, ImageContentBlock
+
+    from inspect_ai._util.content import ContentImage
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="screenshot", pending=True)
+        tr._event(event)
+        event.pending = None
+        event.result = ContentImage(
+            image="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
+        )
+        tr._event_updated(event)
+
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is not None
+        block = update.content[0]
+        assert isinstance(block, ContentToolCallContent)
+        assert isinstance(block.content, ImageContentBlock)
+        assert block.content.mime_type == "image/png"
+        # Base64 data extracted from the URI (no ``data:...;base64,`` prefix).
+        assert block.content.data == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
+        # No URI set for data-URI sources (the data is inline).
+        assert block.content.uri is None
+    finally:
+        _transcript.reset(token)
+
+
+def test_completed_tool_with_image_http_url_result_forwarded() -> None:
+    """A ``ContentImage`` HTTP URL becomes an ``ImageContentBlock`` with ``uri``."""
+    from acp.schema import ImageContentBlock
+
+    from inspect_ai._util.content import ContentImage
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="fetch_image", pending=True)
+        tr._event(event)
+        event.pending = None
+        event.result = ContentImage(image="https://example.com/photo.jpg")
+        tr._event_updated(event)
+
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is not None
+        block = update.content[0]
+        assert isinstance(block.content, ImageContentBlock)
+        assert block.content.uri == "https://example.com/photo.jpg"
+        # Mime type guessed from the URL extension.
+        assert block.content.mime_type == "image/jpeg"
+        # ``data`` is required by the schema; we set "" when only a URL
+        # is available so URI-fetching clients still work.
+        assert block.content.data == ""
+    finally:
+        _transcript.reset(token)
+
+
+def test_completed_tool_with_mixed_text_image_list_result() -> None:
+    """A list result with both ``ContentText`` and ``ContentImage`` round-trips both.
+
+    Pinned because the per-item iteration in
+    ``_content_blocks_from_result`` is fragile — a refactor that
+    drops one branch would silently lose half the payload.
+    """
+    from acp.schema import ImageContentBlock
+
+    from inspect_ai._util.content import ContentImage, ContentText
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="render", pending=True)
+        tr._event(event)
+        event.pending = None
+        event.result = [
+            ContentText(text="here is the result:"),
+            ContentImage(image="data:image/png;base64,iVBORw0KGgoAAAA"),
+            ContentText(text="and a caption"),
+        ]
+        tr._event_updated(event)
+
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is not None
+        assert len(update.content) == 3
+        text_a, image, text_b = update.content
+        assert isinstance(text_a.content, TextContentBlock)
+        assert text_a.content.text == "here is the result:"
+        assert isinstance(image.content, ImageContentBlock)
+        assert image.content.mime_type == "image/png"
+        assert isinstance(text_b.content, TextContentBlock)
+        assert text_b.content.text == "and a caption"
+    finally:
+        _transcript.reset(token)
+
+
+def test_completed_tool_with_image_plain_base64_result_forwarded() -> None:
+    """A ``ContentImage`` with plain base64 (no envelope) → default-mime image block.
+
+    Pinned because the previous "data URI OR HTTP URL" gate dropped
+    valid plain-base64 image results to a placeholder. ``ContentImage``
+    explicitly allows plain base64 per its docstring.
+    """
+    from acp.schema import ImageContentBlock
+
+    from inspect_ai._util.content import ContentImage
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="screenshot", pending=True)
+        tr._event(event)
+        event.pending = None
+        # No URL scheme, no data: prefix — just base64 bytes.
+        event.result = ContentImage(image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB")
+        tr._event_updated(event)
+
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is not None
+        block = update.content[0]
+        assert isinstance(block.content, ImageContentBlock)
+        # Default mime is image/png (most common for tool-produced
+        # screenshots / plots).
+        assert block.content.mime_type == "image/png"
+        # Plain base64 forwarded verbatim.
+        assert block.content.data == "iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB"
+        # No URI — the data is inline.
+        assert block.content.uri is None
+    finally:
+        _transcript.reset(token)
+
+
+def test_completed_tool_with_content_text_result_forwarded() -> None:
+    """``ContentText`` result type is unwrapped into the TextContentBlock."""
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="my_tool", pending=True)
+        tr._event(event)
+        event.pending = None
+        event.result = ContentText(text="content-text result")
+        tr._event_updated(event)
+
+        update = published[1].update
+        assert isinstance(update, ToolCallProgress)
+        assert update.content is not None
+        block = update.content[0]
+        assert isinstance(block.content, TextContentBlock)
+        assert block.content.text == "content-text result"
+    finally:
+        _transcript.reset(token)
+
+
 def test_cancel_current_turn_marks_in_flight_tool_as_failed() -> None:
     """An in-flight tool cancelled via cancel_current_turn surfaces as ToolCallProgress(failed).
 

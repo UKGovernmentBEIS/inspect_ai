@@ -376,6 +376,15 @@ class _AcpServer:
                 kind="request",
             )
         )
+        router.add_route(
+            Route(
+                method="inspect/list_sessions",
+                func=_wrap_action_handler(
+                    handler.inspect_list_sessions, _ListSessionsParams
+                ),
+                kind="request",
+            )
+        )
         # ``listening=False`` lets us drive the receive loop here and
         # know when the peer disconnects, so we can clean up tracking.
         conn = Connection(
@@ -665,6 +674,35 @@ class _ConnectionHandler:
     # ------------------------------------------------------------------
     # `inspect/*` action methods (non-standard ACP extension)
     # ------------------------------------------------------------------
+
+    async def inspect_list_sessions(self) -> dict[str, Any]:
+        """Enumerate attachable sessions for Inspect-aware clients.
+
+        Returns the same per-target shape that ``session/new``'s
+        picker notification carries under ``_meta[PICKER_META_KEY]``,
+        plus a convenience ``target`` field with the slash-delimited
+        spec that :meth:`inspect_new_session` accepts. Clients that
+        already know the protocol can use this to skip the
+        round-trip through ``session/new`` + picker notification +
+        ``_meta`` parsing.
+
+        No params, no auth, no binding required — discovery is the
+        prerequisite for binding. Empty list when no samples have
+        claimed an ACP session yet.
+        """
+        targets = list_picker_targets()
+        return {
+            "sessions": [
+                {
+                    "sessionId": t.session_id,
+                    "task": t.task,
+                    "sampleId": t.sample_id,
+                    "epoch": t.epoch,
+                    "target": f"{t.task}/{t.sample_id}/{t.epoch}",
+                }
+                for t in targets
+            ]
+        }
 
     async def inspect_new_session(
         self,
@@ -1466,6 +1504,10 @@ class _NewSessionParams(BaseModel):
     """``task/sample_id/epoch`` direct-bind spec — slash-delimited."""
 
 
+class _ListSessionsParams(BaseModel):
+    """Pydantic param model for ``inspect/list_sessions`` (no params)."""
+
+
 def _wrap_action_handler(func: Any, model: type[BaseModel]) -> Any:
     """Build a router wrapper that validates params + unpacks kwargs.
 
@@ -1478,6 +1520,15 @@ def _wrap_action_handler(func: Any, model: type[BaseModel]) -> Any:
     """
 
     async def wrapper(params: Any) -> Any:
+        # JSON-RPC allows the params member to be omitted entirely.
+        # When omitted, the dispatcher hands us ``None`` — but
+        # ``model.model_validate(None)`` fails for empty / all-optional
+        # models like :class:`_ListSessionsParams`. Coerce to an empty
+        # dict so handlers that take no required params accept the
+        # omitted form transparently. Handlers with required fields
+        # still surface a clean validation error on the missing keys.
+        if params is None:
+            params = {}
         request = model.model_validate(params)
         kwargs = {
             field_name: getattr(request, field_name)

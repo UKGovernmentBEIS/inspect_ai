@@ -319,6 +319,131 @@ async def test_session_new_with_no_targets_pushes_empty_picker(
 
 
 # ---------------------------------------------------------------------------
+# inspect/list_sessions — direct enumeration for Inspect-aware clients
+# (skips the session/new + picker-notification + _meta-parsing
+# round-trip that generic ACP clients have to do)
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_sessions_returns_all_attachable_targets(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Populated list with the same shape as the picker _meta payload + 'target'."""
+    stub_targets(
+        [
+            _make_sample(task="t1", sample_id="s1", epoch=0, session_id="uuid-a"),
+            _make_sample(task="t2", sample_id="s2", epoch=1, session_id="uuid-b"),
+        ]
+    )
+    async with acp_server(eval_id="evt-list", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request("inspect/list_sessions", {})
+            assert "result" in resp, resp
+            sessions = resp["result"]["sessions"]
+            assert len(sessions) == 2
+            # Per-entry shape matches the existing PICKER_META_KEY entries
+            # plus a convenience 'target' field for inspect/new_session.
+            for sess, expected in zip(
+                sessions,
+                [
+                    {
+                        "sessionId": "uuid-a",
+                        "task": "t1",
+                        "sampleId": "s1",
+                        "epoch": 0,
+                        "target": "t1/s1/0",
+                    },
+                    {
+                        "sessionId": "uuid-b",
+                        "task": "t2",
+                        "sampleId": "s2",
+                        "epoch": 1,
+                        "target": "t2/s2/1",
+                    },
+                ],
+            ):
+                assert sess == expected
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_sessions_empty_when_no_targets(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Zero attachable samples → empty sessions list (not an error).
+
+    Discovery is the prerequisite for binding; an empty list is a
+    valid answer ("no samples have claimed an ACP session yet").
+    """
+    stub_targets([])
+    async with acp_server(eval_id="evt-list-empty", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request("inspect/list_sessions", {})
+            assert resp["result"] == {"sessions": []}
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_sessions_does_not_require_binding(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Method works on a fresh connection with no session/new yet.
+
+    Pinned because list_sessions is the discovery step — making it
+    require a prior bind would defeat the purpose.
+    """
+    stub_targets([_make_sample(task="t", sample_id="s", epoch=0, session_id="u")])
+    async with acp_server(eval_id="evt-list-fresh", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            # NO initialize, NO session/new — straight to list.
+            resp = await client.request("inspect/list_sessions", {})
+            assert "result" in resp, resp
+            assert len(resp["result"]["sessions"]) == 1
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_sessions_accepts_null_params(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """JSON-RPC ``params: null`` is treated the same as ``params: {}``.
+
+    The spec allows the ``params`` member to be omitted or ``null``
+    for methods that take no parameters. ``model.model_validate(None)``
+    would otherwise fail for our empty :class:`_ListSessionsParams`
+    model — ``_wrap_action_handler`` coerces ``None`` → ``{}`` to
+    make the no-params form work transparently. (We test with
+    ``null`` rather than truly-omitted because the existing
+    ``_RpcClient.request`` always emits the params field; both
+    shapes hit the same handler-level ``None`` value.)
+    """
+    stub_targets([_make_sample(task="t", sample_id="s", epoch=0, session_id="u")])
+    async with acp_server(eval_id="evt-list-noparams", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request("inspect/list_sessions", None)
+            assert "result" in resp, resp
+            assert len(resp["result"]["sessions"]) == 1
+        finally:
+            await client.close()
+
+
+# ---------------------------------------------------------------------------
 # inspect/new_session — direct bind via task/sample_id/epoch tuple,
 # skipping the picker. Inspect-aware clients (Phase 15 TUI, editors
 # that already know which sample to attach to) use this to avoid the
