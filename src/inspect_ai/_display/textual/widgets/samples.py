@@ -293,15 +293,12 @@ class SampleInfo(Vertical):
         color: $accent;
         background: $background;
     }
-    SampleInfo #sample-interrupt {
-        height: auto;
-        width: auto;
-        padding: 0;
-    }
     SampleInfo #interrupt-sample {
         min-width: 0;
         width: auto;
-        margin: 0;
+        height: auto;
+        margin: 0 0 0 1;
+        padding: 0 1;
         color: $warning-darken-3;
     }
     """
@@ -316,19 +313,16 @@ class SampleInfo(Vertical):
             with Collapsible(title=""):
                 yield SampleLimits()
                 yield SandboxesView()
-            yield Right(id="sample-link")
-            yield Right(
-                Button(
-                    Text("⏸ Interrupt"),
-                    id="interrupt-sample",
-                    compact=True,
-                    tooltip=(
-                        "Pause the agent mid-turn and inject a message. "
-                        "The agent will resume after you submit."
-                    ),
+            yield Button(
+                Text("⏸ Interrupt"),
+                id="interrupt-sample",
+                compact=True,
+                tooltip=(
+                    "Pause the agent mid-turn and inject a message. "
+                    "The agent will resume after you submit."
                 ),
-                id="sample-interrupt",
             )
+            yield Right(id="sample-link")
 
         yield SampleVNC()
 
@@ -398,7 +392,13 @@ class SampleInfo(Vertical):
                 ),
                 EXTENSION_COMMAND_OPEN_SAMPLE,
             )
+            # When running outside VS Code, `conditional_vscode_link` returns
+            # an empty Static (not a Link). Hide the container in that case
+            # so we don't waste 12 cells of header space on an invisible slot
+            # that would otherwise push other widgets (like the Interrupt
+            # button) and squeeze the title.
             link_container.mount(link)
+            link_container.display = isinstance(link, Link)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id != "interrupt-sample":
@@ -570,7 +570,9 @@ class SampleToolbar(Horizontal):
         margin-bottom: 1;
     }}
     SampleToolbar #{INTERJECT_SEND} {{
-        min-width: 10;
+        min-width: 7;
+        width: 7;
+        text-style: bold;
     }}
     """
 
@@ -619,9 +621,10 @@ class SampleToolbar(Horizontal):
             id=self.INTERJECT_INPUT,
         )
         yield Button(
-            Text("Send"),
+            Text("⬆"),
             id=self.INTERJECT_SEND,
             variant="primary",
+            tooltip="Send message and resume the agent.",
         )
 
     def on_mount(self) -> None:
