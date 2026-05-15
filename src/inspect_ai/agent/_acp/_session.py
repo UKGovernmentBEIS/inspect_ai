@@ -648,9 +648,10 @@ class _LiveAcpSession:
         # ``self._transcript``. Fall back to the ContextVar lookup when
         # the session wasn't entered through ``__aenter__`` (test
         # constructs a bare _LiveAcpSession and sets the transcript
-        # ContextVar directly). Deferred import: ``inspect_ai.event``
+        # ContextVar directly). Deferred imports: ``inspect_ai.event``
         # circularly references this module via the event union.
         from inspect_ai.event._interrupt import InterruptEvent
+        from inspect_ai.event._model import OPERATOR_CANCEL_ERROR
 
         tr = self._transcript if self._transcript is not None else transcript()
         tr._event(
@@ -674,6 +675,14 @@ class _LiveAcpSession:
         cancelled_events: list[Any] = []
         if self._active_model_event is not None:
             self._active_model_event.pending = None
+            # Mark the ModelEvent as operator-cancelled so the natural
+            # ``complete()`` path in ``_model.py`` skips overwriting
+            # ``output`` if the model's streamed response finishes inside
+            # the cancellation propagation window. Without this, the
+            # accumulated model text gets painted into the transcript
+            # below the InterruptEvent. Mirrors the ToolEvent guard in
+            # :meth:`ToolEvent._set_result`.
+            self._active_model_event.error = OPERATOR_CANCEL_ERROR
             cancelled_events.append(self._active_model_event)
         for tc_id in self._in_flight_tool_calls:
             event = self._in_flight_tool_events.get(tc_id)

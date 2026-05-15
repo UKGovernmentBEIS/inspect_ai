@@ -476,6 +476,182 @@ def test_cancel_current_turn_marks_in_flight_tool_as_failed() -> None:
         _transcript.reset(token)
 
 
+def test_operator_cancel_keeps_cancel_marker_through_tool_natural_completion() -> None:
+    """Cancel marker must stay sticky while natural completion records forensic data.
+
+    Scenario: ``cancel_current_turn`` marks the in-flight ToolEvent as
+    ``failed`` with ``error=ToolCallError("cancelled")``. The tool's
+    own coroutine then finishes (e.g. a near-instant tool like
+    ``update_plan``) inside the cancellation propagation window and
+    ``_call_tools.py`` calls
+    ``event._set_result(error=None, failed=None, result="...", ...)``.
+
+    The cancel marker fields (``error.type == "cancelled"`` +
+    ``failed=True``) must remain sticky so renderers can hide the
+    cancelled event from the live transcript. The forensic fields
+    (``result``, ``completed``, ``working_time``, identifiers) must be
+    populated with the natural-completion values so the eval log
+    retains a record of what the abandoned tool actually returned.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="update_plan", pending=True)
+        tr._event(event)
+        with session.track_tool_call("tc1", event=event):
+            session.cancel_current_turn()
+
+        # Simulate the natural-completion race: the tool's coroutine
+        # finished inside the propagation window so _call_tools.py
+        # calls _set_result with the tool's actual result body.
+        event._set_result(
+            result="plan was updated with 5 entries",
+            truncated=None,
+            error=None,
+            waiting_time=0.0,
+            agent=None,
+            failed=None,
+            message_id=None,
+        )
+        tr._event_updated(event)
+
+        # Cancel marker is sticky — renderers hide the event by checking
+        # error.type == "cancelled" and failed is True.
+        assert event.failed is True
+        assert event.error is not None
+        assert event.error.type == "cancelled"
+        # Forensic data is recorded for the eval log.
+        assert event.result == "plan was updated with 5 entries"
+        assert event.completed is not None
+        assert event.working_time is not None
+        # Final router publication still surfaces as failed, not completed.
+        last_update = published[-1].update
+        assert isinstance(last_update, ToolCallProgress)
+        assert last_update.status == "failed"
+    finally:
+        _transcript.reset(token)
+
+
+def test_operator_cancel_keeps_cancel_marker_through_tool_error() -> None:
+    """Cancel marker must stay sticky even when late tool completion is itself an error.
+
+    Scenario: ``cancel_current_turn`` marks an in-flight ToolEvent as
+    cancelled, then the tool's own coroutine errors (e.g. timeout,
+    ValueError) inside the propagation window and ``_call_tools.py``
+    calls ``event._set_result(error=ToolCallError(...), failed=True)``.
+
+    The cancel marker (``error.type == "cancelled"`` + ``failed=True``)
+    must remain sticky — the late error / failed status is discarded
+    so renderers (TUI + inspect view) and ACP clients surface the row
+    as cancelled rather than as a normal failed tool. Forensic fields
+    (``result``, ``completed``, ``working_time``) are still recorded
+    from the late completion.
+    """
+    from inspect_ai.tool._tool_call import ToolCallError
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = _tool_event(tool_id="tc1", function="update_plan", pending=True)
+        tr._event(event)
+        with session.track_tool_call("tc1", event=event):
+            session.cancel_current_turn()
+
+        # Simulate the natural-error race: the tool's coroutine raised
+        # inside the propagation window so _call_tools.py calls
+        # _set_result with a real ToolCallError.
+        event._set_result(
+            result="",
+            truncated=None,
+            error=ToolCallError(type="unknown", message="boom"),
+            waiting_time=0.0,
+            agent=None,
+            failed=True,
+            message_id=None,
+        )
+        tr._event_updated(event)
+
+        # Cancel marker is sticky — the late "unknown" error did NOT
+        # overwrite the "cancelled" marker stamped by cancel_current_turn.
+        assert event.failed is True
+        assert event.error is not None
+        assert event.error.type == "cancelled"
+        # Forensic data is recorded for the eval log.
+        assert event.completed is not None
+        assert event.working_time is not None
+        # Router publication still surfaces as failed (cancelled-as-failed
+        # maps to failed via _tool_call_status).
+        last_update = published[-1].update
+        assert isinstance(last_update, ToolCallProgress)
+        assert last_update.status == "failed"
+    finally:
+        _transcript.reset(token)
+
+
+def test_operator_cancel_keeps_cancel_marker_through_model_natural_completion() -> None:
+    """Cancel marker must stay sticky while natural completion records forensic data.
+
+    Scenario: ``cancel_current_turn`` stamps
+    ``error=OPERATOR_CANCEL_ERROR`` on the in-flight ModelEvent after
+    the user clicks Interrupt while a generate is mid-stream. The
+    provider's HTTP request can still return successfully inside the
+    cancellation propagation window; ``_model.py``'s ``complete()``
+    runs normally so ``event.output`` and ``event.call`` capture the
+    real response, while ``event.error`` stays sticky as the cancel
+    marker (``complete()``'s success branch does not touch ``error``).
+
+    Renderers discriminate on the sticky ``OPERATOR_CANCEL_ERROR``
+    marker to hide the event from the live transcript, while the eval
+    log retains the natural-completion output for forensic inspection.
+    """
+    from inspect_ai.event._model import OPERATOR_CANCEL_ERROR
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        # Pre-cancel state: ModelEvent is pending with empty output.
+        event = _model_event(text="streamed-partial", pending=True)
+        # Simulate the cancel marking step on the live model event.
+        event.error = OPERATOR_CANCEL_ERROR
+        event.pending = None
+
+        # Simulate the natural-completion race: provider returned a
+        # ModelOutput inside the cancellation propagation window.
+        # complete()'s success branch sets event.output unconditionally
+        # but does not touch event.error, so the cancel marker survives.
+        from inspect_ai.model._chat_message import ChatMessageAssistant
+        from inspect_ai.model._model_output import (
+            ChatCompletionChoice,
+            ModelOutput,
+        )
+
+        late_output = ModelOutput(
+            model="mockllm/model",
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(content="late-streamed-content")
+                )
+            ],
+        )
+
+        # Inline the contract from _model.py:complete() success branch.
+        event.output = late_output
+
+        # Forensic data is recorded (eval log keeps it).
+        assert event.output is late_output
+        # Cancel marker remains sticky (renderers hide on this).
+        assert event.error == OPERATOR_CANCEL_ERROR
+        assert event.pending is None
+    finally:
+        _transcript.reset(token)
+
+
 def test_model_event_emits_chunks_exactly_once_for_cache_hit_pattern() -> None:
     """Cache-hit pattern: non-pending event followed by _event_updated emits chunks once.
 

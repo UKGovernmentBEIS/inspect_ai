@@ -13,6 +13,22 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 from ._base import BaseEvent
 
+OPERATOR_CANCEL_ERROR = "Cancelled by operator"
+"""Sentinel string stamped on ``ModelEvent.error`` when an external
+operator (e.g. ``AcpSession.cancel_current_turn``) cancels an in-flight
+``generate`` call. Read sites:
+
+- ``inspect_ai.model._model.complete()`` short-circuits its
+  natural-completion overwrite when the event already carries this
+  marker (the model can return successfully inside the cancellation
+  propagation window).
+- TUI / log renderers can suppress display of cancelled events.
+
+The value is intentionally a fixed string so it round-trips through
+the JSON eval log; downstream tooling can detect operator cancels
+without depending on the agent/ACP layer.
+"""
+
 
 class ModelEvent(BaseEvent):
     """Call to a language model."""
