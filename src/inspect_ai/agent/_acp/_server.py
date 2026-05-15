@@ -36,7 +36,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, AsyncIterator, Iterator, cast
+from typing import TYPE_CHECKING, Any, AsyncIterator, Iterator, Literal, cast
 
 import anyio
 from acp.agent.router import build_agent_router
@@ -45,6 +45,7 @@ from acp.exceptions import RequestError
 from acp.helpers import plan_entry, session_notification, update_plan
 from acp.interfaces import Agent
 from acp.meta import CLIENT_METHODS, PROTOCOL_VERSION
+from acp.router import Route
 from acp.schema import (
     AgentCapabilities,
     AgentMessageChunk,
@@ -59,6 +60,7 @@ from acp.schema import (
     ToolCallProgress,
     ToolCallStart,
 )
+from pydantic import BaseModel, Field
 from shortuuid import uuid
 
 from inspect_ai._util.appdirs import inspect_data_dir
@@ -76,6 +78,7 @@ from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp._session import AcpSession
+    from inspect_ai.log._samples import ActiveSample
 
 logger = getLogger(__name__)
 
@@ -337,6 +340,27 @@ class _AcpServer:
         # through. `cast` avoids a structural-typing complaint about
         # the partial implementation.
         router = build_agent_router(cast(Agent, handler))
+        # Register non-standard `inspect/*` action methods that the
+        # ACP Agent protocol doesn't include. Always advertised — no
+        # capability opt-in. Clients that don't know about them
+        # simply don't call them; method dispatch is per-connection
+        # so the handler bindings are unique per connection.
+        router.add_route(
+            Route(
+                method="inspect/cancel_sample",
+                func=_wrap_action_handler(handler.cancel_sample, _CancelSampleParams),
+                kind="request",
+            )
+        )
+        router.add_route(
+            Route(
+                method="inspect/cancel_tool_call",
+                func=_wrap_action_handler(
+                    handler.cancel_tool_call, _CancelToolCallParams
+                ),
+                kind="request",
+            )
+        )
         # ``listening=False`` lets us drive the receive loop here and
         # know when the peer disconnects, so we can clean up tracking.
         conn = Connection(
@@ -622,6 +646,140 @@ class _ConnectionHandler:
             return None
         target.cancel_current_turn()
         return None
+
+    # ------------------------------------------------------------------
+    # `inspect/*` action methods (non-standard ACP extension)
+    # ------------------------------------------------------------------
+
+    async def cancel_sample(
+        self,
+        session_id: str,
+        action: Literal["score", "error"],
+    ) -> dict[str, Any]:
+        """Terminate the bound sample via :meth:`ActiveSample.interrupt`.
+
+        ``action`` selects the post-cancel outcome:
+
+        - ``"score"`` — run the scorer on whatever work landed.
+        - ``"error"`` — mark the sample errored. Gated to match the
+          TUI's button-visibility: accepted only when the sample is
+          NOT already configured to ``fails_on_error`` (in that case
+          the manual error action is moot — the sample would error
+          on its own; only the score action is meaningful from a
+          client's perspective).
+
+        Distinct from ``session/cancel``, which interrupts the
+        current turn but lets the agent loop recover. This method is
+        terminal: the sample finishes.
+        """
+        if session_id != self.state.wire_session_id:
+            raise RequestError.invalid_params(
+                {
+                    "reason": "session_id does not match this connection's session",
+                    "session_id": session_id,
+                    "expected": self.state.wire_session_id,
+                }
+            )
+        if self.state.target_session_id is None:
+            raise RequestError.invalid_request(
+                {
+                    "reason": (
+                        "inspect/cancel_sample called before binding "
+                        "(connection has no target session)"
+                    )
+                }
+            )
+        sample = _find_active_sample(self.state.target_session_id)
+        if sample is None:
+            raise RequestError.internal_error(
+                {
+                    "reason": "bound sample no longer active",
+                    "target_session_id": self.state.target_session_id,
+                }
+            )
+        if action == "error" and sample.fails_on_error:
+            raise RequestError.invalid_params(
+                {
+                    "reason": (
+                        "action='error' not permitted when sample is "
+                        "configured fails_on_error=True (use action='score')"
+                    )
+                }
+            )
+        sample.interrupt(action)
+        return {}
+
+    async def cancel_tool_call(
+        self,
+        session_id: str,
+        tool_call_id: str,
+    ) -> dict[str, Any]:
+        """Cancel a pending tool call by id.
+
+        Walks the full sample transcript for a matching pending
+        ``ToolEvent`` (superset of the TUI which only handles
+        top-level tools). The found event's ``_cancel_fn`` — set by
+        the tool dispatcher at ``_call_tools.py`` — is invoked,
+        triggering the per-tool task-group cancel.
+
+        Return value reports whether the tool is now cancelled
+        (``event.cancelled`` after the call), NOT whether *this*
+        request caused the cancel. So:
+
+        - unknown id / no longer pending / sample gone → ``False``
+        - pending tool with no ``_cancel_fn`` set → ``False`` (the
+          ``_cancel`` no-ops; the tool keeps running)
+        - pending tool with ``_cancel_fn`` → ``True``
+        - already-cancelled pending tool (rapid double-cancel) →
+          ``True`` (idempotent — the cancel previously landed)
+
+        For nested tools (inside a ``task`` dispatch or
+        ``as_tool`` / ``handoff``), the per-tool task-group cancel
+        propagates upward through the enclosing sub-agent's run —
+        see the dedicated integration test for the observed
+        propagation contract.
+        """
+        # Avoid module-level circular import.
+        from inspect_ai.event._tool import ToolEvent
+
+        if session_id != self.state.wire_session_id:
+            raise RequestError.invalid_params(
+                {
+                    "reason": "session_id does not match this connection's session",
+                    "session_id": session_id,
+                    "expected": self.state.wire_session_id,
+                }
+            )
+        if self.state.target_session_id is None:
+            raise RequestError.invalid_request(
+                {
+                    "reason": (
+                        "inspect/cancel_tool_call called before binding "
+                        "(connection has no target session)"
+                    )
+                }
+            )
+        sample = _find_active_sample(self.state.target_session_id)
+        if sample is None:
+            # Sample finished — nothing to cancel. Idempotent.
+            return {"cancelled": False}
+        for event in sample.transcript.events:
+            if (
+                isinstance(event, ToolEvent)
+                and event.id == tool_call_id
+                and event.pending
+            ):
+                # ``_cancel()`` is a no-op when ``_cancel_fn`` isn't
+                # set OR the event was already cancelled — read the
+                # post-call state rather than assuming success. In
+                # current production paths ``_call_tools.py`` always
+                # installs ``_cancel_fn`` before the event reaches
+                # the transcript, so this primarily matters for
+                # defensive correctness and the idempotent-retry
+                # case.
+                event._cancel()
+                return {"cancelled": event.cancelled}
+        return {"cancelled": False}
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -1169,6 +1327,82 @@ def _find_live_session(session_id: str) -> "AcpSession | None":
         if sess is not None and sess.session_id == session_id:
             return sess
     return None
+
+
+def _find_active_sample(session_id: str) -> "ActiveSample | None":
+    """Look up the :class:`ActiveSample` whose acp_session matches.
+
+    Sibling of :func:`_find_live_session` — that helper returns the
+    session, this one returns the enclosing ``ActiveSample`` because
+    the ``inspect/*`` action methods need fields the session doesn't
+    expose (``fails_on_error``, ``transcript``, ``interrupt``).
+    """
+    from inspect_ai.log._samples import active_samples
+
+    for sample in active_samples():
+        sess = sample.acp_session
+        if sess is not None and sess.session_id == session_id:
+            return sample
+    return None
+
+
+# ----------------------------------------------------------------------
+# `inspect/*` action methods — sample + tool-call cancel
+# ----------------------------------------------------------------------
+#
+# Two non-standard JSON-RPC methods that mirror affordances the Inspect
+# Textual TUI provides but no generic ACP client does. Both are inbound
+# requests; both validate the connection's ``wire_session_id`` first
+# (same pattern as ``session/prompt`` / ``session/cancel``).
+#
+# - ``inspect/cancel_sample {sessionId, action}`` — terminal cancel of
+#   the bound sample. ``action="score"`` runs the scorer on partial
+#   work; ``action="error"`` marks the sample errored. The error
+#   action is gated to match the TUI's button-visibility rule:
+#   accepted only when ``sample.fails_on_error == False``.
+# - ``inspect/cancel_tool_call {sessionId, toolCallId}`` — cancel a
+#   pending tool call by id. Walks the full sample transcript so
+#   nested tools (inside ``task`` dispatch, ``as_tool``, ``handoff``)
+#   are reachable — superset of the TUI which only handles top-level.
+#
+# Both methods are always advertised; no capability opt-in. Clients
+# that don't know about them simply don't call them.
+
+
+class _CancelSampleParams(BaseModel):
+    """Pydantic param model for ``inspect/cancel_sample``."""
+
+    session_id: str = Field(alias="sessionId")
+    action: Literal["score", "error"]
+
+
+class _CancelToolCallParams(BaseModel):
+    """Pydantic param model for ``inspect/cancel_tool_call``."""
+
+    session_id: str = Field(alias="sessionId")
+    tool_call_id: str = Field(alias="toolCallId")
+
+
+def _wrap_action_handler(func: Any, model: type[BaseModel]) -> Any:
+    """Build a router wrapper that validates params + unpacks kwargs.
+
+    Mirrors :meth:`acp.router.MessageRouter._make_func` but for our
+    inline Pydantic models (the ACP ``schema`` module doesn't carry
+    them since ``inspect/*`` is a non-standard extension). The router
+    invokes the returned callable with the raw params dict; the
+    wrapper validates, extracts kwargs honoring camelCase aliases,
+    and forwards to the bound handler.
+    """
+
+    async def wrapper(params: Any) -> Any:
+        request = model.model_validate(params)
+        kwargs = {
+            field_name: getattr(request, field_name)
+            for field_name in model.model_fields
+        }
+        return await func(**kwargs)
+
+    return wrapper
 
 
 def _filter_subagent_events(events: list[Any]) -> Iterator[Any]:

@@ -1239,7 +1239,31 @@ No paths bypass the decorator. No code fix needed.
 **Out of scope (no action needed):** the design doc originally said "audit and fix any path that bypasses the decorator." Audit complete; no bypass paths found. If a future dispatch path is added (e.g. a new sub-agent invocation route) that skips `run()` / the `span()` wrap, the deepagent integration test (#1) will fail because the expected boundary span won't appear — that's the regression guard.
 
 
-### Phase 12: `inspect acp` CLI
+### Phase 12: Inspect-specific ACP extensions: `inspect/*` action methods ✅
+
+Two TUI-grade affordances that don't map onto any generic ACP method live as non-standard JSON-RPC requests under the `inspect/` namespace. The Inspect TUI has them today; the JSON-RPC surface exposes the same primitives so editor clients can offer them too.
+
+- **`inspect/cancel_sample`** — terminal sample-level cancel. `params: { sessionId, action: "score" | "error" }`. `action="score"` runs the scorer on whatever work the sample produced before cancel; `action="error"` marks the sample errored. The `error` action is gated to match the TUI's polarity: rejected when `sample.fails_on_error == True` (the same scenario where the TUI hides its "Cancel (Error)" button — when the sample is already configured to fail on errors, manual cancel-as-error is moot).
+- **`inspect/cancel_tool_call`** — per-tool-call cancel. `params: { sessionId, toolCallId }`. Returns `{ cancelled: bool }`. Walks the **full** transcript (including events inside `task` / `as_tool` / `handoff` sub-agent dispatches) for a pending `ToolEvent` with matching id and fires `ToolEvent._cancel()`. Superset of TUI behavior — the TUI's button only operates on the top-level in-flight tool. Idempotent: an unknown / already-completed id returns `{cancelled: false}` rather than an error.
+
+Both methods differ from standard `session/cancel` (a per-turn, recoverable cancel — the agent loop sees a `TurnCancelled`, drains `after_cancel`, continues with the next user message). Sample cancel is terminal; tool-call cancel scopes to one tool call (the sub-agent's loop sees a synthesized `ChatMessageTool` with `error.type == "timeout"` and decides what to do — typically continue with a different tool or submit).
+
+**Why register directly on the per-connection router?** The Agent protocol that `build_agent_router` was built for doesn't include these methods (they're inspect-only), so registering via a method-name string on the router avoids changing the upstream ACP schema. `_wrap_action_handler(func, model)` is a small adapter that mirrors `MessageRouter._make_func`: validates params against a Pydantic model (`_CancelSampleParams` / `_CancelToolCallParams` with camelCase `Field(alias=...)` for `sessionId` / `toolCallId`), unpacks fields as kwargs, then calls the handler. The handler validates `wire_session_id` parity and the `target_session_id` binding before touching any sample state.
+
+**Always advertised, no capability opt-in.** Same pattern as `session/prompt` — a client that doesn't know about the methods just doesn't call them. The handlers do their own validation; there's no security boundary to gate. (An opt-out flag could come later if a client needs to assert they're not accidentally enabled.) Editor authors who want to expose Cancel buttons can call these methods regardless of how they declared `clientCapabilities` at `initialize`.
+
+**Auth model.** Same as everything else on the ACP server: loopback-only TCP or AF_UNIX, no auth. Anyone on the socket can cancel. A real auth story is a Phase 13+ concern.
+
+**Sample lookup.** A small `_find_active_sample(session_id)` helper walks `inspect_ai.log._samples.active_samples()` for the `ActiveSample` whose `acp_session.session_id` matches — sibling pattern to the existing `_find_live_session`. O(samples) per call; fine for expected scale (a handful of in-flight samples).
+
+**Cancel propagation chain — pinned by integration test.** `_call_tools.py:346-348` is where each tool call gets a per-call `anyio.create_task_group()` and the ToolEvent's cancel_fn is set to `tg.cancel_scope.cancel`. `inspect/cancel_tool_call` → handler walks transcript → finds pending `ToolEvent` → calls `event._cancel()` → invokes that bound cancel_fn → cancels the per-call task group → slow body's `await` raises `CancelledError` → `_call_tools` synthesizes a `ChatMessageTool` with `error.type == "timeout"` for the agent loop. The per-call (not per-turn) scope means cancelling one tool **does not** cascade to siblings or outer task tools — `test_cancel_tool_call_propagates_through_nested_dispatch` in `tests/agent/test_acp/test_action_methods.py` pins this contract end-to-end with a real anyio task group + nested transcript span so a future refactor that widens the scope (or breaks the chain) will fail loudly.
+
+**Files.** `src/inspect_ai/agent/_acp/_server.py` holds the handler methods, param models, `_wrap_action_handler`, `_find_active_sample`, and the route registration. `tests/agent/test_acp/test_action_methods.py` covers handler validation, the transcript walk for top-level + nested tools, end-to-end JSON-RPC over a real AF_UNIX socket, the always-advertised audit, and the cancel-propagation pinning test (23 tests total).
+
+**Out of scope (deferred).** Read-side "generation in flight / retry count / tool in flight" indicators — already derivable from the Phase 10 `inspect/event` raw event stream (`ModelEvent.pending` / `ModelEvent.retries` / `ToolEvent.pending`); no new outbound notifications needed. Bulk cancel and status/introspection methods — not requested; the single-target form composes.
+
+
+### Phase 13: `inspect acp` CLI
 
 Add the `inspect acp` subcommand with two modes:
 
@@ -1251,7 +1275,7 @@ Both modes resolve the target eval via the discovery directory; if multiple eval
 **Tests.** Stdio fixture test that scripts an editor-shaped client through `inspect acp --stdio`; TUI smoke via Textual test driver; multi-eval resolution; manual smoke against Zed.
 
 
-### Phase 13: Approval UI via `session/request_permission`
+### Phase 14: Approval UI via `session/request_permission`
 
 Wire Inspect's `approval` framework so that when one or more clients are attached, an approval prompt is broadcast as `session/request_permission` to all attached clients; first response wins; others receive a `session/update` marking the prompt resolved. Falls back to the existing approver behavior when no clients are attached. Configurable timeout with default-deny fallback.
 
