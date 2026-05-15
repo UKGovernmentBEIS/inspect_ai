@@ -61,6 +61,16 @@ class Transcript:
         self._model_call_counts: dict[str, int] = {}
         self._kept_event_ids: set[int] = set()
         self._additional_subscribers: list[Callable[[Event], None]] = []
+        # Re-entry guard for the subscriber loop. A subscriber that
+        # raises causes :data:`logger.exception` to run, which (when
+        # ``inspect_ai``'s ``LogHandler`` is installed by eval) feeds
+        # a fresh ``LoggerEvent`` back through ``_event`` → straight
+        # into this method again. Without the guard, a consistently
+        # broken subscriber would recurse infinitely. We still want
+        # the recursive event to land in ``_events`` and reach the
+        # single-slot ``_event_logger`` (log writer), but skip the
+        # subscriber loop to break the cycle.
+        self._notifying_subscribers: bool = False
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -150,11 +160,21 @@ class Transcript:
         if self._event_logger:
             self._event_logger(event)
 
-        for sub in self._additional_subscribers:
+        # Re-entrant call (a subscriber's logger.exception fed a
+        # LoggerEvent back through here). Skip the subscriber loop
+        # to avoid infinite recursion with a consistently broken
+        # subscriber — the outer call's loop is the one that
+        # delivers events anyway.
+        if not self._notifying_subscribers:
+            self._notifying_subscribers = True
             try:
-                sub(event)
-            except Exception:
-                logger.exception("Transcript subscriber raised; continuing")
+                for sub in self._additional_subscribers:
+                    try:
+                        sub(event)
+                    except Exception:
+                        logger.exception("Transcript subscriber raised; continuing")
+            finally:
+                self._notifying_subscribers = False
 
         # condense model event calls immediately to prevent O(N) memory usage
         if isinstance(event, ModelEvent) and event.call is not None:

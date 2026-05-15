@@ -35,7 +35,6 @@ from inspect_ai.event import (
     SpanEndEvent,
     ToolEvent,
 )
-from inspect_ai.log._transcript import Transcript
 from inspect_ai.model import get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool import Tool, tool
@@ -64,15 +63,6 @@ def _capture_session_tool(captured: dict[str, AcpSession], key: str = "acp") -> 
         return execute
 
     return capture_session()
-
-
-def _agent_span_names(transcript: Transcript) -> list[str]:
-    """Return the names of all AGENT_SPAN_TYPE SpanBeginEvents in order."""
-    return [
-        e.name
-        for e in transcript.events
-        if isinstance(e, SpanBeginEvent) and e.type == AGENT_SPAN_TYPE
-    ]
 
 
 def _depth_at_each_event(events: list) -> list[int]:
