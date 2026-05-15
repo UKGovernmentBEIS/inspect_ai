@@ -75,10 +75,6 @@ async def build_impl() -> Checkpointer:
     development — the function returns a no-op session unless the
     ``INSPECT_CHECKPOINTING`` env var is set to ``"1"``.
     """
-    if os.environ.get("INSPECT_CHECKPOINTING") != "1":
-        warn_once(logger, "Checkpointing is still not yet fully implemented")
-        return _NoopCheckpointer()
-
     # TODO(checkpointing-phase-3): capture the sample-level retry /
     # attempt index. `ActiveSample` does not currently carry it; the
     # value is published via the `on_sample_attempt_start` hook with
@@ -90,6 +86,10 @@ async def build_impl() -> Checkpointer:
     if active is None or active.checkpoint is None:
         return _NoopCheckpointer()
     config = active.checkpoint
+
+    if os.environ.get("INSPECT_CHECKPOINTING") != "1":
+        warn_once(logger, "Checkpointing is still not yet fully implemented")
+        return _NoopCheckpointer()
 
     if active.eval_id is None:
         raise RuntimeError(
