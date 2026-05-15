@@ -18,6 +18,7 @@ the cancel/inject machinery: ``turn_scope``, ``before_turn``,
 """
 
 import contextlib
+import math
 from contextvars import ContextVar
 from logging import getLogger
 from types import TracebackType
@@ -60,10 +61,15 @@ logger = getLogger(__name__)
 # bus does not narrow; subscribers narrow with ``isinstance`` as needed.
 AcpUpdate = Any
 
-# Bounded subscriber buffer. A slow subscriber drops updates rather than
-# stalling the agent; replay-on-attach (Phase 10) handles lossless catch-up
-# for clients that need it.
-_SUBSCRIBER_BUFFER_SIZE = 256
+# Unbounded subscriber buffer (matches the hooks-system pattern at
+# ``hooks/_hooks.py:697``). Dropping ACP updates would manifest as
+# missing events in client UIs (gaps in transcripts, missing tool-call
+# rows, lost interrupt notifications), which is worse than the bounded
+# growth risk — subscribers whose receive halves are closed are pruned
+# from the fan-out list on the next publish via ``BrokenResourceError``,
+# and a runaway subscriber would be capped in practice by the agent's
+# event rate over a sample's duration.
+_SUBSCRIBER_BUFFER_SIZE: float = math.inf
 
 # Sentinel session_id for the no-op variant so callers never need
 # isinstance guards.
@@ -468,20 +474,17 @@ class _LiveAcpSession:
     def publish(self, update: AcpUpdate) -> None:
         """Fan ``update`` out non-blockingly to all attached subscribers.
 
-        A subscriber with a full buffer logs a warning and drops the
-        update. A subscriber whose receive half was closed by the
-        consumer is pruned from the subscriber list so subsequent
-        publishes don't keep hitting the same dead stream.
+        Subscribers use unbounded buffers (see :data:`_SUBSCRIBER_BUFFER_SIZE`)
+        so ``send_nowait`` is effectively guaranteed to succeed and the
+        agent loop never stalls on a slow consumer. A subscriber whose
+        receive half was closed by the consumer is pruned from the
+        subscriber list so subsequent publishes don't keep hitting the
+        same dead stream.
         """
         dead: list[int] = []
         for i, (send, _) in enumerate(self._subscribers):
             try:
                 send.send_nowait(update)
-            except anyio.WouldBlock:
-                logger.warning(
-                    f"AcpSession {self._session_id}: subscriber buffer full; "
-                    "dropping update"
-                )
             except anyio.BrokenResourceError:
                 # Receive end closed by the consumer; prune.
                 dead.append(i)

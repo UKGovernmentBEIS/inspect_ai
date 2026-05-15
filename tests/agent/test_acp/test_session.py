@@ -147,7 +147,14 @@ async def test_publish_prunes_subscriber_whose_receive_was_closed() -> None:
         assert len(acp._subscribers) == 1  # type: ignore[attr-defined]
 
 
-async def test_bounded_buffer_drops_overflow_with_warning(monkeypatch) -> None:
+async def test_subscriber_buffer_is_unbounded(monkeypatch) -> None:
+    """Verifies the buffer never drops events even under burst load.
+
+    Matches the hooks-system contract — dropped ACP updates would
+    surface as missing transcript chunks / tool-call rows in client
+    UIs. We accept the (bounded-by-event-rate) memory cost in
+    exchange for lossless delivery.
+    """
     warnings: list[str] = []
 
     def capture(msg: str, *_args: object, **_kwargs: object) -> None:
@@ -155,16 +162,20 @@ async def test_bounded_buffer_drops_overflow_with_warning(monkeypatch) -> None:
 
     monkeypatch.setattr(session_module.logger, "warning", capture)
 
+    burst = 10_000
     async with acp_session() as acp:
-        acp.attach()  # subscribe but never drain
-        buffer_size = session_module._SUBSCRIBER_BUFFER_SIZE
-        # Fill the buffer exactly, then publish one more to trigger drop.
-        for i in range(buffer_size):
+        receive = acp.attach()  # subscribe but never drain
+        for i in range(burst):
             acp.publish({"i": i})
+
+        # No drops, no warnings.
         assert warnings == []
-        acp.publish({"i": buffer_size})
-        assert len(warnings) == 1
-        assert acp.session_id in warnings[0]
+
+        # Buffer holds every event, in order.
+        drained: list[dict[str, int]] = []
+        for _ in range(burst):
+            drained.append(receive.receive_nowait())
+        assert drained == [{"i": i} for i in range(burst)]
 
 
 async def test_acp_session_satisfies_protocol() -> None:
