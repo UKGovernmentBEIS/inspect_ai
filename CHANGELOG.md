@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Scoring: Add `aggregate(key, agg=...)` metric factory that applies any standard metric (`mean`, `stderr`, `std`, `accuracy`, …) to a single field of a dict-valued `Score.value`. Migration note for users coming from `inspect_evals.utils.mean_of`: a present-but-`None` key is *not* routed through `on_missing` — it is passed through to `to_float` (which under the default `value_to_float()` warns and returns `0.0`).
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - VLLM: Preserve dotted vLLM server arg keys.
 - SageMaker: Add `prompt_logprobs` support in chat mode via `GenerateConfig`, parse prompt logprobs from completion mode responses, enabling `perplexity()` and `target_perplexity()` scorers end-to-end.
