@@ -454,6 +454,21 @@ async def test_get_async_filesystem_raises_when_none() -> None:
         get_async_filesystem()
 
 
+def test_run_coroutine_no_loop_uses_configured_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """run_coroutine() with no running loop honours INSPECT_ASYNC_BACKEND=trio."""
+    import sniffio
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", "trio")
+
+    async def report_backend() -> str:
+        return sniffio.current_async_library()
+
+    assert run_coroutine(report_backend()) == "trio"
+    assert _current_async_fs.get() is None
+
+
 def test_run_coroutine_cleans_up_filesystem() -> None:
     """run_coroutine() cleans up the filesystem created during execution."""
 

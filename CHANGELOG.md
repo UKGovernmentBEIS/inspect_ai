@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Async: `run_coroutine()` (and the sync log/analysis helpers built on it) now honour `INSPECT_ASYNC_BACKEND=trio` when called with no running event loop, rather than always using asyncio. Calling from inside a running trio task still raises.
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
 - Anthropic: Capture `extra_body` fields from `Message` response.
