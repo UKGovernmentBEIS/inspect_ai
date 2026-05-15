@@ -27,6 +27,7 @@ from typing_extensions import override
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.atomic_write import atomic_write
 from inspect_ai._util.constants import (
     LOG_SCHEMA_VERSION,
     get_deserializing_context,
@@ -652,16 +653,40 @@ class ZipLogFile:
                 self._zip.close()
 
             # Stream temp file to output using the appropriate backend
-            # (native S3 multipart upload, or chunked copy via fsspec)
+            # (native S3 multipart upload, or chunked copy via fsspec).
+            # For local paths, use atomic write (temp file + fsync +
+            # rename) to prevent corruption on interrupted writes (#2949).
             self._temp_file.seek(0)
 
             with trace_action(logger, "Log Write", self._file):
                 try:
-                    async with AsyncFilesystem() as async_fs:
-                        await async_fs.write_file_streaming(self._file, self._temp_file)
+                    if filesystem(self._file).is_local():
+                        await anyio.to_thread.run_sync(self._atomic_local_write)
+                    else:
+                        async with AsyncFilesystem() as async_fs:
+                            await async_fs.write_file_streaming(
+                                self._file, self._temp_file
+                            )
                 finally:
                     # re-open zip file w/ self.temp_file pointer at end
                     self._open()
+
+    def _atomic_local_write(self) -> None:
+        """Atomically copy self._temp_file contents to self._file (local).
+
+        Invoked via anyio.to_thread.run_sync from flush(). Uses the
+        atomic_write helper (write-to-tempfile, fsync, os.replace) so a
+        crash mid-write leaves the previous log untouched rather than a
+        corrupted ZIP.
+        """
+        self._temp_file.seek(0)
+        with atomic_write(local_path(self._file), fsync=True) as out:
+            # Stream in chunks to avoid loading the whole zip into memory.
+            while True:
+                chunk = self._temp_file.read(1024 * 1024)
+                if not chunk:
+                    break
+                out.write(chunk)
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:

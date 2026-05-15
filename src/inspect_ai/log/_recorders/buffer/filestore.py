@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
+from inspect_ai._util.atomic_write import atomic_write_bytes
 from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
 from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
 from inspect_ai._util.json import to_json_safe, to_json_str_safe
@@ -147,8 +148,15 @@ class SampleBufferFilestore(SampleBuffer):
             self._fs.touch(f"{self._dir}.keep")
 
     def write_manifest(self, manifest: Manifest) -> None:
-        with file(self._manifest_file(), "wb") as f:
-            f.write(to_json_safe(manifest))
+        manifest_bytes = to_json_safe(manifest)
+        manifest_path = self._manifest_file()
+        if self._fs.is_local():
+            # Atomic write so a crash mid-write can't leave a truncated
+            # manifest that breaks recovery (#2949).
+            atomic_write_bytes(manifest_path, manifest_bytes, fsync=True)
+        else:
+            with file(manifest_path, "wb") as f:
+                f.write(manifest_bytes)
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
         # write the file locally
@@ -163,14 +171,27 @@ class SampleBufferFilestore(SampleBuffer):
             segment_file.flush()
             os.fsync(segment_file.fileno())
 
-        # write then move for atomicity
+        # move temp into place. For local destinations use os.replace()
+        # for an atomic rename; remote destinations fall back to a
+        # streaming copy via fsspec.
+        target = f"{self._dir}{segment_name(id)}"
         try:
-            with open(name, "rb") as zf:
-                with file(f"{self._dir}{segment_name(id)}", "wb") as f:
-                    f.write(zf.read())
-                    f.flush()
+            if self._fs.is_local():
+                os.replace(name, target)
+                # os.replace consumes the temp file; clear `name` so the
+                # finally-block unlink doesn't error with FileNotFoundError.
+                name = ""
+            else:
+                with open(name, "rb") as zf:
+                    with file(target, "wb") as f:
+                        f.write(zf.read())
+                        f.flush()
         finally:
-            os.unlink(name)
+            if name:
+                try:
+                    os.unlink(name)
+                except FileNotFoundError:
+                    pass
 
     def read_manifest(self) -> Manifest | None:
         try:
