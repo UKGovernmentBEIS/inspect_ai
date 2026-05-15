@@ -11,7 +11,7 @@ from inspect_ai.tool._tool import TOOL_INIT_MODEL_INPUT, ToolParsingError
 from inspect_ai.tool._tool_call import ToolCallModelInput, ToolCallModelInputHints
 from inspect_ai.tool._tool_info import ToolInfo
 
-from . import _common as common
+from . import _common as _sandbox_backend
 
 # this is duplicated from ._resources.tool._constants import Action
 # changes should be synchronized!
@@ -73,7 +73,11 @@ def is_computer_tool_info(tool: ToolInfo) -> bool:
 
 
 @tool
-def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool:
+def computer(
+    max_screenshots: int | None = 1,
+    timeout: int | None = 180,
+    backend: Literal["sandbox", "host"] = "sandbox",
+) -> Tool:
     """Desktop computer tool.
 
     See documentation at <https://inspect.aisi.org.uk/tools-standard.html#sec-computer>.
@@ -83,7 +87,16 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
         back to the model as input. Defaults to 1 (set to `None` to have no limit).
       timeout: Timeout in seconds for computer tool actions.
         Defaults to 180 (set to `None` for no timeout).
+      backend: Execution backend. ``"sandbox"`` (default) runs actions
+        inside a Docker container via ``sandbox().exec()``.
+        ``"host"`` runs actions directly on the host machine using
+        pyautogui (requires ``pip install pyautogui mss Pillow``).
     """
+
+    if backend == "host":
+        from . import _host as impl
+    else:
+        impl = _sandbox_backend
 
     # NOTE: Models with native computer use (Anthropic, OpenAI) never see this
     # docstring or parameter schema — they use provider-specific tool params
@@ -200,83 +213,83 @@ def computer(max_screenshots: int | None = 1, timeout: int | None = 180) -> Tool
 
         match action:
             case "key":
-                return await common.press_key(not_none(text, "text"), timeout=timeout)
+                return await impl.press_key(not_none(text, "text"), timeout=timeout)
             case "hold_key":
-                return await common.hold_key(
+                return await impl.hold_key(
                     not_none(text, "text"),
                     not_none(duration, "duration"),
                     timeout=timeout,
                 )
             case "type":
                 if coordinate is not None:
-                    await common.left_click(coordinate, timeout=timeout)
-                result = await common.type(not_none(text, "text"), timeout=timeout)
+                    await impl.left_click(coordinate, timeout=timeout)
+                result = await impl.type(not_none(text, "text"), timeout=timeout)
                 if bool(args.get("press_enter")):
-                    result = await common.press_key("Return", timeout=timeout)
+                    result = await impl.press_key("Return", timeout=timeout)
                 return result
             case "cursor_position":
-                return await common.cursor_position(timeout=timeout)
+                return await impl.cursor_position(timeout=timeout)
             case "mouse_move":
-                return await common.mouse_move(
+                return await impl.mouse_move(
                     not_none(coordinate, "coordinate"), timeout=timeout
                 )
             case "left_mouse_down":
-                return await common.left_mouse_down(timeout=timeout)
+                return await impl.left_mouse_down(timeout=timeout)
             case "left_mouse_up":
-                return await common.left_mouse_up(timeout=timeout)
+                return await impl.left_mouse_up(timeout=timeout)
             case "left_click":
-                return await common.left_click(
+                return await impl.left_click(
                     not_none(coordinate, "coordinate"), timeout=timeout
                 )
             case "left_click_drag":
-                return await common.left_click_drag(
+                return await impl.left_click_drag(
                     not_none(start_coordinate, "start_coordinate"),
                     not_none(coordinate, "coordinate"),
                     timeout=timeout,
                 )
             case "right_click":
-                return await common.right_click(
+                return await impl.right_click(
                     not_none(coordinate, "coordinate"), timeout=timeout
                 )
             case "middle_click":
-                return await common.middle_click(
+                return await impl.middle_click(
                     not_none(coordinate, "coordinate"), timeout=timeout
                 )
             case "back_click":
-                return await common.back_click(
+                return await impl.back_click(
                     not_none(coordinate, "coordinate"), timeout=timeout
                 )
             case "forward_click":
-                return await common.forward_click(
+                return await impl.forward_click(
                     not_none(coordinate, "coordinate"), timeout=timeout
                 )
             case "double_click":
-                return await common.double_click(
+                return await impl.double_click(
                     not_none(coordinate, "coordinate"), timeout=timeout
                 )
             case "triple_click":
-                return await common.triple_click(
+                return await impl.triple_click(
                     not_none(coordinate, "coordinate"), timeout=timeout
                 )
             case "scroll":
-                return await common.scroll(
+                return await impl.scroll(
                     not_none(scroll_amount, "scroll_amount"),
                     not_none(scroll_direction, "scroll_direction"),
                     coordinate,
                     timeout=timeout,
                 )
             case "wait":
-                return await common.wait(
+                return await impl.wait(
                     not_none(duration, "duration"), timeout=timeout
                 )
             case "screenshot":
-                return await common.screenshot(timeout=timeout)
+                return await impl.screenshot(timeout=timeout)
             case "zoom":
-                return await common.zoom(not_none(region, "region"), timeout=timeout)
+                return await impl.zoom(not_none(region, "region"), timeout=timeout)
             case "open_web_browser":
-                return await common.open_web_browser(timeout=timeout)
+                return await impl.open_web_browser(timeout=timeout)
             case "navigate":
-                return await common.navigate(not_none(text, "text"), timeout=timeout)
+                return await impl.navigate(not_none(text, "text"), timeout=timeout)
 
         raise ToolParsingError(f"Invalid action: {action}")
 
