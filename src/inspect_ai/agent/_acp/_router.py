@@ -30,6 +30,7 @@ context before live updates start.
 
 from __future__ import annotations
 
+import uuid as _uuid_module
 from collections.abc import Sequence
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal
@@ -38,16 +39,17 @@ from acp.helpers import (
     session_notification,
     start_tool_call,
     text_block,
-    update_agent_message,
-    update_agent_thought,
     update_tool_call,
 )
 from acp.schema import (
+    AgentMessageChunk,
+    AgentThoughtChunk,
     ContentToolCallContent,
     ImageContentBlock,
     SessionNotification,
     TextContentBlock,
     ToolKind,
+    UsageUpdate,
 )
 
 from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
@@ -61,6 +63,7 @@ from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
+from inspect_ai.model._model_info import get_model_info
 from inspect_ai.tool._tool_call import ToolCallContent
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
@@ -204,32 +207,131 @@ def _map_model_event(
         if uuid in seen_model_event_ids:
             return
         seen_model_event_ids.add(uuid)
+    # message_id groups chunks from one model call into one logical
+    # assistant message per ACP semantics ("change in messageId indicates
+    # a new message has started"). The ACP schema mandates UUID format,
+    # so we derive a stable UUIDv5 from the Inspect ModelEvent uuid
+    # (which is a shortuuid, not RFC 4122 canonical form). The original
+    # is preserved in _meta["inspect.model_event_uuid"] for clients that
+    # want to cross-reference back to the originating transcript event.
+    chunk_message_id = _model_event_message_id(uuid) if uuid is not None else None
+    # _meta carries:
+    # - "inspect.model": model name for every chunk. Drives the client's
+    #   meta-row "model X" chip. Per-chunk (not session-static) so it's
+    #   correct for multi-model evals where the model switches mid-conv.
+    # - "inspect.model_event_uuid": the original Inspect shortuuid, so
+    #   the round-trip back to the transcript event is recoverable
+    #   (since UUIDv5 hashing is one-way).
+    chunk_meta: dict[str, Any] = {"inspect.model": event.model}
+    if uuid is not None:
+        chunk_meta["inspect.model_event_uuid"] = uuid
     message = event.output.message
     if not isinstance(message.content, list):
         if message.text:
             yield session_notification(
                 session_id,
-                update_agent_message(text_block(message.text)),
+                AgentMessageChunk(
+                    session_update="agent_message_chunk",
+                    content=text_block(message.text),
+                    message_id=chunk_message_id,
+                    field_meta=chunk_meta,
+                ),
             )
-        return
-    for block in message.content:
-        if isinstance(block, ContentText) and block.text:
-            yield session_notification(
-                session_id,
-                update_agent_message(text_block(block.text)),
-            )
-        elif isinstance(block, ContentReasoning):
-            # For redacted reasoning, `block.reasoning` may carry the
-            # provider's encrypted/redacted payload — only `summary`
-            # is display-safe. Mirror ContentReasoning.text's policy
-            # (`self.reasoning if not self.redacted else (self.summary or "")`).
-            reasoning_text = (
-                (block.summary or "") if block.redacted else block.reasoning
-            )
-            yield session_notification(
-                session_id,
-                update_agent_thought(text_block(reasoning_text)),
-            )
+    else:
+        for block in message.content:
+            if isinstance(block, ContentText) and block.text:
+                yield session_notification(
+                    session_id,
+                    AgentMessageChunk(
+                        session_update="agent_message_chunk",
+                        content=text_block(block.text),
+                        message_id=chunk_message_id,
+                        field_meta=chunk_meta,
+                    ),
+                )
+            elif isinstance(block, ContentReasoning):
+                # For redacted reasoning, `block.reasoning` may carry the
+                # provider's encrypted/redacted payload — only `summary`
+                # is display-safe. Mirror ContentReasoning.text's policy
+                # (`self.reasoning if not self.redacted else (self.summary or "")`).
+                reasoning_text = (
+                    (block.summary or "") if block.redacted else block.reasoning
+                )
+                yield session_notification(
+                    session_id,
+                    AgentThoughtChunk(
+                        session_update="agent_thought_chunk",
+                        content=text_block(reasoning_text),
+                        message_id=chunk_message_id,
+                        field_meta=chunk_meta,
+                    ),
+                )
+    # Emit UsageUpdate for every non-empty model event with known usage
+    # and a known context window. ACP semantics: "Tokens currently in
+    # context" / "Total context window size". We do NOT gate this on
+    # whether chunks were emitted — a common pattern is content="" plus
+    # tool_calls (no chunks for the TUI to render, but real tokens
+    # consumed). Schema requires both used + size; if either is unknown
+    # we skip rather than send a misleading size=0.
+    usage_update = _build_usage_update(event)
+    if usage_update is not None:
+        # SessionNotification directly: the acp.helpers.session_notification
+        # helper's type annotation predates UsageUpdate joining the
+        # SessionUpdate union (the schema discriminated union includes it,
+        # but the helper's typedef is narrower). Constructing the
+        # notification by hand sidesteps the type mismatch.
+        yield SessionNotification(session_id=session_id, update=usage_update)
+
+
+# UUIDv5 namespace for deriving message_id from Inspect ModelEvent uuids.
+# Generated once and frozen; do not regenerate (would invalidate ids
+# across version boundaries for any client that pinned an id).
+_INSPECT_MESSAGE_ID_NAMESPACE = _uuid_module.UUID(
+    "0e22b6ad-7e30-5d7b-9a87-78e3f56f4f93"
+)
+
+
+def _model_event_message_id(model_event_uuid: str) -> str:
+    """Map an Inspect ModelEvent shortuuid to an ACP-compliant UUIDv5 string.
+
+    ACP's message_id field mandates UUID format; Inspect events use
+    shortuuid which isn't parseable as canonical UUID. UUIDv5 over a
+    fixed namespace gives a stable, deterministic mapping (same input
+    → same id) so chunks from one event still group correctly on the
+    client.
+    """
+    return str(_uuid_module.uuid5(_INSPECT_MESSAGE_ID_NAMESPACE, model_event_uuid))
+
+
+def _build_usage_update(event: ModelEvent) -> UsageUpdate | None:
+    """Build a UsageUpdate for ``event`` if usage and context window are known.
+
+    ACP's UsageUpdate requires both ``used`` and ``size``; if the model
+    didn't report usage (e.g. mock providers) or we can't resolve a
+    context window for the model, we return None and the caller skips
+    the emission (client just won't render the chip for this turn).
+    """
+    usage = event.output.usage
+    if usage is None:
+        return None
+    info = get_model_info(event.model)
+    if info is None or info.context_length is None:
+        return None
+    # input_tokens reports tokens that were in context on this call.
+    # cached read/write should be included for the true total since
+    # they're physically present in the request. output_tokens is
+    # included so the chip reflects "size of state after the call",
+    # which matches what an operator looking at a running agent expects.
+    used = usage.input_tokens + usage.output_tokens
+    if usage.input_tokens_cache_read is not None:
+        used += usage.input_tokens_cache_read
+    if usage.input_tokens_cache_write is not None:
+        used += usage.input_tokens_cache_write
+    return UsageUpdate(
+        session_update="usage_update",
+        used=max(used, 0),
+        size=info.context_length,
+    )
 
 
 # Built-in Inspect tool name → ACP ``ToolKind`` mapping. The kind
