@@ -101,6 +101,7 @@ def eval(
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
+    env_vars: dict[str, str] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
@@ -171,6 +172,8 @@ def eval(
             sample completes.
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
+        env_vars: Environment variables to set when running this eval. These are
+            serialised into the eval log and automatically restored by `eval-retry`.
         trace: Trace message interactions with evaluated model to terminal.
         display: Task display type (defaults to 'full').
         approval: Tool use approval policies.
@@ -273,6 +276,7 @@ def eval(
                 scanner=scanner,
                 tags=tags,
                 metadata=metadata,
+                env_vars=env_vars,
                 approval=approval,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -355,6 +359,7 @@ async def eval_async(
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
+    env_vars: dict[str, str] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -415,6 +420,8 @@ async def eval_async(
         scanner: Scanner(s) to apply to each sample's transcript after the sample completes.
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
+        env_vars: Environment variables to set when running this eval. These are
+            serialised into the eval log and automatically restored by `eval-retry`.
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
@@ -498,6 +505,7 @@ async def eval_async(
                 scanner=scanner,
                 tags=tags,
                 metadata=metadata,
+                env_vars=env_vars,
                 approval=approval,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
@@ -572,6 +580,7 @@ async def _eval_async_inner(
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
+    env_vars: dict[str, str] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
@@ -625,6 +634,10 @@ async def _eval_async_inner(
         raise RuntimeError("Multiple concurrent calls to eval_async are not allowed.")
 
     _eval_async_running = True
+
+    # apply caller-specified environment variables
+    if env_vars:
+        os.environ.update(env_vars)
 
     # if we are called outside of eval() then set display type to "plain"
     if not display_type_initialized():
@@ -841,6 +854,7 @@ async def _eval_async_inner(
                             scan_id=scan_id,
                             tags=tags,
                             metadata=metadata,
+                            env_vars=env_vars,
                             run_samples=run_samples,
                             score=score,
                             debug_errors=debug_errors is True,
@@ -873,6 +887,7 @@ async def _eval_async_inner(
                     scan_id=scan_id,
                     tags=tags,
                     metadata=metadata,
+                    env_vars=env_vars,
                     run_samples=run_samples,
                     score=score,
                     task_retry_attempts=task_retry_attempts,
@@ -1249,6 +1264,9 @@ async def eval_retry_async(
         task_args = eval_log.eval.task_args_passed
         tags = eval_log.eval.tags
         metadata = eval_log.eval.metadata
+        env_vars = eval_log.eval.env_vars
+        if env_vars:
+            os.environ.update(env_vars)
         limit = eval_log.eval.config.limit
         # try to match log format of retried log
         if log_format is None and eval_log.location:
@@ -1383,6 +1401,7 @@ async def eval_retry_async(
                 scan_id=retry_scan_id,
                 tags=tags,
                 metadata=metadata,
+                env_vars=env_vars,
                 approval=approval,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
