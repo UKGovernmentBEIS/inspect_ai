@@ -1,10 +1,12 @@
 """``inspect acp`` subcommand.
 
-Phase 13 ships the ``--stdio`` mode — a transparent stdio↔socket
-bridge that lets editors (Zed etc.) spawn ``inspect acp --stdio`` as
-a subprocess and talk newline-delimited JSON-RPC to a running eval's
-ACP server. Phase 15 will lift the bare-command error and add the
-Inspect-native Textual TUI client.
+Two modes:
+
+- ``--stdio`` runs a transparent stdio↔socket bridge for editors
+  (Zed etc.) that spawn ``inspect acp --stdio`` as a subprocess and
+  talk newline-delimited JSON-RPC to a running eval's ACP server.
+- Without ``--stdio``, launches the Inspect-native Textual TUI
+  client (Phase 15).
 
 The entry point uses ``asyncio.run`` (not ``anyio.run``) because
 ``acp.stdio.stdio_streams()`` requires an asyncio event loop —
@@ -43,17 +45,18 @@ from inspect_ai.agent._acp._stdio import bridge_stdio
     default=None,
     help=(
         "Specific eval to attach to. Optional — when omitted with multiple "
-        "evals running, the most-recently-started one is used (logged to "
-        "stderr)."
+        "evals running, the TUI's picker lists them (or the bridge picks the "
+        "most-recently-started, logged to stderr)."
     ),
 )
 @click.option(
-    "--socket",
-    "socket",
+    "--server",
+    "server",
     default=None,
     help=(
-        "Direct socket address (UNIX path or host:port) bypassing discovery. "
-        "Optional — auto-discovery works in the common case."
+        "Direct ACP server address (UNIX path or host:port) bypassing local "
+        "discovery. Use to attach to a remote machine, or to override the "
+        "auto-discovered address. Shared by --stdio and TUI modes."
     ),
 )
 @click.pass_context
@@ -61,29 +64,25 @@ def acp_command(
     ctx: click.Context,
     stdio: bool,
     eval_id: str | None,
-    socket: str | None,
+    server: str | None,
 ) -> None:
     """Connect to a running Inspect eval over the Agent Client Protocol."""
-    if not stdio:
+    if eval_id is not None and server is not None:
         click.echo(
-            "Inspect's interactive ACP TUI client is not yet implemented "
-            "(planned for Phase 15). For now, run `inspect acp --stdio` to "
-            "use the editor bridge mode.",
-            err=True,
-        )
-        ctx.exit(2)
-
-    if eval_id is not None and socket is not None:
-        click.echo(
-            "--eval-id and --socket are mutually exclusive. --eval-id picks "
-            "from the discovery directory; --socket bypasses discovery with "
+            "--eval-id and --server are mutually exclusive. --eval-id picks "
+            "from the discovery directory; --server bypasses discovery with "
             "a literal address. Pick one.",
             err=True,
         )
         ctx.exit(2)
 
     try:
-        asyncio.run(_run_stdio_bridge(eval_id=eval_id, socket=socket))
+        if stdio:
+            asyncio.run(_run_stdio_bridge(eval_id=eval_id, server=server))
+        else:
+            from inspect_ai.agent._acp._tui import run_tui
+
+            asyncio.run(run_tui(eval_id=eval_id, server=server))
     except KeyboardInterrupt:
         # Clean Ctrl-C exit; suppress the traceback that asyncio.run
         # would otherwise unwind.
@@ -93,7 +92,7 @@ def acp_command(
 async def _run_stdio_bridge(
     *,
     eval_id: str | None,
-    socket: str | None,
+    server: str | None,
 ) -> None:
     """Resolve the target, open stdio streams, run the bridge.
 
@@ -102,7 +101,7 @@ async def _run_stdio_bridge(
     pane; users running the bridge by hand see it directly.
     """
     try:
-        target, picked_from = resolve_target(eval_id=eval_id, socket=socket)
+        target, picked_from = resolve_target(eval_id=eval_id, server=server)
     except TargetResolutionError as exc:
         print(str(exc), file=sys.stderr, flush=True)
         sys.exit(2)

@@ -63,6 +63,24 @@ class _PickerTarget:
     epoch: int
     """Epoch number."""
 
+    agent_name: str | None = None
+    """Registered ``@agent`` / solver name (e.g. ``"react"``). Derived
+    at ``active_sample()`` setup time using inspect_scout's
+    ``log.eval.solver`` → last-plan-step heuristic. ``None`` when no
+    solver name is available (rare; lifts to ``None`` in the TUI's
+    meta row)."""
+
+    started_at: float | None = None
+    """Unix timestamp when the sample's task group started (from
+    :attr:`inspect_ai.log._samples.ActiveSample.started`). ``None``
+    before the sample's ``start()`` is called. Drives the picker's
+    ``running`` column."""
+
+    total_tokens: int = 0
+    """Running total tokens for the sample (from
+    :attr:`inspect_ai.log._samples.ActiveSample.total_tokens`). Drives
+    the picker's ``tokens`` column; refreshed on rescan."""
+
 
 def list_picker_targets() -> list[_PickerTarget]:
     """Snapshot active samples that have claimed ACP.
@@ -83,6 +101,9 @@ def list_picker_targets() -> list[_PickerTarget]:
                 task=sample.task,
                 sample_id=str(sample.sample.id) if sample.sample.id is not None else "",
                 epoch=sample.epoch,
+                agent_name=sample.agent_name,
+                started_at=sample.started,
+                total_tokens=sample.total_tokens,
             )
         )
     return targets
@@ -128,6 +149,9 @@ def build_picker_notification(
                 "task": t.task,
                 "sampleId": t.sample_id,
                 "epoch": t.epoch,
+                "agentName": t.agent_name,
+                "startedAt": t.started_at,
+                "totalTokens": t.total_tokens,
             }
             for t in targets
         ],

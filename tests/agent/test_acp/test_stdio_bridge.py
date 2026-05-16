@@ -430,9 +430,7 @@ async def test_eof_on_socket_exits_bridge_cleanly(short_data_dir: Path) -> None:
             # touching the server's main_loop (which would deadlock
             # on our still-open stdin).
             for conn in list(server._connections):
-                writer = getattr(conn, "_writer", None) or getattr(
-                    conn, "writer", None
-                )
+                writer = getattr(conn, "_writer", None) or getattr(conn, "writer", None)
                 if writer is not None:
                     with contextlib.suppress(Exception):
                         writer.close()

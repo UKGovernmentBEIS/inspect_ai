@@ -1,0 +1,195 @@
+"""Integration tests for the TUI client helpers against a real `_AcpServer`.
+
+These tests spin up an in-process AF_UNIX ACP server, populate
+`_picker.active_samples` with controlled stubs, and verify that
+`enumerate_sessions` / `attach_session` round-trip correctly through
+the real wire protocol — exercising the picker payload extensions
+(#1 startedAt, #5 agentName) end-to-end.
+
+Marked ``slow`` at module level: each test boots a real ACP server
+over a temp AF_UNIX socket, runs a JSON-RPC round-trip, then tears
+down — meaningfully more expensive than the in-memory tests in
+:mod:`test_picker`. Run with ``pytest --runslow`` to include them.
+"""
+
+from __future__ import annotations
+
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
+from test_helpers.utils import skip_if_trio
+
+from inspect_ai.agent._acp import _picker
+from inspect_ai.agent._acp._discovery import TargetAddress
+from inspect_ai.agent._acp._server import acp_server
+from inspect_ai.agent._acp._tui._client import (
+    attach_session,
+    enumerate_sessions,
+)
+
+unix_only = pytest.mark.skipif(sys.platform == "win32", reason="AF_UNIX-only test")
+
+pytestmark = pytest.mark.slow
+
+
+def _make_active_sample(
+    *,
+    task: str,
+    sample_id: str,
+    epoch: int,
+    session_id: str,
+    agent_name: str | None = "react",
+    started: float | None = 1_700_000_000.0,
+) -> Any:
+    sample = MagicMock()
+    sample.id = sample_id
+    active = MagicMock()
+    active.task = task
+    active.sample = sample
+    active.epoch = epoch
+    active.agent_name = agent_name
+    active.started = started
+    sess = MagicMock()
+    sess.session_id = session_id
+    active.acp_session = sess
+    return active
+
+
+@pytest.fixture
+def short_data_dir(monkeypatch):
+    dirpath = Path(tempfile.mkdtemp(prefix="acp_tui_", dir="/tmp"))
+
+    def _stub(subdir: str | None) -> Path:
+        path = (dirpath / (subdir or "")).resolve()
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    monkeypatch.setattr("inspect_ai.agent._acp._discovery.inspect_data_dir", _stub)
+    try:
+        yield dirpath
+    finally:
+        for p in sorted(dirpath.rglob("*"), reverse=True):
+            try:
+                if p.is_dir():
+                    p.rmdir()
+                else:
+                    p.unlink()
+            except OSError:
+                pass
+        try:
+            dirpath.rmdir()
+        except OSError:
+            pass
+
+
+@pytest.fixture
+def stub_targets(monkeypatch):
+    def _set(samples: list[Any]) -> None:
+        monkeypatch.setattr(_picker, "active_samples", lambda: samples)
+
+    return _set
+
+
+@skip_if_trio
+@unix_only
+async def test_enumerate_returns_rows_with_new_fields(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """`enumerate_sessions` carries agentName + startedAt through the wire."""
+    stub_targets(
+        [
+            _make_active_sample(
+                task="t1",
+                sample_id="s1",
+                epoch=0,
+                session_id="uuid-a",
+                agent_name="react",
+                started=1_700_000_111.0,
+            ),
+        ]
+    )
+    async with acp_server(eval_id="evt-tui", transport=True) as server:
+        assert server is not None
+        target = TargetAddress(socket_path=server.socket_path)
+        rows = await enumerate_sessions([("evt-tui", target)])
+        assert len(rows) == 1
+        row = rows[0]
+        assert row.eval_id == "evt-tui"
+        assert row.session_id == "uuid-a"
+        assert row.task == "t1"
+        assert row.sample_id == "s1"
+        assert row.epoch == 0
+        assert row.agent_name == "react"
+        assert row.started_at == 1_700_000_111.0
+        assert row.target is target
+
+
+@skip_if_trio
+@unix_only
+async def test_enumerate_drops_per_address_failures(
+    short_data_dir: Path, stub_targets, capsys
+) -> None:
+    """One unreachable address must not blank the surviving rows."""
+    stub_targets(
+        [_make_active_sample(task="t1", sample_id="s1", epoch=0, session_id="uuid-a")]
+    )
+    async with acp_server(eval_id="evt-good", transport=True) as server:
+        assert server is not None
+        good = TargetAddress(socket_path=server.socket_path)
+        bad = TargetAddress(socket_path=Path("/tmp/does-not-exist.sock"))
+        rows = await enumerate_sessions([("evt-bad", bad), ("evt-good", good)])
+        assert [r.eval_id for r in rows] == ["evt-good"]
+    err = capsys.readouterr().err
+    assert "does-not-exist.sock" in err
+
+
+@skip_if_trio
+@unix_only
+async def test_enumerate_applies_eval_id_filter(
+    short_data_dir: Path, stub_targets
+) -> None:
+    stub_targets(
+        [
+            _make_active_sample(
+                task="t1", sample_id="s1", epoch=0, session_id="uuid-a"
+            ),
+        ]
+    )
+    async with acp_server(eval_id="evt-tui-f", transport=True) as server:
+        assert server is not None
+        target = TargetAddress(socket_path=server.socket_path)
+        rows = await enumerate_sessions(
+            [("evt-tui-f", target)], eval_id_filter="something-else"
+        )
+        assert rows == []
+
+
+@skip_if_trio
+@unix_only
+async def test_attach_session_binds_via_session_load(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """`attach_session` opens a fresh connection bound via session/load."""
+    stub_targets(
+        [
+            _make_active_sample(
+                task="t1", sample_id="s1", epoch=0, session_id="uuid-attach"
+            )
+        ]
+    )
+    async with acp_server(eval_id="evt-attach", transport=True) as server:
+        assert server is not None
+        target = TargetAddress(socket_path=server.socket_path)
+        rows = await enumerate_sessions([("evt-attach", target)])
+        assert len(rows) == 1
+        attached = await attach_session(rows[0])
+        try:
+            assert attached.is_connected
+            assert attached.session_id == "uuid-attach"
+        finally:
+            await attached.close()
+            assert not attached.is_connected

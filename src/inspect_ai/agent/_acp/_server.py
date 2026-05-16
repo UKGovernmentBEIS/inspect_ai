@@ -754,6 +754,9 @@ class _ConnectionHandler:
                     "task": t.task,
                     "sampleId": t.sample_id,
                     "epoch": t.epoch,
+                    "agentName": t.agent_name,
+                    "startedAt": t.started_at,
+                    "totalTokens": t.total_tokens,
                     "target": f"{t.task}/{t.sample_id}/{t.epoch}",
                 }
                 for t in targets

@@ -45,6 +45,7 @@ class ActiveSample:
         eval_set_id: str | None = None,
         run_id: str | None = None,
         eval_id: str | None = None,
+        agent_name: str | None = None,
     ) -> None:
         self.id = uuid()
         self.started: float | None = None
@@ -70,6 +71,7 @@ class ActiveSample:
         self.eval_set_id = eval_set_id
         self.run_id = run_id
         self.eval_id = eval_id
+        self.agent_name = agent_name
         self._interrupt_action: Literal["score", "error"] | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
@@ -148,6 +150,7 @@ async def active_sample(
     eval_set_id: str | None = None,
     run_id: str | None = None,
     eval_id: str | None = None,
+    agent_name: str | None = None,
 ) -> AsyncGenerator[ActiveSample, None]:
     # create the sample
     active = ActiveSample(
@@ -168,6 +171,7 @@ async def active_sample(
         eval_set_id=eval_set_id,
         run_id=run_id,
         eval_id=eval_id,
+        agent_name=agent_name,
     )
 
     _active_samples.append(active)

@@ -71,6 +71,8 @@ def _make_sample(
     sample_id: str | int,
     epoch: int,
     session_id: str | None,
+    agent_name: str | None = None,
+    started: float | None = None,
 ) -> Any:
     sample = MagicMock()
     sample.id = sample_id
@@ -78,6 +80,10 @@ def _make_sample(
     active.task = task
     active.sample = sample
     active.epoch = epoch
+    # Explicit None on the new fields so MagicMock doesn't auto-wrap
+    # them and break JSON serialization downstream.
+    active.agent_name = agent_name
+    active.started = started
     if session_id is None:
         active.acp_session = None
     else:
@@ -355,6 +361,8 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
                         "task": "t1",
                         "sampleId": "s1",
                         "epoch": 0,
+                        "agentName": None,
+                        "startedAt": None,
                         "target": "t1/s1/0",
                     },
                     {
@@ -362,6 +370,8 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
                         "task": "t2",
                         "sampleId": "s2",
                         "epoch": 1,
+                        "agentName": None,
+                        "startedAt": None,
                         "target": "t2/s2/1",
                     },
                 ],

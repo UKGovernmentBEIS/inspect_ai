@@ -133,25 +133,33 @@ def _write_discovery(
 
 
 # ---------------------------------------------------------------------------
-# Bare command — Phase 15 placeholder
+# Bare command dispatches to the TUI runner
 # ---------------------------------------------------------------------------
 
 
-def test_bare_command_rejects_with_phase_15_hint(short_data_dir: Path) -> None:
-    """``inspect acp`` (no flag) prints a helpful message + exits 2.
+def test_bare_command_invokes_tui_runner(short_data_dir: Path, monkeypatch) -> None:
+    """``inspect acp`` (no flag) dispatches to ``_tui.run_tui``.
 
-    Pinned so a future Phase 15 PR that lifts this error must do so
-    intentionally (the test will fail and force the author to delete
-    it as part of the TUI landing).
+    We assert the runner is invoked with the parsed flags rather than
+    spinning up a real Textual app (no TTY available under CliRunner).
+    Pins the dispatch contract so a regression that re-introduces the
+    Phase-15 error gate would fail loudly.
     """
+    captured: dict[str, object] = {}
+
+    async def _fake_run_tui(*, eval_id: str | None, server: str | None) -> None:
+        captured["eval_id"] = eval_id
+        captured["server"] = server
+
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp._tui.run_tui",
+        _fake_run_tui,
+    )
+
     runner = CliRunner()
-    result = runner.invoke(acp_command, [], standalone_mode=False)
-    # ctx.exit(2) under standalone_mode=False returns the code as
-    # result.return_value rather than raising SystemExit.
-    assert result.return_value == 2
-    # Click prints to stderr via ``click.echo(..., err=True)``.
-    assert "Phase 15" in result.stderr
-    assert "--stdio" in result.stderr
+    result = runner.invoke(acp_command, ["--eval-id=foo"], standalone_mode=False)
+    assert result.exception is None or result.exit_code == 0
+    assert captured == {"eval_id": "foo", "server": None}
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +172,7 @@ def test_eval_id_and_socket_are_mutually_exclusive(short_data_dir: Path) -> None
     runner = CliRunner()
     result = runner.invoke(
         acp_command,
-        ["--stdio", "--eval-id=X", "--socket=/tmp/Y.sock"],
+        ["--stdio", "--eval-id=X", "--server=/tmp/Y.sock"],
         standalone_mode=False,
     )
     assert result.return_value == 2
@@ -206,11 +214,11 @@ def test_stdio_eval_id_nonexistent_exits_2(short_data_dir: Path) -> None:
 
 
 def test_stdio_bad_socket_path_exits_2(short_data_dir: Path) -> None:
-    """``--socket=<nonexistent path>`` → bridge tries to connect, fails."""
+    """``--server=<nonexistent path>`` → bridge tries to connect, fails."""
     runner = CliRunner()
     result = runner.invoke(
         acp_command,
-        ["--stdio", "--socket=/tmp/does/not/exist/inspect.sock"],
+        ["--stdio", "--server=/tmp/does/not/exist/inspect.sock"],
         standalone_mode=False,
     )
     assert isinstance(result.exception, SystemExit)
@@ -219,7 +227,7 @@ def test_stdio_bad_socket_path_exits_2(short_data_dir: Path) -> None:
 
 
 def test_stdio_out_of_range_port_exits_2(short_data_dir: Path) -> None:
-    """``--socket=host:99999`` exits cleanly instead of dumping a traceback.
+    """``--server=host:99999`` exits cleanly instead of dumping a traceback.
 
     Without port-range validation, ``asyncio.open_connection`` raises
     ``OverflowError: connect(): port must be 0-65535`` which the
@@ -230,7 +238,7 @@ def test_stdio_out_of_range_port_exits_2(short_data_dir: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(
         acp_command,
-        ["--stdio", "--socket=127.0.0.1:99999"],
+        ["--stdio", "--server=127.0.0.1:99999"],
         standalone_mode=False,
     )
     assert isinstance(result.exception, SystemExit)
@@ -315,4 +323,4 @@ def test_help_lists_all_flags() -> None:
     assert result.exit_code == 0
     assert "--stdio" in result.output
     assert "--eval-id" in result.output
-    assert "--socket" in result.output
+    assert "--server" in result.output

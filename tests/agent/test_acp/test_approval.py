@@ -196,6 +196,7 @@ def _trivial_request() -> RequestPermissionRequest:
     )
 
 
+@skip_if_trio
 async def test_race_first_responder_wins_and_returns_immediately() -> None:
     """Two clients race; first wins; race returns without waiting for slow client.
 
@@ -222,6 +223,7 @@ async def test_race_first_responder_wins_and_returns_immediately() -> None:
     assert len(slow.received) == 1
 
 
+@skip_if_trio
 async def test_race_cancellation_drains_in_flight_per_client_tasks() -> None:
     """When the race itself is cancelled, per-client tasks aren't orphaned.
 
@@ -288,6 +290,7 @@ async def test_race_cancellation_drains_in_flight_per_client_tasks() -> None:
         loop.set_exception_handler(prev_handler)
 
 
+@skip_if_trio
 async def test_race_drains_losing_request_in_background() -> None:
     """Slow losing response is awaited in the background, not abandoned.
 
@@ -309,6 +312,7 @@ async def test_race_drains_losing_request_in_background() -> None:
     assert slow.cancelled is False
 
 
+@skip_if_trio
 async def test_race_skips_raising_client_uses_survivor() -> None:
     """First client raises (disconnect); second responds; we get the second's decision."""
     broken = _StubClient(exc=ConnectionError("disconnected"))
@@ -319,6 +323,7 @@ async def test_race_skips_raising_client_uses_survivor() -> None:
     assert result.decision == "reject"
 
 
+@skip_if_trio
 async def test_race_all_clients_raise_returns_none() -> None:
     """Every client errors → caller falls back to in-proc flow."""
     a = _StubClient(exc=ConnectionError("a down"))
@@ -392,6 +397,7 @@ async def test_entry_returns_none_when_no_clients(patch_sample_active) -> None:
     assert result is None
 
 
+@skip_if_trio
 async def test_entry_routes_to_attached_client(patch_sample_active) -> None:
     """One client attached → request routes through it; decision returns."""
     session = _LiveAcpSession()
@@ -417,6 +423,7 @@ async def test_entry_routes_to_attached_client(patch_sample_active) -> None:
     assert [o.option_id for o in req.options] == ["approve", "reject"]
 
 
+@skip_if_trio
 async def test_entry_prepends_assistant_message_as_content_block(
     patch_sample_active,
 ) -> None:
@@ -451,6 +458,7 @@ async def test_entry_prepends_assistant_message_as_content_block(
     assert "largest files" in inner.text
 
 
+@skip_if_trio
 async def test_entry_omits_message_block_for_empty_message(
     patch_sample_active,
 ) -> None:
@@ -480,6 +488,7 @@ async def test_entry_omits_message_block_for_empty_message(
     assert "**Assistant**" not in inner.text
 
 
+@skip_if_trio
 async def test_entry_substitutes_view_placeholders_with_call_arguments(
     patch_sample_active,
 ) -> None:
@@ -530,6 +539,7 @@ async def test_entry_substitutes_view_placeholders_with_call_arguments(
     assert "{{user}}" not in rendered
 
 
+@skip_if_trio
 async def test_entry_carries_view_content_in_request(patch_sample_active) -> None:
     """The view's markdown content is forwarded as a tool_call.content block.
 

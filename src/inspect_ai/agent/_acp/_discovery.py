@@ -170,7 +170,7 @@ class TargetAddress:
     host: str | None = None
     port: int | None = None
     eval_id: str | None = None
-    """Owning eval id when resolved via discovery; ``None`` for ``--socket`` overrides."""
+    """Owning eval id when resolved via discovery; ``None`` for ``--server`` overrides."""
 
     def describe(self) -> str:
         """Short human-readable address form (for stderr logging / errors)."""
@@ -269,9 +269,9 @@ def list_discovered_evals() -> list[DiscoveredEval]:
 
 def resolve_target(
     eval_id: str | None,
-    socket: str | None,
+    server: str | None,
 ) -> tuple[TargetAddress, list[DiscoveredEval] | None]:
-    """Pick a connectable target from --eval-id / --socket / discovery.
+    """Pick a connectable target from --eval-id / --server / discovery.
 
     Returns ``(target, picked_from)`` where ``picked_from`` is the
     full candidate list when discovery had to disambiguate (so the
@@ -280,33 +280,34 @@ def resolve_target(
     Raises :class:`TargetResolutionError` when no reasonable choice
     exists. Precedence:
 
-    1. ``socket`` (explicit override) — never touches the discovery
-       dir; useful for editor configs that hard-code an address.
+    1. ``server`` (explicit override) — never touches the discovery
+       dir; useful for editor configs that hard-code an address or
+       for connecting to a remote ACP server.
     2. ``eval_id`` — look up the entry whose ``eval_id`` matches.
        Error if no live eval has that id.
     3. Otherwise — pick the most-recently-started live eval. Error
        only when zero are alive.
 
-    ``socket`` and ``eval_id`` are mutually exclusive at the CLI
+    ``server`` and ``eval_id`` are mutually exclusive at the CLI
     layer (the click decorator rejects when both are provided); this
     function tolerates either order if both happen to be set, but
     callers should not rely on that.
     """
-    if socket:
+    if server:
         try:
-            host_port = parse_host_port(socket)
+            host_port = parse_host_port(server)
         except ValueError as exc:
             # Syntactically host:port but out-of-range port; surface as
             # a resolution error rather than letting it fall through to
             # UNIX-path interpretation (where the eventual bind/connect
             # would fail with a confusing path-not-found).
             raise TargetResolutionError(
-                f"invalid --socket value {socket!r}: {exc}"
+                f"invalid --server value {server!r}: {exc}"
             ) from exc
         if host_port is not None:
             host, port = host_port
             return TargetAddress(host=host, port=port), None
-        return TargetAddress(socket_path=Path(socket)), None
+        return TargetAddress(socket_path=Path(server)), None
 
     discovered = list_discovered_evals()
 

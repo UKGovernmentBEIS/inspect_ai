@@ -28,13 +28,16 @@ def _make_sample(
     sample_id: str | int | None,
     epoch: int,
     session_id: str | None,
+    agent_name: str | None = None,
+    started: float | None = None,
 ) -> Any:
     """Build a stub ActiveSample-shaped object for the picker.
 
     Bare-minimum attributes the picker reads: ``task``, ``sample.id``,
-    ``epoch``, ``acp_session`` (with ``.session_id``). Using a plain
-    object instead of a real ActiveSample keeps the test independent of
-    the ActiveSample constructor's larger field surface.
+    ``epoch``, ``acp_session`` (with ``.session_id``), ``agent_name``,
+    ``started``. Using a plain object instead of a real ActiveSample
+    keeps the test independent of the ActiveSample constructor's larger
+    field surface.
     """
     sample = MagicMock()
     sample.id = sample_id
@@ -43,6 +46,8 @@ def _make_sample(
     active.task = task
     active.sample = sample
     active.epoch = epoch
+    active.agent_name = agent_name
+    active.started = started
     if session_id is None:
         active.acp_session = None
     else:
@@ -161,9 +166,86 @@ def test_build_picker_notification_carries_structured_meta() -> None:
     assert PICKER_META_KEY in notif.field_meta
     entries = notif.field_meta[PICKER_META_KEY]
     assert entries == [
-        {"sessionId": "uuid-a", "task": "task-a", "sampleId": "sample-1", "epoch": 0},
-        {"sessionId": "uuid-b", "task": "task-b", "sampleId": "sample-2", "epoch": 3},
+        {
+            "sessionId": "uuid-a",
+            "task": "task-a",
+            "sampleId": "sample-1",
+            "epoch": 0,
+            "agentName": None,
+            "startedAt": None,
+            "totalTokens": 0,
+        },
+        {
+            "sessionId": "uuid-b",
+            "task": "task-b",
+            "sampleId": "sample-2",
+            "epoch": 3,
+            "agentName": None,
+            "startedAt": None,
+            "totalTokens": 0,
+        },
     ]
+
+
+def test_build_picker_notification_meta_includes_agent_and_started_at() -> None:
+    """The extension #1 / #5 fields propagate from _PickerTarget into _meta."""
+    targets = [
+        _PickerTarget(
+            session_id="uuid-x",
+            task="t",
+            sample_id="s",
+            epoch=0,
+            agent_name="react",
+            started_at=1_700_000_000.5,
+        )
+    ]
+    notif = build_picker_notification("control", targets)
+    assert notif.field_meta is not None
+    entry = notif.field_meta[PICKER_META_KEY][0]
+    assert entry["agentName"] == "react"
+    assert entry["startedAt"] == 1_700_000_000.5
+
+
+def test_list_picker_targets_propagates_agent_name_and_started(monkeypatch) -> None:
+    """``ActiveSample.agent_name`` and ``ActiveSample.started`` reach the target."""
+    samples = [
+        _make_sample(
+            task="t",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid",
+            agent_name="react",
+            started=1_700_000_000.0,
+        )
+    ]
+    monkeypatch.setattr(_picker, "active_samples", lambda: samples)
+
+    targets = list_picker_targets()
+    assert targets[0].agent_name == "react"
+    assert targets[0].started_at == 1_700_000_000.0
+
+
+def test_list_picker_targets_propagates_total_tokens(monkeypatch) -> None:
+    """``ActiveSample.total_tokens`` mutations are visible to the picker.
+
+    Pins that reading the attribute is live: the picker captures the
+    current value at each enumeration call, so token totals advancing
+    server-side reach the TUI on the next rescan tick.
+    """
+    sample = _make_sample(
+        task="t",
+        sample_id="s",
+        epoch=0,
+        session_id="uuid",
+    )
+    sample.total_tokens = 0
+    monkeypatch.setattr(_picker, "active_samples", lambda: [sample])
+
+    assert list_picker_targets()[0].total_tokens == 0
+
+    # Simulate the agent racking up tokens between rescans.
+    sample.total_tokens = 12_345
+    assert list_picker_targets()[0].total_tokens == 12_345
 
 
 def test_build_picker_notification_empty_targets_shows_helpful_text() -> None:
@@ -287,5 +369,13 @@ def test_notification_serializes_meta_under_underscore_meta_alias() -> None:
     reloaded = SessionNotification.model_validate(dumped)
     assert reloaded.field_meta is not None
     assert reloaded.field_meta[PICKER_META_KEY] == [
-        {"sessionId": "uuid-a", "task": "t", "sampleId": "s", "epoch": 0},
+        {
+            "sessionId": "uuid-a",
+            "task": "t",
+            "sampleId": "s",
+            "epoch": 0,
+            "agentName": None,
+            "startedAt": None,
+            "totalTokens": 0,
+        },
     ]

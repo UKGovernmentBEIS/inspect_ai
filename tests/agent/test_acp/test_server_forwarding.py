@@ -96,6 +96,10 @@ def _make_active_sample(
     active.task = task
     active.sample = sample
     active.epoch = epoch
+    # Explicit None on the new fields so MagicMock doesn't auto-wrap
+    # them (would otherwise blow up JSON serialization downstream).
+    active.agent_name = None
+    active.started = None
     active.acp_session = acp_session
     return active
 
