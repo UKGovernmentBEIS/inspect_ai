@@ -594,7 +594,7 @@ class _LiveAcpSession:
         # ``_interrupted_subscribers`` on ``cancel_current_turn``,
         # ``_prompt_resolved_subscribers`` when the next
         # ``submit_user_message`` clears the pending flag.
-        # See design/agent-acp.md Phase 14's open-issue subsection on
+        # See design/acp/agent-acp.md Phase 14's open-issue subsection on
         # multi-client prompt coordination.
         self._interrupt_pending: bool = False
         self._interrupted_subscribers: list[Callable[[], None]] = []

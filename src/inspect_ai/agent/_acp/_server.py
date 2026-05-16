@@ -226,7 +226,7 @@ class _AcpServer:
         # fine under trio (anyio-native); only ``--acp-server`` is
         # incompatible. Error here rather than surfacing the asyncio
         # call's confusing "no running event loop" message. See
-        # ``design/agent-acp.md`` "asyncio / anyio boundary" for the
+        # ``design/acp/agent-acp.md`` "asyncio / anyio boundary" for the
         # full rationale.
         from inspect_ai._util._async import current_async_backend
 
