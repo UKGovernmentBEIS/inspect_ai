@@ -1,8 +1,8 @@
-## Future
+## Unreleased
 
 - Ability to interrupt and send messages to agents from the running sample display.
 
-## Unreleased
+## 0.3.221 (16 May 2026)
 
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
