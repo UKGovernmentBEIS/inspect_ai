@@ -3,6 +3,7 @@ import json
 import logging
 import math
 import os
+import shutil
 import tempfile
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -661,7 +662,14 @@ class ZipLogFile:
             with trace_action(logger, "Log Write", self._file):
                 try:
                     if filesystem(self._file).is_local():
-                        await anyio.to_thread.run_sync(self._atomic_local_write)
+                        # Run the atomic copy inline (no thread offload).
+                        # The original local-path code in
+                        # AsyncFilesystem.write_file_streaming also calls
+                        # sync `shutil.copyfileobj` without yielding to
+                        # the event loop, so concurrent coroutines see
+                        # the same blocking semantics as before.
+                        with atomic_write(local_path(self._file), fsync=True) as out:
+                            shutil.copyfileobj(self._temp_file, out, length=1024 * 1024)
                     else:
                         async with AsyncFilesystem() as async_fs:
                             await async_fs.write_file_streaming(
@@ -670,23 +678,6 @@ class ZipLogFile:
                 finally:
                     # re-open zip file w/ self.temp_file pointer at end
                     self._open()
-
-    def _atomic_local_write(self) -> None:
-        """Atomically copy self._temp_file contents to self._file (local).
-
-        Invoked via anyio.to_thread.run_sync from flush(). Uses the
-        atomic_write helper (write-to-tempfile, fsync, os.replace) so a
-        crash mid-write leaves the previous log untouched rather than a
-        corrupted ZIP.
-        """
-        self._temp_file.seek(0)
-        with atomic_write(local_path(self._file), fsync=True) as out:
-            # Stream in chunks to avoid loading the whole zip into memory.
-            while True:
-                chunk = self._temp_file.read(1024 * 1024)
-                if not chunk:
-                    break
-                out.write(chunk)
 
     async def close(self, header_only: bool) -> EvalLog:
         async with self._lock:
