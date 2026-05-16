@@ -825,20 +825,20 @@ def reasoning_from_responses_reasoning(
     else:
         summary_text = None
 
-    if item.encrypted_content is not None:
+    if readable and item.encrypted_content and summary_text is None:
         return ContentReasoning(
             reasoning=item.encrypted_content,
-            summary=readable or summary_text,
+            summary=readable,
             signature=item.id,
             redacted=True,
         )
-    else:
-        return ContentReasoning(
-            reasoning=readable or "",
-            summary=summary_text,
-            signature=item.id,
-            redacted=False,
-        )
+    reasoning = readable if readable is not None else (item.encrypted_content or "")
+    return ContentReasoning(
+        reasoning=reasoning,
+        summary=summary_text,
+        signature=item.id,
+        redacted=readable is None and item.encrypted_content is not None,
+    )
 
 
 # two issues addressed here:

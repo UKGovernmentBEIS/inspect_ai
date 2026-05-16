@@ -622,6 +622,23 @@ def test_reasoning_from_responses_encrypted_with_api_summary() -> None:
     assert result.redacted is True
 
 
+def test_reasoning_from_responses_content_encrypted_and_summary() -> None:
+    """When content, encrypted_content, and API summary all exist (visible-CoT models),
+    readable raw CoT goes to reasoning and API summary goes to summary (not redacted)."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_all",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": "raw cot thinking"}],
+        encrypted_content="ENCRYPTED_BLOB",
+        summary=[{"type": "summary_text", "text": "API summary"}],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "raw cot thinking"
+    assert result.summary == "API summary"
+    assert result.redacted is False
+    assert result.signature == "rs_all"
+
+
 # --- Tests for responses_reasoning_from_reasoning (replay) ---
 
 
