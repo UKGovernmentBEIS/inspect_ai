@@ -547,9 +547,11 @@ def release_command(args):
                 # Get all files in dist/ directory
                 dist_files = list(Path("dist").glob("*"))
                 if dist_files:
-                    upload_cmd = ["python3", "-m", "twine", "--verbose", "upload"] + [
-                        str(f) for f in dist_files
-                    ]
+                    upload_cmd = (
+                        ["python3", "-m", "twine", "upload"]
+                        + [str(f) for f in dist_files]
+                        + ["--verbose"]
+                    )
                     run_command(upload_cmd, dry_run=dry_run)
                 else:
                     logging.error("No files found in dist/ directory")
