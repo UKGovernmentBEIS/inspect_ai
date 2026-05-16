@@ -36,15 +36,18 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal
 
 from acp.helpers import (
+    ToolCallContentVariant,
     session_notification,
     start_tool_call,
     text_block,
+    tool_diff_content,
     update_tool_call,
 )
 from acp.schema import (
     AgentMessageChunk,
     AgentThoughtChunk,
     ContentToolCallContent,
+    FileEditToolCallContent,
     ImageContentBlock,
     SessionNotification,
     TextContentBlock,
@@ -446,9 +449,11 @@ def descriptive_title(fn: str, arguments: dict[str, Any] | None) -> str:
         if code is not None:
             return f"{fn} {_short_summary(code)}"
 
-    # File reads — path is the key arg.
+    # File reads — path is the key arg. Inspect's built-in read_file
+    # uses ``file_path``; some MCP/custom variants use ``file`` or
+    # ``path`` — try the canonical name first.
     if fn == "read_file":
-        path = _str("file") or _str("path")
+        path = _str("file_path") or _str("file") or _str("path")
         if path is not None:
             return f"{fn} {path}"
     if fn == "list_files":
@@ -683,7 +688,7 @@ def _is_shell_execution_tool(function: str) -> bool:
     ) or function.startswith("bash_session_")
 
 
-def _content_for_update(event: ToolEvent) -> list[ContentToolCallContent] | None:
+def _content_for_update(event: ToolEvent) -> list[ToolCallContentVariant] | None:
     """Build the ``content`` payload for an ``update_tool_call`` notification.
 
     ``ToolCallUpdate.content`` REPLACES the content collection set
@@ -691,6 +696,11 @@ def _content_for_update(event: ToolEvent) -> list[ContentToolCallContent] | None
     input view (if any) by prepending it whenever we send result
     blocks — otherwise the editor would lose the rendered command /
     code / input shown at start time.
+
+    File-edit family (text_editor create/str_replace) gets native
+    ``FileEditToolCallContent`` so editors render an actual diff. The
+    diff replaces both view and result blocks — the diff *is* the
+    canonical representation of what changed.
 
     For shell-execution tools the result text is fenced as a
     markdown code block so editors render it as monospace
@@ -704,6 +714,9 @@ def _content_for_update(event: ToolEvent) -> list[ContentToolCallContent] | None
     notification's ``content`` field stays unset and the start's
     content survives.
     """
+    file_edit = _file_edit_content_for_event(event)
+    if file_edit is not None:
+        return list(file_edit)
     result_blocks = _content_blocks_from_result(
         event.result,
         fence_text=_is_shell_execution_tool(event.function),
@@ -711,10 +724,11 @@ def _content_for_update(event: ToolEvent) -> list[ContentToolCallContent] | None
     if not result_blocks:
         return None
     view_blocks = _content_from_view(event) or []
-    return view_blocks + result_blocks
+    combined: list[ToolCallContentVariant] = [*view_blocks, *result_blocks]
+    return combined
 
 
-def _content_for_start(event: ToolEvent) -> list[ContentToolCallContent] | None:
+def _content_for_start(event: ToolEvent) -> list[ToolCallContentVariant] | None:
     """Build the ``content`` payload for a first-sighting ``ToolCallStart``.
 
     Live flow: the start fires while the tool is still pending, so
@@ -727,15 +741,86 @@ def _content_for_start(event: ToolEvent) -> list[ContentToolCallContent] | None:
     notification too, or late clients see an input view and no
     output (while live clients saw both).
 
-    Returns ``None`` only when neither view nor result is present.
+    File-edit family (text_editor create/str_replace) gets native
+    ``FileEditToolCallContent`` here too — same diff content whether
+    we're starting or updating.
+
+    Returns ``None`` only when neither view nor result nor edit-content
+    is available.
     """
+    file_edit = _file_edit_content_for_event(event)
+    if file_edit is not None:
+        return list(file_edit)
     view_blocks = _content_from_view(event) or []
     result_blocks = _content_blocks_from_result(
         event.result,
         fence_text=_is_shell_execution_tool(event.function),
     )
-    combined = view_blocks + result_blocks
+    combined: list[ToolCallContentVariant] = [*view_blocks, *result_blocks]
     return combined or None
+
+
+# Tools whose argument dict carries `command` + `path` + edit args in the
+# text_editor shape. Same arg names as Anthropic's str_replace_based_edit_tool
+# convention. The Inspect `memory` tool follows the identical shape for its
+# create / str_replace commands, so it shares this code path.
+_FILE_EDIT_TOOL_FUNCTIONS = ("text_editor", "memory")
+
+
+def _file_edit_content_for_event(
+    event: ToolEvent,
+) -> list[FileEditToolCallContent] | None:
+    """Build native ``FileEditToolCallContent`` for edit-family tools.
+
+    Returns ``None`` for non-edit tools and for edit-tool commands that
+    aren't a true diff (``view`` / ``undo_edit`` / ``insert``). The
+    caller falls through to generic content rendering.
+
+    **Only emitted for SUCCESSFUL completed events.** A failed edit
+    (e.g. ``str_replace`` whose ``old_str`` wasn't found or wasn't
+    unique) would otherwise publish a diff that looks legitimate but
+    represents no actual file change. Pending events also return None
+    because the edit hasn't happened yet — the start notification
+    falls through to the generic content path which shows the input
+    view + (if present) the result.
+
+    ``insert`` could be mapped (old_text="" + new_text=insert_text) but
+    that loses the line-number context the editor needs to render it
+    meaningfully — generic content with the rendered view conveys more.
+    Revisit if a specific editor needs the diff form.
+    """
+    if event.function not in _FILE_EDIT_TOOL_FUNCTIONS:
+        return None
+    # Don't show a diff until the edit has actually succeeded. Pending,
+    # errored, and failed events all skip — the generic content path
+    # is right for them (input view + any partial / error message).
+    if event.pending or event.error is not None or event.failed:
+        return None
+    args = event.arguments or {}
+    command = args.get("command")
+    path = args.get("path")
+    if not isinstance(path, str) or not path:
+        return None
+    if command == "create":
+        file_text = args.get("file_text")
+        if not isinstance(file_text, str):
+            return None
+        return [tool_diff_content(path=path, new_text=file_text, old_text=None)]
+    if command == "str_replace":
+        old_str = args.get("old_str")
+        new_str = args.get("new_str")
+        if not isinstance(old_str, str):
+            return None
+        # `new_str` is allowed to be None on str_replace (means "delete
+        # old_str"); represent as empty new_text so the diff renders.
+        return [
+            tool_diff_content(
+                path=path,
+                new_text=new_str if isinstance(new_str, str) else "",
+                old_text=old_str,
+            )
+        ]
+    return None
 
 
 def _map_tool_event(

@@ -22,14 +22,24 @@ from uuid import UUID
 from acp.schema import (
     AgentMessageChunk,
     AgentThoughtChunk,
+    ContentToolCallContent,
+    FileEditToolCallContent,
     SessionNotification,
+    ToolCallProgress,
+    ToolCallStart,
     UsageUpdate,
 )
 
 from inspect_ai._util.content import ContentReasoning, ContentText
-from inspect_ai.agent._acp._router import _AcpEventRouter, _model_event_message_id
+from inspect_ai.agent._acp._router import (
+    _TOOL_KIND_BY_NAME,
+    _AcpEventRouter,
+    _model_event_message_id,
+    _tool_kind_for,
+)
 from inspect_ai.agent._acp._session import _LiveAcpSession
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import ChatMessageAssistant, ModelInfo, set_model_info
 from inspect_ai.model._generate_config import GenerateConfig
@@ -419,3 +429,332 @@ def test_no_publications_when_output_is_truly_empty() -> None:
         assert published == []
     finally:
         _transcript.reset(token)
+
+
+# ---------------------------------------------------------------------------
+# A4: FileEditToolCallContent for edit-family tools
+# ---------------------------------------------------------------------------
+
+
+def _tool_event_completed(
+    *,
+    tool_id: str = "tc1",
+    function: str,
+    arguments: dict | None = None,
+    result: str = "ok",
+) -> ToolEvent:
+    return ToolEvent(
+        id=tool_id,
+        function=function,
+        arguments=arguments or {},
+        result=result,
+        pending=None,
+    )
+
+
+def _publish_tool(event: ToolEvent) -> list[SessionNotification]:
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        tr._event(event)
+        return published
+    finally:
+        _transcript.reset(token)
+
+
+def test_text_editor_create_emits_file_edit_diff() -> None:
+    notifs = _publish_tool(
+        _tool_event_completed(
+            function="text_editor",
+            arguments={
+                "command": "create",
+                "path": "/foo/bar.py",
+                "file_text": "print('hi')\n",
+            },
+        )
+    )
+    starts = [n.update for n in notifs if isinstance(n.update, ToolCallStart)]
+    assert len(starts) == 1
+    content = starts[0].content
+    assert content is not None
+    assert len(content) == 1
+    diff = content[0]
+    assert isinstance(diff, FileEditToolCallContent)
+    assert diff.path == "/foo/bar.py"
+    assert diff.old_text is None  # new file
+    assert diff.new_text == "print('hi')\n"
+
+
+def test_text_editor_str_replace_emits_file_edit_diff() -> None:
+    notifs = _publish_tool(
+        _tool_event_completed(
+            function="text_editor",
+            arguments={
+                "command": "str_replace",
+                "path": "/foo/bar.py",
+                "old_str": "old line",
+                "new_str": "new line",
+            },
+        )
+    )
+    starts = [n.update for n in notifs if isinstance(n.update, ToolCallStart)]
+    content = starts[0].content
+    assert content is not None
+    diff = content[0]
+    assert isinstance(diff, FileEditToolCallContent)
+    assert diff.path == "/foo/bar.py"
+    assert diff.old_text == "old line"
+    assert diff.new_text == "new line"
+
+
+def test_text_editor_str_replace_with_none_new_str_renders_empty_new_text() -> None:
+    """str_replace with new_str=None means 'delete old_str' — represent as empty new_text."""
+    notifs = _publish_tool(
+        _tool_event_completed(
+            function="text_editor",
+            arguments={
+                "command": "str_replace",
+                "path": "/foo/bar.py",
+                "old_str": "to delete",
+                # new_str omitted
+            },
+        )
+    )
+    starts = [n.update for n in notifs if isinstance(n.update, ToolCallStart)]
+    assert starts[0].content is not None
+    diff = starts[0].content[0]
+    assert isinstance(diff, FileEditToolCallContent)
+    assert diff.old_text == "to delete"
+    assert diff.new_text == ""
+
+
+def test_text_editor_view_falls_through_to_generic_content() -> None:
+    """View is not an edit; no diff content emitted."""
+    notifs = _publish_tool(
+        _tool_event_completed(
+            function="text_editor",
+            arguments={"command": "view", "path": "/foo/bar.py"},
+            result="line 1\nline 2\n",
+        )
+    )
+    starts = [n.update for n in notifs if isinstance(n.update, ToolCallStart)]
+    content = starts[0].content
+    assert content is not None
+    assert not any(isinstance(c, FileEditToolCallContent) for c in content)
+    assert all(isinstance(c, ContentToolCallContent) for c in content)
+
+
+def test_text_editor_insert_falls_through_to_generic_content() -> None:
+    """Insert is line-positional; loses meaning as a raw diff — skip to generic."""
+    notifs = _publish_tool(
+        _tool_event_completed(
+            function="text_editor",
+            arguments={
+                "command": "insert",
+                "path": "/foo/bar.py",
+                "insert_line": 5,
+                "insert_text": "inserted",
+            },
+        )
+    )
+    starts = [n.update for n in notifs if isinstance(n.update, ToolCallStart)]
+    content = starts[0].content
+    if content is not None:
+        assert not any(isinstance(c, FileEditToolCallContent) for c in content)
+
+
+def test_non_edit_tool_no_file_edit_content() -> None:
+    notifs = _publish_tool(
+        _tool_event_completed(
+            function="read_file",
+            arguments={"file": "/foo/bar.py"},
+            result="contents",
+        )
+    )
+    starts = [n.update for n in notifs if isinstance(n.update, ToolCallStart)]
+    content = starts[0].content
+    if content is not None:
+        assert not any(isinstance(c, FileEditToolCallContent) for c in content)
+
+
+def test_file_edit_diff_carries_through_update_notification() -> None:
+    """An in-flight edit completing later gets the diff on the update too.
+
+    Also verifies the pending start does NOT include the diff — the
+    edit hasn't actually happened until the result lands.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        pending = ToolEvent(
+            id="tc1",
+            function="text_editor",
+            arguments={
+                "command": "create",
+                "path": "/foo/bar.py",
+                "file_text": "hi",
+            },
+            pending=True,
+        )
+        tr._event(pending)
+        # Pending start: no diff yet.
+        starts = [n.update for n in published if isinstance(n.update, ToolCallStart)]
+        assert len(starts) == 1
+        if starts[0].content is not None:
+            assert not any(
+                isinstance(c, FileEditToolCallContent) for c in starts[0].content
+            )
+        # Completion update: diff appears.
+        completed = ToolEvent(
+            id="tc1",
+            function="text_editor",
+            arguments={
+                "command": "create",
+                "path": "/foo/bar.py",
+                "file_text": "hi",
+            },
+            result="ok",
+        )
+        tr._event(completed)
+        updates = [
+            n.update for n in published if isinstance(n.update, ToolCallProgress)
+        ]
+        assert len(updates) == 1
+        content = updates[0].content
+        assert content is not None
+        assert isinstance(content[0], FileEditToolCallContent)
+    finally:
+        _transcript.reset(token)
+
+
+def test_failed_str_replace_does_not_emit_diff() -> None:
+    """A str_replace whose old_str wasn't found / wasn't unique fails.
+
+    Without gating, the diff would still render as if the edit had
+    succeeded (the args alone look valid). Gate ensures failed events
+    fall through to generic content showing the error message.
+    """
+    from inspect_ai.tool._tool_call import ToolCallError
+
+    notifs = _publish_tool(
+        ToolEvent(
+            id="tc1",
+            function="text_editor",
+            arguments={
+                "command": "str_replace",
+                "path": "/foo/bar.py",
+                "old_str": "missing",
+                "new_str": "replacement",
+            },
+            error=ToolCallError(type="unknown", message="No match for old_str"),
+            result="",
+        )
+    )
+    starts = [n.update for n in notifs if isinstance(n.update, ToolCallStart)]
+    assert len(starts) == 1
+    content = starts[0].content
+    if content is not None:
+        assert not any(isinstance(c, FileEditToolCallContent) for c in content)
+    assert starts[0].status == "failed"
+
+
+def test_failed_create_does_not_emit_diff() -> None:
+    """Same gate applied to create.
+
+    A sandboxed write that errored (no perms, no disk, etc.) must not
+    render a diff that looks like it succeeded.
+    """
+    from inspect_ai.tool._tool_call import ToolCallError
+
+    notifs = _publish_tool(
+        ToolEvent(
+            id="tc1",
+            function="text_editor",
+            arguments={
+                "command": "create",
+                "path": "/foo/bar.py",
+                "file_text": "hi",
+            },
+            error=ToolCallError(type="unknown", message="Permission denied"),
+        )
+    )
+    starts = [n.update for n in notifs if isinstance(n.update, ToolCallStart)]
+    content = starts[0].content
+    if content is not None:
+        assert not any(isinstance(c, FileEditToolCallContent) for c in content)
+
+
+# ---------------------------------------------------------------------------
+# A5: ToolCall.locations — intentionally NOT populated.
+# Inspect tools run inside sandboxed eval environments; their paths usually
+# don't map to the editor's workspace. Surfacing them as ACP locations would
+# point "open this file" affordances at paths the editor can't resolve.
+# Pinning this with a test so a future "obvious enhancement" can't silently
+# re-enable it without revisiting the path-mapping question.
+# ---------------------------------------------------------------------------
+
+
+def test_tool_call_locations_intentionally_unset() -> None:
+    for fn, args in (
+        ("read_file", {"file_path": "/sandbox/foo.py"}),
+        ("text_editor", {"command": "view", "path": "/sandbox/foo.py"}),
+        ("list_files", {"path": "/sandbox"}),
+    ):
+        notifs = _publish_tool(_tool_event_completed(function=fn, arguments=args))
+        start = next(n.update for n in notifs if isinstance(n.update, ToolCallStart))
+        assert start.locations is None, (
+            f"{fn} must not populate ToolCall.locations — sandbox paths don't "
+            f"map to editor workspace"
+        )
+
+
+# ---------------------------------------------------------------------------
+# A6: ToolKind mapping conservative audit (regression guard)
+# ---------------------------------------------------------------------------
+
+
+def test_shell_execution_tools_remain_unmapped() -> None:
+    """Shell tools must never get ``ToolKind="execute"``.
+
+    Reason (see _router.py:_TOOL_KIND_BY_NAME comment + project memory):
+    Inspect tools run inside sandboxed eval environments (often remote
+    Docker), not on the editor-local machine that ACP's execute kind
+    implies. Mapping execute here would make Zed render a terminal
+    expecting native streaming we don't implement, hiding our rich
+    content. Pinning this with a test so a future "obvious cleanup"
+    can't silently flip it.
+    """
+    for fn in ("bash", "python", "bash_session", "code_execution"):
+        assert _tool_kind_for(fn) is None, f"{fn} must not have a ToolKind"
+
+
+def test_known_safe_mappings_preserved() -> None:
+    """Audit guard: confirm the small set of safe-to-map tools is intact."""
+    assert _TOOL_KIND_BY_NAME["read_file"] == "read"
+    assert _TOOL_KIND_BY_NAME["list_files"] == "read"
+    assert _TOOL_KIND_BY_NAME["text_editor"] == "edit"
+    assert _TOOL_KIND_BY_NAME["grep"] == "search"
+    assert _TOOL_KIND_BY_NAME["web_search"] == "search"
+    assert _TOOL_KIND_BY_NAME["web_fetch"] == "fetch"
+    assert _TOOL_KIND_BY_NAME["think"] == "think"
+    # Web browser prefix family.
+    assert _tool_kind_for("web_browser_go") == "fetch"
+    assert _tool_kind_for("web_browser_click") == "fetch"
+
+
+def test_interactive_and_meta_tools_unmapped() -> None:
+    """``computer`` / ``memory`` / ``skill`` stay unmapped.
+
+    ``computer`` is interactive (screenshots + clicks) — wrong fit for
+    every available ToolKind. ``memory`` is a virtual store, not a real
+    filesystem. ``skill`` is a meta-tool that dispatches other tools.
+    Mapping any of these would either trigger wrong editor UI or
+    misrepresent semantics; the conservative call is to stay unmapped
+    and let editors render generic tool rows.
+    """
+    for fn in ("computer", "memory", "skill"):
+        assert _tool_kind_for(fn) is None, f"{fn} must not have a ToolKind"
