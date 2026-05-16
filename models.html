@@ -69,7 +69,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
 <link href="./providers.html" rel="next">
-<link href="./scorers.html" rel="prev">
+<link href="./scanners.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -275,6 +275,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Scorers</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scanners.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scanners</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -306,12 +312,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Batch Mode</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./models-concurrency.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Concurrency</span></a>
   </div>
@@ -338,6 +338,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./structured.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Structured Output</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Batch Mode</span></a>
   </div>
 </li>
       </ul>
@@ -724,6 +730,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval math.py <span class="dt">\</span></span>
 <span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model-role</span> <span class="st">'grader={model: openai/gpt-4o, temperature: 0.5}'</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that the built-in <a href="./scorers.html#model-graded">model-graded scorers</a> (e.g.&nbsp;<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span>) look for the <code>grader</code> role by default.</p>
+<p>Model roles can also be specified in a <code>--run-config</code> file alongside the full eval configuration. See <a href="./task-configuration.html#run-config">Run Config File</a>.</p>
 <p>For how model roles fit into the broader override and precedence model, see <a href="./task-configuration.html#model-roles">Task Configuration</a>.</p>
 <section id="role-resolution" class="level3">
 <h3 class="anchored" data-anchor-id="role-resolution">Role Resolution</h3>
@@ -1316,8 +1323,8 @@ document.addEventListener("DOMContentLoaded", function () {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./scorers.html" class="pagination-link" aria-label="Scorers">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Scorers</span>
+      <a href="./scanners.html" class="pagination-link" aria-label="Scanners">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Scanners</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">

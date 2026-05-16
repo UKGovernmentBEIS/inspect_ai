@@ -32,11 +32,24 @@ inspect eval-retry [OPTIONS] LOG_FILES...
 | `--no-score` | boolean | Do not score model output (use the inspect score command to score output later) | `False` |
 | `--no-score-display` | boolean | Do not display scoring metrics in realtime. | `False` |
 | `--max-connections` | integer | Maximum number of concurrent connections to Model API (defaults to 10) | None |
-| `--adaptive-connections` | text | Enable adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback. Pass `true` for defaults (min=4, start=20, max=200), `false` to explicitly disable, or bounds as “min-max” (e.g. “4-80”) or “min-start-max” (e.g. “4-20-80”). | None |
+| `--adaptive-connections` | text | Adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback (default: enabled, with min=4, start=20, max=100). Pass `false` to opt out, an integer N for a custom max (e.g. `200`), or bounds as `min-max` (e.g. `4-80`) or `min-start-max` (e.g. `4-20-80`). Explicit `--max-connections` and `--batch` take precedence. | None |
 | `--max-retries` | integer | Maximum number of times to retry model API requests (defaults to unlimited) | None |
 | `--timeout` | integer | Model API request timeout in seconds (defaults to no timeout) | None |
 | `--attempt-timeout` | integer | Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries). | None |
 | `--log-level-transcript` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level of the transcript (defaults to ‘info’) | `info` |
+| `--scanner` | text | Scanner(s) to apply after each sample. Pass a YAML/JSON config file (ScannerConfig schema), a Python file with @scanner functions (use <file.py@func> to pick one), or a registry reference (pkg/name). | None |
+| `--scanner-arg` | text | One or more scanner arguments (e.g. –scanner-arg key=value). | None |
+| `--scans` | text | Location to write scan results to (defaults to /scans/). | None |
+| `--scan-name` | text | Scan name written to \_scan.json (defaults to “eval_set”). | None |
+| `--scan-tags` | text | Comma-separated tags written to the scan spec. | None |
+| `--scan-metadata` | text | Metadata written to the scan spec (e.g. –scan-metadata key=value). | None |
+| `-F`, `--scan-filter` | text | SQL WHERE clause(s) applied per-sample to skip transcripts that don’t match (e.g. -F “error = ’’”). | None |
+| `--scan-model` | text | Model used by scanners’ get_model() (overrides the eval model). | None |
+| `--scan-model-base-url` | text | Base URL for the scanner-side model API. | None |
+| `--scan-model-arg` | text | One or more scanner-side model arguments (e.g. –scan-model-arg key=value). | None |
+| `--scan-model-config` | text | YAML or JSON config file with scanner-side model arguments. | None |
+| `--scan-model-role` | text | Named scanner-side model role with model name or YAML/JSON config (e.g. –scan-model-role grader=mockllm/model). | None |
+| `--scan-generate-config` | text | YAML or JSON config file with GenerateConfig for scanner model calls. | None |
 | `--log-level` | choice (`debug` \| `trace` \| `http` \| `info` \| `warning` \| `error` \| `critical` \| `notset`) | Set the log level (defaults to ‘warning’) | `warning` |
 | `--log-dir` | text | Directory for log files. | `./logs` |
 | `--display` | choice (`full` \| `conversation` \| `rich` \| `plain` \| `log` \| `none`) | Set the display type (defaults to ‘full’) | `full` |

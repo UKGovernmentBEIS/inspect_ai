@@ -276,11 +276,11 @@ The schema for the [text_editor()](./reference/inspect_ai.tool.html.md#text_edit
 
 The [computer()](./reference/inspect_ai.tool.html.md#computer) tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool work better with models that have been trained for computer use. As of Q1 2026 the recommended models for computer use include:
 
-| Provider  | Models                                                     |
-|-----------|------------------------------------------------------------|
-| Anthropic | `claude-opus-4-6` , `claude-opus-4-5`, `claude-sonnet-4-6` |
-| Open AI   | `gpt-5.4`, `gpt-5.4-pro`                                   |
-| Google    | `gemini-3-flash-preview`                                   |
+| Provider  | Models                                  |
+|-----------|-----------------------------------------|
+| Anthropic | `claude-opus-4-5+`, `claude-sonnet-4-6` |
+| Open AI   | `gpt-5.4+`, `gpt-5.4-pro+`              |
+| Google    | `gemini-3-flash-preview`                |
 
 ### Configuration
 

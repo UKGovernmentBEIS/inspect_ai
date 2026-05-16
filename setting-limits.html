@@ -275,6 +275,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Scorers</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scanners.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scanners</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -306,12 +312,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Batch Mode</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./models-concurrency.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Concurrency</span></a>
   </div>
@@ -338,6 +338,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./structured.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Structured Output</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Batch Mode</span></a>
   </div>
 </li>
       </ul>
@@ -909,18 +915,30 @@ Important
 <p>It’s important to note that <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#token_limit">token_limit()</a></span> is for all tokens used <em>while the context manager is open</em>. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the <code>max_tokens</code> generation option.</p>
 </div>
 </div>
+<section id="suspending-token-limits" class="level4">
+<h4 class="anchored" data-anchor-id="suspending-token-limits">Suspending Token Limits</h4>
+<p>To run a block of code that should not count against any active token limits, use <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#suspend_token_limit">suspend_token_limit()</a></span>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> token_limit(<span class="dv">10_000</span>):</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">await</span> generate()  <span class="co"># counts against the 10k budget</span></span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> suspend_token_limit():</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>        <span class="co"># tokens used here are not metered against the 10k limit,</span></span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>        <span class="co"># and any inner `token_limit()` is also suspended</span></span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> expensive_summary()</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">await</span> generate()  <span class="co"># counts again</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Unlike <code>with token_limit(None):</code>, which only suppresses the innermost limit’s check, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#suspend_token_limit">suspend_token_limit()</a></span> fully disables both recording and checking across all active token limits for the duration of the block.</p>
+</section>
 </section>
 <section id="cost-limit-1" class="level3">
 <h3 class="anchored" data-anchor-id="cost-limit-1">Cost Limit</h3>
 <p>Cost is computed from token usage and model cost data (see <a href="#model-cost">Model Cost</a>). Cost limits are checked whenever <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#generate">generate()</a></span> is called.</p>
 <p>To limit the total cost within a block of code:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> myagent(budget: <span class="bu">float</span> <span class="op">=</span> <span class="fl">2.00</span>) <span class="op">-&gt;</span> Agent:</span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState):</span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">with</span> cost_limit(budget):</span>
-<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>            <span class="co"># a LimitExceededError will be raised if the limit is exceeded</span></span>
-<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>            ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> myagent(budget: <span class="bu">float</span> <span class="op">=</span> <span class="fl">2.00</span>) <span class="op">-&gt;</span> Agent:</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState):</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">with</span> cost_limit(budget):</span>
+<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>            <span class="co"># a LimitExceededError will be raised if the limit is exceeded</span></span>
+<span id="cb23-7"><a href="#cb23-7" aria-hidden="true" tabindex="-1"></a>            ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Cost limits work similarly to token limits, with stacking and tracking of costs used while the context manager is open.</p>
 <div class="callout callout-style-default callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -941,36 +959,36 @@ Important
 <h2 class="anchored" data-anchor-id="agent-limits">Agent Limits</h2>
 <p>To run an agent with one or more limits, pass the limit object in the <code>limits</code> argument to a function like <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_solver">as_solver()</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> (see <a href="./agents.html#using-agents">Using Agents</a> for details on the various ways to run agents).</p>
 <p>Here we limit an agent we are including as a solver to 500K tokens:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    task<span class="op">=</span><span class="st">"research_bench"</span>, </span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>as_solver(web_surfer(), limits<span class="op">=</span>[token_limit(<span class="dv">1024</span><span class="op">*</span><span class="dv">500</span>)])</span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Here we limit an agent <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> to 500K tokens:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    task<span class="op">=</span><span class="st">"research_bench"</span>, </span>
-<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>[</span>
-<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>        use_tools(</span>
-<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>            addition(),</span>
-<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>            handoff(web_surfer(), limits<span class="op">=</span>[token_limit(<span class="dv">1024</span><span class="op">*</span><span class="dv">500</span>)]),</span>
-<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>        ),</span>
-<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a>        generate()</span>
-<span id="cb24-9"><a href="#cb24-9" aria-hidden="true" tabindex="-1"></a>    ]</span>
-<span id="cb24-10"><a href="#cb24-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>as_solver(web_surfer(), limits<span class="op">=</span>[token_limit(<span class="dv">1024</span><span class="op">*</span><span class="dv">500</span>)])</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Here we limit an agent <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> to 500K tokens:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    task<span class="op">=</span><span class="st">"research_bench"</span>, </span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    solver<span class="op">=</span>[</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>        use_tools(</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>            addition(),</span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>            handoff(web_surfer(), limits<span class="op">=</span>[token_limit(<span class="dv">1024</span><span class="op">*</span><span class="dv">500</span>)]),</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>        ),</span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>        generate()</span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>    ]</span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section id="limit-exceeded" class="level3">
 <h3 class="anchored" data-anchor-id="limit-exceeded">Limit Exceeded</h3>
 <p>Note that when limits are exceeded during an agent’s execution, the way this is handled differs depending on how the agent was executed:</p>
 <ul>
 <li><p>For agents used via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_solver">as_solver()</a></span>, if a limit is exceeded then the sample will terminate (this is exactly how sample-level limits work).</p></li>
 <li><p>For agents that are <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> directly with limits, their limit exceptions will be caught and returned in a tuple. Limits other than the ones passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#run">run()</a></span> will propagate up the stack.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> run</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>state, limit_error <span class="op">=</span> <span class="cf">await</span> run(</span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>    agent<span class="op">=</span>web_surfer(), </span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span><span class="op">=</span><span class="st">"What were the 3 most popular movies of 2020?"</span>,</span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    limits<span class="op">=</span>[token_limit(<span class="dv">1024</span><span class="op">*</span><span class="dv">500</span>)])</span>
-<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> limit_error:</span>
-<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> run</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>state, limit_error <span class="op">=</span> <span class="cf">await</span> run(</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>    agent<span class="op">=</span>web_surfer(), </span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span><span class="op">=</span><span class="st">"What were the 3 most popular movies of 2020?"</span>,</span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>    limits<span class="op">=</span>[token_limit(<span class="dv">1024</span><span class="op">*</span><span class="dv">500</span>)])</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> limit_error:</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div></li>
 <li><p>For tool based agents (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span>), if a limit is exceeded then a message to that effect is returned to the model but the <em>sample continues running</em>.</p></li>
 </ul>
 

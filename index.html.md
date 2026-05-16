@@ -183,13 +183,15 @@ These sections provide a more in depth treatment of the various components used 
 
 - [Scorers](./scorers.html.md) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
 
+- [Scanners](./scanners.html.md) review transcripts to find issues like misconfigured environments, refusals, and evaluation awareness.
+
 These sections cover defining custom tools as well as Inspect’s standard built-in tools:
 
 - [Tool Basics](./tools.html.md): Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
 
 - [Standard Tools](./tools-standard.html.md) describes Inspect’s built-in tools for code execution, text editing, computer use, web search, and web browsing.
 
-- [MCP Tools](./tools-mcp.html.md) covers how to intgrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
+- [MCP Tools](./tools-mcp.html.md) covers how to integrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
 
 - [Custom Tools](./tools-custom.html.md) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.
 

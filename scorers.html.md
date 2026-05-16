@@ -90,7 +90,7 @@ Task(
 
 ## Perplexity
 
-Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the `prompt_logprobs` configuration option, which is currently supported by the [vLLM](./providers.html.md#vllm) provider.
+Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the `prompt_logprobs` configuration option, which is currently supported by the [vLLM](./providers.html.md#vllm) and [SageMaker](./providers.html.md#aws-sagemaker) providers (SageMaker requires a vLLM-backed endpoint).
 
 - [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity) scores all prompt tokens by computing per-token negative log-likelihood (NLL). This is used for full-text perplexity benchmarks (WikiText, C4) where the entire input is evaluated. It corresponds to the evaluation approach described in the [HuggingFace Transformers documentation](https://huggingface.co/docs/transformers/en/perplexity).
 

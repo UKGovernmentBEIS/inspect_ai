@@ -69,7 +69,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
 <link href="./compaction.html" rel="next">
-<link href="./models-batch.html" rel="prev">
+<link href="./caching.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -81,9 +81,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="site_libs/bootstrap/bootstrap-60b6846f58d02926bc6ca5ecd6f15c48.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
-<script src="site_libs/quarto-contrib/glightbox/glightbox.min.js"></script>
-<link href="site_libs/quarto-contrib/glightbox/glightbox.min.css" rel="stylesheet">
-<link href="site_libs/quarto-contrib/glightbox/lightbox.css" rel="stylesheet">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -278,6 +275,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Scorers</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scanners.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scanners</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -309,12 +312,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Batch Mode</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./models-concurrency.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">Concurrency</span></a>
   </div>
@@ -341,6 +338,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./structured.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Structured Output</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Batch Mode</span></a>
   </div>
 </li>
       </ul>
@@ -544,8 +547,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#max-connections" id="toc-max-connections" class="nav-link" data-scroll-target="#max-connections">Max Connections</a></li>
-  <li><a href="#rate-limits" id="toc-rate-limits" class="nav-link" data-scroll-target="#rate-limits">Rate Limits</a></li>
   <li><a href="#adaptive-connections" id="toc-adaptive-connections" class="nav-link" data-scroll-target="#adaptive-connections">Adaptive Connections</a>
   <ul class="collapse">
   <li><a href="#bounds-tuning" id="toc-bounds-tuning" class="nav-link" data-scroll-target="#bounds-tuning">Bounds Tuning</a></li>
@@ -555,6 +556,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#limiting-retries" id="toc-limiting-retries" class="nav-link" data-scroll-target="#limiting-retries">Limiting Retries</a></li>
   <li><a href="#debugging-retries" id="toc-debugging-retries" class="nav-link" data-scroll-target="#debugging-retries">Debugging Retries</a></li>
+  <li><a href="#static-connections" id="toc-static-connections" class="nav-link" data-scroll-target="#static-connections">Static Connections</a></li>
   <li><a href="#learning-more" id="toc-learning-more" class="nav-link" data-scroll-target="#learning-more">Learning More</a></li>
   </ul>
 </nav>
@@ -583,55 +585,53 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Model API rate limits typically constrain evaluation throughput more than anything else. Inspect manages this with per-model concurrency limits (a cap on in-flight requests to a given provider) plus automatic retry on rate-limit and transient errors.</p>
-<p>Two modes are available:</p>
+<p>Connections to model APIs are the most fundamental unit of concurrency to manage. The main thing that limits model API concurrency is not local compute or network availability, but rather <em>rate limits</em> imposed by model API providers. Inspect manages this with per-model concurrency limits (a cap on in-flight requests to a given provider) plus automatic retry on rate-limits and transient errors.</p>
+<p>Two modes are available for managing connections:</p>
 <ul>
-<li><p>Static. Set a fixed <code>--max-connections</code> value. You need to know the right number for your tier.</p></li>
-<li><p>Adaptive. Use <code>--adaptive-connections</code> to let Inspect tune the number, scaling up while the provider keeps up and backing off on rate-limit retries.</p></li>
+<li><p><strong>Adaptive</strong>. Use <code>--adaptive-connections</code> to let Inspect tune the number, scaling up while the provider keeps up and backing off on rate-limit retries.</p></li>
+<li><p><strong>Static</strong>. Set a fixed <code>--max-connections</code> value. You need to know the right number for your tier and workload.</p></li>
 </ul>
-<p>This page covers both modes, plus retry tuning and debugging. For other forms of parallelism (multiple tasks, sandbox containers, custom code), see <a href="./parallelism.html">Parallelism</a>. For provider-side batch APIs, which run on a separate quota and use a different concurrency model, see <a href="./models-batch.html">Batch Mode</a>.</p>
-</section>
-<section id="max-connections" class="level2">
-<h2 class="anchored" data-anchor-id="max-connections">Max Connections</h2>
-<p>Connections to model APIs are the most fundamental unit of concurrency to manage. The main thing that limits model API concurrency is not local compute or network availability, but rather <em>rate limits</em> imposed by model API providers. Here we run an evaluation and set the maximum connections to 20:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4 <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get <em>worse</em> performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The “correct” max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.</p>
-<div class="callout callout-style-simple callout-note">
-<div class="callout-body d-flex">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-body-container">
-<p>Note that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).</p>
-</div>
-</div>
-</div>
-</section>
-<section id="rate-limits" class="level2">
-<h2 class="anchored" data-anchor-id="rate-limits">Rate Limits</h2>
-<p>When you run an eval you’ll see information reported on the current active connection usage as well as the number of HTTP retries that have occurred (Inspect will automatically retry on rate limits and other errors likely to be transient):</p>
-<p><a href="images/rate-limit.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1"><img src="images/rate-limit.png" class="img-fluid" alt="The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results."></a></p>
-<p>Here we’ve set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using <a href="https://en.wikipedia.org/wiki/Exponential_backoff">exponential backoff</a>, and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.</p>
-<p>You should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that you are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.</p>
+<p>By default, adaptive concurrency is used with a maximum of 100 concurrent connections per model. This page covers using and customizing both modes, plus retry tuning and debugging.</p>
+<p>For other forms of parallelism (multiple tasks, sandbox containers, custom code), see <a href="./parallelism.html">Parallelism</a>.</p>
 </section>
 <section id="adaptive-connections" class="level2">
 <h2 class="anchored" data-anchor-id="adaptive-connections">Adaptive Connections</h2>
-<p>Use the <code>--adaptive-connections</code> option to automatically scale model concurrency to your available capacity. Adaptive connections starts at a moderate concurrency, grows while the provider keeps up, and backs off on rate-limit retries.</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4o <span class="at">--adaptive-connections</span> true</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Adaptive connection works per-model, starting at 20 concurrent connections and attempting to scale up to 200. When adaptive connections is in effect, <code>max_samples</code> automatically tracks the controller’s current limit (set an explicit <code>max_samples</code> to override this behavior).</p>
+<p>Use the <code>--adaptive-connections</code> option to automatically scale model concurrency to your available capacity. Adaptive connections starts at 20 in-flight per model, grows up to the maximum while the provider keeps up, and backs off on rate-limit retries. Adaptive connections is on by default (with a maximum of 100), so the following commands are equivalent:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-5</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-5 <span class="at">--adaptive-connections</span><span class="op">=</span>100</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Adaptive connections are a new feature introduced in Inspect v0.3.217. If you previously used <code>--max-connections</code> we recommend migrating to <code>--adaptive-connections</code>, as you will ramp up to the same maximum concurrency with less exposure to exponential backoff from rate limits.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Note
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>When adaptive connections is in effect, <code>max_samples</code> automatically tracks the controller’s current limit. Set an explicit <code>max_samples</code> to override this behavior.</p>
+</div>
+</div>
 <section id="bounds-tuning" class="level3">
 <h3 class="anchored" data-anchor-id="bounds-tuning">Bounds Tuning</h3>
-<p>Bounds (<code>min</code>, <code>start</code>, <code>max</code>) can be used to tune the behavior of adaptive connections: <code>start</code> is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), and <code>max</code> is the ceiling.</p>
-<p>Pass a string shorthand. <code>min-max</code> constrains the range (<code>start</code> defaults to 20, clamped into the range):</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4o <span class="at">--adaptive-connections</span> 4-80</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Tune the bounds with <code>min</code>, <code>start</code>, and <code>max</code>: <code>start</code> is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), and <code>max</code> is the ceiling.</p>
+<p>Set <code>max</code> higher than where you expect the controller to settle, since it’s a ceiling for the search, not a target. If you’re seeing the controller pin at <code>max</code> without ever scaling down, you likely have headroom: raise <code>max</code> until you observe occasional rate-limit cuts, which is the controller’s signal that it’s operating at the edge of your tier.</p>
+<p>The simplest form of bounds tuning is a single integer setting just the maximum:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-5 <span class="at">--adaptive-connections</span> 50</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-5 <span class="at">--adaptive-connections</span> 200</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>min-max</code> constrains the range (<code>start</code> defaults to 20, clamped into the range):</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-5 <span class="at">--adaptive-connections</span> 5-50</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-5 <span class="at">--adaptive-connections</span> 10-200</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p><code>min-start-max</code> also sets the starting value:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4o <span class="at">--adaptive-connections</span> 4-40-80</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>In Python, pass <code>True</code> for defaults or an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#adaptiveconcurrency">AdaptiveConcurrency</a></span> to customize:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-5 <span class="at">--adaptive-connections</span> 5-10-50</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-5 <span class="at">--adaptive-connections</span> 10-20-200</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>In Python, pass <code>True</code> for defaults, <code>False</code> to disable adaptive (uses static <code>max_connections</code> instead), <code>int</code> to set the maximum, or an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#adaptiveconcurrency">AdaptiveConcurrency</a></span> to customize:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> AdaptiveConcurrency</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
 <span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"task.py"</span>,</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>,</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"openai/gpt-5"</span>,</span>
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    adaptive_connections<span class="op">=</span>AdaptiveConcurrency(<span class="bu">min</span><span class="op">=</span><span class="dv">4</span>, <span class="bu">max</span><span class="op">=</span><span class="dv">80</span>),</span>
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
@@ -656,7 +656,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
 <span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">"task.py"</span>,</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"openai/gpt-4o"</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"openai/gpt-5"</span>,</span>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    adaptive_connections<span class="op">=</span>AdaptiveConcurrency(</span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>        <span class="bu">min</span><span class="op">=</span><span class="dv">4</span>,</span>
 <span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>        <span class="bu">max</span><span class="op">=</span><span class="dv">80</span>,</span>
@@ -687,6 +687,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>You can also view all of the HTTP requests for the current (or most recent) evaluation run using the <code>inspect trace http</code> command. For example:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace http           <span class="co"># show all http requests</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> trace http <span class="at">--failed</span>  <span class="co"># show only failed requests</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="static-connections" class="level2">
+<h2 class="anchored" data-anchor-id="static-connections">Static Connections</h2>
+<p>If you prefer a static limit for connections, use <code>--max-connections</code> rather than <code>--adaptive-connections</code>. For example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--model</span> openai/gpt-4 <span class="at">--max-connections</span> 20</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>When both <code>--max-connections</code> and <code>--adaptive-connections</code> are set, the explicit <code>max_connections</code> value takes precedence and adaptive is disabled. To opt out of adaptive without picking a specific cap (the provider’s default applies), pass <code>--adaptive-connections false</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--model</span> openai/gpt-4 <span class="at">--adaptive-connections</span> false</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><a href="./models-batch.html">Batch mode</a> likewise uses static concurrency regardless of <code>--adaptive-connections</code>.</p>
+<p>Increasing the max connections might yield better performance due to higher parallelism, however it might also result in <em>worse</em> performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The “correct” max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.</p>
+<p>Since it can be difficult to tune this value (especially across different times of day), you are generally much better off using <a href="#adaptive-connections">Adaptive Connections</a> which will dynamically find the maximum throughput that can be supported.</p>
 </section>
 <section id="learning-more" class="level2">
 <h2 class="anchored" data-anchor-id="learning-more">Learning More</h2>
@@ -1213,8 +1223,8 @@ document.addEventListener("DOMContentLoaded", function () {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="./models-batch.html" class="pagination-link" aria-label="Batch Mode">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Batch Mode</span>
+      <a href="./caching.html" class="pagination-link" aria-label="Caching">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Caching</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
@@ -1277,38 +1287,6 @@ document.addEventListener("DOMContentLoaded", function () {
     </div>
   </div>
 </footer>
-<script>var lightboxQuarto = GLightbox({"closeEffect":"zoom","descPosition":"bottom","loop":false,"openEffect":"zoom","selector":".lightbox"});
-(function() {
-  let previousOnload = window.onload;
-  window.onload = () => {
-    if (previousOnload) {
-      previousOnload();
-    }
-    lightboxQuarto.on('slide_before_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      const href = trigger.getAttribute('href');
-      if (href !== null) {
-        const imgEl = window.document.querySelector(`a[href="${href}"] img`);
-        if (imgEl !== null) {
-          const srcAttr = imgEl.getAttribute("src");
-          if (srcAttr && srcAttr.startsWith("data:")) {
-            slideConfig.href = srcAttr;
-          }
-        }
-      } 
-    });
-  
-    lightboxQuarto.on('slide_after_load', (data) => {
-      const { slideIndex, slideNode, slideConfig, player, trigger } = data;
-      if (window.Quarto?.typesetMath) {
-        window.Quarto.typesetMath(slideNode);
-      }
-    });
-  
-  };
-  
-})();
-          </script>
 
 
 

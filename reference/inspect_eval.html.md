@@ -16,17 +16,32 @@ inspect eval [OPTIONS] [TASKS]...
 | `--model-base-url` | text | Base URL for for model API | None |
 | `-M` | text | One or more native model arguments (e.g. -M arg=value) | None |
 | `--model-config` | text | YAML or JSON config file with model arguments. | None |
+| `--run-config` | text | YAML or JSON file with full run configuration (task, model, model roles, generate config, solver, eval config). CLI flags override values from this file. Cannot be combined with –generate-config, –task-config, or –solver-config. | None |
 | `--model-role` | text | Named model role with model name or YAML/JSON config, e.g. –model-role critic=openai/gpt-4o or –model-role grader=“{model: mockllm/model, temperature: 0.5}” | None |
 | `-T` | text | One or more task arguments (e.g. -T arg=value) | None |
 | `--task-config` | text | YAML or JSON config file with task arguments. | None |
 | `--solver` | text | Solver to execute (overrides task default solver) | None |
 | `-S` | text | One or more solver arguments (e.g. -S arg=value) | None |
 | `--solver-config` | text | YAML or JSON config file with solver arguments. | None |
+| `--scanner` | text | Scanner(s) to apply after each sample. Pass a YAML/JSON config file (ScannerConfig schema), a Python file with @scanner functions (use <file.py@func> to pick one), or a registry reference (pkg/name). | None |
+| `--scanner-arg` | text | One or more scanner arguments (e.g. –scanner-arg key=value). | None |
+| `--scans` | text | Location to write scan results to (defaults to /scans/). | None |
+| `--scan-name` | text | Scan name written to \_scan.json (defaults to “eval_set”). | None |
+| `--scan-tags` | text | Comma-separated tags written to the scan spec. | None |
+| `--scan-metadata` | text | Metadata written to the scan spec (e.g. –scan-metadata key=value). | None |
+| `-F`, `--scan-filter` | text | SQL WHERE clause(s) applied per-sample to skip transcripts that don’t match (e.g. -F “error = ’’”). | None |
+| `--scan-model` | text | Model used by scanners’ get_model() (overrides the eval model). | None |
+| `--scan-model-base-url` | text | Base URL for the scanner-side model API. | None |
+| `--scan-model-arg` | text | One or more scanner-side model arguments (e.g. –scan-model-arg key=value). | None |
+| `--scan-model-config` | text | YAML or JSON config file with scanner-side model arguments. | None |
+| `--scan-model-role` | text | Named scanner-side model role with model name or YAML/JSON config (e.g. –scan-model-role grader=mockllm/model). | None |
+| `--scan-generate-config` | text | YAML or JSON config file with GenerateConfig for scanner model calls. | None |
 | `--tags` | text | Tags to associate with this evaluation run. | None |
 | `--metadata` | text | Metadata to associate with this evaluation run (more than one –metadata argument can be specified). | None |
 | `--approval` | text | Config file for tool call approval. | None |
 | `--sandbox` | text | Sandbox environment type (with optional config file). e.g. ‘docker’ or ‘docker:compose.yml’ | None |
 | `--no-sandbox-cleanup` | boolean | Do not cleanup sandbox environments after task completes | `False` |
+| `--checkpoint` | text | Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify –checkpoint for default (every 5 turns), –checkpoint=<turn:N> / time:Ns/m/h/d / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig. | None |
 | `--limit` | text | Limit samples to evaluate e.g. 10 or 10-20 | None |
 | `--sample-id` | text | Evaluate specific sample(s) (comma separated list of ids) | None |
 | `--sample-shuffle` | text | Shuffle order of samples (pass a seed to make the order deterministic) | None |
@@ -34,7 +49,7 @@ inspect eval [OPTIONS] [TASKS]...
 | `--epochs-reducer` | text | Method for reducing per-epoch sample scores into a single score. Built in reducers include ‘mean’, ‘median’, ‘mode’, ‘max’, and ‘at_least\_{n}’. | None |
 | `--no-epochs-reducer` | boolean | Do not reduce per-epoch sample scores. | `False` |
 | `--max-connections` | integer | Maximum number of concurrent connections to Model API (defaults to 10) | None |
-| `--adaptive-connections` | text | Enable adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback. Pass `true` for defaults (min=4, start=20, max=200), `false` to explicitly disable, or bounds as “min-max” (e.g. “4-80”) or “min-start-max” (e.g. “4-20-80”). | None |
+| `--adaptive-connections` | text | Adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback (default: enabled, with min=4, start=20, max=100). Pass `false` to opt out, an integer N for a custom max (e.g. `200`), or bounds as `min-max` (e.g. `4-80`) or `min-start-max` (e.g. `4-20-80`). Explicit `--max-connections` and `--batch` take precedence. | None |
 | `--max-retries` | integer | Maximum number of times to retry model API requests (defaults to unlimited) | None |
 | `--timeout` | integer | Model API request timeout in seconds (defaults to no timeout) | None |
 | `--attempt-timeout` | integer | Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries). | None |

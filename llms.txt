@@ -17,18 +17,19 @@
 - [Datasets](https://inspect.aisi.org.uk/datasets.html.md): Datasets provide samples to evaluation tasks. How to adapt various data sources for use with Inspect, including multi-modal data.
 - [Solvers](https://inspect.aisi.org.uk/solvers.html.md): Solvers encompass prompt engineering and other elicitation strategies. Using built-in solvers and creating your own.
 - [Scorers](https://inspect.aisi.org.uk/scorers.html.md): Scorers evaluate the work of solvers and aggregate scores into metrics. How to create custom scorers including model-graded ones.
+- [Scanners](https://inspect.aisi.org.uk/scanners.html.md): Scanners review transcripts to find issues like misconfigured environments, refusals, and evaluation awareness.
 
 ## Models
 
 - [Using Models](https://inspect.aisi.org.uk/models.html.md): Models provide a uniform API for evaluating a variety of large language models and using models within evaluations.
 - [Providers](https://inspect.aisi.org.uk/providers.html.md): Usage details and available options for the various supported model providers.
 - [Caching](https://inspect.aisi.org.uk/caching.html.md): Caching enables you to cache model output to reduce API calls, saving both time and expense.
-- [Batch Mode](https://inspect.aisi.org.uk/models-batch.html.md): Using batch processing APIs for model inference.
 - [Concurrency](https://inspect.aisi.org.uk/models-concurrency.html.md): Tuning model API connection limits, adaptive concurrency, and rate-limit handling.
 - [Compaction](https://inspect.aisi.org.uk/compaction.html.md): Compacting message histories for long-running agents that exceed the context window.
 - [Multimodal](https://inspect.aisi.org.uk/multimodal.html.md): How to use images, audio, and video in evaluations.
 - [Reasoning](https://inspect.aisi.org.uk/reasoning.html.md): Additional options and data available for reasoning models.
 - [Structured Output](https://inspect.aisi.org.uk/structured.html.md): How to constrain model output to a particular JSON schema.
+- [Batch Mode](https://inspect.aisi.org.uk/models-batch.html.md): Using batch processing APIs for model inference.
 
 ## Agents
 

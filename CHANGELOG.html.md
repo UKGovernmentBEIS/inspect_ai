@@ -1,10 +1,78 @@
 # changelog – Inspect
 
-## Unreleased
+## 0.3.221 (16 May 2026)
 
+- OpenAI: Add GPT 5.5 as computer use model and exclude ‘chat’ and ‘instant’ models from computer use.
+- OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
+- Anthropic: Capture `extra_body` fields from `Message` response.
+- OpenRouter: Enable Anthropic prompt caching by default for `openrouter/anthropic/*` models.
+- VLLM: Preserve dotted vLLM server arg keys.
+- Bedrock: Drop unsupported sampling params for Claude 4.7+.
+- Bedrock: Route `top_k` correctly for Nova models.
+- SageMaker: Add `prompt_logprobs` support in chat mode via [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig), parse prompt logprobs from completion mode responses, enabling [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity) and [target_perplexity()](./reference/inspect_ai.scorer.html.md#target_perplexity) scorers end-to-end.
+- Model API: `--adaptive-connections` is now enabled by default (defaults to 100 per model connection).
+- Model API: Cache lookup of openai and anthropic packages at sample initialization.
+- Model API: Remove semaphore around calls to `count_tokens()` (they are already retried and gated by `max_samples`).
 - Model Info: Cache model info database lookup results so that failed lookups don’t repeat fuzzy model name search.
+- Limits: Added [suspend_token_limit()](./reference/inspect_ai.util.html.md#suspend_token_limit) context manager for suspending token tracking and limit enforcement within a scope.
+- Datasets: `hf_dataset` retries transient Hugging Face errors (rate limits, timeouts, Hub-unreachable cache misses) up to 3 times (5 in CI) with exponential backoff. Pass `retry=False` to disable.
+- Datasets: Reject sample ids that collide under `str()` coercion.
+- Datasets: Treat NaN from HuggingFace dataset as `None` is treated (converted to `""`).
+- Datasets: Use HuggingFace revision in cache key for downloaded datasets.
+- Datasets: Propagate `hf_dataset(..., shuffle=True)` to `EvalDataset.shuffled`.
+- Tool Calling: Raise a [ToolError](./reference/inspect_ai.tool.html.md#toolerror) if there is a null byte in command input.
+- Scoring: Store and aggregate results for cancelled eval runs.
+- Scoring: `match(numeric=True)` no longer matches digit-substrings (e.g. target `5` against `25`); now correctly handles negative, decimal, and scientific-notation targets, and recognises unicode-formatted numbers (unicode minus, vulgar fractions like `½`, Chinese numerals, fullwidth digits) in both targets and model output.
+- Scoring: `match(numeric=True, location="exact")` is now strict — values like `"5 some text"` no longer match target `"5"`.
+- Analysis: Use score reducer in [evals_df()](./reference/inspect_ai.analysis.html.md#evals_df) column name when there are multiple reducers.
+- Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
+- Config: Add `--run-config` option to `inspect eval` for single-file run configuration.
+- Eval Set: Run [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scanners over each task’s logs as part of `eval_set` (CLI `--scanner` / [ScannerConfig](./reference/inspect_ai.html.md#scannerconfig)). Scans incrementally as logs land, reuses prior results across resumes, and renders progress alongside the existing eval view.
+- Eval Set: Fail fast with “No inspect tasks were found at the specified paths.” when a task spec resolves to nothing (e.g. uninstalled package); previously crashed with `IndexError` inside `resolve_tasks` after passing an empty task list to `eval`.
+- Eval Set: Add `score_display` argument to [eval_set()](./reference/inspect_ai.html.md#eval_set) function.
+- Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don’t implement conditional writes).
+- Eval Log: Make `log_file_info()` robust to non-standard filenames; added `log_file_info_async()` / `log_files_from_ls_async()` so view-server header reads don’t block the event loop.
+- Imports: Delay importing heavier dependencies (e.g. s3fs, boto3, numpy, rich.markdown) for faster imports of `inspect_ai` module.
+- Logging: `INSPECT_PY_LOGGER_FORMAT` env var (`rich`/`plain`/`json`) for non-TTY-friendly single-line console logs.
 - Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.
+- Task Display: Honor terminal `COLUMNS` and `LINES` for dumb terminals.
+- Validation: Reject unknown [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) fields with an error.
+- Memory: Log condensing no longer retains unchanged JSON copies in long evals.
+- Memory: Don’t retain message lists in buffer DB (memory leak on long agentic samples).
+- Memory: Collapse user messages at compaction time to avoid carrying extra messages.
+- Memory: Stop retaining copied tool schemas in model events.
+- Inspect View: Pending samples fetch directly from S3 with chunked loading
+- Inspect View: Score color scales applied to sample-header chips
+- Inspect View: Outline close icon aligned; rootHeader made sticky
+- Inspect View: Fixed model retry event rendering
+- Inspect View: Fixed message ordering in running-sample Messages tab with cross-poll caching
 - Bugfix: Ensure that models don’t share GenerateConfig instance via default get_model argument.
+- Bugfix: Don’t raise on tool params with `None` as default (e.g.`x: dict = None`).
+- Bugfix: Fallback error message for when `OSError` does not include `.strerror` and `.filename`
+- Bugfix: More gracefully handle tool results with mixed `[Content, str]`.
+- Bugfix: Accept `""` as an `answer` for \`basic_agent().
+- Bugfix: Narrowly replace `{submit}` in [react()](./reference/inspect_ai.agent.html.md#react) agent prompt templates (rather than using `.format`).
+- Bugfix: Correctly handle `pd.NA` when converting scores to float in analysis df functions.
+- Bugfix: Include model role usage data in eval samples summaries.
+- Bugfix: Prevent duplicate entries in `summaries.json` when re-scoring or converting logs.
+- Bugfix: `fail_on_error` fractional threshold now uses the sliced sample count multiplied by `epochs` (matching the end-of-run check)
+- Bugfix: `eval_retry` preserves `SampleScore.scorer` attribution on restored samples (was `None` instead of the scorer name).
+- Bugfix: [time_limit()](./reference/inspect_ai.util.html.md#time_limit) no longer masks exceptions raised after the deadline (e.g. from `finally` blocks) with [LimitExceededError](./reference/inspect_ai.util.html.md#limitexceedederror); the original exception now propagates.
+- Bugfix: Multiple-choice answer parsing — [multiple_choice()](./reference/inspect_ai.solver.html.md#multiple_choice)/[answer()](./reference/inspect_ai.scorer.html.md#answer)/[choice()](./reference/inspect_ai.scorer.html.md#choice) now accept lowercase letters, prefer the last `ANSWER:` occurrence (matching the CoT “last line” instruction), parse `"A, B and C"` lists, and handle multi-answer targets with separators (`Target("A,B")`).
+- Bugfix: Shared log buffer sync is scheduled onto a single daemon worker thread (prevent deadlock when logging occurs during sync).
+- Bugfix: `max_score` reducer’s dict/list paths now NaN-filter per key/index, making results order-independent (NaN previously kept whichever element came first).
+- Bugfix: `pass_at(k)` now returns the unscored NaN sentinel when fewer than `k` epochs were scored (previously inflated to 1.0).
+- Bugfix: `create_reducers` no longer rewrites custom reducer names ending in `_<digits>` (e.g. `"top_5"`) into the built-in `_k` shorthand.
+- Bugfix: `multi_scorer` returns `Score.unscored()` when every sub-scorer declines to score (previously crashed with `IndexError`).
+- Bugfix: `at_least` / `pass_at` reducer names now correctly include the `_k` suffix on the returned reducer (previously leaked onto the module-global factory).
+- Bugfix: [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa) / [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact) — default grade pattern now extracts the *last* `GRADE: $LETTER` in grader output.
+- Bugfix: [f1()](./reference/inspect_ai.scorer.html.md#f1) / [exact()](./reference/inspect_ai.scorer.html.md#exact) — targets with leading whitespace are no longer silently skipped.
+- Bugfix: [math()](./reference/inspect_ai.scorer.html.md#math) — brace-delimited set answers like `{1, 2}` are now compared as multisets.
+- Bugfix: [math()](./reference/inspect_ai.scorer.html.md#math) — model outputs containing `\boxed{inf}` / `Infinity` / `-inf` no longer crash the scorer with `OverflowError`.
+- Bugfix: `grouped()` — raise instead of silently overwriting a per-group metric when a group name collides with `all_label`.
+- Bugfix: `stderr(cluster=...)` — return 0 with a single cluster (was `NaN`/`inf` from divide-by-zero).
+- Bugfix: `value_to_float()` — reject `"nan"`/`"inf"` string values so a single non-finite Score doesn’t poison [accuracy()](./reference/inspect_ai.scorer.html.md#accuracy) and friends.
+- Bugfix: `inspect log recover` — preserve `sample.uuid` for crashed in-progress samples (initial buffer summary now carries `state.uuid`; recovery synthesizes a fallback uuid for legacy buffer rows).
 
 ## 0.3.220 (08 May 2026)
 

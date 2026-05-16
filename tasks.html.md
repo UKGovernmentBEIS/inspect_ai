@@ -97,6 +97,8 @@ Reference this file from the CLI with:
 inspect eval security.py --task-config=config.yaml
 ```
 
+If you want to bundle task parameters together with model, generation, and solver settings in a single file, use `--run-config` instead. See [Run Config File](./task-configuration.html.md#run-config).
+
 For a broader view of how task parameters relate to [task_with()](./reference/inspect_ai.html.md#task_with), environment variables, [eval()](./reference/inspect_ai.html.md#eval), and CLI overrides, see [Task Configuration](./task-configuration.html.md).
 
 ## Solvers

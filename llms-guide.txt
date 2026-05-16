@@ -188,13 +188,15 @@ These sections provide a more in depth treatment of the various components used 
 
 - [Scorers](./scorers.html.md) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
 
+- [Scanners](./scanners.html.md) review transcripts to find issues like misconfigured environments, refusals, and evaluation awareness.
+
 These sections cover defining custom tools as well as Inspect’s standard built-in tools:
 
 - [Tool Basics](./tools.html.md): Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
 
 - [Standard Tools](./tools-standard.html.md) describes Inspect’s built-in tools for code execution, text editing, computer use, web search, and web browsing.
 
-- [MCP Tools](./tools-mcp.html.md) covers how to intgrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
+- [MCP Tools](./tools-mcp.html.md) covers how to integrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
 
 - [Custom Tools](./tools-custom.html.md) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.
 
@@ -924,6 +926,12 @@ Below are sections for the various categories of options supported by `inspect e
 
 For more detail on the different methods of configuration, see [Task Configuration](./task-configuration.html.md).
 
+## Run Configuration
+
+|  |  |
+|----|----|
+| `--run-config` | YAML or JSON file with the complete run configuration — task, model, model roles, generate config, solver, and eval config — in one place. Explicit CLI flags override values from this file. Cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. See [Run Config File](./task-configuration.html.md#run-config). |
+
 ## Model Provider
 
 |  |  |
@@ -1292,6 +1300,14 @@ Use `tail --follow` to track the contents of the log file in realtime. For examp
 tail --follow /tmp/inspect.log
 ```
 
+### Logger Format
+
+Console logger output can be formatted using `rich` (ANSI), `plain` (non-ANSI), or `json` formatters. You might want to use `plain` or `json` for single-line logs in non-TTY CI, containers, and log aggregators. To do this, use the `INSPECT_PY_LOGGER_FORMAT` environment variable:
+
+``` bash
+export INSPECT_PY_LOGGER_FORMAT=plain
+```
+
 ## Task Information
 
 The **Info** panel of the log viewer provides additional meta-information about evaluation tasks, including dataset, solver, and scorer details, git revision, and model token usage:
@@ -1565,6 +1581,8 @@ Reference this file from the CLI with:
 ``` bash
 inspect eval security.py --task-config=config.yaml
 ```
+
+If you want to bundle task parameters together with model, generation, and solver settings in a single file, use `--run-config` instead. See [Run Config File](./task-configuration.html.md#run-config).
 
 For a broader view of how task parameters relate to [task_with()](./reference/inspect_ai.html.md#task_with), environment variables, [eval()](./reference/inspect_ai.html.md#eval), and CLI overrides, see [Task Configuration](./task-configuration.html.md).
 
@@ -2174,7 +2192,9 @@ temperature: 0.5
 max_tokens: 2048
 ```
 
-The `--generate-config` option is useful when you want to bundle a set of generation parameters together, for example to capture the parameters specified in a paper for reproducibility. Individual CLI flags (e.g. `--temperature`) take precedence over values in the config file.
+The `--generate-config` option is useful when you want to bundle a set of generation parameters together. Individual CLI flags (e.g. `--temperature`) take precedence over values in the config file.
+
+To bundle generation parameters alongside the full eval configuration (task, model, model roles, solver), use `--run-config` instead. See [Run Config File](#run-config).
 
 ## Model Roles
 
@@ -2192,6 +2212,68 @@ Inside a solver or scorer, resolve the role with [get_model()](./reference/inspe
 ``` python
 model = get_model(role="grader", default="openai/gpt-4o")
 ```
+
+## Run Config File
+
+The `--run-config` option lets you specify a single YAML or JSON file that captures a complete eval configuration — task, model, model roles, generation parameters, solver, and eval settings — in one place. CLI flags still override values from the file.
+
+``` bash
+inspect eval --run-config run.yaml
+```
+
+The file schema mirrors the structure of the corresponding [eval()](./reference/inspect_ai.html.md#eval) parameters:
+
+    run.yaml
+
+``` yaml
+task:
+  task: inspect_evals/simpleqa
+  args:
+    split: test
+
+model:
+  model: anthropic/claude-sonnet-4-5
+  args:
+    max_retries: 3
+
+model_roles:
+  grader:
+    model: openai/gpt-4o
+    config:
+      temperature: 0.0
+
+generate_config:
+  temperature: 0.5
+  max_tokens: 4096
+  seed: 42
+
+solver:
+  solver: my_solvers.py@chain_of_thought
+  args:
+    cot_template: detailed
+
+eval_config:
+  limit: 100
+  epochs: 3
+  message_limit: 50
+```
+
+All top-level keys are optional, which makes it easy to create **“paper config” files** that record the generation and eval settings from a paper without hard-coding a specific model. Users can then supply the model on the CLI:
+
+``` bash
+# paper_config.yaml specifies only generate_config, eval_config, and model_roles
+inspect eval inspect_evals/simpleqa \
+    --model anthropic/claude-sonnet-4-5 \
+    --run-config paper_config.yaml
+```
+
+CLI flags override values from the file. For example, to run with a different temperature than the file specifies:
+
+``` bash
+inspect eval --run-config run.yaml --temperature 0.9
+```
+
+`--run-config` cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. Use `--run-config` when you want a single file; use the individual options when you want to compose configuration from multiple files.
 
 ## Solver Override
 
@@ -2295,6 +2377,7 @@ When consuming a task from a package (like `inspect_evals`) and you need to cust
 | Different model | [eval()](./reference/inspect_ai.html.md#eval) / `--model` |
 | Different temperature or max_tokens | [eval()](./reference/inspect_ai.html.md#eval) / `--temperature` / `--max-tokens` |
 | Bundle of generation params | `--generate-config config.yaml` |
+| Full run config (paper reproduction) | `--run-config run.yaml` |
 | Different solver | `eval(solver=...)` / `--solver` / [task_with()](./reference/inspect_ai.html.md#task_with) |
 | Different scorer | `task_with(task, scorer=...)` |
 | Different grader model | `--model-role grader=...` / `eval(model_roles=)` |
@@ -2561,6 +2644,8 @@ dataset=hf_dataset("openai_humaneval",
 ```
 
 Under the hood, the [hf_dataset()](./reference/inspect_ai.dataset.html.md#hf_dataset) function is calling the [load_dataset()](https://huggingface.co/docs/datasets/en/package_reference/loading_methods#datasets.load_dataset) function in the Hugging Face datasets package. You can additionally pass arbitrary parameters on to `load_dataset()` by including them in the call to [hf_dataset()](./reference/inspect_ai.dataset.html.md#hf_dataset). For example `hf_dataset(..., cache_dir="~/my-cache-dir")`.
+
+By default, [hf_dataset()](./reference/inspect_ai.dataset.html.md#hf_dataset) retries transient Hugging Face errors (rate limits, timeouts, and Hub-unreachable cache misses) with exponential backoff. Pass `retry=False` to disable.
 
 ## Amazon S3
 
@@ -3245,7 +3330,7 @@ Task(
 
 ## Perplexity
 
-Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the `prompt_logprobs` configuration option, which is currently supported by the [vLLM](./providers.html.md#vllm) provider.
+Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the `prompt_logprobs` configuration option, which is currently supported by the [vLLM](./providers.html.md#vllm) and [SageMaker](./providers.html.md#aws-sagemaker) providers (SageMaker requires a vLLM-backed endpoint).
 
 - [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity) scores all prompt tokens by computing per-token negative log-likelihood (NLL). This is used for full-text perplexity benchmarks (WikiText, C4) where the entire input is evaluated. It corresponds to the evaluation approach described in the [HuggingFace Transformers documentation](https://huggingface.co/docs/transformers/en/perplexity).
 
@@ -4187,6 +4272,187 @@ for model, scored_log in zip(grader_models, scoring_logs):
 You may need to modify the results—for example, correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails. Learn more about modifying scores in [Editing Logs](./eval-logs.html.md#sec-eval-log-modification)
 
 
+# Scanners – Inspect
+
+## Overview
+
+Scanners review evaluation transcripts to find issues that may undermine the results (e.g. refusals, evaluation awareness, environment misconfiguration, runtime errors, reward hacking, etc.). [Kirgis et al.](https://arxiv.org/abs/2605.08545v1) argue that this kind of log analysis is essential to credible AI evaluation, since pass/fail outcomes alone can mask shortcuts, benchmark artifacts, and unsafe behaviours; [Dubois et al.](https://arxiv.org/abs/2604.09563) propose a standardised methodology for carrying it out.
+
+Scanners are similar to [scorers](./scorers.html.md), but differ in two ways:
+
+1.  A scorer returns one score per sample to grade task success; a scanner often returns a result only for transcripts where it detects something, so findings are typically sparse.
+
+2.  Scanner findings are written to a separate `scans/` directory alongside the eval log (not embedded in the log). Scanner results across many evals can therefore be reviewed together, and scanners can be applied during an eval, in a later offline run, or both.
+
+Scanners are authored using the [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) package. This page covers three ways to integrate them with Inspect AI evaluations:
+
+- [Online Scanning](#online-scanning): attach scanners to a live [eval()](./reference/inspect_ai.html.md#eval) or [eval_set()](./reference/inspect_ai.html.md#eval_set) run.
+
+- [Offline Scanning](#offline-scanning): run `scout scan` over an existing directory of eval logs.
+
+- [Scanners as Scorers](#scanners-as-scorers): use a scanner in the `scorer=` slot of a [Task](./reference/inspect_ai.html.md#task).
+
+Online and offline scanning write to the same `scans/` directory, so they compose: attach scanners during an eval and add more later with `scout scan`, or vice versa.
+
+## Online Scanning
+
+Pass scanners to [eval()](./reference/inspect_ai.html.md#eval) or [eval_set()](./reference/inspect_ai.html.md#eval_set) via the `scanner` argument. Transcripts are scanned as samples complete; results are written to `<log_dir>/scans/`:
+
+``` python
+from inspect_ai import eval
+from my_scanners import refusal, eval_awareness
+
+eval(
+    "tasks/agentic_search.py",
+    model="openai/gpt-5",
+    scanner=[refusal(), eval_awareness()],
+)
+```
+
+The `scanner` argument accepts a list of `Scanner` callables, a dict of `{name: Scanner}`, or a [ScannerConfig](./reference/inspect_ai.html.md#scannerconfig) for finer control (filter clauses, scan-side model, tags, output location). For example, to run scanners with a different model from the one under evaluation:
+
+``` python
+from inspect_ai import ScannerConfig, eval
+from my_scanners import refusal, eval_awareness
+
+eval(
+    "tasks/agentic_search.py",
+    model="openai/gpt-5",
+    scanner=ScannerConfig(
+        scanners=[refusal(), eval_awareness()],
+        model="anthropic/claude-opus-4-7",
+    ),
+)
+```
+
+The same scanners can be specified from the CLI with `--scanner`:
+
+``` bash
+inspect eval tasks/agentic_search.py \
+    --model openai/gpt-5 \
+    --scanner my_scanners.py \
+    --scan-model anthropic/claude-opus-4-7
+```
+
+On the CLI, `--scanner` accepts a YAML/JSON config file, a Python file containing `@scanner` functions (optionally `file.py@func` to pick one), or a registry reference like `pkgname/scanner_name`.
+
+> **TIP:**
+>
+> Choose a model suited to your scanning task; it doesn’t have to match the model under evaluation. Set the scanning model explicitly via `ScannerConfig(model=...)`, the CLI flag `--scan-model`, or the `SCOUT_SCAN_MODEL` environment variable.
+
+## Offline Scanning
+
+To run scanners over a directory of existing logs (for example, to look across many evals for evaluation awareness), use the `scout scan` CLI:
+
+``` bash
+scout scan my_scanners.py -T ./logs --model openai/gpt-5
+```
+
+Results are written to `./logs/scans/`, the same location as online scanning.
+
+Offline scanning is typically where scanner iteration happens: adjusting prompts, validating against a labelled set, or running the same scanner across many tasks. See the [Inspect Scout documentation](https://meridianlabs-ai.github.io/inspect_scout/) for the full CLI surface, validation workflow, results schema, and support for non-Inspect transcript sources.
+
+## Viewing Results
+
+Online and offline scans share the same `scans/` directory, so the viewing tools work for both. Use the Scout viewer to explore results interactively:
+
+``` bash
+scout view
+```
+
+[![](https://meridianlabs-ai.github.io/inspect_scout/images/validation.png)](https://meridianlabs-ai.github.io/inspect_scout/images/validation.png)
+
+For programmatic access, load the per-scanner DataFrames:
+
+``` python
+from inspect_scout import scan_results_df
+
+df = scan_results_df("logs/scans/scan_id=...")
+eval_awareness_df = df.scanners["eval_awareness"]
+```
+
+## Scanners as Scorers
+
+A scanner can also be added to a task’s scorers. For example, to include a reward-hacking check in the task’s metrics:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from my_scanners import reward_hacking
+
+@task
+def my_task():
+    return Task(
+        dataset=...,
+        solver=...,
+        scorer=[match(), reward_hacking()],
+    )
+```
+
+The scanner’s `Result` is converted to a [Score](./reference/inspect_ai.scorer.html.md#score) and aggregated by the metrics attached via `@scanner(metrics=...)`. Output lands in the eval log’s scores (not in `scans/`) and is aggregated like any other scorer.
+
+See the [Inspect Scout documentation](https://meridianlabs-ai.github.io/inspect_scout/custom_scanner.html#scanners-as-scorers) for more information on which `Result.value` shapes are valid score values and how to attach metrics to a scanner.
+
+## Writing Scanners
+
+A scanner is an async function, decorated with `@scanner`, that examines a [Transcript](./reference/inspect_ai.log.html.md#transcript) and returns a `Result` (or `None`). For many applications you can use the high-level `llm_scanner()`, which uses a model for transcript analysis. For example:
+
+    scanner.py
+
+``` python
+from inspect_scout import Scanner, Transcript, llm_scanner, scanner
+
+@scanner(messages="all")
+def ctf_environment() -> Scanner[Transcript]:
+    return llm_scanner(
+        question="In the transcript above do you detect "
+        "instances of environment misconfiguration "
+        "preventing the agent from completing its task?",
+        answer="boolean"
+    )
+```
+
+The `messages=` argument to `@scanner` controls which message roles the scanner sees (`'all'`, `'assistant'`, `'user'`, or a list of roles).
+
+The `llm_scanner()` supports a wide variety of model answer types including boolean, number, string, classification (single or multi), and structured JSON output. For additional details, see the [LLM Scanner](https://meridianlabs-ai.github.io/inspect_scout/llm_scanner.html) article.
+
+### Text Pattern Scanning
+
+Using an LLM to search transcripts is often required for more nuanced judgements, but if you are just looking for text patterns, you can also use the `grep_scanner()`. For example, here we search assistant messages for references to phrases that might indicate secrets:
+
+``` python
+from inspect_scout import Transcript, grep_scanner, scanner
+
+@scanner(messages=["assistant"])
+def secrets() -> Scanner[Transcript]:
+    return grep_scanner(["password", "secret", "token"])
+```
+
+For additional details on using this scanner, see the [Grep Scanner](https://meridianlabs-ai.github.io/inspect_scout/grep_scanner.html) article.
+
+### Custom Scanners
+
+If the higher-level LLM and Grep scanners don’t meet your requirements, you can write custom scanners with whatever behaviour you need. See [Custom Scanners](https://meridianlabs-ai.github.io/inspect_scout/custom_scanner.html) for additional details.
+
+## Learning More
+
+Inspect Scout documentation:
+
+- [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/): main documentation site, including reference and tutorials.
+
+- [Workflow](https://meridianlabs-ai.github.io/inspect_scout/workflow.html): the full lifecycle of scanner development, validation, and deployment.
+
+- [Validation](https://meridianlabs-ai.github.io/inspect_scout/validation.html): measuring scanner accuracy against human-labelled transcripts.
+
+- [Transcripts](https://meridianlabs-ai.github.io/inspect_scout/transcripts.html): reading and filtering transcripts, including from non-Inspect sources.
+
+Papers on log analysis for AI evaluation:
+
+- [Log analysis is necessary for credible evaluation of AI agents](https://arxiv.org/abs/2605.08545v1) (Kirgis et al.): the case for log analysis, and what pass/fail outcomes can hide.
+
+- [Seven simple steps for log analysis in AI systems](https://arxiv.org/abs/2604.09563) (Dubois et al.): a standardised methodology for analysing AI evaluation logs.
+
+
 # Using Models – Inspect
 
 ## Overview
@@ -4410,6 +4676,8 @@ inspect eval math.py \
 ```
 
 Note that the built-in [model-graded scorers](./scorers.html.md#model-graded) (e.g. [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa), [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact)) look for the `grader` role by default.
+
+Model roles can also be specified in a `--run-config` file alongside the full eval configuration. See [Run Config File](./task-configuration.html.md#run-config).
 
 For how model roles fit into the broader override and precedence model, see [Task Configuration](./task-configuration.html.md#model-roles).
 
@@ -4966,6 +5234,7 @@ The following model args are supported:
 | `stream` | Enable streaming responses (default: `false`). |
 | `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
 | `inference_component_name` | Name of the inference component for multi-model endpoints. |
+| `prompt_logprobs` | Number of prompt log probabilities to return per token. Used for perplexity scoring with vLLM-backed endpoints. |
 
 For example:
 
@@ -5006,10 +5275,42 @@ inspect eval arc.py --model sagemaker/my-cpt-endpoint \
   --top-logprobs 5
 ```
 
-Prompt log probabilities for CPT models can be passed as a model argument:
+> **NOTE: Note**
+>
+> Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
+
+### Prompt Logprobs & Perplexity
+
+The SageMaker provider supports prompt log probabilities and the [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity) and [target_perplexity()](./reference/inspect_ai.scorer.html.md#target_perplexity) scorers when backed by a vLLM endpoint.
+
+In **chat mode**, set `prompt_logprobs` via [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) or the `-G` CLI flag:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import GenerateConfig
+from inspect_ai.scorer import perplexity
+from inspect_ai.solver import generate
+
+@task
+def perplexity_eval():
+    return Task(
+        dataset=[Sample(input="The capital of France is Paris")],
+        solver=[generate(max_tokens=1)],
+        scorer=perplexity(),
+        config=GenerateConfig(prompt_logprobs=1),
+    )
+```
 
 ``` bash
-inspect eval perplexity_eval.py --model sagemaker/my-cpt-endpoint \
+inspect eval perplexity_eval.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2
+```
+
+In **completion mode**, pass `prompt_logprobs` as a model argument:
+
+``` bash
+inspect eval perplexity_eval.py --model sagemaker/my-endpoint \
   -M region_name=us-west-2 \
   -M completion_mode=true \
   -M prompt_logprobs=1
@@ -5017,7 +5318,7 @@ inspect eval perplexity_eval.py --model sagemaker/my-cpt-endpoint \
 
 > **NOTE: Note**
 >
-> Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
+> The [target_perplexity()](./reference/inspect_ai.scorer.html.md#target_perplexity) scorer’s auto-tokenization feature is not available for SageMaker (the vLLM `/tokenize` endpoint is not reachable through `invoke_endpoint`). Provide `num_target_tokens` in sample metadata instead.
 
 Authentication uses your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role). The endpoint must be accessible from your environment.
 
@@ -5305,7 +5606,7 @@ pip install vllm
 inspect eval arc.py --model vllm/openai-community/gpt2
 ```
 
-For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference).
+For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference). Top-level model arg names are converted to CLI flag form (for example, `tensor_parallel_size` becomes `--tensor-parallel-size`). Dotted vLLM arguments preserve nested field names after the dot, so `-M speculative-config.num_speculative_tokens=1` is forwarded as `--speculative-config.num_speculative_tokens 1`.
 
 The following environment variables are supported by the vLLM provider:
 
@@ -5738,6 +6039,12 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 
 In addition, [Tool Emulation](#tool-emulation-openai) is available for models that don’t yet support tool calling in their API.
 
+For `openrouter/anthropic/*` models, Anthropic [prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled by default: per-block `cache_control` markers are inserted on the last system block, the last tool definition, and a rolling pair of message-level breakpoints (mirroring the placement used by the direct `anthropic` provider). The markers are accepted by OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Cache writes returned upstream are surfaced as `ModelUsage.input_tokens_cache_write`. Pass `--cache-prompt=false` (or set `cache_prompt=False` in [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig)) to disable. Single-turn evaluations that never re-issue the same prefix pay a small premium (Anthropic charges ~1.25× for cache writes) with no offsetting cache reads — disable caching for those workloads.
+
+Note that OpenRouter may distribute consecutive requests for the same model across multiple Anthropic-compatible backends (Anthropic-direct, Bedrock, Vertex), and each backend maintains its own prompt cache. To maximise the cache hit rate across a multi-turn run, pin routing to a single backend via the `provider` model-arg, for example `-M provider='{"order":["anthropic"],"allow_fallbacks":false}'`.
+
+The `cache_control` markers are injected just before the request reaches OpenRouter and so will not appear in the request snapshot recorded in `.eval` log files. Verify caching is active by inspecting the usage line (cache reads/writes) on returned [ModelOutput](./reference/inspect_ai.model.html.md#modeloutput)s.
+
 The following environment variables are supported by the OpenRouter AI provider
 
 | Variable | Description |
@@ -5939,180 +6246,72 @@ Where the prefixes on reported token counts stand for:
 Input token cache writes will typically cost more (in the case of Anthropic roughly 25% more) but cache reads substantially less (for Anthropic 90% less) so for the example above there would have been a substantial savings in cost and execution time. See the [Anthropic Documentation](https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching) for additional details.
 
 
-# Batch Mode – Inspect
-
-## Overview
-
-Inspect supports calling the batch processing APIs for [OpenAI](https://platform.openai.com/docs/guides/batch), [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing), [Google](https://ai.google.dev/gemini-api/docs/batch-mode), [xAI](https://docs.x.ai/developers/advanced-api-usage/batch-api), and [Together AI](https://docs.together.ai/docs/batch-inference) models. Batch processing has lower token costs (typically 50% of normal costs) and higher rate limits, but also substantially longer processing times—batched generations typically complete within an hour but can take much longer (up to 24 hours).
-
-When batch processing is enabled, individual model requests are automatically collected and sent as batches to the provider’s batch API rather than making individual API calls.
-
-> **IMPORTANT: Important**
->
-> When considering whether to use batch processing for an evaluation, you should assess whether your usage pattern is a good fit for batch APIs. Generally evaluations that have a small number of sequential generations (e.g. a QA eval with a model scorer) are a good fit, as these will often complete in a small number of batches without taking many hours.
->
-> On the other hand, evaluations with a large and/or variable number of generations (e.g. agentic tasks) can often take many hours or days due to both the large number of batches that must be waited on and the path dependency created between requests in a batch.
-
-## Enabling Batch Mode
-
-Pass the `--batch` CLI option or `batch=True` to [eval()](./reference/inspect_ai.html.md#eval) in order to enable batch processing for providers that support it. The `--batch` option supports several formats:
-
-``` bash
-# Enable batching with default configuration
-inspect eval arc.py --model openai/gpt-4o --batch
-
-# Specify a batch size (e.g. 1000 requests per batch)
-inspect eval arc.py --model openai/gpt-4o --batch 1000
-
-# Pass a YAML or JSON config file with batch configuration
-inspect eval arc.py --model openai/gpt-4o --batch batch.yml
-```
-
-Or from Python:
-
-``` python
-eval("arc.py", model="openai/gpt-4o", batch=True)
-eval("arc.py", model="openai/gpt-4o", batch=1000)
-```
-
-If a provider does not support batch processing the `batch` option is ignored for that provider.
-
-## Batch Configuration
-
-For more advanced batch processing configuration, you can specify a [BatchConfig](./reference/inspect_ai.model.html.md#batchconfig) object in Python or pass a YAML/JSON config file via the `--batch` option. For example:
-
-``` python
-from inspect_ai.model import BatchConfig
-eval(
-    "arc.py", model="openai/gpt-4o", 
-    batch=BatchConfig(size=200, send_delay=60)
-)
-```
-
-Available [BatchConfig](./reference/inspect_ai.model.html.md#batchconfig) options include:
-
-| Option | Description |
-|----|----|
-| `size` | Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits. |
-| `send_delay` | Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low. |
-| `tick` | Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds. |
-| `max_batches` | Maximum number of batches to have in flight at once for a provider (defaults to 100). |
-
-## Batch Processing Flow
-
-When batch processing is enabled, the following steps are taken when handling generation requests:
-
-1.  **Request Queuing**: Individual model requests are queued rather than sent immediately
-
-2.  **Batch Formation**: Requests are grouped into batches based on size limits and timeouts.
-
-3.  **Batch Submission**: Complete batches are submitted to the provider’s batch API.
-
-4.  **Status Monitoring**: Inspect periodically checks batch completion status.
-
-5.  **Result Distribution**: When batches complete, results are distributed back to the original requests
-
-These steps are transparent to the caller, however do have implications for total evaluation time as discussed above.
-
-## Details and Limitations
-
-See the following documentation for additional provider-specific details on batch processing, including token costs, rate limits, and limitations:
-
-- [Open AI Batch Processing](https://platform.openai.com/docs/guides/batch)
-
-- [Anthropic Batch Processing](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing)
-
-- [Google Batch Mode](https://ai.google.dev/gemini-api/docs/batch-mode)[^1]
-
-- [xAI Batch API](https://docs.x.ai/developers/advanced-api-usage/batch-api)
-
-- [Together AI Batch Inference](https://docs.together.ai/docs/batch-inference)
-
-In general, you should keep the following limitations in mind when using batch processing:
-
-- Batches may take up to 24 hours to complete.
-
-- Evaluations with many turns will wait for many batches (each potentially taking many hours), and samples will generally take longer as requests need to additionally wait on the other requests in their batch before proceeding to the next turn.
-
-- If you are using sandboxes then your machine’s resources may place an upper limit on the number of concurrent samples you have (correlated to the number of CPU cores, which will reduce batch sizes.
-
-## Footnotes
-
-[^1]: Web search and thinking are not currently supported by Google’s batch mode
-
-
 # Model Concurrency – Inspect
 
 ## Overview
 
-Model API rate limits typically constrain evaluation throughput more than anything else. Inspect manages this with per-model concurrency limits (a cap on in-flight requests to a given provider) plus automatic retry on rate-limit and transient errors.
+Connections to model APIs are the most fundamental unit of concurrency to manage. The main thing that limits model API concurrency is not local compute or network availability, but rather *rate limits* imposed by model API providers. Inspect manages this with per-model concurrency limits (a cap on in-flight requests to a given provider) plus automatic retry on rate-limits and transient errors.
 
-Two modes are available:
+Two modes are available for managing connections:
 
-- Static. Set a fixed `--max-connections` value. You need to know the right number for your tier.
+- **Adaptive**. Use `--adaptive-connections` to let Inspect tune the number, scaling up while the provider keeps up and backing off on rate-limit retries.
 
-- Adaptive. Use `--adaptive-connections` to let Inspect tune the number, scaling up while the provider keeps up and backing off on rate-limit retries.
+- **Static**. Set a fixed `--max-connections` value. You need to know the right number for your tier and workload.
 
-This page covers both modes, plus retry tuning and debugging. For other forms of parallelism (multiple tasks, sandbox containers, custom code), see [Parallelism](./parallelism.html.md). For provider-side batch APIs, which run on a separate quota and use a different concurrency model, see [Batch Mode](./models-batch.html.md).
+By default, adaptive concurrency is used with a maximum of 100 concurrent connections per model. This page covers using and customizing both modes, plus retry tuning and debugging.
 
-## Max Connections
-
-Connections to model APIs are the most fundamental unit of concurrency to manage. The main thing that limits model API concurrency is not local compute or network availability, but rather *rate limits* imposed by model API providers. Here we run an evaluation and set the maximum connections to 20:
-
-``` bash
-$ inspect eval --model openai/gpt-4 --max-connections 20
-```
-
-The default value for max connections is 10. By increasing it we might get better performance due to higher parallelism, however we might get *worse* performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The “correct” max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.
-
-> **NOTE:**
->
-> Note that max connections is applied per-model. This means that if you use a grader model from a provider distinct from the one you are evaluating you will get extra concurrency (as each model will enforce its own max connections).
-
-## Rate Limits
-
-When you run an eval you’ll see information reported on the current active connection usage as well as the number of HTTP retries that have occurred (Inspect will automatically retry on rate limits and other errors likely to be transient):
-
-[![The Inspect task results displayed in the terminal. The number of HTTP rate limit errors that have occurred (25) is printed in the bottom right of the task results.](images/rate-limit.png)](images/rate-limit.png)
-
-Here we’ve set a higher max connections than the default (30). While you might be tempted to set this very high to see how much concurrent traffic you can sustain, more often than not setting too high a max connections will result in slower evaluations, because retries are done using [exponential backoff](https://en.wikipedia.org/wiki/Exponential_backoff), and bouncing off of rate limits too frequently will have you waiting minutes for retries to fire.
-
-You should experiment with various values for max connections at different times of day (evening is often very different than daytime!). Generally speaking, you want to see some number of HTTP rate limits enforced so you know that you are somewhere close to ideal utilisation, but if you see hundreds of these you are likely over-saturating and experiencing a net slowdown.
+For other forms of parallelism (multiple tasks, sandbox containers, custom code), see [Parallelism](./parallelism.html.md).
 
 ## Adaptive Connections
 
-Use the `--adaptive-connections` option to automatically scale model concurrency to your available capacity. Adaptive connections starts at a moderate concurrency, grows while the provider keeps up, and backs off on rate-limit retries.
+Use the `--adaptive-connections` option to automatically scale model concurrency to your available capacity. Adaptive connections starts at 20 in-flight per model, grows up to the maximum while the provider keeps up, and backs off on rate-limit retries. Adaptive connections is on by default (with a maximum of 100), so the following commands are equivalent:
 
 ``` bash
-$ inspect eval --model openai/gpt-4o --adaptive-connections true
+inspect eval --model openai/gpt-5
+inspect eval --model openai/gpt-5 --adaptive-connections=100
 ```
 
-Adaptive connection works per-model, starting at 20 concurrent connections and attempting to scale up to 200. When adaptive connections is in effect, `max_samples` automatically tracks the controller’s current limit (set an explicit `max_samples` to override this behavior).
+Adaptive connections are a new feature introduced in Inspect v0.3.217. If you previously used `--max-connections` we recommend migrating to `--adaptive-connections`, as you will ramp up to the same maximum concurrency with less exposure to exponential backoff from rate limits.
+
+> **NOTE: Note**
+>
+> When adaptive connections is in effect, `max_samples` automatically tracks the controller’s current limit. Set an explicit `max_samples` to override this behavior.
 
 ### Bounds Tuning
 
-Bounds (`min`, `start`, `max`) can be used to tune the behavior of adaptive connections: `start` is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), and `max` is the ceiling.
+Tune the bounds with `min`, `start`, and `max`: `start` is where the controller begins (it doubles aggressively during slow-start until the first rate-limit episode), and `max` is the ceiling.
 
-Pass a string shorthand. `min-max` constrains the range (`start` defaults to 20, clamped into the range):
+Set `max` higher than where you expect the controller to settle, since it’s a ceiling for the search, not a target. If you’re seeing the controller pin at `max` without ever scaling down, you likely have headroom: raise `max` until you observe occasional rate-limit cuts, which is the controller’s signal that it’s operating at the edge of your tier.
+
+The simplest form of bounds tuning is a single integer setting just the maximum:
 
 ``` bash
-$ inspect eval --model openai/gpt-4o --adaptive-connections 4-80
+inspect eval --model openai/gpt-5 --adaptive-connections 50
+inspect eval --model openai/gpt-5 --adaptive-connections 200
+```
+
+`min-max` constrains the range (`start` defaults to 20, clamped into the range):
+
+``` bash
+inspect eval --model openai/gpt-5 --adaptive-connections 5-50
+inspect eval --model openai/gpt-5 --adaptive-connections 10-200
 ```
 
 `min-start-max` also sets the starting value:
 
 ``` bash
-$ inspect eval --model openai/gpt-4o --adaptive-connections 4-40-80
+inspect eval --model openai/gpt-5 --adaptive-connections 5-10-50
+inspect eval --model openai/gpt-5 --adaptive-connections 10-20-200
 ```
 
-In Python, pass `True` for defaults or an [AdaptiveConcurrency](./reference/inspect_ai.util.html.md#adaptiveconcurrency) to customize:
+In Python, pass `True` for defaults, `False` to disable adaptive (uses static `max_connections` instead), `int` to set the maximum, or an [AdaptiveConcurrency](./reference/inspect_ai.util.html.md#adaptiveconcurrency) to customize:
 
 ``` python
 from inspect_ai.util import AdaptiveConcurrency
 
 eval(
     "task.py",
-    model="openai/gpt-4o",
+    model="openai/gpt-5",
     adaptive_connections=AdaptiveConcurrency(min=4, max=80),
 )
 ```
@@ -6142,7 +6341,7 @@ from inspect_ai.util import AdaptiveConcurrency
 
 eval(
     "task.py",
-    model="openai/gpt-4o",
+    model="openai/gpt-5",
     adaptive_connections=AdaptiveConcurrency(
         min=4,
         max=80,
@@ -6191,6 +6390,26 @@ You can also view all of the HTTP requests for the current (or most recent) eval
 inspect trace http           # show all http requests
 inspect trace http --failed  # show only failed requests
 ```
+
+## Static Connections
+
+If you prefer a static limit for connections, use `--max-connections` rather than `--adaptive-connections`. For example:
+
+``` bash
+$ inspect eval --model openai/gpt-4 --max-connections 20
+```
+
+When both `--max-connections` and `--adaptive-connections` are set, the explicit `max_connections` value takes precedence and adaptive is disabled. To opt out of adaptive without picking a specific cap (the provider’s default applies), pass `--adaptive-connections false`:
+
+``` bash
+inspect eval --model openai/gpt-4 --adaptive-connections false
+```
+
+[Batch mode](./models-batch.html.md) likewise uses static concurrency regardless of `--adaptive-connections`.
+
+Increasing the max connections might yield better performance due to higher parallelism, however it might also result in *worse* performance if this causes us to frequently hit rate limits (which are retried with exponential backoff). The “correct” max connections for your evaluations will vary based on your actual rate limit and the size and complexity of your evaluations.
+
+Since it can be difficult to tune this value (especially across different times of day), you are generally much better off using [Adaptive Connections](#adaptive-connections) which will dynamically find the maximum throughput that can be supported.
 
 ## Learning More
 
@@ -7114,6 +7333,108 @@ config = GenerateConfig(
     }
 )
 ```
+
+
+# Batch Mode – Inspect
+
+## Overview
+
+Inspect supports calling the batch processing APIs for [OpenAI](https://platform.openai.com/docs/guides/batch), [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing), [Google](https://ai.google.dev/gemini-api/docs/batch-mode), [xAI](https://docs.x.ai/developers/advanced-api-usage/batch-api), and [Together AI](https://docs.together.ai/docs/batch-inference) models. Batch processing has lower token costs (typically 50% of normal costs) and higher rate limits, but also substantially longer processing times—batched generations typically complete within an hour but can take much longer (up to 24 hours).
+
+When batch processing is enabled, individual model requests are automatically collected and sent as batches to the provider’s batch API rather than making individual API calls.
+
+> **IMPORTANT: Important**
+>
+> When considering whether to use batch processing for an evaluation, you should assess whether your usage pattern is a good fit for batch APIs. Generally evaluations that have a small number of sequential generations (e.g. a QA eval with a model scorer) are a good fit, as these will often complete in a small number of batches without taking many hours.
+>
+> On the other hand, evaluations with a large and/or variable number of generations (e.g. agentic tasks) can often take many hours or days due to both the large number of batches that must be waited on and the path dependency created between requests in a batch.
+
+## Enabling Batch Mode
+
+Pass the `--batch` CLI option or `batch=True` to [eval()](./reference/inspect_ai.html.md#eval) in order to enable batch processing for providers that support it. The `--batch` option supports several formats:
+
+``` bash
+# Enable batching with default configuration
+inspect eval arc.py --model openai/gpt-4o --batch
+
+# Specify a batch size (e.g. 1000 requests per batch)
+inspect eval arc.py --model openai/gpt-4o --batch 1000
+
+# Pass a YAML or JSON config file with batch configuration
+inspect eval arc.py --model openai/gpt-4o --batch batch.yml
+```
+
+Or from Python:
+
+``` python
+eval("arc.py", model="openai/gpt-4o", batch=True)
+eval("arc.py", model="openai/gpt-4o", batch=1000)
+```
+
+If a provider does not support batch processing the `batch` option is ignored for that provider.
+
+## Batch Configuration
+
+For more advanced batch processing configuration, you can specify a [BatchConfig](./reference/inspect_ai.model.html.md#batchconfig) object in Python or pass a YAML/JSON config file via the `--batch` option. For example:
+
+``` python
+from inspect_ai.model import BatchConfig
+eval(
+    "arc.py", model="openai/gpt-4o", 
+    batch=BatchConfig(size=200, send_delay=60)
+)
+```
+
+Available [BatchConfig](./reference/inspect_ai.model.html.md#batchconfig) options include:
+
+| Option | Description |
+|----|----|
+| `size` | Target number of requests to include in each batch. If not specified, uses provider-specific defaults (OpenAI: 100, Anthropic: 100). Batches may be smaller if the timeout is reached or if requests don’t fit within size limits. |
+| `send_delay` | Maximum time (in seconds) to wait before sending a partially filled batch. If not specified, uses a default of 15 seconds. This prevents indefinite waiting when request volume is low. |
+| `tick` | Time interval (in seconds) between checking for new batch requests and batch completion status. If not specified, uses a default of 15 seconds. |
+| `max_batches` | Maximum number of batches to have in flight at once for a provider (defaults to 100). |
+
+## Batch Processing Flow
+
+When batch processing is enabled, the following steps are taken when handling generation requests:
+
+1.  **Request Queuing**: Individual model requests are queued rather than sent immediately
+
+2.  **Batch Formation**: Requests are grouped into batches based on size limits and timeouts.
+
+3.  **Batch Submission**: Complete batches are submitted to the provider’s batch API.
+
+4.  **Status Monitoring**: Inspect periodically checks batch completion status.
+
+5.  **Result Distribution**: When batches complete, results are distributed back to the original requests
+
+These steps are transparent to the caller, however do have implications for total evaluation time as discussed above.
+
+## Details and Limitations
+
+See the following documentation for additional provider-specific details on batch processing, including token costs, rate limits, and limitations:
+
+- [Open AI Batch Processing](https://platform.openai.com/docs/guides/batch)
+
+- [Anthropic Batch Processing](https://docs.anthropic.com/en/docs/build-with-claude/batch-processing)
+
+- [Google Batch Mode](https://ai.google.dev/gemini-api/docs/batch-mode)[^1]
+
+- [xAI Batch API](https://docs.x.ai/developers/advanced-api-usage/batch-api)
+
+- [Together AI Batch Inference](https://docs.together.ai/docs/batch-inference)
+
+In general, you should keep the following limitations in mind when using batch processing:
+
+- Batches may take up to 24 hours to complete.
+
+- Evaluations with many turns will wait for many batches (each potentially taking many hours), and samples will generally take longer as requests need to additionally wait on the other requests in their batch before proceeding to the next turn.
+
+- If you are using sandboxes then your machine’s resources may place an upper limit on the number of concurrent samples you have (correlated to the number of CPU cores, which will reduce batch sizes.
+
+## Footnotes
+
+[^1]: Web search and thinking are not currently supported by Google’s batch mode
 
 
 # Using Agents – Inspect
@@ -9187,7 +9508,7 @@ See the [Custom Tools](./tools-custom.html.md) article for details on more advan
 
 - [Standard Tools](./tools-standard.html.md) describes Inspect’s built-in tools for code execution, text editing computer use, web search, and web browsing.
 
-- [MCP Tools](./tools-mcp.html.md) covers how to intgrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
+- [MCP Tools](./tools-mcp.html.md) covers how to integrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
 
 - [Custom Tools](./tools-custom.html.md) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.
 
@@ -9470,11 +9791,11 @@ The schema for the [text_editor()](./reference/inspect_ai.tool.html.md#text_edit
 
 The [computer()](./reference/inspect_ai.tool.html.md#computer) tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool work better with models that have been trained for computer use. As of Q1 2026 the recommended models for computer use include:
 
-| Provider  | Models                                                     |
-|-----------|------------------------------------------------------------|
-| Anthropic | `claude-opus-4-6` , `claude-opus-4-5`, `claude-sonnet-4-6` |
-| Open AI   | `gpt-5.4`, `gpt-5.4-pro`                                   |
-| Google    | `gemini-3-flash-preview`                                   |
+| Provider  | Models                                  |
+|-----------|-----------------------------------------|
+| Anthropic | `claude-opus-4-5+`, `claude-sonnet-4-6` |
+| Open AI   | `gpt-5.4+`, `gpt-5.4-pro+`              |
+| Google    | `gemini-3-flash-preview`                |
 
 ### Configuration
 
@@ -11715,7 +12036,7 @@ This article will focus primarily on configuring Inspect’s logging behavior (l
 
 2.  [Log Dataframes](./dataframe.html.md) — API for extracting data frames from log files.
 
-3.  [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) — Transcript analysis tool that can work directly with Inspect logs.
+3.  [Inspect Scout](./scanners.html.md) — Transcript analysis tool that can work directly with Inspect logs.
 
 4.  [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) — Data visualization framework built to work with Inspect logs.
 
@@ -14008,6 +14329,22 @@ def myagent() -> Solver:
 > **IMPORTANT: Important**
 >
 > It’s important to note that [token_limit()](./reference/inspect_ai.util.html.md#token_limit) is for all tokens used *while the context manager is open*. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
+
+#### Suspending Token Limits
+
+To run a block of code that should not count against any active token limits, use [suspend_token_limit()](./reference/inspect_ai.util.html.md#suspend_token_limit):
+
+``` python
+with token_limit(10_000):
+    await generate()  # counts against the 10k budget
+    with suspend_token_limit():
+        # tokens used here are not metered against the 10k limit,
+        # and any inner `token_limit()` is also suspended
+        await expensive_summary()
+    await generate()  # counts again
+```
+
+Unlike `with token_limit(None):`, which only suppresses the innermost limit’s check, [suspend_token_limit()](./reference/inspect_ai.util.html.md#suspend_token_limit) fully disables both recording and checking across all active token limits for the duration of the block.
 
 ### Cost Limit
 

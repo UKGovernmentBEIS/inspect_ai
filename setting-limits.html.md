@@ -366,6 +366,22 @@ def myagent() -> Solver:
 >
 > It’s important to note that [token_limit()](./reference/inspect_ai.util.html.md#token_limit) is for all tokens used *while the context manager is open*. If you want to limit the number of tokens that can be yielded from a single call to the model you should use the `max_tokens` generation option.
 
+#### Suspending Token Limits
+
+To run a block of code that should not count against any active token limits, use [suspend_token_limit()](./reference/inspect_ai.util.html.md#suspend_token_limit):
+
+``` python
+with token_limit(10_000):
+    await generate()  # counts against the 10k budget
+    with suspend_token_limit():
+        # tokens used here are not metered against the 10k limit,
+        # and any inner `token_limit()` is also suspended
+        await expensive_summary()
+    await generate()  # counts again
+```
+
+Unlike `with token_limit(None):`, which only suppresses the innermost limit’s check, [suspend_token_limit()](./reference/inspect_ai.util.html.md#suspend_token_limit) fully disables both recording and checking across all active token limits for the duration of the block.
+
 ### Cost Limit
 
 Cost is computed from token usage and model cost data (see [Model Cost](#model-cost)). Cost limits are checked whenever [generate()](./reference/inspect_ai.solver.html.md#generate) is called.

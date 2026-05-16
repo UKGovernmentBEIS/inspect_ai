@@ -116,6 +116,6 @@ See the [Custom Tools](./tools-custom.html.md) article for details on more advan
 
 - [Standard Tools](./tools-standard.html.md) describes Inspect’s built-in tools for code execution, text editing computer use, web search, and web browsing.
 
-- [MCP Tools](./tools-mcp.html.md) covers how to intgrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
+- [MCP Tools](./tools-mcp.html.md) covers how to integrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
 
 - [Custom Tools](./tools-custom.html.md) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.

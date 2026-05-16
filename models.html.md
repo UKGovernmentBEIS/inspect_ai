@@ -222,6 +222,8 @@ inspect eval math.py \
 
 Note that the built-in [model-graded scorers](./scorers.html.md#model-graded) (e.g. [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa), [model_graded_fact()](./reference/inspect_ai.scorer.html.md#model_graded_fact)) look for the `grader` role by default.
 
+Model roles can also be specified in a `--run-config` file alongside the full eval configuration. See [Run Config File](./task-configuration.html.md#run-config).
+
 For how model roles fit into the broader override and precedence model, see [Task Configuration](./task-configuration.html.md#model-roles).
 
 ### Role Resolution

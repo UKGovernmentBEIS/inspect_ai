@@ -458,6 +458,7 @@ The following model args are supported:
 | `stream` | Enable streaming responses (default: `false`). |
 | `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
 | `inference_component_name` | Name of the inference component for multi-model endpoints. |
+| `prompt_logprobs` | Number of prompt log probabilities to return per token. Used for perplexity scoring with vLLM-backed endpoints. |
 
 For example:
 
@@ -498,10 +499,42 @@ inspect eval arc.py --model sagemaker/my-cpt-endpoint \
   --top-logprobs 5
 ```
 
-Prompt log probabilities for CPT models can be passed as a model argument:
+> **NOTE: Note**
+>
+> Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
+
+### Prompt Logprobs & Perplexity
+
+The SageMaker provider supports prompt log probabilities and the [perplexity()](./reference/inspect_ai.scorer.html.md#perplexity) and [target_perplexity()](./reference/inspect_ai.scorer.html.md#target_perplexity) scorers when backed by a vLLM endpoint.
+
+In **chat mode**, set `prompt_logprobs` via [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) or the `-G` CLI flag:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import GenerateConfig
+from inspect_ai.scorer import perplexity
+from inspect_ai.solver import generate
+
+@task
+def perplexity_eval():
+    return Task(
+        dataset=[Sample(input="The capital of France is Paris")],
+        solver=[generate(max_tokens=1)],
+        scorer=perplexity(),
+        config=GenerateConfig(prompt_logprobs=1),
+    )
+```
 
 ``` bash
-inspect eval perplexity_eval.py --model sagemaker/my-cpt-endpoint \
+inspect eval perplexity_eval.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2
+```
+
+In **completion mode**, pass `prompt_logprobs` as a model argument:
+
+``` bash
+inspect eval perplexity_eval.py --model sagemaker/my-endpoint \
   -M region_name=us-west-2 \
   -M completion_mode=true \
   -M prompt_logprobs=1
@@ -509,7 +542,7 @@ inspect eval perplexity_eval.py --model sagemaker/my-cpt-endpoint \
 
 > **NOTE: Note**
 >
-> Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
+> The [target_perplexity()](./reference/inspect_ai.scorer.html.md#target_perplexity) scorer’s auto-tokenization feature is not available for SageMaker (the vLLM `/tokenize` endpoint is not reachable through `invoke_endpoint`). Provide `num_target_tokens` in sample metadata instead.
 
 Authentication uses your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role). The endpoint must be accessible from your environment.
 
@@ -797,7 +830,7 @@ pip install vllm
 inspect eval arc.py --model vllm/openai-community/gpt2
 ```
 
-For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference).
+For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference). Top-level model arg names are converted to CLI flag form (for example, `tensor_parallel_size` becomes `--tensor-parallel-size`). Dotted vLLM arguments preserve nested field names after the dot, so `-M speculative-config.num_speculative_tokens=1` is forwarded as `--speculative-config.num_speculative_tokens 1`.
 
 The following environment variables are supported by the vLLM provider:
 
@@ -1229,6 +1262,12 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 | [`reasoning_enabled`](https://openrouter.ai/docs/use-cases/reasoning-tokens) | `-M "reasoning_enabled=false"` |
 
 In addition, [Tool Emulation](#tool-emulation-openai) is available for models that don’t yet support tool calling in their API.
+
+For `openrouter/anthropic/*` models, Anthropic [prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled by default: per-block `cache_control` markers are inserted on the last system block, the last tool definition, and a rolling pair of message-level breakpoints (mirroring the placement used by the direct `anthropic` provider). The markers are accepted by OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Cache writes returned upstream are surfaced as `ModelUsage.input_tokens_cache_write`. Pass `--cache-prompt=false` (or set `cache_prompt=False` in [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig)) to disable. Single-turn evaluations that never re-issue the same prefix pay a small premium (Anthropic charges ~1.25× for cache writes) with no offsetting cache reads — disable caching for those workloads.
+
+Note that OpenRouter may distribute consecutive requests for the same model across multiple Anthropic-compatible backends (Anthropic-direct, Bedrock, Vertex), and each backend maintains its own prompt cache. To maximise the cache hit rate across a multi-turn run, pin routing to a single backend via the `provider` model-arg, for example `-M provider='{"order":["anthropic"],"allow_fallbacks":false}'`.
+
+The `cache_control` markers are injected just before the request reaches OpenRouter and so will not appear in the request snapshot recorded in `.eval` log files. Verify caching is active by inspecting the usage line (cache reads/writes) on returned [ModelOutput](./reference/inspect_ai.model.html.md#modeloutput)s.
 
 The following environment variables are supported by the OpenRouter AI provider
 

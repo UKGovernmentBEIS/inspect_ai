@@ -68,7 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./models.html" rel="next">
+<link href="./scanners.html" rel="next">
 <link href="./solvers.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
@@ -275,6 +275,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Scorers</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scanners.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scanners</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -306,12 +312,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Batch Mode</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./models-concurrency.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Concurrency</span></a>
   </div>
@@ -338,6 +338,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./structured.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Structured Output</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Batch Mode</span></a>
   </div>
 </li>
       </ul>
@@ -680,7 +686,7 @@ Note
 </section>
 <section id="perplexity" class="level2">
 <h2 class="anchored" data-anchor-id="perplexity">Perplexity</h2>
-<p>Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the <code>prompt_logprobs</code> configuration option, which is currently supported by the <a href="./providers.html#vllm">vLLM</a> provider.</p>
+<p>Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the <code>prompt_logprobs</code> configuration option, which is currently supported by the <a href="./providers.html#vllm">vLLM</a> and <a href="./providers.html#aws-sagemaker">SageMaker</a> providers (SageMaker requires a vLLM-backed endpoint).</p>
 <ul>
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#perplexity">perplexity()</a></span> scores all prompt tokens by computing per-token negative log-likelihood (NLL). This is used for full-text perplexity benchmarks (WikiText, C4) where the entire input is evaluated. It corresponds to the evaluation approach described in the <a href="https://huggingface.co/docs/transformers/en/perplexity">HuggingFace Transformers documentation</a>.</p></li>
 <li><p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#target_perplexity">target_perplexity()</a></span> scores only the trailing target tokens, given a prompt context. This corresponds to the <code>loglikelihood</code> evaluation pattern in the <a href="https://github.com/EleutherAI/lm-evaluation-harness">EleutherAI lm-evaluation-harness</a>. The number of target tokens is resolved in order from: the <code>num_target_tokens</code> argument, <code>state.metadata["num_target_tokens"]</code>, auto-tokenization of <code>state.metadata["target_text"]</code>, or a default of 1.</p></li>
@@ -2065,8 +2071,8 @@ document.addEventListener("DOMContentLoaded", function () {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./models.html" class="pagination-link" aria-label="Using Models">
-        <span class="nav-page-text">Using Models</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./scanners.html" class="pagination-link" aria-label="Scanners">
+        <span class="nav-page-text">Scanners</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

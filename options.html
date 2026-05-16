@@ -275,6 +275,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Scorers</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scanners.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scanners</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -306,12 +312,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Batch Mode</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./models-concurrency.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Concurrency</span></a>
   </div>
@@ -338,6 +338,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./structured.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Structured Output</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Batch Mode</span></a>
   </div>
 </li>
       </ul>
@@ -543,6 +549,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
   <li><a href="#env-files" id="toc-env-files" class="nav-link" data-scroll-target="#env-files">.env Files</a></li>
   <li><a href="#specifying-options" id="toc-specifying-options" class="nav-link" data-scroll-target="#specifying-options">Specifying Options</a></li>
+  <li><a href="#run-configuration" id="toc-run-configuration" class="nav-link" data-scroll-target="#run-configuration">Run Configuration</a></li>
   <li><a href="#model-provider" id="toc-model-provider" class="nav-link" data-scroll-target="#model-provider">Model Provider</a></li>
   <li><a href="#model-generation" id="toc-model-generation" class="nav-link" data-scroll-target="#model-generation">Model Generation</a></li>
   <li><a href="#tasks-and-solvers" id="toc-tasks-and-solvers" class="nav-link" data-scroll-target="#tasks-and-solvers">Tasks and Solvers</a></li>
@@ -660,6 +667,21 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tbody>
 </table>
 <p>For more detail on the different methods of configuration, see <a href="./task-configuration.html">Task Configuration</a>.</p>
+</section>
+<section id="run-configuration" class="level2">
+<h2 class="anchored" data-anchor-id="run-configuration">Run Configuration</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 37%">
+<col style="width: 63%">
+</colgroup>
+<tbody>
+<tr class="odd">
+<td><code>--run-config</code></td>
+<td>YAML or JSON file with the complete run configuration — task, model, model roles, generate config, solver, and eval config — in one place. Explicit CLI flags override values from this file. Cannot be combined with <code>--generate-config</code>, <code>--task-config</code>, or <code>--solver-config</code>. See <a href="./task-configuration.html#run-config">Run Config File</a>.</td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="model-provider" class="level2">
 <h2 class="anchored" data-anchor-id="model-provider">Model Provider</h2>

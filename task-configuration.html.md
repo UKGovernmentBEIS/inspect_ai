@@ -260,7 +260,9 @@ temperature: 0.5
 max_tokens: 2048
 ```
 
-The `--generate-config` option is useful when you want to bundle a set of generation parameters together, for example to capture the parameters specified in a paper for reproducibility. Individual CLI flags (e.g. `--temperature`) take precedence over values in the config file.
+The `--generate-config` option is useful when you want to bundle a set of generation parameters together. Individual CLI flags (e.g. `--temperature`) take precedence over values in the config file.
+
+To bundle generation parameters alongside the full eval configuration (task, model, model roles, solver), use `--run-config` instead. See [Run Config File](#run-config).
 
 ## Model Roles
 
@@ -278,6 +280,68 @@ Inside a solver or scorer, resolve the role with [get_model()](./reference/inspe
 ``` python
 model = get_model(role="grader", default="openai/gpt-4o")
 ```
+
+## Run Config File
+
+The `--run-config` option lets you specify a single YAML or JSON file that captures a complete eval configuration — task, model, model roles, generation parameters, solver, and eval settings — in one place. CLI flags still override values from the file.
+
+``` bash
+inspect eval --run-config run.yaml
+```
+
+The file schema mirrors the structure of the corresponding [eval()](./reference/inspect_ai.html.md#eval) parameters:
+
+    run.yaml
+
+``` yaml
+task:
+  task: inspect_evals/simpleqa
+  args:
+    split: test
+
+model:
+  model: anthropic/claude-sonnet-4-5
+  args:
+    max_retries: 3
+
+model_roles:
+  grader:
+    model: openai/gpt-4o
+    config:
+      temperature: 0.0
+
+generate_config:
+  temperature: 0.5
+  max_tokens: 4096
+  seed: 42
+
+solver:
+  solver: my_solvers.py@chain_of_thought
+  args:
+    cot_template: detailed
+
+eval_config:
+  limit: 100
+  epochs: 3
+  message_limit: 50
+```
+
+All top-level keys are optional, which makes it easy to create **“paper config” files** that record the generation and eval settings from a paper without hard-coding a specific model. Users can then supply the model on the CLI:
+
+``` bash
+# paper_config.yaml specifies only generate_config, eval_config, and model_roles
+inspect eval inspect_evals/simpleqa \
+    --model anthropic/claude-sonnet-4-5 \
+    --run-config paper_config.yaml
+```
+
+CLI flags override values from the file. For example, to run with a different temperature than the file specifies:
+
+``` bash
+inspect eval --run-config run.yaml --temperature 0.9
+```
+
+`--run-config` cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. Use `--run-config` when you want a single file; use the individual options when you want to compose configuration from multiple files.
 
 ## Solver Override
 
@@ -381,6 +445,7 @@ When consuming a task from a package (like `inspect_evals`) and you need to cust
 | Different model | [eval()](./reference/inspect_ai.html.md#eval) / `--model` |
 | Different temperature or max_tokens | [eval()](./reference/inspect_ai.html.md#eval) / `--temperature` / `--max-tokens` |
 | Bundle of generation params | `--generate-config config.yaml` |
+| Full run config (paper reproduction) | `--run-config run.yaml` |
 | Different solver | `eval(solver=...)` / `--solver` / [task_with()](./reference/inspect_ai.html.md#task_with) |
 | Different scorer | `task_with(task, scorer=...)` |
 | Different grader model | `--model-role grader=...` / `eval(model_roles=)` |

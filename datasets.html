@@ -275,6 +275,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Scorers</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scanners.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scanners</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -306,12 +312,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Batch Mode</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./models-concurrency.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Concurrency</span></a>
   </div>
@@ -338,6 +338,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./structured.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Structured Output</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./models-batch.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Batch Mode</span></a>
   </div>
 </li>
       </ul>
@@ -815,6 +821,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  ...</span>
 <span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Under the hood, the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#hf_dataset">hf_dataset()</a></span> function is calling the <a href="https://huggingface.co/docs/datasets/en/package_reference/loading_methods#datasets.load_dataset">load_dataset()</a> function in the Hugging Face datasets package. You can additionally pass arbitrary parameters on to <code>load_dataset()</code> by including them in the call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#hf_dataset">hf_dataset()</a></span>. For example <code>hf_dataset(..., cache_dir="~/my-cache-dir")</code>.</p>
+<p>By default, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.dataset.html#hf_dataset">hf_dataset()</a></span> retries transient Hugging Face errors (rate limits, timeouts, and Hub-unreachable cache misses) with exponential backoff. Pass <code>retry=False</code> to disable.</p>
 </section>
 <section id="amazon-s3" class="level2">
 <h2 class="anchored" data-anchor-id="amazon-s3">Amazon S3</h2>

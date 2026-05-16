@@ -28,7 +28,7 @@ This article will focus primarily on configuring Inspect’s logging behavior (l
 
 2.  [Log Dataframes](./dataframe.html.md) — API for extracting data frames from log files.
 
-3.  [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) — Transcript analysis tool that can work directly with Inspect logs.
+3.  [Inspect Scout](./scanners.html.md) — Transcript analysis tool that can work directly with Inspect logs.
 
 4.  [Inspect Viz](https://meridianlabs-ai.github.io/inspect_viz/) — Data visualization framework built to work with Inspect logs.
 

@@ -151,12 +151,12 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#may-2026" id="toc-may-2026" class="nav-link" data-scroll-target="#may-2026">0.3.220 (08 May 2026)</a></li>
-  <li><a href="#may-2026-1" id="toc-may-2026-1" class="nav-link" data-scroll-target="#may-2026-1">0.3.219 (06 May 2026)</a></li>
-  <li><a href="#may-2026-2" id="toc-may-2026-2" class="nav-link" data-scroll-target="#may-2026-2">0.3.218 (06 May 2026)</a></li>
-  <li><a href="#may-2026-3" id="toc-may-2026-3" class="nav-link" data-scroll-target="#may-2026-3">0.3.217 (03 May 2026)</a></li>
-  <li><a href="#may-2026-4" id="toc-may-2026-4" class="nav-link" data-scroll-target="#may-2026-4">0.3.216 (01 May 2026)</a></li>
+  <li><a href="#may-2026" id="toc-may-2026" class="nav-link active" data-scroll-target="#may-2026">0.3.221 (16 May 2026)</a></li>
+  <li><a href="#may-2026-1" id="toc-may-2026-1" class="nav-link" data-scroll-target="#may-2026-1">0.3.220 (08 May 2026)</a></li>
+  <li><a href="#may-2026-2" id="toc-may-2026-2" class="nav-link" data-scroll-target="#may-2026-2">0.3.219 (06 May 2026)</a></li>
+  <li><a href="#may-2026-3" id="toc-may-2026-3" class="nav-link" data-scroll-target="#may-2026-3">0.3.218 (06 May 2026)</a></li>
+  <li><a href="#may-2026-4" id="toc-may-2026-4" class="nav-link" data-scroll-target="#may-2026-4">0.3.217 (03 May 2026)</a></li>
+  <li><a href="#may-2026-5" id="toc-may-2026-5" class="nav-link" data-scroll-target="#may-2026-5">0.3.216 (01 May 2026)</a></li>
   <li><a href="#april-2026" id="toc-april-2026" class="nav-link" data-scroll-target="#april-2026">0.3.215 (30 April 2026)</a></li>
   <li><a href="#april-2026-1" id="toc-april-2026-1" class="nav-link" data-scroll-target="#april-2026-1">0.3.214 (29 April 2026)</a></li>
   <li><a href="#april-2026-2" id="toc-april-2026-2" class="nav-link" data-scroll-target="#april-2026-2">0.3.213 (27 April 2026)</a></li>
@@ -378,16 +378,84 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="may-2026" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026">0.3.221 (16 May 2026)</h2>
 <ul>
+<li>OpenAI: Add GPT 5.5 as computer use model and exclude ‘chat’ and ‘instant’ models from computer use.</li>
+<li>OpenAI Compatible: Parse OpenRouter-style <code>reasoning_details</code> in OpenAI-compatible responses.</li>
+<li>Anthropic: Capture <code>extra_body</code> fields from <code>Message</code> response.</li>
+<li>OpenRouter: Enable Anthropic prompt caching by default for <code>openrouter/anthropic/*</code> models.</li>
+<li>VLLM: Preserve dotted vLLM server arg keys.</li>
+<li>Bedrock: Drop unsupported sampling params for Claude 4.7+.</li>
+<li>Bedrock: Route <code>top_k</code> correctly for Nova models.</li>
+<li>SageMaker: Add <code>prompt_logprobs</code> support in chat mode via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span>, parse prompt logprobs from completion mode responses, enabling <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#perplexity">perplexity()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#target_perplexity">target_perplexity()</a></span> scorers end-to-end.</li>
+<li>Model API: <code>--adaptive-connections</code> is now enabled by default (defaults to 100 per model connection).</li>
+<li>Model API: Cache lookup of openai and anthropic packages at sample initialization.</li>
+<li>Model API: Remove semaphore around calls to <code>count_tokens()</code> (they are already retried and gated by <code>max_samples</code>).</li>
 <li>Model Info: Cache model info database lookup results so that failed lookups don’t repeat fuzzy model name search.</li>
+<li>Limits: Added <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#suspend_token_limit">suspend_token_limit()</a></span> context manager for suspending token tracking and limit enforcement within a scope.</li>
+<li>Datasets: <code>hf_dataset</code> retries transient Hugging Face errors (rate limits, timeouts, Hub-unreachable cache misses) up to 3 times (5 in CI) with exponential backoff. Pass <code>retry=False</code> to disable.</li>
+<li>Datasets: Reject sample ids that collide under <code>str()</code> coercion.</li>
+<li>Datasets: Treat NaN from HuggingFace dataset as <code>None</code> is treated (converted to <code>""</code>).</li>
+<li>Datasets: Use HuggingFace revision in cache key for downloaded datasets.</li>
+<li>Datasets: Propagate <code>hf_dataset(..., shuffle=True)</code> to <code>EvalDataset.shuffled</code>.</li>
+<li>Tool Calling: Raise a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#toolerror">ToolError</a></span> if there is a null byte in command input.</li>
+<li>Scoring: Store and aggregate results for cancelled eval runs.</li>
+<li>Scoring: <code>match(numeric=True)</code> no longer matches digit-substrings (e.g.&nbsp;target <code>5</code> against <code>25</code>); now correctly handles negative, decimal, and scientific-notation targets, and recognises unicode-formatted numbers (unicode minus, vulgar fractions like <code>½</code>, Chinese numerals, fullwidth digits) in both targets and model output.</li>
+<li>Scoring: <code>match(numeric=True, location="exact")</code> is now strict — values like <code>"5 some text"</code> no longer match target <code>"5"</code>.</li>
+<li>Analysis: Use score reducer in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.analysis.html#evals_df">evals_df()</a></span> column name when there are multiple reducers.</li>
+<li>Hooks: Cache list of registered hooks (invalidate cache on <code>registry_add()</code>).</li>
+<li>Config: Add <code>--run-config</code> option to <code>inspect eval</code> for single-file run configuration.</li>
+<li>Eval Set: Run <a href="https://meridianlabs-ai.github.io/inspect_scout/">Inspect Scout</a> scanners over each task’s logs as part of <code>eval_set</code> (CLI <code>--scanner</code> / <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#scannerconfig">ScannerConfig</a></span>). Scans incrementally as logs land, reuses prior results across resumes, and renders progress alongside the existing eval view.</li>
+<li>Eval Set: Fail fast with “No inspect tasks were found at the specified paths.” when a task spec resolves to nothing (e.g.&nbsp;uninstalled package); previously crashed with <code>IndexError</code> inside <code>resolve_tasks</code> after passing an empty task list to <code>eval</code>.</li>
+<li>Eval Set: Add <code>score_display</code> argument to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function.</li>
+<li>Eval Log: Preflight ETag check on S3 conditional write (required for S3 backends that don’t implement conditional writes).</li>
+<li>Eval Log: Make <code>log_file_info()</code> robust to non-standard filenames; added <code>log_file_info_async()</code> / <code>log_files_from_ls_async()</code> so view-server header reads don’t block the event loop.</li>
+<li>Imports: Delay importing heavier dependencies (e.g.&nbsp;s3fs, boto3, numpy, rich.markdown) for faster imports of <code>inspect_ai</code> module.</li>
+<li>Logging: <code>INSPECT_PY_LOGGER_FORMAT</code> env var (<code>rich</code>/<code>plain</code>/<code>json</code>) for non-TTY-friendly single-line console logs.</li>
 <li>Docker Compose: accept depends_on / pull_policy / privileged / shm_size / ulimits in ComposeService.</li>
+<li>Task Display: Honor terminal <code>COLUMNS</code> and <code>LINES</code> for dumb terminals.</li>
+<li>Validation: Reject unknown <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> fields with an error.</li>
+<li>Memory: Log condensing no longer retains unchanged JSON copies in long evals.</li>
+<li>Memory: Don’t retain message lists in buffer DB (memory leak on long agentic samples).</li>
+<li>Memory: Collapse user messages at compaction time to avoid carrying extra messages.</li>
+<li>Memory: Stop retaining copied tool schemas in model events.</li>
+<li>Inspect View: Pending samples fetch directly from S3 with chunked loading</li>
+<li>Inspect View: Score color scales applied to sample-header chips</li>
+<li>Inspect View: Outline close icon aligned; rootHeader made sticky</li>
+<li>Inspect View: Fixed model retry event rendering</li>
+<li>Inspect View: Fixed message ordering in running-sample Messages tab with cross-poll caching</li>
 <li>Bugfix: Ensure that models don’t share GenerateConfig instance via default get_model argument.</li>
+<li>Bugfix: Don’t raise on tool params with <code>None</code> as default (e.g.<code>x: dict = None</code>).</li>
+<li>Bugfix: Fallback error message for when <code>OSError</code> does not include <code>.strerror</code> and <code>.filename</code></li>
+<li>Bugfix: More gracefully handle tool results with mixed <code>[Content, str]</code>.</li>
+<li>Bugfix: Accept <code>""</code> as an <code>answer</code> for `basic_agent().</li>
+<li>Bugfix: Narrowly replace <code>{submit}</code> in <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent prompt templates (rather than using <code>.format</code>).</li>
+<li>Bugfix: Correctly handle <code>pd.NA</code> when converting scores to float in analysis df functions.</li>
+<li>Bugfix: Include model role usage data in eval samples summaries.</li>
+<li>Bugfix: Prevent duplicate entries in <code>summaries.json</code> when re-scoring or converting logs.</li>
+<li>Bugfix: <code>fail_on_error</code> fractional threshold now uses the sliced sample count multiplied by <code>epochs</code> (matching the end-of-run check)</li>
+<li>Bugfix: <code>eval_retry</code> preserves <code>SampleScore.scorer</code> attribution on restored samples (was <code>None</code> instead of the scorer name).</li>
+<li>Bugfix: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#time_limit">time_limit()</a></span> no longer masks exceptions raised after the deadline (e.g.&nbsp;from <code>finally</code> blocks) with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#limitexceedederror">LimitExceededError</a></span>; the original exception now propagates.</li>
+<li>Bugfix: Multiple-choice answer parsing — <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.solver.html#multiple_choice">multiple_choice()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#answer">answer()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#choice">choice()</a></span> now accept lowercase letters, prefer the last <code>ANSWER:</code> occurrence (matching the CoT “last line” instruction), parse <code>"A, B and C"</code> lists, and handle multi-answer targets with separators (<code>Target("A,B")</code>).</li>
+<li>Bugfix: Shared log buffer sync is scheduled onto a single daemon worker thread (prevent deadlock when logging occurs during sync).</li>
+<li>Bugfix: <code>max_score</code> reducer’s dict/list paths now NaN-filter per key/index, making results order-independent (NaN previously kept whichever element came first).</li>
+<li>Bugfix: <code>pass_at(k)</code> now returns the unscored NaN sentinel when fewer than <code>k</code> epochs were scored (previously inflated to 1.0).</li>
+<li>Bugfix: <code>create_reducers</code> no longer rewrites custom reducer names ending in <code>_&lt;digits&gt;</code> (e.g.&nbsp;<code>"top_5"</code>) into the built-in <code>_k</code> shorthand.</li>
+<li>Bugfix: <code>multi_scorer</code> returns <code>Score.unscored()</code> when every sub-scorer declines to score (previously crashed with <code>IndexError</code>).</li>
+<li>Bugfix: <code>at_least</code> / <code>pass_at</code> reducer names now correctly include the <code>_k</code> suffix on the returned reducer (previously leaked onto the module-global factory).</li>
+<li>Bugfix: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_qa">model_graded_qa()</a></span> / <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#model_graded_fact">model_graded_fact()</a></span> — default grade pattern now extracts the <em>last</em> <code>GRADE: $LETTER</code> in grader output.</li>
+<li>Bugfix: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#f1">f1()</a></span> / <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#exact">exact()</a></span> — targets with leading whitespace are no longer silently skipped.</li>
+<li>Bugfix: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#math">math()</a></span> — brace-delimited set answers like <code>{1, 2}</code> are now compared as multisets.</li>
+<li>Bugfix: <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#math">math()</a></span> — model outputs containing <code>\boxed{inf}</code> / <code>Infinity</code> / <code>-inf</code> no longer crash the scorer with <code>OverflowError</code>.</li>
+<li>Bugfix: <code>grouped()</code> — raise instead of silently overwriting a per-group metric when a group name collides with <code>all_label</code>.</li>
+<li>Bugfix: <code>stderr(cluster=...)</code> — return 0 with a single cluster (was <code>NaN</code>/<code>inf</code> from divide-by-zero).</li>
+<li>Bugfix: <code>value_to_float()</code> — reject <code>"nan"</code>/<code>"inf"</code> string values so a single non-finite Score doesn’t poison <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#accuracy">accuracy()</a></span> and friends.</li>
+<li>Bugfix: <code>inspect log recover</code> — preserve <code>sample.uuid</code> for crashed in-progress samples (initial buffer summary now carries <code>state.uuid</code>; recovery synthesizes a fallback uuid for legacy buffer rows).</li>
 </ul>
 </section>
-<section id="may-2026" class="level2">
-<h2 class="anchored" data-anchor-id="may-2026">0.3.220 (08 May 2026)</h2>
+<section id="may-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026-1">0.3.220 (08 May 2026)</h2>
 <ul>
 <li>Anthropic: Skip the top-level <code>cache_control</code> auto-caching field on Bedrock and Vertex where they are not supported.</li>
 <li>Grok: Forward <code>tool_call_id</code> in tool responses (parallel tool calling).</li>
@@ -399,16 +467,16 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix bridged-tool result serialization to handle <code>list[ContentText]</code>.</li>
 </ul>
 </section>
-<section id="may-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="may-2026-1">0.3.219 (06 May 2026)</h2>
+<section id="may-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026-2">0.3.219 (06 May 2026)</h2>
 <ul>
 <li>Inspect View: Fix extraneous console errors</li>
 <li>Inspect View: In Folder and Task List, fix cmd+click/middle-click to open log in a background tab.</li>
 <li>Inspect View: Task samples - preserve sort and other state in VS Code.</li>
 </ul>
 </section>
-<section id="may-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="may-2026-2">0.3.218 (06 May 2026)</h2>
+<section id="may-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026-3">0.3.218 (06 May 2026)</h2>
 <ul>
 <li>Google: Support Gemini 3+ native web search and code execution alongside function tools.</li>
 <li>HuggingFace: Add <code>trust_remote_code</code> model argument (defaults to <code>False</code>).</li>
@@ -422,8 +490,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Bugfix: Fix <code>ToolEvent.message_id</code> to reference the correct <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessagetool">ChatMessageTool</a></span> when multiple tool calls occur in one assistant turn.</li>
 </ul>
 </section>
-<section id="may-2026-3" class="level2">
-<h2 class="anchored" data-anchor-id="may-2026-3">0.3.217 (03 May 2026)</h2>
+<section id="may-2026-4" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026-4">0.3.217 (03 May 2026)</h2>
 <ul>
 <li>Add <a href="https://inspect.aisi.org.uk/models-concurrency.html#adaptive-connections">adaptive connections</a> option to automatically tune model API concurrency between configurable bounds based on rate-limit feedback.</li>
 <li>Add <a href="https://inspect.aisi.org.uk/handling-errors.html#scoring-errored-samples">score on error</a> option to score samples that error rather than failing the task (errors are still counted toward the <code>fail_on_error</code> threshold).</li>
@@ -435,8 +503,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Add <code>scorer</code> and <code>scorer_args</code> to ScoreEvent</li>
 </ul>
 </section>
-<section id="may-2026-4" class="level2">
-<h2 class="anchored" data-anchor-id="may-2026-4">0.3.216 (01 May 2026)</h2>
+<section id="may-2026-5" class="level2">
+<h2 class="anchored" data-anchor-id="may-2026-5">0.3.216 (01 May 2026)</h2>
 <ul>
 <li>OpenRouter: Escape signature attribute in <think> tag round-trip.</think></li>
 <li>Logging: Add sample id, epoch, and task name to log records.</li>
