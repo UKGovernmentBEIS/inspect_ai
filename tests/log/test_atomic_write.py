@@ -47,7 +47,7 @@ class TestAtomicWriteBasics:
         """Test atomic write with no data creates empty file."""
         target = tmp_path / "empty.dat"
 
-        with atomic_write(str(target)) as f:
+        with atomic_write(str(target)):
             pass  # Don't write anything
 
         assert target.exists()
