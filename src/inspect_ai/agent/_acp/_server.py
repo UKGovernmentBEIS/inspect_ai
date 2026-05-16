@@ -84,6 +84,7 @@ from acp.schema import (
     RequestPermissionRequest,
     RequestPermissionResponse,
     SessionCapabilities,
+    SessionInfoUpdate,
     SessionNotification,
     TextContentBlock,
     ToolCallProgress,
@@ -1080,6 +1081,38 @@ class _ConnectionHandler:
         payload = notification.model_dump(mode="json", by_alias=True, exclude_none=True)
         await self.connection.send_notification(_SESSION_UPDATE_METHOD, payload)
 
+    async def _send_session_info_title(self, target_session_id: str) -> None:
+        """Send a SessionInfoUpdate carrying the bound target's title.
+
+        The title format is ``"<task> / <sample_id> / epoch <n>"`` —
+        editor clients (Zed etc.) surface this in their session UI so
+        the human sees what they're attached to without inferring it
+        from a transcript scroll.
+
+        Sent once on each bind. The ACP schema treats ``title=null`` as
+        a *destructive* clear, so we never emit None here — if we can't
+        resolve the active sample (rare; would mean the sample finished
+        between bind and forwarder startup) we just skip.
+
+        Uses the connection's ``wire_session_id`` (not the target id)
+        so the notification matches the client's view of the session
+        identity — same convention as live forwarding.
+        """
+        sample = _find_active_sample(target_session_id)
+        if sample is None:
+            return
+        if self.state.wire_session_id is None:
+            return
+        title = f"{sample.task} / {sample.sample.id} / epoch {sample.epoch}"
+        notif = SessionNotification(
+            session_id=self.state.wire_session_id,
+            update=SessionInfoUpdate(
+                session_update="session_info_update",
+                title=title,
+            ),
+        )
+        await self._send_session_update(notif)
+
     # ------------------------------------------------------------------
     # Phase 14 — ApproverClient implementation
     # ------------------------------------------------------------------
@@ -1153,6 +1186,11 @@ class _ConnectionHandler:
         if target is None:
             return
         self._target = target
+
+        # Establish the editor-facing session title BEFORE any conversation
+        # replay or live notifications so the UI is correctly framed from
+        # the first event. Native ACP field — no extension needed.
+        await self._send_session_info_title(target_session_id)
 
         # SNAPSHOT (sync) — captures everything that's happened so far.
         snapshot = list(target.transcript_events_snapshot())

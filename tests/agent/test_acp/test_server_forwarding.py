@@ -241,6 +241,19 @@ async def _initialize(
     await client.request("initialize", params)
 
 
+async def _drain_bind_preamble(client: _RpcClient) -> None:
+    """Drain the two notifications every successful bind emits.
+
+    1. ``AgentMessageChunk`` — picker confirmation from ``_notify_binding``
+    2. ``SessionInfoUpdate`` — Phase 2 title from ``_send_session_info_title``
+
+    Replaces the older single ``next_notification()  # drain bind
+    confirmation`` pattern that no longer covers all bind-time output.
+    """
+    await client.next_notification()  # AgentMessageChunk
+    await client.next_notification()  # SessionInfoUpdate
+
+
 # ---------------------------------------------------------------------------
 # Inbound forwarding — session/prompt
 # ---------------------------------------------------------------------------
@@ -269,7 +282,7 @@ async def test_session_prompt_forwards_to_submit_user_message(
                 "session/new", {"cwd": "/tmp", "mcpServers": []}
             )
             target_id = resp["result"]["sessionId"]
-            await client.next_notification()  # drain bind confirmation
+            await _drain_bind_preamble(client)
 
             prompt_resp = await client.request(
                 "session/prompt",
@@ -309,7 +322,7 @@ async def test_session_cancel_notification_forwards_to_cancel_current_turn(
                 "session/new", {"cwd": "/tmp", "mcpServers": []}
             )
             target_id = resp["result"]["sessionId"]
-            await client.next_notification()  # drain bind confirmation
+            await _drain_bind_preamble(client)
 
             await client.notify("session/cancel", {"sessionId": target_id})
             # Give the server a beat to dispatch the notification.
@@ -343,7 +356,7 @@ async def test_session_update_published_on_bus_reaches_client(
                 "session/new", {"cwd": "/tmp", "mcpServers": []}
             )
             target_id = resp["result"]["sessionId"]
-            await client.next_notification()  # drain bind confirmation
+            await _drain_bind_preamble(client)
 
             # Publish a synthetic notification on the target's bus.
             session.publish(
@@ -385,7 +398,7 @@ async def test_plan_capable_client_receives_plan_update(
                 "session/new", {"cwd": "/tmp", "mcpServers": []}
             )
             target_id = resp["result"]["sessionId"]
-            await client.next_notification()  # drain bind confirmation
+            await _drain_bind_preamble(client)
 
             # Tool starts (in_progress) with raw_input — should be suppressed.
             session.publish(
@@ -439,7 +452,7 @@ async def test_non_plan_capable_client_receives_standard_tool_call(
                 "session/new", {"cwd": "/tmp", "mcpServers": []}
             )
             target_id = resp["result"]["sessionId"]
-            await client.next_notification()  # drain bind confirmation
+            await _drain_bind_preamble(client)
 
             session.publish(
                 session_notification(
@@ -483,7 +496,7 @@ async def test_plan_optin_via_meta_works_for_unknown_client(
                 "session/new", {"cwd": "/tmp", "mcpServers": []}
             )
             target_id = resp["result"]["sessionId"]
-            await client.next_notification()
+            await _drain_bind_preamble(client)
 
             session.publish(
                 session_notification(
@@ -579,8 +592,7 @@ async def test_replay_emits_recent_history_before_live(
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            # Drain bind confirmation.
-            await client.next_notification()
+            await _drain_bind_preamble(client)
 
             # Now read replayed notifications.
             texts: list[str] = []
@@ -612,7 +624,7 @@ async def test_replay_caps_to_max_events(short_data_dir: Path, register_target) 
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await client.next_notification()  # bind confirmation
+            await _drain_bind_preamble(client)
 
             # Drain everything available with a short timeout.
             received: list[str] = []
@@ -660,7 +672,7 @@ async def test_replay_elides_oversized_tool_call_raw_input(
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await client.next_notification()  # bind confirmation
+            await _drain_bind_preamble(client)
 
             notif = await client.next_notification()
             assert notif["params"]["update"]["sessionUpdate"] == "tool_call"
@@ -694,7 +706,7 @@ async def test_replay_applies_plan_policy(
         try:
             await _initialize(client, client_name="zed")
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await client.next_notification()  # bind confirmation
+            await _drain_bind_preamble(client)
 
             notif = await client.next_notification()
             update = notif["params"]["update"]
@@ -720,7 +732,7 @@ async def test_replay_then_live_ordering(short_data_dir: Path, register_target) 
         try:
             await _initialize(client)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await client.next_notification()  # bind confirmation
+            await _drain_bind_preamble(client)
 
             # Publish a LIVE notification immediately after bind. The
             # client's first two semantic notifications should still
@@ -797,7 +809,7 @@ async def test_picker_selection_live_forwarding_uses_wire_session_id(
                     "prompt": [{"type": "text", "text": "1"}],
                 },
             )
-            await client.next_notification()  # drain bind confirmation
+            await _drain_bind_preamble(client)
 
             # Now publish a notification on target_a's bus. Its
             # session_id is target_a.session_id; the client should
@@ -860,7 +872,7 @@ async def test_rebind_stops_old_forwarders_and_detaches_subscriber(
                     "sessionId": target_a.session_id,
                 },
             )
-            await client.next_notification()  # drain bind confirmation
+            await _drain_bind_preamble(client)
             # target_a has 1 subscriber (this connection); target_b has 0.
             assert len(target_a._subscribers) == 1
             assert len(target_b._subscribers) == 0
@@ -874,7 +886,7 @@ async def test_rebind_stops_old_forwarders_and_detaches_subscriber(
                     "sessionId": target_b.session_id,
                 },
             )
-            await client.next_notification()  # drain bind confirmation
+            await _drain_bind_preamble(client)
             # Old target was cleanly detached; new target has the subscriber.
             assert len(target_a._subscribers) == 0, (
                 "rebinding leaked the old target's subscriber"
