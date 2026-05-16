@@ -73,6 +73,7 @@ def _make_sample(
     session_id: str | None,
     agent_name: str | None = None,
     started: float | None = None,
+    total_tokens: int = 0,
 ) -> Any:
     sample = MagicMock()
     sample.id = sample_id
@@ -81,9 +82,14 @@ def _make_sample(
     active.sample = sample
     active.epoch = epoch
     # Explicit None on the new fields so MagicMock doesn't auto-wrap
-    # them and break JSON serialization downstream.
+    # them and break JSON serialization downstream. ``total_tokens`` is
+    # read by ``list_picker_targets`` and serialised over the wire by
+    # both the picker meta and ``inspect/list_sessions`` — must be a
+    # real int, not a MagicMock, or the server crashes silently in a
+    # background task and the request hangs forever.
     active.agent_name = agent_name
     active.started = started
+    active.total_tokens = total_tokens
     if session_id is None:
         active.acp_session = None
     else:
@@ -363,6 +369,7 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
                         "epoch": 0,
                         "agentName": None,
                         "startedAt": None,
+                        "totalTokens": 0,
                         "target": "t1/s1/0",
                     },
                     {
@@ -372,6 +379,7 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
                         "epoch": 1,
                         "agentName": None,
                         "startedAt": None,
+                        "totalTokens": 0,
                         "target": "t2/s2/1",
                     },
                 ],

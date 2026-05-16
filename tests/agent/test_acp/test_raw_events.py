@@ -97,6 +97,7 @@ def _make_active_sample(*, acp_session: Any) -> Any:
     # them (would otherwise blow up JSON serialization downstream).
     active.agent_name = None
     active.started = None
+    active.total_tokens = 0
     active.acp_session = acp_session
     return active
 

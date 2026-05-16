@@ -20,11 +20,12 @@ from __future__ import annotations
 import asyncio
 import sys
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from acp import PROTOCOL_VERSION
 from acp.connection import Connection
-from acp.router import MessageRouter
+from acp.router import MessageRouter, Route
+from acp.schema import SessionNotification
 
 from inspect_ai.agent._acp._discovery import TargetAddress
 
@@ -195,17 +196,35 @@ class AttachedSession:
             pass
 
 
-async def attach_session(row: SessionRow) -> AttachedSession:
+async def attach_session(
+    row: SessionRow,
+    *,
+    on_session_update: Callable[[SessionNotification], None] | None = None,
+) -> AttachedSession:
     """Open a fresh connection bound to ``row.session_id``.
 
-    Calls ``initialize`` then ``session/load(sessionId)``. The returned
-    handle's connection has ``listening=True`` so notifications would
-    flow into the handler — Phase 1 uses an empty router (no
-    notification handlers); Phase 2 will register them.
+    Calls ``initialize`` then ``session/load(sessionId)``. The
+    ``session/update`` notification route is registered before the
+    connection starts listening; ``on_session_update`` (if given)
+    receives each notification synchronously from the connection's
+    reader task.
     """
     reader, writer = await _open_socket(row.target)
+    router = MessageRouter()
+    if on_session_update is not None:
+
+        async def _handle(params: SessionNotification) -> None:
+            on_session_update(params)
+
+        router.add_route(
+            Route(
+                method="session/update",
+                func=_make_session_update_func(_handle),
+                kind="notification",
+            )
+        )
     conn = Connection(
-        handler=MessageRouter(),
+        handler=router,
         writer=writer,
         reader=reader,
         listening=True,
@@ -231,6 +250,26 @@ async def attach_session(row: SessionRow) -> AttachedSession:
         session_id=row.session_id,
         row=row,
     )
+
+
+def _make_session_update_func(
+    handler: Callable[[SessionNotification], Any],
+) -> Callable[..., Any]:
+    """Adapt SessionNotification deserialization for MessageRouter.
+
+    The router calls ``func(params_dict)``. Validating via Pydantic
+    here keeps the rest of the TUI working with typed objects (same
+    convention the server-side router uses).
+    """
+
+    async def _func(params: Any) -> None:
+        if isinstance(params, dict):
+            notif = SessionNotification.model_validate(params)
+        else:
+            notif = params
+        await handler(notif)
+
+    return _func
 
 
 async def _open_socket(

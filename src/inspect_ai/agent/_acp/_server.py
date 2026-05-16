@@ -326,14 +326,12 @@ class _AcpServer:
 
     async def stop(self) -> None:
         """Stop accepting, close all connections, remove socket + discovery file."""
-        # Stop accepting new connections first.
+        # Stop accepting new connections — but do NOT await
+        # ``wait_closed()`` yet. On Python 3.12+, ``wait_closed()``
+        # blocks until every active connection drains, so it must run
+        # AFTER we've closed the per-connection handlers below.
         if self._server is not None:
             self._server.close()
-            try:
-                await self._server.wait_closed()
-            except Exception:
-                logger.exception("Error closing ACP server socket")
-            self._server = None
 
         # Close all live connections. Each Connection has an internal
         # receive task; close() shuts it down cleanly.
@@ -349,6 +347,15 @@ class _AcpServer:
             if not task.done():
                 task.cancel()
         self._tasks.clear()
+
+        # Now safe to await ``wait_closed`` — there are no live
+        # connections keeping it pinned open.
+        if self._server is not None:
+            try:
+                await self._server.wait_closed()
+            except Exception:
+                logger.exception("Error closing ACP server socket")
+            self._server = None
 
         # Remove the AF_UNIX socket node (TCP doesn't leave anything behind).
         if self._socket_path is not None:

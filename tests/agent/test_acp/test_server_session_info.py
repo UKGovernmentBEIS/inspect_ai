@@ -65,6 +65,7 @@ def _make_active_sample(
     active.epoch = epoch
     active.agent_name = None
     active.started = None
+    active.total_tokens = 0
     active.acp_session = acp_session
     return active
 

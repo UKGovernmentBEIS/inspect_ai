@@ -78,7 +78,11 @@ def make_fake_client(
             return [r for r in rows if r.eval_id == eval_id_filter]
         return list(rows)
 
-    async def _attach(row: SessionRow) -> "object":
+    async def _attach(row: SessionRow, **kwargs: object) -> "object":
+        # Accept (and ignore) keyword args like ``on_session_update`` so
+        # tests exercise the same call signature production uses; if the
+        # fake silently dropped the kwarg, app-level tests would mount a
+        # screen that never sees notifications and false-positive.
         if attach_raises is not None:
             raise attach_raises
         import asyncio

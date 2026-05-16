@@ -44,6 +44,7 @@ def _make_active_sample(
     session_id: str,
     agent_name: str | None = "react",
     started: float | None = 1_700_000_000.0,
+    total_tokens: int = 0,
 ) -> Any:
     sample = MagicMock()
     sample.id = sample_id
@@ -53,6 +54,12 @@ def _make_active_sample(
     active.epoch = epoch
     active.agent_name = agent_name
     active.started = started
+    # MUST be a real int — list_picker_targets reads this into a
+    # _PickerTarget that's later JSON-serialized over the wire. An
+    # unset MagicMock attribute returns a MagicMock that the encoder
+    # can't handle, and the server's request handler crashes silently
+    # in a background task, leaving the client awaiting forever.
+    active.total_tokens = total_tokens
     sess = MagicMock()
     sess.session_id = session_id
     active.acp_session = sess

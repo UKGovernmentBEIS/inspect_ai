@@ -27,6 +27,7 @@ from . import _client
 from ._client import AttachedSession, SessionRow
 from ._picker_screen import PickerScreen
 from ._session_screen import SessionScreen
+from ._state import SessionState
 
 
 class InspectAcpApp(App[None]):
@@ -182,8 +183,15 @@ class InspectAcpApp(App[None]):
         self.run_worker(self._attach_and_show(row), exclusive=True)
 
     async def _attach_and_show(self, row: SessionRow) -> None:
+        state = SessionState()
         try:
-            session = await self._client.attach_session(row)
+            # Pass state.consume directly: the client's notification
+            # route fires it from the reader task, which runs on the
+            # same asyncio loop as Textual so widget refreshes happen
+            # synchronously without a thread hop.
+            session = await self._client.attach_session(
+                row, on_session_update=state.consume
+            )
         except Exception as exc:
             self.notify(f"failed to attach: {exc}", severity="error")
             return
@@ -192,6 +200,7 @@ class InspectAcpApp(App[None]):
             SessionScreen(
                 session=session,
                 on_disconnect=self._on_session_disconnect,
+                state=state,
             )
         )
 
