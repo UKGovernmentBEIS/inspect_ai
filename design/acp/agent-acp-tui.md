@@ -8,21 +8,30 @@ The visual spec is **[`inspect acp — TUI design (print).pdf`](inspect%20acp%20
 
 For the broader ACP design (server, sessions, router, asyncio boundary, phased build), see **[`agent-acp.md`](agent-acp.md)**. This doc is the TUI-client surface only.
 
-![cover](images/cover.png)
+## Constraints
+
+- **Standalone client** — the TUI is built as a self-contained Textual app and **does not reuse existing Textual code in this repo** (e.g. the `--display full` app under `src/inspect_ai/_display/textual/`). We may want to ship the `inspect acp` binary separately from the main `inspect` package, so its only hard dependencies are `textual` itself, the `acp` Python library, and a thin slice of types shared with the ACP server side.
+- **Single sample per attach** for v1; multi-sample navigation is Phase 7.
+- **asyncio at the transport leaf** — same constraint as the rest of the ACP code (see [`agent-acp.md`](agent-acp.md) "asyncio / anyio boundary"); the `acp` library requires it.
 
 ## Screens
 
 ### Attach picker
 
-Initial screen when no specific sample target is given on the command line, or when re-opened via `^S`.
+Always the initial screen — either on launch, or when re-opened via `^S`. The picker lists running sessions on this machine (or on a remote machine when `--server <addr>` is given).
 
-- **Empty state** — no running evals have the ACP server enabled.
+- **Empty state** — no running sessions found and no `--server` was specified; shows the bootstrap message and a sample command to enable the ACP server on a local eval.
 
   ![attach empty](images/04a-attach-empty-state.png)
 
-- **Picker table** — flat list of samples across all running evals. Columns: `eval`, `task`, `sample`, `epoch`, `running`. Greys out as samples complete.
+- **Picker table** — flat list of samples across all running evals. Columns: `eval`, `task`, `sample`, `epoch`, `running`. Greys out as samples complete. `--eval-id <id>` narrows the table to sessions from a specific eval (it does not bypass the picker).
 
   ![attach picker](images/04b-attach-picker-table.png)
+
+**CLI flags**
+
+- `--server <addr>` — discover sessions on a remote ACP server. Accepts either `host:port` or a UNIX domain socket path. Used by both the TUI and `--stdio` modes (replaces the legacy `--socket` flag).
+- `--eval-id <id>` — narrow the picker to sessions from a single eval.
 
 ### Primary conversation pane
 
@@ -174,10 +183,143 @@ These are flagged here for discussion; the actual extension contracts will be lo
 
 17. **Turn-interrupt reason / note** — `by operator · redirecting to ret2libc path` ([02e](images/02e-events-stream.png)). The `InterruptEvent` (or its ACP-side counterpart) needs an optional `note: str` field plus the actor (`operator`, `policy`, `timeout`). Tools-in-flight count at cancel time is already implied by item 2.
 
-## Out of scope (for this doc)
+## Implementation phases
 
-- Implementation phasing and sequencing (handled separately)
-- Code sketches / module breakdown (handled separately)
-- Server-side ACP architecture — covered by [`agent-acp.md`](agent-acp.md)
-- Editor-side stdio bridge (`inspect acp --stdio`) — covered by [`agent-acp.md`](agent-acp.md)
-- Token-level streaming visuals — flagged in [`agent-acp.md`](agent-acp.md) open questions
+Phasing principle: **passive → active → robust → rich → ergonomic**. Each phase is a self-contained, meaningfully testable unit. Every phase lands the `inspect/*` protocol extensions it depends on (numbered references below point at the list in the previous section).
+
+### Phase 1 — Transport + picker (attach plumbing)
+
+End-to-end "I can find a running eval and open a connection to one of its samples", with the rendering surface deliberately stubbed. Locks in the App lifecycle, the discovery path, and the connection contract before any visual complexity.
+
+**Ships**
+
+- Lift the `Phase 15 not implemented` error in [`src/inspect_ai/_cli/acp.py`](../../src/inspect_ai/_cli/acp.py); launch a Textual `App` when invoked without `--stdio`.
+- Skeleton `App` with two screens: `PickerScreen` and a minimal `SessionScreen` showing only the meta row + a "connected" indicator (no transcript widget yet).
+- **Attach picker** — always the initial screen, driven by existing [`_discovery.py`](../../src/inspect_ai/agent/_acp/_discovery.py). Shows running sessions on this machine, or on a remote machine when `--server <addr>` is given. Empty-state bootstrap screen when no sessions are found and no `--server` was specified. Selecting a row opens `SessionScreen`.
+- **CLI flags**: rename existing `--socket` to `--server` (accepts `host:port` or a UNIX domain socket path, shared with `--stdio` mode); `--eval-id` narrows the picker to a single eval's sessions (it does not bypass the picker).
+- Session attach: complete the JSON-RPC handshake, hold the connection alive, surface disconnect as a simple error toast (no reconnect logic yet — that lands in Phase 5).
+- Clean exit on `q` / `^C`.
+- Textual `Pilot` snapshot-test scaffolding set up in `tests/agent/test_acp/test_tui/`.
+
+**Protocol extensions landed**: #1 (running time per sample), #5 (agent name).
+
+**Acceptance**
+
+- Manual: with no local sessions and no `--server`, `inspect acp` shows the empty-state bootstrap screen. With one or more running sessions, the picker table appears. `--eval-id <id>` narrows the table to one eval. `--server <addr>` discovers sessions on a remote host. Selecting a row opens `SessionScreen` showing the meta row + "connected" indicator.
+- Automated: pilot snapshots for picker (empty + populated + `--eval-id`-narrowed) and the bare `SessionScreen`.
+
+### Phase 2 — Conversation rendering (read-only transcript)
+
+The first visually meaningful payoff: watch the agent's conversation stream live. Read-only — composer still disabled, interrupt not wired.
+
+**Ships**
+
+- Expand `SessionScreen`: status row with pill + state-dependent chips (`N tools in flight`, `model <name>`, `tokens NNNk`), scrollable transcript, footer hints.
+- Three event renderers: assistant message, user / dataset_input message, tool-call card (with `running` / `completed` / `failed` chip + duration; click-to-expand for long output).
+- Subscribe to `session/update` notifications and dispatch to renderers.
+- Composer present but disabled (placeholder).
+
+**Protocol extensions landed**: #2 (tools-in-flight), #3 (token usage), #9 (tool-call timing).
+
+**Acceptance**
+
+- Manual: run `inspect eval … --acp-server` in one terminal, `inspect acp` in another → conversation stream renders end-to-end.
+- Automated: snapshot tests for each of the three event-card types and for the status row with each chip combination.
+
+### Phase 3 — Active participant (composer + interrupt)
+
+Turns the viewer into a tool: the operator can chat with the agent and steer it mid-flight.
+
+**Ships**
+
+- Composer widget with focus-aware keymap (`↵` send, `Shift+↵` newline).
+- `session/prompt` send path.
+- `Esc` while agent is working → `session/cancel`; **operator-intervention banner** rendered on resume.
+- Full status-pill state machine (`Awaiting input` / `Generating` / `Calling tools` / `Scoring` / transient `Interrupted` flash).
+
+**Protocol extensions landed**: #4, #7.
+
+**Acceptance**
+
+- Manual: with a long-running tool in flight, send a redirect message → agent pivots; banner appears.
+- Automated: pilot test for the interrupt-then-resume sequence; snapshot tests for `Generating`, `Calling tools`, `Interrupted` states.
+
+### Phase 4 — Modals (approval, cancel-sample, help)
+
+Unblocks human-in-the-loop tool use and gives the operator a way to terminate a sample without killing the eval process.
+
+**Ships**
+
+- `session/request_permission` modal with bare-letter shortcuts (`a` / `o` / `d`); auto-dismiss when another attached client answers first.
+- New `inspect/cancel_sample` JSON-RPC method (server + TUI modal) with `disposition: "score" | "error"`.
+- `?` help overlay (full keymap).
+
+**Protocol extensions landed**: #10.
+
+**Acceptance**
+
+- Manual: tool requiring approval triggers modal; `a` / `o` / `d` all work. `^X` modal cancels-with-score and cancels-with-error both verified end-to-end.
+- Automated: pilot tests for both modals. Multi-client test: another attached client answers approval first → TUI modal auto-dismisses.
+
+### Phase 5 — Terminal states & connection resilience
+
+Makes the TUI production-grade. Through Phase 4 it works on the happy path; Phase 5 covers what users actually see when things go wrong.
+
+**Ships**
+
+- Completed banner with score line; Errored banner with inline traceback.
+- Disconnect detection in the client; exponential-backoff reconnect with attempt count + countdown overlay.
+- **Server-side replay buffer** (settles [`agent-acp.md`](agent-acp.md)'s open question #1: pick buffer size + elision rules) plus client-side replay handling on reconnect.
+- Footer next-action shortcuts in terminal states (`^S switch sample`, `^O open log`, `^C copy traceback`, etc.).
+
+**Protocol extensions landed**: #11, #12, #13.
+
+**Acceptance**
+
+- Manual: complete-normally path → green banner. Force-error path → red banner with traceback frames. Kill + restart the server during a stream → client reconnects and missed events replay.
+- Automated: pilot tests for both terminal banners; integration test for the disconnect / replay path using an in-process server fixture.
+
+### Phase 6 — Rich event rendering
+
+Fidelity work: covers every event type from `events.png` plus reasoning variants. Doesn't unlock new capability, but it's what makes the transcript actually readable for non-trivial agents.
+
+**Ships**
+
+- Reasoning blocks: visible-summary / encrypted-with-summary / encrypted-no-summary / redacted.
+- Plan-update ephemeral cards (struck-through completed items, `done/total` + timestamp).
+- Info events (with structured-JSON payload rendering).
+- Compaction banner (`messages X → Y · tokens X → Y`).
+- Mid-stream score chips.
+- Turn-interrupt with reason + actor.
+
+**Protocol extensions landed**: #6, #8, #14, #15, #16, #17.
+
+**Acceptance**
+
+- Manual: a synthetic eval emits every variant; each renders per the mockups.
+- Automated: snapshot test per variant.
+
+### Phase 7 — Multi-sample navigation
+
+Ergonomics. Single-sample is sufficient for MVP; this phase exists so a multi-sample eval is pleasant to drive.
+
+**Ships**
+
+- `^S` re-opens the picker in place (without exiting the App).
+- Drain the current session cleanly and attach to the selected one without process restart.
+- Picker shows live status + running time across concurrent samples (validates extension #1 in the multi-sample case).
+
+**Protocol extensions landed**: (none new — relies on #1 already landed in Phase 1).
+
+**Acceptance**
+
+- Manual: multi-sample eval; navigate between two samples; transcripts switch cleanly; original session's notifications drained.
+- Automated: pilot test for the swap sequence.
+
+### Cross-cutting
+
+- **Standalone code** — per the Constraints section above, the TUI is its own self-contained Textual app. Phase 1 widgets (picker, app shell, `SessionScreen`) are built fresh rather than extended from `src/inspect_ai/_display/textual/`; later phases follow the same rule.
+- **Test scaffolding** — Phase 1 sets up Textual `Pilot` infra under `tests/agent/test_acp/test_tui/`; every later phase adds snapshots for its new widgets.
+- **Synthetic test eval** — a single growing "kitchen-sink" eval fixture that exercises every codepath used by the phases shipped so far. Lives alongside other ACP test fixtures.
+- **[`agent-acp.md`](agent-acp.md) Phase 15 collapse** — once Phase 1 ships, replace [`agent-acp.md`](agent-acp.md)'s `Phase 15` body with a pointer to this doc.
+- **Phase 16 (token-level streaming)** in [`agent-acp.md`](agent-acp.md) remains independent and can land any time after Phase 1.
