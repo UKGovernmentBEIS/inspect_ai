@@ -1,6 +1,6 @@
 ## Unreleased
 
-- Logging: Atomic write of local eval/JSON log files and shared-buffer manifest/segments. Writes go to a `.inspect_tmp_*.writing` tempfile in the same directory, are `fsync`'d, then renamed via `os.replace()`. Prevents corruption from interrupted writes (e.g. disk-full); remote (S3/Azure/GCS) write paths are unchanged.
+- Logging: Atomic write of local eval (`.eval`) and JSON (`.json`) log files. Writes go to a `.inspect_tmp_*.writing` tempfile in the same directory, are `fsync`'d, then renamed via `os.replace()`. Prevents corruption from interrupted writes (e.g. disk-full); remote (S3/Azure/GCS) write paths are unchanged.
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
 - Anthropic: Capture `extra_body` fields from `Message` response.

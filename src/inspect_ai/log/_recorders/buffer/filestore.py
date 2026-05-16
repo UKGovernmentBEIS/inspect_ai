@@ -10,16 +10,8 @@ from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
-from inspect_ai._util.atomic_write import atomic_write, atomic_write_bytes
 from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
-from inspect_ai._util.file import (
-    FileSystem,
-    basename,
-    dirname,
-    file,
-    filesystem,
-    local_path,
-)
+from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
 from inspect_ai._util.json import to_json_safe, to_json_str_safe
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.log._file import read_eval_log
@@ -155,37 +147,11 @@ class SampleBufferFilestore(SampleBuffer):
             self._fs.touch(f"{self._dir}.keep")
 
     def write_manifest(self, manifest: Manifest) -> None:
-        manifest_bytes = to_json_safe(manifest)
-        manifest_path = self._manifest_file()
-        if self._fs.is_local():
-            # Atomic write so a crash mid-write can't leave a truncated
-            # manifest that breaks recovery (#2949).
-            atomic_write_bytes(manifest_path, manifest_bytes, fsync=True)
-        else:
-            with file(manifest_path, "wb") as f:
-                f.write(manifest_bytes)
+        with file(self._manifest_file(), "wb") as f:
+            f.write(to_json_safe(manifest))
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
-        target = f"{self._dir}{segment_name(id)}"
-
-        if self._fs.is_local():
-            # Atomic local write: the helper creates the temp file in the
-            # target directory (so os.replace stays on one filesystem) and
-            # renames it into place after fsync. Concurrent readers always
-            # see either the previous segment or the new one — never a
-            # half-written file (#2949).
-            with atomic_write(local_path(target), fsync=True) as out:
-                with ZipFile(out, mode="w", **zipfile_compress_kwargs) as zip:
-                    for sf in files:
-                        zip.writestr(
-                            segment_file_name(sf.id, sf.epoch),
-                            to_json_str_safe(sf.data),
-                        )
-            return
-
-        # Remote: write to a system temp file then upload via fsspec (the
-        # cloud-provider PUT is itself atomic, so segment readers can't
-        # see a partial object).
+        # write the file locally
         with tempfile.NamedTemporaryFile(mode="wb", delete=False) as segment_file:
             name = segment_file.name
             with ZipFile(segment_file, mode="w", **zipfile_compress_kwargs) as zip:
@@ -196,16 +162,15 @@ class SampleBufferFilestore(SampleBuffer):
                     )
             segment_file.flush()
             os.fsync(segment_file.fileno())
+
+        # write then move for atomicity
         try:
             with open(name, "rb") as zf:
-                with file(target, "wb") as f:
+                with file(f"{self._dir}{segment_name(id)}", "wb") as f:
                     f.write(zf.read())
                     f.flush()
         finally:
-            try:
-                os.unlink(name)
-            except FileNotFoundError:
-                pass
+            os.unlink(name)
 
     def read_manifest(self) -> Manifest | None:
         try:
