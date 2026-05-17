@@ -33,6 +33,7 @@ class BaseModelDefinition(BaseModel):
     output_tokens: Optional[int] = None
     input_tokens: Optional[int] = None
     reasoning: Optional[bool] = None
+    family: Optional[str] = None
     snapshot: Optional[str] = None
     aliases: Optional[List[str]] = None
 
@@ -86,6 +87,7 @@ def create_model_info(
         output_tokens=data_source.output_tokens or model_def.output_tokens,
         _input_tokens=data_source.input_tokens or model_def.input_tokens,
         reasoning=data_source.reasoning or model_def.reasoning,
+        family=data_source.family or model_def.family,
     )
 
 
@@ -115,6 +117,17 @@ class ModelInfo(BaseModel):
 
     reasoning: bool | None = Field(default=None)
     """Is this a reasoning model."""
+
+    family: str | None = Field(default=None)
+    """Model family name used for capability detection.
+
+    When set (typically via :func:`set_model_info`), provider ``is_*``
+    methods match against this string instead of the model name. Use this
+    to make a model with a non-standard name (e.g. a private checkpoint or
+    custom alias) behave like a known family — for example,
+    ``family="claude-opus-4-7"`` makes ``is_claude_4_7()`` return True
+    regardless of the model's actual name.
+    """
 
     cost: ModelCost | None = Field(default=None)
     """Cost per million tokens for this model."""

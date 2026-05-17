@@ -1,3 +1,7 @@
+## Unreleased
+
+- Model API: Add `ModelInfo.family` and `ModelAPI.model_family()`. Provider `is_*` capability checks now consult a registered `ModelInfo.family` (via `set_model_info()`) before falling back to model-name matching, so models with non-standard names can be classified as a known family.
+
 ## 0.3.222 (16 May 2026)
 
 - Scanners: Declare Scanner import in a way that's compatible with pyright type checking.

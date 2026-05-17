@@ -277,6 +277,21 @@ class ModelAPI(abc.ABC):
         """Model name used for looking up model input tokens."""
         return self.canonical_name()
 
+    def model_family(self) -> str:
+        """Name used for capability detection (the provider's ``is_*`` methods).
+
+        Returns :attr:`ModelInfo.family` if one has been registered for this
+        model via :func:`set_model_info`, otherwise falls back to the model
+        name. Providers override the fallback to use their service-specific
+        model name where they have one.
+        """
+        from inspect_ai.model._model_info import get_model_info
+
+        info = get_model_info(self.canonical_name())
+        if info is not None and info.family:
+            return info.family
+        return self.model_name
+
     @abc.abstractmethod
     async def generate(
         self,

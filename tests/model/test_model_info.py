@@ -42,6 +42,13 @@ class TestGetModelInfo:
         info = get_model_info("unknown-provider/unknown-model-xyz")
         assert info is None
 
+    def test_set_model_info_family(self):
+        """Test that set_model_info with family is retrievable."""
+        set_model_info("custom/aliased-model", ModelInfo(family="gpt-5"))
+        info = get_model_info("custom/aliased-model")
+        assert info is not None
+        assert info.family == "gpt-5"
+
     def test_case_insensitive_lookup(self):
         """Test that model name lookups are case-insensitive.
 

@@ -33,6 +33,7 @@ def _make_stub(model_name: str) -> object:
 
     stub = _Stub()
     stub.service_model_name = lambda: model_name  # type: ignore[attr-defined]
+    stub.model_family = lambda: model_name  # type: ignore[attr-defined]
 
     # Bind all detection methods (and private helpers) from AnthropicAPI
     import types
@@ -564,3 +565,68 @@ def test_claude_4_7_non_opus(model_name: str) -> None:
 )
 def test_unknown_model(model_name: str) -> None:
     _check_model(model_name, _CLAUDE_FUTURE)
+
+
+# ── ModelInfo.family override ────────────────────────────────────────────────
+# A model whose name doesn't match any is_* pattern can still be classified
+# by registering a ModelInfo with `family` set.
+
+
+def _make_stub_with_family(model_name: str, canonical: str) -> object:
+    """Stub that exercises the real AnthropicAPI.model_family() lookup."""
+
+    class _Stub:
+        pass
+
+    stub = _Stub()
+    stub.model_name = model_name  # type: ignore[attr-defined]
+    stub.service_model_name = lambda: model_name  # type: ignore[attr-defined]
+    stub.canonical_name = lambda: canonical  # type: ignore[attr-defined]
+
+    import types
+
+    for name in dir(AnthropicAPI):
+        if (
+            name.startswith("is_claude")
+            or name.startswith("is_thinking")
+            or name in ("_is_claude_4_x", "model_family")
+        ):
+            method = getattr(AnthropicAPI, name)
+            if callable(method):
+                setattr(stub, name, types.MethodType(method, stub))
+
+    return stub
+
+
+def test_model_family_override() -> None:
+    from inspect_ai.model import ModelInfo, set_model_info
+    from inspect_ai.model._model_info import clear_model_info_cache
+
+    clear_model_info_cache()
+    try:
+        set_model_info("anthropic/my-custom-alias", ModelInfo(family="claude-opus-4-7"))
+        api = _make_stub_with_family(
+            "my-custom-alias", canonical="anthropic/my-custom-alias"
+        )
+        assert api.model_family() == "claude-opus-4-7"  # type: ignore[attr-defined]
+        assert api.is_claude_4_7()  # type: ignore[attr-defined]
+        assert api.is_claude_4()  # type: ignore[attr-defined]
+        assert api.is_claude_4_opus()  # type: ignore[attr-defined]
+        assert not api.is_claude_3()  # type: ignore[attr-defined]
+    finally:
+        clear_model_info_cache()
+
+
+def test_model_family_fallback_to_service_model_name() -> None:
+    from inspect_ai.model._model_info import clear_model_info_cache
+
+    clear_model_info_cache()
+    try:
+        api = _make_stub_with_family(
+            "claude-opus-4-7", canonical="anthropic/claude-opus-4-7"
+        )
+        # no set_model_info — model_family() falls back to service_model_name()
+        assert api.model_family() == "claude-opus-4-7"  # type: ignore[attr-defined]
+        assert api.is_claude_4_7()  # type: ignore[attr-defined]
+    finally:
+        clear_model_info_cache()

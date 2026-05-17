@@ -143,16 +143,16 @@ class GrokAPI(ModelAPI):
         self.initialize()
 
     def is_grok_2(self) -> bool:
-        return "grok-2" in self.model_name
+        return "grok-2" in self.model_family()
 
     def is_grok_3(self) -> bool:
-        return "grok-3" in self.model_name
+        return "grok-3" in self.model_family()
 
     def is_grok_3_mini(self) -> bool:
-        return "grok-3-mini" in self.model_name
+        return "grok-3-mini" in self.model_family()
 
     def is_grok_4(self) -> bool:
-        return "grok-4" in self.model_name
+        return "grok-4" in self.model_family()
 
     def is_at_least_grok_4(self) -> bool:
         return not self.is_grok_2() and not self.is_grok_3()
