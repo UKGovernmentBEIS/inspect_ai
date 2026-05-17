@@ -157,8 +157,6 @@ class MessageGroup:
     triggered the next assistant turn.
     """
 
-    received_at: float = field(default_factory=time.monotonic)
-
     @property
     def text(self) -> str:
         """Concatenated TEXT segments (excludes reasoning).
@@ -364,73 +362,123 @@ class SessionState:
         # uses ModelEvent.uuid → UUIDv5 via A1). If absent, treat each
         # chunk as its own message so we don't blindly concatenate
         # unrelated content into one bubble.
-        message_id = update.message_id
-        if message_id is None:
-            message_id = f"__nogroup__:{len(self.items)}"
+        message_id = update.message_id or f"__nogroup__:{len(self.items)}"
+        # Resolve through any retry-collapse alias set by a prior call —
+        # subsequent chunks for an aliased id (the completion marker,
+        # any late content) target the original group.
+        message_id = self._message_id_aliases.get(message_id, message_id)
 
         meta = getattr(update, "field_meta", None) or {}
         role = self._role_for(update)
         is_pending_signal = bool(meta.get(MODEL_EVENT_PENDING_META_KEY))
 
-        # Resolve through any retry-collapse alias set by a prior call.
-        # All subsequent chunks for an aliased id (the completion
-        # marker, any late content) target the original group.
-        message_id = self._message_id_aliases.get(message_id, message_id)
+        group = self._resolve_or_create_group(
+            message_id, role, meta, is_pending_signal, update.message_id
+        )
+        self._apply_pending_lifecycle(group, is_pending_signal, meta)
+        self._append_segment(group, update)
+        self._apply_chunk_metadata(group, role, meta)
 
-        group = self._messages_by_id.get(message_id)
-        if group is None:
-            # Retry detection: an assistant pending signal whose
-            # immediate predecessor is also an empty assistant group
-            # for the same model means the prior attempt errored and
-            # the agent is retrying. Collapse into the existing group
-            # rather than stacking another empty bubble.
-            model_hint = meta.get(MODEL_META_KEY)
-            if (
-                is_pending_signal
-                and role == "assistant"
-                and self.items
-                and isinstance(self.items[-1], MessageGroup)
-                and self.items[-1].role == "assistant"
-                and not self.items[-1].segments
-                and (
-                    not isinstance(model_hint, str)
-                    or self.items[-1].model in (None, model_hint)
-                )
-            ):
-                group = self.items[-1]
-                group.retries += 1
-                # Aliasing: any further chunks bearing the retry's
-                # message_id (completion marker, late content) need to
-                # find this group too.
-                self._message_id_aliases[update.message_id or message_id] = (
-                    group.message_id
-                )
-                # Drop the previous attempt's tracking entry so the
-                # status row's pending set doesn't accumulate stale ids.
-                self._pending_message_ids.discard(group.message_id)
-            else:
-                group = MessageGroup(
-                    message_id=message_id,
-                    role=role,
-                    received_at=self._now(),
-                )
-                self._messages_by_id[message_id] = group
-                self.items.append(group)
-                # State-side window cap: only the *new assistant group*
-                # path can push us over the limit (tool calls slot
-                # between existing assistants, user messages don't
-                # count). Trim here so the rest of this method works
-                # against the pruned window if we just shrank it.
-                if role == "assistant":
-                    self._enforce_turn_cap()
+        # The "Generating" derivation is time-based — record the latest
+        # chunk activity so :attr:`status` can decide when to fall back
+        # to AWAITING_INPUT. **NOTE for integration layer**: the
+        # GENERATING → AWAITING_INPUT transition is time-driven only;
+        # SessionState does NOT fire a notification when the quiescence
+        # window expires. The SessionScreen needs its own ~500ms timer
+        # to call `refresh()` so the pill flips after the last chunk.
+        self._last_chunk_at = self._now()
+        return True
 
-        # Pending-generation lifecycle. The router stamps explicit
-        # markers on the model-event boundary chunks: a "pending"
-        # marker on entry (so the status row flips to "generating"
-        # immediately) and a "complete" marker on exit when no real
-        # content was emitted (tool-only responses). Real content
-        # chunks also implicitly close the pending window — generation
-        # has produced output, so quiescence is sufficient from there.
+    def _resolve_or_create_group(
+        self,
+        message_id: str,
+        role: MessageRole,
+        meta: dict[str, Any],
+        is_pending_signal: bool,
+        original_message_id: str | None,
+    ) -> MessageGroup:
+        """Look up or create the MessageGroup for this chunk.
+
+        Three paths:
+        - existing group by id → return it.
+        - retry-collapse hit (see :meth:`_should_retry_collapse`) →
+          reuse the prior empty assistant bubble, bump ``retries``,
+          alias the new id, drop the stale pending tracking.
+        - otherwise → create a fresh group, register it, enforce the
+          assistant-turn window cap.
+        """
+        existing = self._messages_by_id.get(message_id)
+        if existing is not None:
+            return existing
+        if self._should_retry_collapse(role, meta, is_pending_signal):
+            # Predicate guarantees self.items[-1] is an empty assistant
+            # MessageGroup — narrow once for mypy.
+            prior = self.items[-1]
+            assert isinstance(prior, MessageGroup)
+            prior.retries += 1
+            # Aliasing: any further chunks bearing the retry's
+            # message_id (completion marker, late content) need to
+            # find this group too.
+            self._message_id_aliases[original_message_id or message_id] = (
+                prior.message_id
+            )
+            # Drop the previous attempt's tracking entry so the
+            # status row's pending set doesn't accumulate stale ids.
+            self._pending_message_ids.discard(prior.message_id)
+            return prior
+        group = MessageGroup(message_id=message_id, role=role)
+        self._messages_by_id[message_id] = group
+        self.items.append(group)
+        # State-side window cap: only the *new assistant group* path
+        # can push us over the limit (tool calls slot between existing
+        # assistants, user messages don't count). Trim here so the
+        # rest of this method works against the pruned window if we
+        # just shrank it.
+        if role == "assistant":
+            self._enforce_turn_cap()
+        return group
+
+    def _should_retry_collapse(
+        self,
+        role: MessageRole,
+        meta: dict[str, Any],
+        is_pending_signal: bool,
+    ) -> bool:
+        """Predicate: should this pending signal collapse onto the prior group?
+
+        Returns True when the most recent item is an empty assistant
+        bubble for the same model — that's the signature of a retry
+        cycle (prior attempt errored after its pending signal but
+        before producing content). Caller reuses that group and
+        increments its ``retries`` counter so the user sees one bubble
+        across all attempts rather than a wall of empties.
+        """
+        if not (is_pending_signal and role == "assistant" and self.items):
+            return False
+        last = self.items[-1]
+        if not isinstance(last, MessageGroup):
+            return False
+        if last.role != "assistant" or last.segments:
+            return False
+        model_hint = meta.get(MODEL_META_KEY)
+        return not isinstance(model_hint, str) or last.model in (None, model_hint)
+
+    def _apply_pending_lifecycle(
+        self,
+        group: MessageGroup,
+        is_pending_signal: bool,
+        meta: dict[str, Any],
+    ) -> None:
+        """Reconcile pending markers on the group.
+
+        The router stamps explicit markers on the model-event boundary
+        chunks: a ``pending`` marker on entry (status row flips to
+        ``generating`` immediately) and a ``complete`` marker on exit
+        when no real content was emitted (tool-only responses). Real
+        content chunks also implicitly close the pending window — but
+        that side of the lifecycle lives in :meth:`_append_segment`,
+        since closure follows the moment content arrives.
+        """
         if is_pending_signal:
             self._pending_message_ids.add(group.message_id)
             group.pending = True
@@ -443,53 +491,58 @@ class SessionState:
             self._pending_message_ids.discard(group.message_id)
             group.pending = False
 
-        # Append to the segment list. Adjacent chunks of the same kind
-        # extend the last segment so multi-chunk text streams as one
-        # block; a kind change (text → reasoning or vice versa) starts
-        # a new segment so the renderer can show interleaved
-        # thought / response in true arrival order.
-        text = self._text_from_content(update.content)
-        if text:
-            kind = self._segment_kind_for(update)
-            if group.segments and group.segments[-1].kind == kind:
-                group.segments[-1].text += text
-            else:
-                group.segments.append(Segment(kind=kind, text=text))
-            # Real content arrived — clear any pending marker since
-            # generation has produced output. Harmless no-op when no
-            # pending was open (cache-hit path skips the pending phase).
-            self._pending_message_ids.discard(group.message_id)
-            group.pending = False
+    def _append_segment(
+        self,
+        group: MessageGroup,
+        update: UserMessageChunk | AgentMessageChunk | AgentThoughtChunk,
+    ) -> None:
+        """Add chunk text to the group, extending the last segment if same kind.
 
-        # Track model from meta. For assistant/reasoning chunks the
-        # router stamps the originating ModelEvent.model in
-        # _meta["inspect.model"]; user chunks have no model attribution.
+        Adjacent chunks of the same kind extend the last segment so
+        multi-chunk text streams as one block; a kind change (text →
+        reasoning or vice versa) starts a new segment so the renderer
+        can show interleaved thought / response in true arrival order.
+
+        Also closes the pending window once real content arrives —
+        generation has produced output, so the chip should drop its
+        spinner regardless of whether the explicit complete marker
+        has been seen yet.
+        """
+        text = self._text_from_content(update.content)
+        if not text:
+            return
+        kind = self._segment_kind_for(update)
+        if group.segments and group.segments[-1].kind == kind:
+            group.segments[-1].text += text
+        else:
+            group.segments.append(Segment(kind=kind, text=text))
+        # Real content closes the pending window — harmless no-op when
+        # no pending was open (cache-hit path skips the pending phase).
+        self._pending_message_ids.discard(group.message_id)
+        group.pending = False
+
+    def _apply_chunk_metadata(
+        self,
+        group: MessageGroup,
+        role: MessageRole,
+        meta: dict[str, Any],
+    ) -> None:
+        """Reconcile model attribution + user source from chunk meta."""
+        # Assistant / reasoning chunks carry the originating
+        # ModelEvent.model in ``_meta["inspect.model"]``; user chunks
+        # have no model attribution.
         model = meta.get(MODEL_META_KEY)
         if isinstance(model, str) and model:
             group.model = model
             self.current_model = model
-
-        # Track user source from meta — server stamps the
-        # ChatMessageUser.source value (``input`` / ``operator`` /
-        # ``generate`` / null) on UserMessageChunks so the chip can
-        # render "user · operator" etc. Only sticks if we haven't
-        # already recorded one (first chunk wins; later same-id
-        # chunks could in theory carry a different value, but the
-        # server emits one chunk per user message).
+        # User source is stamped by the server (input / operator /
+        # generate / null). First chunk wins — the server emits one
+        # chunk per user message, but be defensive against future
+        # changes by only setting when previously unset.
         if role in ("user", "system") and group.user_source is None:
             source = meta.get(USER_SOURCE_META_KEY)
             if isinstance(source, str) and source:
                 group.user_source = source
-
-        # The "Generating" derivation is time-based — record the latest
-        # chunk activity so :attr:`status` can decide when to fall back
-        # to AWAITING_INPUT. **NOTE for integration layer**: the
-        # GENERATING → AWAITING_INPUT transition is time-driven only;
-        # SessionState does NOT fire a notification when the quiescence
-        # window expires. The SessionScreen needs its own ~500ms timer
-        # to call `refresh()` so the pill flips after the last chunk.
-        self._last_chunk_at = self._now()
-        return True
 
     def _text_from_content(self, content: Any) -> str:
         """Extract display text from an ACP ContentBlock.
@@ -511,53 +564,58 @@ class SessionState:
         return ""
 
     def _consume_tool_start(self, update: ToolCallStart) -> bool:
+        # ToolCallStart and ToolCallProgress share the same
+        # first-sight / merge shape — see :meth:`_consume_tool_update`.
+        return self._consume_tool_update(update)
+
+    def _consume_tool_progress(self, update: ToolCallProgress) -> bool:
+        # ToolCallProgress before ToolCallStart shouldn't happen on the
+        # wire today (the server always emits start first) but is
+        # treated symmetrically as a defensive fallback — synthesize a
+        # card so the operator at least sees the in-flight tool.
+        return self._consume_tool_update(update)
+
+    def _consume_tool_update(self, update: ToolCallStart | ToolCallProgress) -> bool:
+        """Apply an incoming tool update: create on first sight, merge thereafter.
+
+        Both ToolCallStart and ToolCallProgress route through here. On
+        first sight (no entry in the index) we construct the
+        ToolCallState and append to ``items``; on subsequent updates
+        we merge non-None fields per ACP's replace-on-present
+        semantics. Either path can carry a terminal status so end_time
+        is set during construction OR via the merge.
+        """
         tc = self._tool_calls_by_id.get(update.tool_call_id)
-        status = update.status or "in_progress"
         if tc is None:
-            tc = ToolCallState(
-                tool_call_id=update.tool_call_id,
-                title=update.title,
-                kind=update.kind,
-                status=status,
-                content=list(update.content) if update.content is not None else None,
-                raw_input=update.raw_input,
-                raw_output=update.raw_output,
-                start_time=self._now(),
-            )
-            if tc.status in ("completed", "failed"):
-                tc.end_time = tc.start_time
+            tc = self._create_tool_call_state(update)
             self._tool_calls_by_id[update.tool_call_id] = tc
             self.items.append(tc)
             return True
-        # Defensive: a duplicate start (e.g. replayed). Merge non-None
-        # fields without re-appending to items.
         self._merge_tool_fields(tc, update)
         return True
 
-    def _consume_tool_progress(self, update: ToolCallProgress) -> bool:
-        tc = self._tool_calls_by_id.get(update.tool_call_id)
-        if tc is None:
-            # Out-of-order: progress before start. Synthesize a state so
-            # the operator at least sees a card. Real "progress without
-            # start" shouldn't happen on the wire today; this is
-            # defensive against future server / replay edge cases.
-            tc = ToolCallState(
-                tool_call_id=update.tool_call_id,
-                title=update.title,
-                kind=update.kind,
-                status=update.status or "in_progress",
-                content=list(update.content) if update.content is not None else None,
-                raw_input=update.raw_input,
-                raw_output=update.raw_output,
-                start_time=self._now(),
-            )
-            self._tool_calls_by_id[update.tool_call_id] = tc
-            self.items.append(tc)
-            if tc.status in ("completed", "failed"):
-                tc.end_time = tc.start_time
-            return True
-        self._merge_tool_fields(tc, update)
-        return True
+    def _create_tool_call_state(
+        self, update: ToolCallStart | ToolCallProgress
+    ) -> ToolCallState:
+        """Build a fresh ToolCallState from the first update we see."""
+        status = update.status or "in_progress"
+        start_time = self._now()
+        tc = ToolCallState(
+            tool_call_id=update.tool_call_id,
+            title=update.title,
+            kind=update.kind,
+            status=status,
+            content=list(update.content) if update.content is not None else None,
+            raw_input=update.raw_input,
+            raw_output=update.raw_output,
+            start_time=start_time,
+        )
+        # Terminal-on-first-sight (e.g. replay of a completed tool):
+        # set end_time = start_time so duration reads as ~0 instead
+        # of None.
+        if tc.status in ("completed", "failed"):
+            tc.end_time = start_time
+        return tc
 
     def _merge_tool_fields(
         self,

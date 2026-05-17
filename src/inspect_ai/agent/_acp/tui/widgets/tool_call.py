@@ -8,32 +8,36 @@ Composition:
 - Footer: status chip + client-derived duration
 
 The card border colour propagates from the session status pill: teal
-while in-flight, sage on success, rust on failure (Phase 2 keeps the
-"in-flight tint follows pill" behaviour the design doc calls out).
+while in-flight, sage on success, rust on failure.
 """
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.css.query import NoMatches
 from textual.widget import Widget
 from textual.widgets import Static
 
 from inspect_ai._util.rich import clean_control_characters
-from inspect_ai._util.text import truncate_lines
 
 from ..state import ToolCallState
-from .markdown import StyledMarkdown
+from ._collapsible import CollapsibleContent
+from ._fingerprint import item_signature
+from ._formatting import SPINNER_FRAMES, format_duration
+
+logger = logging.getLogger(__name__)
 
 _DEFAULT_TOOL_OUTPUT_MAX_LINES = 15
 """How many lines of tool output to show before truncating.
 
 Long bash outputs / file dumps blow out the transcript otherwise. The
 trailing ``[+N more lines]`` indicator tells the operator something
-was elided; Phase 6 will wire ^E to expand the body in place.
+was elided.
 """
 
 _KIND_ICONS: dict[str | None, str] = {
@@ -53,199 +57,10 @@ _KIND_ICONS: dict[str | None, str] = {
     None: "",
 }
 
-# Braille spinner — same ten-frame idiom MessageWidget uses for the
-# assistant chip, so the in-flight cards visually match the chip above.
-_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
-
 _COMPLETED_GLYPH = "✓"
 _FAILED_GLYPH = "✗"
 
-
-def _item_signature(item: object) -> tuple[Any, ...]:
-    """Module-level item fingerprint — shared with the transcript layer.
-
-    Same shape as ``ToolCallWidget._item_signature`` (which delegates
-    here). Lives at module scope so the TranscriptWidget can compute
-    a comprehensive tool-call fingerprint without instantiating a
-    widget, so its content-change detection scrolls live-tail
-    correctly even while status stays ``in_progress``.
-    """
-    type_name = getattr(item, "type", None)
-    if type_name == "content":
-        inner = getattr(item, "content", None)
-        text = getattr(inner, "text", "") if inner is not None else ""
-        return ("content", len(text or ""), hash(text or ""))
-    if type_name == "diff":
-        old_text = getattr(item, "old_text", "") or ""
-        new_text = getattr(item, "new_text", "") or ""
-        return (
-            "diff",
-            getattr(item, "path", ""),
-            hash(old_text),
-            hash(new_text),
-        )
-    if type_name == "terminal":
-        return ("terminal", getattr(item, "terminal_id", ""))
-    return (type_name or "unknown",)
-
-
-def tool_state_fingerprint(state: "ToolCallState") -> tuple[Any, ...]:
-    """Comprehensive change signature for a ToolCallState.
-
-    Returns a hashable tuple that changes whenever ANYTHING the user
-    would see changes: status, title, kind, the list of content items
-    (with text hashes so same-length replacements register), and the
-    raw_input shape (plan-style tools render from raw_input not
-    content). The transcript layer uses this to gate the auto-scroll
-    decision so live-tail follows in-progress tool output.
-    """
-    content_sig = tuple(_item_signature(item) for item in (state.content or []))
-    # raw_input shape matters for plan-style tools which render their
-    # body from it. Use repr — it's stable for the dict shapes Inspect
-    # produces and avoids importing the plan-extraction logic here.
-    raw_input_sig: object
-    if isinstance(state.raw_input, dict):
-        raw_input_sig = hash(repr(sorted(state.raw_input.items(), key=str)))
-    else:
-        raw_input_sig = repr(state.raw_input)
-    return (
-        state.status,
-        state.title or "",
-        state.kind or "",
-        content_sig,
-        raw_input_sig,
-    )
-
-
-class _CollapsibleContent(Widget):
-    """Truncated tool output that expands on click of the more-lines note.
-
-    Renders ``max_lines`` of text via :class:`StyledMarkdown` plus, when
-    the source was longer, a clickable underlined ``… N more lines``
-    indicator. Clicking the indicator swaps the body for the full text
-    and removes the note — one-way (no collapse back; once you've
-    asked to see the rest you want to keep seeing it).
-
-    The note carries an underline + hover tint to telegraph that it's
-    interactive — the usual TUI convention for "this is clickable".
-    """
-
-    DEFAULT_CSS = """
-    /* No margin here — the parent (ToolCallWidget puts margin-bottom
-     * on the ``.content-item`` wrapper; MessageWidget mounts these
-     * directly into a body Vertical). Inner margins on a widget
-     * inside a height-auto Vertical wrapper don't reliably push
-     * siblings apart, which caused blocks to render flush against
-     * each other (no input/output separation). */
-    _CollapsibleContent { height: auto; }
-    _CollapsibleContent .body-content { height: auto; }
-    /* Truncation note styling lives on the widget itself (not on the
-     * parent) so the affordance reads consistently whether
-     * _CollapsibleContent is mounted inside a tool card or a message
-     * bubble. Underlined + muted telegraphs "click to expand"; hover
-     * tint mirrors the usual TUI clickable convention. */
-    _CollapsibleContent .truncation-note {
-        color: $text-muted;
-        text-style: italic underline;
-        height: auto;
-    }
-    _CollapsibleContent .truncation-note:hover { color: $accent; }
-    """
-
-    def __init__(self, full_text: str, *, max_lines: int) -> None:
-        super().__init__()
-        self._full_text = full_text
-        self._max_lines = max_lines
-        self._expanded = False
-
-    def compose(self) -> ComposeResult:
-        shown, omitted = truncate_lines(self._full_text, max_lines=self._max_lines)
-        yield Static(StyledMarkdown(shown), classes="body-content", id="cc-body")
-        if omitted is not None and omitted > 0:
-            label = f"… {omitted} more line{'s' if omitted != 1 else ''}"
-            yield Static(label, classes="truncation-note", id="cc-note", markup=False)
-
-    def on_click(self) -> None:
-        # The body content rarely has interactive children, so any
-        # click within this widget — note or body — counts as a
-        # request to expand. Cheaper than per-widget click handlers
-        # and avoids the empty-region miss most users would hit when
-        # trying to click a 1-row italic note.
-        if self._expanded:
-            return
-        self._expanded = True
-        try:
-            self.query_one("#cc-body", Static).update(StyledMarkdown(self._full_text))
-        except Exception:
-            return
-        try:
-            self.query_one("#cc-note", Static).remove()
-        except Exception:
-            pass
-
-    def replace_text(self, text: str) -> None:
-        """Replace the underlying text in place — for streaming tail growth.
-
-        ToolCallWidget calls this when a ToolCallProgress extends the
-        last content item rather than appending a new one. Updating
-        the body text + truncation note avoids a full re-mount that
-        would flash the surrounding card.
-        """
-        self._full_text = text
-        try:
-            body_static = self.query_one("#cc-body", Static)
-        except Exception:
-            return
-        if self._expanded:
-            body_static.update(StyledMarkdown(self._full_text))
-            return
-        shown, omitted = truncate_lines(self._full_text, max_lines=self._max_lines)
-        body_static.update(StyledMarkdown(shown))
-        # Note may or may not exist yet — recreate it conditionally so
-        # late-arriving truncation (text grew past the limit) gets a
-        # clickable expander.
-        existing_note: Static | None = None
-        try:
-            existing_note = self.query_one("#cc-note", Static)
-        except Exception:
-            existing_note = None
-        if omitted is not None and omitted > 0:
-            label = f"… {omitted} more line{'s' if omitted != 1 else ''}"
-            if existing_note is None:
-                self.mount(
-                    Static(
-                        label,
-                        classes="truncation-note",
-                        id="cc-note",
-                        markup=False,
-                    )
-                )
-            else:
-                existing_note.update(label)
-        elif existing_note is not None:
-            existing_note.remove()
-
-
-def _format_duration(seconds: float | None) -> str:
-    """Format duration the same way the picker formats running times.
-
-    Sub-second durations land on most tool calls, so add a 1-decimal
-    ``0.2s`` floor; minute/hour rolls match :func:`_format_running` so
-    the eye reads card durations and picker times consistently.
-    """
-    if seconds is None:
-        return "—"
-    if seconds < 1.0:
-        return f"{seconds:.1f}s"
-    total = int(seconds)
-    if total < 60:
-        return f"{total}s"
-    if total < 3600:
-        m, s = divmod(total, 60)
-        return f"{m}m {s:02d}s"
-    h, rem = divmod(total, 3600)
-    m, _ = divmod(rem, 60)
-    return f"{h}h {m:02d}m"
+_PLACEHOLDER_SIG: tuple[Any, ...] = ("placeholder",)
 
 
 class ToolCallWidget(Widget):
@@ -267,16 +82,22 @@ class ToolCallWidget(Widget):
     }
     ToolCallWidget .body { height: auto; }
     /* Visual separation between successive content items (input view
-     * vs. result output, multiple result blocks, etc.). The wrapper
-     * carries the margin so the gap reliably contributes to the
-     * parent's height-auto layout — putting the margin on the inner
-     * _CollapsibleContent collapsed and blocks rendered flush. */
-    ToolCallWidget .content-item { height: auto; margin-bottom: 1; }
+     * vs output, multiple result blocks) — each item lives in its own
+     * ``.content-item`` wrapper so update_state can append-only mount
+     * new wrappers without disturbing existing ones, AND each gets a
+     * bottom margin so the blocks read distinctly. Without this, the
+     * input + output appeared as one continuous block with the
+     * CollapsibleContent collapsed and blocks rendered flush. */
+    ToolCallWidget .content-item {
+        height: auto;
+        margin-bottom: 1;
+    }
     ToolCallWidget .footer {
         color: $text-muted;
+        text-style: italic;
         height: auto;
     }
-    /* Truncation-note styling is on _CollapsibleContent itself —
+    /* Truncation-note styling is on CollapsibleContent itself —
      * portable across tool cards + message bubbles. */
     ToolCallWidget .diff-header {
         color: $text-muted;
@@ -292,23 +113,30 @@ class ToolCallWidget(Widget):
     def __init__(self, state: ToolCallState) -> None:
         super().__init__()
         self._state = state
-        # Snapshots of what's currently MOUNTED, so update_state can
-        # diff against the actual DOM rather than the live state
-        # (which mutates in place in `_merge_tool_fields`). Tracked at
-        # per-item granularity so we can append-only mount new content
-        # blocks instead of tearing the whole body down on each
-        # ToolCallProgress — that wholesale rebuild was the visible
-        # flash the user saw whenever new content arrived.
         # In-flight spinner frame, advanced by ``tick_duration``. Same
         # cadence as the assistant chip spinner (driven by the
         # SessionScreen's periodic timer).
         self._spinner_frame = 0
+        # Snapshots of what's currently MOUNTED. update_state diffs
+        # against these rather than the live state (which mutates in
+        # place inside SessionState._merge_tool_fields) so we can
+        # detect what actually changed and apply minimal DOM updates.
         self._mounted_header = self._header_text()
         self._mounted_footer = self._footer_text()
         self._mounted_status = self._state.status
         self._mounted_kind: str = "plan" if self._is_plan_state() else "content"
         self._mounted_item_sigs: list[tuple[Any, ...]] = self._compute_item_sigs()
         self._refresh_status_class()
+
+    # ------------------------------------------------------------------
+    # Compose + initial render
+    # ------------------------------------------------------------------
+
+    def compose(self) -> ComposeResult:
+        yield Static(self._header_text(), classes="header", markup=True)
+        with Vertical(classes="body"):
+            yield from self._compose_body()
+        yield Static(self._footer_text(), classes="footer", markup=False)
 
     def _refresh_status_class(self) -> None:
         for cls in ("in-flight", "completed", "failed"):
@@ -320,81 +148,210 @@ class ToolCallWidget(Widget):
         else:
             self.add_class("in-flight")
 
-    def compose(self) -> ComposeResult:
-        yield Static(self._header_text(), classes="header", markup=True)
-        with Vertical(classes="body"):
-            yield from self._compose_body()
-        yield Static(self._footer_text(), classes="footer", markup=False)
-
     # ------------------------------------------------------------------
-    # Per-item fingerprints — drive append-only body updates
+    # Periodic tick — keeps in-flight spinner + elapsed advancing
     # ------------------------------------------------------------------
 
-    def _item_signature(self, item: object) -> tuple[Any, ...]:
-        """Per-content-item fingerprint for diffing mounted vs. incoming.
+    def tick_duration(self) -> None:
+        """Refresh just the footer so the in-flight elapsed + spinner advance.
 
-        Tuples are keyed by ``type`` first so a type change forces a
-        re-mount, then by the visible-content shape (text length, diff
-        path + side lengths, terminal id). Ordinary tool output that
-        REPLACES the previous progress with an extended copy will
-        produce the same prefix here, letting us append-only without
-        retearing.
+        Called by the SessionScreen's periodic tick — terminal states
+        already show the final glyph + duration so we skip them and
+        avoid needless DOM churn.
         """
-        # Delegate to the module-level helper so the transcript layer
-        # and the widget agree on what counts as a change. Includes
-        # the text hash so same-length replacements register.
-        return _item_signature(item)
+        if self._state.is_terminal:
+            return
+        self._spinner_frame += 1
+        try:
+            self.query_one(".footer", Static).update(self._footer_text())
+        except NoMatches:
+            pass
 
-    def _compute_item_sigs(self) -> list[tuple[Any, ...]]:
-        """Snapshot the current state's body items for later diffing.
+    # ------------------------------------------------------------------
+    # State update — diff mounted vs. incoming and apply minimal patch
+    # ------------------------------------------------------------------
 
-        Plan-style tools render from ``raw_input`` not ``content``, so
-        their snapshot is a single ``("plan", …)`` tuple — any change
-        triggers a wholesale plan rebuild (plans are short and change
-        less often than streamed output).
+    def update_state(self, state: ToolCallState) -> None:
+        """Re-bind to (possibly mutated) state and apply minimal updates.
+
+        Critical for live visual quality: a wholesale-rebuild on every
+        notification flashed every tool card whenever any chunk
+        arrived. This implementation diffs against the mounted
+        snapshot and only touches what changed.
+
+        Update strategy, applied top-to-bottom:
+
+        - Header / footer / status border — cheap re-render only when
+          their text changed.
+        - Body items — gated on a fingerprint diff. When the body must
+          change, pick exactly one of: wholesale rebuild, extend last
+          item in place, or append-only mount. Fall back to wholesale
+          rebuild when the diff doesn't fit those shapes.
         """
-        if self._is_plan_state():
-            plan = self._extract_plan_entries() or []
-            return [("plan", tuple(self._plan_entry_sig(e) for e in plan))]
-        items = self._state.content or []
-        if not items:
-            return [("placeholder",)]
-        return [self._item_signature(item) for item in items]
+        self._state = state
 
-    def _plan_entry_sig(self, entry: dict[str, Any]) -> tuple[str, str]:
-        status = str(entry.get("status", "pending")).lower()
-        text = str(
-            entry.get("step")
-            or entry.get("content")
-            or entry.get("text")
-            or entry.get("description")
-            or entry.get("task")
-            or ""
+        self._update_status_class_if_changed()
+        self._update_header_if_changed()
+        self._update_footer_if_changed()
+
+        if not self._body_changed():
+            return
+
+        try:
+            body = self.query_one(".body", Vertical)
+        except NoMatches:
+            return
+
+        new_sigs = self._compute_item_sigs()
+        new_kind = "plan" if self._is_plan_state() else "content"
+
+        if self._needs_wholesale_rebuild(new_kind, new_sigs):
+            self._rebuild_body_wholesale(body)
+        elif self._can_extend_last_item(new_sigs):
+            items = self._state.content or []
+            if not self._extend_last_content_item(body, items[-1]):
+                self._rebuild_body_wholesale(body)
+        elif self._can_append_only(new_sigs):
+            self._append_new_items(body, new_sigs)
+        else:
+            self._rebuild_body_wholesale(body)
+
+        self._mounted_item_sigs = new_sigs
+        self._mounted_kind = new_kind
+
+    # ------------------------------------------------------------------
+    # Update-state helpers — small, named, side-effecting
+    # ------------------------------------------------------------------
+
+    def _update_status_class_if_changed(self) -> None:
+        if self._state.status != self._mounted_status:
+            self._refresh_status_class()
+            self._mounted_status = self._state.status
+
+    def _update_header_if_changed(self) -> None:
+        new_header = self._header_text()
+        if new_header == self._mounted_header:
+            return
+        try:
+            self.query_one(".header", Static).update(new_header)
+        except NoMatches:
+            pass
+        self._mounted_header = new_header
+
+    def _update_footer_if_changed(self) -> None:
+        new_footer = self._footer_text()
+        if new_footer == self._mounted_footer:
+            return
+        try:
+            self.query_one(".footer", Static).update(new_footer)
+        except NoMatches:
+            pass
+        self._mounted_footer = new_footer
+
+    def _body_changed(self) -> bool:
+        new_kind = "plan" if self._is_plan_state() else "content"
+        new_sigs = self._compute_item_sigs()
+        return new_kind != self._mounted_kind or new_sigs != self._mounted_item_sigs
+
+    # ------------------------------------------------------------------
+    # Update-state predicates — pick at most one true at a time
+    # ------------------------------------------------------------------
+
+    def _needs_wholesale_rebuild(
+        self, new_kind: str, new_sigs: list[tuple[Any, ...]]
+    ) -> bool:
+        """True when the body can't be patched in place.
+
+        Triggers: kind switch (plan ↔ content), any change inside a
+        plan body (plans are short and rebuild cheaply), or a
+        transition into / out of the empty ``(no output yet)``
+        placeholder.
+        """
+        if new_kind != self._mounted_kind:
+            return True
+        if new_kind == "plan":
+            return True
+        was_placeholder = self._mounted_item_sigs == [_PLACEHOLDER_SIG]
+        is_placeholder = new_sigs == [_PLACEHOLDER_SIG]
+        return was_placeholder or is_placeholder
+
+    def _can_extend_last_item(self, new_sigs: list[tuple[Any, ...]]) -> bool:
+        """True when the only change is that the last content item grew.
+
+        Streaming tool output (bash stdout, model thinking, etc.)
+        produces this shape — same item count, all but the last item
+        unchanged, last item is a longer text-content block. Avoids a
+        full rebuild on every chunk.
+        """
+        old = self._mounted_item_sigs
+        if len(new_sigs) != len(old) or not old:
+            return False
+        common = _common_prefix(old, new_sigs)
+        if common != len(old) - 1:
+            return False
+        last_old, last_new = old[-1], new_sigs[-1]
+        return bool(
+            last_old[0] == "content"
+            and last_new[0] == "content"
+            and last_new[1] >= last_old[1]
         )
-        return (status, text)
 
-    def _is_plan_state(self) -> bool:
-        return self._extract_plan_entries() is not None
+    def _can_append_only(self, new_sigs: list[tuple[Any, ...]]) -> bool:
+        """True when existing items are unchanged and new items were appended."""
+        old = self._mounted_item_sigs
+        return _common_prefix(old, new_sigs) == len(old)
 
-    def _header_text(self) -> str:
-        """Header: optional icon + bold tool name + dim args.
+    # ------------------------------------------------------------------
+    # Update-state mutators
+    # ------------------------------------------------------------------
 
-        Inspect's router puts the tool name first in ``title`` (e.g.
-        ``bash ls /usr/bin`` or just ``update_plan``). Splitting on the
-        first space keeps name + arg-summary as separate visual
-        weights so the eye lands on the *tool* before the parameters.
-        Unmapped kinds get no glyph (the tool name carries the signal).
+    def _append_new_items(
+        self, body: Vertical, new_sigs: list[tuple[Any, ...]]
+    ) -> None:
+        common = len(self._mounted_item_sigs)
+        items = self._state.content or []
+        for item in items[common:]:
+            wrapper = Vertical(classes="content-item")
+            body.mount(wrapper)
+            for w in self._compose_item(item):
+                wrapper.mount(w)
+
+    def _extend_last_content_item(self, body: Vertical, item: object) -> bool:
+        """Replace the last content wrapper's body text with the new text.
+
+        Returns False if the mounted DOM doesn't match the assumed
+        single-CollapsibleContent shape (defensive — the body
+        composition is the only path that creates these wrappers, but
+        a future content variant might break the assumption). On False
+        the caller falls back to wholesale rebuild.
         """
-        icon = _KIND_ICONS.get(self._state.kind, _KIND_ICONS[None])
-        prefix = f"{icon} " if icon else ""
-        title = self._state.title or self._state.tool_call_id
-        name, _, args = title.partition(" ")
-        # Escape brackets in args so any ``[…]`` inside a path or URL
-        # isn't interpreted as Rich markup.
-        if args:
-            args_escaped = args.replace("[", r"\[").replace("]", r"\]")
-            return f"{prefix}[bold]{name}[/bold] [dim]{args_escaped}[/dim]"
-        return f"{prefix}[bold]{name}[/bold]"
+        children = list(body.children)
+        if not children:
+            return False
+        last_wrapper = children[-1]
+        if not isinstance(last_wrapper, Vertical):
+            return False
+        inner_children = list(last_wrapper.children)
+        if len(inner_children) != 1:
+            return False
+        cc = inner_children[0]
+        if not isinstance(cc, CollapsibleContent):
+            return False
+        text = self._text_for_inner(getattr(item, "content", None))
+        if not text:
+            return False
+        cc.replace_text(clean_control_characters(text))
+        return True
+
+    def _rebuild_body_wholesale(self, body: Vertical) -> None:
+        for child in list(body.children):
+            child.remove()
+        for w in self._compose_body():
+            body.mount(w)
+
+    # ------------------------------------------------------------------
+    # Body composition
+    # ------------------------------------------------------------------
 
     def _compose_body(self) -> ComposeResult:
         # Plan tools (update_plan, todo_write) carry the actual plan in
@@ -402,7 +359,7 @@ class ToolCallWidget(Widget):
         # Render the entries as a checklist so the operator can see what
         # the agent committed to.
         plan_entries = self._extract_plan_entries()
-        if plan_entries:
+        if plan_entries is not None:
             yield from self._compose_plan(plan_entries)
             return
 
@@ -418,6 +375,149 @@ class ToolCallWidget(Widget):
         for item in items:
             with Vertical(classes="content-item"):
                 yield from self._compose_item(item)
+
+    def _compose_item(self, item: object) -> ComposeResult:
+        type_name = getattr(item, "type", None)
+        if type_name == "diff":
+            yield from self._compose_diff(item)
+            return
+        if type_name == "terminal":
+            terminal_id = getattr(item, "terminal_id", "?")
+            yield Static(
+                f"[terminal: {terminal_id}]", classes="body-content", markup=False
+            )
+            return
+        if type_name == "content":
+            inner = getattr(item, "content", None)
+            text = self._text_for_inner(inner)
+            if not text:
+                yield Static("", classes="body-content", markup=False)
+                return
+            # Clean control characters first — untrusted tool stdout
+            # can include ANSI escapes / NUL bytes that confuse rich's
+            # measurement pass (same util the rich display uses).
+            cleaned = clean_control_characters(text)
+            # CollapsibleContent handles its own truncation +
+            # click-to-expand. Body rendered via StyledMarkdown so
+            # fenced code is syntax-highlighted vs plain stdout.
+            yield CollapsibleContent(cleaned, max_lines=_DEFAULT_TOOL_OUTPUT_MAX_LINES)
+            return
+        # Unknown content type — log so a router-side bug surfaces
+        # instead of being silently swallowed. Still emit a placeholder
+        # so the card stays renderable.
+        logger.warning(
+            "ToolCallWidget: unknown content item type %r on tool_call_id=%s",
+            type_name,
+            self._state.tool_call_id,
+        )
+        yield Static(
+            f"[{type_name or 'unknown'}]", classes="body-content", markup=False
+        )
+
+    def _compose_diff(self, item: object) -> ComposeResult:
+        path = getattr(item, "path", "?")
+        old_text = getattr(item, "old_text", None)
+        new_text = getattr(item, "new_text", "") or ""
+        yield Static(f"--- {path}", classes="diff-header", markup=False)
+        if old_text:
+            for line in old_text.splitlines() or [""]:
+                yield Static(f"- {line}", classes="diff-old", markup=False)
+        for line in new_text.splitlines() or [""]:
+            yield Static(f"+ {line}", classes="diff-new", markup=False)
+
+    def _compose_plan(self, entries: list[dict[str, Any]]) -> ComposeResult:
+        for entry in entries:
+            status = str(entry.get("status", "pending")).lower()
+            text = _plan_entry_text(entry)
+            if status == "completed":
+                glyph = "[x]"
+            elif status == "in_progress":
+                glyph = "[~]"
+            else:
+                glyph = "[ ]"
+            # Plain text — the glyph alone carries status. Per-state
+            # colouring made finished plans read as a wall of green;
+            # plain is calmer and more legible.
+            yield Static(f"  {glyph} {text}", classes="plan-entry", markup=False)
+        # Trailing blank row so the footer doesn't press against the
+        # last plan entry — CollapsibleContent does this via its own
+        # margin-bottom, but the plan path bypasses that widget.
+        yield Static("", classes="plan-spacer", markup=False)
+
+    # ------------------------------------------------------------------
+    # Per-state derivations — header, footer, plan / fingerprint shape
+    # ------------------------------------------------------------------
+
+    def _header_text(self) -> str:
+        """Header: optional icon + bold tool name + dim args.
+
+        The router formats ``title`` via
+        :func:`inspect_ai.agent._acp.tool_content.descriptive_title` —
+        e.g. ``bash ls /usr/bin`` or ``update_plan``. Splitting on the
+        first space recovers ``name`` vs argument summary so the eye
+        lands on the *tool* first. We can't call ``descriptive_title``
+        directly here: the TUI only receives the post-formatted string
+        on the wire, not the raw ``(fn, arguments)`` pair the function
+        needs.
+        """
+        icon = _KIND_ICONS.get(self._state.kind, _KIND_ICONS[None])
+        prefix = f"{icon} " if icon else ""
+        title = self._state.title or self._state.tool_call_id
+        name, _, args = title.partition(" ")
+        # Escape brackets in args so any ``[…]`` inside a path or URL
+        # isn't interpreted as Rich markup.
+        if args:
+            args_escaped = args.replace("[", r"\[").replace("]", r"\]")
+            return f"{prefix}[bold]{name}[/bold] [dim]{args_escaped}[/dim]"
+        return f"{prefix}[bold]{name}[/bold]"
+
+    def _footer_text(self) -> str:
+        # Status reads as a single glyph: animated spinner while in
+        # flight, ✓ on success, ✗ on failure. Border colour already
+        # carries the redundant status signal so the glyph + duration
+        # is enough text to scan.
+        if self._state.status == "completed":
+            glyph = _COMPLETED_GLYPH
+        elif self._state.status == "failed":
+            glyph = _FAILED_GLYPH
+        else:
+            glyph = SPINNER_FRAMES[self._spinner_frame % len(SPINNER_FRAMES)]
+        # In-flight: derive elapsed from start_time so the card surfaces
+        # progress without waiting for a terminal status.
+        if self._state.is_terminal:
+            duration = format_duration(self._state.duration_seconds)
+        else:
+            duration = format_duration(time.monotonic() - self._state.start_time)
+        return f"{glyph} {duration}"
+
+    def _text_for_inner(self, inner: object) -> str:
+        # TextContentBlock → text; everything else gets a placeholder
+        # consistent with the message widget's handling.
+        if inner is None:
+            return ""
+        if getattr(inner, "type", None) == "text":
+            return getattr(inner, "text", "") or ""
+        type_name = getattr(inner, "type", None) or "content"
+        return f"[{type_name}]"
+
+    def _compute_item_sigs(self) -> list[tuple[Any, ...]]:
+        """Snapshot the current state's body items for later diffing.
+
+        Plan-style tools render from ``raw_input`` not ``content``, so
+        their snapshot is a single ``("plan", …)`` tuple — any change
+        triggers a wholesale plan rebuild (plans are short and change
+        less often than streamed output).
+        """
+        plan = self._extract_plan_entries()
+        if plan is not None:
+            return [("plan", tuple(_plan_entry_sig(e) for e in plan))]
+        items = self._state.content or []
+        if not items:
+            return [_PLACEHOLDER_SIG]
+        return [item_signature(item) for item in items]
+
+    def _is_plan_state(self) -> bool:
+        return self._extract_plan_entries() is not None
 
     def _extract_plan_entries(self) -> list[dict[str, Any]] | None:
         """Return a checklist of plan items if this is a plan-style tool.
@@ -440,258 +540,37 @@ class ToolCallWidget(Widget):
                 return entries
         return None
 
-    def _compose_plan(self, entries: list[dict[str, Any]]) -> ComposeResult:
-        for entry in entries:
-            status = str(entry.get("status", "pending")).lower()
-            # Inspect's ``update_plan`` uses ``step``; other plan-style
-            # tools may use ``content`` / ``text`` / ``description`` /
-            # ``task``. Fall through to the first non-empty value so
-            # the entry text always renders.
-            text = str(
-                entry.get("step")
-                or entry.get("content")
-                or entry.get("text")
-                or entry.get("description")
-                or entry.get("task")
-                or ""
-            )
-            if status == "completed":
-                glyph = "[x]"
-            elif status == "in_progress":
-                glyph = "[~]"
-            else:
-                glyph = "[ ]"
-            # Render in normal text — the glyph alone communicates
-            # status. Per-state colouring (green/yellow/muted) made the
-            # whole panel read as a wall of green once items finished;
-            # plain text is calmer and more legible.
-            yield Static(f"  {glyph} {text}", classes="plan-entry", markup=False)
-        # Trailing blank row so the footer ("completed · 0.0s") doesn't
-        # press against the last plan entry — _CollapsibleContent does
-        # this via its own margin-bottom, but the plan path bypasses
-        # that widget.
-        yield Static("", classes="plan-spacer", markup=False)
 
-    def _compose_item(self, item: object) -> ComposeResult:
-        type_name = getattr(item, "type", None)
-        if type_name == "diff":
-            yield from self._compose_diff(item)
-        elif type_name == "terminal":
-            terminal_id = getattr(item, "terminal_id", "?")
-            yield Static(
-                f"[terminal: {terminal_id}]", classes="body-content", markup=False
-            )
-        elif type_name == "content":
-            inner = getattr(item, "content", None)
-            text = self._text_for_inner(inner)
-            if not text:
-                yield Static("", classes="body-content", markup=False)
-                return
-            # Clean control characters first — untrusted tool stdout
-            # can include ANSI escapes / NUL bytes that confuse rich's
-            # measurement pass (same util the rich display uses).
-            cleaned = clean_control_characters(text)
-            # _CollapsibleContent handles its own truncation +
-            # click-to-expand. Body rendered via StyledMarkdown so
-            # fenced code is syntax-highlighted vs plain stdout.
-            yield _CollapsibleContent(cleaned, max_lines=_DEFAULT_TOOL_OUTPUT_MAX_LINES)
-        else:
-            yield Static(
-                f"[{type_name or 'unknown'}]", classes="body-content", markup=False
-            )
+# ----------------------------------------------------------------------
+# Module-level helpers
+# ----------------------------------------------------------------------
 
-    def _compose_diff(self, item: object) -> ComposeResult:
-        path = getattr(item, "path", "?")
-        old_text = getattr(item, "old_text", None)
-        new_text = getattr(item, "new_text", "") or ""
-        yield Static(f"--- {path}", classes="diff-header", markup=False)
-        if old_text:
-            for line in old_text.splitlines() or [""]:
-                yield Static(f"- {line}", classes="diff-old", markup=False)
-        for line in new_text.splitlines() or [""]:
-            yield Static(f"+ {line}", classes="diff-new", markup=False)
 
-    def _text_for_inner(self, inner: object) -> str:
-        # TextContentBlock → text; everything else gets a placeholder
-        # consistent with the message widget's handling.
-        if inner is None:
-            return ""
-        if getattr(inner, "type", None) == "text":
-            return getattr(inner, "text", "") or ""
-        type_name = getattr(inner, "type", None) or "content"
-        return f"[{type_name}]"
+def _plan_entry_text(entry: dict[str, Any]) -> str:
+    """Display text for a plan entry — tries the keys Inspect tools emit.
 
-    def _footer_text(self) -> str:
-        # Status reads as a single glyph: animated spinner while in
-        # flight, ✓ on success, ✗ on failure. Border colour already
-        # carries the redundant status signal so the glyph + duration
-        # is enough text to scan.
-        if self._state.status == "completed":
-            glyph = _COMPLETED_GLYPH
-        elif self._state.status == "failed":
-            glyph = _FAILED_GLYPH
-        else:
-            glyph = _SPINNER_FRAMES[self._spinner_frame % len(_SPINNER_FRAMES)]
-        # In-flight: derive elapsed from start_time so the card surfaces
-        # progress without waiting for a terminal status.
-        if self._state.is_terminal:
-            duration = _format_duration(self._state.duration_seconds)
-        else:
-            duration = _format_duration(time.monotonic() - self._state.start_time)
-        return f"{glyph} {duration}"
+    ``update_plan`` uses ``step``; ``todo_write`` uses ``content``;
+    other plan-style tools may use ``text`` / ``description`` /
+    ``task``. Falls through to the first non-empty value so the entry
+    text always renders.
+    """
+    return str(
+        entry.get("step")
+        or entry.get("content")
+        or entry.get("text")
+        or entry.get("description")
+        or entry.get("task")
+        or ""
+    )
 
-    def tick_duration(self) -> None:
-        """Refresh just the footer so the in-flight elapsed + spinner advance.
 
-        Called by the SessionScreen's periodic tick — terminal states
-        already show the final glyph + duration so we skip them and
-        avoid needless DOM churn.
-        """
-        if self._state.is_terminal:
-            return
-        self._spinner_frame += 1
-        try:
-            self.query_one(".footer", Static).update(self._footer_text())
-        except Exception:
-            pass
+def _plan_entry_sig(entry: dict[str, Any]) -> tuple[str, str]:
+    status = str(entry.get("status", "pending")).lower()
+    return (status, _plan_entry_text(entry))
 
-    def update_state(self, state: ToolCallState) -> None:
-        """Re-bind to (possibly mutated) state and apply minimal updates.
 
-        Critical for live visual quality: the previous implementation
-        wholesale-rebuilt the body on every notification, which
-        flashed every tool card whenever ANY chunk arrived. This
-        version diffs against the mounted snapshot and only touches
-        what changed:
-
-        - Header / footer / border class: cheap re-render only when
-          their inputs changed (status, title, kind, in-flight elapsed).
-        - Body items: append-only mount of new content wrappers when
-          the existing prefix matches; in-place text replacement when
-          the last item grew (streaming output); wholesale rebuild
-          only on a structural change (rare — plan updates, content
-          truncated, item type changed mid-stream).
-        """
-        self._state = state
-
-        if state.status != self._mounted_status:
-            self._refresh_status_class()
-            self._mounted_status = state.status
-
-        new_header = self._header_text()
-        if new_header != self._mounted_header:
-            try:
-                self.query_one(".header", Static).update(new_header)
-            except Exception:
-                pass
-            self._mounted_header = new_header
-
-        new_footer = self._footer_text()
-        if new_footer != self._mounted_footer:
-            try:
-                self.query_one(".footer", Static).update(new_footer)
-            except Exception:
-                pass
-            self._mounted_footer = new_footer
-
-        # Body diff — gate the expensive mount work on actual change.
-        new_kind = "plan" if self._is_plan_state() else "content"
-        new_sigs = self._compute_item_sigs()
-        if new_kind == self._mounted_kind and new_sigs == self._mounted_item_sigs:
-            return
-
-        try:
-            body = self.query_one(".body", Vertical)
-        except Exception:
-            return
-
-        # Strategy:
-        # - kind switch (plan ↔ content) or plan changed → wholesale rebuild
-        # - placeholder ↔ real content transition → wholesale rebuild
-        # - existing items unchanged + new items at end → append-only
-        # - last existing item grew (text-content only) → in-place update,
-        #   then append any further new items
-        # - anything else (prefix mismatch, item type changed,
-        #   item shrunk / removed) → wholesale rebuild
-        old_sigs = self._mounted_item_sigs
-        kind_switch = new_kind != self._mounted_kind
-        was_placeholder = old_sigs == [("placeholder",)]
-        is_placeholder = new_sigs == [("placeholder",)]
-        if kind_switch or new_kind == "plan" or was_placeholder or is_placeholder:
-            self._rebuild_body_wholesale(body)
-            self._mounted_item_sigs = new_sigs
-            self._mounted_kind = new_kind
-            return
-
-        # Content path: try append-only / extend-last.
-        items = self._state.content or []
-        common = self._common_prefix(old_sigs, new_sigs)
-        # Tail-update case: same length, last item grew.
-        if common == len(old_sigs) - 1 and len(new_sigs) == len(old_sigs):
-            last_old = old_sigs[-1]
-            last_new = new_sigs[-1]
-            if (
-                last_old[0] == "content"
-                and last_new[0] == "content"
-                and last_new[1] >= last_old[1]
-            ):
-                if self._extend_last_content_item(body, items[-1]):
-                    self._mounted_item_sigs = new_sigs
-                    return
-
-        if common == len(old_sigs):
-            # Pure append: existing prefix unchanged, mount the new tail.
-            for item in items[common:]:
-                wrapper = Vertical(classes="content-item")
-                body.mount(wrapper)
-                for w in self._compose_item(item):
-                    wrapper.mount(w)
-            self._mounted_item_sigs = new_sigs
-            return
-
-        # Anything else — fall back to wholesale rebuild. This is the
-        # rare case (item type flipped, prefix changed, shrink); the
-        # common streaming case is handled above without a rebuild.
-        self._rebuild_body_wholesale(body)
-        self._mounted_item_sigs = new_sigs
-
-    @staticmethod
-    def _common_prefix(old: list[tuple[Any, ...]], new: list[tuple[Any, ...]]) -> int:
-        n = 0
-        while n < len(old) and n < len(new) and old[n] == new[n]:
-            n += 1
-        return n
-
-    def _extend_last_content_item(self, body: Vertical, item: object) -> bool:
-        """Replace the last content wrapper's body text with the new text.
-
-        Returns False if anything looks wrong (no wrapper, unexpected
-        child shape) so the caller can fall back to wholesale rebuild.
-        """
-        children = list(body.children)
-        if not children:
-            return False
-        last_wrapper = children[-1]
-        if not isinstance(last_wrapper, Vertical):
-            return False
-        # The wrapper holds exactly one child for a "content" item: a
-        # _CollapsibleContent. Anything else and we bail to the safe
-        # rebuild path.
-        inner_children = list(last_wrapper.children)
-        if len(inner_children) != 1:
-            return False
-        cc = inner_children[0]
-        if not isinstance(cc, _CollapsibleContent):
-            return False
-        text = self._text_for_inner(getattr(item, "content", None))
-        if not text:
-            return False
-        cleaned = clean_control_characters(text)
-        cc.replace_text(cleaned)
-        return True
-
-    def _rebuild_body_wholesale(self, body: Vertical) -> None:
-        for child in list(body.children):
-            child.remove()
-        for w in self._compose_body():
-            body.mount(w)
+def _common_prefix(old: list[tuple[Any, ...]], new: list[tuple[Any, ...]]) -> int:
+    n = 0
+    while n < len(old) and n < len(new) and old[n] == new[n]:
+        n += 1
+    return n

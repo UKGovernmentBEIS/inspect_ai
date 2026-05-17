@@ -162,9 +162,11 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
 class AttachedSession:
     """Live ACP connection bound to a single target session.
 
-    Owns the asyncio task running the connection's main loop. The
-    ``disconnected`` event fires when the peer closes or the loop
-    raises; the screen subscribes to drive the disconnect toast.
+    Owns the asyncio task running the connection's receive loop. The
+    ``disconnected`` event fires when the peer closes (EOF on the
+    reader), the receive loop raises, or :meth:`close` is called
+    explicitly — so subscribers can ``await disconnected.wait()``
+    instead of polling the writer for a closed state.
     """
 
     def __init__(
@@ -180,16 +182,56 @@ class AttachedSession:
         self.session_id = session_id
         self.row = row
         self.disconnected = asyncio.Event()
+        self._receive_task: asyncio.Task[None] | None = None
+        # Idempotence flag for :meth:`close`. Distinct from
+        # ``disconnected`` because the receive loop sets disconnected
+        # on peer EOF — at which point we still need to tear down the
+        # writer + Connection internals on the local side, so close()
+        # must NOT short-circuit on ``disconnected``.
+        self._closed = False
 
     @property
     def is_connected(self) -> bool:
         return not self.disconnected.is_set()
 
     async def close(self) -> None:
-        """Idempotent cleanup; called on screen unmount + on disconnect."""
-        if self.disconnected.is_set():
+        """Idempotent cleanup; safe to call multiple times.
+
+        Stops the receive task, tears down the ACP Connection (shuts
+        down its Dispatcher / Sender background tasks), and closes
+        the writer. Called on screen unmount AND after a peer-side
+        disconnect — both paths run the same teardown so the asyncio
+        loop doesn't end up with orphaned acp.* tasks.
+
+        Teardown order matters: cancel the receive task first so it
+        doesn't try to publish a late message into the dispatcher
+        queue while ``Connection.close()`` is closing that queue
+        (which raises ``RuntimeError: message queue already closed``).
+        """
+        if self._closed:
             return
+        self._closed = True
+        # Flag disconnected first so any blocked subscriber wakes up.
+        # Harmless no-op when the receive loop already set it.
         self.disconnected.set()
+        # Stop the receive task before tearing down the Connection's
+        # queue — see method docstring. Task may already be done
+        # (peer EOF set disconnected via the loop's finally clause).
+        if self._receive_task is not None:
+            if not self._receive_task.done():
+                self._receive_task.cancel()
+            try:
+                await self._receive_task
+            except (asyncio.CancelledError, Exception):
+                pass
+        # Connection.close stops the dispatcher + sender loops cleanly;
+        # without this the slow TUI suite captures
+        # "Task pending: acp.Sender.loop / acp.Dispatcher.loop" warnings
+        # whenever the test process exits with a connection still up.
+        try:
+            await self.connection.close()
+        except Exception:
+            pass
         try:
             self.writer.close()
             await self.writer.wait_closed()
@@ -206,71 +248,86 @@ async def attach_session(
 
     Calls ``initialize`` then ``session/load(sessionId)``. The
     ``session/update`` notification route is registered before the
-    connection starts listening; ``on_session_update`` (if given)
-    receives each notification synchronously from the connection's
-    reader task.
+    receive loop starts; ``on_session_update`` (if given) receives
+    each notification synchronously from the receive task.
+
+    The Connection is constructed with ``listening=False`` so we own
+    the receive task and can fire :attr:`AttachedSession.disconnected`
+    the moment it exits (peer EOF, read error, or explicit close).
     """
     reader, writer = await _open_socket(row.target)
     router = MessageRouter()
     if on_session_update is not None:
 
-        async def _handle(params: SessionNotification) -> None:
-            on_session_update(params)
+        async def _func(params: Any) -> None:
+            # MessageRouter delivers params as a dict; validate to the
+            # typed SessionNotification so consumers see ACP objects
+            # (mirrors the server-side router convention).
+            notif = (
+                SessionNotification.model_validate(params)
+                if isinstance(params, dict)
+                else params
+            )
+            on_session_update(notif)
 
         router.add_route(
-            Route(
-                method="session/update",
-                func=_make_session_update_func(_handle),
-                kind="notification",
-            )
+            Route(method="session/update", func=_func, kind="notification")
         )
     conn = Connection(
         handler=router,
         writer=writer,
         reader=reader,
-        listening=True,
+        listening=False,
     )
-    await conn.send_request(
-        "initialize",
-        {
-            "protocolVersion": PROTOCOL_VERSION,
-            "clientInfo": CLIENT_INFO,
-        },
-    )
-    await conn.send_request(
-        "session/load",
-        {
-            "sessionId": row.session_id,
-            "cwd": ".",
-            "mcpServers": [],
-        },
-    )
-    return AttachedSession(
+    session = AttachedSession(
         connection=conn,
         writer=writer,
         session_id=row.session_id,
         row=row,
     )
 
+    async def _run_receive_loop() -> None:
+        """Drive the connection's receive loop; flag disconnected on exit."""
+        try:
+            await conn.main_loop()
+        except (asyncio.CancelledError, ConnectionError, OSError):
+            # Cancellation = our own close; ConnectionError/OSError =
+            # peer EOF or socket error. Both mean "disconnected" —
+            # don't propagate.
+            pass
+        finally:
+            session.disconnected.set()
 
-def _make_session_update_func(
-    handler: Callable[[SessionNotification], Any],
-) -> Callable[..., Any]:
-    """Adapt SessionNotification deserialization for MessageRouter.
+    session._receive_task = asyncio.create_task(
+        _run_receive_loop(), name="acp-tui-receive"
+    )
 
-    The router calls ``func(params_dict)``. Validating via Pydantic
-    here keeps the rest of the TUI working with typed objects (same
-    convention the server-side router uses).
-    """
-
-    async def _func(params: Any) -> None:
-        if isinstance(params, dict):
-            notif = SessionNotification.model_validate(params)
-        else:
-            notif = params
-        await handler(notif)
-
-    return _func
+    # Handshake — the receive task is already running so responses
+    # can be dispatched. If either request raises (e.g. picker row
+    # went stale between enumeration and attach, server refuses the
+    # session/load), tear down the partially-built session before
+    # surfacing the error to the caller — otherwise the socket +
+    # background ACP tasks leak.
+    try:
+        await conn.send_request(
+            "initialize",
+            {
+                "protocolVersion": PROTOCOL_VERSION,
+                "clientInfo": CLIENT_INFO,
+            },
+        )
+        await conn.send_request(
+            "session/load",
+            {
+                "sessionId": row.session_id,
+                "cwd": ".",
+                "mcpServers": [],
+            },
+        )
+    except BaseException:
+        await session.close()
+        raise
+    return session
 
 
 async def _open_socket(

@@ -24,6 +24,7 @@ from typing import Callable
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
+from textual.css.query import NoMatches
 from textual.screen import Screen
 from textual.widgets import Footer, Input
 
@@ -61,13 +62,13 @@ class SessionScreen(Screen[None]):
         *,
         session: AttachedSession,
         on_disconnect: Callable[[], None],
-        state: SessionState | None = None,
+        state: SessionState,
     ) -> None:
         super().__init__()
         self._session = session
         self._on_disconnect = on_disconnect
         self._watch_task: asyncio.Task[None] | None = None
-        self._state = state if state is not None else SessionState()
+        self._state = state
         self._unsubscribe: Callable[[], None] | None = None
 
     @property
@@ -116,7 +117,7 @@ class SessionScreen(Screen[None]):
         try:
             header = self.query_one(SessionHeaderWidget)
             transcript = self.query_one(TranscriptWidget)
-        except Exception:
+        except NoMatches:
             return
         header.set_usage(self._state.usage)
         transcript.refresh_from(self._state)
@@ -127,7 +128,7 @@ class SessionScreen(Screen[None]):
         # here on a timer.
         try:
             self.query_one(TranscriptWidget).tick_inflight_durations()
-        except Exception:
+        except NoMatches:
             pass
 
     # ------------------------------------------------------------------
@@ -135,21 +136,21 @@ class SessionScreen(Screen[None]):
     # ------------------------------------------------------------------
 
     async def _watch_disconnect(self) -> None:
+        """Notify + pop back to the picker as soon as the peer goes away.
+
+        The client's receive-task sets ``disconnected`` on EOF / read
+        error / explicit close — so this just blocks on the event and
+        reacts. The previous polling loop was a workaround for the
+        absence of that wiring and added a ~500ms quantum to the
+        user-visible recovery.
+        """
         try:
-            while not self._session.disconnected.is_set():
-                if self._session.writer.is_closing():
-                    break
-                await asyncio.sleep(0.5)
+            await self._session.disconnected.wait()
         except asyncio.CancelledError:
             return
-
-        if self._session.disconnected.is_set():
-            return
-
-        await self._session.close()
         try:
             self.query_one(SessionHeaderWidget).set_connected(False)
             self.app.notify("disconnected from server", severity="warning")
-        except Exception:
+        except NoMatches:
             pass
         self._on_disconnect()

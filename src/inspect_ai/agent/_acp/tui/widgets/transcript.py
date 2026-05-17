@@ -14,8 +14,9 @@ from textual.containers import VerticalScroll
 from textual.widget import Widget
 
 from ..state import MessageGroup, SessionState, ToolCallState
+from ._fingerprint import tool_state_fingerprint
 from .message import MessageWidget
-from .tool_call import ToolCallWidget, tool_state_fingerprint
+from .tool_call import ToolCallWidget
 
 
 def _message_fingerprint(
@@ -104,10 +105,7 @@ class TranscriptWidget(VerticalScroll):
         for stale in existing_keys - seen_keys:
             entry = self._entries.pop(stale, None)
             if entry is not None:
-                try:
-                    entry[0].remove()
-                except Exception:
-                    pass
+                entry[0].remove()
 
         if content_changed and at_bottom:
             self.call_after_refresh(self.scroll_end, animate=False)

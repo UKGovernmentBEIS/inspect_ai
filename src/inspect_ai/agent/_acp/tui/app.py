@@ -155,7 +155,7 @@ class InspectAcpApp(App[None]):
         skip the eval that just registered.
         """
         if self._server is not None:
-            target = _parse_server_arg(self._server)
+            target = _parse_target(self._server)
             # Use the address's describe() as a synthetic eval id —
             # it's only used to label the picker row when the remote
             # eval's true id isn't yet known here. (The server's
@@ -217,7 +217,7 @@ class InspectAcpApp(App[None]):
             self.pop_screen()
 
 
-def _parse_server_arg(value: str) -> TargetAddress:
+def _parse_target(value: str) -> TargetAddress:
     """Parse a ``--server`` string into a :class:`TargetAddress`.
 
     Same parsing rules as :func:`resolve_target`'s ``server`` branch,

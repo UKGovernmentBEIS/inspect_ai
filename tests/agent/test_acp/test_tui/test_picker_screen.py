@@ -15,9 +15,9 @@ from textual.widgets import DataTable, Input, Markdown, Static
 
 from inspect_ai.agent._acp.tui.app import InspectAcpApp
 from inspect_ai.agent._acp.tui.client import SessionRow
-from inspect_ai.agent._acp.tui.picker_screen import (
-    PickerScreen,
-    _format_running,
+from inspect_ai.agent._acp.tui.picker_screen import PickerScreen
+from inspect_ai.agent._acp.tui.widgets._formatting import (
+    format_running as _format_running,
 )
 
 from .conftest import make_fake_client

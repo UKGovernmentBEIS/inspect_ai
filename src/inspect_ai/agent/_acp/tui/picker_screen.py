@@ -22,57 +22,23 @@ from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
+from textual.css.query import NoMatches
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Input, Markdown, Static
 from textual.widgets._data_table import CellDoesNotExist
 
 from .client import SessionRow
+from .widgets._formatting import format_running, format_tokens
 
-
-def _format_running(started_at: float | None, now: float | None = None) -> str:
-    """Format elapsed seconds as e.g. ``12s`` / ``3m 04s`` / ``1h 02m``."""
-    if started_at is None:
-        return "—"
-    elapsed = (now if now is not None else time.time()) - started_at
-    if elapsed < 0:
-        elapsed = 0
-    total = int(elapsed)
-    if total < 60:
-        return f"{total}s"
-    if total < 3600:
-        m, s = divmod(total, 60)
-        return f"{m}m {s:02d}s"
-    h, rem = divmod(total, 3600)
-    m, _ = divmod(rem, 60)
-    return f"{h}h {m:02d}m"
-
-
-def _format_tokens(n: int) -> str:
-    """Pretty-format token counts with K / M / B suffixes.
-
-    Token totals routinely cross the million mark on long agent runs;
-    a literal ``1234567`` is hard to scan in a narrow column. Use the
-    same convention model dashboards do: drop to one decimal place
-    once the number rolls over to the next unit, then trim the
-    trailing ``.0`` for clean values (``1.5K``, ``1K``, ``10.2M``).
-    """
-    if n < 1_000:
-        return str(n)
-    for unit, suffix in ((1_000_000_000, "B"), (1_000_000, "M"), (1_000, "K")):
-        if n >= unit:
-            value = n / unit
-            # One decimal for under-10 values (``1.2K``, ``9.9M``);
-            # whole numbers above that so the column stays narrow.
-            if value < 10:
-                text = f"{value:.1f}"
-            else:
-                text = f"{value:.0f}"
-            # Trim a useless trailing ``.0`` so ``1000`` reads as
-            # ``1K`` rather than ``1.0K``.
-            if text.endswith(".0"):
-                text = text[:-2]
-            return f"{text}{suffix}"
-    return str(n)  # unreachable, keeps mypy happy
+# Column keys — module constants so add_column, update_cell, and per-tick
+# refreshes all reference the same string. A typo at one site silently
+# breaks update_cell (CellDoesNotExist) without a column-set assertion.
+_COL_SAMPLE = "sample"
+_COL_TASK = "task"
+_COL_EPOCH = "epoch"
+_COL_AGENT = "agent"
+_COL_TOKENS = "tokens"
+_COL_RUNNING = "running"
 
 
 def _sample_cell(sample_id: str, *, is_cursor: bool) -> Text:
@@ -137,19 +103,14 @@ class PickerScreen(Screen[None]):
 
     def action_attach(self) -> None:
         """Activate the highlighted row (or commit the filter)."""
+        table = self._table_or_none()
+        if table is None:
+            return
         # Pressing Enter while typing in the filter Input means "apply
         # what's typed and return to the table" — defocus the input.
         inp = self._filter_input()
         if inp is not None and inp.has_focus:
-            try:
-                table = self.query_one(DataTable)
-            except Exception:
-                return
             table.focus()
-            return
-        try:
-            table = self.query_one(DataTable)
-        except Exception:
             return
         if not self._visible_rows:
             return
@@ -190,15 +151,15 @@ class PickerScreen(Screen[None]):
         inp.add_class("hidden")
         self._filter_text = ""
         self._apply_filter()
-        try:
-            self.query_one(DataTable).focus()
-        except Exception:
-            pass
+        table = self._table_or_none()
+        if table is not None:
+            table.focus()
 
     def _filter_input(self) -> Input | None:
+        """The filter Input, or None when we're in the empty-state branch."""
         try:
             return self.query_one("#filter-input", Input)
-        except Exception:
+        except NoMatches:
             return None
 
     DEFAULT_CSS = """
@@ -293,16 +254,13 @@ class PickerScreen(Screen[None]):
         # rescan that arrives while filtering can reapply it instead
         # of dropping back to the unfiltered view.
         self._filter_text = ""
-        # Key for the "running" column; captured in _compose_table so
-        # the per-second refresh can update those cells in place.
-        self._running_col_key: str | None = None
         # Track which row currently shows the "▸" gutter glyph so
         # cursor moves can clear the old one before setting the new.
         self._gutter_row_key: str | None = None
 
     def compose(self) -> ComposeResult:
         # Local import to break the import cycle — ``_widgets._header``
-        # pulls ``_format_tokens`` from this module for the tokens chip
+        # pulls ``format_tokens`` from this module for the tokens chip
         # on the session header. Keeping the import inside compose
         # defers it until after this module is fully initialized.
         from .widgets import AppHeaderWidget
@@ -368,15 +326,14 @@ class PickerScreen(Screen[None]):
         # Explicit ``key="sample"`` so on_data_table_row_highlighted
         # can ``update_cell(row_key, "sample", …)`` — add_columns
         # would assign auto-generated UUID keys, breaking the swap.
-        table.add_column("sample", key="sample")
-        table.add_columns("task", "epoch", "agent")
+        table.add_column(_COL_SAMPLE, key=_COL_SAMPLE)
+        table.add_columns(_COL_TASK, _COL_EPOCH, _COL_AGENT)
         # Use literal string keys (NOT ``str(ColumnKey)`` — that
         # returns the object's repr, which doesn't match anything on
-        # lookup). The same strings passed here are what update_cell
-        # references in _tick_running.
-        table.add_column("tokens", key="tokens")
-        table.add_column("running", key="running")
-        self._running_col_key = "running"
+        # lookup). update_cell calls in _tick_column reference the
+        # same constants.
+        table.add_column(_COL_TOKENS, key=_COL_TOKENS)
+        table.add_column(_COL_RUNNING, key=_COL_RUNNING)
         self._populate_table(table)
         with Vertical():
             yield table
@@ -407,9 +364,8 @@ class PickerScreen(Screen[None]):
         focus from the filter Input and break live typing).
         """
         if table is None:
-            try:
-                table = self.query_one(DataTable)
-            except Exception:
+            table = self._table_or_none()
+            if table is None:
                 return
         # ``clear()`` drops rows but keeps the column layout, which is
         # what we want when narrowing/widening the visible set.
@@ -427,8 +383,8 @@ class PickerScreen(Screen[None]):
                 Text(row.task, style="dim"),
                 str(row.epoch),
                 row.agent_name or "—",
-                _format_tokens(row.total_tokens),
-                _format_running(row.started_at, now),
+                format_tokens(row.total_tokens),
+                format_running(row.started_at, now),
                 key=row.session_id,
             )
         self._gutter_row_key = (
@@ -438,7 +394,7 @@ class PickerScreen(Screen[None]):
     def _refresh_status(self) -> None:
         try:
             status = self.query_one("#picker-status", Static)
-        except Exception:
+        except NoMatches:
             return
         status.update(self._status_markup())
 
@@ -459,9 +415,8 @@ class PickerScreen(Screen[None]):
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Move the ▸ glyph to follow the cursor as it navigates."""
-        try:
-            table = self.query_one(DataTable)
-        except Exception:
+        table = self._table_or_none()
+        if table is None:
             return
         new_key = event.row_key.value if event.row_key is not None else None
         if new_key is None or new_key == self._gutter_row_key:
@@ -475,7 +430,7 @@ class PickerScreen(Screen[None]):
                 try:
                     table.update_cell(
                         self._gutter_row_key,
-                        "sample",
+                        _COL_SAMPLE,
                         _sample_cell(prev.sample_id, is_cursor=False),
                     )
                 except CellDoesNotExist:
@@ -486,7 +441,7 @@ class PickerScreen(Screen[None]):
         try:
             table.update_cell(
                 new_key,
-                "sample",
+                _COL_SAMPLE,
                 _sample_cell(new_row.sample_id, is_cursor=True),
             )
         except CellDoesNotExist:
@@ -500,11 +455,9 @@ class PickerScreen(Screen[None]):
         # focus to the table so navigation + attach work out of the
         # gate. Only meaningful in the populated branch — the empty
         # branch has no DataTable.
-        if self._rows:
-            try:
-                self.query_one(DataTable).focus()
-            except Exception:
-                pass
+        table = self._table_or_none()
+        if table is not None:
+            table.focus()
             # Per-second refresh of the running column so elapsed times
             # tick visibly. Cheap (in-place cell update).
             self.set_interval(1.0, self._tick_running)
@@ -516,6 +469,16 @@ class PickerScreen(Screen[None]):
             self.set_interval(self.RESCAN_INTERVAL_SECS, self._do_rescan)
 
     async def _do_rescan(self) -> None:
+        """Background rescan: pull fresh rows, recompose only on structural change.
+
+        Three outcomes per cycle:
+        - same session-id set → in-place ``tokens`` refresh (cursor /
+          scroll preserved).
+        - structural change (empty ↔ populated branch transition, or
+          population set diff while no table is mounted) → recompose.
+        - row diff with table mounted → in-place repopulate via the
+          filter path so the active filter stays applied.
+        """
         if self._rescan is None:
             return
         try:
@@ -524,15 +487,9 @@ class PickerScreen(Screen[None]):
             # Transient enumeration failures shouldn't disturb the
             # current view; try again next tick.
             return
-        new_ids = [r.session_id for r in new_rows]
-        cur_ids = [r.session_id for r in self._rows]
-        if new_ids == cur_ids:
+        if not self._row_ids_changed(new_rows):
             # Steady state for the *set* of sessions, but per-row
-            # fields (notably ``total_tokens``) may have advanced
-            # since the last rescan. Replace ``_rows`` so subsequent
-            # ticks see fresh data, then update the ``tokens`` cells
-            # in place so the user sees the new values without losing
-            # cursor / scroll state.
+            # fields (notably ``total_tokens``) may have advanced.
             self._rows = new_rows
             self._visible_rows = [
                 r for r in self._rows if _row_matches(r, self._filter_text)
@@ -540,72 +497,75 @@ class PickerScreen(Screen[None]):
             self._tick_tokens()
             return
         self._rows = new_rows
-        if not new_rows:
-            # Need to swap to the empty branch — that's a structural
-            # change, not just a row-set diff. Recompose handles it.
-            self._visible_rows = []
-            self.refresh(recompose=True)
-            return
-        # Reapply the active filter (if any) so a rescan during
-        # filtering doesn't drop back to the unfiltered view. If we
-        # were previously in the empty branch (no table mounted), a
-        # recompose is still required to bring the table into being.
-        try:
-            self.query_one(DataTable)
-        except Exception:
+        if self._needs_recompose(new_rows):
             self._visible_rows = [
                 r for r in self._rows if _row_matches(r, self._filter_text)
             ]
             self.refresh(recompose=True)
             return
+        # Row diff with a live table — reapply the filter in place so
+        # rescanning during filtering doesn't drop back to unfiltered.
         self._apply_filter()
 
+    def _row_ids_changed(self, new_rows: list[SessionRow]) -> bool:
+        return [r.session_id for r in new_rows] != [r.session_id for r in self._rows]
+
+    def _needs_recompose(self, new_rows: list[SessionRow]) -> bool:
+        """True when we must swap structural branches (empty ↔ populated).
+
+        Going to / from the empty branch flips which widgets exist; a
+        partial mutation can't recover. Also covers the case where
+        the empty branch is mounted (no DataTable yet) but new rows
+        just arrived — we need a recompose to bring the table into
+        being.
+        """
+        if not new_rows:
+            return True
+        return self._table_or_none() is None
+
     def _tick_running(self) -> None:
-        if not self._visible_rows or self._running_col_key is None:
-            return
-        try:
-            table = self.query_one(DataTable)
-        except Exception:
-            # Table not mounted (e.g. tick fired between empty-state
-            # branches); next tick will pick it up.
-            return
+        """Per-second refresh of the ``running`` column — drives the live timer."""
         now = time.time()
-        for row in self._visible_rows:
-            try:
-                table.update_cell(
-                    row.session_id,
-                    self._running_col_key,
-                    _format_running(row.started_at, now),
-                )
-            except CellDoesNotExist:
-                # Row was removed (e.g. concurrent rescan) — fine,
-                # skip. Narrow except so we don't mask real bugs
-                # like a stale column-key string (previous regression).
-                continue
+        self._tick_column(
+            _COL_RUNNING, lambda row: format_running(row.started_at, now)
+        )
 
     def _tick_tokens(self) -> None:
-        """Update the ``tokens`` column from the current ``_visible_rows``.
+        """Refresh the ``tokens`` column after a rescan pulls fresh data.
 
-        Separate from ``_tick_running`` because token totals only
-        advance when the rescan pulls fresh data from the server —
-        there's no local computation to redo every second. Called from
-        ``_do_rescan`` after refreshing ``_rows``.
+        Token totals only advance when the rescan loop pulls new data
+        from the server — there's no local computation to redo every
+        second — so this is wired into ``_do_rescan`` rather than the
+        per-second tick.
+        """
+        self._tick_column(_COL_TOKENS, lambda row: format_tokens(row.total_tokens))
+
+    def _tick_column(self, col_key: str, value_fn: Callable[[SessionRow], str]) -> None:
+        """Update one column's cells in place across the visible rows.
+
+        Silently skips when the table isn't mounted (table not yet
+        composed, or we're sitting in the empty-state branch); the
+        next tick will pick it up. ``CellDoesNotExist`` per row is
+        also silenced — a concurrent rescan may have dropped the row
+        between visible-rows snapshot and cell update.
         """
         if not self._visible_rows:
             return
-        try:
-            table = self.query_one(DataTable)
-        except Exception:
+        table = self._table_or_none()
+        if table is None:
             return
         for row in self._visible_rows:
             try:
-                table.update_cell(
-                    row.session_id,
-                    "tokens",
-                    _format_tokens(row.total_tokens),
-                )
+                table.update_cell(row.session_id, col_key, value_fn(row))
             except CellDoesNotExist:
                 continue
+
+    def _table_or_none(self) -> DataTable[str | Text] | None:
+        """The mounted DataTable, or None if we're in the empty branch."""
+        try:
+            return self.query_one(DataTable)
+        except NoMatches:
+            return None
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         # Belt-and-braces: ``action_attach`` (Screen-level ``enter``

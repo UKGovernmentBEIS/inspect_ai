@@ -18,12 +18,13 @@ from __future__ import annotations
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal
+from textual.css.query import NoMatches
 from textual.widget import Widget
 from textual.widgets import Static
 
 from ..client import SessionRow
-from ..picker_screen import _format_tokens
 from ..state import UsageState
+from ._formatting import format_tokens
 
 
 def _short_task_name(name: str) -> str:
@@ -135,7 +136,7 @@ class SessionHeaderWidget(Widget):
         u = self._usage
         if u is None:
             return ""
-        return f"[dim]tokens[/dim] {_format_tokens(u.used)}"
+        return f"[dim]tokens[/dim] {format_tokens(u.used)}"
 
     def set_usage(self, usage: UsageState | None) -> None:
         """Refresh the tokens chip from the latest UsageUpdate.
@@ -149,14 +150,14 @@ class SessionHeaderWidget(Widget):
         self._usage = usage
         try:
             self.query_one("#meta-text", Static).update(self._meta_markup())
-        except Exception:
+        except NoMatches:
             pass
 
     def set_connected(self, connected: bool) -> None:
         """Flip the connection indicator (sage when up, rust when down)."""
         try:
             indicator = self.query_one("#conn-indicator", Static)
-        except Exception:
+        except NoMatches:
             return
         if connected:
             indicator.update("● connected")

@@ -24,8 +24,10 @@ from inspect_ai.agent._acp.tui.widgets import (
     ToolCallWidget,
     TranscriptWidget,
 )
+from inspect_ai.agent._acp.tui.widgets._formatting import (
+    format_duration as _format_duration,
+)
 from inspect_ai.agent._acp.tui.widgets.message import _ReasoningBlock
-from inspect_ai.agent._acp.tui.widgets.tool_call import _format_duration
 
 pytestmark = pytest.mark.slow
 
@@ -143,8 +145,8 @@ async def test_user_message_renders_user_chip_with_source_suffix() -> None:
         # Body text is rendered inside a _CollapsibleContent (the
         # same widget tool output uses) so long messages get the
         # ``… N more lines`` expander treatment.
-        from inspect_ai.agent._acp.tui.widgets.tool_call import (
-            _CollapsibleContent,
+        from inspect_ai.agent._acp.tui.widgets._collapsible import (
+            CollapsibleContent as _CollapsibleContent,
         )
 
         ccs = list(mw.query(_CollapsibleContent))
@@ -218,11 +220,11 @@ async def test_long_message_text_gets_truncation_note() -> None:
     the transcript off-screen. The collapsible expander gives the
     operator an opt-in to see the full content.
     """
+    from inspect_ai.agent._acp.tui.widgets._collapsible import (
+        CollapsibleContent as _CollapsibleContent,
+    )
     from inspect_ai.agent._acp.tui.widgets.message import (
         _MESSAGE_TEXT_MAX_LINES,
-    )
-    from inspect_ai.agent._acp.tui.widgets.tool_call import (
-        _CollapsibleContent,
     )
 
     over_cap = "\n".join(f"line {n}" for n in range(_MESSAGE_TEXT_MAX_LINES + 5))
@@ -246,8 +248,8 @@ async def test_long_message_text_gets_truncation_note() -> None:
 @pytest.mark.anyio
 async def test_short_message_text_omits_truncation_note() -> None:
     """Messages under the cap render without the expander affordance."""
-    from inspect_ai.agent._acp.tui.widgets.tool_call import (
-        _CollapsibleContent,
+    from inspect_ai.agent._acp.tui.widgets._collapsible import (
+        CollapsibleContent as _CollapsibleContent,
     )
 
     group = MessageGroup(
@@ -497,7 +499,9 @@ async def test_tool_call_truncates_long_content_with_indicator() -> None:
 @pytest.mark.anyio
 async def test_tool_call_truncated_content_expands_on_click() -> None:
     """Clicking the more-lines indicator swaps in the full text + drops the note."""
-    from inspect_ai.agent._acp.tui.widgets.tool_call import _CollapsibleContent
+    from inspect_ai.agent._acp.tui.widgets._collapsible import (
+        CollapsibleContent as _CollapsibleContent,
+    )
 
     long_output = "\n".join(f"line {i}" for i in range(30))
     content_block = type(
@@ -851,8 +855,8 @@ async def test_tool_call_same_length_content_replacement_repaints() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         widget = app.query_one(ToolCallWidget)
-        from inspect_ai.agent._acp.tui.widgets.tool_call import (
-            _CollapsibleContent,
+        from inspect_ai.agent._acp.tui.widgets._collapsible import (
+            CollapsibleContent as _CollapsibleContent,
         )
 
         cc_before = widget.query_one(_CollapsibleContent)
@@ -942,7 +946,9 @@ async def test_tool_call_skips_body_rebuild_when_state_unchanged() -> None:
     leave the mounted body widgets untouched. Pins that the
     fingerprint-gate in ToolCallWidget keeps a no-op cheap.
     """
-    from inspect_ai.agent._acp.tui.widgets.tool_call import _CollapsibleContent
+    from inspect_ai.agent._acp.tui.widgets._collapsible import (
+        CollapsibleContent as _CollapsibleContent,
+    )
 
     tool = ToolCallState(
         tool_call_id="tc-1",
@@ -1007,8 +1013,8 @@ async def test_transcript_updates_message_in_place_when_segments_extend() -> Non
         await pilot.pause()
         same_widget = tr.children[0]
         assert same_widget is first_widget
-        from inspect_ai.agent._acp.tui.widgets.tool_call import (
-            _CollapsibleContent,
+        from inspect_ai.agent._acp.tui.widgets._collapsible import (
+            CollapsibleContent as _CollapsibleContent,
         )
 
         body_text = " ".join(

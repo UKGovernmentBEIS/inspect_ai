@@ -28,16 +28,14 @@ import time
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Vertical
+from textual.css.query import NoMatches
 from textual.widget import Widget
 from textual.widgets import Static
 
 from ..state import MessageGroup, Segment
+from ._collapsible import CollapsibleContent
+from ._formatting import SPINNER_FRAMES, format_duration
 from .markdown import StyledMarkdown
-from .tool_call import _CollapsibleContent
-
-# Braille spinner — same idiom Inspect's task display uses. Ten frames
-# is enough to feel like smooth motion without strobing the eye.
-_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 
 _MESSAGE_TEXT_MAX_LINES = 12
 """Per-text-segment cap before the ``… N more lines`` expander kicks in.
@@ -47,24 +45,9 @@ easily run hundreds of lines; without a cap they push the rest of the
 transcript off-screen on every paint. 12 lines fits the typical
 operator's "scan the response, decide next action" window — anything
 longer reads as documentation and benefits from the click-to-expand
-affordance ``_CollapsibleContent`` provides. Reasoning segments use
+affordance ``CollapsibleContent`` provides. Reasoning segments use
 their own ^E collapse and skip this cap entirely.
 """
-
-
-def _format_elapsed(seconds: float) -> str:
-    """Compact wall-clock formatter for the assistant chip's elapsed timer."""
-    if seconds < 1.0:
-        return f"{seconds:.1f}s"
-    total = int(seconds)
-    if total < 60:
-        return f"{total}s"
-    if total < 3600:
-        m, s = divmod(total, 60)
-        return f"{m}m {s:02d}s"
-    h, rem = divmod(total, 3600)
-    m, _ = divmod(rem, 60)
-    return f"{h}h {m:02d}m"
 
 
 class _ReasoningBlock(Widget, can_focus=True):
@@ -114,7 +97,7 @@ class _ReasoningBlock(Widget, can_focus=True):
         try:
             header = self.query_one(".header", Static)
             header.update(("▸" if self._collapsed else "▾") + " reasoning")
-        except Exception:
+        except NoMatches:
             pass
 
     def on_click(self) -> None:
@@ -133,7 +116,7 @@ class _ReasoningBlock(Widget, can_focus=True):
         self._text = text
         try:
             self.query_one(".body", Static).update(StyledMarkdown(text))
-        except Exception:
+        except NoMatches:
             pass
 
 
@@ -242,7 +225,7 @@ class MessageWidget(Widget):
         # messages come in non-pending so they get the bullet without
         # a spinner phase.
         if self._group.pending:
-            glyph = _SPINNER_FRAMES[self._spinner_frame % len(_SPINNER_FRAMES)]
+            glyph = SPINNER_FRAMES[self._spinner_frame % len(SPINNER_FRAMES)]
         else:
             glyph = "•"
         # Retry counter + elapsed timer ride as dot-separated dim
@@ -256,7 +239,7 @@ class MessageWidget(Widget):
             self._group.pending or self._group.retries > 0
         ):
             elapsed = time.monotonic() - self._group.pending_started_at
-            extras.append(_format_elapsed(elapsed))
+            extras.append(format_duration(elapsed))
         suffix = "".join(f" [dim]· {e}[/dim]" for e in extras)
         return f"[dim]{glyph}[/dim] {base}{suffix}"
 
@@ -275,7 +258,7 @@ class MessageWidget(Widget):
     def _refresh_chip(self) -> None:
         try:
             self.query_one(".chip", Static).update(self._chip_text())
-        except Exception:
+        except NoMatches:
             pass
 
     def update_state(self, new_group: MessageGroup) -> None:
@@ -330,7 +313,7 @@ class MessageWidget(Widget):
     def _body(self) -> Vertical | None:
         try:
             return self.query_one(".body", Vertical)
-        except Exception:
+        except NoMatches:
             return None
 
     def _update_last_segment_widget(self, seg: Segment) -> None:
@@ -348,7 +331,7 @@ class MessageWidget(Widget):
             break
         if last_widget is None:
             return
-        if seg.kind == "text" and isinstance(last_widget, _CollapsibleContent):
+        if seg.kind == "text" and isinstance(last_widget, CollapsibleContent):
             # Streaming chunks land here — replace_text re-runs the
             # truncate-or-expand decision in place so a growing
             # response gains its "… N more lines" affordance the
@@ -377,16 +360,16 @@ class MessageWidget(Widget):
                 body.mount(_ReasoningBlock(seg.text))
             else:
                 body.mount(
-                    _CollapsibleContent(seg.text, max_lines=_MESSAGE_TEXT_MAX_LINES)
+                    CollapsibleContent(seg.text, max_lines=_MESSAGE_TEXT_MAX_LINES)
                 )
 
     def _compose_segment(self, seg: Segment) -> ComposeResult:
         if seg.kind == "reasoning":
             yield _ReasoningBlock(seg.text)
             return
-        # Text via _CollapsibleContent so long responses get the
+        # Text via CollapsibleContent so long responses get the
         # ``… N more lines`` expander instead of pushing the
         # transcript off-screen. Markdown rendering happens inside —
         # fenced code blocks, bold, lists, inline code all still
         # render formatted.
-        yield _CollapsibleContent(seg.text, max_lines=_MESSAGE_TEXT_MAX_LINES)
+        yield CollapsibleContent(seg.text, max_lines=_MESSAGE_TEXT_MAX_LINES)
