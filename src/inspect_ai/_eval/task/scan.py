@@ -148,12 +148,19 @@ def _realize_scanner_specs(scanners: Any) -> Any:
     return scanners
 
 
-Scanners: TypeAlias = (
-    "Sequence[Scanner[Any] | tuple[str, Scanner[Any]]] "
-    "| dict[str, Scanner[Any]] "
-    "| ScannerConfig"
-)
-"""Argument shape accepted by `eval_set(scanner=...)`."""
+if TYPE_CHECKING:
+    Scanners: TypeAlias = (
+        Sequence[Scanner[Any] | tuple[str, Scanner[Any]]]
+        | dict[str, Scanner[Any]]
+        | ScannerConfig
+    )
+    """Argument shape accepted by `eval_set(scanner=...)`."""
+else:
+    # Runtime placeholder so downstream modules can `from ... import Scanners`
+    # without forcing `inspect_scout` to be installed (it's an optional dep,
+    # imported lazily inside functions). The type checkers see the real alias
+    # above; runtime users only reference it inside string annotations.
+    Scanners = Any
 
 
 async def scan_init(
