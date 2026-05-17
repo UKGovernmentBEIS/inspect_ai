@@ -46,11 +46,18 @@ def _forwarders(*, client_renders_plan: bool = False) -> Forwarders:
 
     Uses a bare handler for the ConnectionState ref + as the approver
     client placeholder; MagicMock for the Connection (transform tests
-    never call ``send_notification``).
+    never call ``send_notification``). target/wire ids match the
+    handler's synthetic bound state.
     """
     h = _handler()
     h.state.client_renders_plan = client_renders_plan
-    return Forwarders(h.state, MagicMock(), h)
+    return Forwarders(
+        h.state,
+        MagicMock(),
+        h,
+        target_session_id="wire-session",
+        wire_session_id="wire-session",
+    )
 
 
 def _client_info(name: str) -> Any:

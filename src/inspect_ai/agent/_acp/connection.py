@@ -172,6 +172,19 @@ class ConnectionHandler:
         # written to the wire. Tracked so they're not garbage-collected
         # before they run and so connection close can cancel them.
         self._pending_after_response: set[asyncio.Task[None]] = set()
+        # Bind serialization. ACP dispatches each request as its own
+        # asyncio task, so two ``session/new`` / ``session/load`` calls
+        # on the same connection can race. The lock serializes the
+        # bind sequences (stop old → mutate state → notify → start
+        # new) so they can't interleave. Held by bind handlers and by
+        # the deferred ``_post_bind_setup``. The ``_bind_generation``
+        # int discriminates between binds — a deferred setup compares
+        # its captured value against the current counter and no-ops if
+        # the bind has been superseded. INVARIANT: no handler awaits
+        # anything under the lock that calls back into the deferred
+        # setup path, so re-entrant lock acquisition cannot occur.
+        self._bind_lock: asyncio.Lock = asyncio.Lock()
+        self._bind_generation: int = 0
 
     # ------------------------------------------------------------------
     # ACP Agent surface — implemented methods
@@ -249,15 +262,19 @@ class ConnectionHandler:
         # as ``_auto_bind`` (avoid clients dropping updates for a
         # sessionId they haven't yet seen).
         #
-        # Any prior bind's forwarders are torn down SYNCHRONOUSLY here
-        # before mutating ``state.binding`` — see ``_auto_bind`` for
-        # the cross-stream pollution this prevents.
-        await self._stop_forwarders()
-        expected = Bound(
-            wire_session_id=match.session_id, target_session_id=match.session_id
-        )
-        self.state.binding = expected
-        self._schedule_after_response(lambda: self._post_bind_setup(match, expected))
+        # Hold ``_bind_lock`` while we tear down old forwarders, bump
+        # the generation, and assign ``state.binding``. The deferred
+        # ``_post_bind_setup`` re-acquires the lock; if another bind
+        # ran in between (newer generation), it no-ops cleanly.
+        async with self._bind_lock:
+            await self._stop_forwarders()
+            self._bind_generation += 1
+            gen = self._bind_generation
+            self.state.binding = Bound(
+                wire_session_id=match.session_id,
+                target_session_id=match.session_id,
+            )
+        self._schedule_after_response(lambda: self._post_bind_setup(match, gen))
         return LoadSessionResponse()
 
     async def prompt(
@@ -568,29 +585,38 @@ class ConnectionHandler:
     async def _enter_picker_mode(
         self, targets: list[PickerTarget]
     ) -> NewSessionResponse:
-        """Mint a control sessionId, snapshot targets, push picker payload."""
-        # Tear down any previous binding's forwarders before entering
-        # picker mode. Without this, a connection that auto-bound to a
-        # single target, then sees a second target appear, then calls
-        # newSession again would keep the prior target's forwarder
-        # running with the new picker control sessionId — live events
-        # from that target would leak to the client during picker
-        # selection.
-        await self._stop_forwarders()
-        control_id = uuid()
-        # Snapshot the target list so that the numeric selection (1, 2,
-        # ...) resolves against the exact list the client was shown. A
-        # fresh enumeration at selection time could disagree if a
-        # sample finished or a new one started in between.
-        self.state.binding = PickerMode(
-            wire_session_id=control_id, picker_targets=list(targets)
-        )
+        """Mint a control sessionId, snapshot targets, push picker payload.
+
+        Holds ``_bind_lock`` while tearing down any prior bind's
+        forwarders + bumping the generation + assigning the picker
+        state. The generation bump invalidates any in-flight deferred
+        ``_post_bind_setup`` from a previous bind. Without this, a
+        connection that auto-bound to a single target, then sees a
+        second target appear, then calls newSession again, would keep
+        the prior target's forwarder running during picker selection.
+        """
+        async with self._bind_lock:
+            await self._stop_forwarders()
+            self._bind_generation += 1
+            gen = self._bind_generation
+            control_id = uuid()
+            # Snapshot the target list so the numeric selection (1, 2,
+            # ...) resolves against the exact list the client was shown.
+            # A fresh enumeration at selection time could disagree if
+            # a sample finished or a new one started in between.
+            self.state.binding = PickerMode(
+                wire_session_id=control_id, picker_targets=list(targets)
+            )
         notif = build_picker_notification(control_id, targets)
-        # Defer notification until after the NewSessionResponse has been
-        # written to the wire — Zed (and likely other clients) drop
-        # session/update notifications for a sessionId they haven't yet
-        # seen in a newSession/loadSession response.
-        self._schedule_after_response(lambda: self._send_session_update(notif))
+        # Defer notification until after the NewSessionResponse has
+        # been written to the wire — Zed (and likely other clients)
+        # drop session/update notifications for a sessionId they
+        # haven't yet seen in a newSession/loadSession response.
+        # Guarded by generation so a concurrent bind that landed
+        # before this fires drops the now-stale picker payload.
+        self._schedule_after_response(
+            lambda: self._send_notification_if_current(notif, gen)
+        )
         return NewSessionResponse(session_id=control_id)
 
     async def _auto_bind(self, target: PickerTarget) -> NewSessionResponse:
@@ -606,20 +632,21 @@ class ConnectionHandler:
         writes so clients (Zed etc.) don't drop them as references to
         a sessionId they don't yet know.
 
-        Any prior bind's forwarders are torn down SYNCHRONOUSLY here
-        before mutating ``state.binding``. Without that, the old
-        forwarder would keep publishing under the new
-        ``wire_session_id`` (read at notification time by
-        ``Forwarders._rewrite_session_id``) during the gap before
-        ``_post_bind_setup`` runs, leaking the old target's events as
-        if they came from the new session.
+        Holds ``_bind_lock`` while tearing down any prior bind's
+        forwarders + bumping the generation + assigning
+        ``state.binding``. The captured generation flows to the
+        deferred ``_post_bind_setup``, which will no-op if a newer
+        bind landed in the meantime.
         """
-        await self._stop_forwarders()
-        expected = Bound(
-            wire_session_id=target.session_id, target_session_id=target.session_id
-        )
-        self.state.binding = expected
-        self._schedule_after_response(lambda: self._post_bind_setup(target, expected))
+        async with self._bind_lock:
+            await self._stop_forwarders()
+            self._bind_generation += 1
+            gen = self._bind_generation
+            self.state.binding = Bound(
+                wire_session_id=target.session_id,
+                target_session_id=target.session_id,
+            )
+        self._schedule_after_response(lambda: self._post_bind_setup(target, gen))
         return NewSessionResponse(session_id=target.session_id)
 
     async def _handle_picker_selection(
@@ -662,13 +689,26 @@ class ConnectionHandler:
         if target is None:
             # Redisplay with a fresh enumeration. Re-snapshot too so
             # the client's next numeric pick maps onto the new list.
-            fresh_targets = list_picker_targets()
-            self.state.binding = PickerMode(
-                wire_session_id=picker.wire_session_id,
-                picker_targets=list(fresh_targets),
-            )
-            notif = build_picker_notification(picker.wire_session_id, fresh_targets)
-            await self._send_session_update(notif)
+            #
+            # Hold ``_bind_lock`` for the state mutation + send so a
+            # concurrent ``session/load`` / ``session/new`` can't slip
+            # in between (it would tear down the binding we're about
+            # to overwrite, leaking forwarders). Bail if a concurrent
+            # bind has already taken us out of this picker session —
+            # the user's intent has changed; the redisplay is stale.
+            async with self._bind_lock:
+                if (
+                    not isinstance(self.state.binding, PickerMode)
+                    or self.state.binding.wire_session_id != picker.wire_session_id
+                ):
+                    return PromptResponse(stop_reason="end_turn")
+                fresh_targets = list_picker_targets()
+                self.state.binding = PickerMode(
+                    wire_session_id=picker.wire_session_id,
+                    picker_targets=list(fresh_targets),
+                )
+                notif = build_picker_notification(picker.wire_session_id, fresh_targets)
+                await self._send_session_update(notif)
             return PromptResponse(stop_reason="end_turn")
 
         # Rebind: switch to Bound while keeping the wire sessionId.
@@ -676,23 +716,35 @@ class ConnectionHandler:
         # rebind, so all subsequent outbound notifications continue to
         # use wire_session_id.
         #
-        # Same synchronous-stop-before-bind + guarded-setup pattern as
-        # ``_auto_bind`` / ``load_session``. Picker selection runs as
-        # an ACP request handler — ACP dispatches each request as its
-        # own asyncio task, so a concurrent ``session/load`` /
-        # ``session/new`` on the same connection CAN interleave during
-        # our ``_notify_binding`` / ``_start_forwarders`` awaits.
-        # Without the guard, the older selection handler could attach
-        # forwarders for the picked target after the newer bind is
-        # already current. We pass ``expected`` through
-        # ``_post_bind_setup`` so each await rechecks ``state.binding``.
-        await self._stop_forwarders()
-        expected = Bound(
-            wire_session_id=picker.wire_session_id,
-            target_session_id=target.session_id,
-        )
-        self.state.binding = expected
-        await self._post_bind_setup(target, expected)
+        # Holds ``_bind_lock`` for the entire rebind + setup sequence.
+        # ACP dispatches each request as its own asyncio task, so a
+        # concurrent ``session/load`` / ``session/new`` on the same
+        # connection could otherwise interleave. The lock serializes
+        # the whole tail: stop old → bump gen → assign Bound → notify
+        # → start forwarders. ``_post_bind_setup_locked`` is the
+        # variant that assumes the lock is already held (the lock-
+        # acquiring ``_post_bind_setup`` would deadlock here since
+        # ``asyncio.Lock`` is non-reentrant).
+        #
+        # Same-session check inside the lock: if a concurrent
+        # ``session/load`` / ``session/new`` flipped the binding away
+        # from this picker session between selection resolution and
+        # our lock acquisition, the user's intent has moved on. Bail
+        # rather than clobber the newer binding with our stale
+        # ``picker.wire_session_id``.
+        async with self._bind_lock:
+            if (
+                not isinstance(self.state.binding, PickerMode)
+                or self.state.binding.wire_session_id != picker.wire_session_id
+            ):
+                return PromptResponse(stop_reason="end_turn")
+            await self._stop_forwarders()
+            self._bind_generation += 1
+            self.state.binding = Bound(
+                wire_session_id=picker.wire_session_id,
+                target_session_id=target.session_id,
+            )
+            await self._post_bind_setup_locked(target)
         return PromptResponse(stop_reason="end_turn")
 
     async def _notify_binding(self, target: PickerTarget) -> None:
@@ -800,11 +852,7 @@ class ConnectionHandler:
     # Bind / unbind orchestration
     # ------------------------------------------------------------------
 
-    async def _start_forwarders(
-        self,
-        target_session_id: str,
-        expected: Bound | None = None,
-    ) -> None:
+    async def _start_forwarders(self, target_session_id: str) -> None:
         """Bind this connection to a target session and start forwarding.
 
         Sequence:
@@ -818,64 +866,37 @@ class ConnectionHandler:
            forwarder attach; if the agent task exited the session
            during it, attach() would create an orphan never-EOF
            subscriber.
-        5. Construct a fresh :class:`Forwarders` and start it (per-bind
-           plan-tool stash and forwarder runtime live entirely there).
+        5. Construct a fresh :class:`Forwarders` (capturing the wire
+           sessionId at construction so live forwarding can't be
+           cross-streamed by a later state mutation) and start it.
 
-        **Rebind race guard.** If ``expected`` is provided, recheck
-        ``state.binding == expected`` after each await. If a rebind
-        landed in the gap, bail out — the newer bind will start its
-        own forwarders. Without this, a stale setup could attach
-        forwarders for an old target after a newer bind is already
-        current, leaking old events under the new wire id.
-
-        **All production call sites pass ``expected``** (via
-        ``_post_bind_setup``). ACP dispatches each request as its own
-        asyncio task, so even handlers that look synchronous (picker
-        selection, ``load_session``) can interleave with concurrent
-        bind requests during their awaits. ``expected=None`` is
-        retained on the parameter only for composability — leave the
-        guard on in real code.
-
-        ``expected`` is also threaded into ``Forwarders.start`` so the
-        guard covers the replay phases inside it (which yield and
-        re-read ``state.wire_session_id``). Without that, a rebind
-        during the raw-replay yield would cause subsequent semantic
-        replay to construct notifications under the NEW wire id for
-        the OLD target — true cross-stream pollution.
+        Callers MUST hold ``_bind_lock`` — invoked from
+        ``_post_bind_setup_locked``. The lock serializes bind
+        sequences, so no inline rebind-race checks are needed within
+        this method.
         """
         await self._stop_forwarders()
-        if expected is not None and self.state.binding != expected:
-            return
 
         target = _find_live_session(target_session_id)
         if target is None:
             return
 
         await self._send_session_info_title(target_session_id)
-        if expected is not None and self.state.binding != expected:
-            return
 
         target = _find_live_session(target_session_id)
         if target is None:
             return
         assert self.connection is not None
-        forwarders = Forwarders(self.state, self.connection, self)
-        # Final pre-start check after the second target lookup.
-        if expected is not None and self.state.binding != expected:
-            return
-        self._forwarders = forwarders
-        await forwarders.start(target, target_session_id, expected=expected)
-        # Post-start check: even with ``expected`` threaded into
-        # ``Forwarders.start`` (which prevents cross-stream replay
-        # emits + skips live task startup if stale), this final check
-        # catches edge cases where the binding flipped between
-        # ``start`` returning and us reading ``state.binding``. Tear
-        # down only if ``self._forwarders`` is still ours — a
-        # concurrent rebind may have already replaced it.
-        if expected is not None and self.state.binding != expected:
-            if self._forwarders is forwarders:
-                self._forwarders = None
-            await forwarders.stop()
+        wire = self.state.wire_session_id
+        assert wire is not None
+        self._forwarders = Forwarders(
+            self.state,
+            self.connection,
+            self,
+            target_session_id=target_session_id,
+            wire_session_id=wire,
+        )
+        await self._forwarders.start(target)
 
     async def _stop_forwarders(self) -> None:
         """Tear down the current bind's forwarders, if any. Idempotent."""
@@ -883,47 +904,56 @@ class ConnectionHandler:
             await self._forwarders.stop()
             self._forwarders = None
 
-    async def _post_bind_setup(self, target: PickerTarget, expected: Bound) -> None:
-        """Post-response binding work: confirmation notification + forwarders.
+    async def _post_bind_setup(self, target: PickerTarget, gen: int) -> None:
+        """Deferred post-response binding work: acquires lock, checks generation.
 
-        Shared body for the three bind paths:
+        Used by the ``newSession`` auto-bind and ``loadSession``
+        deferred paths — both set ``state.binding`` and increment
+        ``_bind_generation`` inside ``_bind_lock``, then schedule this
+        to run after the response writes (so clients like Zed don't
+        drop notifications referencing a sessionId they haven't yet
+        seen — see ``_schedule_after_response``).
 
-        - ``newSession`` auto-bind and ``loadSession``: set
-          ``state.binding`` inline and SCHEDULE this to run after the
-          response so clients (Zed etc.) don't drop notifications
-          referencing a sessionId they haven't seen yet. See
-          ``_schedule_after_response`` for the mechanism.
-        - Picker selection (``_handle_picker_selection``): responds to
-          ``session/prompt`` after the client already knows the wire
-          sessionId, so this runs INLINE — no defer needed. The guard
-          is still required because ACP dispatches each request as
-          its own asyncio task, and a concurrent ``session/load`` /
-          ``session/new`` can interleave during our awaits.
+        Acquires ``_bind_lock`` and verifies the captured generation
+        still matches the current one. If a newer bind has landed,
+        no-ops cleanly. Otherwise delegates to ``_post_bind_setup_locked``
+        which performs notify + start under the held lock — no
+        interleaving with other binds is possible.
 
-        **Rebind race guard.** A client that rebinds (a second
-        ``session/load`` or another ``session/new``) before the
-        deferred task runs would otherwise see the stale task send a
-        confirmation for the old target *under the new wire sessionId*
-        (since ``_notify_binding`` reads ``state.wire_session_id`` at
-        call time), and then ``_start_forwarders`` would tear down the
-        newer bind's forwarders and replace them with the stale
-        target's. We capture the expected ``Bound`` at schedule time
-        and no-op if it no longer matches. ``Bound`` is a frozen
-        dataclass so equality is value-based.
-
-        Re-checked AFTER the notify yield as well — ``_notify_binding``
-        awaits ``_send_session_update``, opening a second race window
-        before forwarders start. ``expected`` is also passed into
-        ``_start_forwarders`` so the per-await-point guard applies to
-        the multi-step forwarder startup (stop / title-send / replay)
-        as well.
+        Picker selection uses ``_post_bind_setup_locked`` directly
+        because it already holds ``_bind_lock`` for its whole handler
+        body (acquiring twice would deadlock — ``asyncio.Lock`` is
+        non-reentrant).
         """
-        if self.state.binding != expected:
-            return
+        async with self._bind_lock:
+            if gen != self._bind_generation:
+                return
+            await self._post_bind_setup_locked(target)
+
+    async def _post_bind_setup_locked(self, target: PickerTarget) -> None:
+        """Notify + start forwarders. Caller MUST hold ``_bind_lock``.
+
+        Used directly by ``_handle_picker_selection`` (which holds the
+        lock for its whole body, so the deferred / locked split
+        avoids re-entry) and via ``_post_bind_setup`` for the
+        deferred newSession / loadSession paths.
+        """
         await self._notify_binding(target)
-        if self.state.binding != expected:
-            return
-        await self._start_forwarders(target.session_id, expected=expected)
+        await self._start_forwarders(target.session_id)
+
+    async def _send_notification_if_current(self, notification: Any, gen: int) -> None:
+        """Send a ``session/update`` only if the bind generation still matches.
+
+        Used for deferred picker notifications (and similar) that
+        were captured at a specific bind generation and would be
+        stale if a newer bind had landed in the meantime. Sending
+        the stale notification would route old picker state to a
+        connection that has moved on to a different binding.
+        """
+        async with self._bind_lock:
+            if gen != self._bind_generation:
+                return
+            await self._send_session_update(notification)
 
     def _schedule_after_response(
         self, factory: Callable[[], Coroutine[Any, Any, None]]
