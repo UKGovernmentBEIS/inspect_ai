@@ -145,20 +145,26 @@ def _counting(config: CheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
 
 
 async def test_turn_interval_fires_at_each_threshold(dirs: _Dirs) -> None:
+    # First tick is informational (boundary before turn 1) — doesn't
+    # count toward the threshold. With every=3, fires happen on ticks
+    # 4, 7, 10 — capturing 3 turns each. 10 ticks → 3 fires.
     cp = _counting(CheckpointConfig(trigger=TurnInterval(every=3)), dirs)
-    for _ in range(9):
+    for _ in range(10):
         await cp.tick()
     assert cp.fire_count == 3
 
 
 async def test_turn_interval_resets_counter_on_fire(dirs: _Dirs) -> None:
     cp = _counting(CheckpointConfig(trigger=TurnInterval(every=4)), dirs)
-    for _ in range(3):
+    # 4 ticks: first is informational, then 3 turns elapsed — no fire.
+    for _ in range(4):
         await cp.tick()
     assert cp.fire_count == 0
+    # 5th tick → 4 turns elapsed → fire.
     await cp.tick()
     assert cp.fire_count == 1
-    # counter reset; next fire requires another 4 ticks
+    # counter reset; next fire requires another 4 turns (= 4 more ticks
+    # since the post-fire ticks all count).
     for _ in range(3):
         await cp.tick()
     assert cp.fire_count == 1
@@ -348,10 +354,11 @@ async def test_fire_writes_sample_json_and_sidecars(
     )
 
     async with checkpointer() as cp:
-        await cp.tick()  # turn 1, no fire
-        await cp.tick()  # turn 2, fires
-        await cp.tick()  # turn 3, no fire
-        await cp.tick()  # turn 4, fires
+        await cp.tick()  # informational boundary, no fire
+        await cp.tick()  # turn 1 elapsed, no fire (every=2)
+        await cp.tick()  # turn 2 elapsed, fires (ckpt-1)
+        await cp.tick()  # turn 3 elapsed, no fire
+        await cp.tick()  # turn 4 elapsed, fires (ckpt-2)
 
     log = Path(active_sample.log_location)
     eval_dir = log.parent / f"{log.stem}.checkpoints"

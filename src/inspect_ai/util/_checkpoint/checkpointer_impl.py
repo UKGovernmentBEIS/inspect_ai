@@ -183,7 +183,14 @@ class _EnteredCheckpointer:
 
     async def tick(self) -> None:
         self._turn += 1
-        self._turns_since_fire += 1
+        # The very first tick of the session marks the boundary *before*
+        # any turn has run — agents place `tick()` at the top of their
+        # loop, so tick K stands between turns K-1 and K. Don't count
+        # this boundary toward "turns since last fire"; otherwise
+        # `TurnInterval(every=1)` would fire an empty checkpoint on the
+        # opening tick.
+        if self._turn > 1:
+            self._turns_since_fire += 1
         if self._should_fire():
             await self._fire(self._policy_trigger())
 
