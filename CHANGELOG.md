@@ -4,6 +4,7 @@
 - Scoring: Add `pass_k` reducer for computing the probability that all `k` epoch attempts succeed (τ-bench reliability metric).
 - Model Roles: Preserve overrides of config when calling `get_model()` with `role`.
 - OpenAI Compatible: Add support for `responses_phase` parameter.
+- Inspect View: The FastAPI server is now the default; `fastapi` and `uvicorn` are required dependencies. Set `INSPECT_VIEW_FASTAPI_SERVER=0` to fall back to the legacy aiohttp server.
 
 ## 0.3.223 (18 May 2026)
 
