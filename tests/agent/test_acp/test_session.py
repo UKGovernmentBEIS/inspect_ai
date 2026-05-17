@@ -339,9 +339,9 @@ async def test_noop_session_subscribe_returns_noop_unsubscribe() -> None:
     Lets callers use a uniform subscribe/unsubscribe pattern without
     isinstance-guarding the session type.
     """
-    from inspect_ai.agent._acp._session import _NoOpAcpSession
+    from inspect_ai.agent._acp._session import NoOpAcpSession
 
-    noop = _NoOpAcpSession()
+    noop = NoOpAcpSession()
     unsub_i = noop.subscribe_interrupted(lambda: None)
     unsub_r = noop.subscribe_prompt_resolved(lambda: None)
     assert noop.interrupt_pending is False
@@ -418,7 +418,7 @@ async def test_repeated_cancel_keeps_pending_and_re_fires_interrupted() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Phase 14: approver-client registry on _LiveAcpSession
+# Phase 14: approver-client registry on LiveAcpSession
 #
 # Tracks ACP clients that can handle ``session/request_permission``.
 # The configured ``human_approver`` checks this registry at prompt
@@ -503,9 +503,9 @@ async def test_attach_unsubscribe_is_idempotent() -> None:
 
 async def test_noop_session_approver_client_is_no_op() -> None:
     """No-op session: predicate False, attach returns no-op unsubscribe, list empty."""
-    from inspect_ai.agent._acp._session import _NoOpAcpSession
+    from inspect_ai.agent._acp._session import NoOpAcpSession
 
-    noop = _NoOpAcpSession()
+    noop = NoOpAcpSession()
     assert noop.has_approver_clients() is False
     assert noop.approver_clients() == []
     unsub = noop.attach_approver_client(_StubApproverClient())

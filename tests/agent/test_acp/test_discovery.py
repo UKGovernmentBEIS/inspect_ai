@@ -83,7 +83,7 @@ def _write_discovery(
     port: int | None = None,
     started_at: float | None = None,
 ) -> Path:
-    """Write one discovery JSON file shaped like ``_AcpServer.start`` does."""
+    """Write one discovery JSON file shaped like ``AcpServer.start`` does."""
     acp = short_data_dir / "acp"
     acp.mkdir(parents=True, exist_ok=True)
     path = acp / f"{pid}.json"

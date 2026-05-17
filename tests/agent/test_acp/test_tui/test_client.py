@@ -1,4 +1,4 @@
-"""Integration tests for the TUI client helpers against a real `_AcpServer`.
+"""Integration tests for the TUI client helpers against a real `AcpServer`.
 
 These tests spin up an in-process AF_UNIX ACP server, populate
 `_picker.active_samples` with controlled stubs, and verify that
@@ -55,7 +55,7 @@ def _make_active_sample(
     active.agent_name = agent_name
     active.started = started
     # MUST be a real int — list_picker_targets reads this into a
-    # _PickerTarget that's later JSON-serialized over the wire. An
+    # PickerTarget that's later JSON-serialized over the wire. An
     # unset MagicMock attribute returns a MagicMock that the encoder
     # can't handle, and the server's request handler crashes silently
     # in a background task, leaving the client awaiting forever.

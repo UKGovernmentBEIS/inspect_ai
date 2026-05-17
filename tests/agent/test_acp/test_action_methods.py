@@ -28,7 +28,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import _picker
 from inspect_ai.agent._acp._connection import (
-    _ConnectionHandler,
+    ConnectionHandler,
     _find_active_sample,
 )
 from inspect_ai.agent._acp._server import acp_server
@@ -44,7 +44,7 @@ from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 def _handler(
     *, wire_session_id: str = "wire", target_session_id: str | None = "tgt"
-) -> _ConnectionHandler:
+) -> ConnectionHandler:
     """Fresh handler primed for direct method calls (no socket).
 
     ``target_session_id=None`` keeps the connection unbound (no
@@ -54,7 +54,7 @@ def _handler(
     """
     from inspect_ai.agent._acp._connection import Bound
 
-    h = _ConnectionHandler()
+    h = ConnectionHandler()
     if target_session_id is not None:
         h.state.binding = Bound(
             wire_session_id=wire_session_id, target_session_id=target_session_id

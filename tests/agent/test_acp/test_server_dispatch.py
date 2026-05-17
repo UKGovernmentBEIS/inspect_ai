@@ -1,4 +1,4 @@
-"""Phase 9 integration tests for the picker / dispatch layer of `_AcpServer`.
+"""Phase 9 integration tests for the picker / dispatch layer of `AcpServer`.
 
 These tests exercise the full request/response + notification cycle
 over a real AF_UNIX loopback socket. They stub `_picker.active_samples`
@@ -810,7 +810,7 @@ async def test_bound_mode_prompt_with_unreachable_target_returns_internal_error(
     which does NOT plug into the registry the forwarder reads, so
     targets are present at picker time but unreachable at forward
     time — surfaces as ``internal_error`` with a clear reason. Real
-    forwarding to a live ``_LiveAcpSession`` is exercised in
+    forwarding to a live ``LiveAcpSession`` is exercised in
     ``test_server_forwarding.py``.
     """
     stub_targets(

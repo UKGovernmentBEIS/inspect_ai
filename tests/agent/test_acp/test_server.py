@@ -1,7 +1,7 @@
 """Phase 8 tests for the ACP JSON-RPC transport server.
 
 Covers the :func:`acp_server` async context manager + the
-:class:`_AcpServer` lifecycle: bind, accept, dispatch (empty router),
+:class:`AcpServer` lifecycle: bind, accept, dispatch (empty router),
 discovery file management, stale cleanup, and the AF_UNIX-on-old-Win
 guardrail.
 """
@@ -18,9 +18,9 @@ import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp._discovery import (
-    _cleanup_stale_discovery_files,
-    _parse_host_port,
-    _pid_alive,
+    cleanup_stale_discovery_files,
+    parse_host_port,
+    pid_alive,
 )
 from inspect_ai.agent._acp._server import acp_server
 
@@ -261,7 +261,7 @@ async def test_tcp_host_port_bind(short_data_dir: Path) -> None:
 )
 def test_parse_host_port_valid(value: str, expected: tuple[str, int]) -> None:
     """Valid ``host:port`` shapes parse cleanly, including IPv6 brackets."""
-    assert _parse_host_port(value) == expected
+    assert parse_host_port(value) == expected
 
 
 @pytest.mark.parametrize(
@@ -291,7 +291,7 @@ def test_parse_host_port_not_a_network_address(value: str) -> None:
     path. Ambiguous inputs intentionally err on the side of UNIX so a
     user-supplied path with a colon isn't silently misrouted to TCP.
     """
-    assert _parse_host_port(value) is None
+    assert parse_host_port(value) is None
 
 
 # ---------------------------------------------------------------------------
@@ -353,13 +353,13 @@ async def test_unknown_method_returns_method_not_found(
 
 def test_pid_alive_for_current_process() -> None:
     """The current PID is always alive."""
-    assert _pid_alive(os.getpid()) is True
+    assert pid_alive(os.getpid()) is True
 
 
 def test_pid_alive_for_invalid_pid() -> None:
     """A PID we know to be invalid returns False."""
-    assert _pid_alive(0) is False
-    assert _pid_alive(-1) is False
+    assert pid_alive(0) is False
+    assert pid_alive(-1) is False
 
 
 def test_cleanup_stale_discovery_files(short_data_dir: Path) -> None:
@@ -396,7 +396,7 @@ def test_cleanup_stale_discovery_files(short_data_dir: Path) -> None:
         )
     )
 
-    _cleanup_stale_discovery_files()
+    cleanup_stale_discovery_files()
 
     assert not stale_discovery.exists()
     assert not stale_sock.exists()
@@ -410,7 +410,7 @@ def test_cleanup_tolerates_malformed_files(short_data_dir: Path) -> None:
     (acp_dir / "garbage.json").write_text("{not valid json")
     (acp_dir / "missing-pid.json").write_text(json.dumps({"socket_path": "/foo"}))
     # Should not raise.
-    _cleanup_stale_discovery_files()
+    cleanup_stale_discovery_files()
     # Malformed files left alone (best-effort policy — we only delete
     # entries we can positively identify as stale).
     assert (acp_dir / "garbage.json").exists()
@@ -425,7 +425,7 @@ def test_cleanup_tolerates_malformed_files(short_data_dir: Path) -> None:
 async def test_start_cleans_up_stale_before_binding(
     short_data_dir: Path,
 ) -> None:
-    """``_AcpServer.start`` clears stale discovery files before writing its own."""
+    """``AcpServer.start`` clears stale discovery files before writing its own."""
     acp_dir = short_data_dir / "acp"
     acp_dir.mkdir(parents=True, exist_ok=True)
     stale = acp_dir / "888888.json"

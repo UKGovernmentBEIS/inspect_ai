@@ -12,7 +12,7 @@ These tests cover the registration path independently of the TUI.
 
 from inspect_ai.agent._acp._session import (
     _NOOP_SESSION_ID,
-    _LiveAcpSession,
+    LiveAcpSession,
     acp_session,
 )
 from inspect_ai.dataset._dataset import Sample
@@ -123,8 +123,8 @@ async def test_aexit_identity_guard_protects_active_registration() -> None:
     active = _make_active_sample()
     token = samples_var.set(active)
     try:
-        session_a = _LiveAcpSession()
-        session_b = _LiveAcpSession()
+        session_a = LiveAcpSession()
+        session_b = LiveAcpSession()
         # Enter A first so it registers on active.
         await session_a.__aenter__()
         assert active.acp_session is session_a

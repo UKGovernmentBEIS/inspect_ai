@@ -9,7 +9,7 @@ and accepts incoming connections.
 
 This module is responsible for **transport only** — bind / accept /
 shutdown plus per-connection setup that delegates to
-:class:`_ConnectionHandler` from :mod:`._connection` for the actual
+:class:`ConnectionHandler` from :mod:`._connection` for the actual
 method dispatch and to :class:`Forwarders` from :mod:`._session_router`
 for outbound forwarding.
 
@@ -36,25 +36,25 @@ from acp.interfaces import Agent
 from acp.router import Route
 
 from inspect_ai.agent._acp._connection import (
+    ConnectionHandler,
     _CancelSampleParams,
     _CancelToolCallParams,
-    _ConnectionHandler,
     _ListSessionsParams,
     _NewSessionParams,
     _wrap_action_handler,
 )
 from inspect_ai.agent._acp._discovery import (
-    _cleanup_stale_discovery_files,
-    _default_socket_path,
-    _discovery_dir,
-    _has_unix_sockets,
-    _parse_host_port,
+    cleanup_stale_discovery_files,
+    default_socket_path,
+    discovery_dir,
+    has_unix_sockets,
+    parse_host_port,
 )
 
 logger = getLogger(__name__)
 
 
-class _AcpServer:
+class AcpServer:
     """JSON-RPC 2.0 transport server for ACP clients.
 
     The :class:`Connection` handles framing and dispatch; this class
@@ -128,14 +128,14 @@ class _AcpServer:
 
         # Clean up any stale discovery files / orphan sockets from
         # processes that crashed without unregistering.
-        _cleanup_stale_discovery_files()
+        cleanup_stale_discovery_files()
 
         if self._transport is True:
-            await self._bind_unix(_default_socket_path(self._eval_id))
+            await self._bind_unix(default_socket_path(self._eval_id))
         elif isinstance(self._transport, int) and not isinstance(self._transport, bool):
             await self._bind_tcp(self._transport)
         elif isinstance(self._transport, str):
-            host_port = _parse_host_port(self._transport)
+            host_port = parse_host_port(self._transport)
             if host_port is not None:
                 host, port = host_port
                 await self._bind_tcp(port, host=host)
@@ -147,7 +147,7 @@ class _AcpServer:
             raise ValueError(f"Unsupported acp_server transport: {self._transport!r}")
 
         # Write the discovery file describing this server.
-        self._discovery_path = _discovery_dir() / f"{os.getpid()}.json"
+        self._discovery_path = discovery_dir() / f"{os.getpid()}.json"
         self._discovery_path.write_text(
             json.dumps(
                 {
@@ -164,14 +164,14 @@ class _AcpServer:
         )
 
     async def _bind_unix(self, path: Path) -> None:
-        if not _has_unix_sockets():
+        if not has_unix_sockets():
             raise RuntimeError(
                 "ACP UNIX sockets require Windows 10+ or POSIX. "
                 "Pass `--acp-server=<port>` to bind a TCP loopback port instead."
             )
         path.parent.mkdir(parents=True, exist_ok=True)
         # Unlink any leftover socket node from a stale prior bind on
-        # the same path. ``_cleanup_stale_discovery_files`` already
+        # the same path. ``cleanup_stale_discovery_files`` already
         # covers the default path case via the discovery file; this
         # catches user-supplied paths and the rare case where the
         # discovery file is gone but the socket node survived. ONLY
@@ -264,14 +264,14 @@ class _AcpServer:
     ) -> None:
         """Wrap a newly accepted socket in an :class:`acp.connection.Connection`.
 
-        Each accepted connection gets its own :class:`_ConnectionHandler`
+        Each accepted connection gets its own :class:`ConnectionHandler`
         instance plus a fresh :class:`MessageRouter` (built by
         :func:`acp.agent.router.build_agent_router`). Per-connection
         state — synthetic control sessionId, bound target sessionId —
         lives on the handler so two concurrent clients can pick
         different target sessions without interference.
         """
-        handler = _ConnectionHandler()
+        handler = ConnectionHandler()
         # The ACP `Agent` protocol declares the full method surface;
         # we implement the subset our handler needs (initialize,
         # new/load session, prompt, cancel) and leave the rest as
@@ -356,10 +356,10 @@ async def acp_server(
     *,
     eval_id: str,
     transport: bool | int | str | None,
-) -> AsyncIterator[_AcpServer | None]:
+) -> AsyncIterator[AcpServer | None]:
     """Optional ACP server context manager keyed off the eval config.
 
-    Yields the started :class:`_AcpServer` when ``transport`` is truthy,
+    Yields the started :class:`AcpServer` when ``transport`` is truthy,
     else yields ``None`` so the eval runner can wrap its body
     unconditionally without branching on whether ACP is enabled.
 
@@ -369,7 +369,7 @@ async def acp_server(
     if not transport:
         yield None
         return
-    server = _AcpServer(eval_id=eval_id, transport=transport)
+    server = AcpServer(eval_id=eval_id, transport=transport)
     await server.start()
     try:
         yield server

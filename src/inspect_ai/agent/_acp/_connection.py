@@ -1,11 +1,11 @@
 """Per-connection ACP method handler.
 
-One :class:`_ConnectionHandler` per accepted socket connection.
+One :class:`ConnectionHandler` per accepted socket connection.
 Implements the ACP ``Agent`` role (``initialize`` / ``new_session`` /
 ``load_session`` / ``prompt`` / ``cancel``) plus the non-standard
 ``inspect/*`` action methods. Per-connection state (synthetic control
 sessionId, bound target sessionId, picker target snapshot, capability
-flags) lives in :class:`_ConnectionState` so two concurrent clients can
+flags) lives in :class:`ConnectionState` so two concurrent clients can
 pick different target sessions independently.
 
 asyncio anchor — this module is **asyncio-bound** at the
@@ -42,7 +42,7 @@ from shortuuid import uuid
 
 from inspect_ai.agent._acp._picker import (
     PICKER_META_KEY,
-    _PickerTarget,
+    PickerTarget,
     build_picker_notification,
     list_picker_targets,
     resolve_selection,
@@ -59,7 +59,7 @@ logger = getLogger(__name__)
 # Version banner included in InitializeResponse. The eval is the
 # server in the ACP relationship.
 _AGENT_NAME = "inspect-ai"
-_AGENT_VERSION = "0.10"  # Phase 10 forwarding + replay + plan policy + raw events.
+_AGENT_VERSION = "0.10"
 
 # JSON-RPC method name for the picker confirmation / target list
 # notification sent on `session/update`.
@@ -99,7 +99,7 @@ class PickerMode:
     """
 
     wire_session_id: str
-    picker_targets: list[_PickerTarget]
+    picker_targets: list[PickerTarget]
 
 
 @dataclass(frozen=True)
@@ -107,7 +107,7 @@ class Bound:
     """Connection is bound to a target session; forwarding is active.
 
     ``wire_session_id`` is what the client sees. ``target_session_id``
-    is the internal ``_LiveAcpSession.session_id`` we forward to. In
+    is the internal ``LiveAcpSession.session_id`` we forward to. In
     the auto-bind / direct-load paths these are equal; on the picker
     selection path the wire id is the synthetic control id and the
     target id is the chosen sample — the design contract is that the
@@ -126,7 +126,7 @@ BindingMode = Unbound | PickerMode | Bound
 
 
 @dataclass
-class _ConnectionState:
+class ConnectionState:
     """Per-connection routing state.
 
     ``binding`` is a tagged union of :class:`Unbound`,
@@ -164,12 +164,12 @@ class _ConnectionState:
         return None
 
 
-class _ConnectionHandler:
+class ConnectionHandler:
     """Per-connection method handler. Plays the ACP ``Agent`` role."""
 
     def __init__(self) -> None:
         self.connection: Connection | None = None
-        self.state = _ConnectionState()
+        self.state = ConnectionState()
         # Per-bind outbound forwarder. ``None`` until the connection
         # binds to a target. Each bind constructs a fresh instance —
         # per-bind state (notably the plan-tool stash) cannot leak
@@ -374,13 +374,7 @@ class _ConnectionHandler:
         return {
             "sessions": [
                 {
-                    "sessionId": t.session_id,
-                    "task": t.task,
-                    "sampleId": t.sample_id,
-                    "epoch": t.epoch,
-                    "agentName": t.agent_name,
-                    "startedAt": t.started_at,
-                    "totalTokens": t.total_tokens,
+                    **t.to_meta_dict(),
                     "target": f"{t.task}/{t.sample_id}/{t.epoch}",
                 }
                 for t in targets
@@ -574,7 +568,7 @@ class _ConnectionHandler:
         return bound
 
     async def _enter_picker_mode(
-        self, targets: list[_PickerTarget]
+        self, targets: list[PickerTarget]
     ) -> NewSessionResponse:
         """Mint a control sessionId, snapshot targets, push picker payload."""
         # Tear down any previous binding's forwarders before entering
@@ -597,7 +591,7 @@ class _ConnectionHandler:
         await self._send_session_update(notif)
         return NewSessionResponse(session_id=control_id)
 
-    async def _auto_bind(self, target: _PickerTarget) -> NewSessionResponse:
+    async def _auto_bind(self, target: PickerTarget) -> NewSessionResponse:
         """Skip the picker for the single-target case; bind immediately.
 
         On the auto-bind path the wire sessionId IS the target's id
@@ -672,7 +666,7 @@ class _ConnectionHandler:
         await self._start_forwarders(target.session_id)
         return PromptResponse(stop_reason="end_turn")
 
-    async def _notify_binding(self, target: _PickerTarget) -> None:
+    async def _notify_binding(self, target: PickerTarget) -> None:
         """Push a confirmation `session/update` carrying the bound target.
 
         The notification's sessionId is the connection's
@@ -698,14 +692,7 @@ class _ConnectionHandler:
         # Keep the structured target list under the same _meta key for
         # consistency with the picker flow.
         assert notif.field_meta is not None
-        notif.field_meta[PICKER_META_KEY] = [
-            {
-                "sessionId": target.session_id,
-                "task": target.task,
-                "sampleId": target.sample_id,
-                "epoch": target.epoch,
-            }
-        ]
+        notif.field_meta[PICKER_META_KEY] = [target.to_meta_dict()]
         await self._send_session_update(notif)
 
     async def _send_session_update(self, notification: Any) -> None:
@@ -762,7 +749,7 @@ class _ConnectionHandler:
         """Send ``session/request_permission`` to this client and await response.
 
         Implements the :class:`ApproverClient` protocol. The
-        ``_LiveAcpSession`` registers this handler when the connection
+        ``LiveAcpSession`` registers this handler when the connection
         binds (via :class:`Forwarders`); the configured
         ``human_approver`` calls this method (via the
         ``approval/_human/acp.py`` race orchestrator) when a tool
@@ -845,7 +832,7 @@ def _translate_prompt_blocks(prompt_blocks: list[Any]) -> str:
 
     :class:`TextContentBlock` is supported fully. Other ACP content
     variants (image / audio / resource / embedded-resource) lower to
-    placeholder text — full multi-modal translation lands in Phase 13.
+    placeholder text — full multi-modal translation is a follow-on.
     We log a warning on first sight of a non-text block per connection
     so users notice without flooding logs.
     """

@@ -5,7 +5,7 @@ that converts ``update_plan`` / ``todo_write`` tool-call notifications
 into ACP ``AgentPlanUpdate`` notifications for plan-capable clients.
 
 No socket needed — these poke the methods on a bare
-``_ConnectionHandler`` instance.
+``ConnectionHandler`` instance.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ from acp.schema import AgentPlanUpdate
 from inspect_ai.agent._acp._connection import (
     PLAN_RENDERING_META_KEY,
     Bound,
-    _ConnectionHandler,
+    ConnectionHandler,
 )
 from inspect_ai.agent._acp._session_router import PLAN_TOOL_NAMES, Forwarders
 
@@ -35,9 +35,9 @@ from inspect_ai.agent._acp._session_router import PLAN_TOOL_NAMES, Forwarders
 # ---------------------------------------------------------------------------
 
 
-def _handler() -> _ConnectionHandler:
+def _handler() -> ConnectionHandler:
     """Fresh handler bound to a synthetic wire session (needed by translators)."""
-    h = _ConnectionHandler()
+    h = ConnectionHandler()
     h.state.binding = Bound(
         wire_session_id="wire-session", target_session_id="wire-session"
     )

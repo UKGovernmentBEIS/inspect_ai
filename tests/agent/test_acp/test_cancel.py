@@ -7,9 +7,9 @@ import pytest
 
 from inspect_ai.agent import acp_session
 from inspect_ai.agent._acp._session import (
+    LiveAcpSession,
+    NoOpAcpSession,
     TurnCancelled,
-    _LiveAcpSession,
-    _NoOpAcpSession,
 )
 from inspect_ai.event import InterruptEvent, ModelEvent
 from inspect_ai.log._transcript import Transcript, _transcript
@@ -354,7 +354,7 @@ async def test_cancel_during_generate_emits_correct_interrupt_event() -> None:
 async def test_track_model_event_save_restore_handles_nesting() -> None:
     """Nested ``track_model_event`` restores the outer event on exit."""
     async with acp_session() as acp:
-        live = cast(_LiveAcpSession, acp)
+        live = cast(LiveAcpSession, acp)
         outer = ModelEvent(
             model="m-outer",
             input=[],
@@ -445,7 +445,7 @@ async def test_turn_scope_state_resets_between_turns() -> None:
     token = _transcript.set(transcript)
     try:
         async with acp_session() as acp:
-            live = cast(_LiveAcpSession, acp)
+            live = cast(LiveAcpSession, acp)
 
             # First turn: cancel inside a tool call.
             async with anyio.create_task_group() as tg:
@@ -499,7 +499,7 @@ async def test_turn_scope_state_resets_between_turns() -> None:
 
 async def test_track_tool_call_cleanup_on_exception() -> None:
     async with acp_session() as acp:
-        live = cast(_LiveAcpSession, acp)
+        live = cast(LiveAcpSession, acp)
         with pytest.raises(RuntimeError):
             with acp.track_tool_call("tc-err"):
                 raise RuntimeError("boom")
@@ -510,7 +510,7 @@ async def test_noop_session_variants_are_safe() -> None:
     transcript = Transcript()
     token = _transcript.set(transcript)
     try:
-        noop = _NoOpAcpSession()
+        noop = NoOpAcpSession()
         # turn_scope: yields, exits cleanly.
         with noop.turn_scope():
             pass

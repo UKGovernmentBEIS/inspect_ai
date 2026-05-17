@@ -78,8 +78,8 @@ class ActiveSample:
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
         self.event_done: anyio.Event | None = None
         # Live ACP session for this sample, if any. Set by
-        # `_LiveAcpSession.__aenter__` on entry; cleared at `__aexit__`.
-        # The Phase 7 TUI reads this to decide whether to render the
+        # `LiveAcpSession.__aenter__` on entry; cleared at `__aexit__`.
+        # The Inspect TUI reads this to decide whether to render the
         # Interrupt button and to dispatch session/cancel + session/prompt.
         self.acp_session: "AcpSession | None" = None
 

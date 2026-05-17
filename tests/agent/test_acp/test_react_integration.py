@@ -6,7 +6,7 @@ import anyio
 
 from inspect_ai.agent import react
 from inspect_ai.agent._acp import AcpSession
-from inspect_ai.agent._acp._session import _LiveAcpSession
+from inspect_ai.agent._acp._session import LiveAcpSession
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.event import InterruptEvent
 from inspect_ai.log._transcript import Transcript, _transcript
@@ -96,7 +96,7 @@ async def test_track_model_event_populates_session_during_generate() -> None:
                 # Capture tool fired; the next generate (slow_done) is about
                 # to start. Wait for it to enter, then peek the session.
                 await anyio.sleep(0.05)
-                live = cast(_LiveAcpSession, captured["acp"])
+                live = cast(LiveAcpSession, captured["acp"])
                 observed_during_generate.append(live._active_model_event)
 
             tg.start_soon(run_agent)
@@ -154,7 +154,7 @@ async def test_track_tool_call_populates_session_during_tool_execution() -> None
                 # Capture happened on turn 1. Now wait long enough for turn 2's
                 # slow_tool to enter the track_tool_call scope.
                 await anyio.sleep(0.1)
-                live = cast(_LiveAcpSession, captured["acp"])
+                live = cast(LiveAcpSession, captured["acp"])
                 observed_in_flight.append(list(live._in_flight_tool_calls))
                 release.set()
 

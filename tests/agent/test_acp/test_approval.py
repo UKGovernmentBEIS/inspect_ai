@@ -33,7 +33,7 @@ from acp.schema import (
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp._server import acp_server
-from inspect_ai.agent._acp._session import _LiveAcpSession
+from inspect_ai.agent._acp._session import LiveAcpSession
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human.acp import (
     _approval_from_response,
@@ -386,7 +386,7 @@ async def test_entry_returns_none_when_no_acp_session(patch_sample_active) -> No
 
 async def test_entry_returns_none_when_no_clients(patch_sample_active) -> None:
     """ACP session exists but no clients attached → fall through."""
-    session = _LiveAcpSession()
+    session = LiveAcpSession()
     patch_sample_active(session)
     result = await request_human_approval_via_acp(
         message="please confirm",
@@ -400,7 +400,7 @@ async def test_entry_returns_none_when_no_clients(patch_sample_active) -> None:
 @skip_if_trio
 async def test_entry_routes_to_attached_client(patch_sample_active) -> None:
     """One client attached → request routes through it; decision returns."""
-    session = _LiveAcpSession()
+    session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     patch_sample_active(session)
@@ -436,7 +436,7 @@ async def test_entry_prepends_assistant_message_as_content_block(
     operator sees the tool call shape but not the "why" the agent
     gave.
     """
-    session = _LiveAcpSession()
+    session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     patch_sample_active(session)
@@ -467,7 +467,7 @@ async def test_entry_omits_message_block_for_empty_message(
     Without this guard, every approval card would have an empty
     "Assistant" header padding the top of the prompt.
     """
-    session = _LiveAcpSession()
+    session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     patch_sample_active(session)
@@ -500,7 +500,7 @@ async def test_entry_substitutes_view_placeholders_with_call_arguments(
     correctly in the in-proc panel but show literal
     ``{{command}}`` / ``{{path}}`` in the editor card.
     """
-    session = _LiveAcpSession()
+    session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     patch_sample_active(session)
@@ -548,7 +548,7 @@ async def test_entry_carries_view_content_in_request(patch_sample_active) -> Non
     block appears AFTER the assistant message block (when a message
     is present); we scan all blocks to be robust to ordering changes.
     """
-    session = _LiveAcpSession()
+    session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     patch_sample_active(session)
@@ -709,7 +709,7 @@ async def test_approval_over_real_socket_round_trip(
     """
     # Set up a fake ActiveSample so list_picker_targets has something
     # to return — needed for session/load to bind successfully.
-    session = _LiveAcpSession()
+    session = LiveAcpSession()
     # Initialize an empty session id; the real wire test below will
     # use session/load directly with the session id.
     sample = MagicMock()

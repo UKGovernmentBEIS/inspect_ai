@@ -21,7 +21,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import _picker
 from inspect_ai.agent._acp._server import acp_server
-from inspect_ai.agent._acp._session import _LiveAcpSession
+from inspect_ai.agent._acp._session import LiveAcpSession
 from inspect_ai.log._transcript import Transcript
 
 
@@ -81,8 +81,8 @@ def register_target(monkeypatch):
     return _register
 
 
-def _make_live_session_with_transcript() -> _LiveAcpSession:
-    session = _LiveAcpSession()
+def _make_live_session_with_transcript() -> LiveAcpSession:
+    session = LiveAcpSession()
     session._transcript = Transcript()
     return session
 

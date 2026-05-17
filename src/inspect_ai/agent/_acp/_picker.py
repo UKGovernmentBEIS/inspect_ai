@@ -1,11 +1,11 @@
-"""Phase 9 — in-channel session picker.
+"""In-channel session picker.
 
 Pure helpers that compute the set of attachable ACP target sessions
 from the eval's :data:`_active_samples` registry, format them into an
 ACP ``session/update`` notification payload, and resolve a user's
 selection string back to a target.
 
-The picker has no socket dependency. ``_AcpServer`` (and tests) call
+The picker has no socket dependency. ``AcpServer`` (and tests) call
 :func:`list_picker_targets`, :func:`build_picker_notification`, and
 :func:`resolve_selection` directly. Each accepted connection sees the
 *current* set of targets at picker-build time, so clients connecting
@@ -16,9 +16,9 @@ The picker's selection surface accepts a numeric index (``"1"``,
 ``"2"``, ...) matching the visible order, or a uuid string matching
 one of ``targets[i].session_id``. Tuple parsing
 (``"task/sample_id/epoch"``) was considered and deferred — the native
-``inspect acp`` client (Phase 11) reads the structured target list out
-of the notification's ``_meta["inspect.picker.targets"]`` field and
-submits the matching uuid directly.
+``inspect acp`` client reads the structured target list out of the
+notification's ``_meta["inspect.picker.targets"]`` field and submits
+the matching uuid directly.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from inspect_ai.log._samples import active_samples
 
 __all__ = [
     "PICKER_META_KEY",
-    "_PickerTarget",
+    "PickerTarget",
     "build_picker_notification",
     "list_picker_targets",
     "resolve_selection",
@@ -47,11 +47,11 @@ PICKER_META_KEY = "inspect.picker.targets"
 
 
 @dataclass(frozen=True)
-class _PickerTarget:
+class PickerTarget:
     """A single attachable ACP session target."""
 
     session_id: str
-    """The target ``_LiveAcpSession.session_id`` (uuid)."""
+    """The target ``LiveAcpSession.session_id`` (uuid)."""
 
     task: str
     """Task name (e.g. ``"my_task"``)."""
@@ -81,22 +81,40 @@ class _PickerTarget:
     :attr:`inspect_ai.log._samples.ActiveSample.total_tokens`). Drives
     the picker's ``tokens`` column; refreshed on rescan."""
 
+    def to_meta_dict(self) -> dict[str, Any]:
+        """Canonical camelCase ``_meta`` shape for ACP clients.
 
-def list_picker_targets() -> list[_PickerTarget]:
+        Single source of truth for the picker target's wire shape —
+        used by the picker notification, the ``inspect/list_sessions``
+        response, and the binding confirmation. Add new fields here
+        and they appear in every payload automatically.
+        """
+        return {
+            "sessionId": self.session_id,
+            "task": self.task,
+            "sampleId": self.sample_id,
+            "epoch": self.epoch,
+            "agentName": self.agent_name,
+            "startedAt": self.started_at,
+            "totalTokens": self.total_tokens,
+        }
+
+
+def list_picker_targets() -> list[PickerTarget]:
     """Snapshot active samples that have claimed ACP.
 
     Filters :func:`inspect_ai.log._samples.active_samples` to those
     whose ``acp_session`` is set to a non-noop live session — i.e.
     agents that have called ``before_turn`` at least once and
-    therefore have a real ``_LiveAcpSession.session_id``.
+    therefore have a real ``LiveAcpSession.session_id``.
     """
-    targets: list[_PickerTarget] = []
+    targets: list[PickerTarget] = []
     for sample in active_samples():
         session = sample.acp_session
         if session is None or session.session_id == "noop":
             continue
         targets.append(
-            _PickerTarget(
+            PickerTarget(
                 session_id=session.session_id,
                 task=sample.task,
                 sample_id=str(sample.sample.id) if sample.sample.id is not None else "",
@@ -111,7 +129,7 @@ def list_picker_targets() -> list[_PickerTarget]:
 
 def build_picker_notification(
     session_id: str,
-    targets: list[_PickerTarget],
+    targets: list[PickerTarget],
 ) -> SessionNotification:
     """Build the picker ``session/update`` notification payload.
 
@@ -143,18 +161,7 @@ def build_picker_notification(
         text = "\n".join(lines)
 
     meta: dict[str, Any] = {
-        PICKER_META_KEY: [
-            {
-                "sessionId": t.session_id,
-                "task": t.task,
-                "sampleId": t.sample_id,
-                "epoch": t.epoch,
-                "agentName": t.agent_name,
-                "startedAt": t.started_at,
-                "totalTokens": t.total_tokens,
-            }
-            for t in targets
-        ],
+        PICKER_META_KEY: [t.to_meta_dict() for t in targets],
     }
 
     notification = session_notification(
@@ -167,8 +174,8 @@ def build_picker_notification(
 
 def resolve_selection(
     prompt_text: str,
-    targets: list[_PickerTarget],
-) -> _PickerTarget | None:
+    targets: list[PickerTarget],
+) -> PickerTarget | None:
     """Resolve a picker selection string to a target.
 
     Accepts:

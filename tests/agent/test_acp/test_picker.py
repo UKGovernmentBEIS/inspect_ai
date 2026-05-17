@@ -11,7 +11,7 @@ from acp.schema import AgentMessageChunk, SessionNotification, TextContentBlock
 from inspect_ai.agent._acp import _picker
 from inspect_ai.agent._acp._picker import (
     PICKER_META_KEY,
-    _PickerTarget,
+    PickerTarget,
     build_picker_notification,
     list_picker_targets,
     resolve_selection,
@@ -117,9 +117,9 @@ def test_list_picker_targets_preserves_order(monkeypatch) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _targets(*spec: tuple[str, str, str, int]) -> list[_PickerTarget]:
+def _targets(*spec: tuple[str, str, str, int]) -> list[PickerTarget]:
     """Compact target-list constructor: (session_id, task, sample_id, epoch)."""
-    return [_PickerTarget(*t) for t in spec]
+    return [PickerTarget(*t) for t in spec]
 
 
 def test_build_picker_notification_session_id_matches_control() -> None:
@@ -188,9 +188,9 @@ def test_build_picker_notification_carries_structured_meta() -> None:
 
 
 def test_build_picker_notification_meta_includes_agent_and_started_at() -> None:
-    """The extension #1 / #5 fields propagate from _PickerTarget into _meta."""
+    """The extension #1 / #5 fields propagate from PickerTarget into _meta."""
     targets = [
-        _PickerTarget(
+        PickerTarget(
             session_id="uuid-x",
             task="t",
             sample_id="s",

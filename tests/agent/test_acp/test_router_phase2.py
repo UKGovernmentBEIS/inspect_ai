@@ -32,12 +32,14 @@ from acp.schema import (
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent._acp._router import (
-    _TOOL_KIND_BY_NAME,
     _AcpEventRouter,
     _model_event_message_id,
+)
+from inspect_ai.agent._acp._session import LiveAcpSession
+from inspect_ai.agent._acp._tool_content import (
+    _TOOL_KIND_BY_NAME,
     _tool_kind_for,
 )
-from inspect_ai.agent._acp._session import _LiveAcpSession
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, _transcript
@@ -62,12 +64,12 @@ set_model_info(
 )
 
 
-def _new_session() -> _LiveAcpSession:
-    return _LiveAcpSession()
+def _new_session() -> LiveAcpSession:
+    return LiveAcpSession()
 
 
 def _attach_router(
-    session: _LiveAcpSession,
+    session: LiveAcpSession,
 ) -> tuple[_AcpEventRouter, list[SessionNotification]]:
     published: list[SessionNotification] = []
     session.publish = published.append  # type: ignore[method-assign,assignment]

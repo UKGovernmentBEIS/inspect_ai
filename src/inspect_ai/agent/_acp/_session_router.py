@@ -34,7 +34,7 @@ from acp.schema import (
 from inspect_ai.agent._acp._router import SubagentDepthTracker, replay_transcript
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp._connection import _ConnectionState
+    from inspect_ai.agent._acp._connection import ConnectionState
     from inspect_ai.agent._acp._session import AcpSession, ApproverClient
 
 logger = getLogger(__name__)
@@ -173,7 +173,7 @@ class Forwarders:
 
     def __init__(
         self,
-        state: "_ConnectionState",
+        state: "ConnectionState",
         connection: Connection,
         approver_client: "ApproverClient",
     ) -> None:
@@ -320,7 +320,7 @@ class Forwarders:
         Each notification has its ``session_id`` rewritten to the
         connection's ``wire_session_id`` before forwarding. The router
         publishes notifications keyed to the target's
-        ``_LiveAcpSession.session_id``, but after a picker selection
+        ``LiveAcpSession.session_id``, but after a picker selection
         the connection's wire id is the synthetic control id — so
         passthroughs would otherwise reach the client with a session
         id they've never seen. The auto-bind / direct loadSession

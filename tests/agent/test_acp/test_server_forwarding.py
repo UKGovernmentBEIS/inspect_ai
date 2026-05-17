@@ -1,7 +1,7 @@
 """Phase 10 integration tests for the per-connection forwarder.
 
 Exercises the full inbound/outbound forwarding pipeline against a
-real :class:`_LiveAcpSession` registered as an active sample.
+real :class:`LiveAcpSession` registered as an active sample.
 ``_find_live_session`` (in ``_server``) walks the ``active_samples()``
 list — these tests patch that list so the forwarder can resolve a
 target. Notifications go over a real AF_UNIX loopback socket and
@@ -38,7 +38,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import _picker
 from inspect_ai.agent._acp._server import acp_server
-from inspect_ai.agent._acp._session import _LiveAcpSession
+from inspect_ai.agent._acp._session import LiveAcpSession
 from inspect_ai.agent._acp._session_router import (
     ELISION_THRESHOLD_BYTES,
     REPLAY_MAX_EVENTS,
@@ -215,15 +215,15 @@ async def _connect(server: Any) -> _RpcClient:
     return _RpcClient(reader, writer)
 
 
-def _make_live_session_with_transcript() -> tuple[_LiveAcpSession, Transcript]:
-    """Build a _LiveAcpSession with a real Transcript wired up.
+def _make_live_session_with_transcript() -> tuple[LiveAcpSession, Transcript]:
+    """Build a LiveAcpSession with a real Transcript wired up.
 
     Bypasses ``__aenter__`` (which would also try to attach the Phase
     6 router via ``transcript()`` and register on the active sample).
     For Phase 10 forwarder tests we want the session and its
     transcript without any extra coupling.
     """
-    session = _LiveAcpSession()
+    session = LiveAcpSession()
     tr = Transcript()
     session._transcript = tr
     return session, tr
@@ -766,7 +766,7 @@ async def test_picker_selection_live_forwarding_uses_wire_session_id(
     """After picker selection, live notifications arrive keyed to the wire id.
 
     The Phase 6 router publishes ``SessionNotification`` keyed to the
-    target's ``_LiveAcpSession.session_id``. After a picker selection
+    target's ``LiveAcpSession.session_id``. After a picker selection
     the connection's wire id is the synthetic control id minted at
     ``session/new`` time — it differs from the chosen target's id.
     The forwarder must rewrite the outbound notification's session_id
@@ -1064,17 +1064,17 @@ async def test_plan_tool_stash_cleared_on_rebind(
 
     # Track per-connection handlers so we can reach Forwarders. The
     # Connection's _handler holds the MessageRouter, not the
-    # _ConnectionHandler, so we can't navigate through the conn.
-    from inspect_ai.agent._acp._connection import _ConnectionHandler
+    # ConnectionHandler, so we can't navigate through the conn.
+    from inspect_ai.agent._acp._connection import ConnectionHandler
 
-    handlers: list[_ConnectionHandler] = []
-    original_init = _ConnectionHandler.__init__
+    handlers: list[ConnectionHandler] = []
+    original_init = ConnectionHandler.__init__
 
-    def tracking_init(self: _ConnectionHandler) -> None:
+    def tracking_init(self: ConnectionHandler) -> None:
         original_init(self)
         handlers.append(self)
 
-    monkeypatch.setattr(_ConnectionHandler, "__init__", tracking_init)
+    monkeypatch.setattr(ConnectionHandler, "__init__", tracking_init)
 
     async with acp_server(eval_id="evt-stash-rebind", transport=True) as server:
         assert server is not None

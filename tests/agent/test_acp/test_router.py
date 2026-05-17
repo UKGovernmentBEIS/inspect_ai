@@ -25,7 +25,7 @@ from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent import react
 from inspect_ai.agent._acp import acp_session
 from inspect_ai.agent._acp._router import _AcpEventRouter, _tool_call_status
-from inspect_ai.agent._acp._session import _LiveAcpSession
+from inspect_ai.agent._acp._session import LiveAcpSession
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._as_tool import as_tool
 from inspect_ai.event import (
@@ -63,12 +63,12 @@ from inspect_ai.tool._tool import Tool, tool
 # ---------------------------------------------------------------------------
 
 
-def _new_session() -> _LiveAcpSession:
-    return _LiveAcpSession()
+def _new_session() -> LiveAcpSession:
+    return LiveAcpSession()
 
 
 def _attach_router(
-    session: _LiveAcpSession,
+    session: LiveAcpSession,
 ) -> tuple[_AcpEventRouter, list[SessionNotification]]:
     """Build a router and route its publications into a list collector."""
     published: list[SessionNotification] = []
@@ -565,7 +565,7 @@ def test_tool_kind_mapping_for_built_in_tools() -> None:
     sandbox model. See the module-level comment on
     ``_TOOL_KIND_BY_NAME``.
     """
-    from inspect_ai.agent._acp._router import _tool_kind_for
+    from inspect_ai.agent._acp._tool_content import _tool_kind_for
 
     # Shell-execution tools: None (no kind). Title carries the
     # command instead — see _descriptive_title.
@@ -748,7 +748,7 @@ def test_descriptive_title_per_known_tool() -> None:
     String-typed args that look like patterns/queries/element refs
     are quoted; paths and URLs are not.
     """
-    from inspect_ai.agent._acp._router import _descriptive_title
+    from inspect_ai.agent._acp._tool_content import _descriptive_title
 
     def _ev(function: str, **args: Any) -> ToolEvent:
         return ToolEvent(id="x", function=function, arguments=args)
@@ -897,7 +897,7 @@ def test_shell_tool_result_fence_survives_truncation() -> None:
     closing ``\`\`\`\`\`\`\`\`\`` could be cut off, leaving the editor
     rendering an unclosed code block that swallows everything after.
     """
-    from inspect_ai.agent._acp._router import _RESULT_CONTENT_MAX_BYTES
+    from inspect_ai.agent._acp._tool_content import _RESULT_CONTENT_MAX_BYTES
 
     tr = Transcript()
     token = _transcript.set(tr)
@@ -969,7 +969,7 @@ def test_replay_completed_tool_carries_result_in_first_sight_start() -> None:
 
 def test_is_shell_execution_tool_membership() -> None:
     """Pin the shell-execution family so a refactor can't silently drift it."""
-    from inspect_ai.agent._acp._router import _is_shell_execution_tool
+    from inspect_ai.agent._acp._tool_content import _is_shell_execution_tool
 
     assert _is_shell_execution_tool("bash")
     assert _is_shell_execution_tool("python")
@@ -1092,7 +1092,7 @@ def test_completed_tool_with_empty_result_does_not_overwrite_view() -> None:
 
 def test_completed_tool_result_truncated_when_oversized() -> None:
     """Huge results get truncated with a marker; full payload is on the event."""
-    from inspect_ai.agent._acp._router import _RESULT_CONTENT_MAX_BYTES
+    from inspect_ai.agent._acp._tool_content import _RESULT_CONTENT_MAX_BYTES
 
     tr = Transcript()
     token = _transcript.set(tr)
@@ -1840,7 +1840,7 @@ async def test_sub_agent_notifications_publish_when_filter_disabled() -> None:
         agent = react(tools=[as_tool(inner())], model=model)
 
         async with acp_session() as acp:
-            cast(_LiveAcpSession, acp).disable_subagent_filtering()
+            cast(LiveAcpSession, acp).disable_subagent_filtering()
             stream = acp.attach()
             async with anyio.create_task_group() as tg:
                 tg.start_soon(lambda: agent(_state()))

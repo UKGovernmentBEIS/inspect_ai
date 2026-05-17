@@ -244,7 +244,7 @@ async def acp_session():
     current = _acp_var.get()
     # If a real (non-no-op) session is already active, this scope gets a
     # no-op. Otherwise build and install the real one.
-    install = _NoOp() if not isinstance(current, _NoOp) else _LiveAcpSession(...)
+    install = _NoOp() if not isinstance(current, _NoOp) else LiveAcpSession(...)
     token = _acp_var.set(install)
     try:
         async with install:
@@ -827,14 +827,14 @@ Foundation types only — no agent integration, no cancellation mechanics, no sc
 
 **What landed:**
 - `AcpSession` — `@runtime_checkable` Protocol with Phase 1 surface only: `session_id`, `__aenter__`, `__aexit__`, `attach()`, `detach()`, `publish()`. Cancel / turn / user-message-queue methods are explicitly *not* on the Protocol — those are added in Phase 3.
-- `_NoOpAcpSession` — null-object impl; `session_id == "noop"` sentinel; `attach()` returns an already-closed receive stream; `detach()` / `publish()` are no-ops.
-- `_LiveAcpSession` — owns the in-process pub/sub bus. Per-subscriber `anyio.create_memory_object_stream` with bounded buffer (256). `publish()` uses `send_nowait`; on `WouldBlock` logs a warning naming the session and drops the update. `__aexit__` closes every subscriber send-half so receivers see clean EOF.
-- `acp_session()` — `@asynccontextmanager` factory; installs a fresh `_LiveAcpSession` on the outermost entry, a fresh `_NoOpAcpSession` on any nested entry (shadow-if-active rule).
+- `NoOpAcpSession` — null-object impl; `session_id == "noop"` sentinel; `attach()` returns an already-closed receive stream; `detach()` / `publish()` are no-ops.
+- `LiveAcpSession` — owns the in-process pub/sub bus. Per-subscriber `anyio.create_memory_object_stream` with bounded buffer (256). `publish()` uses `send_nowait`; on `WouldBlock` logs a warning naming the session and drops the update. `__aexit__` closes every subscriber send-half so receivers see clean EOF.
+- `acp_session()` — `@asynccontextmanager` factory; installs a fresh `LiveAcpSession` on the outermost entry, a fresh `NoOpAcpSession` on any nested entry (shadow-if-active rule).
 - `current_acp_session()` — peek accessor returning the ContextVar's value (no-op singleton by default). Exported from `inspect_ai.agent._acp` only; not surfaced at the top-level `inspect_ai.agent` namespace.
 - `AcpUpdate = dict[str, Any]` placeholder; Phase 6 will tighten to a `session/update` union.
 
 **Design decisions made during implementation:**
-- Fresh `_NoOpAcpSession` per shadowed scope (rather than reusing the global singleton): one extra allocation per nested entry, but cleaner identity semantics — `inner is outer` is always false in nested scopes.
+- Fresh `NoOpAcpSession` per shadowed scope (rather than reusing the global singleton): one extra allocation per nested entry, but cleaner identity semantics — `inner is outer` is always false in nested scopes.
 - `_NOOP_SESSION_ID = "noop"` sentinel string returned by the no-op's `session_id` avoids `isinstance` guards in downstream code.
 - `_is_noop(session)` helper centralizes the type check; the factory uses it rather than raw `isinstance`.
 - The user-message queue slot and turn cancel scope slot mentioned in the original phase description were *deferred to Phase 3* — Phase 1 strictly delivers types, factory, accessors, and pub/sub. Adding queue/cancel slots without their consumers would leave dead state.
@@ -919,7 +919,7 @@ The core cancel/inject machinery on `AcpSession`. No `react()` integration — e
 - `tests/agent/acp/test_cancel.py` — 18 unit tests covering all turn/cancel/inject paths under both asyncio and trio.
 
 **Files modified:**
-- `src/inspect_ai/agent/_acp/_session.py` — extended Protocol, `_LiveAcpSession`, and `_NoOpAcpSession` with the Phase 3 surface; added `TurnCancelled` exception. ~300 → ~545 LoC, still single-file.
+- `src/inspect_ai/agent/_acp/_session.py` — extended Protocol, `LiveAcpSession`, and `NoOpAcpSession` with the Phase 3 surface; added `TurnCancelled` exception. ~300 → ~545 LoC, still single-file.
 - `src/inspect_ai/tool/_tool_call.py` — added `"cancelled"` to `ToolCallError.type` Literal.
 - `src/inspect_ai/_view/inspect-openapi.json` — regenerated to include the extended `ToolCallError.type` enum.
 - `src/inspect_ai/_view/ts-mono/packages/inspect-common/src/types/generated.ts` and `apps/scout/src/types/generated.ts` — regenerated TS types for the new `"cancelled"` enum value.
@@ -933,7 +933,7 @@ The core cancel/inject machinery on `AcpSession`. No `react()` integration — e
 - `acp.cancel_current_turn()` — fire-and-forget. Snapshots in-flight state (active tool calls > `_active_model_event` > "between_turns"), emits `InterruptEvent(source="user_cancel", ...)` via Phase 2's `record_interrupt_event`, and cancels the turn scope if one is active.
 - `acp.track_tool_call(tool_call_id)` — sync `@contextmanager` that pushes/pops onto the in-flight tool list. Phase 4 wires it into `_call_tools.py`; Phase 3 tests use it directly to simulate "a tool is mid-flight". Because nested-agent tool calls go to the no-op session (Phase 1's shadowing rule), only top-level tool calls land here — exactly what the ACP-visible interrupt record needs.
 - `acp.track_model_event(event)` — sibling `@contextmanager` storing the in-flight `ModelEvent` **on the session** (save/restore semantics for nesting). Phase 4 will wrap each model generation in it. Critical: the previous design read from the existing `_active_model_event` ContextVar, which is task-local and invisible to a cancelling transport task running in a sibling task — so cancels would have been mis-recorded as `between_turns`. Storing on the session ensures the cancelling task sees the right value.
-- `_NoOpAcpSession` — no-op implementations of every Phase 3 method. `cancel_current_turn()` deliberately does **not** call `record_interrupt_event` (sub-agents must not emit cancel events into the top-level transcript).
+- `NoOpAcpSession` — no-op implementations of every Phase 3 method. `cancel_current_turn()` deliberately does **not** call `record_interrupt_event` (sub-agents must not emit cancel events into the top-level transcript).
 
 **Design decisions during implementation:**
 - `AgentState` and `ModelEvent` typed via `TYPE_CHECKING` forward references to avoid runtime import cycles (`inspect_ai.agent._agent` may import from `_acp` in Phase 4; `inspect_ai.event._model` pulls in the whole event/scorer/log subsystem).
@@ -958,7 +958,7 @@ The core cancel/inject machinery on `AcpSession`. No `react()` integration — e
 14. Cancel between turns preserves queued messages.
 15. `turn_scope` resets `_pending_turn_cancel` and `_cancelled_tool_call_ids` between turns.
 16. `track_tool_call` removes id on exception cleanup.
-17. `_NoOpAcpSession` variants are all safe; no `InterruptEvent` recorded.
+17. `NoOpAcpSession` variants are all safe; no `InterruptEvent` recorded.
 18. Race: cancel arrives just as turn completes — no exception, queued message survives.
 19. Cancel during generate (`track_model_event` + cancel from sibling task) emits `InterruptEvent(interrupted="generate", interrupted_model_event_id=...)` — proves cross-task visibility via the session-stored event.
 20. `track_model_event` nested save/restore — outer event is restored after inner exits.
@@ -993,7 +993,7 @@ The cancel/inject contract from Phase 3 wired into the real agent loops. No prod
 - Hoisted `acp_session()` up alongside `checkpointer()` and `mcp_connection()` in the top-level `async with` (per user feedback) — cleaner symmetry; all three lifecycle context managers share the same scope.
 - Per-tool-call wrap lives in `call_tool_task` (the per-call inner async function in `_call_tools.py`) so parallel tool calls each get their own track scope. The session's `_in_flight_tool_calls` correctly tracks all in-flight ids; cancel records the first and `after_cancel` repairs all.
 - The model event wrap uses a tuple `with` statement nested inside `track_active_model_event` — both ContextVar (for log writers) and session-level (for ACP cancel snapshot) tracking coexist cleanly.
-- **Test strategy: capture-via-tool.** Tests can't reach react's internal `_LiveAcpSession` from a sibling task (ContextVar task-inheritance forks before react's `acp_session()` enters). The test helper provides a tiny `capture_session` tool that captures `current_acp_session()` *from inside* react's execution and exports it to the test via a shared dict + `anyio.Event`. The producer task awaits the event, then drives the captured session externally. Zero production-API changes; uses real code paths.
+- **Test strategy: capture-via-tool.** Tests can't reach react's internal `LiveAcpSession` from a sibling task (ContextVar task-inheritance forks before react's `acp_session()` enters). The test helper provides a tiny `capture_session` tool that captures `current_acp_session()` *from inside* react's execution and exports it to the test via a shared dict + `anyio.Event`. The producer task awaits the event, then drives the captured session externally. Zero production-API changes; uses real code paths.
 - `get_model(...)` must be called with `memoize=False` in tests — Inspect memoizes by default, so without it the same mockllm instance (with its custom_outputs already exhausted) gets reused across tests in the same pytest run.
 - mockllm tweak (`await output if awaitable`) is a small additive enhancement; existing sync-callable usage unchanged.
 
@@ -1063,8 +1063,8 @@ Landed an in-process event router that converts top-level transcript events into
 **What was built:**
 
 1. **Multi-cast `Transcript._add_subscriber(cb) -> unsubscribe`** in `src/inspect_ai/log/_transcript.py`. Coexists with the legacy single-slot `_subscribe()` used by the eval runner's log writer. Multiple subscribers all fire on every event; each runs in a try/except so a failing subscriber doesn't block siblings or the agent loop.
-2. **`_AcpEventRouter`** in `src/inspect_ai/agent/_acp/_router.py`. Attached at `_LiveAcpSession.__aenter__`, detached at `__aexit__`. Tracks sub-agent nesting depth by pairing `SpanBeginEvent(type=AGENT_SPAN_TYPE)` / `SpanEndEvent` by id (defensive against unknown ends). Maps `ModelEvent` text blocks → `AgentMessageChunk(TextContentBlock)`, reasoning blocks → `AgentThoughtChunk(TextContentBlock)`, `ToolEvent` first sight → `ToolCallStart(in_progress|completed)`, post-completion updates → `ToolCallProgress(completed|failed)`. Tracks first-sight tool ids so the pending → completed transition routes correctly.
-3. **Configurable sub-agent filter.** `_LiveAcpSession._filter_subagent_events: bool = True` (default ACP semantic — editors see only the outer conversation) with public-ish `disable_subagent_filtering()` method. The router consults the flag on every event; the in-process TUI (Phase 7) and other consumers who want full granularity can opt out.
+2. **`_AcpEventRouter`** in `src/inspect_ai/agent/_acp/_router.py`. Attached at `LiveAcpSession.__aenter__`, detached at `__aexit__`. Tracks sub-agent nesting depth by pairing `SpanBeginEvent(type=AGENT_SPAN_TYPE)` / `SpanEndEvent` by id (defensive against unknown ends). Maps `ModelEvent` text blocks → `AgentMessageChunk(TextContentBlock)`, reasoning blocks → `AgentThoughtChunk(TextContentBlock)`, `ToolEvent` first sight → `ToolCallStart(in_progress|completed)`, post-completion updates → `ToolCallProgress(completed|failed)`. Tracks first-sight tool ids so the pending → completed transition routes correctly.
+3. **Configurable sub-agent filter.** `LiveAcpSession._filter_subagent_events: bool = True` (default ACP semantic — editors see only the outer conversation) with public-ish `disable_subagent_filtering()` method. The router consults the flag on every event; the in-process TUI (Phase 7) and other consumers who want full granularity can opt out.
 4. **No `inspect.events` extension yet.** Mapping the Inspect-native event family (`InfoEvent`, `CompactionEvent`, `InterruptEvent`, etc.) onto ACP's `_meta` extension point is deferred to Phase 8+. ACP's `session/update` discriminated union is strict (no unknown variants accepted), and none of the existing variants (`SessionInfoUpdate`, `UsageUpdate`, `AgentPlanUpdate`) are inert no-op carriers — `SessionInfoUpdate.title=null` and `updated_at=null` are *destructive* clears per the schema docs. Without the `initialize` handshake (Phase 8+) there's no capability-negotiation path for clients to opt in, so Phase 6 ships the safer minimum: silently drop these events. The router's `_map` dispatch is keyed on `type(event)` so adding the mapping later is a one-line change.
 
 **Phase 7 implication (decided during planning):** the Inspect-native TUI will **not** subscribe to the router's `SessionNotification` stream — instead it'll subscribe to the transcript directly, preserving the existing event-stream display (which shows sub-agent internals at full granularity). The TUI only uses `AcpSession` for the producer-side `cancel_current_turn()` and `submit_user_message()`. This avoids dragging users from the current per-event view into an editor-shaped chunked-message view.
@@ -1087,7 +1087,7 @@ The motivation: typing-at-the-model as a *primary* always-on UI element is too a
 **What was built:**
 
 1. **`ActiveSample.acp_session` field** in `src/inspect_ai/log/_samples.py`. `TYPE_CHECKING`-guarded import for the `AcpSession` type hint; default `None`.
-2. **`_LiveAcpSession.__aenter__`/`__aexit__` splice** in `src/inspect_ai/agent/_acp/_session.py`. On entry looks up `sample_active()` and assigns `self` to its `acp_session`. On exit clears with an `is self` identity guard so a stale `__aexit__` from a race never clobbers a different live session. `_NoOpAcpSession` continues to do nothing on enter/exit, so sub-agent shadow sessions never overwrite the outer live session.
+2. **`LiveAcpSession.__aenter__`/`__aexit__` splice** in `src/inspect_ai/agent/_acp/_session.py`. On entry looks up `sample_active()` and assigns `self` to its `acp_session`. On exit clears with an `is self` identity guard so a stale `__aexit__` from a race never clobbers a different live session. `NoOpAcpSession` continues to do nothing on enter/exit, so sub-agent shadow sessions never overwrite the outer live session.
 3. **Interrupt button** on the `SampleInfo` header (`samples.py`) at the top-right alongside the existing "View Log" link. `Button(variant="warning")` with id `interrupt-sample`. Visibility is recomputed on every `sync_sample` based on `sample.acp_session is not None and acp_session.session_id != "noop"` — explicitly OUTSIDE the early-return guard, since the ACP session can come and go without the sample identity changing. Click handler fires `acp.cancel_current_turn()` and switches the sibling `SampleToolbar` into prompt mode via direct widget reference.
 4. **Prompt mode on `SampleToolbar`**. Adds an `Input(placeholder="Type a message for the model (e.g. 'please continue')")` and a `Send` button, both hidden by default. The Interrupt click flips a `_prompt_mode` flag, hides the status group + cancel buttons, reveals + auto-focuses the Input. Submission (Enter or Send) builds `ChatMessageUser(content=text)` and calls `acp.submit_user_message(msg)` — Phase 3's normalization stamps `source="operator"`. Empty input is silently ignored (spec: user must enter something to resume the agent). `sync_sample` auto-exits prompt mode on sample switch, sample completion, or ACP session loss, so the toolbar always recovers cleanly.
 5. **Interrupt button styled `warning`** (yellow). The pre-existing Timeout Tool / Cancel (Score) / Cancel (Error) buttons retain their original neutral styling — the yellow Interrupt is distinct enough on its own without recoloring the others.
@@ -1122,7 +1122,7 @@ The name `--acp-server` (rather than `--acp` or `--agent-acp`) is deliberate: it
 1. **`EvalConfig.acp_server`** in `src/inspect_ai/log/_log.py` — Pydantic field, auto-persists, defaults to `None`, backward-compatible with old logs.
 2. **`--acp-server` CLI flag** in `src/inspect_ai/_cli/eval.py` — added to `eval_options()` (covers `inspect eval` + `inspect eval-set`) and a separate copy on `inspect eval-retry` so users can override the persisted value on retry. Env var: `INSPECT_EVAL_ACP_SERVER`.
 3. **`acp_server` parameter threaded through** `eval()` / `eval_async()` / `eval_retry()` / `eval_retry_async()` in `src/inspect_ai/_eval/eval.py`. Retry merge uses the same `value if value is not None else eval_log.eval.config.acp_server` pattern as the rest of the replay-able flags.
-4. **`_AcpServer` class + `acp_server()` async context manager** in `src/inspect_ai/agent/_acp/_server.py`. Binds the requested transport, writes a per-PID discovery JSON at `<inspect_data_dir>/acp/<pid>.json` (`{pid, eval_id, socket_path, port, started_at}`), accepts connections, wraps each in `acp.connection.Connection` with an empty `acp.router.MessageRouter`, and tears everything down at exit. PID-liveness checked via `os.kill(pid, 0)`; stale discovery files + orphan socket nodes are swept on each `start()`. AF_UNIX everywhere (Win 10+ supports it); older Windows errors with a hint to pass `--acp-server=<port>`.
+4. **`AcpServer` class + `acp_server()` async context manager** in `src/inspect_ai/agent/_acp/_server.py`. Binds the requested transport, writes a per-PID discovery JSON at `<inspect_data_dir>/acp/<pid>.json` (`{pid, eval_id, socket_path, port, started_at}`), accepts connections, wraps each in `acp.connection.Connection` with an empty `acp.router.MessageRouter`, and tears everything down at exit. PID-liveness checked via `os.kill(pid, 0)`; stale discovery files + orphan socket nodes are swept on each `start()`. AF_UNIX everywhere (Win 10+ supports it); older Windows errors with a hint to pass `--acp-server=<port>`.
 5. **Lifecycle integration** — the eval runner wraps its eval-loop body in `async with _acp_server(eval_id=run_id, transport=config.acp_server):` (`src/inspect_ai/_eval/eval.py`). When `config.acp_server` is falsy the context yields `None` and binds nothing; otherwise the server lives for the eval's duration. **Per-eval lifecycle** (chosen over per-process): each `eval()` call gets its own socket named after its `run_id`. In `eval-set`, each sub-eval rebinds.
 
 **Why empty `MessageRouter`?** `acp.connection.Connection` requires a handler. An empty `MessageRouter()` is the simplest valid handler — incoming requests match no route, so the dispatch raises `RequestError.method_not_found` which becomes a well-formed JSON-RPC error response. This is the correct Phase 8 behavior: clients can verify the transport handshake works without needing real ACP methods, and we avoid half-implementing methods whose shapes will change in Phase 9/10.
@@ -1184,7 +1184,7 @@ Phase 9 left the connection bound to a target session but `session/prompt` / `se
    - `subscribe_transcript_events(callback) -> unsubscribe` — wraps `Transcript._add_subscriber` without exposing private state. Used by the raw forwarder. NoOp variant returns a no-op unsubscribe so callers can use a uniform pattern.
    - `transcript_events_snapshot() -> Sequence[Event]` — copy of the captured transcript's event list for replay. NoOp returns `[]`.
 
-3. **Capability detection at `initialize`** (`_server.py`): `_ConnectionState` extended with `client_renders_plan: bool` and `raw_events_enabled: bool` (both default False). `initialize` populates them from `client_info.name` (lowercased, matched against `PLAN_RENDERING_CLIENTS = frozenset({"zed", "toad"})`) and `clientCapabilities._meta` keys (`inspect.plan_rendering`, `inspect.raw_events`).
+3. **Capability detection at `initialize`** (`_server.py`): `ConnectionState` extended with `client_renders_plan: bool` and `raw_events_enabled: bool` (both default False). `initialize` populates them from `client_info.name` (lowercased, matched against `PLAN_RENDERING_CLIENTS = frozenset({"zed", "toad"})`) and `clientCapabilities._meta` keys (`inspect.plan_rendering`, `inspect.raw_events`).
 
 4. **Inbound forwarding** (`_server.py` `prompt` / `cancel` handlers):
    - `session/prompt` in bound mode: `_find_live_session(state.target_session_id)` walks `active_samples()` for the matching `acp_session`; if found, translates ACP content blocks via `_translate_prompt_blocks` (full support for `TextContentBlock`, text-only fallback for other variants with a one-shot warning) into a `ChatMessageUser(source="operator")`, then calls `target.submit_user_message(msg)`. Returns `PromptResponse(stop_reason="end_turn")`. If the target session has vanished (sample finished after bind), returns `internal_error` with `reason: bound session no longer active`.
@@ -1333,11 +1333,11 @@ Routes the **human leaf** of the configured approval chain through ACP `session/
 
 **Components landed:**
 
-- **Per-session approver-client registry** (`src/inspect_ai/agent/_acp/_session.py`). `ApproverClient` Protocol (one method: `async def request_permission(request) -> response`) + `_LiveAcpSession.attach_approver_client(client) → unsubscribe` / `has_approver_clients()` / `approver_clients()`. NoOp session returns empty / False / no-op unsubscribe so callers don't need isinstance guards. Cleared on `__aexit__` so a late callback can't fire into a closed connection. Same hook pattern as the existing interrupted-subscriber registry.
-- **Connection handler implements `ApproverClient`** (`_server.py`). `_ConnectionHandler.request_permission` wraps `conn.send_request("session/request_permission", payload)` and validates the response. Self-registers in `_start_forwarders` after the bind completes; deregisters in `_stop_forwarders`. Lifecycle mirrors the semantic / raw event forwarder tasks exactly.
-- **Approval shim** (`src/inspect_ai/approval/_human/acp.py`). `request_human_approval_via_acp(message, call, view, choices) → Approval | None`. Returns `None` to signal "fall through to in-proc panel/console" when no clients attached or every client raised. Otherwise builds a `RequestPermissionRequest` (reusing the router's `descriptive_title` + `content_blocks_from_view` for visual consistency with live tool-call rendering), races attached clients via `asyncio.wait(FIRST_COMPLETED)`, cancels losers, maps the first-non-exception response back to `Approval` via `optionId` round-trip. Wait-forever (no timeout — the human at the editor is the source of truth).
+- **Per-session approver-client registry** (`src/inspect_ai/agent/_acp/_session.py`). `ApproverClient` Protocol (one method: `async def request_permission(request) -> response`) + `LiveAcpSession.attach_approver_client(client) → unsubscribe` / `has_approver_clients()` / `approver_clients()`. NoOp session returns empty / False / no-op unsubscribe so callers don't need isinstance guards. Cleared on `__aexit__` so a late callback can't fire into a closed connection. Same hook pattern as the existing interrupted-subscriber registry.
+- **Connection handler implements `ApproverClient`** (`_connection.py`). `ConnectionHandler.request_permission` wraps `conn.send_request("session/request_permission", payload)` and validates the response. Self-registers in `Forwarders.start` after the bind completes; deregisters in `Forwarders.stop`. Lifecycle mirrors the semantic / raw event forwarder tasks exactly.
+- **Approval shim** (`src/inspect_ai/approval/_human/acp.py`). `request_human_approval_via_acp(message, call, view, choices) → Approval | None`. Returns `None` to signal "fall through to in-proc panel/console" when no clients attached or every client raised. Otherwise builds a `RequestPermissionRequest` (reusing `descriptive_title` + `content_blocks_from_view` from `_tool_content` for visual consistency with live tool-call rendering), races attached clients via `asyncio.wait(FIRST_COMPLETED)`, cancels losers, maps the first-non-exception response back to `Approval` via `optionId` round-trip. Wait-forever (no timeout — the human at the editor is the source of truth).
 - **`human_approver` checks ACP first** (`src/inspect_ai/approval/_human/approver.py`). One added line: call the shim before falling through to `panel_approval` / `console_approval`. Zero behavior change in the no-client case — the ACP routing is a strict superset.
-- **Router helpers refactored** (`_router.py`). Extracted `descriptive_title(fn, args)` and `content_blocks_from_view(view)` to take primitives so they're shareable between the live-event router (which has `ToolEvent`) and the approval shim (which has `ToolCall` + `ToolCallView`). `_descriptive_title(event)` / `_content_from_view(event)` remain as thin adapters for the router's own use.
+- **Tool-content helpers** (`_tool_content.py`). `descriptive_title(fn, args)` and `content_blocks_from_view(view)` take primitives so they're shareable between the live-event router (which has `ToolEvent`) and the approval shim (which has `ToolCall` + `ToolCallView`). `_descriptive_title(event)` / `_content_from_view(event)` remain as thin adapters for the router's own use.
 
 **Decisions settled with the user:**
 
@@ -1370,7 +1370,7 @@ Phases 1–14 landed the full functional surface. A subsequent three-review pass
 2. **P2 — race in `_start_forwarders` between title-send and `attach()`.** The `_send_session_info_title` await is the one yield point between the initial `_find_live_session` lookup and `target.attach()`. If the agent task exits the session in that window, `attach()` creates an orphan never-EOF subscriber and the forwarder task hangs. Fix: re-verify with `_find_live_session` after the title-send and early-return on miss.
 3. **P2 — `_plan_tool_stash` never cleared on rebind.** Plan-capable client suppresses ToolCallStart of a plan tool and stashes raw_input until the matching ToolCallProgress arrives. Cancellations mid-progress + connection rebind left stale entries leaking for the connection lifetime. Fix: clear in `_stop_forwarders`. PR2's `Forwarders`-per-bind extraction makes the leak structurally impossible (stash dies with the instance).
 4. **P2 — `_raw_recv` not explicitly closed in `_stop_forwarders`.** Send half closed; receive half nulled but unclosed. Buffered events stayed allocated until GC.
-5. **P2 — Dead `_AcpServer._tasks` set + iteration.** Initialized and iterated in `stop()` but never populated; the `_ConnectionHandler._semantic_task` / `_raw_task` fields are the real per-connection task references.
+5. **P2 — Dead `AcpServer._tasks` set + iteration.** Initialized and iterated in `stop()` but never populated; the `ConnectionHandler._semantic_task` / `_raw_task` fields are the real per-connection task references.
 
 Three regression tests added to `tests/agent/test_acp/test_server_forwarding.py` cover the multi-target picker rebind (P1), the title-send race (P2), and the plan-stash rebind (P2).
 
@@ -1380,8 +1380,8 @@ The 1850-line `_server.py` was split into three files matching the original desi
 
 | File | LoC | Responsibility |
 |---|---|---|
-| `_server.py` | ~380 | Transport only — `_AcpServer` socket bind/accept/shutdown + `acp_server()` context manager. |
-| `_connection.py` | ~1000 | Per-connection inbound — `_ConnectionHandler` (Agent-protocol methods, `inspect/*` actions, picker dispatch, approver-client implementation), `_ConnectionState`, param Pydantic models, prompt-block translation, `_find_live_session` / `_find_active_sample`. |
+| `_server.py` | ~380 | Transport only — `AcpServer` socket bind/accept/shutdown + `acp_server()` context manager. |
+| `_connection.py` | ~1000 | Per-connection inbound — `ConnectionHandler` (Agent-protocol methods, `inspect/*` actions, picker dispatch, approver-client implementation), `ConnectionState`, param Pydantic models, prompt-block translation, `_find_live_session` / `_find_active_sample`. |
 | `_session_router.py` | ~550 | Per-bind outbound — `Forwarders` (semantic + raw forwarder tasks, replay-on-attach, plan policy, elision). |
 
 The file naming aligns the codebase with the design-doc vocabulary again: `_session_router.py` is the home of the Layer-2 SessionRouter responsibilities (per-bind outbound forwarding) the design called out; `_connection.py` is per-connection inbound dispatch.
@@ -1397,7 +1397,7 @@ class Unbound: ...
 @dataclass(frozen=True)
 class PickerMode:
     wire_session_id: str
-    picker_targets: list[_PickerTarget]
+    picker_targets: list[PickerTarget]
 
 @dataclass(frozen=True)
 class Bound:
@@ -1409,25 +1409,34 @@ BindingMode = Unbound | PickerMode | Bound
 
 Replaces three independent nullable fields (`wire_session_id`, `target_session_id`, `picker_targets`) whose three legal combinations had been policed by ad-hoc null checks at every dispatch site. Dispatch now uses `match` on `state.binding`, which makes the type system enforce the contract; the "defensive — wire is set but neither picker nor bound" branch (previously unreachable but expressible) is gone. State transitions are "assign a new variant," not "mutate fields."
 
-A `wire_session_id` property on `_ConnectionState` returns the wire id from `PickerMode` / `Bound` or `None` from `Unbound`, so read-only callers (`Forwarders`, title-send, replay) don't need to `match` for the common-case lookup.
+A `wire_session_id` property on `ConnectionState` returns the wire id from `PickerMode` / `Bound` or `None` from `Unbound`, so read-only callers (`Forwarders`, title-send, replay) don't need to `match` for the common-case lookup.
 
 **Two consolidations** that fell out of the split:
 
 - **`SubagentDepthTracker` class** in `_router.py` — replaces three copies of the boundary-span depth-tracking state machine (the live router's `_process`, `replay_transcript`, and `_filter_subagent_events`). Returns `"consume" | "skip" | "emit"` per event; callers compose with their own filtering policy.
-- **`_require_bound(session_id, method_name)` helper** on `_ConnectionHandler` — collapses the duplicated `isinstance(state.binding, Bound)` + wire-id validation block at the top of `cancel_sample` / `cancel_tool_call`.
+- **`_require_bound(session_id, method_name)` helper** on `ConnectionHandler` — collapses the duplicated `isinstance(state.binding, Bound)` + wire-id validation block at the top of `cancel_sample` / `cancel_tool_call`.
 
 **File-locality cleanup.** Three things still live in `_session.py` and were called out for follow-up extraction (`TranscriptCapture`, `InterruptCoordinator`, `UserMessageQueue`) but were not part of this PR — they're within-file groupings that don't affect inter-module architecture, and the user's primary concern (server cleanliness) is addressed by the inter-file split.
 
 **Verification.** `pytest tests/agent/test_acp/ tests/_cli/test_acp_* tests/agent/test_agent_react.py tests/log/test_transcript_subscribers.py tests/approval/` — 511 passed, 328 skipped, no regressions. `ruff format` / `ruff check` clean. `mypy --exclude tests/test_package src tests` clean (1051 source files). Net diff +213 / −1646 LoC (the `_server.py` shrink dominates).
 
 **Tests touched by the file split.** A handful of tests imported internal symbols from `_server` directly and were updated to the new module paths:
-- `test_action_methods.py`: `_ConnectionHandler`, `_find_active_sample` → `_connection`
+- `test_action_methods.py`: `ConnectionHandler`, `_find_active_sample` → `_connection`
 - `test_plan_policy.py`: `_maybe_transform_plan_tool` / `_build_plan_update` / `_plan_tool_stash` tests now build a `Forwarders` directly (with a `MagicMock` `Connection`) since those methods moved off the handler; `_handler()` test helper updated to set `state.binding = Bound(...)` for the tagged-union shape.
 - `test_raw_events.py` + `test_server_forwarding.py`: `ELISION_THRESHOLD_BYTES`, `REPLAY_MAX_EVENTS` → `_session_router`.
 - `test_router.py`: `router._sub_agent_depth` → `router._depth_tracker.depth`.
 - `test_server_forwarding.py::test_start_forwarders_returns_early_when_session_exits_during_title_send`: `_find_live_session` is now in `_connection`; monkeypatch updated accordingly.
 
 No back-compat re-exports remain in `_server.py` — this is a feature-branch refactor and the test imports were updated to point at the canonical locations.
+
+**PR3 — Polish.** Naming hygiene + a smaller file split + dedup:
+
+- **`_tool_content.py` extracted from `_router.py`.** The tool-call rendering helpers (`descriptive_title`, `content_blocks_from_view`, `_tool_kind_for`, `_is_shell_execution_tool`, `_text_block` / `_image_block`, `_content_blocks_from_result`, `_content_for_update` / `_content_for_start`, `_file_edit_content_for_event`, plus the `_TOOL_KIND_BY_NAME` / `_RESULT_CONTENT_MAX_BYTES` constants) moved into their own module. After the split `_router.py` is ~645 LoC of pure event-mapping plumbing (`SubagentDepthTracker`, `_AcpEventRouter`, `replay_transcript`, `ModelEvent` / `ToolEvent` mappers); `_tool_content.py` is ~430 LoC of presentation helpers. The approval shim now imports `descriptive_title` / `content_blocks_from_view` from `_tool_content` (one less reason to depend on the live router module).
+- **Underscore prefixes dropped on cross-module symbols.** `_AcpServer` → `AcpServer`, `_PickerTarget` → `PickerTarget`, `_LiveAcpSession` → `LiveAcpSession`, `_NoOpAcpSession` → `NoOpAcpSession`, `_ConnectionHandler` → `ConnectionHandler`, `_ConnectionState` → `ConnectionState`. Discovery helpers that already had public names (`discovery_dir`, `pid_alive`, `parse_host_port`, `has_unix_sockets`, `default_socket_path`, `cleanup_stale_discovery_files`) lost their back-compat underscore aliases. Module-private symbols stay underscored.
+- **`PickerTarget.to_meta_dict()`** as the single source of truth for the camelCase wire shape. Replaces three inline dict-construction sites (picker notification, `inspect/list_sessions` response, binding confirmation). The `inspect/list_sessions` site spreads the dict and adds a derived `target: "task/sample_id/epoch"` field. Adding a new target field is now one edit.
+- **Phase-N comment scrub.** ~25 stale "Phase N" milestone references across the non-TUI ACP code, `log/_samples.py`, and the approval shim were rewritten to evergreen prose ("the live router" / "the replay-on-attach path" / "the in-proc TUI") so docstrings remain accurate as the architecture evolves past the phase-numbered plan.
+
+**Verification.** 511 ACP / approval / CLI tests pass, mypy clean across 1052 source files, ruff format / check clean. No production-facing behavior change — wire payloads are identical (binding confirmation gains `agentName` / `startedAt` / `totalTokens` from the unified `to_meta_dict()`, but no client pinned the narrower shape).
 
 
 ### Phase 15: `inspect acp` (Textual TUI client)

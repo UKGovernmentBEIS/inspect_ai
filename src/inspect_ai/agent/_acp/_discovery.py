@@ -1,9 +1,5 @@
 """Discovery primitives shared by the ACP server and CLI clients.
 
-These were originally module-private to ``_server.py``; lifted into
-their own module so the CLI bridge (``inspect acp --stdio``) and the
-Phase 15 TUI client can reuse them without importing server internals.
-
 Public surface:
 
 - :func:`discovery_dir` — the directory holding per-process discovery
@@ -19,11 +15,7 @@ Public surface:
   whose owning PID is no longer alive.
 - :class:`TargetAddress` + :func:`resolve_target` — pick a connectable
   address from the discovery dir / explicit overrides (used by the
-  Phase 13 stdio bridge and Phase 15 TUI client).
-
-The names without a leading underscore are the public surface; the
-underscored aliases at the bottom of this module preserve back-compat
-for callers in ``_server.py`` that haven't migrated yet.
+  stdio bridge and TUI client).
 """
 
 from __future__ import annotations
@@ -126,7 +118,7 @@ def has_unix_sockets() -> bool:
 def cleanup_stale_discovery_files() -> None:
     """Remove discovery JSON files whose owning PID is no longer alive.
 
-    Called by :meth:`_AcpServer.start` before writing our own discovery
+    Called by :meth:`AcpServer.start` before writing our own discovery
     file. Also unlinks the orphaned AF_UNIX socket node recorded in the
     stale file so subsequent binds on the same path don't trip over a
     leftover inode.
@@ -163,7 +155,7 @@ class TargetAddress:
 
     Exactly one of ``socket_path`` / ``(host, port)`` is populated.
     The CLI bridge opens the appropriate kind of asyncio connection;
-    Phase 15's TUI client uses the same shape.
+    the TUI client uses the same shape.
     """
 
     socket_path: Path | None = None
@@ -188,8 +180,8 @@ class TargetAddress:
 class DiscoveredEval:
     """One entry from the discovery directory.
 
-    Used by callers that want to enumerate live evals (e.g. Phase 15's
-    unified picker).
+    Used by callers that want to enumerate live evals (e.g. the
+    unified TUI picker).
     """
 
     eval_id: str
@@ -330,16 +322,3 @@ def resolve_target(
     if len(discovered) == 1:
         return discovered[0].target, None
     return discovered[0].target, discovered
-
-
-# ---------------------------------------------------------------------------
-# Back-compat aliases for the underscore names previously exported by
-# ``_server.py``. New callers should use the unprefixed names above.
-# ---------------------------------------------------------------------------
-
-_discovery_dir = discovery_dir
-_default_socket_path = default_socket_path
-_pid_alive = pid_alive
-_parse_host_port = parse_host_port
-_has_unix_sockets = has_unix_sockets
-_cleanup_stale_discovery_files = cleanup_stale_discovery_files

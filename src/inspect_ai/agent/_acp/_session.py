@@ -3,18 +3,14 @@
 The ``AcpSession`` is the per-agent ACP facade. There are two
 implementations:
 
-- ``_NoOpAcpSession`` — null object used as the default ContextVar value
+- ``NoOpAcpSession`` — null object used as the default ContextVar value
   and as the shadow when ``acp_session()`` is opened inside an already
   active session (sub-agent case).
-- ``_LiveAcpSession`` — the active implementation that owns the
-  in-process pub/sub bus, the user-message queue, and the turn cancel
-  scope.
-
-Phase 1 landed types, factory, and pub/sub. Phase 2 landed the transcript
-primitives (``InterruptEvent`` and ``source="operator"``). Phase 3 adds
-the cancel/inject machinery: ``turn_scope``, ``before_turn``,
-``after_cancel``, plus producer-side ``submit_user_message`` and
-``cancel_current_turn``.
+- ``LiveAcpSession`` — the active implementation that owns the
+  in-process pub/sub bus, the user-message queue, the turn cancel
+  scope, and the cancel/inject machinery (``turn_scope``,
+  ``before_turn``, ``after_cancel``, plus producer-side
+  ``submit_user_message`` and ``cancel_current_turn``).
 """
 
 import contextlib
@@ -60,7 +56,7 @@ if TYPE_CHECKING:
 
 logger = getLogger(__name__)
 
-# Loose heterogeneous payload — Phase 1's tests publish dicts, Phase 6's
+# Loose heterogeneous payload — early tests publish dicts; the live
 # router publishes ``acp.SessionNotification`` Pydantic instances. The
 # bus does not narrow; subscribers narrow with ``isinstance`` as needed.
 AcpUpdate = Any
@@ -84,14 +80,13 @@ _NOOP_SESSION_ID = "noop"
 class ApproverClient(Protocol):
     """A client capable of handling ``session/request_permission``.
 
-    Phase 14: an attached ACP client that can render an approval
-    prompt for the user and return their decision. ``_LiveAcpSession``
-    keeps a registry of these so the ``human_approver`` can route
-    tool-approval prompts through ACP when at least one client is
-    attached, falling back to the in-proc panel / console flow when
-    none are.
+    An attached ACP client that can render an approval prompt for the
+    user and return their decision. ``LiveAcpSession`` keeps a registry
+    of these so the ``human_approver`` can route tool-approval prompts
+    through ACP when at least one client is attached, falling back to
+    the in-proc panel / console flow when none are.
 
-    Implementations: ``_ConnectionHandler`` in ``_server.py`` (wraps
+    Implementations: ``ConnectionHandler`` in ``_connection.py`` (wraps
     ``conn.send_request("session/request_permission", ...)``); tests
     pass small stubs to exercise the race semantics without a real
     socket.
@@ -125,9 +120,9 @@ class TurnCancelled(Exception):
 class AcpSession(Protocol):
     """Per-agent ACP session facade.
 
-    Provides the in-process pub/sub bus (Phase 1), plus the
-    cancel/inject machinery (Phase 3): turn scopes, user-message queue,
-    and producer-side cancel/submit methods.
+    Provides the in-process pub/sub bus and the cancel/inject
+    machinery: turn scopes, user-message queue, and producer-side
+    cancel/submit methods.
     """
 
     @property
@@ -238,8 +233,8 @@ class AcpSession(Protocol):
     def submit_user_message(self, msg: ChatMessageUser) -> None:
         """Queue a user message for the next turn or after-cancel drain.
 
-        Called by transports (Phase 7+: TUI, sockets) when an ACP
-        client sends ``session/prompt``.
+        Called by transports (TUI, sockets) when an ACP client sends
+        ``session/prompt``.
         """
         ...
 
@@ -258,8 +253,8 @@ class AcpSession(Protocol):
     ) -> Callable[[], None]:
         """Register a sync callback fired on every transcript event.
 
-        Used by the Phase 10 raw-event forwarder to stream Inspect-
-        native events out to opt-in clients. Wraps the underlying
+        Used by the raw-event forwarder to stream Inspect-native
+        events out to opt-in clients. Wraps the underlying
         ``Transcript._add_subscriber`` so callers don't reach into
         private session state. Returns an idempotent unsubscribe
         callable (calling it removes the subscriber; safe to call
@@ -277,8 +272,8 @@ class AcpSession(Protocol):
     def transcript_events_snapshot(self) -> Sequence[Any]:
         """Snapshot the captured transcript's event list.
 
-        Used by the Phase 10 replay-on-attach path to push recent
-        transcript history to a late-joining client before live
+        Used by the replay-on-attach path to push recent transcript
+        history to a late-joining client before live
         forwarding starts. Returns an empty sequence for the no-op
         session (nothing to replay).
         """
@@ -324,11 +319,11 @@ class AcpSession(Protocol):
     def attach_approver_client(self, client: ApproverClient) -> Callable[[], None]:
         """Register an ACP client capable of handling approval prompts.
 
-        Phase 14: when the configured ``human_approver`` is reached
-        and at least one client is attached, the approval prompt is
-        routed via ACP ``session/request_permission`` to all attached
-        clients (first response wins). When no clients are attached,
-        the existing in-proc panel / console flow runs unchanged.
+        When the configured ``human_approver`` is reached and at least
+        one client is attached, the approval prompt is routed via ACP
+        ``session/request_permission`` to all attached clients (first
+        response wins). When no clients are attached, the existing
+        in-proc panel / console flow runs unchanged.
 
         Returns an idempotent unsubscribe callable. No-op session
         returns a no-op unsubscribe (no clients can attach).
@@ -384,7 +379,7 @@ class AcpSession(Protocol):
         ...
 
 
-class _NoOpAcpSession:
+class NoOpAcpSession:
     """No-op session installed when ACP is not active or shadowed.
 
     ``attach()`` returns an already-closed receive stream so callers can
@@ -528,13 +523,12 @@ class _NoOpAcpSession:
         return []
 
 
-class _LiveAcpSession:
+class LiveAcpSession:
     """Active ACP session: owns the in-process pub/sub bus.
 
     Installed by :func:`acp_session` as the outermost ACP scope in a
-    sample. Subscribers (the in-process TUI in Phase 7, the socket
-    transport in Phase 8+) call :meth:`attach` to receive
-    ``session/update``-shaped payloads.
+    sample. Subscribers (the in-process TUI and the socket transport)
+    call :meth:`attach` to receive ``session/update``-shaped payloads.
     """
 
     def __init__(self) -> None:
@@ -568,7 +562,7 @@ class _LiveAcpSession:
         # session (not a ContextVar) so a transport task firing a cancel
         # from a sibling task can read it.
         self._active_model_event: "ModelEvent | None" = None
-        # When True, the router (Phase 6) drops events emitted inside
+        # When True, the live router drops events emitted inside
         # sub-agents (depth>0). Standard ACP semantic for editor clients.
         # Disabled by consumers (debugging tooling, raw-stream TUIs) that
         # want full sub-agent visibility through the pub/sub bus.
@@ -601,18 +595,18 @@ class _LiveAcpSession:
         # ``_interrupted_subscribers`` on ``cancel_current_turn``,
         # ``_prompt_resolved_subscribers`` when the next
         # ``submit_user_message`` clears the pending flag.
-        # See design/acp/agent-acp.md Phase 14's open-issue subsection on
+        # See design/acp/agent-acp.md's open-issue subsection on
         # multi-client prompt coordination.
         self._interrupt_pending: bool = False
         self._interrupted_subscribers: list[Callable[[], None]] = []
         self._prompt_resolved_subscribers: list[Callable[[], None]] = []
-        # Phase 14: attached ACP clients that can handle
+        # Attached ACP clients that can handle
         # ``session/request_permission`` prompts. The configured
         # ``human_approver`` routes tool-approval prompts through these
         # when at least one is attached; falls back to the existing
-        # in-proc panel / console flow when none are. Clients
-        # register on bind (``_ConnectionHandler._start_forwarders``)
-        # and detach on unbind / disconnect (``_stop_forwarders``).
+        # in-proc panel / console flow when none are. Clients register
+        # on bind (``Forwarders.start``) and detach on unbind /
+        # disconnect (``Forwarders.stop``).
         self._approver_clients: list[ApproverClient] = []
 
     @property
@@ -624,8 +618,8 @@ class _LiveAcpSession:
         """Enter the session scope; attach the event router and return ``self``.
 
         Also registers ``self`` on the current :class:`ActiveSample`
-        (if any) so out-of-task consumers like the Phase 7 Inspect TUI
-        can locate the live session by sample reference.
+        (if any) so out-of-task consumers like the in-process Inspect
+        TUI can locate the live session by sample reference.
         """
         from inspect_ai.agent._acp._router import _AcpEventRouter
         from inspect_ai.log._samples import sample_active
@@ -680,7 +674,7 @@ class _LiveAcpSession:
     def disable_subagent_filtering(self) -> None:
         """Allow sub-agent transcript events through to the pub/sub bus.
 
-        By default the Phase 6 router drops any transcript event emitted
+        By default the live router drops any transcript event emitted
         while a sub-agent boundary is open — the standard ACP semantic
         where the editor sees only the outer agent's conversation. Some
         consumers (debugging tooling, raw-event TUIs) want every event
@@ -739,7 +733,7 @@ class _LiveAcpSession:
     ) -> Callable[[], None]:
         """Register a sync callback on this session's captured transcript.
 
-        Phase 10 raw-event forwarder hook. Wraps
+        Raw-event forwarder hook. Wraps
         :meth:`Transcript._add_subscriber` so callers can subscribe
         without reaching into private session state and without the
         ContextVar-lookup gotcha (we run from the connection's task,
@@ -832,7 +826,7 @@ class _LiveAcpSession:
         responses; the new operator user message(s) come next. Blocks
         if the user-message queue is empty.
 
-        When ``messages`` is provided (the normal Phase 4+ case), this
+        When ``messages`` is provided (the normal production path), this
         scans the last assistant message's ``tool_calls`` and synthesizes
         a repair for every id that doesn't yet have a matching
         :class:`ChatMessageTool` result. That covers three cases under
@@ -840,7 +834,7 @@ class _LiveAcpSession:
         tools that never started because an earlier call was cancelled,
         and tools whose completed results were lost when
         ``_execute_tools_impl`` was interrupted before returning. When
-        ``messages`` is ``None`` (Phase 3 unit tests), falls back to
+        ``messages`` is ``None`` (unit tests), falls back to
         ``_cancelled_tool_call_ids`` (snapshotted in
         :meth:`cancel_current_turn`).
         """
@@ -1028,7 +1022,7 @@ class _LiveAcpSession:
         # runs in a sibling task — see the comment in __init__ on
         # ``self._transcript``. Fall back to the ContextVar lookup when
         # the session wasn't entered through ``__aenter__`` (test
-        # constructs a bare _LiveAcpSession and sets the transcript
+        # constructs a bare LiveAcpSession and sets the transcript
         # ContextVar directly). Deferred imports: ``inspect_ai.event``
         # circularly references this module via the event union.
         from inspect_ai.event._interrupt import InterruptEvent
@@ -1070,7 +1064,7 @@ class _LiveAcpSession:
             if event is not None:
                 event.pending = None
                 # Mark the ToolEvent as cancelled so downstream consumers
-                # (transcript renderers, the Phase 6 ACP router) don't
+                # (transcript renderers, the ACP event router) don't
                 # mis-render it as a successful completion. Mirrors the
                 # synthetic `ChatMessageTool` repair message produced by
                 # :meth:`after_cancel`.
@@ -1103,8 +1097,8 @@ class _LiveAcpSession:
     ) -> Iterator[None]:
         """Push/pop ``tool_call_id`` on the in-flight tool list.
 
-        Phase 4 wraps each top-level tool execution in this so the
-        session knows which tool call ids to record on cancel and
+        Top-level tool execution wraps in this so the session knows
+        which tool call ids to record on cancel and
         repair afterwards. When ``event`` is provided, also registers
         the ``ToolEvent`` so :meth:`cancel_current_turn` can clear its
         ``pending`` flag. Safe under exceptions — the id and event are
@@ -1126,8 +1120,8 @@ class _LiveAcpSession:
     def track_model_event(self, event: "ModelEvent") -> Iterator[None]:
         """Save/restore the in-flight model event on the session.
 
-        Phase 4 will wrap each top-level model generation in this. We
-        store on the session rather than relying on
+        Top-level model generation wraps in this. We store on the
+        session rather than relying on
         :func:`inspect_ai.log._samples.track_active_model_event` (which
         sets a ContextVar) because the transport task that fires the
         cancel runs in a sibling task with its own ContextVar copy and
@@ -1142,7 +1136,7 @@ class _LiveAcpSession:
             self._active_model_event = prev
 
 
-_NOOP_SINGLETON: AcpSession = _NoOpAcpSession()
+_NOOP_SINGLETON: AcpSession = NoOpAcpSession()
 
 _acp_var: ContextVar[AcpSession] = ContextVar("_acp_session", default=_NOOP_SINGLETON)
 
@@ -1167,7 +1161,7 @@ async def acp_session() -> AsyncIterator[AcpSession]:
     """Open an ACP session for the enclosing scope.
 
     The first ``acp_session()`` entry in a context chain installs a
-    real ``_LiveAcpSession``. Every nested ``acp_session()`` block —
+    real ``LiveAcpSession``. Every nested ``acp_session()`` block —
     sub-agents invoked via handoff / ``as_tool`` / dispatch, at any
     depth — installs a no-op shadow instead, so nested code can call
     ``current_acp_session().submit_user_message(...)`` /
@@ -1184,7 +1178,7 @@ async def acp_session() -> AsyncIterator[AcpSession]:
         # of how deep we are. ``_acp_var`` still gets the shadow so
         # ``current_acp_session()`` inside this scope returns it
         # rather than leaking the upstream Live one.
-        install: AcpSession = _NoOpAcpSession()
+        install: AcpSession = NoOpAcpSession()
         token_var = _acp_var.set(install)
         try:
             async with install:
@@ -1194,7 +1188,7 @@ async def acp_session() -> AsyncIterator[AcpSession]:
     else:
         # First entry — become the live session and mark the chain
         # so all descendants shadow.
-        install = _LiveAcpSession()
+        install = LiveAcpSession()
         token_live = _acp_live_active.set(True)
         token_var = _acp_var.set(install)
         try:
