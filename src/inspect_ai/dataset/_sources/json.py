@@ -8,6 +8,7 @@ import jsonlines
 
 from inspect_ai._util.asyncfiles import is_s3_filename
 from inspect_ai._util.file import file
+from inspect_ai.dataset._sources._retry import _call_with_dataset_retry
 
 from .._dataset import (
     Dataset,
@@ -31,6 +32,7 @@ def json_dataset(
     encoding: str = "utf-8",
     name: str | None = None,
     fs_options: dict[str, Any] | None = None,
+    retry: bool = True,
     **reader_kwargs: Any,
 ) -> Dataset:
     r"""Read dataset from a JSON file.
@@ -60,6 +62,10 @@ def json_dataset(
       fs_options: Optional. Additional arguments to pass through
         to the filesystem provider (e.g. `S3FileSystem`). Use `{"anon": True }`
         if you are accessing a public S3 bucket with no credentials.
+      retry: Retry transient HTTP/connection failures (rate limits, timeouts,
+        transient 5xx) with exponential backoff. Pass `False` to disable.
+        Defaults to `True`. Non-network failures (`FileNotFoundError`,
+        parsing errors, etc.) are never retried.
       **reader_kwargs: Optional JSON reader options.
 
     Returns:
@@ -79,31 +85,38 @@ def json_dataset(
     if fs_options is None and is_s3_filename(json_file):
         fs_options = dict(default_fill_cache=True, default_cache_type="readahead")
 
-    # read and convert samples
-    with file(json_file, "r", encoding=encoding, fs_options=fs_options or {}) as f:
-        name = name if name else Path(json_file).stem
-        dataset = MemoryDataset(
-            samples=data_to_samples(
-                dataset_reader(f, **reader_kwargs), data_to_sample, auto_id
-            ),
-            name=name,
-            location=os.path.abspath(json_file),
-        )
+    resolved_fs_options = fs_options or {}
+    resolved_name = name if name else Path(json_file).stem
 
-        # resolve relative file paths
-        resolve_sample_files(dataset)
+    def _load() -> Dataset:
+        # read and convert samples
+        with file(
+            json_file, "r", encoding=encoding, fs_options=resolved_fs_options
+        ) as f:
+            dataset = MemoryDataset(
+                samples=data_to_samples(
+                    dataset_reader(f, **reader_kwargs), data_to_sample, auto_id
+                ),
+                name=resolved_name,
+                location=os.path.abspath(json_file),
+            )
 
-        # shuffle if requested
-        if shuffle:
-            dataset.shuffle(seed=seed)
+            # resolve relative file paths
+            resolve_sample_files(dataset)
 
-        shuffle_choices_if_requested(dataset, shuffle_choices)
+            # shuffle if requested
+            if shuffle:
+                dataset.shuffle(seed=seed)
 
-        # limit if requested
-        if limit:
-            return dataset[0:limit]
+            shuffle_choices_if_requested(dataset, shuffle_choices)
 
-    return dataset
+            # limit if requested
+            if limit:
+                return dataset[0:limit]
+
+        return dataset
+
+    return _call_with_dataset_retry(_load, label="json_dataset") if retry else _load()
 
 
 def jsonlines_dataset_reader(file: TextIOWrapper, **kwargs: Any) -> DatasetReader:
