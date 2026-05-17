@@ -115,7 +115,7 @@ from inspect_ai.util._checkpoint.config import (
     CheckpointConfig,
     merge_checkpoint_configs,
 )
-from inspect_ai.util._checkpoint.sample_checkpoints_dir import (
+from inspect_ai.util._checkpoint.layout import (
     has_sample_checkpoint,
     sample_checkpoints_dir,
 )

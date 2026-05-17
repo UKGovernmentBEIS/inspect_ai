@@ -9,13 +9,13 @@ from inspect_ai.util._checkpoint.layout import (
     CheckpointSample,
     CheckpointSidecar,
     SnapshotInfo,
-)
-from inspect_ai.util._checkpoint.sample_checkpoints_dir import (
-    _read_sample_json,
-    _sample_checkpoints_dir,
     ensure_sample_checkpoints_dir,
     ensure_sample_json,
     write_sidecar,
+)
+from inspect_ai.util._checkpoint.layout.sample_checkpoints_dir import (
+    _read_sample_json,
+    _sample_checkpoints_dir,
 )
 
 

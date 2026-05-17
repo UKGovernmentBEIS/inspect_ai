@@ -1,10 +1,16 @@
-"""Restic binary resolver: cache hit, otherwise download from upstream."""
+"""Restic binary acquisition: platform IDs + resolver (download/cache).
+
+The :func:`resolve_restic` coroutine returns a path to a usable restic
+executable for a requested platform, downloading and caching it on demand.
+``Platform`` identifiers match restic's upstream release filenames.
+"""
 
 from __future__ import annotations
 
 import bz2
 import hashlib
 import os
+import platform as _platform
 import re
 import shutil
 import stat
@@ -12,15 +18,76 @@ import tempfile
 import urllib.request
 import zipfile
 from pathlib import Path
+from typing import Literal
 
 import anyio
 
 from inspect_ai._util.appdirs import inspect_cache_dir
 
-from ._platform import Platform, current_platform
+Platform = Literal[
+    "linux_amd64",
+    "linux_arm64",
+    "darwin_amd64",
+    "darwin_arm64",
+    "windows_amd64",
+]
+"""Supported platforms. Strings match restic's release filenames."""
+
+SUPPORTED_PLATFORMS: tuple[Platform, ...] = (
+    "linux_amd64",
+    "linux_arm64",
+    "darwin_amd64",
+    "darwin_arm64",
+    "windows_amd64",
+)
 
 _VERSION_FILE = Path(__file__).parent / "version.txt"
 _RELEASE_BASE_URL = "https://github.com/restic/restic/releases/download"
+
+
+def current_platform() -> Platform:
+    """Return the platform string for the current host.
+
+    Raises:
+        RuntimeError: if the host OS/arch combination is not in
+            ``SUPPORTED_PLATFORMS``.
+    """
+    system = _platform.system().lower()
+    machine = _platform.machine().lower()
+
+    os_ = _OS_MAP.get(system)
+    arch = _ARCH_MAP.get(machine)
+
+    match (os_, arch):
+        case ("linux", "amd64"):
+            return "linux_amd64"
+        case ("linux", "arm64"):
+            return "linux_arm64"
+        case ("darwin", "amd64"):
+            return "darwin_amd64"
+        case ("darwin", "arm64"):
+            return "darwin_arm64"
+        case ("windows", "amd64"):
+            return "windows_amd64"
+        case _:
+            raise RuntimeError(
+                f"Unsupported host platform: system={_platform.system()!r}, "
+                f"machine={_platform.machine()!r}"
+            )
+
+
+_OS_MAP = {
+    "linux": "linux",
+    "darwin": "darwin",
+    "windows": "windows",
+}
+
+_ARCH_MAP = {
+    "x86_64": "amd64",
+    "amd64": "amd64",
+    "aarch64": "arm64",
+    "arm64": "arm64",
+}
 
 
 def _version() -> str:

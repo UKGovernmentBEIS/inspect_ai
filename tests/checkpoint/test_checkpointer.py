@@ -43,8 +43,8 @@ from inspect_ai.util._checkpoint.checkpointer_impl import (
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._checkpoint.hydrate import HydrationResult, _HostHydrationResult
-from inspect_ai.util._checkpoint.restic import ResticBackupSummary
 from inspect_ai.util._checkpoint.triggers import CheckpointTriggerKind
+from inspect_ai.util._restic import ResticBackupSummary
 from inspect_ai.util._store import Store
 
 
@@ -268,7 +268,7 @@ def _patch_cache_dir(tmp_path: Path) -> Iterator[None]:
         return d
 
     with patch(
-        "inspect_ai.util._checkpoint.working_dir.inspect_cache_dir",
+        "inspect_ai.util._checkpoint.layout.working_dir.inspect_cache_dir",
         side_effect=fake_cache_dir,
     ):
         yield
@@ -283,12 +283,10 @@ def _patch_restic(tmp_path: Path) -> Iterator[None]:
     async def fake_resolve(platform: object = None) -> Path:
         return fake_binary
 
-    async def fake_init_host_repo(*_args: object, **_kwargs: object) -> None:
+    async def fake_init_repo(*_args: object, **_kwargs: object) -> None:
         return None
 
-    async def fake_run_host_backup(
-        *_args: object, **_kwargs: object
-    ) -> ResticBackupSummary:
+    async def fake_run_backup(*_args: object, **_kwargs: object) -> ResticBackupSummary:
         return _fake_summary(checkpoint_id=1)
 
     with (
@@ -297,12 +295,12 @@ def _patch_restic(tmp_path: Path) -> Iterator[None]:
             side_effect=fake_resolve,
         ),
         patch(
-            "inspect_ai.util._checkpoint.hydrate.init_host_repo",
-            side_effect=fake_init_host_repo,
+            "inspect_ai.util._checkpoint.hydrate.init_repo",
+            side_effect=fake_init_repo,
         ),
         patch(
-            "inspect_ai.util._checkpoint.checkpointer_impl.run_host_backup",
-            side_effect=fake_run_host_backup,
+            "inspect_ai.util._checkpoint.checkpointer_impl.run_backup",
+            side_effect=fake_run_backup,
         ),
     ):
         yield
@@ -583,7 +581,7 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             new=AsyncMock(return_value=Path("/fake/restic")),
         ) as resolve,
         patch(
-            "inspect_ai.util._checkpoint.hydrate.init_host_repo",
+            "inspect_ai.util._checkpoint.hydrate.init_repo",
             new=AsyncMock(),
         ) as init_host,
         patch(

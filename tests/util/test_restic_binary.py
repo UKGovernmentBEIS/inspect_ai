@@ -21,8 +21,8 @@ from unittest.mock import patch
 
 import pytest
 
-from inspect_ai.util._restic._platform import Platform
-from inspect_ai.util._restic._resolver import (
+from inspect_ai.util._restic.binary import (
+    Platform,
     _archive_filename,
     cache_path,
     resolve_restic,
@@ -43,7 +43,7 @@ def _patch_cache_dir(tmp_path: Path) -> Iterator[None]:
         return d
 
     with patch(
-        "inspect_ai.util._restic._resolver.inspect_cache_dir",
+        "inspect_ai.util._restic.binary.inspect_cache_dir",
         side_effect=fake_cache_dir,
     ):
         yield
@@ -63,7 +63,7 @@ def _make_urlopen(sums_text: str) -> Callable[[str], io.BytesIO]:
 @contextmanager
 def _patch_urlopen(side_effect: Callable[[str], io.BytesIO]) -> Iterator[None]:
     with patch(
-        "inspect_ai.util._restic._resolver.urllib.request.urlopen",
+        "inspect_ai.util._restic.binary.urllib.request.urlopen",
         side_effect=side_effect,
     ):
         yield
@@ -74,9 +74,7 @@ async def test_cache_hit_short_circuits(tmp_path: Path) -> None:
         target = cache_path(PLATFORM)
         target.write_bytes(b"already-here")
 
-        with patch(
-            "inspect_ai.util._restic._resolver.urllib.request.urlopen"
-        ) as urlopen:
+        with patch("inspect_ai.util._restic.binary.urllib.request.urlopen") as urlopen:
             result = await resolve_restic(PLATFORM)
 
         assert result == target
@@ -117,6 +115,6 @@ async def test_sha256_mismatch_raises_and_leaves_cache_clean(tmp_path: Path) -> 
 
 
 def _read_version() -> str:
-    from inspect_ai.util._restic._resolver import _version
+    from inspect_ai.util._restic.binary import _version
 
     return _version()

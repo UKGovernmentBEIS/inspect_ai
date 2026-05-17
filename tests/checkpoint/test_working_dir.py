@@ -9,10 +9,10 @@ from unittest.mock import patch
 
 import pytest
 
-from inspect_ai.util._checkpoint.working_dir import (
+from inspect_ai.util._checkpoint.layout import ensure_sample_working_dir
+from inspect_ai.util._checkpoint.layout.working_dir import (
     _eval_working_dir,
     _sample_working_dir,
-    ensure_sample_working_dir,
 )
 
 
@@ -26,7 +26,7 @@ def _patch_cache_dir(tmp_path: Path) -> Iterator[None]:
         return d
 
     with patch(
-        "inspect_ai.util._checkpoint.working_dir.inspect_cache_dir",
+        "inspect_ai.util._checkpoint.layout.working_dir.inspect_cache_dir",
         side_effect=fake_cache_dir,
     ):
         yield

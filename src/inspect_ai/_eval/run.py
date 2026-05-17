@@ -40,7 +40,7 @@ from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.scorer._scorer import as_scorer_spec
 from inspect_ai.solver._solver import Solver, SolverSpec
-from inspect_ai.util._checkpoint.eval_checkpoints_dir import (
+from inspect_ai.util._checkpoint.layout import (
     eval_checkpoints_dir_from_config,
 )
 from inspect_ai.util._sandbox.environment import (

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from inspect_ai.util._checkpoint.eval_checkpoints_dir import eval_checkpoints_dir
+from inspect_ai.util._checkpoint.layout import eval_checkpoints_dir
 
 
 def test_eval_checkpoints_dir_strips_eval_suffix() -> None:

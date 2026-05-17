@@ -35,25 +35,19 @@ from inspect_ai.log._pool import (
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.solver._task_state import sample_state
+from inspect_ai.util._restic import ResticBackupSummary, run_backup
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._span import span
 from inspect_ai.util._store import Store, store_jsonable
 
-from . import host_context
+from ._sandbox_restic import egress_sandbox, run_sandbox_backup
 from .checkpointer import (
     Checkpointer,
     ResumeCheckpoint,
 )
 from .config import ResolvedCheckpointConfig
 from .hydrate import HydrationResult, hydrate
-from .layout import SnapshotInfo
-from .restic import (
-    ResticBackupSummary,
-    egress_sandbox,
-    run_host_backup,
-    run_sandbox_backup,
-)
-from .sample_checkpoints_dir import write_sidecar
+from .layout import SnapshotInfo, host_context, write_sidecar
 from .triggers import CheckpointTriggerKind
 
 logger = getLogger(__name__)
@@ -387,28 +381,27 @@ class _EnteredCheckpointer:
         )
 
     async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
-        return await run_host_backup(
+        return await run_backup(
             self._host_restic,
             self._host_repo,
             self._restic_password,
             self._sample_working_dir,
-            checkpoint_id,
+            _restic_tag(checkpoint_id),
         )
 
     async def _backup_and_egress_sandbox(
         self, name: str, paths: list[str], checkpoint_id: int
     ) -> ResticBackupSummary:
         env = sandbox(name)
-        summary = await run_sandbox_backup(
-            env, self._restic_password, paths, checkpoint_id
-        )
+        tag = _restic_tag(checkpoint_id)
+        summary = await run_sandbox_backup(env, self._restic_password, paths, tag)
         dest_repo = f"{self._sample_checkpoints_dir}/sandboxes/{name}"
         await egress_sandbox(
             env,
             dest_repo=dest_repo,
             password=self._restic_password,
             host_restic=self._host_restic,
-            checkpoint_id=checkpoint_id,
+            tag=tag,
             snapshot_id=summary.snapshot_id,
         )
         return summary
@@ -427,6 +420,15 @@ def _scan_next_checkpoint_id(sample_checkpoints_dir: str) -> int:
         return 1
     ids = [int(p.stem.removeprefix("ckpt-")) for p in sample_dir.glob("ckpt-*.json")]
     return (max(ids) + 1) if ids else 1
+
+
+def _restic_tag(checkpoint_id: int) -> str:
+    """Format the restic ``--tag`` for a checkpoint's snapshots.
+
+    Matches the sidecar filename's ``ckpt-NNNNN`` prefix, so a tag and a
+    sidecar share the same N for the same checkpoint.
+    """
+    return f"ckpt-{checkpoint_id:05d}"
 
 
 def _snapshot_info(summary: ResticBackupSummary) -> SnapshotInfo:

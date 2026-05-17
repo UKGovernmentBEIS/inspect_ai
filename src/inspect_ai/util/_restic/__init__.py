@@ -1,11 +1,33 @@
-"""Restic binary acquisition for checkpointing.
+"""Use-case-agnostic restic utilities.
 
-The :func:`resolve_restic` coroutine returns a path to a usable restic
-executable for a requested platform, downloading and caching it on demand.
-See ``design/plans/checkpointing-working.md`` §4c for the design.
+Pure restic — no knowledge of sandboxes, checkpointing, or any
+particular inspect_ai concept:
+
+- :mod:`.binary` — platform identifiers + binary acquisition (download/cache).
+- :mod:`.summary` — :class:`ResticBackupSummary` model (restic's JSON schema).
+- :mod:`.ops` — :func:`init_repo`, :func:`run_backup`,
+  :func:`restore_repo`, :func:`restic_env`.
 """
 
-from ._platform import Platform, current_platform
-from ._resolver import resolve_restic
+from .binary import (
+    SUPPORTED_PLATFORMS,
+    Platform,
+    cache_path,
+    current_platform,
+    resolve_restic,
+)
+from .ops import init_repo, restic_env, restore_repo, run_backup
+from .summary import ResticBackupSummary
 
-__all__ = ["Platform", "current_platform", "resolve_restic"]
+__all__ = [
+    "Platform",
+    "ResticBackupSummary",
+    "SUPPORTED_PLATFORMS",
+    "cache_path",
+    "current_platform",
+    "init_repo",
+    "resolve_restic",
+    "restic_env",
+    "restore_repo",
+    "run_backup",
+]

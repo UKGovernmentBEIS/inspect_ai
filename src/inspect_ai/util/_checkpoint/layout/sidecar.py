@@ -12,7 +12,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .triggers import CheckpointTriggerKind
+from ..triggers import CheckpointTriggerKind
 
 
 class SnapshotInfo(BaseModel):

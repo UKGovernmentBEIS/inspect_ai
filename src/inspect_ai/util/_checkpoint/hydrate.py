@@ -45,25 +45,19 @@ from inspect_ai.event._event import Event
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.solver._task_state import sample_state
-from inspect_ai.util._restic._resolver import resolve_restic
+from inspect_ai.util._restic import init_repo, resolve_restic, restore_repo
 from inspect_ai.util._sandbox.context import sandbox
 
-from . import host_context
+from ._sandbox_restic import ingress_sandbox, init_sandbox_repo, inject_restic
 from .checkpointer import ResumeCheckpoint
 from .config import ResolvedCheckpointConfig
-from .eval_checkpoints_dir import eval_checkpoints_dir
-from .restic import (
-    ingress_sandbox,
-    init_host_repo,
-    init_sandbox_repo,
-    inject_restic,
-    restore_host_repo,
-)
-from .sample_checkpoints_dir import (
+from .layout import (
     ensure_sample_checkpoints_dir,
     ensure_sample_json,
+    ensure_sample_working_dir,
+    eval_checkpoints_dir,
+    host_context,
 )
-from .working_dir import ensure_sample_working_dir
 
 
 @dataclass
@@ -191,7 +185,7 @@ async def _hydrate_host(
 ) -> _HostHydrationResult:
     if resume is None:
         print(f"[hydrate.host] fresh init at {host_repo}")
-        await init_host_repo(host_restic, host_repo, restic_password)
+        await init_repo(host_restic, host_repo, restic_password)
         print("[hydrate.host] fresh init done")
         return _HostHydrationResult()
 
@@ -213,7 +207,7 @@ async def _hydrate_host(
         )
     )
     print(f"[hydrate.host] restic restore latest -> {sample_working_dir}")
-    await restore_host_repo(host_restic, host_repo, restic_password, sample_working_dir)
+    await restore_repo(host_restic, host_repo, restic_password, sample_working_dir)
     print("[hydrate.host] load + push framework state")
     result = await anyio.to_thread.run_sync(
         _load_and_push_host_state, sample_working_dir

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from inspect_ai._util.file import basename, dirname
 
-from .config import CheckpointConfig
+from ..config import CheckpointConfig
 
 _LOG_SUFFIX = ".eval"
 

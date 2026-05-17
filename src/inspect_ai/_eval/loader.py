@@ -34,7 +34,7 @@ from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
 from inspect_ai.util._checkpoint.config import CheckpointConfig
-from inspect_ai.util._checkpoint.eval_checkpoints_dir import (
+from inspect_ai.util._checkpoint.layout import (
     eval_checkpoints_dir_from_config,
 )
 from inspect_ai.util._sandbox.compose import (
