@@ -122,13 +122,13 @@ async def test_picker_populated_renders_all_rows(
         assert isinstance(screen, PickerScreen)
         table = screen.query_one(DataTable)
         assert table.row_count == 3
-        # Seven columns: a 1-char gutter (for the ▸ selection glyph),
-        # then sample, task, epoch, agent, tokens, running. The eval
-        # column is intentionally absent — eval id lives on the
-        # SessionScreen meta row once attached.
+        # Six columns — the ▸ selection glyph used to live in a
+        # dedicated 1-char gutter column but is now embedded into the
+        # sample cell so DataTable's uniform cell_padding doesn't
+        # produce a double-space gap. eval column is intentionally
+        # absent — eval id lives on the SessionScreen meta row.
         columns = [str(c.label) for c in table.columns.values()]
         assert columns == [
-            " ",  # gutter
             "sample",
             "task",
             "epoch",
@@ -143,10 +143,10 @@ async def test_picker_populated_renders_all_rows(
         assert "3 samples" in status_text
         assert "2 evals" in status_text
         # Agent values render — missing names become an em-dash so
-        # the column never shows a literal "None". Agent is at column
-        # index 4 (gutter=0, sample=1, task=2, epoch=3, agent=4,
-        # tokens=5, running=6).
-        agent_cells = [str(c) for c in table.get_column_at(4)]
+        # the column never shows a literal "None". Agent column index
+        # shifted by one with the gutter column removed (sample=0,
+        # task=1, epoch=2, agent=3, tokens=4, running=5).
+        agent_cells = [str(c) for c in table.get_column_at(3)]
         assert "react" in agent_cells
         assert "deepagent" in agent_cells
 
@@ -154,12 +154,12 @@ async def test_picker_populated_renders_all_rows(
 @skip_if_trio
 @pytest.mark.slow
 @pytest.mark.anyio
-async def test_picker_gutter_glyph_follows_cursor(
+async def test_picker_cursor_glyph_follows_cursor(
     sample_rows: list[SessionRow],
 ) -> None:
-    """The ▸ glyph in the gutter column tracks the cursor row.
+    """The ▸ glyph prefixing the sample cell tracks the cursor row.
 
-    Pinned because gutter behavior is screen-level (not DataTable
+    Pinned because the glyph swap is screen-level (not DataTable
     native) — implemented by hooking ``on_data_table_row_highlighted``.
     A regression that removes the hook would visually break the
     selection indicator the mockup relies on.
@@ -172,19 +172,20 @@ async def test_picker_gutter_glyph_follows_cursor(
         assert isinstance(picker, PickerScreen)
         table = picker.query_one(DataTable)
 
-        # Initial gutter glyph is on the first row.
-        gutter_cells = [str(c) for c in table.get_column_at(0)]
-        assert gutter_cells[0].strip() == "▸"
-        assert all(c.strip() == "" for c in gutter_cells[1:])
+        # Sample column is index 0 now; cursor prefix is in the
+        # cell's leading characters.
+        sample_cells = [str(c) for c in table.get_column_at(0)]
+        assert sample_cells[0].startswith("▸ ")
+        assert all(not c.startswith("▸") for c in sample_cells[1:])
 
         # Move cursor down by one row and re-check.
         table.move_cursor(row=1)
         # The highlight event fires asynchronously; pump the loop.
         await pilot.pause()
 
-        gutter_cells = [str(c) for c in table.get_column_at(0)]
-        assert gutter_cells[1].strip() == "▸"
-        assert gutter_cells[0].strip() == ""
+        sample_cells = [str(c) for c in table.get_column_at(0)]
+        assert sample_cells[1].startswith("▸ ")
+        assert not sample_cells[0].startswith("▸")
 
 
 @skip_if_trio
@@ -230,9 +231,10 @@ async def test_picker_running_column_ticks_in_place(monkeypatch) -> None:
         assert isinstance(picker, PickerScreen)
         table = picker.query_one(DataTable)
 
-        # ``running`` is column index 6 (gutter, sample, task, epoch,
-        # agent, tokens, running).
-        before = str(list(table.get_column_at(6))[0])
+        # ``running`` is column index 5 (sample, task, epoch, agent,
+        # tokens, running) — the gutter column was removed and the
+        # cursor glyph embedded into the sample cell instead.
+        before = str(list(table.get_column_at(5))[0])
         assert before.endswith("s") and "m" not in before  # initial "Ns" form
 
         # Patch ``time.time`` on the *picker* module so its
@@ -246,7 +248,7 @@ async def test_picker_running_column_ticks_in_place(monkeypatch) -> None:
         picker._tick_running()
         await pilot.pause()
 
-        after = str(list(table.get_column_at(6))[0])
+        after = str(list(table.get_column_at(5))[0])
         # Cursor / row count survive the in-place update.
         assert table.row_count == 1
         assert table.cursor_row == 0
@@ -504,10 +506,10 @@ async def test_picker_rescan_updates_tokens_in_steady_state(
         picker = app.screen
         assert isinstance(picker, PickerScreen)
         table = picker.query_one(DataTable)
-        # Tokens column is index 5 (gutter=0, sample=1, task=2,
-        # epoch=3, agent=4, tokens=5, running=6). Initial fixture rows
-        # have total_tokens=0 → cell renders as literal "0".
-        before = [str(c) for c in table.get_column_at(5)]
+        # Tokens column is index 4 (sample=0, task=1, epoch=2,
+        # agent=3, tokens=4, running=5) — gutter column was dropped.
+        # Initial fixture rows have total_tokens=0 → cell renders "0".
+        before = [str(c) for c in table.get_column_at(4)]
         assert all(c == "0" for c in before)
 
         # Rebind the client with the SAME session ids but bumped
@@ -522,7 +524,7 @@ async def test_picker_rescan_updates_tokens_in_steady_state(
         await picker._do_rescan()
         await pilot.pause()
 
-        after = [str(c) for c in table.get_column_at(5)]
+        after = [str(c) for c in table.get_column_at(4)]
         # _format_tokens: 1234 → "1.2K", 999999 → "1000K" → actually
         # under 1M so "1000K"? Let's compute: 999999/1000 = 999.999
         # → 1000 → trim ".0" → "1000K". And 2_500_000 → "2.5M".

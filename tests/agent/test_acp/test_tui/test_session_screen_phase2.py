@@ -29,7 +29,7 @@ from inspect_ai.agent._acp._tui._session_screen import SessionScreen
 from inspect_ai.agent._acp._tui._state import SessionState, StatusState
 from inspect_ai.agent._acp._tui._widgets import (
     MessageWidget,
-    StatusRowWidget,
+    SessionHeaderWidget,
     ToolCallWidget,
     TranscriptWidget,
 )
@@ -119,23 +119,24 @@ async def test_app_passes_on_session_update_to_attach(
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_session_screen_status_row_reflects_in_flight_tool(
+async def test_session_screen_in_flight_tool_reaches_transcript(
     sample_rows: list[SessionRow],
 ) -> None:
+    """A ToolCallStart consumed by the screen's state mounts a tool widget.
+
+    Replaces the old status-row pill assertion (the status row is
+    gone — tokens moved up to the header, generating/calling-tools
+    state is no longer rendered).
+    """
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
         await pilot.pause()
         screen = await _open_session_screen(app, pilot, sample_rows[0])
-        # Initially the pill is in AWAITING_INPUT (sage).
-        pill = screen.query_one(StatusRowWidget).query_one("#pill", Static)
-        assert "Awaiting input" in str(pill.content)
-        # Feed a ToolCallStart through the state — the subscribe path
-        # should drive a refresh that flips the pill to teal.
         screen.state.consume(_tool_start())
         await pilot.pause()
-        assert "Calling tools" in str(pill.content)
-        assert pill.has_class("teal")
+        tr = screen.query_one(TranscriptWidget)
+        assert any(isinstance(c, ToolCallWidget) for c in tr.children)
 
 
 @skip_if_trio
@@ -168,6 +169,14 @@ async def test_session_screen_renders_message_and_tool_call(
 async def test_session_screen_token_chip_updates_on_usage_notification(
     sample_rows: list[SessionRow],
 ) -> None:
+    """UsageUpdate flows from state → header meta row.
+
+    Tokens moved up to the header (dim ``tokens`` label + bright
+    value, alongside task / sample / etc.) when the status row was
+    removed.
+    """
+    from rich.text import Text
+
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
@@ -175,23 +184,24 @@ async def test_session_screen_token_chip_updates_on_usage_notification(
         screen = await _open_session_screen(app, pilot, sample_rows[0])
         screen.state.consume(_usage(used=2_500, size=200_000))
         await pilot.pause()
-        chip = screen.query_one("#chip-tokens", Static)
-        # 2_500 → "2.5K"; 200_000 → "200K".
-        text = str(chip.content)
-        assert "tokens 2.5K / 200K" in text
+        meta = screen.query_one(SessionHeaderWidget).query_one("#meta-text", Static)
+        text = Text.from_markup(str(meta.content)).plain
+        # 2_500 → "2.5K"; context-window denominator deliberately dropped.
+        assert "tokens 2.5K" in text
 
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_session_screen_pill_falls_back_to_awaiting_after_quiescence(
+async def test_session_screen_state_falls_back_to_awaiting_after_quiescence(
     sample_rows: list[SessionRow],
 ) -> None:
-    """Time-driven GENERATING → AWAITING_INPUT transition must fire.
+    """Time-driven GENERATING → AWAITING_INPUT transition still derives.
 
-    The screen runs a periodic timer (``_STATUS_TICK_SECONDS``) that
-    re-derives the pill state so this transition doesn't get stuck.
-    Test scenario: inject a chunk WITH a clock the state can read so
-    we can fast-forward past the quiescence window.
+    The status row is gone, but the state machine is still authoritative
+    for the assistant chip's spinner gating (Phase 3+ will surface it
+    again via composer state). This test pins the underlying state
+    transition so future regressions are caught even without a visible
+    pill.
     """
     fake_now = [1_000.0]
 
@@ -199,41 +209,12 @@ async def test_session_screen_pill_falls_back_to_awaiting_after_quiescence(
         return fake_now[0]
 
     state = SessionState(now=_now)
-    client = make_fake_client(sample_rows)
-    app = InspectAcpApp(eval_id=None, server=None, client=client)
-    # Patch attach to deliver our injected state.
-    original_attach = client.attach_session
-
-    async def _attach(row: SessionRow, **_: Any) -> Any:
-        return await original_attach(row)
-
-    client.attach_session = _attach
-
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(30):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
-        screen = app.screen
-        assert isinstance(screen, SessionScreen)
-        # Replace the screen's state with our injected one so we
-        # control the clock.
-        screen._state = state
-        # Resubscribe via the public API so the SessionScreen reacts.
-        if screen._unsubscribe is not None:
-            screen._unsubscribe()
-        screen._unsubscribe = state.subscribe(screen._on_state_change)
-
-        # Chunk at t=1000 → GENERATING.
-        state.consume(_agent_chunk("hello"))
-        await pilot.pause()
-        assert state.status == StatusState.GENERATING
-        # Advance the fake clock past the 2s quiescence window.
-        fake_now[0] = 1_005.0
-        # Trigger a tick manually instead of waiting on real time.
-        screen._tick()
-        await pilot.pause()
-        pill = screen.query_one("#pill", Static)
-        assert "Awaiting input" in str(pill.content)
+    # Chunk at t=1000 → GENERATING.
+    state.consume(_agent_chunk("hello"))
+    assert state.status == StatusState.GENERATING
+    # Advance the fake clock past the 2s quiescence window. Bind via
+    # a fresh local so mypy doesn't carry the GENERATING narrowing
+    # from the earlier assert into this comparison.
+    fake_now[0] = 1_005.0
+    later: StatusState = state.status
+    assert later == StatusState.AWAITING_INPUT

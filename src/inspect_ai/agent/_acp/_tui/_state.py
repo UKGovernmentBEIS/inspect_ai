@@ -50,8 +50,23 @@ from acp.schema import (
 # flickering during typical stream gaps.
 _GENERATING_QUIESCENCE_SECONDS = 2.0
 
+_MAX_ASSISTANT_TURNS = 15
+"""Maximum number of assistant message groups retained in the transcript.
 
-MessageRole = Literal["user", "assistant"]
+State-side cap (not just a render limit): older items are evicted from
+``self.items`` and the lookup indexes so notifications, transcript
+refreshes, and per-tool widget diffing all scale with the *window*
+size rather than the full history. The user can still re-attach to
+see the full transcript via the server's replay path; this limit only
+governs what the running TUI holds in memory.
+
+15 matches roughly the longest reasoning window an operator can
+visually scan in one screen at typical chunk sizes — past that, the
+oldest exchange is more "history" than "context."
+"""
+
+
+MessageRole = Literal["user", "assistant", "system"]
 
 SegmentKind = Literal["text", "reasoning"]
 
@@ -90,6 +105,48 @@ class MessageGroup:
     segments: list[Segment] = field(default_factory=list)
     model: str | None = None
     """Source model name from ``_meta['inspect.model']`` if present."""
+
+    pending: bool = False
+    """Whether the originating model event is still in flight.
+
+    True while the server has sent a pending marker but no completion
+    signal yet. Flipped to False on either a real content chunk
+    (generation has produced output) or an explicit completion marker
+    (tool-only response). Lets the renderer distinguish "still
+    generating" from "done, no content" — only the former animates.
+    """
+
+    retries: int = 0
+    """Number of retry attempts collapsed into this group.
+
+    When a model event errors and Inspect retries, each attempt fires
+    a fresh pending → completion cycle with a NEW uuid (and therefore
+    a new message_id). Rather than render N empty stacked bubbles,
+    the client collapses consecutive empty assistant-pending signals
+    for the same model into ONE group, incrementing this counter.
+    Zero means the first (and so far only) attempt.
+    """
+
+    pending_started_at: float | None = None
+    """``time.monotonic()`` at the first pending signal for this group.
+
+    Used to render an elapsed timer on the chip while ``pending`` is
+    True. Survives retries (set once at first pending, not reset on
+    each retry attempt) so the user sees total wall time across all
+    attempts, not just the latest attempt.
+    """
+
+    user_source: str | None = None
+    """``ChatMessageUser.source`` for user groups, ``None`` for assistant.
+
+    Carried from the server via ``_meta['inspect.user_source']`` —
+    typical values are ``input`` (the dataset input that kicked the
+    sample off), ``operator`` (an operator-submitted message from
+    the TUI composer), ``generate`` (synthesized inside a sub-agent
+    flow), or ``None``. Drives the chip suffix (``user · operator``
+    vs. ``user · input`` etc.) so the operator can tell whose prompt
+    triggered the next assistant turn.
+    """
 
     received_at: float = field(default_factory=time.monotonic)
 
@@ -189,6 +246,20 @@ class SessionState:
         self.usage: UsageState | None = None
         self.session_title: str | None = None
         self._last_chunk_at: float | None = None
+        # message_ids for which the server has signalled a pending
+        # model event but not yet the matching completion marker. While
+        # this set is non-empty the status row stays "generating" so
+        # the row reflects in-flight generation across the model's
+        # full think+respond latency (often well beyond the inter-chunk
+        # quiescence window). See _consume_chunk for the lifecycle.
+        self._pending_message_ids: set[str] = set()
+        # Retry collapsing: maps a retry's message_id to the original
+        # group's message_id so subsequent chunks (completion marker,
+        # any content if it eventually arrives) flow into the existing
+        # group instead of creating a new bubble. Populated when a
+        # pending signal lands and the most recent transcript item is
+        # an empty assistant group for the same model.
+        self._message_id_aliases: dict[str, str] = {}
         self._subscribers: list[Callable[[], None]] = []
 
     # ------------------------------------------------------------------
@@ -226,6 +297,16 @@ class SessionState:
         SessionUpdate kinds (Plan, Mode, Config) that Phase 2 doesn't
         render. Dropping them keeps the client forward-compatible.
         """
+        # Bind / picker confirmation notifications carry the picker meta
+        # key on the OUTER SessionNotification (set by
+        # ``build_picker_notification``); the inner chunk just has the
+        # text restating the bind ("Bound to <task> / sample <s>"). Our
+        # meta row already shows that info, so drop these locally
+        # without touching state.
+        outer_meta = getattr(notification, "field_meta", None) or {}
+        if "inspect.picker.targets" in outer_meta:
+            return
+
         update = notification.update
         changed = False
         if isinstance(update, (UserMessageChunk, AgentMessageChunk, AgentThoughtChunk)):
@@ -246,6 +327,14 @@ class SessionState:
         update: UserMessageChunk | AgentMessageChunk | AgentThoughtChunk,
     ) -> MessageRole:
         if isinstance(update, UserMessageChunk):
+            # The router uses UserMessageChunk for SYSTEM messages too
+            # (ACP has no system-message variant), distinguishing them
+            # via ``_meta['inspect.message_role'] = 'system'``. Honor
+            # that here so the chip can render the system label
+            # without the rest of the consume path needing to care.
+            meta = getattr(update, "field_meta", None) or {}
+            if meta.get("inspect.message_role") == "system":
+                return "system"
             return "user"
         # AgentMessageChunk AND AgentThoughtChunk both belong to one
         # assistant turn; reasoning is a segment KIND, not a top-level
@@ -270,15 +359,80 @@ class SessionState:
         if message_id is None:
             message_id = f"__nogroup__:{len(self.items)}"
 
+        meta = getattr(update, "field_meta", None) or {}
+        role = self._role_for(update)
+        is_pending_signal = bool(meta.get("inspect.model_event_pending"))
+
+        # Resolve through any retry-collapse alias set by a prior call.
+        # All subsequent chunks for an aliased id (the completion
+        # marker, any late content) target the original group.
+        message_id = self._message_id_aliases.get(message_id, message_id)
+
         group = self._messages_by_id.get(message_id)
         if group is None:
-            group = MessageGroup(
-                message_id=message_id,
-                role=self._role_for(update),
-                received_at=self._now(),
-            )
-            self._messages_by_id[message_id] = group
-            self.items.append(group)
+            # Retry detection: an assistant pending signal whose
+            # immediate predecessor is also an empty assistant group
+            # for the same model means the prior attempt errored and
+            # the agent is retrying. Collapse into the existing group
+            # rather than stacking another empty bubble.
+            model_hint = meta.get("inspect.model")
+            if (
+                is_pending_signal
+                and role == "assistant"
+                and self.items
+                and isinstance(self.items[-1], MessageGroup)
+                and self.items[-1].role == "assistant"
+                and not self.items[-1].segments
+                and (
+                    not isinstance(model_hint, str)
+                    or self.items[-1].model in (None, model_hint)
+                )
+            ):
+                group = self.items[-1]
+                group.retries += 1
+                # Aliasing: any further chunks bearing the retry's
+                # message_id (completion marker, late content) need to
+                # find this group too.
+                self._message_id_aliases[update.message_id or message_id] = (
+                    group.message_id
+                )
+                # Drop the previous attempt's tracking entry so the
+                # status row's pending set doesn't accumulate stale ids.
+                self._pending_message_ids.discard(group.message_id)
+            else:
+                group = MessageGroup(
+                    message_id=message_id,
+                    role=role,
+                    received_at=self._now(),
+                )
+                self._messages_by_id[message_id] = group
+                self.items.append(group)
+                # State-side window cap: only the *new assistant group*
+                # path can push us over the limit (tool calls slot
+                # between existing assistants, user messages don't
+                # count). Trim here so the rest of this method works
+                # against the pruned window if we just shrank it.
+                if role == "assistant":
+                    self._enforce_turn_cap()
+
+        # Pending-generation lifecycle. The router stamps explicit
+        # markers on the model-event boundary chunks: a "pending"
+        # marker on entry (so the status row flips to "generating"
+        # immediately) and a "complete" marker on exit when no real
+        # content was emitted (tool-only responses). Real content
+        # chunks also implicitly close the pending window — generation
+        # has produced output, so quiescence is sufficient from there.
+        if is_pending_signal:
+            self._pending_message_ids.add(group.message_id)
+            group.pending = True
+            # Stamp the wall-clock start on the FIRST pending signal
+            # so the chip's elapsed timer reflects total time across
+            # any retries.
+            if group.pending_started_at is None:
+                group.pending_started_at = self._now()
+        if meta.get("inspect.model_event_complete"):
+            self._pending_message_ids.discard(group.message_id)
+            group.pending = False
 
         # Append to the segment list. Adjacent chunks of the same kind
         # extend the last segment so multi-chunk text streams as one
@@ -292,15 +446,31 @@ class SessionState:
                 group.segments[-1].text += text
             else:
                 group.segments.append(Segment(kind=kind, text=text))
+            # Real content arrived — clear any pending marker since
+            # generation has produced output. Harmless no-op when no
+            # pending was open (cache-hit path skips the pending phase).
+            self._pending_message_ids.discard(group.message_id)
+            group.pending = False
 
         # Track model from meta. For assistant/reasoning chunks the
         # router stamps the originating ModelEvent.model in
         # _meta["inspect.model"]; user chunks have no model attribution.
-        meta = getattr(update, "field_meta", None) or {}
         model = meta.get("inspect.model")
         if isinstance(model, str) and model:
             group.model = model
             self.current_model = model
+
+        # Track user source from meta — server stamps the
+        # ChatMessageUser.source value (``input`` / ``operator`` /
+        # ``generate`` / null) on UserMessageChunks so the chip can
+        # render "user · operator" etc. Only sticks if we haven't
+        # already recorded one (first chunk wins; later same-id
+        # chunks could in theory carry a different value, but the
+        # server emits one chunk per user message).
+        if role in ("user", "system") and group.user_source is None:
+            source = meta.get("inspect.user_source")
+            if isinstance(source, str) and source:
+                group.user_source = source
 
         # The "Generating" derivation is time-based — record the latest
         # chunk activity so :attr:`status` can decide when to fall back
@@ -409,6 +579,65 @@ class SessionState:
         self.usage = UsageState(used=update.used, size=update.size)
         return True
 
+    # ------------------------------------------------------------------
+    # Windowing
+    # ------------------------------------------------------------------
+
+    def _enforce_turn_cap(self) -> None:
+        """Drop the oldest exchanges past the assistant-turn window.
+
+        Cap is ``_MAX_ASSISTANT_TURNS`` *assistant* MessageGroups. Tool
+        calls + user messages between kept assistants stay; earlier
+        items are evicted from ``self.items`` and the lookup indexes
+        so refreshes scale with the window size rather than the full
+        history.
+
+        The user message immediately preceding the oldest kept
+        assistant is also retained when present — otherwise the
+        windowed view reads as an orphaned response with no prompt
+        context. Earlier user messages (those before that lookback)
+        are dropped.
+        """
+        assistant_indices = [
+            i
+            for i, item in enumerate(self.items)
+            if isinstance(item, MessageGroup) and item.role == "assistant"
+        ]
+        if len(assistant_indices) <= _MAX_ASSISTANT_TURNS:
+            return
+        keep_from = assistant_indices[-_MAX_ASSISTANT_TURNS]
+        # Only extend backward if the IMMEDIATE predecessor is a user
+        # message — i.e. that prompt clearly belongs to the same turn
+        # as the first kept assistant. Walking further back risks
+        # holding onto an irrelevant prompt from many turns ago (e.g.
+        # the original react-style kickoff prompt with 20 assistant
+        # steps trailing), which would defeat the cap entirely.
+        if keep_from > 0:
+            prev = self.items[keep_from - 1]
+            if isinstance(prev, MessageGroup) and prev.role == "user":
+                keep_from -= 1
+        if keep_from <= 0:
+            return
+        dropped = self.items[:keep_from]
+        del self.items[:keep_from]
+        dropped_message_ids: set[str] = set()
+        for item in dropped:
+            if isinstance(item, MessageGroup):
+                self._messages_by_id.pop(item.message_id, None)
+                self._pending_message_ids.discard(item.message_id)
+                dropped_message_ids.add(item.message_id)
+            elif isinstance(item, ToolCallState):
+                self._tool_calls_by_id.pop(item.tool_call_id, None)
+        # Strip retry-collapse aliases that point at dropped groups —
+        # leaving them would silently route future (rare, late)
+        # chunks for those ids back into thin air.
+        if dropped_message_ids:
+            self._message_id_aliases = {
+                k: v
+                for k, v in self._message_id_aliases.items()
+                if v not in dropped_message_ids
+            }
+
     def _consume_session_info(self, update: SessionInfoUpdate) -> bool:
         # Distinguish "title field was explicitly set" from "title field
         # was omitted". An update that carries only updated_at (or other
@@ -440,11 +669,16 @@ class SessionState:
 
         Order matters:
         - Any tool in flight → CALLING_TOOLS (clear signal, always wins)
-        - Recent chunk activity → GENERATING (within quiescence window)
+        - Any pending model event → GENERATING (server signalled start,
+          no completion marker yet — robust to long model latency)
+        - Recent chunk activity → GENERATING (within quiescence window —
+          covers the inter-chunk gap during active streaming)
         - Otherwise → AWAITING_INPUT (resting)
         """
         if self.tools_in_flight > 0:
             return StatusState.CALLING_TOOLS
+        if self._pending_message_ids:
+            return StatusState.GENERATING
         if self._last_chunk_at is not None:
             if (self._now() - self._last_chunk_at) < _GENERATING_QUIESCENCE_SECONDS:
                 return StatusState.GENERATING

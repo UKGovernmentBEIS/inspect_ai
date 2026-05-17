@@ -23,7 +23,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header, Input, Markdown, Static
+from textual.widgets import DataTable, Footer, Input, Markdown, Static
 from textual.widgets._data_table import CellDoesNotExist
 
 from ._client import SessionRow
@@ -73,6 +73,22 @@ def _format_tokens(n: int) -> str:
                 text = text[:-2]
             return f"{text}{suffix}"
     return str(n)  # unreachable, keeps mypy happy
+
+
+def _sample_cell(sample_id: str, *, is_cursor: bool) -> Text:
+    """Sample-column cell value with an embedded cursor prefix.
+
+    The leading ``▸ `` / ``  `` (always 2 chars) keeps every row's
+    text aligned regardless of cursor state, AND avoids the
+    double-space gap a dedicated 1-char gutter column would produce
+    (DataTable's ``cell_padding: 1`` applies to BOTH adjacent columns,
+    so an extra column adds 2 cells, not 1).
+    """
+    if is_cursor:
+        cell = Text("▸ ", style="bold $primary")
+        cell.append(sample_id)
+        return cell
+    return Text(f"  {sample_id}")
 
 
 def _row_matches(row: SessionRow, query: str) -> bool:
@@ -201,7 +217,7 @@ class PickerScreen(Screen[None]):
     /* Indent the status row to align with the table content (which
        picks up its own left padding from the DataTable below). */
     #picker-status {
-        padding: 1 4;
+        padding: 1 2;
         height: auto;
         color: $text-muted;
     }
@@ -210,7 +226,7 @@ class PickerScreen(Screen[None]):
        so it reads like a search affordance rather than a primary
        control. Hidden by default — `/` reveals it; Esc clears + hides. */
     #filter-input {
-        margin: 0 4;
+        margin: 0 2;
         height: 3;
         border: tall $primary 30%;
     }
@@ -223,7 +239,7 @@ class PickerScreen(Screen[None]):
        the screen background. */
     DataTable {
         height: 1fr;
-        margin: 0 4;
+        margin: 0 2;
     }
     /* Subtle cursor highlight — Textual's defaults paint the cursor
        with ``$block-cursor-background`` (a near-saturated accent)
@@ -285,7 +301,13 @@ class PickerScreen(Screen[None]):
         self._gutter_row_key: str | None = None
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=False)
+        # Local import to break the import cycle — ``_widgets._header``
+        # pulls ``_format_tokens`` from this module for the tokens chip
+        # on the session header. Keeping the import inside compose
+        # defers it until after this module is fully initialized.
+        from ._widgets import AppHeaderWidget
+
+        yield AppHeaderWidget()
         if not self._rows:
             yield from self._compose_empty()
         else:
@@ -336,13 +358,18 @@ class PickerScreen(Screen[None]):
         # attached. The count summary above already tells the user
         # how many evals are in play.
         table: DataTable[str | Text] = DataTable(cursor_type="row", zebra_stripes=False)
-        # First column is a 1-char gutter for the ▸ selection glyph.
-        # ``width=1`` keeps the gutter snug — DataTable's natural
-        # inter-column gap supplies the single-space breathing room
-        # before the first data column. The header label is a single
-        # space so the column still aligns under a (blank) header.
-        table.add_column(" ", width=1, key="gutter")
-        table.add_columns("sample", "task", "epoch", "agent")
+        # The ▸ cursor glyph is embedded into the sample cell itself
+        # (rather than living in its own gutter column) so we get a
+        # single space between glyph and sample text. A separate
+        # column would double the gap to two spaces — DataTable's
+        # uniform ``cell_padding: 1`` adds the right-pad of the gutter
+        # AND the left-pad of the sample column, with no per-column
+        # override available.
+        # Explicit ``key="sample"`` so on_data_table_row_highlighted
+        # can ``update_cell(row_key, "sample", …)`` — add_columns
+        # would assign auto-generated UUID keys, breaking the swap.
+        table.add_column("sample", key="sample")
+        table.add_columns("task", "epoch", "agent")
         # Use literal string keys (NOT ``str(ColumnKey)`` — that
         # returns the object's repr, which doesn't match anything on
         # lookup). The same strings passed here are what update_cell
@@ -389,13 +416,12 @@ class PickerScreen(Screen[None]):
         table.clear()
         now = time.time()
         for idx, row in enumerate(self._visible_rows):
-            # Initial gutter glyph for the first row only — matches
-            # DataTable's initial cursor position. on_data_table_row_
-            # highlighted flips it between rows as the cursor moves.
-            gutter = Text("▸", style="bold $primary") if idx == 0 else Text(" ")
+            # ▸ glyph embedded as a 2-char prefix in the sample cell
+            # (▸ + space + sample_id, or 2 leading spaces for
+            # non-cursor rows). on_data_table_row_highlighted swaps
+            # the prefix as the cursor moves.
             table.add_row(
-                gutter,
-                row.sample_id,
+                _sample_cell(row.sample_id, is_cursor=(idx == 0)),
                 # Dim the task column — the mockup keeps it muted so
                 # the eye lands on sample id / agent / time.
                 Text(row.task, style="dim"),
@@ -440,13 +466,29 @@ class PickerScreen(Screen[None]):
         new_key = event.row_key.value if event.row_key is not None else None
         if new_key is None or new_key == self._gutter_row_key:
             return
+        # Look up sample_id for each affected row so we can rebuild
+        # the cell value with the cursor prefix swapped.
+        rows_by_key = {r.session_id: r for r in self._visible_rows}
         if self._gutter_row_key is not None:
-            try:
-                table.update_cell(self._gutter_row_key, "gutter", Text(" "))
-            except CellDoesNotExist:
-                pass
+            prev = rows_by_key.get(self._gutter_row_key)
+            if prev is not None:
+                try:
+                    table.update_cell(
+                        self._gutter_row_key,
+                        "sample",
+                        _sample_cell(prev.sample_id, is_cursor=False),
+                    )
+                except CellDoesNotExist:
+                    pass
+        new_row = rows_by_key.get(new_key)
+        if new_row is None:
+            return
         try:
-            table.update_cell(new_key, "gutter", Text("▸", style="bold $primary"))
+            table.update_cell(
+                new_key,
+                "sample",
+                _sample_cell(new_row.sample_id, is_cursor=True),
+            )
         except CellDoesNotExist:
             return
         self._gutter_row_key = new_key

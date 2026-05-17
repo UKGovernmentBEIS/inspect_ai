@@ -43,20 +43,20 @@ async def test_session_screen_meta_row_renders_all_fields(
                 break
         assert isinstance(app.screen, SessionScreen)
         meta = app.screen.query_one("#meta-text", Static)
-        text = str(meta.content)
-        # Prefaces dropped for eval/task/sample/epoch — context makes
-        # them obvious. ``agent:`` keeps its label so the value (e.g.
-        # "react") is unambiguous.
-        assert "inspect acp" in text
-        assert "eval-aaa" in text
-        assert "my_task" in text
-        assert "0/1" in text  # sample_id/epoch
+        # ``meta.content`` returns the raw markup (with [dim]…[/dim]);
+        # render the markup so assertions match what the user actually
+        # sees on screen.
+        text = meta.render_str(str(meta.content)).plain
+        # ``inspect acp`` and ``eval-aaa`` are intentionally absent —
+        # the window title carries the app name, and the eval id is
+        # implicit from the picked session. Field labels precede each
+        # value.
+        assert "inspect acp" not in text
+        assert "eval-aaa" not in text
+        assert "task: my_task" in text
+        assert "sample: 0" in text
+        assert "epoch 1" in text
         assert "agent: react" in text
-        # Make sure the dropped labels really aren't there.
-        assert "eval eval-aaa" not in text
-        assert "task my_task" not in text
-        assert "epoch" not in text
-        assert "sample 0" not in text
 
 
 @skip_if_trio
@@ -88,7 +88,8 @@ async def test_session_screen_meta_row_handles_missing_agent_name(
                 break
         meta = app.screen.query_one("#meta-text", Static)
         # Em-dash placeholder rather than a literal "None".
-        assert "agent: —" in str(meta.content)
+        text = meta.render_str(str(meta.content)).plain
+        assert "agent: —" in text
 
 
 @skip_if_trio

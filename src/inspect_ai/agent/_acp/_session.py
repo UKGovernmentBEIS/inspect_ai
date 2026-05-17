@@ -576,6 +576,13 @@ class _LiveAcpSession:
         # Router attached at __aenter__; detached at __aexit__. Owns the
         # transcript subscription that maps events to SessionNotifications.
         self._router: "_AcpEventRouter | None" = None
+        # Transcript index at the moment the router subscribed. Events
+        # before this index are pre-acp_session (eval framework setup
+        # incl. the outer AGENT_SPAN begin) and were NEVER seen by the
+        # live router — replay on late attach must skip them too, or
+        # the sub-agent depth filter would treat the framework's outer
+        # span as a sub-agent and silently filter every in-scope event.
+        self._router_attach_index: int = 0
         # Transcript captured at __aenter__ time. We can't call
         # ``transcript()`` from ``cancel_current_turn`` because the
         # producer task (TUI button click, socket transport) runs in a
@@ -754,13 +761,20 @@ class _LiveAcpSession:
 
         Returns an empty sequence if the session hasn't been entered
         yet (defensive — should be unreachable in practice).
+
+        Slices off the events from before the router attached: those
+        pre-attach events include the eval framework's outer
+        ``AGENT_SPAN`` begin, which the live router never saw (it
+        subscribed inside that span). If they bleed into replay, the
+        sub-agent depth filter treats every in-scope event as a
+        sub-agent and silently filters the entire conversation.
         """
         if self._transcript is None:
             return []
         # ``Transcript.events`` already returns a Sequence; wrap in
         # list() so callers iterating concurrently with new ``_event``
         # appends don't see size changes mid-iteration.
-        return list(self._transcript.events)
+        return list(self._transcript.events)[self._router_attach_index :]
 
     @contextlib.contextmanager
     def turn_scope(self) -> Iterator[None]:

@@ -1,4 +1,5 @@
 import sys
+from asyncio import CancelledError
 from importlib.metadata import version
 from types import TracebackType
 from typing import Callable
@@ -78,6 +79,15 @@ def exception_hook() -> Callable[..., None]:
     ) -> None:
         if isinstance(exception, PrerequisiteError):
             print(f"\n{exception.message}\n")
+        elif isinstance(exception, (CancelledError, KeyboardInterrupt)):
+            # User-initiated interruption (Ctrl-C → SIGINT, or an inner
+            # CancelledError re-raised from the task group to preserve
+            # structured concurrency). The per-task display panel
+            # already printed a friendly "Task interrupted" footer; a
+            # traceback here just confuses the user. Exit with the
+            # conventional SIGINT code so shells / supervisors see the
+            # interrupt for what it is.
+            sys.exit(130)
         elif not isinstance(exception, SilentException):
             sys_handler(exception_type, exception, traceback)
         else:

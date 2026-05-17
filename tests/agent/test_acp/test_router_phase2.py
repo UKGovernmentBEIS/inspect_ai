@@ -379,27 +379,166 @@ def test_usage_update_emitted_for_tool_call_only_response() -> None:
 
     No text/reasoning chunks render, but real tokens were consumed.
     The chip MUST update so token tracking doesn't go stale through
-    tool-loop turns.
+    tool-loop turns. The router also emits a completion-marker chunk
+    (empty content, ``inspect.model_event_complete=True``) so the
+    client can close out the pending-generation status row — but only
+    when a pending marker was sent earlier. This test mirrors the
+    real flow: pending fires when the model call begins, complete
+    fires when it returns (tool-only).
     """
     tr = Transcript()
     token = _transcript.set(tr)
     try:
         session = _new_session()
         _, published = _attach_router(session)
-        tr._event(
-            _model_event(
-                tool_calls=[ToolCall(id="tc1", function="my_tool", arguments={})],
-                usage=ModelUsage(input_tokens=500, output_tokens=20, total_tokens=520),
-            )
+        event = _model_event(
+            tool_calls=[ToolCall(id="tc1", function="my_tool", arguments={})],
+            usage=ModelUsage(input_tokens=500, output_tokens=20, total_tokens=520),
         )
-        assert not any(
-            isinstance(n.update, (AgentMessageChunk, AgentThoughtChunk))
-            for n in published
-        )
+        # Pending phase first — emits the spinner-start chunk.
+        event.pending = True
+        tr._event(event)
+        # Then completion — same event, pending cleared.
+        event.pending = None
+        tr._event_updated(event)
+        # Exactly two AgentMessageChunks: the pending opener + the
+        # completion marker. Both empty content; the marker carries
+        # ``inspect.model_event_complete``.
+        chunks = [n for n in published if isinstance(n.update, AgentMessageChunk)]
+        assert len(chunks) == 2
+        opener = chunks[0].update
+        marker = chunks[1].update
+        assert (opener.field_meta or {}).get("inspect.model_event_pending") is True
+        assert isinstance(marker, AgentMessageChunk)
+        assert marker.content.text == ""
+        assert (marker.field_meta or {}).get("inspect.model_event_complete") is True
+        assert not any(isinstance(n.update, AgentThoughtChunk) for n in published)
         usages = [n.update for n in published if isinstance(n.update, UsageUpdate)]
         assert len(usages) == 1
         assert usages[0].used == 520
         assert usages[0].size == _TEST_CONTEXT_LENGTH
+    finally:
+        _transcript.reset(token)
+
+
+def test_empty_output_after_pending_still_emits_completion_marker() -> None:
+    """Error / cancel / empty completion must clear the client's spinner.
+
+    Regression for P1 from review: previously the empty-output path
+    returned early without a completion marker, so a pending event
+    that finished with no content (error, cancel, or genuinely empty
+    output) left the assistant chip stuck spinning forever.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = ModelEvent(
+            model=_TEST_MODEL,
+            input=[],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(model=_TEST_MODEL, choices=[]),
+        )
+        assert event.output.empty
+        # Pending → spinner starts.
+        event.pending = True
+        tr._event(event)
+        # Then the event completes empty (no choices arrived).
+        event.pending = None
+        tr._event_updated(event)
+        markers = [
+            n
+            for n in published
+            if isinstance(n.update, AgentMessageChunk)
+            and (n.update.field_meta or {}).get("inspect.model_event_complete") is True
+        ]
+        assert len(markers) == 1
+        # And on a re-delivery the marker doesn't double-emit.
+        tr._event_updated(event)
+        markers_again = [
+            n
+            for n in published
+            if isinstance(n.update, AgentMessageChunk)
+            and (n.update.field_meta or {}).get("inspect.model_event_complete") is True
+        ]
+        assert len(markers_again) == 1
+    finally:
+        _transcript.reset(token)
+
+
+def test_empty_reasoning_completion_still_emits_marker() -> None:
+    """Reasoning blocks with empty text must not suppress the marker.
+
+    Regression for P1 from review: the reasoning branch previously
+    set ``emitted_content = True`` even when the reasoning text was
+    empty (redacted reasoning with no summary, or a zero-thinking
+    response). With the marker suppressed and no real content to
+    clear pending, the client's spinner stayed stuck.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        # Build a message whose only block is empty reasoning.
+        empty_reasoning = ContentReasoning(reasoning="", redacted=False)
+        message = ChatMessageAssistant(content=[empty_reasoning])
+        output = ModelOutput(
+            model=_TEST_MODEL, choices=[ChatCompletionChoice(message=message)]
+        )
+        event = ModelEvent(
+            model=_TEST_MODEL,
+            input=[],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=output,
+        )
+        event.pending = True
+        tr._event(event)
+        event.pending = None
+        tr._event_updated(event)
+        # No reasoning chunk should have been emitted for the empty
+        # text — and a completion marker should have fired.
+        assert not any(isinstance(n.update, AgentThoughtChunk) for n in published)
+        markers = [
+            n
+            for n in published
+            if isinstance(n.update, AgentMessageChunk)
+            and (n.update.field_meta or {}).get("inspect.model_event_complete") is True
+        ]
+        assert len(markers) == 1
+    finally:
+        _transcript.reset(token)
+
+
+def test_cache_hit_empty_output_emits_no_marker() -> None:
+    """No pending was sent → no marker (would create an empty bubble).
+
+    The completion marker only makes sense when there's a pending
+    spinner to clear. A bare empty event with no preceding pending
+    shouldn't manufacture a phantom assistant bubble.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        event = ModelEvent(
+            model=_TEST_MODEL,
+            input=[],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(model=_TEST_MODEL, choices=[]),
+        )
+        assert event.output.empty
+        # Straight to complete — no pending phase.
+        tr._event(event)
+        assert published == []
     finally:
         _transcript.reset(token)
 
@@ -758,3 +897,143 @@ def test_interactive_and_meta_tools_unmapped() -> None:
     """
     for fn in ("computer", "memory", "skill"):
         assert _tool_kind_for(fn) is None, f"{fn} must not have a ToolKind"
+
+
+# ---------------------------------------------------------------------------
+# Input-message emission: user + system messages prior to current generation
+# ---------------------------------------------------------------------------
+
+
+def _model_event_with_input(
+    input_messages: list[Any],
+    *,
+    text: str = "ok",
+    model: str = _TEST_MODEL,
+) -> ModelEvent:
+    """ModelEvent factory that populates ``input`` (the standard helper leaves it empty)."""
+    message = ChatMessageAssistant(content=text)
+    output = ModelOutput(model=model, choices=[ChatCompletionChoice(message=message)])
+    return ModelEvent(
+        model=model,
+        input=input_messages,
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=output,
+    )
+
+
+def _user_chunks(notifications: list[SessionNotification]) -> list[Any]:
+    from acp.schema import UserMessageChunk
+
+    return [n.update for n in notifications if isinstance(n.update, UserMessageChunk)]
+
+
+def test_first_model_event_emits_initial_system_and_user_messages() -> None:
+    """Walking input backwards on the first turn surfaces the prompt."""
+    from inspect_ai.model import ChatMessageSystem, ChatMessageUser
+
+    sys_msg = ChatMessageSystem(content="you are helpful")
+    user_msg = ChatMessageUser(content="hello there", source="input")
+    event = _model_event_with_input([sys_msg, user_msg])
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        tr._event(event)
+        user_chunks = _user_chunks(published)
+    finally:
+        _transcript.reset(token)
+    # System first, then user, in input order.
+    assert len(user_chunks) == 2
+    assert user_chunks[0].content.text == "you are helpful"
+    assert user_chunks[1].content.text == "hello there"
+    assert (user_chunks[0].field_meta or {}).get("inspect.message_role") == "system"
+    assert (user_chunks[1].field_meta or {}).get("inspect.user_source") == "input"
+
+
+def test_subsequent_model_event_emits_only_messages_after_previous_assistant() -> None:
+    """Per-id dedup AND the "walk back to last assistant" cut prevent re-emission."""
+    from inspect_ai.model import ChatMessageSystem, ChatMessageUser
+
+    sys_msg = ChatMessageSystem(content="sys")
+    user1 = ChatMessageUser(content="first prompt", source="input")
+    asst1 = ChatMessageAssistant(content="first reply")
+    user2 = ChatMessageUser(content="follow-up", source="operator")
+
+    # First model call: just sys + user1 in input.
+    event1 = _model_event_with_input([sys_msg, user1], text="first reply")
+    # Second model call: full history plus the operator's follow-up.
+    event2 = _model_event_with_input(
+        [sys_msg, user1, asst1, user2], text="second reply"
+    )
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        tr._event(event1)
+        tr._event(event2)
+        user_chunks = _user_chunks(published)
+    finally:
+        _transcript.reset(token)
+    # Three total — sys + user1 from event1, user2 from event2. The
+    # walk-back-to-assistant logic prevents sys + user1 from
+    # re-emitting on event2; per-id dedup is the belt to that
+    # suspenders.
+    assert [c.content.text for c in user_chunks] == [
+        "sys",
+        "first prompt",
+        "follow-up",
+    ]
+    assert (user_chunks[2].field_meta or {}).get("inspect.user_source") == "operator"
+
+
+def test_tool_messages_in_input_are_skipped() -> None:
+    """Tool messages flow via ToolEvent — UserMessageChunk would double-render."""
+    from inspect_ai.model import ChatMessageTool, ChatMessageUser
+
+    user_msg = ChatMessageUser(content="run a thing", source="input")
+    tool_msg = ChatMessageTool(content="tool output", tool_call_id="tc-1")
+    event = _model_event_with_input([user_msg, tool_msg])
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        tr._event(event)
+        user_chunks = _user_chunks(published)
+    finally:
+        _transcript.reset(token)
+    texts = [c.content.text for c in user_chunks]
+    assert "run a thing" in texts
+    assert "tool output" not in texts
+
+
+def test_user_source_none_is_carried_explicitly() -> None:
+    """``None`` source survives the meta round-trip as JSON null."""
+    from inspect_ai.model import ChatMessageUser
+
+    user_msg = ChatMessageUser(content="bare prompt")  # source defaults to None
+    assert user_msg.source is None
+    event = _model_event_with_input([user_msg])
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        tr._event(event)
+        user_chunks = _user_chunks(published)
+    finally:
+        _transcript.reset(token)
+    assert len(user_chunks) == 1
+    meta = user_chunks[0].field_meta or {}
+    # Explicit None, not the key missing — clients can tell "we know
+    # there's no source" from "the server forgot to send it."
+    assert "inspect.user_source" in meta
+    assert meta["inspect.user_source"] is None

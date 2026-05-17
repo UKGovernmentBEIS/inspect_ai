@@ -21,7 +21,6 @@ from inspect_ai.agent._acp._tui._state import (
 )
 from inspect_ai.agent._acp._tui._widgets import (
     MessageWidget,
-    StatusRowWidget,
     ToolCallWidget,
     TranscriptWidget,
 )
@@ -77,26 +76,210 @@ def _harness(widget_factory):
     return _OneWidgetApp()
 
 
+# Stand-in for ACP's TextContentBlock / ContentToolCallContent —
+# tool-call tests only need the duck-typed ``type`` and ``text``
+# attributes the widget reads, so a tiny pair of classes keeps the
+# tests independent of the wire-schema layout. Hoisted to module
+# scope so mypy doesn't see four duplicate definitions across
+# nested test functions (no-redef noise).
+class _FakeTextBlock:
+    type = "text"
+
+    def __init__(self, text: str) -> None:
+        self.text = text
+
+
+class _FakeContentBlock:
+    type = "content"
+
+    def __init__(self, text: str) -> None:
+        self.content = _FakeTextBlock(text)
+
+
 # ---------------------------------------------------------------------------
 # MessageWidget
 # ---------------------------------------------------------------------------
 
 
+def _segment_text(widget: Static) -> str:
+    """Extract the source markdown from a Static rendering Rich Markdown.
+
+    Segment statics wrap a :class:`rich.markdown.Markdown` instance now
+    (so fenced code blocks render formatted instead of showing raw
+    backticks). ``Static.render()`` returns a ``RichVisual`` whose
+    ``_renderable`` is the wrapped Markdown; reach in for its source.
+    """
+    visual = widget.render()
+    renderable = getattr(visual, "_renderable", visual)
+    if hasattr(renderable, "markup"):
+        return str(renderable.markup)
+    return str(renderable)
+
+
+def _chip_plain(chip: Static) -> str:
+    """Render the chip's markup to plain text for substring assertions."""
+    from rich.text import Text
+
+    return Text.from_markup(str(chip.content)).plain
+
+
 @skip_if_trio
 @pytest.mark.anyio
-async def test_user_message_renders_user_chip() -> None:
+async def test_user_message_renders_user_chip_with_source_suffix() -> None:
     group = MessageGroup(
-        message_id="m1", role="user", segments=[Segment(kind="text", text="hello")]
+        message_id="m1",
+        role="user",
+        user_source="input",
+        segments=[Segment(kind="text", text="hello")],
     )
     app = _harness(lambda: MessageWidget(group))
     async with app.run_test() as pilot:
         await pilot.pause()
         mw = app.query_one(MessageWidget)
         chip = mw.query_one(".chip", Static)
-        assert "user · dataset_input" in str(chip.content)
-        # Body shows the text.
-        bodies = list(mw.query(".segment-text"))
-        assert any("hello" in str(b.content) for b in bodies)
+        # Source rides as dim provenance after the role word — same
+        # treatment as "assistant · model".
+        assert "user · input" in _chip_plain(chip)
+        # Body text is rendered inside a _CollapsibleContent (the
+        # same widget tool output uses) so long messages get the
+        # ``… N more lines`` expander treatment.
+        from inspect_ai.agent._acp._tui._widgets._tool_call import (
+            _CollapsibleContent,
+        )
+
+        ccs = list(mw.query(_CollapsibleContent))
+        assert any("hello" in cc._full_text for cc in ccs)
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_user_message_without_source_shows_bare_user_chip() -> None:
+    """When ChatMessageUser.source is None the chip drops the suffix."""
+    group = MessageGroup(
+        message_id="m1",
+        role="user",
+        segments=[Segment(kind="text", text="hi")],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        mw = app.query_one(MessageWidget)
+        chip = _chip_plain(mw.query_one(".chip", Static))
+        assert chip.strip() == "user"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_system_message_renders_system_chip() -> None:
+    """System messages share the user-bubble surface with a distinct chip."""
+    group = MessageGroup(
+        message_id="m1",
+        role="system",
+        segments=[Segment(kind="text", text="you are a helpful agent")],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        mw = app.query_one(MessageWidget)
+        chip = _chip_plain(mw.query_one(".chip", Static))
+        assert chip.strip() == "system"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_operator_user_message_gets_operator_class() -> None:
+    """``user_source='operator'`` adds the ``.operator`` CSS class.
+
+    Pinned because the CSS rule that swaps the user clay background
+    for plum keys off this class. A regression that drops the class
+    would silently re-render operator messages with the dataset-input
+    color.
+    """
+    group = MessageGroup(
+        message_id="m1",
+        role="user",
+        user_source="operator",
+        segments=[Segment(kind="text", text="skip ahead")],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        mw = app.query_one(MessageWidget)
+        assert mw.has_class("user")
+        assert mw.has_class("operator")
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_long_message_text_gets_truncation_note() -> None:
+    """Text segments past the per-message line cap show ``… N more lines``.
+
+    Without the cap, a long agent response would push the rest of
+    the transcript off-screen. The collapsible expander gives the
+    operator an opt-in to see the full content.
+    """
+    from inspect_ai.agent._acp._tui._widgets._message import (
+        _MESSAGE_TEXT_MAX_LINES,
+    )
+    from inspect_ai.agent._acp._tui._widgets._tool_call import (
+        _CollapsibleContent,
+    )
+
+    over_cap = "\n".join(f"line {n}" for n in range(_MESSAGE_TEXT_MAX_LINES + 5))
+    group = MessageGroup(
+        message_id="m1",
+        role="assistant",
+        segments=[Segment(kind="text", text=over_cap)],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        mw = app.query_one(MessageWidget)
+        cc = mw.query_one(_CollapsibleContent)
+        # Note widget is present and reports the elided line count.
+        note = cc.query_one("#cc-note", Static)
+        plain = str(note.content)
+        assert "5 more lines" in plain
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_short_message_text_omits_truncation_note() -> None:
+    """Messages under the cap render without the expander affordance."""
+    from inspect_ai.agent._acp._tui._widgets._tool_call import (
+        _CollapsibleContent,
+    )
+
+    group = MessageGroup(
+        message_id="m1",
+        role="assistant",
+        segments=[Segment(kind="text", text="line 1\nline 2\nline 3")],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        mw = app.query_one(MessageWidget)
+        cc = mw.query_one(_CollapsibleContent)
+        notes = list(cc.query("#cc-note"))
+        assert notes == []
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_dataset_user_message_does_not_get_operator_class() -> None:
+    """Only ``operator`` source flips the plum-background class."""
+    group = MessageGroup(
+        message_id="m1",
+        role="user",
+        user_source="input",
+        segments=[Segment(kind="text", text="from dataset")],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        mw = app.query_one(MessageWidget)
+        assert mw.has_class("user")
+        assert not mw.has_class("operator")
 
 
 @skip_if_trio
@@ -113,7 +296,7 @@ async def test_assistant_message_shows_group_model_chip() -> None:
         await pilot.pause()
         chip = app.query_one(MessageWidget).query_one(".chip", Static)
         # Group's own model wins over the session-wide fallback.
-        assert "assistant · my-model" in str(chip.content)
+        assert "assistant · my-model" in _chip_plain(chip)
 
 
 @skip_if_trio
@@ -129,7 +312,7 @@ async def test_assistant_falls_back_to_current_model_when_group_missing() -> Non
     async with app.run_test() as pilot:
         await pilot.pause()
         chip = app.query_one(MessageWidget).query_one(".chip", Static)
-        assert "assistant · session-model" in str(chip.content)
+        assert "assistant · session-model" in _chip_plain(chip)
 
 
 @skip_if_trio
@@ -193,9 +376,183 @@ async def test_tool_call_renders_kind_icon_and_title() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         w = app.query_one(ToolCallWidget)
-        header_text = str(w.query_one(".header", Static).content)
-        assert "📄" in header_text
-        assert "read /etc/hosts" in header_text
+        header = w.query_one(".header", Static)
+        # Header is markup-rendered: tool name bold, args dim. Render
+        # to plain text so we can assert on what the user actually sees.
+        rendered = header.render_str(str(header.content)).plain
+        assert "📄" in rendered
+        assert "read /etc/hosts" in rendered
+        # And the raw markup distinguishes name from args.
+        raw = str(header.content)
+        assert "[bold]read[/bold]" in raw
+        assert "[dim]/etc/hosts[/dim]" in raw
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_header_omits_dim_when_no_args() -> None:
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="update_plan",
+        kind="edit",
+        status="in_progress",
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        w = app.query_one(ToolCallWidget)
+        raw = str(w.query_one(".header", Static).content)
+        assert "[bold]update_plan[/bold]" in raw
+        assert "[dim]" not in raw
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_renders_plan_entries_from_raw_input() -> None:
+    """update_plan tool: show the plan checklist from raw_input."""
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="update_plan",
+        kind="edit",
+        status="in_progress",
+        raw_input={
+            "plan": [
+                {"content": "step one", "status": "completed"},
+                {"content": "step two", "status": "in_progress"},
+                {"content": "step three", "status": "pending"},
+            ]
+        },
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        w = app.query_one(ToolCallWidget)
+        entries = [str(e.content) for e in w.query(".plan-entry")]
+        assert any("[x] step one" in e for e in entries)
+        assert any("[~] step two" in e for e in entries)
+        assert any("[ ] step three" in e for e in entries)
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_plan_uses_inspect_step_key() -> None:
+    """Inspect's ``update_plan`` tool stores text under ``step``, not ``content``.
+
+    Previously we only checked ``content`` / ``text``, so plan entries
+    rendered with empty bodies (`` [x] `` with nothing after) for real
+    Inspect agent runs.
+    """
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="update_plan",
+        kind="edit",
+        status="completed",
+        raw_input={
+            "plan": [
+                {"step": "Read existing tests", "status": "completed"},
+                {"step": "Add new test", "status": "in_progress"},
+            ]
+        },
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        w = app.query_one(ToolCallWidget)
+        entries = [str(e.content) for e in w.query(".plan-entry")]
+        assert any("[x] Read existing tests" in e for e in entries)
+        assert any("[~] Add new test" in e for e in entries)
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_truncates_long_content_with_indicator() -> None:
+    """Outputs over the line cap show only N lines + ``… M more lines``."""
+    long_output = "\n".join(f"line {i}" for i in range(30))
+    content_block = type(
+        "Content",
+        (),
+        {
+            "type": "content",
+            "content": type("TextBlock", (), {"type": "text", "text": long_output})(),
+        },
+    )()
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash ls",
+        kind="other",
+        status="completed",
+        content=[content_block],
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        w = app.query_one(ToolCallWidget)
+        notes = [str(n.content) for n in w.query(".truncation-note")]
+        assert any("more line" in n for n in notes)
+        # 30 lines, cap is 15 → 15 elided.
+        assert any("15" in n for n in notes)
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_truncated_content_expands_on_click() -> None:
+    """Clicking the more-lines indicator swaps in the full text + drops the note."""
+    from inspect_ai.agent._acp._tui._widgets._tool_call import _CollapsibleContent
+
+    long_output = "\n".join(f"line {i}" for i in range(30))
+    content_block = type(
+        "Content",
+        (),
+        {
+            "type": "content",
+            "content": type("TextBlock", (), {"type": "text", "text": long_output})(),
+        },
+    )()
+    state = ToolCallState(
+        tool_call_id="tc-2",
+        title="bash ls",
+        kind="other",
+        status="completed",
+        content=[content_block],
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        w = app.query_one(ToolCallWidget)
+        collapsible = w.query_one(_CollapsibleContent)
+        assert len(w.query(".truncation-note")) == 1
+        collapsible.on_click()
+        await pilot.pause()
+        # Note removed, body now holds the full content.
+        assert len(w.query(".truncation-note")) == 0
+        # Idempotency: clicking again after expansion does nothing.
+        collapsible.on_click()
+        await pilot.pause()
+        assert len(w.query(".truncation-note")) == 0
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_reasoning_block_click_toggles_expand() -> None:
+    """Reviewer: clicking a reasoning block should toggle expand/collapse."""
+    from inspect_ai.agent._acp._tui._widgets._message import _ReasoningBlock
+
+    group = MessageGroup(
+        message_id="m1",
+        role="assistant",
+        segments=[Segment(kind="reasoning", text="thoughts")],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        block = app.query_one(_ReasoningBlock)
+        assert block.has_class("collapsed")
+        # Drive the click handler directly — the on_click method is
+        # what Textual calls when the user clicks anywhere on the
+        # widget; mirrors what a real mouse click would do.
+        block.on_click()
+        await pilot.pause()
+        assert not block.has_class("collapsed")
 
 
 @skip_if_trio
@@ -305,91 +662,79 @@ async def test_tool_call_terminal_content_renders_placeholder() -> None:
 
 
 # ---------------------------------------------------------------------------
-# StatusRowWidget
+# SessionHeaderWidget
 # ---------------------------------------------------------------------------
 
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_status_row_pill_changes_class_with_state() -> None:
-    state = SessionState()
-    app = _harness(StatusRowWidget)
+async def test_session_header_strips_first_path_segment_from_task() -> None:
+    """``inspect_harbor/terminal_bench_2_0`` → ``terminal_bench_2_0``.
+
+    The suite prefix is constant across rows and eats horizontal
+    space the header can't afford.
+    """
+    from pathlib import Path
+
+    from inspect_ai.agent._acp._discovery import TargetAddress
+    from inspect_ai.agent._acp._tui._client import SessionRow
+    from inspect_ai.agent._acp._tui._widgets._header import SessionHeaderWidget
+
+    row = SessionRow(
+        eval_id="e1",
+        session_id="sess-1",
+        task="inspect_harbor/terminal_bench_2_0",
+        sample_id="winning-avg-corewars",
+        epoch=1,
+        agent_name="react",
+        started_at=0.0,
+        target=TargetAddress(socket_path=Path("/tmp/test.sock")),
+    )
+    app = _harness(lambda: SessionHeaderWidget(row))
     async with app.run_test() as pilot:
         await pilot.pause()
-        row = app.query_one(StatusRowWidget)
-        pill = row.query_one("#pill", Static)
-        # Initial: sage (Awaiting input).
-        assert pill.has_class("sage")
-        # Force a tool to go in-flight → pill should become teal.
-        state._tool_calls_by_id["x"] = ToolCallState(
-            tool_call_id="x", status="in_progress"
-        )
-        state.items.append(state._tool_calls_by_id["x"])
-        row.refresh_from(state)
-        await pilot.pause()
-        assert pill.has_class("teal")
-        assert "Calling tools" in str(pill.content)
+        meta = _chip_plain(app.query_one("#meta-text", Static))
+        assert "task: terminal_bench_2_0" in meta
+        assert "inspect_harbor" not in meta
 
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_status_row_chips_render_model_tokens_and_tools() -> None:
-    state = SessionState()
-    state.current_model = "gpt-5"
-    # Inject usage + a tool in flight.
+async def test_session_header_tokens_chip_updates_via_set_usage() -> None:
+    """``set_usage`` re-renders the meta row with a tokens chip.
+
+    Uses dim labels + normal-weight values — same hierarchy as the
+    other meta fields. Tokens chip omits the denominator when context
+    size is unknown.
+    """
+    from pathlib import Path
+
+    from inspect_ai.agent._acp._discovery import TargetAddress
+    from inspect_ai.agent._acp._tui._client import SessionRow
     from inspect_ai.agent._acp._tui._state import UsageState
+    from inspect_ai.agent._acp._tui._widgets._header import SessionHeaderWidget
 
-    state.usage = UsageState(used=12_400, size=200_000)
-    state._tool_calls_by_id["x"] = ToolCallState(tool_call_id="x", status="in_progress")
-    state.items.append(state._tool_calls_by_id["x"])
-
-    app = _harness(StatusRowWidget)
+    row = SessionRow(
+        eval_id="e1",
+        session_id="sess-1",
+        task="suite/task",
+        sample_id="s1",
+        epoch=1,
+        agent_name="react",
+        started_at=0.0,
+        target=TargetAddress(socket_path=Path("/tmp/test.sock")),
+    )
+    app = _harness(lambda: SessionHeaderWidget(row))
     async with app.run_test() as pilot:
         await pilot.pause()
-        row = app.query_one(StatusRowWidget)
-        row.refresh_from(state)
+        header = app.query_one(SessionHeaderWidget)
+        assert "tokens" not in _chip_plain(header.query_one("#meta-text", Static))
+        header.set_usage(UsageState(used=12_400, size=200_000))
         await pilot.pause()
-        chips = {c.id: str(c.content) for c in row.query(".chip")}
-        assert "model gpt-5" in chips["chip-model"]
-        # 12_400 → "12K" via _format_tokens (>= 10, drops decimal).
-        assert "tokens 12K / 200K" in chips["chip-tokens"]
-        assert "1 tool in flight" in chips["chip-tools"]
-
-
-@skip_if_trio
-@pytest.mark.anyio
-async def test_status_row_tools_chip_pluralizes() -> None:
-    state = SessionState()
-    for i in range(3):
-        tid = f"t{i}"
-        state._tool_calls_by_id[tid] = ToolCallState(
-            tool_call_id=tid, status="in_progress"
-        )
-        state.items.append(state._tool_calls_by_id[tid])
-    app = _harness(StatusRowWidget)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        row = app.query_one(StatusRowWidget)
-        row.refresh_from(state)
-        await pilot.pause()
-        assert "3 tools in flight" in str(row.query_one("#chip-tools", Static).content)
-
-
-@skip_if_trio
-@pytest.mark.anyio
-async def test_status_row_tokens_chip_omits_denominator_when_size_unknown() -> None:
-    state = SessionState()
-    from inspect_ai.agent._acp._tui._state import UsageState
-
-    state.usage = UsageState(used=900, size=0)
-    app = _harness(StatusRowWidget)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        row = app.query_one(StatusRowWidget)
-        row.refresh_from(state)
-        await pilot.pause()
-        text = str(row.query_one("#chip-tokens", Static).content)
-        assert text == "tokens 900"
+        meta = _chip_plain(header.query_one("#meta-text", Static))
+        # Used-only — context window denominator dropped.
+        assert "tokens 12K" in meta
+        assert "/" not in meta.split("tokens", 1)[1]
 
 
 # ---------------------------------------------------------------------------
@@ -448,7 +793,196 @@ async def test_transcript_updates_tool_in_place_without_remount() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_transcript_remounts_message_when_segments_extend() -> None:
+async def test_tool_call_appended_content_preserves_existing_widget() -> None:
+    """Appending a content item must not tear down already-mounted items.
+
+    The previous wholesale-rebuild path made every existing content
+    block flash whenever a new block arrived. The append-only path
+    keeps the first widget's identity stable; only the new block is
+    mounted.
+    """
+    tool = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash ls",
+        status="in_progress",
+        content=[_FakeContentBlock("first")],
+    )
+
+    app = _harness(lambda: ToolCallWidget(tool))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        widget = app.query_one(ToolCallWidget)
+        body = widget.query_one(".body")
+        original_wrappers = list(body.query(".content-item"))
+        assert len(original_wrappers) == 1
+        first_wrapper = original_wrappers[0]
+
+        # Append a second content item — should mount a new wrapper
+        # without disturbing the first one.
+        tool.content = [_FakeContentBlock("first"), _FakeContentBlock("second")]
+        widget.update_state(tool)
+        await pilot.pause()
+
+        wrappers = list(body.query(".content-item"))
+        assert len(wrappers) == 2
+        assert wrappers[0] is first_wrapper, (
+            "first content wrapper was remounted (would flash on every chunk)"
+        )
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_same_length_content_replacement_repaints() -> None:
+    """ACP progress content has REPLACE semantics — same-length swaps repaint.
+
+    Regression for P2 from review: the previous length-only
+    fingerprint missed ``"abc" → "xyz"`` style replacements, so the
+    body kept the stale text. The hash-based fingerprint now picks
+    up content changes regardless of length.
+    """
+    tool = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash ls",
+        status="in_progress",
+        content=[_FakeContentBlock("abc")],
+    )
+
+    app = _harness(lambda: ToolCallWidget(tool))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        widget = app.query_one(ToolCallWidget)
+        from inspect_ai.agent._acp._tui._widgets._tool_call import (
+            _CollapsibleContent,
+        )
+
+        cc_before = widget.query_one(_CollapsibleContent)
+        assert cc_before._full_text == "abc"
+
+        # Same-length replace — must trigger a repaint.
+        tool.content = [_FakeContentBlock("xyz")]
+        widget.update_state(tool)
+        await pilot.pause()
+
+        cc_after = widget.query_one(_CollapsibleContent)
+        # Widget identity preserved (in-place update path), but text
+        # actually swapped.
+        assert cc_after is cc_before
+        assert cc_after._full_text == "xyz"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_transcript_auto_scrolls_when_tool_output_grows_at_same_status() -> None:
+    """Streaming tool output should follow live-tail at unchanged status.
+
+    Regression for P3 from review: the transcript's fingerprint was
+    just ``item.status``, so growing content with unchanged status
+    didn't flip ``content_changed`` and the auto-scroll never fired.
+    This drives TranscriptWidget.refresh_from() end-to-end with a
+    ``scroll_end`` spy so the actual scroll-on-grow path is pinned,
+    not just the fingerprint helper.
+    """
+    tool = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash long",
+        status="in_progress",
+        content=[_FakeContentBlock("first chunk")],
+    )
+    state = SessionState()
+    state._tool_calls_by_id["tc-1"] = tool
+    state.items.append(tool)
+
+    app = _harness(TranscriptWidget)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        tr = app.query_one(TranscriptWidget)
+        # Initial mount of the tool card — auto-scroll legitimately
+        # fires here too because the widget appears for the first
+        # time. Reset the spy AFTER the initial paint settles so the
+        # assertion below only counts the scroll triggered by the
+        # content-growth refresh.
+        tr.refresh_from(state)
+        await pilot.pause()
+
+        scroll_calls: list[None] = []
+        original_scroll_end = tr.scroll_end
+
+        def _spy(*args: object, **kwargs: object) -> object:
+            scroll_calls.append(None)
+            return original_scroll_end(*args, **kwargs)
+
+        tr.scroll_end = _spy
+
+        # Grow the content — status stays ``in_progress``. With the
+        # length-only fingerprint this used to be invisible to the
+        # transcript and ``content_changed`` stayed False; the
+        # comprehensive fingerprint should detect the change and the
+        # auto-scroll path should run.
+        tool.content = [_FakeContentBlock("first chunk\nsecond chunk\nthird chunk")]
+        tr.refresh_from(state)
+        # ``call_after_refresh`` schedules the scroll for after the
+        # next refresh cycle — pause twice to let it fire.
+        await pilot.pause()
+        await pilot.pause()
+
+        assert scroll_calls, (
+            "TranscriptWidget.scroll_end was not invoked after the tool's "
+            "content grew — auto-scroll regressed and live-tail tool output "
+            "would silently stop following the bottom of the transcript"
+        )
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_skips_body_rebuild_when_state_unchanged() -> None:
+    """A no-op refresh must not touch the body at all.
+
+    Notifications fire often (pending signals, sibling-message chunks);
+    if the tool's state hasn't actually changed, update_state should
+    leave the mounted body widgets untouched. Pins that the
+    fingerprint-gate in ToolCallWidget keeps a no-op cheap.
+    """
+    from inspect_ai.agent._acp._tui._widgets._tool_call import _CollapsibleContent
+
+    tool = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash ls",
+        status="in_progress",
+        content=[_FakeContentBlock("hello")],
+    )
+
+    app = _harness(lambda: ToolCallWidget(tool))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        widget = app.query_one(ToolCallWidget)
+        body = widget.query_one(".body")
+        original_wrappers = list(body.query(".content-item"))
+        assert len(original_wrappers) == 1
+        original_wrapper = original_wrappers[0]
+        original_inner = list(original_wrapper.children)
+        # Capture the inner CollapsibleContent identity too — the
+        # check above only sees the wrapper layer.
+        assert isinstance(original_inner[0], _CollapsibleContent)
+
+        # Same state — should be a no-op for the body.
+        widget.update_state(tool)
+        await pilot.pause()
+
+        new_wrappers = list(body.query(".content-item"))
+        assert len(new_wrappers) == 1
+        assert new_wrappers[0] is original_wrapper
+        assert list(new_wrappers[0].children) == original_inner
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_transcript_updates_message_in_place_when_segments_extend() -> None:
+    """Streaming chunks must extend the existing MessageWidget in place.
+
+    Re-mounting would tear the bubble down and rebuild it on every
+    chunk, producing a visible flash. The widget identity must be
+    preserved across updates; only the inner segment content changes.
+    """
     state = SessionState()
     group = MessageGroup(
         message_id="m1",
@@ -467,13 +1001,19 @@ async def test_transcript_remounts_message_when_segments_extend() -> None:
         first_widget = tr.children[0]
 
         # Extend the group: a longer last-segment text triggers
-        # remount via the fingerprint check.
+        # in-place update (no remount).
         group.segments[-1].text = "hi there"
         tr.refresh_from(state)
         await pilot.pause()
-        new_widget = tr.children[0]
-        assert new_widget is not first_widget
-        body_text = " ".join(str(s.content) for s in new_widget.query(".segment-text"))
+        same_widget = tr.children[0]
+        assert same_widget is first_widget
+        from inspect_ai.agent._acp._tui._widgets._tool_call import (
+            _CollapsibleContent,
+        )
+
+        body_text = " ".join(
+            cc._full_text for cc in same_widget.query(_CollapsibleContent)
+        )
         assert "hi there" in body_text
 
 

@@ -53,6 +53,7 @@ from acp.schema import (
     TextContentBlock,
     ToolKind,
     UsageUpdate,
+    UserMessageChunk,
 )
 
 from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
@@ -66,6 +67,11 @@ from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import transcript
+from inspect_ai.model._chat_message import (
+    ChatMessageAssistant,
+    ChatMessageSystem,
+    ChatMessageUser,
+)
 from inspect_ai.model._model_info import get_model_info
 from inspect_ai.tool._tool_call import ToolCallContent
 from inspect_ai.util._span import AGENT_SPAN_TYPE
@@ -93,13 +99,31 @@ class _AcpEventRouter:
         # non-pending and is then re-touched by complete()). De-duping
         # by uuid keeps either flow at exactly one chunk emission.
         self._seen_model_event_ids: set[str] = set()
+        # ModelEvent uuids we've already emitted a pending signal for.
+        # Distinct from `_seen_model_event_ids` so the pending → completed
+        # transition can still publish real chunks for the same uuid.
+        self._seen_pending_event_ids: set[str] = set()
+        # ChatMessage ids (system + user) we've already emitted as a
+        # UserMessageChunk. On every ModelEvent we walk ``event.input``
+        # backwards to the previous assistant turn and publish the
+        # messages in between — but the same user prompt sticks
+        # around in every subsequent call's input, so per-id dedup is
+        # what keeps it from being emitted twice.
+        self._seen_user_message_ids: set[str] = set()
         self._unsubscribe: Callable[[], None] | None = None
 
     def attach(self) -> None:
         """Subscribe to the active transcript. Idempotent (re-attach is a no-op)."""
         if self._unsubscribe is not None:
             return
-        self._unsubscribe = transcript()._add_subscriber(self._process)
+        tr = transcript()
+        # Record the transcript size NOW so late-attach replay can skip
+        # pre-acp_session events (sample init, eval framework's outer
+        # AGENT_SPAN begin). The live router doesn't observe those —
+        # replay needs to mirror that view or the depth filter wipes
+        # out every in-scope event downstream.
+        self._session._router_attach_index = len(tr.events)
+        self._unsubscribe = tr._add_subscriber(self._process)
 
     def detach(self) -> None:
         """Unsubscribe from the transcript. Idempotent."""
@@ -128,6 +152,8 @@ class _AcpEventRouter:
             self._session.session_id,
             self._seen_tool_call_ids,
             self._seen_model_event_ids,
+            self._seen_pending_event_ids,
+            self._seen_user_message_ids,
         ):
             self._session.publish(notification)
 
@@ -154,6 +180,8 @@ def replay_transcript(
     boundary_span_ids: set[str] = set()
     seen_tool_call_ids: set[str] = set()
     seen_model_event_ids: set[str] = set()
+    seen_pending_event_ids: set[str] = set()
+    seen_user_message_ids: set[str] = set()
 
     for event in events:
         if isinstance(event, SpanBeginEvent) and event.type == AGENT_SPAN_TYPE:
@@ -169,7 +197,12 @@ def replay_transcript(
             continue
 
         yield from _map_event(
-            event, session_id, seen_tool_call_ids, seen_model_event_ids
+            event,
+            session_id,
+            seen_tool_call_ids,
+            seen_model_event_ids,
+            seen_pending_event_ids,
+            seen_user_message_ids,
         )
 
 
@@ -178,6 +211,8 @@ def _map_event(
     session_id: str,
     seen_tool_call_ids: set[str],
     seen_model_event_ids: set[str],
+    seen_pending_event_ids: set[str],
+    seen_user_message_ids: set[str],
 ) -> Iterator[SessionNotification]:
     """Map a single event to zero-or-more session notifications.
 
@@ -185,27 +220,184 @@ def _map_event(
     session) and the replay helper (which uses one-shot local sets).
     """
     if isinstance(event, ModelEvent):
-        yield from _map_model_event(event, session_id, seen_model_event_ids)
+        yield from _map_model_event(
+            event,
+            session_id,
+            seen_model_event_ids,
+            seen_pending_event_ids,
+            seen_user_message_ids,
+        )
     elif isinstance(event, ToolEvent):
         yield from _map_tool_event(event, session_id, seen_tool_call_ids)
+
+
+def _map_input_messages(
+    event: ModelEvent,
+    session_id: str,
+    seen_user_message_ids: set[str],
+) -> Iterator[SessionNotification]:
+    """Emit system / user messages new since the previous turn.
+
+    Walks ``event.input`` (the messages sent TO the model) backwards
+    looking for the most recent assistant message; everything AFTER
+    that point is "what arrived this turn." For the first model call
+    there's no prior assistant, so we emit the whole input prefix
+    (system prompt + initial user prompt). Per-id dedup means the
+    same prompt sitting in every subsequent call's input only
+    publishes once.
+
+    Tool messages are skipped here — they ride on the corresponding
+    ``ToolEvent`` notifications instead. Assistant messages are
+    skipped too: they're the BOUNDARY we walk back to, not content
+    we re-emit.
+
+    Source attribution rides on ``_meta``:
+      - ``inspect.user_source``: the ``ChatMessageUser.source`` value
+        (``input`` / ``operator`` / ``generate`` / None). Drives the
+        chip label so the operator can tell "I typed this" apart from
+        "the dataset said this."
+      - ``inspect.message_role``: ``"system"`` for system messages so
+        the client can label them distinctly without inventing a new
+        ACP role.
+    """
+    messages = event.input
+    if not messages:
+        return
+    # Find the index of the most recent assistant — everything after
+    # it is new this turn.
+    cut = -1
+    for i in range(len(messages) - 1, -1, -1):
+        if isinstance(messages[i], ChatMessageAssistant):
+            cut = i
+            break
+    for msg in messages[cut + 1 :]:
+        if not isinstance(msg, (ChatMessageUser, ChatMessageSystem)):
+            continue
+        msg_id = msg.id
+        if msg_id is None or msg_id in seen_user_message_ids:
+            continue
+        text = _user_message_text(msg)
+        if not text:
+            continue
+        seen_user_message_ids.add(msg_id)
+        chunk_meta: dict[str, Any] = {"inspect.message_id": msg_id}
+        if isinstance(msg, ChatMessageSystem):
+            chunk_meta["inspect.message_role"] = "system"
+        else:
+            # Carry source even when None so the client can
+            # distinguish "explicitly no source" from "key missing
+            # because we forgot." Pydantic treats None values as
+            # JSON ``null`` — preserved across the wire.
+            chunk_meta["inspect.user_source"] = msg.source
+        yield session_notification(
+            session_id,
+            UserMessageChunk(
+                session_update="user_message_chunk",
+                content=text_block(text),
+                message_id=_model_event_message_id(msg_id),
+                field_meta=chunk_meta,
+            ),
+        )
+
+
+def _user_message_text(msg: ChatMessageUser | ChatMessageSystem) -> str:
+    """Extract display text from a user / system message.
+
+    Multi-part content (text + images) currently renders text only —
+    image-in-user-message is rare in Inspect today; full image
+    support is a Phase 6+ concern alongside the message widget's
+    image content-block handling.
+    """
+    content = msg.content
+    if isinstance(content, str):
+        return content
+    parts: list[str] = []
+    for block in content:
+        if isinstance(block, ContentText) and block.text:
+            parts.append(block.text)
+    return "\n".join(parts)
 
 
 def _map_model_event(
     event: ModelEvent,
     session_id: str,
     seen_model_event_ids: set[str],
+    seen_pending_event_ids: set[str],
+    seen_user_message_ids: set[str],
 ) -> Iterator[SessionNotification]:
-    # Drop pending/empty events — we emit one chunk per completed
-    # text/reasoning block, so there's nothing to publish until the
-    # model returns. The pending → completed transition triggers a
-    # second _process call via _event_updated.
-    if event.pending or event.output.empty:
+    # Emit any system / user messages that landed since the previous
+    # turn BEFORE the assistant chunks. Both pending and completed
+    # phases run this; per-id dedup keeps the second a no-op. Doing
+    # it on pending too means the user prompt appears immediately
+    # when generation starts rather than waiting through the full
+    # round-trip.
+    yield from _map_input_messages(event, session_id, seen_user_message_ids)
+    # Pending phase: emit a lightweight "generation started" signal so
+    # the client can flip its status row to "generating" the moment the
+    # model call begins, instead of waiting through the entire round
+    # trip to publish anything. The signal is an empty AgentMessageChunk
+    # carrying the message_id + inspect.model meta — enough for the
+    # client to register an in-progress assistant message and start its
+    # quiescence timer. No content is sent (the model hasn't returned),
+    # so the displayed bubble is just the model chip until the completed
+    # phase fills in the actual text. Deduped separately from completed
+    # events so the same uuid can fire both phases.
+    if event.pending:
+        pending_uuid = event.uuid
+        if pending_uuid is None or pending_uuid in seen_pending_event_ids:
+            return
+        seen_pending_event_ids.add(pending_uuid)
+        pending_message_id = _model_event_message_id(pending_uuid)
+        pending_meta: dict[str, Any] = {
+            "inspect.model": event.model,
+            "inspect.model_event_uuid": pending_uuid,
+            # Explicit marker so the client distinguishes this from any
+            # other empty content chunk (e.g. the completion marker
+            # emitted on the complete phase when no content arrives).
+            "inspect.model_event_pending": True,
+        }
+        yield session_notification(
+            session_id,
+            AgentMessageChunk(
+                session_update="agent_message_chunk",
+                content=text_block(""),
+                message_id=pending_message_id,
+                field_meta=pending_meta,
+            ),
+        )
+        return
+    uuid = event.uuid
+    # "Did we tell the client a pending phase was open?" — drives
+    # whether we owe a completion marker on the empty / no-content
+    # exit paths. Without this, an error/cancel/empty-output
+    # completion would leave the spinner stuck forever.
+    pending_was_open = uuid is not None and uuid in seen_pending_event_ids
+    # Drop empty completed events — no content to render. BUT if a
+    # pending marker went out for this uuid, fire a completion marker
+    # before returning so the client clears its spinner. Dedup via
+    # ``seen_model_event_ids`` so repeated empty deliveries don't
+    # double-emit.
+    if event.output.empty:
+        if pending_was_open and uuid is not None and uuid not in seen_model_event_ids:
+            seen_model_event_ids.add(uuid)
+            yield session_notification(
+                session_id,
+                AgentMessageChunk(
+                    session_update="agent_message_chunk",
+                    content=text_block(""),
+                    message_id=_model_event_message_id(uuid),
+                    field_meta={
+                        "inspect.model": event.model,
+                        "inspect.model_event_uuid": uuid,
+                        "inspect.model_event_complete": True,
+                    },
+                ),
+            )
         return
     # De-dup by uuid: complete() calls _event_updated on the same
     # event after its initial _event, and cache hits emit a non-pending
     # event then call complete() on the same instance — both paths
     # would otherwise double-publish the same chunks.
-    uuid = event.uuid
     if uuid is not None:
         if uuid in seen_model_event_ids:
             return
@@ -229,6 +421,7 @@ def _map_model_event(
     if uuid is not None:
         chunk_meta["inspect.model_event_uuid"] = uuid
     message = event.output.message
+    emitted_content = False
     if not isinstance(message.content, list):
         if message.text:
             yield session_notification(
@@ -240,6 +433,7 @@ def _map_model_event(
                     field_meta=chunk_meta,
                 ),
             )
+            emitted_content = True
     else:
         for block in message.content:
             if isinstance(block, ContentText) and block.text:
@@ -252,6 +446,7 @@ def _map_model_event(
                         field_meta=chunk_meta,
                     ),
                 )
+                emitted_content = True
             elif isinstance(block, ContentReasoning):
                 # For redacted reasoning, `block.reasoning` may carry the
                 # provider's encrypted/redacted payload — only `summary`
@@ -260,15 +455,50 @@ def _map_model_event(
                 reasoning_text = (
                     (block.summary or "") if block.redacted else block.reasoning
                 )
-                yield session_notification(
-                    session_id,
-                    AgentThoughtChunk(
-                        session_update="agent_thought_chunk",
-                        content=text_block(reasoning_text),
-                        message_id=chunk_message_id,
-                        field_meta=chunk_meta,
-                    ),
-                )
+                # Skip empty reasoning entirely — emitting an empty
+                # chunk + flagging ``emitted_content=True`` would
+                # suppress the completion marker AND leave the
+                # client's pending spinner stuck (the TUI only
+                # clears pending on non-empty content or an explicit
+                # completion marker). Empty reasoning happens for
+                # redacted blocks with no summary and for some
+                # providers' zero-thinking-token responses.
+                if reasoning_text:
+                    yield session_notification(
+                        session_id,
+                        AgentThoughtChunk(
+                            session_update="agent_thought_chunk",
+                            content=text_block(reasoning_text),
+                            message_id=chunk_message_id,
+                            field_meta=chunk_meta,
+                        ),
+                    )
+                    emitted_content = True
+    # Generation-complete marker for tool-only responses + the
+    # no-content / empty-reasoning paths. The pending phase emits an
+    # empty chunk so the client can flip its status row to
+    # "generating" immediately; without something matching it on the
+    # complete phase, the client's spinner stays stuck. When real
+    # content WAS emitted the client clears its pending marker off
+    # the first non-empty chunk, so we skip the marker there to keep
+    # the wire quiet. Gated on ``pending_was_open`` so cache-hit
+    # paths (no pending → no spinner to clear) don't manufacture an
+    # empty assistant bubble.
+    if not emitted_content and pending_was_open and uuid is not None:
+        completion_meta: dict[str, Any] = {
+            "inspect.model": event.model,
+            "inspect.model_event_uuid": uuid,
+            "inspect.model_event_complete": True,
+        }
+        yield session_notification(
+            session_id,
+            AgentMessageChunk(
+                session_update="agent_message_chunk",
+                content=text_block(""),
+                message_id=chunk_message_id,
+                field_meta=completion_meta,
+            ),
+        )
     # Emit UsageUpdate for every non-empty model event with known usage
     # and a known context window. ACP semantics: "Tokens currently in
     # context" / "Total context window size". We do NOT gate this on
@@ -570,7 +800,14 @@ def _text_block(text: str, *, fence: bool = False) -> ContentToolCallContent:
     if len(text) > _RESULT_CONTENT_MAX_BYTES:
         text = text[:_RESULT_CONTENT_MAX_BYTES] + "\n…[truncated]"
     if fence:
-        text = f"```\n{text}\n```"
+        # Strip surrounding whitespace BEFORE fencing — trailing
+        # newlines on shell stdout are nearly universal, and leading
+        # blank lines occasionally appear too. Inside a code fence
+        # those translate directly into blank rows in the rendered
+        # output, padding the card with empty space the operator
+        # didn't ask for. Stripping here keeps the visible block tight
+        # to its actual content.
+        text = f"```\n{text.strip()}\n```"
     return ContentToolCallContent(
         type="content",
         content=TextContentBlock(type="text", text=text),

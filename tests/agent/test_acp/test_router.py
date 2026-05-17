@@ -321,8 +321,19 @@ def test_redacted_reasoning_uses_summary_not_raw_payload() -> None:
         _transcript.reset(token)
 
 
-def test_redacted_reasoning_without_summary_emits_empty_text() -> None:
-    """If a redacted block has no summary, the chunk text is empty (not the raw payload)."""
+def test_redacted_reasoning_without_summary_emits_no_chunk() -> None:
+    """Redacted reasoning with no summary emits NOTHING — never the raw payload.
+
+    Two invariants combined here:
+
+    - The raw ``reasoning`` field on a redacted block may carry the
+      provider's encrypted payload; we must never forward it.
+    - Empty reasoning text would previously emit an empty
+      ``AgentThoughtChunk`` AND flag ``emitted_content=True``, which
+      suppressed the completion marker downstream and left the
+      client's pending spinner stuck. The router now skips emission
+      entirely so the completion path can fire its marker.
+    """
     tr = Transcript()
     token = _transcript.set(tr)
     try:
@@ -332,10 +343,11 @@ def test_redacted_reasoning_without_summary_emits_empty_text() -> None:
             reasoning="SECRET-PAYLOAD", summary=None, redacted=True
         )
         tr._event(_model_event(blocks=[block]))
-        assert len(published) == 1
-        update = published[0].update
-        assert isinstance(update, AgentThoughtChunk)
-        assert _chunk_text(update) == ""
+        # No thought chunk, and (since no pending was fired) no
+        # completion marker either — both belt + suspenders that the
+        # secret payload never leaks.
+        thoughts = [n for n in published if isinstance(n.update, AgentThoughtChunk)]
+        assert thoughts == []
     finally:
         _transcript.reset(token)
 
@@ -359,14 +371,94 @@ def test_model_event_mixed_text_and_reasoning_emit_in_order() -> None:
         _transcript.reset(token)
 
 
-def test_pending_model_event_emits_nothing() -> None:
+def test_pending_model_event_emits_empty_chunk_signal() -> None:
+    """Pending model events publish an empty chunk signal.
+
+    Lets the client flip its status row to ``generating`` the moment
+    generation starts, instead of waiting for the round trip to
+    complete. Carries the ``inspect.model_event_pending`` meta flag so
+    the client can distinguish it from other empty chunks.
+    """
     tr = Transcript()
     token = _transcript.set(tr)
     try:
         session = _new_session()
         _, published = _attach_router(session)
         tr._event(_model_event(text="not yet", pending=True))
-        assert published == []
+        assert len(published) == 1
+        update = published[0].update
+        assert isinstance(update, AgentMessageChunk)
+        assert update.content.text == ""
+        assert update.message_id is not None
+        meta = update.field_meta or {}
+        assert meta.get("inspect.model")
+        assert meta.get("inspect.model_event_pending") is True
+    finally:
+        _transcript.reset(token)
+
+
+def test_pending_then_completed_emits_pending_signal_and_real_chunk() -> None:
+    """Pending → completed: empty pending signal first, then real chunk.
+
+    Both publish for the same uuid because dedup tracks the two
+    phases independently. No completion marker is emitted when real
+    content arrives — the client clears its pending tracker on the
+    first content chunk.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        evt = _model_event(text="hello world", pending=True)
+        tr._event(evt)
+        evt.pending = None
+        tr._event_updated(evt)
+        agent_chunks = [
+            u for u in (n.update for n in published) if isinstance(u, AgentMessageChunk)
+        ]
+        assert len(agent_chunks) == 2
+        first, second = agent_chunks
+        assert first.content.text == ""
+        assert (first.field_meta or {}).get("inspect.model_event_pending") is True
+        assert second.content.text == "hello world"
+        assert second.message_id == first.message_id
+        # No completion marker — real content closes the pending window.
+        assert (second.field_meta or {}).get("inspect.model_event_complete") is None
+    finally:
+        _transcript.reset(token)
+
+
+def test_pending_then_tool_only_completion_emits_completion_marker() -> None:
+    """Tool-only response: pending signal followed by completion marker.
+
+    When the complete phase emits no content chunks (the model's
+    response was pure tool calls), the router emits an explicit
+    ``inspect.model_event_complete`` marker so the client can clear
+    its pending tracker. Without the marker the status row would stay
+    stuck at "generating" until the next chunk arrived.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        _, published = _attach_router(session)
+        # Empty blocks list simulates a tool-only response (no text,
+        # no reasoning) — output is not empty (so we don't short-
+        # circuit) but no content chunks will be emitted.
+        evt = _model_event(blocks=[ContentText(text="")], pending=True)
+        tr._event(evt)
+        evt.pending = None
+        tr._event_updated(evt)
+        agent_chunks = [
+            u for u in (n.update for n in published) if isinstance(u, AgentMessageChunk)
+        ]
+        assert len(agent_chunks) == 2
+        first, second = agent_chunks
+        assert (first.field_meta or {}).get("inspect.model_event_pending") is True
+        assert second.content.text == ""
+        assert (second.field_meta or {}).get("inspect.model_event_complete") is True
+        assert second.message_id == first.message_id
     finally:
         _transcript.reset(token)
 
@@ -1443,11 +1535,14 @@ def test_model_event_emits_chunks_exactly_once_for_cache_hit_pattern() -> None:
 def test_model_event_emits_chunks_exactly_once_for_pending_then_complete_pattern() -> (
     None
 ):
-    """Pending → complete: chunk emits once on the completion update.
+    """Pending → complete: one empty pending signal, then one real chunk.
 
     The normal generate flow: event is created with pending=True (empty
-    output), then `complete()` fills output and clears pending. Chunks
-    should appear once, on the second sighting.
+    output), then `complete()` fills output and clears pending. The
+    router emits an empty AgentMessageChunk during pending so the client
+    can flip its status row immediately, then the real text chunk fires
+    on the completion update. Dedup must keep this at exactly two chunks
+    (one pending signal + one real) even across multiple update events.
     """
     tr = Transcript()
     token = _transcript.set(tr)
@@ -1456,16 +1551,26 @@ def test_model_event_emits_chunks_exactly_once_for_pending_then_complete_pattern
         _, published = _attach_router(session)
         event = _model_event(text="real answer", pending=True)
         tr._event(event)
-        # No chunks during pending.
-        assert [n for n in published if isinstance(n.update, AgentMessageChunk)] == []
+        # One empty pending signal during pending phase.
+        pending_chunks = [
+            n for n in published if isinstance(n.update, AgentMessageChunk)
+        ]
+        assert len(pending_chunks) == 1
+        first = pending_chunks[0].update
+        assert isinstance(first, AgentMessageChunk)
+        assert _chunk_text(first) == ""
         # Simulate complete(): clear pending, output already populated.
         event.pending = None
         tr._event_updated(event)
         chunks = [n for n in published if isinstance(n.update, AgentMessageChunk)]
-        assert len(chunks) == 1
-        update = chunks[0].update
-        assert isinstance(update, AgentMessageChunk)
-        assert _chunk_text(update) == "real answer"
+        # One pending signal + one real chunk = two total.
+        assert len(chunks) == 2
+        second = chunks[1].update
+        assert isinstance(second, AgentMessageChunk)
+        assert _chunk_text(second) == "real answer"
+        # Both share the same message_id so the client groups them
+        # into one assistant bubble.
+        assert first.message_id == second.message_id
     finally:
         _transcript.reset(token)
 

@@ -247,6 +247,32 @@ def test_adjacent_same_kind_chunks_extend_last_segment() -> None:
     assert group.segments == [Segment(kind="text", text="hello world")]
 
 
+def test_picker_meta_chunks_are_suppressed() -> None:
+    """Bind / picker confirmation notifications restate the meta row — drop them.
+
+    The server sends a ``SessionNotification`` whose OUTER field_meta
+    carries the picker meta key on bind ("Bound to <task> / sample
+    <s>"). Our TUI already shows that data in the meta row, so the
+    duplicate would push real content down with no value. Other ACP
+    clients still receive the text; we just hide it locally.
+    """
+    state = SessionState()
+    chunk = AgentMessageChunk(
+        session_update="agent_message_chunk",
+        content=TextContentBlock(
+            type="text", text="Bound to my_task / sample s1 / epoch 0 [uuid-a]."
+        ),
+    )
+    notif = SessionNotification(session_id="sid", update=chunk)
+    notif.field_meta = {
+        "inspect.picker.targets": [
+            {"sessionId": "uuid-a", "task": "my_task", "sampleId": "s1", "epoch": 0}
+        ]
+    }
+    state.consume(notif)
+    assert state.items == []
+
+
 def test_image_content_block_renders_as_placeholder() -> None:
     state = SessionState()
     chunk = AgentMessageChunk(
@@ -488,6 +514,150 @@ def test_failed_tool_does_not_stay_in_flight() -> None:
     assert state.tools_in_flight == 0
 
 
+def _pending_signal(message_id: str = "mid-1") -> SessionNotification:
+    """An empty AgentMessageChunk carrying the pending-event meta flag."""
+    chunk = AgentMessageChunk(
+        session_update="agent_message_chunk",
+        content=TextContentBlock(type="text", text=""),
+        message_id=message_id,
+        field_meta={
+            "inspect.model": "phase2/model",
+            "inspect.model_event_pending": True,
+        },
+    )
+    return SessionNotification(session_id="sid", update=chunk)
+
+
+def _completion_marker(message_id: str = "mid-1") -> SessionNotification:
+    """An empty AgentMessageChunk carrying the completion meta flag."""
+    chunk = AgentMessageChunk(
+        session_update="agent_message_chunk",
+        content=TextContentBlock(type="text", text=""),
+        message_id=message_id,
+        field_meta={
+            "inspect.model": "phase2/model",
+            "inspect.model_event_complete": True,
+        },
+    )
+    return SessionNotification(session_id="sid", update=chunk)
+
+
+def test_pending_signal_holds_status_at_generating_past_quiescence() -> None:
+    """Pending tracker holds GENERATING across the full model latency.
+
+    Otherwise the status row would fall back to AWAITING after the 2s
+    quiescence window even though the model is still generating.
+    """
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_pending_signal())
+    # Advance way past the quiescence window — would normally fall back
+    # to AWAITING_INPUT but the pending marker holds us at GENERATING.
+    clock.advance(30.0)
+    assert state.status == StatusState.GENERATING
+
+
+def test_pending_signal_cleared_by_real_content_chunk() -> None:
+    """First real content chunk closes the pending tracker.
+
+    Quiescence then takes over for the inter-chunk gap.
+    """
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_pending_signal("m1"))
+    assert state.status == StatusState.GENERATING
+    state.consume(_agent_chunk("hello", message_id="m1"))
+    # Still generating right after content (within quiescence).
+    assert state.status == StatusState.GENERATING
+    # After quiescence, no more pending, no recent chunks → awaiting.
+    # Bind via a fresh local so mypy doesn't carry the GENERATING
+    # narrowing from the earlier assert into this comparison.
+    clock.advance(3.0)
+    later: StatusState = state.status
+    assert later == StatusState.AWAITING_INPUT
+
+
+def test_pending_signal_cleared_by_completion_marker() -> None:
+    """Tool-only response: completion marker closes the pending tracker."""
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_pending_signal("m1"))
+    assert state.status == StatusState.GENERATING
+    state.consume(_completion_marker("m1"))
+    # No content, no in-flight tools — past quiescence we're back to awaiting.
+    clock.advance(3.0)
+    later: StatusState = state.status
+    assert later == StatusState.AWAITING_INPUT
+
+
+def test_consecutive_empty_pending_signals_collapse_as_retry() -> None:
+    """Stacked empty assistant bubbles for retries fold into one group.
+
+    The first pending → no content → second pending (different
+    message_id) lands. The state recognises the previous item as an
+    empty assistant group for the same model and bumps the retry
+    counter instead of stacking another empty bubble.
+    """
+    state = SessionState()
+    state.consume(_pending_signal("m1"))
+    state.consume(_pending_signal("m2"))
+    state.consume(_pending_signal("m3"))
+    # All three pending signals collapsed into ONE bubble.
+    assert len(state.items) == 1
+    group = state.items[0]
+    from inspect_ai.agent._acp._tui._state import MessageGroup
+
+    assert isinstance(group, MessageGroup)
+    # First attempt + 2 retries.
+    assert group.retries == 2
+    assert group.pending is True
+
+
+def test_retry_completion_marker_targets_collapsed_group() -> None:
+    """A retry's completion marker / late content flows into the alias target."""
+    state = SessionState()
+    state.consume(_pending_signal("m1"))
+    state.consume(_pending_signal("m2"))
+    # m2's completion marker should clear pending on the shared group.
+    state.consume(_completion_marker("m2"))
+    assert len(state.items) == 1
+    group = state.items[0]
+    from inspect_ai.agent._acp._tui._state import MessageGroup
+
+    assert isinstance(group, MessageGroup)
+    assert group.retries == 1
+    assert group.pending is False
+
+
+def test_content_chunk_after_pending_does_not_collapse_as_retry() -> None:
+    """An assistant with content followed by a new pending is a fresh turn."""
+    state = SessionState()
+    state.consume(_pending_signal("m1"))
+    state.consume(_agent_chunk("hello", message_id="m1"))
+    # m1 now has content — a subsequent pending is a NEW turn, not a retry.
+    state.consume(_pending_signal("m2"))
+    assert len(state.items) == 2
+
+
+def test_pending_signal_creates_visible_assistant_block() -> None:
+    """The empty pending chunk creates the MessageGroup eagerly.
+
+    Lets the chip render even before any content arrives so the user
+    sees an assistant block is in flight.
+    """
+    state = SessionState()
+    state.consume(_pending_signal("m1"))
+    assert len(state.items) == 1
+    item = state.items[0]
+    from inspect_ai.agent._acp._tui._state import MessageGroup
+
+    assert isinstance(item, MessageGroup)
+    assert item.role == "assistant"
+    assert item.model == "phase2/model"
+    # No segments yet — content fills in on the complete phase.
+    assert item.segments == []
+
+
 # ---------------------------------------------------------------------------
 # Subscribers
 # ---------------------------------------------------------------------------
@@ -555,3 +725,101 @@ def test_messages_and_tool_calls_preserve_arrival_order() -> None:
     # Order: assistant msg, tool call (single item), assistant msg.
     kinds = [type(item).__name__ for item in state.items]
     assert kinds == ["MessageGroup", "ToolCallState", "MessageGroup"]
+
+
+# ---------------------------------------------------------------------------
+# Windowing — state-side cap on retained assistant turns
+# ---------------------------------------------------------------------------
+
+
+def _assistant_count(state: SessionState) -> int:
+    return sum(
+        1
+        for item in state.items
+        if isinstance(item, MessageGroup) and item.role == "assistant"
+    )
+
+
+def test_turn_cap_drops_oldest_assistant_groups_past_limit() -> None:
+    """Once we exceed _MAX_ASSISTANT_TURNS the oldest exchanges evict.
+
+    Build 20 assistant groups (each with one tool call between for
+    realism); the kept window should be exactly the 15 most recent
+    assistants plus everything chronologically newer.
+    """
+    from inspect_ai.agent._acp._tui._state import _MAX_ASSISTANT_TURNS
+
+    state = SessionState()
+    state.consume(_user_chunk("kick off", message_id="mu-0"))
+    for n in range(20):
+        state.consume(_agent_chunk(f"step {n}", message_id=f"ma-{n}"))
+        state.consume(_tool_start(f"tc-{n}", title=f"bash step{n}"))
+        state.consume(_tool_progress(f"tc-{n}", status="completed"))
+    assert _assistant_count(state) == _MAX_ASSISTANT_TURNS
+    # Oldest assistant kept should be step 5 (since we dropped 0–4).
+    first_assistant = next(
+        item
+        for item in state.items
+        if isinstance(item, MessageGroup) and item.role == "assistant"
+    )
+    assert first_assistant.text == "step 5"
+    # The earliest assistant + its paired tool call were both evicted.
+    assert "ma-0" not in state._messages_by_id
+    assert "tc-0" not in state._tool_calls_by_id
+    # And kept ones remain reachable through the index.
+    assert "ma-5" in state._messages_by_id
+    assert "tc-5" in state._tool_calls_by_id
+
+
+def test_turn_cap_retains_user_prompt_preceding_oldest_kept_assistant() -> None:
+    """User prompt right before the oldest kept assistant is retained.
+
+    Keeps the window starting with a real user→assistant pair rather
+    than an orphan response.
+    """
+    from inspect_ai.agent._acp._tui._state import _MAX_ASSISTANT_TURNS
+
+    state = SessionState()
+    # Each turn starts with its own user message so the user prompts
+    # are interleaved, not all bunched at the top.
+    for n in range(_MAX_ASSISTANT_TURNS + 3):
+        state.consume(_user_chunk(f"prompt {n}", message_id=f"mu-{n}"))
+        state.consume(_agent_chunk(f"reply {n}", message_id=f"ma-{n}"))
+    # First item after the cap kicks in should be a USER group —
+    # specifically the prompt that triggered the oldest kept assistant.
+    first = state.items[0]
+    assert isinstance(first, MessageGroup) and first.role == "user"
+    # And its sibling assistant is right after it.
+    assert isinstance(state.items[1], MessageGroup)
+    assert state.items[1].role == "assistant"
+
+
+def test_turn_cap_strips_aliases_for_evicted_groups() -> None:
+    """Retry aliases pointing at evicted message_ids must be cleared.
+
+    Otherwise late chunks for those ids would silently route into
+    deleted state.
+    """
+    from inspect_ai.agent._acp._tui._state import _MAX_ASSISTANT_TURNS
+
+    state = SessionState()
+    # Seed an alias by simulating a retry on the first turn.
+    state._message_id_aliases["retry-of-ma-0"] = "ma-0"
+    for n in range(_MAX_ASSISTANT_TURNS + 1):
+        state.consume(_agent_chunk(f"step {n}", message_id=f"ma-{n}"))
+    # ma-0 was evicted; the alias should be gone too.
+    assert "ma-0" not in state._messages_by_id
+    assert "retry-of-ma-0" not in state._message_id_aliases
+
+
+def test_turn_cap_below_limit_is_a_noop() -> None:
+    """Under the cap, nothing is evicted — index identity preserved."""
+    from inspect_ai.agent._acp._tui._state import _MAX_ASSISTANT_TURNS
+
+    state = SessionState()
+    for n in range(_MAX_ASSISTANT_TURNS):
+        state.consume(_agent_chunk(f"step {n}", message_id=f"ma-{n}"))
+    assert _assistant_count(state) == _MAX_ASSISTANT_TURNS
+    # All groups still indexed.
+    for n in range(_MAX_ASSISTANT_TURNS):
+        assert f"ma-{n}" in state._messages_by_id
