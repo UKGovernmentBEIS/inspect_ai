@@ -26,7 +26,7 @@ import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
-from inspect_ai.agent._acp.picker import PICKER_META_KEY
+from inspect_ai.agent._acp.inspect_ext import PICKER_META_KEY
 from inspect_ai.agent._acp.server import acp_server
 
 # ---------------------------------------------------------------------------
@@ -442,8 +442,8 @@ async def test_inspect_list_sessions_accepts_null_params(
 
     The spec allows the ``params`` member to be omitted or ``null``
     for methods that take no parameters. ``model.model_validate(None)``
-    would otherwise fail for our empty :class:`_ListSessionsParams`
-    model — ``_wrap_action_handler`` coerces ``None`` → ``{}`` to
+    would otherwise fail for our empty :class:`ListSessionsParams`
+    model — ``wrap_action_handler`` coerces ``None`` → ``{}`` to
     make the no-params form work transparently. (We test with
     ``null`` rather than truly-omitted because the existing
     ``_RpcClient.request`` always emits the params field; both

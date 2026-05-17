@@ -40,7 +40,7 @@ from __future__ import annotations
 
 import uuid as _uuid_module
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal
+from typing import TYPE_CHECKING, Callable, Iterator, Literal
 
 from acp.helpers import (
     session_notification,
@@ -57,6 +57,12 @@ from acp.schema import (
 )
 
 from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai.agent._acp.inspect_ext import (
+    assistant_complete_chunk_meta,
+    assistant_content_chunk_meta,
+    assistant_pending_chunk_meta,
+    input_message_chunk_meta,
+)
 from inspect_ai.agent._acp.tool_content import (
     _content_for_start,
     _content_for_update,
@@ -284,14 +290,8 @@ def _map_input_messages(
     skipped too: they're the BOUNDARY we walk back to, not content
     we re-emit.
 
-    Source attribution rides on ``_meta``:
-      - ``inspect.user_source``: the ``ChatMessageUser.source`` value
-        (``input`` / ``operator`` / ``generate`` / None). Drives the
-        chip label so the operator can tell "I typed this" apart from
-        "the dataset said this."
-      - ``inspect.message_role``: ``"system"`` for system messages so
-        the client can label them distinctly without inventing a new
-        ACP role.
+    Source attribution rides on ``_meta`` — see
+    :func:`inspect_ext.input_message_chunk_meta` for the key set.
     """
     messages = event.input
     if not messages:
@@ -313,22 +313,13 @@ def _map_input_messages(
         if not text:
             continue
         seen_user_message_ids.add(msg_id)
-        chunk_meta: dict[str, Any] = {"inspect.message_id": msg_id}
-        if isinstance(msg, ChatMessageSystem):
-            chunk_meta["inspect.message_role"] = "system"
-        else:
-            # Carry source even when None so the client can
-            # distinguish "explicitly no source" from "key missing
-            # because we forgot." Pydantic treats None values as
-            # JSON ``null`` — preserved across the wire.
-            chunk_meta["inspect.user_source"] = msg.source
         yield session_notification(
             session_id,
             UserMessageChunk(
                 session_update="user_message_chunk",
                 content=text_block(text),
                 message_id=_model_event_message_id(msg_id),
-                field_meta=chunk_meta,
+                field_meta=input_message_chunk_meta(msg),
             ),
         )
 
@@ -381,21 +372,13 @@ def _map_model_event(
             return
         seen_pending_event_ids.add(pending_uuid)
         pending_message_id = _model_event_message_id(pending_uuid)
-        pending_meta: dict[str, Any] = {
-            "inspect.model": event.model,
-            "inspect.model_event_uuid": pending_uuid,
-            # Explicit marker so the client distinguishes this from any
-            # other empty content chunk (e.g. the completion marker
-            # emitted on the complete phase when no content arrives).
-            "inspect.model_event_pending": True,
-        }
         yield session_notification(
             session_id,
             AgentMessageChunk(
                 session_update="agent_message_chunk",
                 content=text_block(""),
                 message_id=pending_message_id,
-                field_meta=pending_meta,
+                field_meta=assistant_pending_chunk_meta(event, pending_uuid),
             ),
         )
         return
@@ -419,11 +402,7 @@ def _map_model_event(
                     session_update="agent_message_chunk",
                     content=text_block(""),
                     message_id=_model_event_message_id(uuid),
-                    field_meta={
-                        "inspect.model": event.model,
-                        "inspect.model_event_uuid": uuid,
-                        "inspect.model_event_complete": True,
-                    },
+                    field_meta=assistant_complete_chunk_meta(event, uuid),
                 ),
             )
         return
@@ -440,19 +419,9 @@ def _map_model_event(
     # a new message has started"). The ACP schema mandates UUID format,
     # so we derive a stable UUIDv5 from the Inspect ModelEvent uuid
     # (which is a shortuuid, not RFC 4122 canonical form). The original
-    # is preserved in _meta["inspect.model_event_uuid"] for clients that
-    # want to cross-reference back to the originating transcript event.
+    # uuid is preserved in _meta via ``assistant_content_chunk_meta``.
     chunk_message_id = _model_event_message_id(uuid) if uuid is not None else None
-    # _meta carries:
-    # - "inspect.model": model name for every chunk. Drives the client's
-    #   meta-row "model X" chip. Per-chunk (not session-static) so it's
-    #   correct for multi-model evals where the model switches mid-conv.
-    # - "inspect.model_event_uuid": the original Inspect shortuuid, so
-    #   the round-trip back to the transcript event is recoverable
-    #   (since UUIDv5 hashing is one-way).
-    chunk_meta: dict[str, Any] = {"inspect.model": event.model}
-    if uuid is not None:
-        chunk_meta["inspect.model_event_uuid"] = uuid
+    chunk_meta = assistant_content_chunk_meta(event, uuid)
     message = event.output.message
     emitted_content = False
     if not isinstance(message.content, list):
@@ -518,18 +487,13 @@ def _map_model_event(
     # paths (no pending → no spinner to clear) don't manufacture an
     # empty assistant bubble.
     if not emitted_content and pending_was_open and uuid is not None:
-        completion_meta: dict[str, Any] = {
-            "inspect.model": event.model,
-            "inspect.model_event_uuid": uuid,
-            "inspect.model_event_complete": True,
-        }
         yield session_notification(
             session_id,
             AgentMessageChunk(
                 session_update="agent_message_chunk",
                 content=text_block(""),
                 message_id=chunk_message_id,
-                field_meta=completion_meta,
+                field_meta=assistant_complete_chunk_meta(event, uuid),
             ),
         )
     # Emit UsageUpdate for every non-empty model event with known usage

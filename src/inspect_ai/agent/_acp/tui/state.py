@@ -44,6 +44,15 @@ from acp.schema import (
     UserMessageChunk,
 )
 
+from inspect_ai.agent._acp.inspect_ext import (
+    MESSAGE_ROLE_META_KEY,
+    MODEL_EVENT_COMPLETE_META_KEY,
+    MODEL_EVENT_PENDING_META_KEY,
+    MODEL_META_KEY,
+    PICKER_META_KEY,
+    USER_SOURCE_META_KEY,
+)
+
 # The Generating pill stays visible for this many seconds after the most
 # recent chunk before falling back to Awaiting input. Picked to feel
 # responsive (UI doesn't linger in a stale "thinking" state) without
@@ -304,7 +313,7 @@ class SessionState:
         # meta row already shows that info, so drop these locally
         # without touching state.
         outer_meta = getattr(notification, "field_meta", None) or {}
-        if "inspect.picker.targets" in outer_meta:
+        if PICKER_META_KEY in outer_meta:
             return
 
         update = notification.update
@@ -333,7 +342,7 @@ class SessionState:
             # that here so the chip can render the system label
             # without the rest of the consume path needing to care.
             meta = getattr(update, "field_meta", None) or {}
-            if meta.get("inspect.message_role") == "system":
+            if meta.get(MESSAGE_ROLE_META_KEY) == "system":
                 return "system"
             return "user"
         # AgentMessageChunk AND AgentThoughtChunk both belong to one
@@ -361,7 +370,7 @@ class SessionState:
 
         meta = getattr(update, "field_meta", None) or {}
         role = self._role_for(update)
-        is_pending_signal = bool(meta.get("inspect.model_event_pending"))
+        is_pending_signal = bool(meta.get(MODEL_EVENT_PENDING_META_KEY))
 
         # Resolve through any retry-collapse alias set by a prior call.
         # All subsequent chunks for an aliased id (the completion
@@ -375,7 +384,7 @@ class SessionState:
             # for the same model means the prior attempt errored and
             # the agent is retrying. Collapse into the existing group
             # rather than stacking another empty bubble.
-            model_hint = meta.get("inspect.model")
+            model_hint = meta.get(MODEL_META_KEY)
             if (
                 is_pending_signal
                 and role == "assistant"
@@ -430,7 +439,7 @@ class SessionState:
             # any retries.
             if group.pending_started_at is None:
                 group.pending_started_at = self._now()
-        if meta.get("inspect.model_event_complete"):
+        if meta.get(MODEL_EVENT_COMPLETE_META_KEY):
             self._pending_message_ids.discard(group.message_id)
             group.pending = False
 
@@ -455,7 +464,7 @@ class SessionState:
         # Track model from meta. For assistant/reasoning chunks the
         # router stamps the originating ModelEvent.model in
         # _meta["inspect.model"]; user chunks have no model attribution.
-        model = meta.get("inspect.model")
+        model = meta.get(MODEL_META_KEY)
         if isinstance(model, str) and model:
             group.model = model
             self.current_model = model
@@ -468,7 +477,7 @@ class SessionState:
         # chunks could in theory carry a different value, but the
         # server emits one chunk per user message).
         if role in ("user", "system") and group.user_source is None:
-            source = meta.get("inspect.user_source")
+            source = meta.get(USER_SOURCE_META_KEY)
             if isinstance(source, str) and source:
                 group.user_source = source
 

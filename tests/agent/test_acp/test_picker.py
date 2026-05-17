@@ -9,10 +9,12 @@ import pytest
 from acp.schema import AgentMessageChunk, SessionNotification, TextContentBlock
 
 from inspect_ai.agent._acp import picker
-from inspect_ai.agent._acp.picker import (
+from inspect_ai.agent._acp.inspect_ext import (
     PICKER_META_KEY,
-    PickerTarget,
     build_picker_notification,
+)
+from inspect_ai.agent._acp.picker import (
+    PickerTarget,
     list_picker_targets,
     resolve_selection,
 )

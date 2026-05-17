@@ -23,12 +23,9 @@ from acp.helpers import (
 )
 from acp.schema import AgentPlanUpdate
 
-from inspect_ai.agent._acp.connection import (
-    PLAN_RENDERING_META_KEY,
-    Bound,
-    ConnectionHandler,
-)
-from inspect_ai.agent._acp.session_router import PLAN_TOOL_NAMES, Forwarders
+from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+from inspect_ai.agent._acp.inspect_ext import PLAN_RENDERING_META_KEY, PLAN_TOOL_NAMES
+from inspect_ai.agent._acp.session_router import Forwarders
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -175,7 +172,7 @@ def test_build_plan_update_translates_update_plan() -> None:
             {"step": "Run tests", "status": "pending"},
         ]
     }
-    notif = f._build_plan_update("update_plan", raw_input)
+    notif = f._plan_policy._build_plan_update("update_plan", raw_input)
     assert notif is not None
     assert notif.session_id == "wire-session"
     assert isinstance(notif.update, AgentPlanUpdate)
@@ -197,7 +194,7 @@ def test_build_plan_update_translates_todo_write() -> None:
             {"content": "Write docs", "status": "pending"},
         ]
     }
-    notif = f._build_plan_update("todo_write", raw_input)
+    notif = f._plan_policy._build_plan_update("todo_write", raw_input)
     assert notif is not None
     assert isinstance(notif.update, AgentPlanUpdate)
     assert [e.content for e in notif.update.entries] == [
@@ -212,27 +209,31 @@ def test_build_plan_update_translates_todo_write() -> None:
 def test_build_plan_update_returns_none_for_unknown_title() -> None:
     """A title that isn't a plan tool returns None (caller passes through)."""
     f = _forwarders()
-    assert f._build_plan_update("some_other_tool", {"plan": []}) is None
+    assert f._plan_policy._build_plan_update("some_other_tool", {"plan": []}) is None
 
 
 def test_build_plan_update_returns_none_for_missing_items_list() -> None:
     """Malformed raw_input (no plan/todos list) returns None."""
     f = _forwarders()
-    assert f._build_plan_update("update_plan", {}) is None
-    assert f._build_plan_update("todo_write", {"plan": []}) is None  # wrong key
+    assert f._plan_policy._build_plan_update("update_plan", {}) is None
+    assert (
+        f._plan_policy._build_plan_update("todo_write", {"plan": []}) is None
+    )  # wrong key
 
 
 def test_build_plan_update_returns_none_for_non_dict_raw_input() -> None:
     """raw_input must be a dict; otherwise return None."""
     f = _forwarders()
-    assert f._build_plan_update("update_plan", None) is None
-    assert f._build_plan_update("update_plan", "garbage") is None
+    assert f._plan_policy._build_plan_update("update_plan", None) is None
+    assert f._plan_policy._build_plan_update("update_plan", "garbage") is None
 
 
 def test_build_plan_update_handles_partial_item_dicts() -> None:
     """Items missing fields default sensibly (status="pending", content="")."""
     f = _forwarders()
-    notif = f._build_plan_update("update_plan", {"plan": [{}, {"step": "x"}]})
+    notif = f._plan_policy._build_plan_update(
+        "update_plan", {"plan": [{}, {"step": "x"}]}
+    )
     assert notif is not None
     assert isinstance(notif.update, AgentPlanUpdate)
     assert notif.update.entries[0].content == ""
@@ -243,7 +244,7 @@ def test_build_plan_update_handles_partial_item_dicts() -> None:
 def test_build_plan_update_skips_non_dict_items() -> None:
     """Items that aren't dicts are silently skipped."""
     f = _forwarders()
-    notif = f._build_plan_update(
+    notif = f._plan_policy._build_plan_update(
         "update_plan", {"plan": [{"step": "a", "status": "pending"}, "junk", 42]}
     )
     assert notif is not None
@@ -277,7 +278,7 @@ def test_non_plan_capable_client_passthrough() -> None:
     """Without client_renders_plan, every notification passes through."""
     f = _forwarders(client_renders_plan=False)
     notif = _start("tc1", "update_plan", "completed", {"plan": [{"step": "x"}]})
-    assert f._maybe_transform_plan_tool(notif) is notif
+    assert f._plan_policy.transform(notif) is notif
 
 
 def test_plan_capable_in_progress_start_is_suppressed() -> None:
@@ -286,16 +287,16 @@ def test_plan_capable_in_progress_start_is_suppressed() -> None:
     notif = _start(
         "tc1", "update_plan", "in_progress", {"plan": [{"step": "x", "status": "p"}]}
     )
-    assert f._maybe_transform_plan_tool(notif) is None
+    assert f._plan_policy.transform(notif) is None
     # Tool is stashed for later progress notification.
-    assert "tc1" in f._plan_tool_stash
+    assert "tc1" in f._plan_policy._stash
 
 
 def test_plan_capable_completed_progress_emits_plan() -> None:
     """ToolCallProgress(completed) for stashed plan tool → AgentPlanUpdate."""
     f = _forwarders(client_renders_plan=True)
     # First, the start notification stashes raw_input.
-    f._maybe_transform_plan_tool(
+    f._plan_policy.transform(
         _start(
             "tc1",
             "update_plan",
@@ -304,12 +305,12 @@ def test_plan_capable_completed_progress_emits_plan() -> None:
         )
     )
     # Then progress arrives.
-    out = f._maybe_transform_plan_tool(_progress("tc1", "completed"))
+    out = f._plan_policy.transform(_progress("tc1", "completed"))
     assert out is not None
     assert isinstance(out.update, AgentPlanUpdate)
     assert out.update.entries[0].content == "step-a"
     # Stash cleared on emit.
-    assert "tc1" not in f._plan_tool_stash
+    assert "tc1" not in f._plan_policy._stash
 
 
 def test_plan_capable_instant_complete_start_emits_plan() -> None:
@@ -321,7 +322,7 @@ def test_plan_capable_instant_complete_start_emits_plan() -> None:
         "completed",
         {"plan": [{"step": "fast", "status": "completed"}]},
     )
-    out = f._maybe_transform_plan_tool(notif)
+    out = f._plan_policy.transform(notif)
     assert out is not None
     assert isinstance(out.update, AgentPlanUpdate)
     assert out.update.entries[0].content == "fast"
@@ -331,7 +332,7 @@ def test_plan_capable_non_plan_tool_passthrough() -> None:
     """Plan-capable + non-plan-tool notification → passthrough."""
     f = _forwarders(client_renders_plan=True)
     notif = _start("tc-x", "bash", "completed", {"cmd": "ls"})
-    assert f._maybe_transform_plan_tool(notif) is notif
+    assert f._plan_policy.transform(notif) is notif
 
 
 def test_plan_capable_non_tool_notification_passthrough() -> None:
@@ -340,14 +341,14 @@ def test_plan_capable_non_tool_notification_passthrough() -> None:
     notif = session_notification(
         "wire-session", update_agent_message(text_block("hello"))
     )
-    assert f._maybe_transform_plan_tool(notif) is notif
+    assert f._plan_policy.transform(notif) is notif
 
 
 def test_progress_without_stash_passes_through() -> None:
     """A progress notif for an untracked tool_call_id passes through."""
     f = _forwarders(client_renders_plan=True)
     # No prior start_tool_call → no stash.
-    out = f._maybe_transform_plan_tool(_progress("tc-unknown", "completed"))
+    out = f._plan_policy.transform(_progress("tc-unknown", "completed"))
     # Passthrough (returns the same notif, not None).
     assert out is not None
     # Update kind is still ToolCallProgress, not AgentPlanUpdate.

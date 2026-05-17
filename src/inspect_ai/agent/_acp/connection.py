@@ -37,13 +37,18 @@ from acp.schema import (
     SessionNotification,
     TextContentBlock,
 )
-from pydantic import BaseModel, Field
 from shortuuid import uuid
 
-from inspect_ai.agent._acp.picker import (
+from inspect_ai.agent._acp.inspect_ext import (
+    INSPECT_CANCEL_SAMPLE_METHOD,
+    INSPECT_CANCEL_TOOL_CALL_METHOD,
     PICKER_META_KEY,
-    PickerTarget,
     build_picker_notification,
+    detect_capabilities,
+    picker_target_meta_dict,
+)
+from inspect_ai.agent._acp.picker import (
+    PickerTarget,
     list_picker_targets,
     resolve_selection,
 )
@@ -64,21 +69,6 @@ _AGENT_VERSION = "0.10"
 # JSON-RPC method name for the picker confirmation / target list
 # notification sent on `session/update`.
 _SESSION_UPDATE_METHOD = CLIENT_METHODS["session_update"]
-
-# Clients whose ``client_info.name`` matches this allowlist
-# (case-insensitive) are treated as plan-rendering — the forwarder
-# substitutes ``AgentPlanUpdate`` for ``update_plan`` / ``todo_write``
-# tool-call notifications. Clients with first-class ``Plan`` UI:
-# - Zed (live plan panel + completed-plan snapshot in chat history)
-# - Toad (sidebar plan widget with status icons + priority pills)
-# Other clients can opt in explicitly via the ``_meta`` key below.
-PLAN_RENDERING_CLIENTS = frozenset({"zed", "toad"})
-
-# Capability flags consumed from ``clientCapabilities._meta``. Standard
-# ACP extensibility pattern (``_meta`` is reserved for arbitrary vendor
-# metadata; clients who don't recognize the keys ignore them).
-PLAN_RENDERING_META_KEY = "inspect.plan_rendering"
-RAW_EVENTS_META_KEY = "inspect.raw_events"
 
 
 @dataclass(frozen=True)
@@ -193,20 +183,12 @@ class ConnectionHandler:
         ``raw_events_enabled``) so the per-connection forwarder can
         switch behavior per client.
         """
-        # Capture client-capability flags. Two sources:
-        # - ``client_info.name`` against the plan-rendering allowlist
-        #   (case-insensitive) — known editors with first-class Plan UI.
-        # - ``clientCapabilities._meta`` for explicit per-client opt-in
-        #   keys (``inspect.plan_rendering``, ``inspect.raw_events``).
-        # Either source flips the flag on; both default off.
-        name = client_info.name.lower() if client_info is not None else ""
-        meta: dict[str, Any] = {}
-        if client_capabilities is not None and client_capabilities.field_meta:
-            meta = client_capabilities.field_meta
-        self.state.client_renders_plan = name in PLAN_RENDERING_CLIENTS or bool(
-            meta.get(PLAN_RENDERING_META_KEY)
-        )
-        self.state.raw_events_enabled = bool(meta.get(RAW_EVENTS_META_KEY))
+        # Capture client-capability flags. See ``detect_capabilities``
+        # for the allowlist + ``_meta`` opt-in logic.
+        (
+            self.state.client_renders_plan,
+            self.state.raw_events_enabled,
+        ) = detect_capabilities(client_info, client_capabilities)
 
         return InitializeResponse(
             protocol_version=min(protocol_version, PROTOCOL_VERSION),
@@ -374,7 +356,7 @@ class ConnectionHandler:
         return {
             "sessions": [
                 {
-                    **t.to_meta_dict(),
+                    **picker_target_meta_dict(t),
                     "target": f"{t.task}/{t.sample_id}/{t.epoch}",
                 }
                 for t in targets
@@ -453,7 +435,7 @@ class ConnectionHandler:
         turn but lets the agent loop recover. This method is terminal:
         the sample finishes.
         """
-        bound = self._require_bound(session_id, "inspect/cancel_sample")
+        bound = self._require_bound(session_id, INSPECT_CANCEL_SAMPLE_METHOD)
         sample = _find_active_sample(bound.target_session_id)
         if sample is None:
             raise RequestError.internal_error(
@@ -507,7 +489,7 @@ class ConnectionHandler:
         # Avoid module-level circular import.
         from inspect_ai.event._tool import ToolEvent
 
-        bound = self._require_bound(session_id, "inspect/cancel_tool_call")
+        bound = self._require_bound(session_id, INSPECT_CANCEL_TOOL_CALL_METHOD)
         sample = _find_active_sample(bound.target_session_id)
         if sample is None:
             # Sample finished — nothing to cancel. Idempotent.
@@ -544,8 +526,8 @@ class ConnectionHandler:
         bound wire id.
 
         ``method_name`` is woven into the error reason for clearer
-        client diagnostics (``"inspect/cancel_sample called before
-        binding"`` rather than a generic message).
+        client diagnostics (the method name appears in the message
+        rather than a generic "method called before binding").
         """
         if not isinstance(self.state.binding, Bound):
             raise RequestError.invalid_request(
@@ -692,7 +674,7 @@ class ConnectionHandler:
         # Keep the structured target list under the same _meta key for
         # consistency with the picker flow.
         assert notif.field_meta is not None
-        notif.field_meta[PICKER_META_KEY] = [target.to_meta_dict()]
+        notif.field_meta[PICKER_META_KEY] = [picker_target_meta_dict(target)]
         await self._send_session_update(notif)
 
     async def _send_session_update(self, notification: Any) -> None:
@@ -889,95 +871,6 @@ def _find_active_sample(session_id: str) -> "ActiveSample | None":
         if sess is not None and sess.session_id == session_id:
             return sample
     return None
-
-
-# ---------------------------------------------------------------------------
-# `inspect/*` action methods — Pydantic param models + dispatch wrapper
-# ---------------------------------------------------------------------------
-#
-# Two non-standard JSON-RPC methods that mirror affordances the Inspect
-# Textual TUI provides but no generic ACP client does. Both are inbound
-# requests; both validate the connection's ``wire_session_id`` first
-# (same pattern as ``session/prompt`` / ``session/cancel``).
-#
-# - ``inspect/cancel_sample {sessionId, action}`` — terminal cancel of
-#   the bound sample. ``action="score"`` runs the scorer on partial
-#   work; ``action="error"`` marks the sample errored. The error
-#   action is gated to match the TUI's button-visibility rule:
-#   accepted only when ``sample.fails_on_error == False``.
-# - ``inspect/cancel_tool_call {sessionId, toolCallId}`` — cancel a
-#   pending tool call by id. Walks the full sample transcript so
-#   nested tools (inside ``task`` dispatch, ``as_tool``, ``handoff``)
-#   are reachable — superset of the TUI which only handles top-level.
-#
-# Both methods are always advertised; no capability opt-in. Clients
-# that don't know about them simply don't call them.
-
-
-class _CancelSampleParams(BaseModel):
-    """Pydantic param model for ``inspect/cancel_sample``."""
-
-    session_id: str = Field(alias="sessionId")
-    action: Literal["score", "error"]
-
-
-class _CancelToolCallParams(BaseModel):
-    """Pydantic param model for ``inspect/cancel_tool_call``."""
-
-    session_id: str = Field(alias="sessionId")
-    tool_call_id: str = Field(alias="toolCallId")
-
-
-class _NewSessionParams(BaseModel):
-    """Pydantic param model for ``inspect/new_session``.
-
-    Inspect-aware clients (the TUI, editors that already know which
-    sample to attach to) pass the ``task/sample_id/epoch`` triple
-    directly to skip the picker. The standard ACP ``session/new``
-    pydantic schema (``NewSessionRequest``) doesn't allow extra
-    top-level fields so this lives as a separate inspect-namespace
-    method with its own model.
-    """
-
-    cwd: str
-    mcp_servers: Any = Field(default=None, alias="mcpServers")
-    target: str
-    """``task/sample_id/epoch`` direct-bind spec — slash-delimited."""
-
-
-class _ListSessionsParams(BaseModel):
-    """Pydantic param model for ``inspect/list_sessions`` (no params)."""
-
-
-def _wrap_action_handler(func: Any, model: type[BaseModel]) -> Any:
-    """Build a router wrapper that validates params + unpacks kwargs.
-
-    Mirrors :meth:`acp.router.MessageRouter._make_func` but for our
-    inline Pydantic models (the ACP ``schema`` module doesn't carry
-    them since ``inspect/*`` is a non-standard extension). The router
-    invokes the returned callable with the raw params dict; the
-    wrapper validates, extracts kwargs honoring camelCase aliases, and
-    forwards to the bound handler.
-    """
-
-    async def wrapper(params: Any) -> Any:
-        # JSON-RPC allows the params member to be omitted entirely.
-        # When omitted, the dispatcher hands us ``None`` — but
-        # ``model.model_validate(None)`` fails for empty / all-optional
-        # models like :class:`_ListSessionsParams`. Coerce to an empty
-        # dict so handlers that take no required params accept the
-        # omitted form transparently. Handlers with required fields
-        # still surface a clean validation error on the missing keys.
-        if params is None:
-            params = {}
-        request = model.model_validate(params)
-        kwargs = {
-            field_name: getattr(request, field_name)
-            for field_name in model.model_fields
-        }
-        return await func(**kwargs)
-
-    return wrapper
 
 
 def _parse_target_spec(spec: str) -> tuple[str, str, int] | None:

@@ -718,9 +718,7 @@ async def test_approval_over_real_socket_round_trip(
     sample.sample.id = "s"
     sample.epoch = 0
     monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [sample])
-    monkeypatch.setattr(
-        "inspect_ai.agent._acp.picker.active_samples", lambda: [sample]
-    )
+    monkeypatch.setattr("inspect_ai.agent._acp.picker.active_samples", lambda: [sample])
 
     async with acp_server(eval_id="evt-appr", transport=True) as server:
         assert server is not None and server.socket_path is not None

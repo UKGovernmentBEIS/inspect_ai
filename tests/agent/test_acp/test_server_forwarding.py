@@ -39,10 +39,7 @@ from test_helpers.utils import skip_if_trio
 from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.session_live import LiveAcpSession
-from inspect_ai.agent._acp.session_router import (
-    ELISION_THRESHOLD_BYTES,
-    REPLAY_MAX_EVENTS,
-)
+from inspect_ai.agent._acp.session_router import REPLAY_MAX_EVENTS
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript
@@ -650,42 +647,6 @@ async def test_replay_caps_to_max_events(short_data_dir: Path, register_target) 
 
 @skip_if_trio
 @unix_only
-async def test_replay_elides_oversized_tool_call_raw_input(
-    short_data_dir: Path, register_target
-) -> None:
-    """Tool-call raw_input larger than the threshold is replaced with an elision marker."""
-    session, tr = _make_live_session_with_transcript()
-    big_blob = "x" * (ELISION_THRESHOLD_BYTES + 1000)
-    tr._event(
-        _tool_event(
-            tool_id="tc-big",
-            function="some_tool",
-            arguments={"payload": big_blob},
-        )
-    )
-
-    register_target(
-        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
-    )
-    async with acp_server(eval_id="evt-replay-elide", transport=True) as server:
-        assert server is not None
-        client = await _connect(server)
-        try:
-            await _initialize(client)
-            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await _drain_bind_preamble(client)
-
-            notif = await client.next_notification()
-            assert notif["params"]["update"]["sessionUpdate"] == "tool_call"
-            raw_input = notif["params"]["update"]["rawInput"]
-            assert raw_input.get("_inspect.elided") is True
-            assert raw_input["_inspect.original_size"] > ELISION_THRESHOLD_BYTES
-        finally:
-            await client.close()
-
-
-@skip_if_trio
-@unix_only
 async def test_replay_applies_plan_policy(
     short_data_dir: Path, register_target
 ) -> None:
@@ -1036,7 +997,7 @@ async def test_start_forwarders_returns_early_when_session_exits_during_title_se
 
 @skip_if_trio
 @unix_only
-async def test_plan_tool_stash_cleared_on_rebind(
+async def test_plan_policy_stash_cleared_on_rebind(
     short_data_dir: Path, register_target, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Plan-tool stash from a previous bind cannot leak to the next bind.
@@ -1095,7 +1056,7 @@ async def test_plan_tool_stash_cleared_on_rebind(
             handler = handlers[0]
             forwarders_a = handler._forwarders
             assert forwarders_a is not None
-            assert forwarders_a._plan_tool_stash == {}
+            assert forwarders_a._plan_policy._stash == {}
 
             # Plan tool start is stashed (not forwarded to the client).
             target_a.publish(
@@ -1110,7 +1071,7 @@ async def test_plan_tool_stash_cleared_on_rebind(
                 )
             )
             await asyncio.sleep(0.05)
-            assert "tc1" in forwarders_a._plan_tool_stash, (
+            assert "tc1" in forwarders_a._plan_policy._stash, (
                 "plan-tool start should have been stashed for plan-capable client"
             )
 
@@ -1130,7 +1091,7 @@ async def test_plan_tool_stash_cleared_on_rebind(
             assert forwarders_b is not forwarders_a, (
                 "rebind should construct a fresh Forwarders instance"
             )
-            assert forwarders_b._plan_tool_stash == {}, (
+            assert forwarders_b._plan_policy._stash == {}, (
                 "stale entries from prior bind leaked into the new Forwarders"
             )
         finally:

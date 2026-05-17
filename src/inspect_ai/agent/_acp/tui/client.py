@@ -28,6 +28,7 @@ from acp.router import MessageRouter, Route
 from acp.schema import SessionNotification
 
 from inspect_ai.agent._acp.discovery import TargetAddress
+from inspect_ai.agent._acp.inspect_ext import INSPECT_LIST_SESSIONS_METHOD
 
 CLIENT_INFO = {"name": "inspect-acp-tui", "version": "1"}
 """Sent in ``initialize`` so the server can tailor capability negotiation
@@ -131,7 +132,7 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
                 "clientInfo": CLIENT_INFO,
             },
         )
-        response: Any = await conn.send_request("inspect/list_sessions", {})
+        response: Any = await conn.send_request(INSPECT_LIST_SESSIONS_METHOD, {})
     finally:
         writer.close()
         try:

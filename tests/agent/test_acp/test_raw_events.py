@@ -37,12 +37,10 @@ from test_helpers.utils import skip_if_trio
 from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.session_live import LiveAcpSession
-from inspect_ai.agent._acp.session_router import ELISION_THRESHOLD_BYTES
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript
 from inspect_ai.model._chat_message import ChatMessageAssistant
 from inspect_ai.model._generate_config import GenerateConfig
@@ -516,44 +514,5 @@ async def test_raw_forwarder_surfaces_compaction_event(
 
             # Prior ModelEvent is unchanged (still has "original-text").
             assert pre.output.choices[0].message.text == "original-text"
-        finally:
-            await client.close()
-
-
-# ---------------------------------------------------------------------------
-# Elision in raw replay
-# ---------------------------------------------------------------------------
-
-
-@skip_if_trio
-@unix_only
-async def test_raw_replay_elides_oversized_tool_arguments(
-    short_data_dir: Path, register_target
-) -> None:
-    """ToolEvent.arguments larger than the threshold are elided in raw replay."""
-    session, tr = _make_live_session()
-    big_blob = "x" * (ELISION_THRESHOLD_BYTES + 1000)
-    tr._event(
-        ToolEvent(
-            id="tc-big",
-            function="some_tool",
-            arguments={"payload": big_blob},
-            pending=None,
-        )
-    )
-    register_target(_make_active_sample(acp_session=session))
-    async with acp_server(eval_id="evt-raw-elide", transport=True) as server:
-        assert server is not None
-        client = await _connect(server)
-        try:
-            await _initialize(client, raw_events=True)
-            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
-            await client.next_notification()  # bind confirmation
-            notif = await _drain_until(client, "inspect/event")
-            assert notif is not None
-            assert notif["params"]["event"] == "tool"
-            arguments = notif["params"]["arguments"]
-            assert arguments.get("_inspect.elided") is True
-            assert arguments["_inspect.original_size"] > ELISION_THRESHOLD_BYTES
         finally:
             await client.close()

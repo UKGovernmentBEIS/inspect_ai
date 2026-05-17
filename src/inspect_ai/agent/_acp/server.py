@@ -33,16 +33,8 @@ from typing import AsyncIterator, cast
 from acp.agent.router import build_agent_router
 from acp.connection import Connection
 from acp.interfaces import Agent
-from acp.router import Route
 
-from inspect_ai.agent._acp.connection import (
-    ConnectionHandler,
-    _CancelSampleParams,
-    _CancelToolCallParams,
-    _ListSessionsParams,
-    _NewSessionParams,
-    _wrap_action_handler,
-)
+from inspect_ai.agent._acp.connection import ConnectionHandler
 from inspect_ai.agent._acp.discovery import (
     cleanup_stale_discovery_files,
     default_socket_path,
@@ -50,6 +42,7 @@ from inspect_ai.agent._acp.discovery import (
     has_unix_sockets,
     parse_host_port,
 )
+from inspect_ai.agent._acp.inspect_ext import register_inspect_routes
 
 logger = getLogger(__name__)
 
@@ -279,45 +272,10 @@ class AcpServer:
         # fall-through. `cast` avoids a structural-typing complaint
         # about the partial implementation.
         router = build_agent_router(cast(Agent, handler))
-        # Register non-standard `inspect/*` action methods that the
-        # ACP Agent protocol doesn't include. Always advertised — no
-        # capability opt-in. Clients that don't know about them simply
-        # don't call them; method dispatch is per-connection so the
-        # handler bindings are unique per connection.
-        router.add_route(
-            Route(
-                method="inspect/cancel_sample",
-                func=_wrap_action_handler(handler.cancel_sample, _CancelSampleParams),
-                kind="request",
-            )
-        )
-        router.add_route(
-            Route(
-                method="inspect/cancel_tool_call",
-                func=_wrap_action_handler(
-                    handler.cancel_tool_call, _CancelToolCallParams
-                ),
-                kind="request",
-            )
-        )
-        router.add_route(
-            Route(
-                method="inspect/new_session",
-                func=_wrap_action_handler(
-                    handler.inspect_new_session, _NewSessionParams
-                ),
-                kind="request",
-            )
-        )
-        router.add_route(
-            Route(
-                method="inspect/list_sessions",
-                func=_wrap_action_handler(
-                    handler.inspect_list_sessions, _ListSessionsParams
-                ),
-                kind="request",
-            )
-        )
+        # Register the Inspect extension methods (the ``inspect/*``
+        # action namespace). See :mod:`inspect_ext` for the method
+        # name strings + param models.
+        register_inspect_routes(router, handler)
         # ``listening=False`` lets us drive the receive loop here and
         # know when the peer disconnects, so we can clean up tracking.
         conn = Connection(
