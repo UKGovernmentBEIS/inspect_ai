@@ -23,6 +23,7 @@ import asyncio
 from typing import Callable
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Vertical
 from textual.css.query import NoMatches
 from textual.screen import Screen
@@ -48,6 +49,19 @@ fast that idle CPU is wasted.
 class SessionScreen(Screen[None]):
     """Phase 2 attached-session view."""
 
+    # ``priority=True`` so the binding fires regardless of focused
+    # widget — once the Phase 3 composer goes live we still want ^S to
+    # leave the session even if the Input has focus.
+    BINDINGS = [
+        Binding(
+            "ctrl+s",
+            "switch_sample",
+            "switch sample",
+            show=True,
+            priority=True,
+        ),
+    ]
+
     DEFAULT_CSS = """
     SessionScreen { layout: vertical; }
     #composer {
@@ -70,6 +84,10 @@ class SessionScreen(Screen[None]):
         self._watch_task: asyncio.Task[None] | None = None
         self._state = state
         self._unsubscribe: Callable[[], None] | None = None
+        # Set by ``action_switch_sample`` so the disconnect watcher can
+        # tell a user-initiated pop from a peer-side EOF and skip the
+        # otherwise-misleading "disconnected from server" toast.
+        self._user_initiated_close = False
 
     @property
     def state(self) -> SessionState:
@@ -148,9 +166,24 @@ class SessionScreen(Screen[None]):
             await self._session.disconnected.wait()
         except asyncio.CancelledError:
             return
+        # User-initiated ^S switch closes the session itself, which
+        # fires ``disconnected``. The action handler has already kicked
+        # off the pop; the toast would be misleading ("disconnected"
+        # vs "you asked to switch") so swallow it.
+        if self._user_initiated_close:
+            return
         try:
             self.query_one(SessionHeaderWidget).set_connected(False)
             self.app.notify("disconnected from server", severity="warning")
         except NoMatches:
             pass
+        self._on_disconnect()
+
+    # ------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------
+
+    def action_switch_sample(self) -> None:
+        """Disconnect from the current session and return to the picker."""
+        self._user_initiated_close = True
         self._on_disconnect()

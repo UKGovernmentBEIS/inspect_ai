@@ -109,3 +109,85 @@ async def test_session_screen_starts_with_connected_indicator(
         indicator = app.screen.query_one("#conn-indicator", Static)
         assert "connected" in str(indicator.content)
         assert indicator.has_class("up")
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_session_screen_switch_sample_returns_to_picker(
+    sample_rows: list[SessionRow],
+) -> None:
+    """^S on the session screen disconnects and returns to the picker.
+
+    Also pins the no-toast invariant: the user-initiated path must not
+    surface the "disconnected from server" warning the watcher fires
+    on peer-side EOF.
+    """
+    from inspect_ai.agent._acp.tui.picker_screen import PickerScreen
+
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    notifications: list[tuple[str, str | None]] = []
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # Capture any notify() calls so we can assert the toast doesn't
+        # fire on the user-initiated path.
+        original_notify = app.notify
+
+        def _capture(
+            message: str,
+            *,
+            title: str = "",
+            severity: str | None = None,
+            **kwargs: object,
+        ) -> None:
+            notifications.append((message, severity))
+            original_notify(
+                message, title=title, severity=severity or "information", **kwargs
+            )  # type: ignore[arg-type]
+
+        app.notify = _capture  # type: ignore[method-assign]
+
+        app.screen.action_switch_sample()
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, PickerScreen):
+                break
+        assert isinstance(app.screen, PickerScreen)
+        assert app._attached is None  # type: ignore[attr-defined]
+        # No "disconnected from server" toast — the user knows they
+        # asked to switch.
+        assert not any("disconnected" in msg.lower() for msg, _ in notifications), (
+            notifications
+        )
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_session_screen_binds_ctrl_s_to_switch_sample(
+    sample_rows: list[SessionRow],
+) -> None:
+    """The ^S binding must exist on SessionScreen with the right action."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+        matched = [
+            b for b in SessionScreen.BINDINGS if getattr(b, "key", None) == "ctrl+s"
+        ]
+        assert matched, "expected a ctrl+s binding on SessionScreen"
+        assert matched[0].action == "switch_sample"
+        # show=True so the Footer hint surfaces.
+        assert matched[0].show is True
