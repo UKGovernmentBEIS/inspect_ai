@@ -120,12 +120,24 @@ async def checkpointer() -> AsyncIterator[Checkpointer]:
     Must be called inside an active sample — :func:`sample_active`
     returning ``None`` raises ``RuntimeError``.
     """
-    # Function-scoped import to avoid a load-time cycle with
-    # `inspect_ai.log._samples`.
+    # Function-scoped imports to avoid load-time cycles with
+    # `inspect_ai.log._samples` and `inspect_ai.util._span`.
     from inspect_ai.log._samples import sample_active
+    from inspect_ai.util._span import span
+
+    from .checkpointer_noop import _NoopCheckpointer
 
     active = sample_active()
     if active is None:
         raise RuntimeError("checkpointer() must be called inside an active sample")
     async with active.checkpointer as cp:
-        yield cp
+        # Bracket the agent's checkpointed scope with a transcript span
+        # so fires + any events emitted while the agent holds the cp
+        # nest as children of `checkpointer/checkpointer`. Skipped when
+        # checkpointing is disabled — no point cluttering the transcript
+        # with a span that protects nothing.
+        if isinstance(cp, _NoopCheckpointer):
+            yield cp
+        else:
+            async with span(name="checkpointer"):
+                yield cp
