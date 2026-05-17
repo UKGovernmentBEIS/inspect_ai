@@ -4,7 +4,6 @@ import anyio
 import pytest
 
 from inspect_ai.agent import AcpSession, acp_session
-from inspect_ai.agent._acp import _session as session_module
 from inspect_ai.agent._acp._session import current_acp_session
 
 
@@ -194,7 +193,9 @@ async def test_subscriber_buffer_is_unbounded(monkeypatch) -> None:
     def capture(msg: str, *_args: object, **_kwargs: object) -> None:
         warnings.append(msg)
 
-    monkeypatch.setattr(session_module.logger, "warning", capture)
+    from inspect_ai.agent._acp import _session_live as live_module
+
+    monkeypatch.setattr(live_module.logger, "warning", capture)
 
     burst = 10_000
     async with acp_session() as acp:
@@ -339,7 +340,7 @@ async def test_noop_session_subscribe_returns_noop_unsubscribe() -> None:
     Lets callers use a uniform subscribe/unsubscribe pattern without
     isinstance-guarding the session type.
     """
-    from inspect_ai.agent._acp._session import NoOpAcpSession
+    from inspect_ai.agent._acp._session_noop import NoOpAcpSession
 
     noop = NoOpAcpSession()
     unsub_i = noop.subscribe_interrupted(lambda: None)
@@ -503,7 +504,7 @@ async def test_attach_unsubscribe_is_idempotent() -> None:
 
 async def test_noop_session_approver_client_is_no_op() -> None:
     """No-op session: predicate False, attach returns no-op unsubscribe, list empty."""
-    from inspect_ai.agent._acp._session import NoOpAcpSession
+    from inspect_ai.agent._acp._session_noop import NoOpAcpSession
 
     noop = NoOpAcpSession()
     assert noop.has_approver_clients() is False

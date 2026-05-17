@@ -33,7 +33,7 @@ from acp.schema import (
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp._server import acp_server
-from inspect_ai.agent._acp._session import LiveAcpSession
+from inspect_ai.agent._acp._session_live import LiveAcpSession
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human.acp import (
     _approval_from_response,

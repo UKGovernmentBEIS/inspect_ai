@@ -97,7 +97,9 @@ Editor (Zed)                  inspect acp                    inspect eval --acp-
                                                             |  - user-msg queue     |
                                                             |  - turn cancel scope  |
                                                             |  - transcript→update  |
-                                                            |   _session.py         |
+                                                            |   _session_live.py    |
+                                                            |   _session_noop.py    |
+                                                            |   _session.py (proto) |
                                                             +-----------------------+
                                                                         |
                                                               react() / deepagent()
@@ -1063,7 +1065,7 @@ Landed an in-process event router that converts top-level transcript events into
 **What was built:**
 
 1. **Multi-cast `Transcript._add_subscriber(cb) -> unsubscribe`** in `src/inspect_ai/log/_transcript.py`. Coexists with the legacy single-slot `_subscribe()` used by the eval runner's log writer. Multiple subscribers all fire on every event; each runs in a try/except so a failing subscriber doesn't block siblings or the agent loop.
-2. **`_AcpEventRouter`** in `src/inspect_ai/agent/_acp/_router.py`. Attached at `LiveAcpSession.__aenter__`, detached at `__aexit__`. Tracks sub-agent nesting depth by pairing `SpanBeginEvent(type=AGENT_SPAN_TYPE)` / `SpanEndEvent` by id (defensive against unknown ends). Maps `ModelEvent` text blocks → `AgentMessageChunk(TextContentBlock)`, reasoning blocks → `AgentThoughtChunk(TextContentBlock)`, `ToolEvent` first sight → `ToolCallStart(in_progress|completed)`, post-completion updates → `ToolCallProgress(completed|failed)`. Tracks first-sight tool ids so the pending → completed transition routes correctly.
+2. **`_AcpEventRouter`** in `src/inspect_ai/agent/_acp/_event_mapping.py`. Attached at `LiveAcpSession.__aenter__`, detached at `__aexit__`. Tracks sub-agent nesting depth by pairing `SpanBeginEvent(type=AGENT_SPAN_TYPE)` / `SpanEndEvent` by id (defensive against unknown ends). Maps `ModelEvent` text blocks → `AgentMessageChunk(TextContentBlock)`, reasoning blocks → `AgentThoughtChunk(TextContentBlock)`, `ToolEvent` first sight → `ToolCallStart(in_progress|completed)`, post-completion updates → `ToolCallProgress(completed|failed)`. Tracks first-sight tool ids so the pending → completed transition routes correctly.
 3. **Configurable sub-agent filter.** `LiveAcpSession._filter_subagent_events: bool = True` (default ACP semantic — editors see only the outer conversation) with public-ish `disable_subagent_filtering()` method. The router consults the flag on every event; the in-process TUI (Phase 7) and other consumers who want full granularity can opt out.
 4. **No `inspect.events` extension yet.** Mapping the Inspect-native event family (`InfoEvent`, `CompactionEvent`, `InterruptEvent`, etc.) onto ACP's `_meta` extension point is deferred to Phase 8+. ACP's `session/update` discriminated union is strict (no unknown variants accepted), and none of the existing variants (`SessionInfoUpdate`, `UsageUpdate`, `AgentPlanUpdate`) are inert no-op carriers — `SessionInfoUpdate.title=null` and `updated_at=null` are *destructive* clears per the schema docs. Without the `initialize` handshake (Phase 8+) there's no capability-negotiation path for clients to opt in, so Phase 6 ships the safer minimum: silently drop these events. The router's `_map` dispatch is keyed on `type(event)` so adding the mapping later is a one-line change.
 
@@ -1175,7 +1177,7 @@ Phase 9 left the connection bound to a target session but `session/prompt` / `se
 
 **What was built:**
 
-1. **Phase 6 router enhancements** (`src/inspect_ai/agent/_acp/_router.py`):
+1. **Phase 6 router enhancements** (`src/inspect_ai/agent/_acp/_event_mapping.py`):
    - `_map_event` / `_map_model_event` / `_map_tool_event` hoisted to module scope so the replay path can reuse them without instantiating a full router.
    - New `replay_transcript(events, session_id, filter_subagents=True) -> Iterator[SessionNotification]` standalone helper. Fresh depth-tracking + dedup state per call; no interference with the live router's state.
    - `start_tool_call` notifications now populate `raw_input=event.arguments`. Useful for all clients (gives editors visibility into tool arguments via the standard ACP field) and required by the plan-policy translator (which reads the plan/todos array from `raw_input`).
@@ -1413,7 +1415,7 @@ A `wire_session_id` property on `ConnectionState` returns the wire id from `Pick
 
 **Two consolidations** that fell out of the split:
 
-- **`SubagentDepthTracker` class** in `_router.py` — replaces three copies of the boundary-span depth-tracking state machine (the live router's `_process`, `replay_transcript`, and `_filter_subagent_events`). Returns `"consume" | "skip" | "emit"` per event; callers compose with their own filtering policy.
+- **`SubagentDepthTracker` class** in `_event_mapping.py` — replaces three copies of the boundary-span depth-tracking state machine (the live router's `_process`, `replay_transcript`, and `_filter_subagent_events`). Returns `"consume" | "skip" | "emit"` per event; callers compose with their own filtering policy.
 - **`_require_bound(session_id, method_name)` helper** on `ConnectionHandler` — collapses the duplicated `isinstance(state.binding, Bound)` + wire-id validation block at the top of `cancel_sample` / `cancel_tool_call`.
 
 **File-locality cleanup.** Three things still live in `_session.py` and were called out for follow-up extraction (`TranscriptCapture`, `InterruptCoordinator`, `UserMessageQueue`) but were not part of this PR — they're within-file groupings that don't affect inter-module architecture, and the user's primary concern (server cleanliness) is addressed by the inter-file split.
@@ -1431,12 +1433,29 @@ No back-compat re-exports remain in `_server.py` — this is a feature-branch re
 
 **PR3 — Polish.** Naming hygiene + a smaller file split + dedup:
 
-- **`_tool_content.py` extracted from `_router.py`.** The tool-call rendering helpers (`descriptive_title`, `content_blocks_from_view`, `_tool_kind_for`, `_is_shell_execution_tool`, `_text_block` / `_image_block`, `_content_blocks_from_result`, `_content_for_update` / `_content_for_start`, `_file_edit_content_for_event`, plus the `_TOOL_KIND_BY_NAME` / `_RESULT_CONTENT_MAX_BYTES` constants) moved into their own module. After the split `_router.py` is ~645 LoC of pure event-mapping plumbing (`SubagentDepthTracker`, `_AcpEventRouter`, `replay_transcript`, `ModelEvent` / `ToolEvent` mappers); `_tool_content.py` is ~430 LoC of presentation helpers. The approval shim now imports `descriptive_title` / `content_blocks_from_view` from `_tool_content` (one less reason to depend on the live router module).
+- **`_tool_content.py` extracted from `_event_mapping.py`.** The tool-call rendering helpers (`descriptive_title`, `content_blocks_from_view`, `_tool_kind_for`, `_is_shell_execution_tool`, `_text_block` / `_image_block`, `_content_blocks_from_result`, `_content_for_update` / `_content_for_start`, `_file_edit_content_for_event`, plus the `_TOOL_KIND_BY_NAME` / `_RESULT_CONTENT_MAX_BYTES` constants) moved into their own module. After the split `_event_mapping.py` is ~645 LoC of pure event-mapping plumbing (`SubagentDepthTracker`, `_AcpEventRouter`, `replay_transcript`, `ModelEvent` / `ToolEvent` mappers); `_tool_content.py` is ~430 LoC of presentation helpers. The approval shim now imports `descriptive_title` / `content_blocks_from_view` from `_tool_content` (one less reason to depend on the live router module).
 - **Underscore prefixes dropped on cross-module symbols.** `_AcpServer` → `AcpServer`, `_PickerTarget` → `PickerTarget`, `_LiveAcpSession` → `LiveAcpSession`, `_NoOpAcpSession` → `NoOpAcpSession`, `_ConnectionHandler` → `ConnectionHandler`, `_ConnectionState` → `ConnectionState`. Discovery helpers that already had public names (`discovery_dir`, `pid_alive`, `parse_host_port`, `has_unix_sockets`, `default_socket_path`, `cleanup_stale_discovery_files`) lost their back-compat underscore aliases. Module-private symbols stay underscored.
 - **`PickerTarget.to_meta_dict()`** as the single source of truth for the camelCase wire shape. Replaces three inline dict-construction sites (picker notification, `inspect/list_sessions` response, binding confirmation). The `inspect/list_sessions` site spreads the dict and adds a derived `target: "task/sample_id/epoch"` field. Adding a new target field is now one edit.
 - **Phase-N comment scrub.** ~25 stale "Phase N" milestone references across the non-TUI ACP code, `log/_samples.py`, and the approval shim were rewritten to evergreen prose ("the live router" / "the replay-on-attach path" / "the in-proc TUI") so docstrings remain accurate as the architecture evolves past the phase-numbered plan.
 
 **Verification.** 511 ACP / approval / CLI tests pass, mypy clean across 1052 source files, ruff format / check clean. No production-facing behavior change — wire payloads are identical (binding confirmation gains `agentName` / `startedAt` / `totalTokens` from the unified `to_meta_dict()`, but no client pinned the narrower shape).
+
+**PR4 — `_session.py` decomposition + `_router.py` rename.** Two pieces that fell out of the post-PR3 re-evaluation of the "non-goals" list:
+
+- **Seven helper classes extracted in `_session_live.py`.** `LiveAcpSession.__init__` had grown to 23 fields in 7 named clusters. The clusters now exist as composable helpers: `_PubSubBus` (fan-out subscriber bookkeeping), `_UserMessageQueue` (drain semantics + the wait-then-reset-event idiom that was duplicated in `before_turn` / `after_cancel`), `_InterruptCoordinator` (the `_interrupt_pending` state machine + its subscriber registries), `_TranscriptCapture` (captured-at-`__aenter__` transcript + sibling-task ContextVar gotcha documented in one place + `_router_attach_index`), `_TurnCancelMachinery` (turn cancel scope + in-flight tool/model tracking + `snapshot_for_cancel()` that returns a `_CancelSnapshot` dataclass), and `_ApproverClientRegistry` (the attach/has/list/clear surface). `LiveAcpSession`'s Protocol methods delegate to these. The 1-bool sub-agent filter stays inline (not worth its own class).
+- **File split into three.** `_session.py` (~440 LoC) keeps the Protocol surface only: `AcpSession`, `ApproverClient`, `TurnCancelled`, `_NOOP_SESSION_ID`, `AcpUpdate`, `_SUBSCRIBER_BUFFER_SIZE`, ContextVars, `acp_session()` factory, `current_acp_session()` accessor. `_session_live.py` (~830 LoC) holds the seven helpers + `LiveAcpSession` + `_unanswered_tool_call_ids`. `_session_noop.py` (~175 LoC) holds `NoOpAcpSession`. `NoOpAcpSession` is imported at the bottom of `_session.py` (after the Protocol definitions it depends on) so the circular-load ordering stays coherent; `LiveAcpSession` is deferred-imported inside `acp_session()` (called at runtime, not module-load time).
+- **`_router.py` → `_event_mapping.py`.** Post-PR3 there were two files with "router" in the name doing very different things — the new name distinguishes transcript-event-to-ACP-notification mapping from per-bind outbound forwarding (`_session_router.py`). The `_AcpEventRouter` class name is unchanged (internally a "router" is exactly what it is). Test file names (`test_router.py`, `test_router_phase2.py`) kept as-is — they test the event mapping; renaming the tests is extra churn without functional gain.
+- **`from __future__ import annotations`** added to `_session.py` (the last `_acp/*.py` that lacked it) for consistency with the rest of the package and to enable the lazy type-annotation pattern in the new helper classes.
+
+**Property delegation** on `LiveAcpSession` preserves the field-access surface the router and a handful of tests already depended on: `_transcript`, `_router_attach_index`, and `_subscribers` are properties (with setters where needed) that delegate to the helper objects. Tests that probed deeper-arity fields (`_active_model_event`, `_in_flight_tool_calls`, `_pending_turn_cancel`, `_cancelled_tool_call_ids`) were re-targeted to the new path (`live._turn_cancel.<field>`) — internal tests own their probing, no production back-compat shim.
+
+**Test import updates** for the file split:
+- `test_router.py`, `test_router_phase2.py`, `test_server_forwarding.py`, `test_raw_events.py`, `test_server_session_info.py`, `test_react_integration.py`, `test_approval.py`, `test_active_sample_link.py`: `LiveAcpSession` → `_session_live`.
+- `test_cancel.py`, `test_session.py`: `NoOpAcpSession` → `_session_noop`.
+- `test_router.py` (event-mapping test): `_router` → `_event_mapping` in two import sites + one monkeypatch site.
+- `test_session.py::test_subscriber_buffer_is_unbounded`: patches `_session_live.logger` (the `logger` lives in `_session_live.py` post-split, not `_session.py`).
+
+**Verification.** 511 ACP / approval / CLI / adjacent tests pass, mypy clean across 1054 source files, ruff format / check clean. No production-facing behavior change.
 
 
 ### Phase 15: `inspect acp` (Textual TUI client)

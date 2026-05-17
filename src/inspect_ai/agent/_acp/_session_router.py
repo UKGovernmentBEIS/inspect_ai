@@ -31,7 +31,7 @@ from acp.schema import (
     ToolCallStart,
 )
 
-from inspect_ai.agent._acp._router import SubagentDepthTracker, replay_transcript
+from inspect_ai.agent._acp._event_mapping import SubagentDepthTracker, replay_transcript
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp._connection import ConnectionState

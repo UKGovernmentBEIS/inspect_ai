@@ -1,7 +1,12 @@
-"""In-process event router for live ACP sessions.
+"""Transcript-event → ACP-notification mapping.
 
-When a :class:`LiveAcpSession` is active, an ``_AcpEventRouter`` is
-attached at session entry. It subscribes to the active sample's
+Distinct from :mod:`._session_router`, which forwards already-mapped
+notifications out over a bound connection. This module is the
+in-process step before that — transcript events become typed
+``acp.SessionNotification`` payloads on the session's pub/sub bus.
+
+When a :class:`LiveAcpSession` is active, an :class:`_AcpEventRouter`
+is attached at session entry. It subscribes to the active sample's
 ``Transcript`` and:
 
 1. Tracks ``SpanBeginEvent(type=AGENT_SPAN_TYPE)`` / ``SpanEndEvent`` pairs
@@ -71,7 +76,7 @@ from inspect_ai.model._model_info import get_model_info
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp._session import LiveAcpSession
+    from inspect_ai.agent._acp._session_live import LiveAcpSession
 
 _ToolCallStatus = Literal["pending", "in_progress", "completed", "failed"]
 

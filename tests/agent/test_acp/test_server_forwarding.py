@@ -38,7 +38,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import _picker
 from inspect_ai.agent._acp._server import acp_server
-from inspect_ai.agent._acp._session import LiveAcpSession
+from inspect_ai.agent._acp._session_live import LiveAcpSession
 from inspect_ai.agent._acp._session_router import (
     ELISION_THRESHOLD_BYTES,
     REPLAY_MAX_EVENTS,

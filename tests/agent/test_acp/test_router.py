@@ -24,8 +24,8 @@ from acp.schema import (
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent import react
 from inspect_ai.agent._acp import acp_session
-from inspect_ai.agent._acp._router import _AcpEventRouter, _tool_call_status
-from inspect_ai.agent._acp._session import LiveAcpSession
+from inspect_ai.agent._acp._event_mapping import _AcpEventRouter, _tool_call_status
+from inspect_ai.agent._acp._session_live import LiveAcpSession
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._as_tool import as_tool
 from inspect_ai.event import (
@@ -236,7 +236,7 @@ def test_router_exception_does_not_propagate_to_loop(monkeypatch) -> None:
     tr = Transcript()
     token = _transcript.set(tr)
     try:
-        from inspect_ai.agent._acp import _router
+        from inspect_ai.agent._acp import _event_mapping
 
         session = _new_session()
         _attach_router(session)
@@ -245,10 +245,10 @@ def test_router_exception_does_not_propagate_to_loop(monkeypatch) -> None:
             raise RuntimeError("boom")
 
         # Patch the module-level `_map_event` that `_process` consults.
-        # (Phase 10 hoisted the mapping logic out of the class so the
-        # replay path can reuse it; the router instance no longer has
-        # an own `_map` method.)
-        monkeypatch.setattr(_router, "_map_event", bad_map)
+        # The mapping logic is hoisted out of the class so the replay
+        # path can reuse it; the router instance no longer has an own
+        # `_map` method.
+        monkeypatch.setattr(_event_mapping, "_map_event", bad_map)
         # tr._event must not raise even though _process → _map_event
         # → bad_map raises.
         tr._event(_model_event(text="x"))
@@ -935,7 +935,7 @@ def test_replay_completed_tool_carries_result_in_first_sight_start() -> None:
     Pinned because previously ``_map_tool_event``'s first-sight
     branch only ever sent ``_content_from_view`` (no result).
     """
-    from inspect_ai.agent._acp._router import replay_transcript
+    from inspect_ai.agent._acp._event_mapping import replay_transcript
 
     # Build a transcript with one completed tool event (already has
     # a result; no pending=True intermediate).

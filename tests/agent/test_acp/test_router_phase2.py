@@ -31,11 +31,11 @@ from acp.schema import (
 )
 
 from inspect_ai._util.content import ContentReasoning, ContentText
-from inspect_ai.agent._acp._router import (
+from inspect_ai.agent._acp._event_mapping import (
     _AcpEventRouter,
     _model_event_message_id,
 )
-from inspect_ai.agent._acp._session import LiveAcpSession
+from inspect_ai.agent._acp._session_live import LiveAcpSession
 from inspect_ai.agent._acp._tool_content import (
     _TOOL_KIND_BY_NAME,
     _tool_kind_for,

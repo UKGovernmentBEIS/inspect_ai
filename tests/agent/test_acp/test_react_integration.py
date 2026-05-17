@@ -6,7 +6,7 @@ import anyio
 
 from inspect_ai.agent import react
 from inspect_ai.agent._acp import AcpSession
-from inspect_ai.agent._acp._session import LiveAcpSession
+from inspect_ai.agent._acp._session_live import LiveAcpSession
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.event import InterruptEvent
 from inspect_ai.log._transcript import Transcript, _transcript
@@ -97,7 +97,7 @@ async def test_track_model_event_populates_session_during_generate() -> None:
                 # to start. Wait for it to enter, then peek the session.
                 await anyio.sleep(0.05)
                 live = cast(LiveAcpSession, captured["acp"])
-                observed_during_generate.append(live._active_model_event)
+                observed_during_generate.append(live._turn_cancel._active_model_event)
 
             tg.start_soon(run_agent)
             tg.start_soon(observer)
@@ -155,7 +155,7 @@ async def test_track_tool_call_populates_session_during_tool_execution() -> None
                 # slow_tool to enter the track_tool_call scope.
                 await anyio.sleep(0.1)
                 live = cast(LiveAcpSession, captured["acp"])
-                observed_in_flight.append(list(live._in_flight_tool_calls))
+                observed_in_flight.append(list(live._turn_cancel._in_flight_tool_calls))
                 release.set()
 
             tg.start_soon(run_agent)

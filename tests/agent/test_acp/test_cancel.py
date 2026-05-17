@@ -6,11 +6,9 @@ import anyio
 import pytest
 
 from inspect_ai.agent import acp_session
-from inspect_ai.agent._acp._session import (
-    LiveAcpSession,
-    NoOpAcpSession,
-    TurnCancelled,
-)
+from inspect_ai.agent._acp._session import TurnCancelled
+from inspect_ai.agent._acp._session_live import LiveAcpSession
+from inspect_ai.agent._acp._session_noop import NoOpAcpSession
 from inspect_ai.event import InterruptEvent, ModelEvent
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import ChatMessageTool, ChatMessageUser
@@ -372,11 +370,11 @@ async def test_track_model_event_save_restore_handles_nesting() -> None:
             output=cast("Any", {"model": "m-inner", "choices": []}),
         )
         with acp.track_model_event(outer):
-            assert live._active_model_event is outer
+            assert live._turn_cancel._active_model_event is outer
             with acp.track_model_event(inner):
-                assert live._active_model_event is inner
-            assert live._active_model_event is outer
-        assert live._active_model_event is None
+                assert live._turn_cancel._active_model_event is inner
+            assert live._turn_cancel._active_model_event is outer
+        assert live._turn_cancel._active_model_event is None
 
 
 async def test_submit_user_message_normalizes_source_to_operator() -> None:
@@ -467,9 +465,9 @@ async def test_turn_scope_state_resets_between_turns() -> None:
                 tg.start_soon(producer_1)
 
             # State should be clean — no leftover flag, no leftover tool ids.
-            assert live._pending_turn_cancel is False
-            assert live._cancelled_tool_call_ids == []
-            assert live._in_flight_tool_calls == []
+            assert live._turn_cancel._pending_turn_cancel is False
+            assert live._turn_cancel._cancelled_tool_call_ids == []
+            assert live._turn_cancel._in_flight_tool_calls == []
 
             # Second turn: cancel again, with a different tool.
             async with anyio.create_task_group() as tg:
@@ -503,7 +501,7 @@ async def test_track_tool_call_cleanup_on_exception() -> None:
         with pytest.raises(RuntimeError):
             with acp.track_tool_call("tc-err"):
                 raise RuntimeError("boom")
-        assert live._in_flight_tool_calls == []
+        assert live._turn_cancel._in_flight_tool_calls == []
 
 
 async def test_noop_session_variants_are_safe() -> None:
