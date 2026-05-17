@@ -207,13 +207,17 @@ class MessageWidget(Widget):
         # Role word stands out (bold + default colour); the suffix
         # ("model X" / "input" / "operator") rides as dim provenance
         # so the eye lands on WHO is speaking before the source.
+        # Every chip is prefixed with a dim ``• `` glyph (or spinner
+        # for an in-flight assistant) so all three roles share a
+        # consistent left-rail.
         if self._group.role == "system":
-            return "[bold]system[/bold]"
+            return "[dim]•[/dim] [bold]system[/bold]"
         if self._group.role == "user":
             source = self._group.user_source
+            base = "[bold]user[/bold]"
             if source:
-                return f"[bold]user[/bold] [dim]· {source}[/dim]"
-            return "[bold]user[/bold]"
+                base = f"{base} [dim]· {source}[/dim]"
+            return f"[dim]•[/dim] {base}"
         # Assistant: prefer the group's own model attribution; fall back
         # to the session's current model when the chunk had no
         # `_meta["inspect.model"]` (e.g. an old server).

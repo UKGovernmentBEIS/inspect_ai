@@ -167,7 +167,7 @@ async def test_user_message_without_source_shows_bare_user_chip() -> None:
         await pilot.pause()
         mw = app.query_one(MessageWidget)
         chip = _chip_plain(mw.query_one(".chip", Static))
-        assert chip.strip() == "user"
+        assert chip.strip() == "• user"
 
 
 @skip_if_trio
@@ -184,7 +184,7 @@ async def test_system_message_renders_system_chip() -> None:
         await pilot.pause()
         mw = app.query_one(MessageWidget)
         chip = _chip_plain(mw.query_one(".chip", Static))
-        assert chip.strip() == "system"
+        assert chip.strip() == "• system"
 
 
 @skip_if_trio
