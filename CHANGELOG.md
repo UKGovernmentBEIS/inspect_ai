@@ -1,4 +1,8 @@
-## Unreleased
+## 0.3.222 (16 May 2026)
+
+- Scanners: Declare Scanner import in a way that's compatible with pyright type checking.
+
+## 0.3.221 (16 May 2026)
 
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
