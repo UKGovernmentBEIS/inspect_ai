@@ -395,32 +395,51 @@ async def request_human_approval_via_acp(
     Returns:
         - An :class:`Approval` when at least one ACP client responded.
         - ``None`` when no ACP clients are attached, when no live
-          ACP session is bound for the current sample, or when every
-          attached client failed (disconnect, transport error). The
-          caller falls through to the existing in-proc panel /
-          console human-approval flow in any of those cases.
+          ACP session is bound for the current sample, when every
+          attached client failed (disconnect, transport error), or
+          when an unexpected internal error occurred building or
+          racing the request. The caller falls through to the
+          existing in-proc panel / console human-approval flow in any
+          of those cases.
 
     The ``message`` argument is the assistant text accompanying the
     tool call (the model's reasoning for what it wants to do). The
     in-proc panel renders it under an ``**Assistant**`` header
     above the view; the ACP request prepends an equivalent
     markdown block so the operator sees the same context.
-    """
-    # Deferred import — avoids the registry-init-time cycle through
-    # the log subsystem; only fires at actual approval time.
-    from inspect_ai.log._samples import sample_active
 
-    sample = sample_active()
-    if sample is None or sample.acp_session is None:
+    Hard contract: never propagates a non-cancellation exception to
+    the caller. This shim runs synchronously inside
+    ``human_approver`` on the agent's tool-call execution path; an
+    unhandled exception here would crash the tool call (and could
+    crash the eval). On any internal error we log a warning and
+    return ``None`` so the caller falls back to the in-proc panel.
+    ``CancelledError`` propagates naturally because it inherits from
+    ``BaseException`` (not ``Exception``), so the ``except Exception:``
+    below doesn't catch it — sample-level cancel still works.
+    """
+    try:
+        # Deferred import — avoids the registry-init-time cycle through
+        # the log subsystem; only fires at actual approval time.
+        from inspect_ai.log._samples import sample_active
+
+        sample = sample_active()
+        if sample is None or sample.acp_session is None:
+            return None
+        session = sample.acp_session
+        if not session.has_approver_clients():
+            return None
+        request = _build_request(
+            session_id=session.session_id,
+            message=message,
+            call=call,
+            view=view,
+            choices=choices,
+        )
+        return await _race_first_response(session.approver_clients(), request, choices)
+    except Exception:
+        logger.warning(
+            "ACP approval routing raised; falling back to in-proc approval flow",
+            exc_info=True,
+        )
         return None
-    session = sample.acp_session
-    if not session.has_approver_clients():
-        return None
-    request = _build_request(
-        session_id=session.session_id,
-        message=message,
-        call=call,
-        view=view,
-        choices=choices,
-    )
-    return await _race_first_response(session.approver_clients(), request, choices)

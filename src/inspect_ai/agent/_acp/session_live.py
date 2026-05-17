@@ -96,15 +96,31 @@ class _PubSubBus:
                 return
 
     def publish(self, update: AcpUpdate) -> None:
+        # Catches both ``BrokenResourceError`` (receive half closed) and
+        # ``ClosedResourceError`` (send half closed by a concurrent
+        # ``detach()`` / ``close_all()``) — the second can race with this
+        # publish because we run from the agent task while teardown runs
+        # from a sibling. Any other unexpected exception is logged at
+        # WARNING; this method is called from the agent's hot path
+        # (transcript subscriber callback) and must never propagate.
         dead: list[int] = []
         for i, (send, _) in enumerate(self._subscribers):
             try:
                 send.send_nowait(update)
-            except anyio.BrokenResourceError:
+            except (anyio.BrokenResourceError, anyio.ClosedResourceError):
+                dead.append(i)
+            except Exception:
+                logger.warning(
+                    "ACP publish failed for one subscriber; dropping it",
+                    exc_info=True,
+                )
                 dead.append(i)
         for i in reversed(dead):
             send, _ = self._subscribers.pop(i)
-            send.close()
+            try:
+                send.close()
+            except Exception:
+                pass
 
     def close_all(self) -> None:
         """Close every subscriber send half; receivers see clean EOF."""
@@ -556,16 +572,45 @@ class LiveAcpSession:
         Also registers ``self`` on the current :class:`ActiveSample`
         (if any) so out-of-task consumers like the in-process Inspect
         TUI can locate the live session by sample reference.
+
+        Hard contract: never propagates to the agent loop. Each setup
+        step is independently guarded so a partial failure logs a
+        warning and the session still becomes usable (just with the
+        failed feature degraded). Worst case: the session is an
+        effectively-inert object that still satisfies the context
+        manager protocol and doesn't crash the eval.
         """
         from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
         from inspect_ai.log._samples import sample_active
 
-        self._transcript_capture.capture()
-        self._router = _AcpEventRouter(self)
-        self._router.attach()
-        active = sample_active()
-        if active is not None:
-            active.acp_session = self
+        try:
+            self._transcript_capture.capture()
+        except Exception:
+            logger.warning(
+                "ACP session: transcript capture failed; events will not be "
+                "forwarded for this sample",
+                exc_info=True,
+            )
+        try:
+            self._router = _AcpEventRouter(self)
+            self._router.attach()
+        except Exception:
+            logger.warning(
+                "ACP session: event router attach failed; events will not be "
+                "forwarded for this sample",
+                exc_info=True,
+            )
+            self._router = None
+        try:
+            active = sample_active()
+            if active is not None:
+                active.acp_session = self
+        except Exception:
+            logger.warning(
+                "ACP session: ActiveSample registration failed; in-proc TUI "
+                "will not see this session",
+                exc_info=True,
+            )
         return self
 
     async def __aexit__(
@@ -578,26 +623,51 @@ class LiveAcpSession:
 
         Receivers see clean EOF (``anyio.EndOfStream``) and their
         ``async for`` loops terminate.
+
+        Hard contract: never propagates a teardown failure to the
+        agent loop (which would mask the original exception when the
+        session body raised). Each cleanup step is independently
+        guarded so one failure doesn't skip the remaining cleanup.
         """
         from inspect_ai.log._samples import sample_active
 
         if self._router is not None:
-            self._router.detach()
+            try:
+                self._router.detach()
+            except Exception:
+                logger.warning("ACP session: router detach failed", exc_info=True)
             self._router = None
-        active = sample_active()
-        # `is self` identity guard: don't clear someone else's registration
-        # if a stale __aexit__ ever races with a sibling live session.
-        if active is not None and active.acp_session is self:
-            active.acp_session = None
-        self._pubsub.close_all()
+        try:
+            active = sample_active()
+            # `is self` identity guard: don't clear someone else's
+            # registration if a stale __aexit__ ever races with a
+            # sibling live session.
+            if active is not None and active.acp_session is self:
+                active.acp_session = None
+        except Exception:
+            logger.warning(
+                "ACP session: ActiveSample deregistration failed", exc_info=True
+            )
+        try:
+            self._pubsub.close_all()
+        except Exception:
+            logger.warning("ACP session: pubsub close_all failed", exc_info=True)
         # Drop interrupt-coordination subscribers so a late listener
         # (TUI widget unmount race, connection-handler unbind race)
         # doesn't end up holding a callback that fires into a closed
         # context. Drop approver-client registrations for the same
         # reason — a late-arriving approval prompt after session exit
         # would otherwise try to call into a closed connection.
-        self._interrupt.clear_subscribers()
-        self._approvers.clear()
+        try:
+            self._interrupt.clear_subscribers()
+        except Exception:
+            logger.warning(
+                "ACP session: interrupt clear_subscribers failed", exc_info=True
+            )
+        try:
+            self._approvers.clear()
+        except Exception:
+            logger.warning("ACP session: approvers clear failed", exc_info=True)
 
     # Property delegations that preserve the field-access surface the
     # router and a handful of tests already depend on. Storage lives in
@@ -711,8 +781,23 @@ class LiveAcpSession:
         blocks for at least one queued message — covers the "no dataset
         prompt, operator types the first message" case. Subsequent
         calls drain immediately.
+
+        Hard contract: never propagates a non-cancellation exception
+        to the caller (the agent's react loop). A bug below degrades
+        to "no operator messages this turn" rather than crashing the
+        eval. ``CancelledError`` propagates naturally because it
+        inherits from ``BaseException`` (not ``Exception``), so the
+        ``except Exception:`` below doesn't catch it — structured
+        concurrency and sample-level cancel still work.
         """
-        return await self._user_messages.drain_initial(messages)
+        try:
+            return await self._user_messages.drain_initial(messages)
+        except Exception:
+            logger.warning(
+                "ACP before_turn raised; returning no operator messages",
+                exc_info=True,
+            )
+            return []
 
     async def after_cancel(
         self, messages: list[ChatMessage] | None = None
@@ -738,36 +823,92 @@ class LiveAcpSession:
         ``_cancelled_tool_call_ids`` (snapshotted in
         :meth:`cancel_current_turn`).
         """
+        # Hard contract: never propagates a non-cancellation exception
+        # to the caller. ``CancelledError`` propagates naturally
+        # because it inherits from ``BaseException`` (not
+        # ``Exception``), so the ``except Exception:`` clauses below
+        # don't catch it — a sample-level cancel blocked in
+        # ``drain_blocking`` still tears down correctly.
+        #
+        # Three independently-guarded phases — the partition matters
+        # for state.messages integrity:
+        #
+        # 1. Build repair ``ChatMessageTool`` results for any
+        #    unanswered tool_call ids in the last assistant message.
+        #    If this fails, return ``[]`` — without repairs we can't
+        #    safely return anything (drained operator messages alone
+        #    would leave the assistant's pending tool_calls
+        #    unanswered, and the next ``generate()`` would reject the
+        #    conversation).
+        # 2. Drain the operator message queue. Failure here MUST NOT
+        #    discard the repairs we already built — return them as-is
+        #    so ``state.messages`` stays valid. Worst case the agent
+        #    continues without an operator message, but the
+        #    conversation shape is preserved.
+        # 3. Resolve any pending interrupt notification. Best-effort
+        #    and non-blocking; failure here is purely cosmetic
+        #    (modal-prompt UI staying in pending state).
         results: list[ChatMessage] = []
-        if messages is not None:
-            repair_ids = _unanswered_tool_call_ids(messages)
-        else:
-            repair_ids = list(self._turn_cancel.cancelled_tool_call_ids)
-        for tool_call_id in repair_ids:
-            results.append(
-                ChatMessageTool(
-                    tool_call_id=tool_call_id,
-                    content="Tool call cancelled by user.",
-                    error=ToolCallError(
-                        type="cancelled",
-                        message="Tool call cancelled by user.",
-                    ),
+        try:
+            if messages is not None:
+                repair_ids = _unanswered_tool_call_ids(messages)
+            else:
+                repair_ids = list(self._turn_cancel.cancelled_tool_call_ids)
+            for tool_call_id in repair_ids:
+                results.append(
+                    ChatMessageTool(
+                        tool_call_id=tool_call_id,
+                        content="Tool call cancelled by user.",
+                        error=ToolCallError(
+                            type="cancelled",
+                            message="Tool call cancelled by user.",
+                        ),
+                    )
                 )
+            self._turn_cancel.clear_cancelled_tool_ids()
+        except Exception:
+            logger.warning(
+                "ACP after_cancel: repair construction failed; returning "
+                "empty resume payload (next generate may fail due to "
+                "unanswered tool_calls in state.messages)",
+                exc_info=True,
             )
-        self._turn_cancel.clear_cancelled_tool_ids()
-        drained = await self._user_messages.drain_blocking()
-        results.extend(drained)
+            return []
+
+        try:
+            drained = await self._user_messages.drain_blocking()
+            results.extend(drained)
+        except Exception:
+            # Drain failed — return the repairs we already have so
+            # state.messages stays valid. The agent loops back to the
+            # top of react; ``before_turn`` is non-blocking after the
+            # first call, so the agent will proceed to the next
+            # generate without an operator message. Degraded but not
+            # crashed.
+            logger.warning(
+                "ACP after_cancel: drain failed; returning repair "
+                "messages without operator input",
+                exc_info=True,
+            )
 
         # The agent has now consumed the resumption text, so the
-        # interrupt is logically resolved — clear the pending flag and
-        # notify prompt-resolved subscribers if they haven't already
-        # been fired. ``submit_user_message`` clears + fires when the
-        # message arrives AFTER the cancel; this branch covers the
-        # other ordering (message queued BEFORE the cancel, then
-        # drained here without ``submit_user_message`` being called
-        # post-cancel). Without this, a modal-prompt client would be
-        # stuck in pending state forever after that sequence.
-        self._interrupt.resolve_if_pending()
+        # interrupt is logically resolved — clear the pending flag
+        # and notify prompt-resolved subscribers if they haven't
+        # already been fired. ``submit_user_message`` clears + fires
+        # when the message arrives AFTER the cancel; this branch
+        # covers the other ordering (message queued BEFORE the
+        # cancel, then drained here without ``submit_user_message``
+        # being called post-cancel). Without this, a modal-prompt
+        # client would be stuck in pending state forever after that
+        # sequence.
+        try:
+            self._interrupt.resolve_if_pending()
+        except Exception:
+            logger.warning(
+                "ACP after_cancel: resolve_if_pending failed; "
+                "modal-prompt UI may remain in pending state",
+                exc_info=True,
+            )
 
         return results
 
@@ -784,11 +925,23 @@ class LiveAcpSession:
         prompt-resolved subscribers. The in-proc TUI's modal prompt
         mode and Inspect-aware ACP clients use this to dismiss their
         prompt UI when a sibling client provides the resumption text.
+
+        Hard contract: never propagates to the caller. The agent task
+        blocks in ``before_turn`` / ``after_cancel`` waiting for
+        messages from this queue; failure here is logged but the
+        message is dropped silently rather than crashing the
+        connection handler (or the TUI input handler) that called us.
         """
-        if msg.source != "operator":
-            msg = msg.model_copy(update={"source": "operator"})
-        self._user_messages.enqueue(msg)
-        self._interrupt.resolve_if_pending()
+        try:
+            if msg.source != "operator":
+                msg = msg.model_copy(update={"source": "operator"})
+            self._user_messages.enqueue(msg)
+            self._interrupt.resolve_if_pending()
+        except Exception:
+            logger.warning(
+                "ACP submit_user_message raised; message dropped",
+                exc_info=True,
+            )
 
     @property
     def interrupt_pending(self) -> bool:
@@ -823,20 +976,53 @@ class LiveAcpSession:
         Returns an idempotent unsubscribe callable. Re-attaching the
         same client multiple times is allowed (and adds N entries) —
         each attach is paired with one returned unsubscribe.
+
+        On internal error, logs a warning and returns a no-op
+        unsubscribe so the caller still gets a callable to invoke at
+        teardown.
         """
-        return self._approvers.attach(client)
+        try:
+            return self._approvers.attach(client)
+        except Exception:
+            logger.warning(
+                "ACP attach_approver_client raised; approval routing disabled "
+                "for this client",
+                exc_info=True,
+            )
+            return lambda: None
 
     def has_approver_clients(self) -> bool:
-        """True if at least one approver client is currently attached."""
-        return self._approvers.has_clients()
+        """True if at least one approver client is currently attached.
+
+        On internal error, logs a warning and returns False so the
+        approval shim falls back to the in-proc panel rather than
+        attempting a doomed ACP route.
+        """
+        try:
+            return self._approvers.has_clients()
+        except Exception:
+            logger.warning(
+                "ACP has_approver_clients raised; falling back to in-proc approval",
+                exc_info=True,
+            )
+            return False
 
     def approver_clients(self) -> list[ApproverClient]:
         """Snapshot copy of attached clients.
 
         Returns a copy so iteration is stable against concurrent
-        attach / detach (a client can disconnect mid-race).
+        attach / detach (a client can disconnect mid-race). On
+        internal error, returns an empty list — caller falls back to
+        in-proc approval.
         """
-        return self._approvers.clients()
+        try:
+            return self._approvers.clients()
+        except Exception:
+            logger.warning(
+                "ACP approver_clients raised; falling back to in-proc approval",
+                exc_info=True,
+            )
+            return []
 
     def cancel_current_turn(self) -> None:
         """Cancel the current turn and record an :class:`InterruptEvent`.
@@ -852,6 +1038,23 @@ class LiveAcpSession:
         and the cancel is a no-op (the queued user message, if any,
         will be picked up by the next :meth:`before_turn`).
         """
+        # Hard contract: never propagate an exception to the caller.
+        # Called from sibling tasks (TUI button, ACP connection
+        # handler's ``cancel`` notification) and from the agent task
+        # indirectly via ``inspect/cancel_sample``. A bug anywhere
+        # below (snapshot mutation, transcript writes that fan out to
+        # log writers / hook subscribers, etc.) must degrade to a
+        # WARNING log rather than tear down the eval or kill the
+        # connection's main loop.
+        try:
+            self._cancel_current_turn_impl()
+        except Exception:
+            logger.warning(
+                "ACP cancel_current_turn raised; cancel may be partial",
+                exc_info=True,
+            )
+
+    def _cancel_current_turn_impl(self) -> None:
         # snapshot_for_cancel mutates the in-flight events (clears
         # pending, sets error/failed) and returns the data we need to
         # populate the InterruptEvent + notify downstream consumers.
@@ -866,21 +1069,37 @@ class LiveAcpSession:
         # ``transcript()``). The caller usually runs in a sibling task
         # where the ContextVar would resolve to a default empty
         # Transcript — see the comment on :class:`_TranscriptCapture`.
+        # The transcript's per-subscriber loop catches exceptions, but
+        # the log-writer slot fires outside that guard — wrap both
+        # writes defensively so a misbehaving writer doesn't propagate
+        # out of this fire-and-forget method.
         tr = self._transcript_capture.transcript()
-        tr._event(
-            InterruptEvent(
-                source="user_cancel",
-                interrupted=snapshot.kind,
-                interrupted_tool_call_id=snapshot.interrupted_tool_call_id,
-                interrupted_model_event_id=snapshot.interrupted_model_event_id,
+        try:
+            tr._event(
+                InterruptEvent(
+                    source="user_cancel",
+                    interrupted=snapshot.kind,
+                    interrupted_tool_call_id=snapshot.interrupted_tool_call_id,
+                    interrupted_model_event_id=snapshot.interrupted_model_event_id,
+                )
             )
-        )
+        except Exception:
+            logger.warning(
+                "ACP cancel_current_turn: failed to record InterruptEvent",
+                exc_info=True,
+            )
         # Notify log writers / hook subscribers about the cleared
         # pending flag — without ``_event_updated``, downstream
         # consumers buffer the original pending event and never see
         # the cancellation.
         for ev in snapshot.cancelled_events:
-            tr._event_updated(ev)
+            try:
+                tr._event_updated(ev)
+            except Exception:
+                logger.warning(
+                    "ACP cancel_current_turn: failed to notify event update",
+                    exc_info=True,
+                )
 
         self._turn_cancel.request_cancel()
 
@@ -903,9 +1122,35 @@ class LiveAcpSession:
         the ``ToolEvent`` so :meth:`cancel_current_turn` can clear its
         ``pending`` flag. Safe under exceptions — the id and event are
         removed in the ``finally`` block.
+
+        Hard contract: ``yield`` always runs even if our bookkeeping
+        raises. The wrapped tool call must execute regardless of
+        whether ACP tracking succeeds — a tracking bug must NOT abort
+        the agent's tool call.
         """
-        with self._turn_cancel.track_tool_call(tool_call_id, event):
+        try:
+            self._turn_cancel._in_flight_tool_calls.append(tool_call_id)
+            if event is not None:
+                self._turn_cancel._in_flight_tool_events[tool_call_id] = event
+        except Exception:
+            logger.warning(
+                "ACP track_tool_call: register failed; continuing without tracking",
+                exc_info=True,
+            )
+        try:
             yield
+        finally:
+            try:
+                try:
+                    self._turn_cancel._in_flight_tool_calls.remove(tool_call_id)
+                except ValueError:
+                    pass
+                self._turn_cancel._in_flight_tool_events.pop(tool_call_id, None)
+            except Exception:
+                logger.warning(
+                    "ACP track_tool_call: cleanup failed; in-flight list may be stale",
+                    exc_info=True,
+                )
 
     @contextlib.contextmanager
     def track_model_event(self, event: ModelEvent) -> Iterator[None]:
@@ -918,9 +1163,29 @@ class LiveAcpSession:
         cancel runs in a sibling task with its own ContextVar copy and
         would see ``None``. Save/restore (not push/pop) handles nested
         generates correctly without growing a stack.
+
+        Hard contract: ``yield`` always runs even if our bookkeeping
+        raises. The wrapped model generation must execute regardless
+        of whether ACP tracking succeeds.
         """
-        with self._turn_cancel.track_model_event(event):
+        prev = self._turn_cancel._active_model_event
+        try:
+            self._turn_cancel._active_model_event = event
+        except Exception:
+            logger.warning(
+                "ACP track_model_event: register failed; continuing without tracking",
+                exc_info=True,
+            )
+        try:
             yield
+        finally:
+            try:
+                self._turn_cancel._active_model_event = prev
+            except Exception:
+                logger.warning(
+                    "ACP track_model_event: restore failed; active event may be stale",
+                    exc_info=True,
+                )
 
 
 def _unanswered_tool_call_ids(messages: list[ChatMessage]) -> list[str]:

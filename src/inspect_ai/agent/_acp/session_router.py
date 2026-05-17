@@ -219,18 +219,40 @@ class Forwarders:
         passthroughs would otherwise reach the client with a session
         id they've never seen. The auto-bind / direct loadSession
         paths have wire == target, so the rewrite is a no-op there.
+
+        Per-notification error boundary: a bug in
+        ``plan_policy.transform`` / ``_rewrite_session_id`` /
+        ``send_notification`` for one notification logs a warning and
+        skips that notification — it does NOT terminate the loop. A
+        loop-terminating failure here would silently stop all live
+        forwarding for the bind (client stays connected, events stop
+        arriving, no error visible). ``CancelledError`` propagates
+        naturally because it inherits from ``BaseException`` (not
+        ``Exception``), so the ``except Exception:`` clauses below
+        don't catch it — ``stop()`` can still tear the task down
+        cleanly.
         """
         try:
             async for notif in recv_stream:
-                out = self._plan_policy.transform(notif)
-                if out is None:
-                    continue  # plan-policy suppressed this notification
-                out = self._rewrite_session_id(out)
-                await self._send_session_update(out)
-        except anyio.get_cancelled_exc_class():
-            raise
+                try:
+                    out = self._plan_policy.transform(notif)
+                    if out is None:
+                        continue  # plan-policy suppressed this notification
+                    out = self._rewrite_session_id(out)
+                    await self._send_session_update(out)
+                except Exception:
+                    logger.warning(
+                        "ACP semantic forwarder: error forwarding one "
+                        "notification; skipping",
+                        exc_info=True,
+                    )
         except Exception:
-            logger.exception("ACP semantic forwarder failed")
+            # Outer guard for failures iterating ``recv_stream`` itself
+            # (closed stream, etc.). Terminates the task cleanly.
+            logger.warning(
+                "ACP semantic forwarder: stream iteration failed; forwarder exiting",
+                exc_info=True,
+            )
 
     def _rewrite_session_id(self, notif: SessionNotification) -> SessionNotification:
         """Return ``notif`` keyed to the wire sessionId.
@@ -269,26 +291,57 @@ class Forwarders:
         raw-replay yield → semantic events under new wire id) cannot
         occur. Caller holds ``ConnectionHandler._bind_lock`` so no
         concurrent bind can interleave with this method's awaits.
+
+        Per-step error boundary: failures in the raw replay, in the
+        sub-agent filter pre-pass, or in one semantic notification log
+        a warning and the replay continues. A loop-terminating failure
+        here would abort before live forwarders start — client would
+        see partial replay then permanent silence — so per-step
+        isolation matters even though the caller is one-shot.
+        ``CancelledError`` propagates naturally (BaseException, not
+        Exception).
         """
         # RAW replay (opt-in only). Send all transcript events (no
         # sub-agent filter) capped to the last N.
         if self._raw_forwarder is not None:
-            await self._raw_forwarder.replay(snapshot, REPLAY_MAX_EVENTS)
+            try:
+                await self._raw_forwarder.replay(snapshot, REPLAY_MAX_EVENTS)
+            except Exception:
+                logger.warning(
+                    "ACP raw replay failed; continuing with semantic replay",
+                    exc_info=True,
+                )
 
         # SEMANTIC replay. Apply the same sub-agent filter the live
         # router uses. Take the last N events post-filter, then map to
         # SessionNotifications using the captured wire id, then apply
-        # plan policy.
-        filtered = list(_filter_subagent_events(snapshot))[-REPLAY_MAX_EVENTS:]
+        # plan policy. Per-event mapping isolation lives inside
+        # ``replay_transcript`` itself — one bad event no longer drops
+        # the rest of the replay.
+        try:
+            filtered = list(_filter_subagent_events(snapshot))[-REPLAY_MAX_EVENTS:]
+        except Exception:
+            logger.warning(
+                "ACP semantic replay: sub-agent filter failed; skipping replay",
+                exc_info=True,
+            )
+            return
+
         for notif in replay_transcript(
             filtered,
             self._wire_session_id,
             filter_subagents=False,  # already pre-filtered
         ):
-            transformed = self._plan_policy.transform(notif)
-            if transformed is None:
-                continue
-            await self._send_session_update(transformed)
+            try:
+                transformed = self._plan_policy.transform(notif)
+                if transformed is None:
+                    continue
+                await self._send_session_update(transformed)
+            except Exception:
+                logger.warning(
+                    "ACP semantic replay: error forwarding one notification; skipping",
+                    exc_info=True,
+                )
 
     # ------------------------------------------------------------------
     # Internal send helper

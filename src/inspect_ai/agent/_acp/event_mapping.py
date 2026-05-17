@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import uuid as _uuid_module
 from collections.abc import Sequence
+from logging import getLogger
 from typing import TYPE_CHECKING, Callable, Iterator, Literal
 
 from acp.helpers import (
@@ -83,6 +84,8 @@ from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.session_live import LiveAcpSession
+
+logger = getLogger(__name__)
 
 _ToolCallStatus = Literal["pending", "in_progress", "completed", "failed"]
 
@@ -221,6 +224,22 @@ def replay_transcript(
     uses; pass ``filter_subagents=False`` to include events emitted
     inside sub-agent spans (useful for the raw-event firehose where
     callers explicitly opted in for full visibility).
+
+    Per-event isolation: a failure in ``tracker.process`` or in
+    ``_map_event`` for one event logs a warning and is skipped — the
+    iteration continues. This matters because exceptions raised from
+    inside a generator close the generator's frame; without the
+    in-loop catch, one bad event would silently drop every subsequent
+    event for the rest of the replay.
+
+    No explicit cancellation catch: this is a SYNC generator and
+    ``anyio.get_cancelled_exc_class()`` would itself raise
+    ``NoEventLoopError`` if invoked outside an async backend (e.g.
+    from a unit test calling ``list(replay_transcript(...))``).
+    ``asyncio.CancelledError`` / ``trio.Cancelled`` both inherit from
+    ``BaseException`` (not ``Exception``) so ``except Exception`` does
+    not catch them — they propagate through naturally, which is what
+    we want when the consumer IS running under an async backend.
     """
     tracker = SubagentDepthTracker()
     seen_tool_call_ids: set[str] = set()
@@ -229,20 +248,43 @@ def replay_transcript(
     seen_user_message_ids: set[str] = set()
 
     for event in events:
-        action = tracker.process(event)
+        try:
+            action = tracker.process(event)
+        except Exception:
+            logger.warning(
+                "ACP replay: depth tracker failed on one event; skipping",
+                exc_info=True,
+            )
+            continue
         if action == "consume":
             continue
         if action == "skip" and filter_subagents:
             continue
 
-        yield from _map_event(
-            event,
-            session_id,
-            seen_tool_call_ids,
-            seen_model_event_ids,
-            seen_pending_event_ids,
-            seen_user_message_ids,
-        )
+        # Materialize the per-event notifications inside the try so an
+        # exception from the inner ``_map_event`` generator (e.g. a
+        # mapper failure on a malformed event) doesn't propagate out
+        # and close THIS generator. Without ``list(...)``, ``yield
+        # from`` would forward the exception unwrapped.
+        try:
+            notifications = list(
+                _map_event(
+                    event,
+                    session_id,
+                    seen_tool_call_ids,
+                    seen_model_event_ids,
+                    seen_pending_event_ids,
+                    seen_user_message_ids,
+                )
+            )
+        except Exception:
+            logger.warning(
+                "ACP replay: mapping one event failed; skipping",
+                exc_info=True,
+            )
+            continue
+
+        yield from notifications
 
 
 def _map_event(

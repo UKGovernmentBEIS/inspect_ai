@@ -39,7 +39,8 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Any, Callable, Literal
 
 import anyio
-from pydantic import BaseModel, Field
+from acp.exceptions import RequestError
+from pydantic import BaseModel, Field, ValidationError
 
 if TYPE_CHECKING:
     from acp.connection import Connection
@@ -193,7 +194,21 @@ def wrap_action_handler(func: Any, model: type[BaseModel]) -> Any:
         # still surface a clean validation error on the missing keys.
         if params is None:
             params = {}
-        request = model.model_validate(params)
+        try:
+            request = model.model_validate(params)
+        except ValidationError as exc:
+            # Translate Pydantic validation failures into a standard
+            # JSON-RPC ``invalid_params`` error so clients get a clean,
+            # protocol-conformant response rather than relying on the
+            # ACP framework's outer catch to do it for us. Carries the
+            # structured errors so capability-aware clients can render
+            # field-level diagnostics.
+            raise RequestError.invalid_params(
+                {
+                    "reason": "params failed validation",
+                    "errors": exc.errors(),
+                }
+            )
         kwargs = {
             field_name: getattr(request, field_name)
             for field_name in model.model_fields
@@ -416,6 +431,13 @@ class RawEventForwarder:
         Caller (``Forwarders._run_replay``) runs under
         ``ConnectionHandler._bind_lock``, so no concurrent bind can
         invalidate the wire while this loop iterates.
+
+        Per-event error boundary: serialization or send failures log a
+        warning and skip the event; the replay loop continues.
+        ``CancelledError`` propagates naturally because it inherits
+        from ``BaseException`` (not ``Exception``), so the
+        ``except Exception:`` clauses below don't catch it — teardown
+        can still interrupt a long replay.
         """
         events = snapshot[-max_events:]
         for event in events:
@@ -424,9 +446,18 @@ class RawEventForwarder:
                     mode="json", by_alias=True, exclude_none=True
                 )
             except Exception:
-                logger.exception("ACP raw replay: event failed to serialize; skipping")
+                logger.warning(
+                    "ACP raw replay: event failed to serialize; skipping",
+                    exc_info=True,
+                )
                 continue
-            await self._connection.send_notification(INSPECT_EVENT_METHOD, payload)
+            try:
+                await self._connection.send_notification(INSPECT_EVENT_METHOD, payload)
+            except Exception:
+                logger.warning(
+                    "ACP raw replay: send_notification failed; skipping event",
+                    exc_info=True,
+                )
 
     def start(self, target_session_id: str) -> None:
         """Launch the background drain task. Call after :meth:`replay`."""
@@ -487,13 +518,36 @@ class RawEventForwarder:
             pass
 
     async def _run(self, recv_stream: Any) -> None:
+        """Drain the bridge stream and forward payloads as JSON-RPC notifications.
+
+        Per-payload error boundary: a transport / serialization failure
+        for one payload logs a warning and is skipped — it does NOT
+        terminate the forwarder. A loop-terminating failure here would
+        silently stop the raw firehose for the bind (client still
+        connected, supplemental stream stops, no error visible) so
+        per-payload isolation matters. ``CancelledError`` propagates
+        naturally because it inherits from ``BaseException`` (not
+        ``Exception``), so the ``except Exception:`` clauses below
+        don't catch it — ``stop()`` can still tear the task down
+        cleanly.
+        """
         try:
             async for payload in recv_stream:
-                await self._connection.send_notification(INSPECT_EVENT_METHOD, payload)
-        except anyio.get_cancelled_exc_class():
-            raise
+                try:
+                    await self._connection.send_notification(
+                        INSPECT_EVENT_METHOD, payload
+                    )
+                except Exception:
+                    logger.warning(
+                        "ACP raw forwarder: send_notification failed; skipping payload",
+                        exc_info=True,
+                    )
         except Exception:
-            logger.exception("ACP raw forwarder failed")
+            # Outer guard for failures iterating ``recv_stream`` itself.
+            logger.warning(
+                "ACP raw forwarder: stream iteration failed; forwarder exiting",
+                exc_info=True,
+            )
 
 
 # ---------------------------------------------------------------------------

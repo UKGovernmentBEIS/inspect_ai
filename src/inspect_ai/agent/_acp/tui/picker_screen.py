@@ -526,9 +526,7 @@ class PickerScreen(Screen[None]):
     def _tick_running(self) -> None:
         """Per-second refresh of the ``running`` column — drives the live timer."""
         now = time.time()
-        self._tick_column(
-            _COL_RUNNING, lambda row: format_running(row.started_at, now)
-        )
+        self._tick_column(_COL_RUNNING, lambda row: format_running(row.started_at, now))
 
     def _tick_tokens(self) -> None:
         """Refresh the ``tokens`` column after a rescan pulls fresh data.
