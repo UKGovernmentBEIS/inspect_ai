@@ -823,3 +823,263 @@ def test_turn_cap_below_limit_is_a_noop() -> None:
     # All groups still indexed.
     for n in range(_MAX_ASSISTANT_TURNS):
         assert f"ma-{n}" in state._messages_by_id
+
+
+# ---------------------------------------------------------------------------
+# mark_interrupted — operator-driven optimistic clearing
+# ---------------------------------------------------------------------------
+
+
+def _pending_chunk(message_id: str = "pending-1") -> SessionNotification:
+    """Build the exact 'generation started' marker the server emits.
+
+    Carries ``inspect.model_event_pending=True`` in field_meta so the
+    state consumer registers it as a pending signal (sets
+    ``_pending_message_ids``) — same path real server traffic uses.
+    """
+    chunk = AgentMessageChunk(
+        session_update="agent_message_chunk",
+        content=TextContentBlock(type="text", text=""),
+        message_id=message_id,
+        field_meta={"inspect.model_event_pending": True},
+    )
+    return SessionNotification(session_id="sid", update=chunk)
+
+
+def test_mark_interrupted_drops_empty_pending_groups() -> None:
+    """A pending bubble with no streamed content is removed entirely."""
+    state = SessionState()
+    state.consume(_pending_chunk("pending-1"))
+    assert state.status == StatusState.GENERATING
+    assert "pending-1" in state._messages_by_id
+    assert any(
+        isinstance(item, MessageGroup) and item.message_id == "pending-1"
+        for item in state.items
+    )
+
+    state.mark_interrupted()
+
+    assert state.status == StatusState.AWAITING_INPUT
+    assert state._pending_message_ids == set()
+    # The empty placeholder bubble is gone — both the items list and
+    # the lookup index drop it.
+    assert "pending-1" not in state._messages_by_id
+    assert not any(
+        isinstance(item, MessageGroup) and item.message_id == "pending-1"
+        for item in state.items
+    )
+
+
+def test_mark_interrupted_keeps_pending_groups_with_partial_content() -> None:
+    """If text streamed before the cancel, keep the bubble but drop pending."""
+    state = SessionState()
+    state.consume(_pending_chunk("pending-2"))
+    # Partial content arrives — pending=False after _append_segment but
+    # we re-pend to mimic a quick second model_event_pending re-signal
+    # (router emits one per ModelEvent retry; mid-stream cancel can
+    # leave the group with content AND pending=True).
+    state.consume(_agent_chunk("partial reply", message_id="pending-2"))
+    state._pending_message_ids.add("pending-2")
+    state._messages_by_id["pending-2"].pending = True
+
+    state.mark_interrupted()
+
+    assert state.status == StatusState.AWAITING_INPUT
+    assert state._pending_message_ids == set()
+    # Bubble is preserved with its partial content; just no longer pending.
+    group = state._messages_by_id["pending-2"]
+    assert group.pending is False
+    assert group.segments and group.segments[0].text == "partial reply"
+
+
+def test_mark_interrupted_drops_retry_aliases_for_dropped_groups() -> None:
+    """Aliases pointing at dropped empty groups must not linger."""
+    state = SessionState()
+    state.consume(_pending_chunk("pending-3"))
+    state._message_id_aliases["retry-of-3"] = "pending-3"
+
+    state.mark_interrupted()
+
+    assert "pending-3" not in state._messages_by_id
+    assert "retry-of-3" not in state._message_id_aliases
+
+
+def _complete_marker_chunk(message_id: str) -> SessionNotification:
+    """Mimic the server's late completion marker for a cancelled ModelEvent.
+
+    Router's ``_map_model_event`` empty branch emits this when a
+    pending ModelEvent flips to ``pending=False`` with no output.
+    """
+    chunk = AgentMessageChunk(
+        session_update="agent_message_chunk",
+        content=TextContentBlock(type="text", text=""),
+        message_id=message_id,
+        field_meta={"inspect.model_event_complete": True},
+    )
+    return SessionNotification(session_id="sid", update=chunk)
+
+
+def test_late_completion_marker_for_dropped_group_is_ignored() -> None:
+    """A late server completion marker must not resurrect the dropped bubble.
+
+    Repro for the reported regression: ``mark_interrupted`` drops the
+    empty pending bubble (good); then the server-side cancel processing
+    re-emits the ModelEvent with pending=False and the router converts
+    it into an empty AgentMessageChunk with ``inspect.model_event_complete``
+    meta. Without suppression that chunk created a fresh assistant
+    group with no segments and no spinner — exactly the lingering empty
+    bar we were trying to remove.
+    """
+    state = SessionState()
+    state.consume(_pending_chunk("pending-late"))
+    state.mark_interrupted()
+    assert "pending-late" not in state._messages_by_id
+
+    state.consume(_complete_marker_chunk("pending-late"))
+
+    # Suppressed — no resurrection.
+    assert "pending-late" not in state._messages_by_id
+    assert not any(isinstance(item, MessageGroup) for item in state.items)
+
+
+def test_new_pending_for_different_message_id_still_works() -> None:
+    """Suppression must be scoped to the SPECIFIC dropped id, not blanket."""
+    state = SessionState()
+    state.consume(_pending_chunk("pending-old"))
+    state.mark_interrupted()
+
+    # A new turn starts — new ModelEvent uuid → new message_id. The
+    # spinner bubble must appear normally.
+    state.consume(_pending_chunk("pending-new"))
+
+    assert "pending-new" in state._messages_by_id
+    assert state.status == StatusState.GENERATING
+    assert state._messages_by_id["pending-new"].pending is True
+
+
+def test_late_completion_marker_under_retry_alias_is_ignored() -> None:
+    """Tombstone must cover retry-collapse alias keys, not just canonical ids.
+
+    Setup: a pending group exists at canonical id ``canonical-1`` and
+    a retry-collapse alias maps ``retry-1`` → ``canonical-1`` (would
+    happen if the model retried and the client collapsed both attempts
+    into one bubble). Operator hits Esc → ``mark_interrupted`` drops
+    the group, the alias mapping disappears with it. If the server's
+    late completion marker travels under the RETRY id, the alias
+    lookup fails (no longer present) and the resolved id is the raw
+    retry id — which must still be tombstoned, or a ghost bubble
+    appears.
+    """
+    state = SessionState()
+    state.consume(_pending_chunk("canonical-1"))
+    state._message_id_aliases["retry-1"] = "canonical-1"
+
+    state.mark_interrupted()
+
+    # Both the canonical id AND the alias key are tombstoned.
+    assert "canonical-1" in state._dropped_message_ids
+    assert "retry-1" in state._dropped_message_ids
+
+    # Late completion marker under the retry id must NOT resurrect.
+    state.consume(_complete_marker_chunk("retry-1"))
+    assert "retry-1" not in state._messages_by_id
+    assert "canonical-1" not in state._messages_by_id
+    assert not any(isinstance(item, MessageGroup) for item in state.items)
+
+
+def test_drop_message_groups_returns_alias_keys_too() -> None:
+    """The helper exposes the full set of message_ids late chunks can use."""
+    state = SessionState()
+    state.consume(_pending_chunk("canonical-2"))
+    state._message_id_aliases["alias-A"] = "canonical-2"
+    state._message_id_aliases["alias-B"] = "canonical-2"
+    # Decoy: an alias pointing somewhere unrelated must NOT be included.
+    state._message_id_aliases["alias-C"] = "some-other-group"
+
+    returned = state._drop_message_groups(["canonical-2"])
+
+    assert returned == {"canonical-2", "alias-A", "alias-B"}
+    # Decoy alias preserved.
+    assert state._message_id_aliases.get("alias-C") == "some-other-group"
+
+
+def test_mark_interrupted_marks_in_flight_tools_failed() -> None:
+    clock = _FakeClock(start=2000.0)
+    state = SessionState(now=clock)
+    state.consume(_tool_start("tc-1"))
+    state.consume(_tool_start("tc-2"))
+    assert state.tools_in_flight == 2
+    assert state.status == StatusState.CALLING_TOOLS
+
+    clock.t = 2010.0
+    state.mark_interrupted()
+
+    assert state.tools_in_flight == 0
+    assert state.status == StatusState.AWAITING_INPUT
+    tc1 = state._tool_calls_by_id["tc-1"]
+    tc2 = state._tool_calls_by_id["tc-2"]
+    assert tc1.status == "failed"
+    assert tc2.status == "failed"
+    # end_time stamped from the clock so the card stops spinning and
+    # the duration freezes at the cancel instant rather than continuing.
+    assert tc1.end_time == 2010.0
+    assert tc2.end_time == 2010.0
+
+
+def test_mark_interrupted_does_not_touch_terminal_tools() -> None:
+    """Already-completed tools must not be flipped to failed."""
+    state = SessionState()
+    state.consume(_tool_start("tc-done"))
+    state.consume(_tool_progress("tc-done", status="completed"))
+    state.consume(_tool_start("tc-live"))
+    assert state._tool_calls_by_id["tc-done"].status == "completed"
+
+    state.mark_interrupted()
+
+    # Completed stays completed; only the in-flight one was flipped.
+    assert state._tool_calls_by_id["tc-done"].status == "completed"
+    assert state._tool_calls_by_id["tc-live"].status == "failed"
+
+
+def test_mark_interrupted_resets_quiescence_timer() -> None:
+    """The chunk-quiescence GENERATING branch must not re-assert itself.
+
+    Without resetting ``_last_chunk_at`` the status pill would stay on
+    GENERATING for the rest of the quiescence window (driven by chunk
+    activity, not pending signals) even after we cleared everything.
+    """
+    clock = _FakeClock(start=500.0)
+    state = SessionState(now=clock)
+    state.consume(_agent_chunk("hi"))
+    assert state._last_chunk_at is not None
+    # Inside the quiescence window the chunk activity drives GENERATING
+    # even though no pending message id is registered.
+    assert state.status == StatusState.GENERATING
+
+    state.mark_interrupted()
+
+    assert state._last_chunk_at is None
+    assert state.status == StatusState.AWAITING_INPUT
+
+
+def test_mark_interrupted_notifies_subscribers_once() -> None:
+    state = SessionState()
+    state.consume(_pending_chunk("p1"))
+    state.consume(_tool_start("tc-1"))
+    fires: list[int] = []
+    state.subscribe(lambda: fires.append(1))
+
+    state.mark_interrupted()
+
+    assert sum(fires) == 1
+
+
+def test_mark_interrupted_with_nothing_inflight_is_silent() -> None:
+    """No subscribers fire when there's nothing to clear."""
+    state = SessionState()
+    fires: list[int] = []
+    state.subscribe(lambda: fires.append(1))
+
+    state.mark_interrupted()
+
+    assert fires == []

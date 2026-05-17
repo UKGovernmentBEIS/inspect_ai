@@ -1,4 +1,4 @@
-"""Session screen for the ``inspect acp`` TUI (Phase 2).
+"""Session screen for the ``inspect acp`` TUI.
 
 Layout:
 
@@ -6,11 +6,9 @@ Layout:
     identifiers (task / sample / epoch / agent / tokens) + connection
     indicator.
   - :class:`TranscriptWidget` — scrollable conversation pane.
-  - Composer placeholder (disabled — Phase 3 wires it).
+  - Composer ``Input`` — user types prompts; ``↵`` sends, ``Esc``
+    interrupts (or clears the draft when one is present).
   - Textual ``Footer`` for keymap hints.
-
-Read-only: composer disabled, ``Esc`` doesn't interrupt yet. Phase 3
-adds both.
 
 A periodic ``set_interval`` timer calls ``_tick`` so in-flight tool
 duration counters and the assistant chip spinner keep ticking even
@@ -49,10 +47,14 @@ fast that idle CPU is wasted.
 class SessionScreen(Screen[None]):
     """Phase 2 attached-session view."""
 
-    # ``priority=True`` so the binding fires regardless of focused
-    # widget — once the Phase 3 composer goes live we still want ^S to
-    # leave the session even if the Input has focus.
+    # ``priority=True`` on every binding so they fire regardless of
+    # focused widget — the composer ``Input`` would otherwise eat
+    # ``enter`` (firing its own ``Input.Submitted``) and the screen
+    # action never runs. Same reasoning for ``escape``; same for ^S so
+    # the user can always leave the session.
     BINDINGS = [
+        Binding("enter", "submit", "submit", show=True, key_display="↵", priority=True),
+        Binding("escape", "interrupt", "interrupt", show=True, priority=True),
         Binding(
             "ctrl+s",
             "switch_sample",
@@ -98,9 +100,8 @@ class SessionScreen(Screen[None]):
             yield SessionHeaderWidget(self._session.row)
             yield TranscriptWidget()
             yield Input(
-                placeholder="composer (Phase 3 enables this)",
+                placeholder="type a message for the agent…",
                 id="composer",
-                disabled=True,
             )
         yield Footer()
 
@@ -187,3 +188,76 @@ class SessionScreen(Screen[None]):
         """Disconnect from the current session and return to the picker."""
         self._user_initiated_close = True
         self._on_disconnect()
+
+    async def action_submit(self) -> None:
+        """Send the composer's text to the agent as a ``session/prompt``.
+
+        Empty composer is a no-op so a stray ``↵`` doesn't fire a
+        meaningless request. Errors from the server (connection dead,
+        session vanished) surface as a toast — the user still owns the
+        text, since we only clear after the request returns.
+        """
+        composer = self._composer_or_none()
+        if composer is None:
+            return
+        text = composer.value.strip()
+        if not text:
+            return
+        connection = self._session.connection
+        if connection is None:
+            self.app.notify("not connected", severity="warning")
+            return
+        try:
+            await connection.send_request(
+                "session/prompt",
+                {
+                    "sessionId": self._session.session_id,
+                    "prompt": [{"type": "text", "text": text}],
+                },
+            )
+        except Exception as exc:
+            self.app.notify(f"failed to send: {exc}", severity="error")
+            return
+        composer.value = ""
+
+    async def action_interrupt(self) -> None:
+        """Clear the composer draft, or interrupt the running turn.
+
+        Mirrors the design-doc keymap: ``Esc`` clears the draft when
+        one is present (so a typo is easy to undo). With an empty
+        composer, sends ``session/cancel`` ONLY while the agent is
+        actually working — gated on
+        :attr:`SessionState.has_active_work` (pending model events OR
+        in-flight tools) rather than the looser display
+        :attr:`StatusState.GENERATING`, which also fires for the
+        2-second quiescence tail after a normal response. Cancelling
+        during that tail would manufacture a misleading
+        ``between_turns`` ``InterruptEvent`` on the server.
+        """
+        composer = self._composer_or_none()
+        if composer is not None and composer.value:
+            composer.value = ""
+            return
+        if not self._state.has_active_work:
+            return
+        connection = self._session.connection
+        if connection is None:
+            return
+        # Clear local in-flight signals BEFORE sending so the spinner /
+        # status pill react instantly rather than waiting for the
+        # server's cancel propagation to round-trip back to us.
+        self._state.mark_interrupted()
+        try:
+            await connection.send_notification(
+                "session/cancel",
+                {"sessionId": self._session.session_id},
+            )
+        except Exception as exc:
+            self.app.notify(f"failed to interrupt: {exc}", severity="error")
+
+    def _composer_or_none(self) -> Input | None:
+        """The composer Input, or None if it isn't mounted (defensive)."""
+        try:
+            return self.query_one("#composer", Input)
+        except NoMatches:
+            return None

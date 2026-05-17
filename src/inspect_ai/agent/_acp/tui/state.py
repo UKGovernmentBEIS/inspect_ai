@@ -80,6 +80,18 @@ MessageRole = Literal["user", "assistant", "system"]
 SegmentKind = Literal["text", "reasoning"]
 
 
+def _group_has_content(group: "MessageGroup") -> bool:
+    """True iff the group has at least one segment with non-empty text.
+
+    The router emits an empty ``AgentMessageChunk`` as a "generation
+    started" marker — that bubble has zero useful content until real
+    text arrives. ``mark_interrupted`` uses this predicate to decide
+    whether to drop the group (no content yet) or keep it (partial
+    output streamed before the cancel landed).
+    """
+    return any(segment.text for segment in group.segments)
+
+
 @dataclass
 class Segment:
     """A homogeneous run of content within a MessageGroup.
@@ -267,6 +279,17 @@ class SessionState:
         # pending signal lands and the most recent transcript item is
         # an empty assistant group for the same model.
         self._message_id_aliases: dict[str, str] = {}
+        # message_ids the operator explicitly cancelled via Esc that
+        # had no content yet. The server still emits a completion
+        # marker for these (an empty AgentMessageChunk with the
+        # ``inspect.model_event_complete`` meta) once the ModelEvent's
+        # pending flag clears, which would otherwise re-create the
+        # bubble we just dropped — as a non-pending, no-content
+        # ghost. Late chunks for these ids are silently dropped in
+        # ``_consume_chunk``. Bounded by the count of operator
+        # interrupts that fired before any content streamed; in
+        # practice tiny.
+        self._dropped_message_ids: set[str] = set()
         self._subscribers: list[Callable[[], None]] = []
 
     # ------------------------------------------------------------------
@@ -292,6 +315,108 @@ class SessionState:
                 cb()
             except Exception:  # noqa: BLE001 — never let a subscriber kill the loop
                 pass
+
+    # ------------------------------------------------------------------
+    # Operator-driven mutations
+    # ------------------------------------------------------------------
+
+    def mark_interrupted(self) -> None:
+        """Optimistically clear in-flight signals after the operator hits Esc.
+
+        The cancel notification round-trips through the server (agent
+        loop unwind → transcript update → router emit → wire back), so
+        the spinner / status pill would otherwise stay on
+        ``GENERATING`` or ``CALLING_TOOLS`` for the full propagation
+        window. Clearing locally gives instant feedback; if the model
+        actually produces content before the cancel lands, the next
+        chunk just re-establishes pending state honestly.
+
+        Four things change:
+        - pending message groups with no content yet are *dropped*
+          entirely (the empty "assistant is thinking" bubble is just
+          chrome once we know the turn was cancelled before any text
+          arrived); pending groups that did stream content keep their
+          text but lose ``pending=True``.
+        - ``_pending_message_ids`` is cleared (drops
+          :attr:`StatusState.GENERATING`).
+        - in-flight tool calls are marked ``failed`` with ``end_time``
+          stamped so the card stops spinning.
+        - the inter-chunk quiescence timer is reset so the
+          quiescence-based ``GENERATING`` branch doesn't keep firing
+          until the timer expires on its own.
+        """
+        changed = False
+        empty_pending_ids: list[str] = []
+        for message_id in list(self._pending_message_ids):
+            group = self._messages_by_id.get(message_id)
+            if group is None:
+                continue
+            if _group_has_content(group):
+                if group.pending:
+                    group.pending = False
+                    changed = True
+            else:
+                empty_pending_ids.append(message_id)
+        if empty_pending_ids:
+            tombstone_ids = self._drop_message_groups(empty_pending_ids)
+            # Tombstone the canonical ids AND any retry-collapse alias
+            # keys that pointed at them — the server's late completion
+            # marker could legitimately arrive under either. See
+            # ``_dropped_message_ids`` field comment.
+            self._dropped_message_ids.update(tombstone_ids)
+            changed = True
+        if self._pending_message_ids:
+            self._pending_message_ids.clear()
+            changed = True
+        if self._last_chunk_at is not None:
+            self._last_chunk_at = None
+            changed = True
+        now = self._now()
+        for tc in self._tool_calls_by_id.values():
+            if tc.status in ("pending", "in_progress"):
+                tc.status = "failed"
+                if tc.end_time is None:
+                    tc.end_time = now
+                changed = True
+        if changed:
+            self._notify()
+
+    def _drop_message_groups(self, message_ids: list[str]) -> set[str]:
+        """Remove the named groups from ``items`` and the lookup indexes.
+
+        Mirrors the cleanup the turn-cap path runs — pops the message
+        index, drops any retry-collapse aliases pointing at the
+        dropped ids, and removes the items themselves. Caller is
+        responsible for the ``_pending_message_ids`` cleanup since
+        not every caller wants the same scope there.
+
+        Returns the union of the dropped canonical ids and any alias
+        KEYS that pointed at them. Both are message_ids a late chunk
+        could legitimately arrive under: server-side a content chunk
+        always uses the canonical id, but the empty completion
+        marker may travel under the original retry id depending on
+        which event uuid the router resolved. Callers wanting full
+        suppression (e.g. :meth:`mark_interrupted`) tombstone the
+        whole returned set so neither id can resurrect the bubble.
+        """
+        drop = set(message_ids)
+        self.items = [
+            item
+            for item in self.items
+            if not (isinstance(item, MessageGroup) and item.message_id in drop)
+        ]
+        for mid in drop:
+            self._messages_by_id.pop(mid, None)
+        pruned_alias_keys: set[str] = set()
+        if self._message_id_aliases:
+            kept: dict[str, str] = {}
+            for k, v in self._message_id_aliases.items():
+                if v in drop:
+                    pruned_alias_keys.add(k)
+                else:
+                    kept[k] = v
+            self._message_id_aliases = kept
+        return drop | pruned_alias_keys
 
     # ------------------------------------------------------------------
     # Consume notifications
@@ -367,6 +492,14 @@ class SessionState:
         # subsequent chunks for an aliased id (the completion marker,
         # any late content) target the original group.
         message_id = self._message_id_aliases.get(message_id, message_id)
+
+        # Late chunks for groups the operator explicitly cancelled
+        # (via ``mark_interrupted``) are silently dropped — otherwise
+        # the server's empty completion marker would re-create the
+        # bubble as a non-pending, content-empty ghost. See the
+        # ``_dropped_message_ids`` field comment for the lifecycle.
+        if message_id in self._dropped_message_ids:
+            return False
 
         meta = getattr(update, "field_meta", None) or {}
         role = self._role_for(update)
@@ -729,6 +862,23 @@ class SessionState:
             for tc in self._tool_calls_by_id.values()
             if tc.status == "in_progress" or tc.status == "pending"
         )
+
+    @property
+    def has_active_work(self) -> bool:
+        """Strict "is the agent currently doing something" signal.
+
+        True iff a model event is pending or a tool call is in flight.
+        Distinct from :attr:`status`, which also reports
+        :attr:`StatusState.GENERATING` during the post-chunk quiescence
+        window (the 2 seconds after the last chunk arrived).
+
+        Used to gate operator-driven interrupt actions: ``Esc`` must
+        only fire ``session/cancel`` when there's *actual* work to
+        cancel, otherwise the server records a misleading
+        ``between_turns`` ``InterruptEvent`` for the quiescence tail
+        of a normal assistant response.
+        """
+        return bool(self._pending_message_ids) or self.tools_in_flight > 0
 
     @property
     def status(self) -> StatusState:

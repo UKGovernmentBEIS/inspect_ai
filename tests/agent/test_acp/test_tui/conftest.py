@@ -101,9 +101,32 @@ def make_fake_client(
             async def wait_closed(self) -> None:
                 pass
 
+        class _FakeConnection:
+            """Records outbound JSON-RPC calls so tests can assert them.
+
+            ``send_request`` returns ``None`` — production code only
+            uses the response shape for picker-mode rebinds (handled
+            elsewhere); the prompt path treats it as fire-and-forget
+            once the request is acknowledged.
+            """
+
+            def __init__(self) -> None:
+                self.requests: list[tuple[str, dict[str, object]]] = []
+                self.notifications: list[tuple[str, dict[str, object]]] = []
+
+            async def send_request(
+                self, method: str, params: dict[str, object]
+            ) -> None:
+                self.requests.append((method, params))
+
+            async def send_notification(
+                self, method: str, params: dict[str, object]
+            ) -> None:
+                self.notifications.append((method, params))
+
         class _FakeSession:
             def __init__(self) -> None:
-                self.connection = None
+                self.connection = _FakeConnection()
                 self.writer = _FakeWriter()
                 self.session_id = row.session_id
                 self.row = row
