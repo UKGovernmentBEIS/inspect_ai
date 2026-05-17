@@ -15,6 +15,8 @@ anyio boundary" for the rationale.
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, Literal
@@ -165,6 +167,11 @@ class ConnectionHandler:
         # per-bind state (notably the plan-tool stash) cannot leak
         # across rebinds because the object itself is destroyed.
         self._forwarders: Forwarders | None = None
+        # Tasks scheduled via ``_schedule_after_response`` to fire a
+        # notification once the in-progress RPC response has been
+        # written to the wire. Tracked so they're not garbage-collected
+        # before they run and so connection close can cancel them.
+        self._pending_after_response: set[asyncio.Task[None]] = set()
 
     # ------------------------------------------------------------------
     # ACP Agent surface — implemented methods
@@ -237,11 +244,20 @@ class ConnectionHandler:
             )
         # On a successful load the wire sessionId IS the target's id
         # (the client passed it in, we matched it, no rebind happens).
-        self.state.binding = Bound(
+        # Binding-confirmation notification, title, and replay events
+        # are deferred until after the response writes — same rationale
+        # as ``_auto_bind`` (avoid clients dropping updates for a
+        # sessionId they haven't yet seen).
+        #
+        # Any prior bind's forwarders are torn down SYNCHRONOUSLY here
+        # before mutating ``state.binding`` — see ``_auto_bind`` for
+        # the cross-stream pollution this prevents.
+        await self._stop_forwarders()
+        expected = Bound(
             wire_session_id=match.session_id, target_session_id=match.session_id
         )
-        await self._notify_binding(match)
-        await self._start_forwarders(match.session_id)
+        self.state.binding = expected
+        self._schedule_after_response(lambda: self._post_bind_setup(match, expected))
         return LoadSessionResponse()
 
     async def prompt(
@@ -570,7 +586,11 @@ class ConnectionHandler:
             wire_session_id=control_id, picker_targets=list(targets)
         )
         notif = build_picker_notification(control_id, targets)
-        await self._send_session_update(notif)
+        # Defer notification until after the NewSessionResponse has been
+        # written to the wire — Zed (and likely other clients) drop
+        # session/update notifications for a sessionId they haven't yet
+        # seen in a newSession/loadSession response.
+        self._schedule_after_response(lambda: self._send_session_update(notif))
         return NewSessionResponse(session_id=control_id)
 
     async def _auto_bind(self, target: PickerTarget) -> NewSessionResponse:
@@ -579,12 +599,27 @@ class ConnectionHandler:
         On the auto-bind path the wire sessionId IS the target's id
         (it's what we hand back in the NewSessionResponse), so the
         client and server agree on the same id.
+
+        The binding-confirmation notification, session_info title, and
+        replay-on-attach events all flow as ``session/update`` for
+        this sessionId — they're deferred until after the response
+        writes so clients (Zed etc.) don't drop them as references to
+        a sessionId they don't yet know.
+
+        Any prior bind's forwarders are torn down SYNCHRONOUSLY here
+        before mutating ``state.binding``. Without that, the old
+        forwarder would keep publishing under the new
+        ``wire_session_id`` (read at notification time by
+        ``Forwarders._rewrite_session_id``) during the gap before
+        ``_post_bind_setup`` runs, leaking the old target's events as
+        if they came from the new session.
         """
-        self.state.binding = Bound(
+        await self._stop_forwarders()
+        expected = Bound(
             wire_session_id=target.session_id, target_session_id=target.session_id
         )
-        await self._notify_binding(target)
-        await self._start_forwarders(target.session_id)
+        self.state.binding = expected
+        self._schedule_after_response(lambda: self._post_bind_setup(target, expected))
         return NewSessionResponse(session_id=target.session_id)
 
     async def _handle_picker_selection(
@@ -640,12 +675,24 @@ class ConnectionHandler:
         # Design contract: client's sessionId is stable across a picker
         # rebind, so all subsequent outbound notifications continue to
         # use wire_session_id.
-        self.state.binding = Bound(
+        #
+        # Same synchronous-stop-before-bind + guarded-setup pattern as
+        # ``_auto_bind`` / ``load_session``. Picker selection runs as
+        # an ACP request handler — ACP dispatches each request as its
+        # own asyncio task, so a concurrent ``session/load`` /
+        # ``session/new`` on the same connection CAN interleave during
+        # our ``_notify_binding`` / ``_start_forwarders`` awaits.
+        # Without the guard, the older selection handler could attach
+        # forwarders for the picked target after the newer bind is
+        # already current. We pass ``expected`` through
+        # ``_post_bind_setup`` so each await rechecks ``state.binding``.
+        await self._stop_forwarders()
+        expected = Bound(
             wire_session_id=picker.wire_session_id,
             target_session_id=target.session_id,
         )
-        await self._notify_binding(target)
-        await self._start_forwarders(target.session_id)
+        self.state.binding = expected
+        await self._post_bind_setup(target, expected)
         return PromptResponse(stop_reason="end_turn")
 
     async def _notify_binding(self, target: PickerTarget) -> None:
@@ -753,7 +800,11 @@ class ConnectionHandler:
     # Bind / unbind orchestration
     # ------------------------------------------------------------------
 
-    async def _start_forwarders(self, target_session_id: str) -> None:
+    async def _start_forwarders(
+        self,
+        target_session_id: str,
+        expected: Bound | None = None,
+    ) -> None:
         """Bind this connection to a target session and start forwarding.
 
         Sequence:
@@ -769,26 +820,169 @@ class ConnectionHandler:
            subscriber.
         5. Construct a fresh :class:`Forwarders` and start it (per-bind
            plan-tool stash and forwarder runtime live entirely there).
+
+        **Rebind race guard.** If ``expected`` is provided, recheck
+        ``state.binding == expected`` after each await. If a rebind
+        landed in the gap, bail out — the newer bind will start its
+        own forwarders. Without this, a stale setup could attach
+        forwarders for an old target after a newer bind is already
+        current, leaking old events under the new wire id.
+
+        **All production call sites pass ``expected``** (via
+        ``_post_bind_setup``). ACP dispatches each request as its own
+        asyncio task, so even handlers that look synchronous (picker
+        selection, ``load_session``) can interleave with concurrent
+        bind requests during their awaits. ``expected=None`` is
+        retained on the parameter only for composability — leave the
+        guard on in real code.
+
+        ``expected`` is also threaded into ``Forwarders.start`` so the
+        guard covers the replay phases inside it (which yield and
+        re-read ``state.wire_session_id``). Without that, a rebind
+        during the raw-replay yield would cause subsequent semantic
+        replay to construct notifications under the NEW wire id for
+        the OLD target — true cross-stream pollution.
         """
         await self._stop_forwarders()
+        if expected is not None and self.state.binding != expected:
+            return
 
         target = _find_live_session(target_session_id)
         if target is None:
             return
 
         await self._send_session_info_title(target_session_id)
+        if expected is not None and self.state.binding != expected:
+            return
+
         target = _find_live_session(target_session_id)
         if target is None:
             return
         assert self.connection is not None
-        self._forwarders = Forwarders(self.state, self.connection, self)
-        await self._forwarders.start(target, target_session_id)
+        forwarders = Forwarders(self.state, self.connection, self)
+        # Final pre-start check after the second target lookup.
+        if expected is not None and self.state.binding != expected:
+            return
+        self._forwarders = forwarders
+        await forwarders.start(target, target_session_id, expected=expected)
+        # Post-start check: even with ``expected`` threaded into
+        # ``Forwarders.start`` (which prevents cross-stream replay
+        # emits + skips live task startup if stale), this final check
+        # catches edge cases where the binding flipped between
+        # ``start`` returning and us reading ``state.binding``. Tear
+        # down only if ``self._forwarders`` is still ours — a
+        # concurrent rebind may have already replaced it.
+        if expected is not None and self.state.binding != expected:
+            if self._forwarders is forwarders:
+                self._forwarders = None
+            await forwarders.stop()
 
     async def _stop_forwarders(self) -> None:
         """Tear down the current bind's forwarders, if any. Idempotent."""
         if self._forwarders is not None:
             await self._forwarders.stop()
             self._forwarders = None
+
+    async def _post_bind_setup(self, target: PickerTarget, expected: Bound) -> None:
+        """Post-response binding work: confirmation notification + forwarders.
+
+        Shared body for the three bind paths:
+
+        - ``newSession`` auto-bind and ``loadSession``: set
+          ``state.binding`` inline and SCHEDULE this to run after the
+          response so clients (Zed etc.) don't drop notifications
+          referencing a sessionId they haven't seen yet. See
+          ``_schedule_after_response`` for the mechanism.
+        - Picker selection (``_handle_picker_selection``): responds to
+          ``session/prompt`` after the client already knows the wire
+          sessionId, so this runs INLINE — no defer needed. The guard
+          is still required because ACP dispatches each request as
+          its own asyncio task, and a concurrent ``session/load`` /
+          ``session/new`` can interleave during our awaits.
+
+        **Rebind race guard.** A client that rebinds (a second
+        ``session/load`` or another ``session/new``) before the
+        deferred task runs would otherwise see the stale task send a
+        confirmation for the old target *under the new wire sessionId*
+        (since ``_notify_binding`` reads ``state.wire_session_id`` at
+        call time), and then ``_start_forwarders`` would tear down the
+        newer bind's forwarders and replace them with the stale
+        target's. We capture the expected ``Bound`` at schedule time
+        and no-op if it no longer matches. ``Bound`` is a frozen
+        dataclass so equality is value-based.
+
+        Re-checked AFTER the notify yield as well — ``_notify_binding``
+        awaits ``_send_session_update``, opening a second race window
+        before forwarders start. ``expected`` is also passed into
+        ``_start_forwarders`` so the per-await-point guard applies to
+        the multi-step forwarder startup (stop / title-send / replay)
+        as well.
+        """
+        if self.state.binding != expected:
+            return
+        await self._notify_binding(target)
+        if self.state.binding != expected:
+            return
+        await self._start_forwarders(target.session_id, expected=expected)
+
+    def _schedule_after_response(
+        self, factory: Callable[[], Coroutine[Any, Any, None]]
+    ) -> None:
+        """Schedule work to run after the in-progress RPC response writes.
+
+        The ACP framework's ``_run_request`` writes the response only
+        after the handler returns. Notifications sent inline from a
+        handler therefore land on the wire BEFORE the response — Zed
+        (and likely other clients) discard such notifications because
+        the sessionId they reference is not yet known to the client.
+
+        This helper schedules ``factory()`` on the event loop with a
+        leading ``sleep(0)`` so the framework's in-flight
+        ``_sender.send(response)`` enqueues onto the writer first; the
+        sender's internal FIFO queue then guarantees the response is
+        flushed before any notification we enqueue here.
+
+        Takes a **factory** (not a pre-created coroutine) so the
+        coroutine is only constructed if/when the task survives the
+        initial yield. If ``shutdown`` cancels the task during
+        ``sleep(0)``, no coroutine exists to leak as
+        ``RuntimeWarning: coroutine ... was never awaited``.
+
+        Tasks are tracked in ``_pending_after_response`` so they're not
+        garbage-collected before they run; a done callback discards
+        them and logs any exception.
+        """
+
+        async def _run() -> None:
+            await asyncio.sleep(0)
+            await factory()
+
+        task = asyncio.create_task(_run())
+        self._pending_after_response.add(task)
+        task.add_done_callback(self._on_after_response_done)
+
+    def _on_after_response_done(self, task: asyncio.Task[None]) -> None:
+        self._pending_after_response.discard(task)
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.exception("Deferred post-response send failed", exc_info=exc)
+
+    async def shutdown(self) -> None:
+        """Connection-close cleanup: cancel deferred sends, stop forwarders.
+
+        Called from the server's ``_on_connection`` finally block after
+        ``conn.main_loop`` returns. Deferred post-response sends are
+        cancelled (the writer is about to close, so any pending write
+        would either fail or race the close); forwarders are then
+        torn down via the existing per-bind shutdown path.
+        """
+        for task in list(self._pending_after_response):
+            task.cancel()
+        if self._pending_after_response:
+            await asyncio.gather(*self._pending_after_response, return_exceptions=True)
+        await self._stop_forwarders()
 
 
 # ---------------------------------------------------------------------------

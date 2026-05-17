@@ -31,7 +31,7 @@ from inspect_ai.agent._acp.inspect_ext import (
 )
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp.connection import ConnectionState
+    from inspect_ai.agent._acp.connection import Bound, ConnectionState
     from inspect_ai.agent._acp.session import AcpSession, ApproverClient
 
 logger = getLogger(__name__)
@@ -110,7 +110,12 @@ class Forwarders:
         # Approver client unsubscribe callable.
         self._approver_unsub: Callable[[], None] | None = None
 
-    async def start(self, target: "AcpSession", target_session_id: str) -> None:
+    async def start(
+        self,
+        target: "AcpSession",
+        target_session_id: str,
+        expected: "Bound | None" = None,
+    ) -> None:
         """Begin live forwarding for a freshly-bound target session.
 
         Three-step setup ordered to avoid both lost events AND
@@ -127,6 +132,17 @@ class Forwarders:
         Snapshot + attach are both sync (no ``await`` between them),
         so no event can slip into both — events ≤ snapshot index go
         through replay; events > snapshot index go through live.
+
+        **Rebind race guard.** If ``expected`` is provided, the binding
+        is rechecked before each replay phase and per-event send, and
+        before starting the live forwarder task. Without this, a
+        rebind landing during the raw-replay yield would cause
+        ``_run_replay``'s subsequent semantic-replay read of
+        ``self._state.wire_session_id`` to pick up the NEW wire id and
+        emit OLD-target events under that NEW id (true cross-stream
+        pollution, not just events-under-old-id). The caller
+        (:meth:`ConnectionHandler._start_forwarders`) detaches /
+        teardown via ``self.stop()`` if we bail.
         """
         self._target = target
 
@@ -146,7 +162,12 @@ class Forwarders:
 
         # REPLAY — emit historical notifications synchronously before
         # live ones. Raw replay (if enabled) first, then semantic.
-        await self._run_replay(snapshot)
+        await self._run_replay(snapshot, expected=expected)
+
+        # If a rebind landed during replay, skip starting live tasks.
+        # The caller's post-start guard will tear us down via stop().
+        if expected is not None and self._state.binding != expected:
+            return
 
         # LIVE forwarders — drain the buffers that have been filling
         # since attach.
@@ -236,7 +257,9 @@ class Forwarders:
     # Replay-on-attach
     # ------------------------------------------------------------------
 
-    async def _run_replay(self, snapshot: list[Any]) -> None:
+    async def _run_replay(
+        self, snapshot: list[Any], expected: "Bound | None" = None
+    ) -> None:
         """Emit recent transcript history out to this connection.
 
         Two sub-passes (raw first if enabled, then semantic) so the
@@ -246,27 +269,55 @@ class Forwarders:
         into long-running samples. No transforms beyond plan-policy and
         sub-agent filtering — replay produces the same wire payloads as
         live, so a client that handles live also handles replay.
+
+        **Rebind race guard.** If ``expected`` is provided, recheck
+        ``self._state.binding == expected`` before each phase (raw,
+        semantic) and before each per-event send. ``wire_session_id``
+        is captured once UP FRONT (after the initial guard) and used
+        for the semantic notification construction — otherwise a
+        rebind landing between the raw and semantic phases would
+        cause subsequent semantic events for the OLD target to be
+        constructed under the NEW wire id (cross-stream pollution).
         """
-        if self._state.wire_session_id is None:
+        # Capture wire_session_id ONCE under the initial guard. Reads
+        # after the raw-replay yield could see a stale NEW value.
+        wire = self._state.wire_session_id
+        if wire is None:
+            return
+        if expected is not None and self._state.binding != expected:
             return
 
         # RAW replay (opt-in only). Send all transcript events (no
-        # sub-agent filter) capped to the last N.
+        # sub-agent filter) capped to the last N. Pass a
+        # ``should_continue`` predicate so a rebind mid-loop stops
+        # subsequent raw sends — otherwise old-target events 2..N
+        # would still reach a connection that has moved on.
         if self._raw_forwarder is not None:
-            await self._raw_forwarder.replay(snapshot, REPLAY_MAX_EVENTS)
+            should_continue = (
+                None if expected is None else (lambda: self._state.binding == expected)
+            )
+            await self._raw_forwarder.replay(
+                snapshot, REPLAY_MAX_EVENTS, should_continue=should_continue
+            )
+
+        if expected is not None and self._state.binding != expected:
+            return
 
         # SEMANTIC replay. Apply the same sub-agent filter the live
         # router uses. Take the last N events post-filter, then map to
-        # SessionNotifications, then apply plan policy.
+        # SessionNotifications using the captured wire id, then apply
+        # plan policy.
         filtered = list(_filter_subagent_events(snapshot))[-REPLAY_MAX_EVENTS:]
         notifications = list(
             replay_transcript(
                 filtered,
-                self._state.wire_session_id,
+                wire,
                 filter_subagents=False,  # already pre-filtered
             )
         )
         for notif in notifications:
+            if expected is not None and self._state.binding != expected:
+                return
             transformed = self._plan_policy.transform(notif)
             if transformed is None:
                 continue

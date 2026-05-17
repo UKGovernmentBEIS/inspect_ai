@@ -410,10 +410,24 @@ class RawEventForwarder:
         )
         self._unsubscribe = target.subscribe_transcript_events(self._on_event)
 
-    async def replay(self, snapshot: list[Any], max_events: int) -> None:
-        """Emit the last ``max_events`` from the snapshot as ``inspect/event``."""
+    async def replay(
+        self,
+        snapshot: list[Any],
+        max_events: int,
+        should_continue: Callable[[], bool] | None = None,
+    ) -> None:
+        """Emit the last ``max_events`` from the snapshot as ``inspect/event``.
+
+        ``should_continue``, if provided, is called before each send.
+        Returning ``False`` stops the replay (used by
+        :class:`Forwarders` to bail out mid-loop if a rebind lands).
+        Without it, raw events for the old target would keep streaming
+        on a connection that has already moved on.
+        """
         events = snapshot[-max_events:]
         for event in events:
+            if should_continue is not None and not should_continue():
+                return
             try:
                 payload = event.model_dump(
                     mode="json", by_alias=True, exclude_none=True

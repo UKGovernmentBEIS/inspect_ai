@@ -26,8 +26,15 @@ import pytest
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp.connection import (
+    Bound,
+    ConnectionHandler,
+    Unbound,
+)
 from inspect_ai.agent._acp.inspect_ext import PICKER_META_KEY
+from inspect_ai.agent._acp.picker import PickerTarget
 from inspect_ai.agent._acp.server import acp_server
+from inspect_ai.agent._acp.session_router import Forwarders
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -132,6 +139,11 @@ class _RpcClient:
         self._next_id = 1
         self._pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
         self._notifications: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        # Append-only record of every frame in the order it was read off
+        # the wire. Entries are ``("response", id)`` or
+        # ``("notification", method)``. Tests that need to assert wire
+        # ordering between responses and notifications read this.
+        self.arrival_log: list[tuple[str, Any]] = []
         self._read_task = asyncio.create_task(self._read_loop())
 
     async def _read_loop(self) -> None:
@@ -145,10 +157,12 @@ class _RpcClient:
                 except json.JSONDecodeError:
                     continue
                 if "id" in msg and ("result" in msg or "error" in msg):
+                    self.arrival_log.append(("response", msg["id"]))
                     fut = self._pending.pop(msg["id"], None)
                     if fut is not None and not fut.done():
                         fut.set_result(msg)
                 elif "method" in msg:
+                    self.arrival_log.append(("notification", msg["method"]))
                     await self._notifications.put(msg)
         except (asyncio.CancelledError, ConnectionError):
             return
@@ -268,6 +282,720 @@ async def test_session_new_with_multiple_targets_returns_control_session(
             assert PICKER_META_KEY in params["_meta"]
             ids = [t["sessionId"] for t in params["_meta"][PICKER_META_KEY]]
             assert ids == ["uuid-a", "uuid-b"]
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_session_new_picker_notification_arrives_after_response(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Picker session/update must land on the wire AFTER the newSession response.
+
+    Some ACP clients (notably Zed) drop session/update notifications that
+    arrive for a sessionId they have not yet seen in a newSession /
+    loadSession response. ``_enter_picker_mode`` defers the notification
+    via ``_schedule_after_response`` so the response writes first.
+
+    Regression guard for that ordering — relies on ``_RpcClient.arrival_log``
+    which records every frame in read order.
+    """
+    stub_targets(
+        [
+            _make_sample(task="t1", sample_id="s1", epoch=0, session_id="uuid-a"),
+            _make_sample(task="t2", sample_id="s2", epoch=1, session_id="uuid-b"),
+        ]
+    )
+    async with acp_server(eval_id="evt-order", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            # Wait for the notification to arrive too, then inspect order.
+            await client.next_notification()
+            kinds = [kind for kind, _ in client.arrival_log]
+            # First two frames after newSession must be response then
+            # notification. Earlier connection-setup frames (none today)
+            # would precede them but the relative order is what matters.
+            response_index = kinds.index("response")
+            notification_index = kinds.index("notification")
+            assert response_index < notification_index, (
+                f"response should arrive before notification; "
+                f"arrival_log={client.arrival_log}"
+            )
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_session_new_auto_bind_notifications_arrive_after_response(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Single-target auto-bind: binding confirmation + title arrive AFTER response.
+
+    Companion to the picker ordering test — auto-bind also introduces
+    a fresh sessionId in its response, so any ``session/update`` sent
+    inline would be dropped by clients that haven't seen the id yet.
+    ``_auto_bind`` defers via ``_schedule_after_response`` ⇒
+    ``_post_bind_setup``.
+    """
+    stub_targets(
+        [_make_sample(task="solo", sample_id="s1", epoch=0, session_id="uuid-only")]
+    )
+    async with acp_server(eval_id="evt-auto-order", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            # Drain the binding confirmation; further notifications
+            # (session_info title) may also arrive but the relative
+            # ordering vs the response is what we care about.
+            await client.next_notification()
+            kinds = [kind for kind, _ in client.arrival_log]
+            response_index = kinds.index("response")
+            notification_index = kinds.index("notification")
+            assert response_index < notification_index, (
+                f"newSession auto-bind response should arrive before "
+                f"any notifications; arrival_log={client.arrival_log}"
+            )
+        finally:
+            await client.close()
+
+
+async def test_load_session_stops_old_forwarders_before_changing_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``session/load`` must tear down prior forwarders SYNCHRONOUSLY before rebind.
+
+    The defer-after-response fix moved binding confirmation, title, and
+    new-forwarder startup into ``_post_bind_setup``. If ``_stop_forwarders``
+    rode along inside the deferred task, the old forwarder would keep
+    publishing during the gap — and ``Forwarders._rewrite_session_id``
+    reads ``state.wire_session_id`` at notification time, so old-target
+    events would be rewritten under the new wire id and leak as if they
+    came from the new session.
+
+    Pinned property: by the time ``_stop_forwarders`` is called,
+    ``state.binding`` is still the OLD ``Bound``; only after stop
+    completes does the binding flip.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    old_bound = Bound(wire_session_id="old-uuid", target_session_id="old-uuid")
+    handler.state.binding = old_bound
+
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.connection.list_picker_targets",
+        lambda: [PickerTarget(session_id="new-uuid", task="t", sample_id="s", epoch=0)],
+    )
+
+    binding_at_stop: Any = None
+
+    async def _spy_stop() -> None:
+        nonlocal binding_at_stop
+        binding_at_stop = handler.state.binding
+
+    monkeypatch.setattr(handler, "_stop_forwarders", _spy_stop)
+    # Block the deferred work so this test exercises only the synchronous path.
+    monkeypatch.setattr(handler, "_schedule_after_response", MagicMock())
+
+    await handler.load_session(cwd="/tmp", session_id="new-uuid")
+
+    assert binding_at_stop == old_bound, (
+        "_stop_forwarders must run BEFORE state.binding is mutated; "
+        f"saw {binding_at_stop} at stop time"
+    )
+    assert handler.state.binding == Bound(
+        wire_session_id="new-uuid", target_session_id="new-uuid"
+    )
+
+
+async def test_auto_bind_stops_old_forwarders_before_changing_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Auto-bind has the same synchronous-stop-before-rebind requirement.
+
+    Counterpart to the ``load_session`` test — covers the single-target
+    ``session/new`` path through ``_auto_bind``.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    old_bound = Bound(wire_session_id="old-uuid", target_session_id="old-uuid")
+    handler.state.binding = old_bound
+    target = PickerTarget(session_id="new-uuid", task="t", sample_id="s", epoch=0)
+
+    binding_at_stop: Any = None
+
+    async def _spy_stop() -> None:
+        nonlocal binding_at_stop
+        binding_at_stop = handler.state.binding
+
+    monkeypatch.setattr(handler, "_stop_forwarders", _spy_stop)
+    monkeypatch.setattr(handler, "_schedule_after_response", MagicMock())
+
+    await handler._auto_bind(target)
+
+    assert binding_at_stop == old_bound, (
+        "_stop_forwarders must run BEFORE state.binding is mutated; "
+        f"saw {binding_at_stop} at stop time"
+    )
+    assert handler.state.binding == Bound(
+        wire_session_id="new-uuid", target_session_id="new-uuid"
+    )
+
+
+async def test_post_bind_setup_noops_when_binding_replaced(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stale deferred ``_post_bind_setup`` must not touch state of a newer bind.
+
+    Race scenario: client calls ``session/load(uuid-a)``, then immediately
+    ``session/load(uuid-b)`` (or ``session/new``) before the first deferred
+    task runs. Without the guard, the stale task would (a) send a
+    confirmation for target-a under the new wire sessionId (which
+    ``_notify_binding`` reads from current state) and (b) ``_start_forwarders``
+    would tear down the newer bind's forwarders.
+
+    The guard captures the expected ``Bound`` at schedule time and no-ops
+    if ``state.binding`` no longer matches. ``Bound`` is a frozen
+    dataclass; equality is value-based.
+
+    Exercised directly here rather than via interleaved socket traffic —
+    the live race window is small and non-deterministic. We simulate it
+    by mutating ``state.binding`` between scheduling and execution.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    target_a = PickerTarget(session_id="uuid-a", task="t", sample_id="s", epoch=0)
+    expected_a = Bound(wire_session_id="uuid-a", target_session_id="uuid-a")
+    handler.state.binding = expected_a
+    # Simulate rebind to a different target BEFORE the deferred task runs.
+    handler.state.binding = Bound(wire_session_id="uuid-b", target_session_id="uuid-b")
+
+    notify_called = False
+    start_called = False
+
+    async def _spy_notify(target: Any) -> None:
+        nonlocal notify_called
+        notify_called = True
+
+    async def _spy_start(target_session_id: str) -> None:
+        nonlocal start_called
+        start_called = True
+
+    monkeypatch.setattr(handler, "_notify_binding", _spy_notify)
+    monkeypatch.setattr(handler, "_start_forwarders", _spy_start)
+
+    await handler._post_bind_setup(target_a, expected_a)
+
+    assert not notify_called, "stale bind should not send a notification"
+    assert not start_called, "stale bind should not start forwarders"
+
+
+async def test_post_bind_setup_noops_when_unbound(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Stale deferred ``_post_bind_setup`` after connection unbind is a no-op.
+
+    Covers the ``Unbound`` variant — equality vs ``Bound`` is False, so the
+    same guard applies. Defensive: if a future code path resets binding to
+    Unbound while a deferred task is pending, the task must not fire.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    target = PickerTarget(session_id="uuid-a", task="t", sample_id="s", epoch=0)
+    expected = Bound(wire_session_id="uuid-a", target_session_id="uuid-a")
+    handler.state.binding = Unbound()
+
+    monkeypatch.setattr(
+        handler, "_notify_binding", MagicMock(side_effect=AssertionError("called"))
+    )
+    monkeypatch.setattr(
+        handler, "_start_forwarders", MagicMock(side_effect=AssertionError("called"))
+    )
+
+    await handler._post_bind_setup(target, expected)
+    # No exception → both spies untouched.
+
+
+async def test_start_forwarders_rechecks_after_title_send(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rebind during ``_send_session_info_title`` must abort forwarder startup.
+
+    ``_start_forwarders`` yields three times: ``_stop_forwarders``,
+    ``_send_session_info_title``, and ``Forwarders.start`` (replay).
+    A rebind landing during any of these would leave the stale setup
+    attaching forwarders for the wrong target. The ``expected`` guard
+    rechecks at each await; this test pins the title-send window
+    because it's the one yield where the rebind has clear semantics
+    (sample is fully live, only the connection's binding has changed).
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    expected = Bound(wire_session_id="uuid-a", target_session_id="uuid-a")
+    handler.state.binding = expected
+
+    # Stub _find_live_session so the test doesn't need a real sample.
+    sentinel_target = MagicMock()
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.connection._find_live_session",
+        lambda _id: sentinel_target,
+    )
+
+    async def _spy_title_send(_target_session_id: str) -> None:
+        # Simulate rebind landing during the title-send await.
+        handler.state.binding = Bound(
+            wire_session_id="uuid-b", target_session_id="uuid-b"
+        )
+
+    monkeypatch.setattr(handler, "_send_session_info_title", _spy_title_send)
+
+    # If we got past the title-send guard, Forwarders would be
+    # constructed and started. Either path fails the test.
+    forwarders_constructed = False
+
+    def _spy_forwarders_ctor(*args: Any, **kwargs: Any) -> Any:
+        nonlocal forwarders_constructed
+        forwarders_constructed = True
+        return MagicMock()
+
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.connection.Forwarders", _spy_forwarders_ctor
+    )
+
+    await handler._start_forwarders("uuid-a", expected=expected)
+
+    assert not forwarders_constructed, (
+        "rebind during title-send must abort before constructing forwarders"
+    )
+    assert handler._forwarders is None
+
+
+async def test_run_replay_bails_semantic_when_binding_changes_during_raw(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Semantic phase must be skipped when binding flips during raw replay.
+
+    ``_run_replay`` runs raw replay first (which yields on every
+    notification), then runs semantic replay. If a rebind lands during
+    the raw phase, the semantic phase must bail rather than emit
+    OLD-target events on the new connection.
+
+    Pinned with a NON-empty snapshot + stubbed ``replay_transcript``
+    that returns real notifications — so without the guard, semantic
+    sends would have fired. The assertion that NO sends happened
+    proves the guard (not empty input) is what stopped them.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    expected = Bound(wire_session_id="wire-A", target_session_id="target-A")
+    handler.state.binding = expected
+
+    # Stub raw forwarder that mutates binding mid-replay.
+    racing_raw = MagicMock()
+
+    async def _racing_replay(*_a: Any, **_kw: Any) -> None:
+        handler.state.binding = Bound(
+            wire_session_id="wire-B", target_session_id="target-B"
+        )
+
+    racing_raw.replay = _racing_replay
+
+    forwarders = Forwarders(handler.state, MagicMock(), handler)
+    forwarders._raw_forwarder = racing_raw
+
+    # Stub replay_transcript to return non-empty so a missing bailout
+    # would result in sends.
+    fake_notifs = [MagicMock(spec_set=["session_id"]) for _ in range(3)]
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.session_router.replay_transcript",
+        lambda *_a, **_kw: iter(fake_notifs),
+    )
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.session_router._filter_subagent_events",
+        lambda events: events,
+    )
+    forwarders._plan_policy = MagicMock()
+    forwarders._plan_policy.transform = lambda n: n
+
+    sent: list[Any] = []
+
+    async def _spy_send(notif: Any) -> None:
+        sent.append(notif)
+
+    monkeypatch.setattr(forwarders, "_send_session_update", _spy_send)
+
+    # NON-empty snapshot — without the guard, semantic replay would emit
+    # the 3 fake notifications.
+    await forwarders._run_replay([MagicMock()], expected=expected)
+
+    assert sent == [], (
+        f"guard should skip semantic replay after binding flipped during "
+        f"raw-replay yield; saw {len(sent)} sends (would be 3 without the "
+        f"guard)"
+    )
+
+
+async def test_run_replay_passes_captured_wire_id_to_replay_transcript(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Semantic replay must construct notifications with the wire id captured UP FRONT.
+
+    Independent of the guard: even when ``expected=None`` (so no
+    bailout), the wire id used to construct semantic notifications
+    must be the one captured at the top of ``_run_replay`` — NOT the
+    value of ``state.wire_session_id`` re-read after the raw-replay
+    yield.
+
+    Pinned by capturing the ``wire`` arg passed to
+    ``replay_transcript`` and asserting it's the pre-yield value.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    handler.state.binding = Bound(
+        wire_session_id="wire-A", target_session_id="target-A"
+    )
+
+    racing_raw = MagicMock()
+
+    async def _racing_replay(*_a: Any, **_kw: Any) -> None:
+        handler.state.binding = Bound(
+            wire_session_id="wire-B", target_session_id="target-B"
+        )
+
+    racing_raw.replay = _racing_replay
+
+    forwarders = Forwarders(handler.state, MagicMock(), handler)
+    forwarders._raw_forwarder = racing_raw
+
+    captured_wire: list[str] = []
+
+    def _capture_replay_transcript(events: Any, wire: str, **_kw: Any) -> Any:
+        captured_wire.append(wire)
+        return iter([])
+
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.session_router.replay_transcript",
+        _capture_replay_transcript,
+    )
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.session_router._filter_subagent_events",
+        lambda events: events,
+    )
+
+    await forwarders._run_replay([MagicMock()])  # expected=None → no bailout
+
+    assert captured_wire == ["wire-A"], (
+        f"replay_transcript must receive the wire id captured BEFORE the "
+        f"raw-replay yield (wire-A); got {captured_wire}"
+    )
+
+
+async def test_run_replay_raw_phase_bails_per_event_on_rebind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Raw replay must stop after a rebind mid-loop, not flush remaining events.
+
+    Without per-event guard in raw replay, a rebind during event 1
+    would let events 2..N still reach the connection. Pinned via a
+    real ``RawEventForwarder`` instance with a stubbed connection;
+    the connection's ``send_notification`` mutates ``state.binding``
+    after the first send to simulate the race.
+    """
+    from inspect_ai.agent._acp.inspect_ext import RawEventForwarder
+
+    handler = ConnectionHandler()
+    handler.state.raw_events_enabled = True
+    expected = Bound(wire_session_id="wire-A", target_session_id="target-A")
+    handler.state.binding = expected
+
+    sent_payloads: list[Any] = []
+
+    async def _send_notification(_method: str, payload: Any) -> None:
+        sent_payloads.append(payload)
+        # Simulate concurrent rebind after the FIRST raw event.
+        if len(sent_payloads) == 1:
+            handler.state.binding = Bound(
+                wire_session_id="wire-B", target_session_id="target-B"
+            )
+
+    fake_conn = MagicMock()
+    fake_conn.send_notification = _send_notification
+
+    raw = RawEventForwarder(fake_conn)
+
+    # Three fake events that serialize cleanly.
+    events = []
+    for i in range(3):
+        ev = MagicMock()
+        ev.model_dump = lambda *_a, _i=i, **_kw: {"event": _i}
+        events.append(ev)
+
+    forwarders = Forwarders(handler.state, fake_conn, handler)
+    forwarders._raw_forwarder = raw
+
+    # Block semantic phase by stubbing replay_transcript to empty;
+    # the test is specifically about raw phase per-event guard.
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.session_router.replay_transcript",
+        lambda *_a, **_kw: iter([]),
+    )
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.session_router._filter_subagent_events",
+        lambda evs: evs,
+    )
+
+    await forwarders._run_replay(events, expected=expected)
+
+    assert len(sent_payloads) == 1, (
+        f"raw replay must bail after the rebind triggered by event 1; "
+        f"sent {len(sent_payloads)} (expected 1 — events 2 and 3 dropped)"
+    )
+
+
+async def test_run_replay_bails_before_per_event_send_on_rebind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Mid-loop rebind during semantic replay must stop further per-event sends.
+
+    Even after wire id is captured, a rebind landing during the
+    notification-send loop should stop emitting further events for the
+    stale binding (otherwise we'd flood the client with old-target
+    history after they've moved on).
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    expected = Bound(wire_session_id="wire-A", target_session_id="target-A")
+    handler.state.binding = expected
+
+    forwarders = Forwarders(handler.state, MagicMock(), handler)
+    forwarders._raw_forwarder = None  # skip raw phase
+
+    # Stub replay_transcript to produce a deterministic batch of three
+    # notifications without needing real events / mappers.
+    fake_notifs = [MagicMock(spec_set=["session_id"]) for _ in range(3)]
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.session_router.replay_transcript",
+        lambda *_a, **_kw: iter(fake_notifs),
+    )
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.session_router._filter_subagent_events",
+        lambda events: events,
+    )
+
+    # Plan policy passthrough.
+    forwarders._plan_policy = MagicMock()
+    forwarders._plan_policy.transform = lambda n: n
+
+    sent: list[Any] = []
+
+    async def _spy_send(notif: Any) -> None:
+        sent.append(notif)
+        # After the FIRST send, simulate a concurrent rebind.
+        if len(sent) == 1:
+            handler.state.binding = Bound(
+                wire_session_id="wire-B", target_session_id="target-B"
+            )
+
+    monkeypatch.setattr(forwarders, "_send_session_update", _spy_send)
+
+    await forwarders._run_replay([MagicMock()], expected=expected)
+
+    assert len(sent) == 1, (
+        f"per-event guard should stop sends after rebind; saw {len(sent)} "
+        f"(expected 1 — the one that triggered the rebind)"
+    )
+
+
+async def test_run_replay_no_guard_still_works(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``expected=None`` (legacy/composability) skips all guards.
+
+    Pins that the default behavior is unchanged when no expected is
+    provided. Notifications get sent for every event in the snapshot.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    handler.state.binding = Bound(
+        wire_session_id="wire-A", target_session_id="target-A"
+    )
+
+    forwarders = Forwarders(handler.state, MagicMock(), handler)
+    forwarders._raw_forwarder = None
+
+    fake_notifs = [MagicMock(spec_set=["session_id"]) for _ in range(3)]
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.session_router.replay_transcript",
+        lambda *_a, **_kw: iter(fake_notifs),
+    )
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.session_router._filter_subagent_events",
+        lambda events: events,
+    )
+
+    forwarders._plan_policy = MagicMock()
+    forwarders._plan_policy.transform = lambda n: n
+
+    sent: list[Any] = []
+
+    async def _spy_send(notif: Any) -> None:
+        sent.append(notif)
+
+    monkeypatch.setattr(forwarders, "_send_session_update", _spy_send)
+
+    await forwarders._run_replay([MagicMock()])  # no expected
+
+    assert len(sent) == 3
+
+
+async def test_picker_selection_guards_against_concurrent_rebind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Picker selection must route through guarded ``_post_bind_setup``.
+
+    ACP dispatches each request as its own asyncio task, so
+    ``_handle_picker_selection``'s awaits on notify/start CAN interleave
+    with a concurrent ``session/load`` or ``session/new`` on the same
+    connection. The handler now goes through ``_post_bind_setup(target,
+    expected)``, so a mid-setup binding change is caught by the guard
+    and forwarders are not attached for the stale selection.
+
+    Pinned property: if ``state.binding`` changes after picker selection
+    has assigned ``Bound`` but before ``_post_bind_setup`` runs its
+    notify / start awaits, neither ``_notify_binding`` nor
+    ``_start_forwarders`` should fire.
+    """
+    from acp.schema import TextContentBlock
+
+    from inspect_ai.agent._acp.connection import PickerMode
+
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    target = PickerTarget(session_id="uuid-target", task="t", sample_id="s", epoch=0)
+    handler.state.binding = PickerMode(
+        wire_session_id="control-uuid", picker_targets=[target]
+    )
+
+    monkeypatch.setattr(
+        "inspect_ai.agent._acp.connection.list_picker_targets",
+        lambda: [target],
+    )
+
+    notify_called = False
+    start_called = False
+
+    async def _spy_notify(_target: Any) -> None:
+        nonlocal notify_called
+        notify_called = True
+
+    async def _spy_start(
+        _target_session_id: str, expected: Bound | None = None
+    ) -> None:
+        nonlocal start_called
+        start_called = True
+
+    monkeypatch.setattr(handler, "_notify_binding", _spy_notify)
+    monkeypatch.setattr(handler, "_start_forwarders", _spy_start)
+
+    # Wrap the real _post_bind_setup to inject a concurrent rebind
+    # before it checks the guard — simulates another handler racing in.
+    real_post_bind_setup = handler._post_bind_setup
+
+    async def _racing_post_bind_setup(t: PickerTarget, expected: Bound) -> None:
+        handler.state.binding = Bound(
+            wire_session_id="other-control",
+            target_session_id="other-uuid",
+        )
+        await real_post_bind_setup(t, expected)
+
+    monkeypatch.setattr(handler, "_post_bind_setup", _racing_post_bind_setup)
+
+    await handler._handle_picker_selection([TextContentBlock(type="text", text="1")])
+
+    assert not notify_called, (
+        "guarded picker selection must skip notify when binding changed"
+    )
+    assert not start_called, (
+        "guarded picker selection must skip start_forwarders when binding changed"
+    )
+
+
+async def test_post_bind_setup_rechecks_after_notify_yield(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rebind happening DURING ``_notify_binding`` must skip ``_start_forwarders``.
+
+    ``_notify_binding`` awaits ``_send_session_update``, opening a second
+    race window. The guard rechecks ``state.binding`` after that await and
+    bails out of forwarder startup if a rebind landed in the gap.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    target_a = PickerTarget(session_id="uuid-a", task="t", sample_id="s", epoch=0)
+    expected_a = Bound(wire_session_id="uuid-a", target_session_id="uuid-a")
+    handler.state.binding = expected_a
+
+    notify_called = False
+    start_called = False
+
+    async def _spy_notify(target: Any) -> None:
+        nonlocal notify_called
+        notify_called = True
+        # Simulate rebind happening during the notify await.
+        handler.state.binding = Bound(
+            wire_session_id="uuid-b", target_session_id="uuid-b"
+        )
+
+    async def _spy_start(target_session_id: str) -> None:
+        nonlocal start_called
+        start_called = True
+
+    monkeypatch.setattr(handler, "_notify_binding", _spy_notify)
+    monkeypatch.setattr(handler, "_start_forwarders", _spy_start)
+
+    await handler._post_bind_setup(target_a, expected_a)
+
+    # Notify is allowed (binding still matched on entry); forwarders are
+    # NOT (binding changed during the notify yield).
+    assert notify_called
+    assert not start_called, "rebind during notify must skip stale forwarder startup"
+
+
+@skip_if_trio
+@unix_only
+async def test_session_load_notifications_arrive_after_response(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """``session/load``: binding confirmation + title arrive AFTER response.
+
+    Companion to the picker / auto-bind ordering tests — ``loadSession``
+    is the third path whose response introduces (or re-introduces) the
+    sessionId to the client. ``load_session`` defers post-bind work via
+    ``_schedule_after_response`` ⇒ ``_post_bind_setup``.
+    """
+    stub_targets(
+        [_make_sample(task="solo", sample_id="s1", epoch=0, session_id="uuid-only")]
+    )
+    async with acp_server(eval_id="evt-load-order", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await client.request(
+                "session/load",
+                {"cwd": "/tmp", "sessionId": "uuid-only", "mcpServers": []},
+            )
+            await client.next_notification()
+            kinds = [kind for kind, _ in client.arrival_log]
+            response_index = kinds.index("response")
+            notification_index = kinds.index("notification")
+            assert response_index < notification_index, (
+                f"loadSession response should arrive before any "
+                f"notifications; arrival_log={client.arrival_log}"
+            )
         finally:
             await client.close()
 

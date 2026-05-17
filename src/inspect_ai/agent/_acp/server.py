@@ -295,8 +295,11 @@ class AcpServer:
         finally:
             # Stop forwarder tasks + detach subscribers BEFORE closing
             # the connection so the forwarder's last send_notification
-            # call (if any) completes through a live writer.
-            await handler._stop_forwarders()
+            # call (if any) completes through a live writer. Also
+            # cancels any deferred post-response sends (via
+            # ``handler.shutdown``) that haven't fired yet — the
+            # writer is about to close so further sends would race.
+            await handler.shutdown()
             try:
                 await conn.close()
             except Exception:
