@@ -228,24 +228,28 @@ class MessageWidget(Widget):
             glyph = SPINNER_FRAMES[self._spinner_frame % len(SPINNER_FRAMES)]
         else:
             glyph = "•"
-        # Retry counter + elapsed timer ride as dot-separated dim
-        # provenance segments — same separator as "assistant · model"
-        # so the eye reads the whole chip as a uniform "key · key · key"
-        # row rather than "label model suffix-glob".
-        extras: list[str] = []
-        if self._group.retries > 0:
-            extras.append(f"(retry {self._group.retries})")
-        if self._group.pending_started_at is not None and (
-            self._group.pending or self._group.retries > 0
-        ):
-            elapsed = time.monotonic() - self._group.pending_started_at
-            extras.append(format_duration(elapsed))
-        suffix = "".join(f" [dim]· {e}[/dim]" for e in extras)
-        # Quiet hint while the model call is in flight — gives the
-        # operator a no-look reminder that ``Esc`` cancels this turn,
-        # without making them hunt the footer for the keymap.
+        # Live progress indicators — elapsed timer + retry counter +
+        # "esc to interrupt" hint — only render while ``pending``.
+        # Once the generation has completed (or been interrupted) the
+        # operator no longer needs the live signals, and the elapsed
+        # timer would otherwise keep growing on every subsequent
+        # re-render (``pending_started_at`` never resets).
+        suffix = ""
         if self._group.pending:
-            suffix += " [dim](esc to interrupt)[/dim]"
+            if self._group.pending_started_at is not None:
+                elapsed = format_duration(
+                    time.monotonic() - self._group.pending_started_at
+                )
+                suffix += f" [dim]· {elapsed}[/dim]"
+            # Retry counter + "esc to interrupt" hint share one parens
+            # group — reading two adjacent ``(…)`` clusters
+            # (``(retry 3) (esc to interrupt)``) was busier than
+            # reading one ``(retry 3, esc to interrupt)``.
+            notes: list[str] = []
+            if self._group.retries > 0:
+                notes.append(f"retry {self._group.retries}")
+            notes.append("esc to interrupt")
+            suffix += f" [dim]({', '.join(notes)})[/dim]"
         return f"[{fg}]{glyph}[/] {base}{suffix}"
 
     def _palette_key(self) -> str:
