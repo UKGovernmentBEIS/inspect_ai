@@ -786,8 +786,11 @@ def write_fake_eval_log_buffer(
 
 
 @pytest.fixture
-def mock_s3_eval_file() -> str:
-    file_path = "mocked_eval_set/2025-01-01T00-00-00+00-00_task_taskid.eval"
+def mock_s3_eval_file(tmp_path: Path) -> str:
+    file_path = (
+        f"mocked_eval_set/{tmp_path.name}_"
+        "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    )
     write_fake_eval_log(file_path)
     return file_path
 
