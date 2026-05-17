@@ -915,3 +915,215 @@ async def test_rebind_stops_old_forwarders_and_detaches_subscriber(
             assert not client.notification_pending()
         finally:
             await client.close()
+
+
+# ---------------------------------------------------------------------------
+# PR1 regression tests — bugs surfaced by post-Phase-14 review
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@unix_only
+async def test_picker_mode_rebind_stops_existing_forwarders(
+    short_data_dir: Path, register_target
+) -> None:
+    """Auto-bind → second target appears → newSession (picker) stops forwarders.
+
+    Mirrors the test above for ``session/load`` rebind, but exercises the
+    picker-entry path. Before the fix, ``_enter_picker_mode`` updated
+    state but did not call ``_stop_forwarders``, leaving the old
+    auto-bound target's semantic forwarder running. Live events from
+    that target would then reach the client under the picker's
+    synthetic control sessionId during selection.
+    """
+    target_a, _tr_a = _make_live_session_with_transcript()
+    target_b, _tr_b = _make_live_session_with_transcript()
+    sample_a = _make_active_sample(
+        task="task-a", sample_id="s-a", epoch=0, acp_session=target_a
+    )
+    sample_b = _make_active_sample(
+        task="task-b", sample_id="s-b", epoch=0, acp_session=target_b
+    )
+    # Start with only A so the first new_session auto-binds.
+    register_target(sample_a)
+    async with acp_server(eval_id="evt-picker-rebind", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(client)
+            assert len(target_a._subscribers) == 1
+
+            # Second target appears; subsequent new_session must enter
+            # picker mode and tear down the prior bind.
+            register_target(sample_a, sample_b)
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            # Picker pushes a single notification (the picker payload).
+            await client.next_notification()
+
+            assert len(target_a._subscribers) == 0, (
+                "_enter_picker_mode leaked the auto-bound target's subscriber"
+            )
+
+            # Publishing on the old target reaches no one.
+            target_a.publish(
+                session_notification(
+                    target_a.session_id,
+                    update_agent_message(text_block("ghost from A")),
+                )
+            )
+            await asyncio.sleep(0.05)
+            assert not client.notification_pending()
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_start_forwarders_returns_early_when_session_exits_during_title_send(
+    short_data_dir: Path, register_target, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """If the session exits during the title-send await, no orphan subscriber.
+
+    Between the initial ``_find_live_session`` lookup and the
+    ``target.attach()`` call, ``_send_session_info_title`` performs an
+    ``await``. If the agent task exits the session during that await,
+    the new ``attach()`` would create a subscriber that never receives
+    EOF (``__aexit__`` already ran its close loop) and the forwarder
+    task would hang. The fix re-verifies the target is alive after the
+    title await and returns early if not.
+    """
+    session, _tr = _make_live_session_with_transcript()
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+
+    # First _find_live_session call returns the live target; second
+    # (the re-check after title-send) returns None as if the session
+    # exited mid-await.
+    from inspect_ai.agent._acp import _server as server_mod
+
+    original_find = server_mod._find_live_session
+    call_count = {"n": 0}
+
+    def fake_find(session_id: str) -> Any:
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return original_find(session_id)
+        return None
+
+    monkeypatch.setattr(server_mod, "_find_live_session", fake_find)
+
+    async with acp_server(eval_id="evt-race-title", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            # Bind preamble notifications fire before the re-check, so
+            # they still come through. Drain any that arrive within the
+            # window; the critical assertion is below.
+            await asyncio.sleep(0.05)
+
+            assert len(session._subscribers) == 0, (
+                "_start_forwarders attached a subscriber after the target "
+                "session was already gone — would leak as a never-EOF orphan"
+            )
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_plan_tool_stash_cleared_on_rebind(
+    short_data_dir: Path, register_target, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``_plan_tool_stash`` is emptied by ``_stop_forwarders``.
+
+    A plan-capable client (Zed-named) suppresses the ``ToolCallStart``
+    of an ``update_plan`` / ``todo_write`` invocation and stashes its
+    raw_input until ``ToolCallProgress(completed)`` arrives. If the
+    stashed call never completes (cancelled mid-flight, sample exited,
+    etc.) and the connection rebinds to a different target, the stash
+    entry was previously leaked for the connection lifetime.
+    """
+    target_a, _tr_a = _make_live_session_with_transcript()
+    target_b, _tr_b = _make_live_session_with_transcript()
+    register_target(
+        _make_active_sample(
+            task="task-a", sample_id="s-a", epoch=0, acp_session=target_a
+        ),
+        _make_active_sample(
+            task="task-b", sample_id="s-b", epoch=0, acp_session=target_b
+        ),
+    )
+
+    # Capture the per-connection handler so we can inspect its private
+    # _plan_tool_stash. The Connection's _handler field holds the
+    # MessageRouter, not the _ConnectionHandler, so we have to track
+    # construction instead of reaching through the connection.
+    from inspect_ai.agent._acp._server import _ConnectionHandler
+
+    handlers: list[_ConnectionHandler] = []
+    original_init = _ConnectionHandler.__init__
+
+    def tracking_init(self: _ConnectionHandler) -> None:
+        original_init(self)
+        handlers.append(self)
+
+    monkeypatch.setattr(_ConnectionHandler, "__init__", tracking_init)
+
+    async with acp_server(eval_id="evt-stash-rebind", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client, client_name="zed")  # plan-capable
+            await client.request(
+                "session/load",
+                {
+                    "cwd": "/tmp",
+                    "mcpServers": [],
+                    "sessionId": target_a.session_id,
+                },
+            )
+            await _drain_bind_preamble(client)
+
+            assert len(handlers) == 1
+            handler = handlers[0]
+            assert handler._plan_tool_stash == {}
+
+            # Plan tool start is stashed (not forwarded to the client).
+            target_a.publish(
+                session_notification(
+                    target_a.session_id,
+                    start_tool_call(
+                        tool_call_id="tc1",
+                        title="update_plan",
+                        status="in_progress",
+                        raw_input={"plan": [{"step": "x", "status": "pending"}]},
+                    ),
+                )
+            )
+            await asyncio.sleep(0.05)
+            assert "tc1" in handler._plan_tool_stash, (
+                "plan-tool start should have been stashed for plan-capable client"
+            )
+
+            # Rebind to target_b without ever completing tc1.
+            await client.request(
+                "session/load",
+                {
+                    "cwd": "/tmp",
+                    "mcpServers": [],
+                    "sessionId": target_b.session_id,
+                },
+            )
+            await _drain_bind_preamble(client)
+
+            assert handler._plan_tool_stash == {}, (
+                "_stop_forwarders did not clear _plan_tool_stash; stale "
+                "entries from prior bind leak across rebinds"
+            )
+        finally:
+            await client.close()

@@ -191,7 +191,6 @@ class _AcpServer:
         # We hold strong references so they don't get GC'd, and so we can
         # close them all at shutdown.
         self._connections: set[Connection] = set()
-        self._tasks: set[asyncio.Task[None]] = set()
 
     @property
     def socket_path(self) -> Path | None:
@@ -341,12 +340,6 @@ class _AcpServer:
             except Exception:
                 logger.exception("Error closing ACP connection")
         self._connections.clear()
-
-        # Cancel any per-connection main-loop tasks still alive.
-        for task in list(self._tasks):
-            if not task.done():
-                task.cancel()
-        self._tasks.clear()
 
         # Now safe to await ``wait_closed`` — there are no live
         # connections keeping it pinned open.
@@ -960,6 +953,13 @@ class _ConnectionHandler:
         self, targets: list[_PickerTarget]
     ) -> NewSessionResponse:
         """Mint a control sessionId, snapshot targets, push picker payload."""
+        # Tear down any previous binding's forwarders before entering picker
+        # mode. Without this, a connection that auto-bound to a single
+        # target, then sees a second target appear, then calls newSession
+        # again would keep the prior target's forwarder running with the
+        # new picker control sessionId — live events from that target leak
+        # to the client during picker selection.
+        await self._stop_forwarders()
         control_id = uuid()
         self.state.wire_session_id = control_id
         self.state.target_session_id = None
@@ -1199,6 +1199,16 @@ class _ConnectionHandler:
         # the first event. Native ACP field — no extension needed.
         await self._send_session_info_title(target_session_id)
 
+        # Re-verify the target is still alive. The title-send await above is
+        # the one yield point between the initial lookup and attach() below.
+        # If the agent task exited the session during that await,
+        # __aexit__ closed the pre-existing subscribers but won't catch a
+        # later attach() — the new subscriber would be an orphan that
+        # never receives EOF and the forwarder task would hang.
+        if _find_live_session(target_session_id) is None:
+            self._target = None
+            return
+
         # SNAPSHOT (sync) — captures everything that's happened so far.
         snapshot = list(target.transcript_events_snapshot())
 
@@ -1276,8 +1286,18 @@ class _ConnectionHandler:
             except Exception:
                 logger.exception("Error detaching ACP forwarder subscriber")
         self._semantic_stream = None
-        self._raw_recv = None
+        if self._raw_recv is not None:
+            try:
+                self._raw_recv.close()
+            except Exception:
+                pass
+            self._raw_recv = None
         self._target = None
+        # Plan-tool stash is keyed by tool_call_id and is meaningful only
+        # for the current bind. Clearing here prevents stash entries from
+        # tool calls cancelled mid-progress (start stashed, no completion)
+        # from leaking across rebinds.
+        self._plan_tool_stash.clear()
 
     async def _run_semantic_forwarder(
         self, target: "AcpSession", recv_stream: Any
