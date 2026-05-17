@@ -350,19 +350,17 @@ def _load_and_push_host_state(sample_working_dir: str) -> _HostHydrationResult:
     # agent's continued run appends to (rather than replaces) the prior
     # history. Direct mutation of the internal lists bypasses
     # ``_process_event`` — the events are already in their condensed,
-    # attachment-ref form and must not be reprocessed.
+    # attachment-ref form and must not be reprocessed. The persisted
+    # `condensed_events` is already span-only (the writer's accumulator
+    # only ever captured events from the first `span_begin: checkpoint`
+    # onward), so we push it through as-is.
     ts = transcript()
     pre = [_event_label(e) for e in ts._events]
     restored = [_event_label(e) for e in ctx.condensed_events]
     print(f"[hydrate.host] pre-hydration transcript.events (n={len(pre)}): {pre}")
     print(f"[hydrate.host] restored events to push (n={len(restored)}): {restored}")
-    # Events hydration temporarily disabled — pushing OLD events into the
-    # transcript misorders the cumulative story (new-run setup events sit
-    # at indices [0..N), OLD events at [N..]). Pools / attachments travel
-    # with events, so they're paused together. Store + agent_state stay
-    # enabled.
-    # ts._events.extend(ctx.condensed_events)
-    # ts._attachments.update(ctx.attachments)
+    ts._events.extend(ctx.condensed_events)
+    ts._attachments.update(ctx.attachments)
     state = sample_state()
     if state is None:
         raise RuntimeError("_hydrate_host: no active sample state to populate Store")
@@ -376,9 +374,9 @@ def _load_and_push_host_state(sample_working_dir: str) -> _HostHydrationResult:
 
     return _HostHydrationResult(
         agent_state=ctx.agent_state,
-        # condensed_events=ctx.condensed_events,
-        # msg_pool=ctx.msg_pool,
-        # call_pool=ctx.call_pool,
+        condensed_events=ctx.condensed_events,
+        msg_pool=ctx.msg_pool,
+        call_pool=ctx.call_pool,
     )
 
 

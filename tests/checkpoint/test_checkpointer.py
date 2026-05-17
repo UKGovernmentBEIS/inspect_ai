@@ -144,11 +144,16 @@ def _fake_hydration(
 
 
 def _counting(config: ResolvedCheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
-    return _CountingCheckpointer(
+    cp = _CountingCheckpointer(
         config=config,
         hydration=_fake_hydration(dirs.checkpoints, dirs.working),
         resume_checkpoint=None,
     )
+    # Policy tests drive `tick()`/`checkpoint()` without going through
+    # `span_session()`, so the first-span lazy init for `_events_consumed`
+    # never fires. Seed it here so `_write_host_context` can slice.
+    cp._events_consumed = 0
+    return cp
 
 
 # --- turn-based -----------------------------------------------------------
@@ -421,6 +426,7 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
         hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
         resume_checkpoint=None,
     )
+    cp._events_consumed = 0
     await cp._write_host_context(str(work), events, {}, Store())
 
     assert (work / "events.json").is_file()
@@ -449,7 +455,12 @@ def _make_cp(**kwargs: object) -> _EnteredCheckpointer:
         "resume_checkpoint": None,
     }
     defaults.update(kwargs)
-    return _EnteredCheckpointer(**defaults)  # type: ignore[arg-type]
+    cp = _EnteredCheckpointer(**defaults)  # type: ignore[arg-type]
+    # In real use, `_events_consumed` is set lazily by the first
+    # `_open_next_span()` call. Tests bypass that by driving
+    # `_write_host_context` directly, so seed the precondition here.
+    cp._events_consumed = 0
+    return cp
 
 
 def test_track_returns_initial_value(tmp_path: Path) -> None:
@@ -640,6 +651,7 @@ async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
         hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
         resume_checkpoint=None,
     )
+    cp._events_consumed = 0
     await cp._write_host_context(str(work), [], attachments, Store())
 
     assert json.loads((work / "attachments.json").read_text()) == attachments
@@ -676,6 +688,7 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
         hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
         resume_checkpoint=None,
     )
+    cp._events_consumed = 0
 
     await cp._write_host_context(str(work), fire1_events, {}, Store())
     pool_after_1 = json.loads((work / "events_data.json").read_text())["messages"]

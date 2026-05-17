@@ -149,15 +149,27 @@ class _EnteredCheckpointer:
         # Persisted across fires: each fire processes only the new event slice
         # and appends to these accumulators. Safe because checkpoints fire at
         # turn boundaries, after which prior events are immutable.
-        # On resume, hydrate seeds the pools (and `_events_consumed` to the
-        # transcript-event count of pushed history) so the next fire writes
-        # a snapshot containing old + new events.
+        #
+        # The accumulator + `_events_consumed` exist for performance — the
+        # next condense uses the prior pool as a starting point rather than
+        # re-walking the full transcript each fire. Revisit if profiling
+        # later shows the from-scratch alternative is fine at expected scale.
+        #
+        # `_events_consumed` is set lazily by the first `_open_next_span()`
+        # call to the transcript index where that first `span_begin:
+        # checkpoint` will land — so pre-first-span setup events (system
+        # message, sample init chatter) never enter the accumulator, and
+        # the persisted snapshot contains only checkpoint spans + contents.
+        # On resume, hydrate seeds the pools and pushes prior span content
+        # into the transcript; the lazy init then captures the index of the
+        # new `span_begin checkpoint M+1` so the next fire's slice is just
+        # the new span.
         self._condensed_events: list[Event] = list(hydration.host.condensed_events)
         self._msg_pool: list[ChatMessage] = list(hydration.host.msg_pool)
         self._msg_index: dict[str, int] = _build_msg_index(self._msg_pool)
         self._call_pool: list[JsonValue] = list(hydration.host.call_pool)
         self._call_index: dict[str, int] = _build_call_index(self._call_pool)
-        self._events_consumed = len(self._condensed_events)
+        self._events_consumed: int | None = None
 
     @property
     def is_resuming(self) -> bool:
@@ -189,6 +201,11 @@ class _EnteredCheckpointer:
         next_id = await anyio.to_thread.run_sync(
             _scan_next_checkpoint_id, self._sample_checkpoints_dir
         )
+        # First-span lazy init for `_events_consumed`: capture the
+        # transcript index where the about-to-open `span_begin` will land
+        # so the persisted snapshot starts at the first checkpoint span.
+        if self._events_consumed is None:
+            self._events_consumed = len(transcript().events)
         cm = span(name=f"checkpoint {next_id}", type="checkpoint")
         await cm.__aenter__()
         self._current_span_cm = cm
@@ -351,6 +368,10 @@ class _EnteredCheckpointer:
         # >100 chars are rewritten to attachment:// refs as events flow in,
         # with originals in transcript.attachments) — we persist that pool
         # here so resume can resolve the refs.
+        # `_events_consumed` is set lazily by the first `_open_next_span()`,
+        # which runs in `span_session().__aenter__()` before any fire can
+        # happen — so it's guaranteed non-None here.
+        assert self._events_consumed is not None
         new = events[self._events_consumed :]
         if new:
             cond, self._msg_index, new_msgs = condense_model_event_inputs(
