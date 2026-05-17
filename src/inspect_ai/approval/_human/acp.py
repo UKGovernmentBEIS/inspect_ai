@@ -58,6 +58,7 @@ from acp.schema import (
     ToolCallUpdate,
 )
 
+from inspect_ai.agent._acp._guards import acp_guard
 from inspect_ai.tool._tool_call import (
     ToolCall,
     ToolCallView,
@@ -414,11 +415,12 @@ async def request_human_approval_via_acp(
     unhandled exception here would crash the tool call (and could
     crash the eval). On any internal error we log a warning and
     return ``None`` so the caller falls back to the in-proc panel.
-    ``CancelledError`` propagates naturally because it inherits from
-    ``BaseException`` (not ``Exception``), so the ``except Exception:``
-    below doesn't catch it — sample-level cancel still works.
+    ``CancelledError`` propagates naturally via :func:`acp_guard`'s
+    BaseException semantics — sample-level cancel still works.
     """
-    try:
+    with acp_guard(
+        "ACP approval routing raised; falling back to in-proc approval flow"
+    ):
         # Deferred import — avoids the registry-init-time cycle through
         # the log subsystem; only fires at actual approval time.
         from inspect_ai.log._samples import sample_active
@@ -437,9 +439,4 @@ async def request_human_approval_via_acp(
             choices=choices,
         )
         return await _race_first_response(session.approver_clients(), request, choices)
-    except Exception:
-        logger.warning(
-            "ACP approval routing raised; falling back to in-proc approval flow",
-            exc_info=True,
-        )
-        return None
+    return None

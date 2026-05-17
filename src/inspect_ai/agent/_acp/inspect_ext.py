@@ -42,6 +42,8 @@ import anyio
 from acp.exceptions import RequestError
 from pydantic import BaseModel, Field, ValidationError
 
+from inspect_ai.agent._acp._guards import acp_guard, acp_send_guard
+
 if TYPE_CHECKING:
     from acp.connection import Connection
     from acp.router import MessageRouter
@@ -432,32 +434,31 @@ class RawEventForwarder:
         ``ConnectionHandler._bind_lock``, so no concurrent bind can
         invalidate the wire while this loop iterates.
 
-        Per-event error boundary: serialization or send failures log a
-        warning and skip the event; the replay loop continues.
+        Per-event error boundary:
+        - Serialization failures log a warning and skip the event
+          (next event might be fine).
+        - Send failures (disconnect or otherwise) **propagate**. The
+          caller wraps this entire method in an :func:`acp_send_guard`
+          so it sees the failure and can decide to skip semantic
+          replay entirely. Catching here and returning normally would
+          hide the disconnect, and the underlying ``acp`` library's
+          sender task may have already died — a subsequent semantic
+          send would enqueue a future with no sender to complete it.
+
         ``CancelledError`` propagates naturally because it inherits
-        from ``BaseException`` (not ``Exception``), so the
-        ``except Exception:`` clauses below don't catch it — teardown
-        can still interrupt a long replay.
+        from ``BaseException`` (not ``Exception``).
         """
         events = snapshot[-max_events:]
         for event in events:
-            try:
+            payload: Any = None
+            with acp_guard("ACP raw replay: event failed to serialize; skipping") as g:
                 payload = event.model_dump(
                     mode="json", by_alias=True, exclude_none=True
                 )
-            except Exception:
-                logger.warning(
-                    "ACP raw replay: event failed to serialize; skipping",
-                    exc_info=True,
-                )
+            if g.failed:
                 continue
-            try:
-                await self._connection.send_notification(INSPECT_EVENT_METHOD, payload)
-            except Exception:
-                logger.warning(
-                    "ACP raw replay: send_notification failed; skipping event",
-                    exc_info=True,
-                )
+            # Send failures escape to the caller's outer ``acp_send_guard``.
+            await self._connection.send_notification(INSPECT_EVENT_METHOD, payload)
 
     def start(self, target_session_id: str) -> None:
         """Launch the background drain task. Call after :meth:`replay`."""
@@ -520,34 +521,28 @@ class RawEventForwarder:
     async def _run(self, recv_stream: Any) -> None:
         """Drain the bridge stream and forward payloads as JSON-RPC notifications.
 
-        Per-payload error boundary: a transport / serialization failure
-        for one payload logs a warning and is skipped — it does NOT
-        terminate the forwarder. A loop-terminating failure here would
-        silently stop the raw firehose for the bind (client still
-        connected, supplemental stream stops, no error visible) so
-        per-payload isolation matters. ``CancelledError`` propagates
-        naturally because it inherits from ``BaseException`` (not
-        ``Exception``), so the ``except Exception:`` clauses below
-        don't catch it — ``stop()`` can still tear the task down
-        cleanly.
+        Per-payload error boundary:
+        - Normal-disconnect on send → DEBUG + exit. Every subsequent
+          send would fail the same way; staying in the loop just to
+          warn-and-continue would spam the log on every dropped peer.
+        - Unexpected send failure → WARNING + exit (connection is
+          probably toast).
+        - Outer stream-iteration failure → guarded the same way
+          (normal close → DEBUG; unexpected → WARNING).
+
+        ``CancelledError`` propagates naturally (BaseException, not
+        Exception) so ``stop()`` can tear the task down cleanly.
         """
-        try:
+        with acp_send_guard("ACP raw forwarder: stream iteration failed") as outer:
             async for payload in recv_stream:
-                try:
+                with acp_send_guard("ACP raw forwarder: send failed") as inner:
                     await self._connection.send_notification(
                         INSPECT_EVENT_METHOD, payload
                     )
-                except Exception:
-                    logger.warning(
-                        "ACP raw forwarder: send_notification failed; skipping payload",
-                        exc_info=True,
-                    )
-        except Exception:
-            # Outer guard for failures iterating ``recv_stream`` itself.
-            logger.warning(
-                "ACP raw forwarder: stream iteration failed; forwarder exiting",
-                exc_info=True,
-            )
+                if inner.should_exit:
+                    return
+        if outer.should_exit:
+            return
 
 
 # ---------------------------------------------------------------------------

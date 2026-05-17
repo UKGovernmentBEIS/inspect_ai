@@ -34,6 +34,7 @@ from acp.agent.router import build_agent_router
 from acp.connection import Connection
 from acp.interfaces import Agent
 
+from inspect_ai.agent._acp._guards import NORMAL_DISCONNECT_EXC
 from inspect_ai.agent._acp.connection import ConnectionHandler
 from inspect_ai.agent._acp.discovery import (
     cleanup_stale_discovery_files,
@@ -290,6 +291,21 @@ class AcpServer:
         self._connections.add(conn)
         try:
             await conn.main_loop()
+        except NORMAL_DISCONNECT_EXC as exc:
+            # Peer closed the connection ungracefully (TCP reset,
+            # editor process exit, Wi-Fi drop on a routable bind).
+            # Routine — log at DEBUG so we don't add a second ERROR
+            # on top of the upstream ``acp.connection.main_loop``'s
+            # own "Connection main loop failed" ERROR, which fires
+            # before we get here (the upstream lib catches Exception,
+            # logs at ERROR via the root logger, then re-raises).
+            # Cleaner output would require suppressing the upstream
+            # log; we accept the one upstream ERROR as the cost of
+            # not coupling to the library's internal logging.
+            logger.debug(
+                "ACP connection main loop: peer disconnected (%s)",
+                type(exc).__name__,
+            )
         except Exception:
             logger.exception("ACP connection main loop failed")
         finally:

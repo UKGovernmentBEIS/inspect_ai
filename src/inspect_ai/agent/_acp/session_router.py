@@ -24,6 +24,7 @@ from acp.connection import Connection
 from acp.meta import CLIENT_METHODS
 from acp.schema import SessionNotification
 
+from inspect_ai.agent._acp._guards import SendStatus, acp_guard, acp_send_guard
 from inspect_ai.agent._acp.event_mapping import SubagentDepthTracker, replay_transcript
 from inspect_ai.agent._acp.inspect_ext import (
     PlanPolicyTransformer,
@@ -160,7 +161,16 @@ class Forwarders:
 
         # REPLAY — emit historical notifications synchronously before
         # live ones. Raw replay (if enabled) first, then semantic.
-        await self._run_replay(snapshot)
+        # If replay exits early because a send failed (peer disconnect
+        # or any other transport error), the underlying ``acp`` library's
+        # sender task has died — a subsequent live ``send_notification``
+        # would enqueue a future with no sender left to complete it.
+        # Skip the live forwarder launch in that case; the connection
+        # is bound but inert until ``stop()`` runs (typically right
+        # away — ``Connection.main_loop`` exits when the sender dies).
+        replay_status = await self._run_replay(snapshot)
+        if replay_status.should_exit:
+            return
 
         # LIVE forwarders — drain the buffers that have been filling
         # since attach.
@@ -220,39 +230,43 @@ class Forwarders:
         id they've never seen. The auto-bind / direct loadSession
         paths have wire == target, so the rewrite is a no-op there.
 
-        Per-notification error boundary: a bug in
-        ``plan_policy.transform`` / ``_rewrite_session_id`` /
-        ``send_notification`` for one notification logs a warning and
-        skips that notification — it does NOT terminate the loop. A
-        loop-terminating failure here would silently stop all live
-        forwarding for the bind (client stays connected, events stop
-        arriving, no error visible). ``CancelledError`` propagates
+        Per-notification error boundary, split three ways:
+        - Transform / rewrite failure (Python-level bug on one
+          notification) → WARNING + skip this notification, continue
+          the loop (the next one might be fine).
+        - Normal-disconnect on send → DEBUG + exit. Every subsequent
+          send would fail the same way; the warn-and-continue shape
+          would otherwise spam the log on every dropped peer (matters
+          more when ``--acp-server`` binds a routable interface).
+        - Unexpected send failure → WARNING + exit (connection is
+          probably toast).
+
+        Outer stream-iteration failure: normal close logs DEBUG,
+        unexpected logs WARNING. ``CancelledError`` propagates
         naturally because it inherits from ``BaseException`` (not
-        ``Exception``), so the ``except Exception:`` clauses below
-        don't catch it — ``stop()`` can still tear the task down
-        cleanly.
+        ``Exception``).
         """
-        try:
+        out: SessionNotification | None = None
+        with acp_send_guard("ACP semantic forwarder: stream iteration failed") as outer:
             async for notif in recv_stream:
-                try:
-                    out = self._plan_policy.transform(notif)
-                    if out is None:
-                        continue  # plan-policy suppressed this notification
-                    out = self._rewrite_session_id(out)
+                with acp_guard(
+                    "ACP semantic forwarder: transform / rewrite failed "
+                    "for one notification; skipping"
+                ) as t:
+                    transformed = self._plan_policy.transform(notif)
+                    if transformed is None:
+                        # plan-policy suppressed this notification
+                        out = None
+                    else:
+                        out = self._rewrite_session_id(transformed)
+                if t.failed or out is None:
+                    continue
+                with acp_send_guard("ACP semantic forwarder: send failed") as send:
                     await self._send_session_update(out)
-                except Exception:
-                    logger.warning(
-                        "ACP semantic forwarder: error forwarding one "
-                        "notification; skipping",
-                        exc_info=True,
-                    )
-        except Exception:
-            # Outer guard for failures iterating ``recv_stream`` itself
-            # (closed stream, etc.). Terminates the task cleanly.
-            logger.warning(
-                "ACP semantic forwarder: stream iteration failed; forwarder exiting",
-                exc_info=True,
-            )
+                if send.should_exit:
+                    return
+        if outer.should_exit:
+            return
 
     def _rewrite_session_id(self, notif: SessionNotification) -> SessionNotification:
         """Return ``notif`` keyed to the wire sessionId.
@@ -274,7 +288,7 @@ class Forwarders:
     # Replay-on-attach
     # ------------------------------------------------------------------
 
-    async def _run_replay(self, snapshot: list[Any]) -> None:
+    async def _run_replay(self, snapshot: list[Any]) -> SendStatus:
         """Emit recent transcript history out to this connection.
 
         Two sub-passes (raw first if enabled, then semantic) so the
@@ -292,25 +306,41 @@ class Forwarders:
         occur. Caller holds ``ConnectionHandler._bind_lock`` so no
         concurrent bind can interleave with this method's awaits.
 
-        Per-step error boundary: failures in the raw replay, in the
-        sub-agent filter pre-pass, or in one semantic notification log
-        a warning and the replay continues. A loop-terminating failure
-        here would abort before live forwarders start — client would
-        see partial replay then permanent silence — so per-step
-        isolation matters even though the caller is one-shot.
+        Returns a :class:`SendStatus`. ``should_exit`` is True iff a
+        send failed (disconnect or otherwise) — :meth:`start` checks
+        this and skips launching the live forwarder tasks. The
+        underlying ``acp`` library's sender task dies on any send
+        failure, so a subsequent live send would enqueue a future
+        with no sender left to complete it; the only safe move is to
+        leave the connection bound but inert until ``stop()`` runs
+        (typically right away, as ``Connection.main_loop`` exits when
+        the sender dies).
+
+        Per-step error boundary:
+        - Raw replay send failure → mirror :class:`SendStatus` and
+          return early; caller (start) skips live forwarders.
+        - Sub-agent filter pre-pass failure → WARNING, return a
+          non-exit status (we just have no events to map; the
+          connection is fine).
+        - Per-notification transform failure → WARNING + skip (next
+          notif might be fine).
+        - Per-notification send failure → mirror :class:`SendStatus`
+          and return.
+
         ``CancelledError`` propagates naturally (BaseException, not
         Exception).
         """
         # RAW replay (opt-in only). Send all transcript events (no
-        # sub-agent filter) capped to the last N.
+        # sub-agent filter) capped to the last N. Exit replay entirely
+        # on EITHER disconnect or unexpected send failure — the
+        # underlying ``acp`` library's sender task dies on either kind
+        # of failure, so a subsequent semantic send would enqueue a
+        # future with no sender to complete it.
         if self._raw_forwarder is not None:
-            try:
+            with acp_send_guard("ACP raw replay failed") as raw:
                 await self._raw_forwarder.replay(snapshot, REPLAY_MAX_EVENTS)
-            except Exception:
-                logger.warning(
-                    "ACP raw replay failed; continuing with semantic replay",
-                    exc_info=True,
-                )
+            if raw.should_exit:
+                return raw
 
         # SEMANTIC replay. Apply the same sub-agent filter the live
         # router uses. Take the last N events post-filter, then map to
@@ -318,30 +348,35 @@ class Forwarders:
         # plan policy. Per-event mapping isolation lives inside
         # ``replay_transcript`` itself — one bad event no longer drops
         # the rest of the replay.
-        try:
+        filtered: list[Any] = []
+        with acp_guard(
+            "ACP semantic replay: sub-agent filter failed; skipping replay"
+        ) as f:
             filtered = list(_filter_subagent_events(snapshot))[-REPLAY_MAX_EVENTS:]
-        except Exception:
-            logger.warning(
-                "ACP semantic replay: sub-agent filter failed; skipping replay",
-                exc_info=True,
-            )
-            return
+        if f.failed:
+            # Filter failure doesn't kill the connection; just return a
+            # non-exit status so live forwarders still launch.
+            return SendStatus()
 
         for notif in replay_transcript(
             filtered,
             self._wire_session_id,
             filter_subagents=False,  # already pre-filtered
         ):
-            try:
+            transformed: SessionNotification | None = None
+            with acp_guard(
+                "ACP semantic replay: plan policy transform failed for "
+                "one notification; skipping"
+            ) as t:
                 transformed = self._plan_policy.transform(notif)
-                if transformed is None:
-                    continue
+            if t.failed or transformed is None:
+                continue
+            with acp_send_guard("ACP semantic replay: send failed") as send:
                 await self._send_session_update(transformed)
-            except Exception:
-                logger.warning(
-                    "ACP semantic replay: error forwarding one notification; skipping",
-                    exc_info=True,
-                )
+            if send.should_exit:
+                return send
+
+        return SendStatus()
 
     # ------------------------------------------------------------------
     # Internal send helper
