@@ -15,7 +15,6 @@ from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.logger import init_logger
 
-from .fastapi_prereqs import verify_fastapi_prerequisites
 from .notify import view_data_dir
 
 logger = logging.getLogger(__name__)
@@ -54,11 +53,10 @@ def view(
     # acquire the requested port
     view_acquire_port(view_data_dir(), port)
 
-    # run server — fastapi is preferred when available, but the env var
-    # can force either direction (set to "0"/"false"/"no" to force aiohttp)
+    # run server — fastapi is the default; set INSPECT_VIEW_FASTAPI_SERVER
+    # to "0"/"false"/"no" to fall back to the aiohttp server
     use_fastapi = _should_use_fastapi()
     if use_fastapi:
-        verify_fastapi_prerequisites()
         from .fastapi_server import view_server as fastapi_view_server
 
         fastapi_view_server(
@@ -138,18 +136,10 @@ def view_acquire_port(app_dir: Path, port: int) -> None:
 def _should_use_fastapi() -> bool:
     """Decide whether to use the FastAPI server.
 
-    - INSPECT_VIEW_FASTAPI_SERVER set to 1/true/yes → always FastAPI
-    - INSPECT_VIEW_FASTAPI_SERVER set to 0/false/no → always aiohttp
-    - INSPECT_VIEW_FASTAPI_SERVER absent → FastAPI if importable, else aiohttp
+    FastAPI is the default. Setting INSPECT_VIEW_FASTAPI_SERVER to
+    "0"/"false"/"no" opts back into the legacy aiohttp server.
     """
     env = os.getenv("INSPECT_VIEW_FASTAPI_SERVER")
     if env is not None:
         return env.lower() in ("1", "true", "yes")
-
-    try:
-        import fastapi  # noqa: F401
-        import uvicorn  # noqa: F401
-
-        return True
-    except ImportError:
-        return False
+    return True
