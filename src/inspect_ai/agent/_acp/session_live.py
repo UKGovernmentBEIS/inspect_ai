@@ -33,7 +33,7 @@ from anyio.streams.memory import (
 )
 from shortuuid import uuid
 
-from inspect_ai.agent._acp._session import (
+from inspect_ai.agent._acp.session import (
     _SUBSCRIBER_BUFFER_SIZE,
     AcpSession,
     AcpUpdate,
@@ -50,7 +50,7 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.tool._tool_call import ToolCallError
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp._event_mapping import _AcpEventRouter
+    from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._transcript import Transcript
@@ -557,7 +557,7 @@ class LiveAcpSession:
         (if any) so out-of-task consumers like the in-process Inspect
         TUI can locate the live session by sample reference.
         """
-        from inspect_ai.agent._acp._event_mapping import _AcpEventRouter
+        from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
         from inspect_ai.log._samples import sample_active
 
         self._transcript_capture.capture()

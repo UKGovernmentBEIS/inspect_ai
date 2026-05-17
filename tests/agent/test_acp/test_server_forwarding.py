@@ -36,10 +36,10 @@ from acp.helpers import (
 )
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai.agent._acp import _picker
-from inspect_ai.agent._acp._server import acp_server
-from inspect_ai.agent._acp._session_live import LiveAcpSession
-from inspect_ai.agent._acp._session_router import (
+from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp.server import acp_server
+from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.session_router import (
     ELISION_THRESHOLD_BYTES,
     REPLAY_MAX_EVENTS,
 )
@@ -66,7 +66,7 @@ def short_data_dir(monkeypatch):
         return path
 
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._discovery.inspect_data_dir",
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
         _stub_data_dir,
     )
     try:
@@ -107,16 +107,16 @@ def _make_active_sample(
 
 @pytest.fixture
 def register_target(monkeypatch):
-    """Patch both `_picker.active_samples` AND `_samples.active_samples`.
+    """Patch both `picker.active_samples` AND `_samples.active_samples`.
 
-    `_picker.active_samples` is the local import the picker uses; the
+    `picker.active_samples` is the local import the picker uses; the
     forwarder's `_find_live_session` imports `active_samples` from
     `inspect_ai.log._samples` at call time, so we patch both to keep
     them consistent.
     """
 
     def _register(*targets: Any) -> None:
-        monkeypatch.setattr(_picker, "active_samples", lambda: list(targets))
+        monkeypatch.setattr(picker, "active_samples", lambda: list(targets))
         monkeypatch.setattr(
             "inspect_ai.log._samples.active_samples",
             lambda: list(targets),
@@ -1002,7 +1002,7 @@ async def test_start_forwarders_returns_early_when_session_exits_during_title_se
     # First _find_live_session call returns the live target; second
     # (the re-check after title-send) returns None as if the session
     # exited mid-await.
-    from inspect_ai.agent._acp import _connection as connection_mod
+    from inspect_ai.agent._acp import connection as connection_mod
 
     original_find = connection_mod._find_live_session
     call_count = {"n": 0}
@@ -1065,7 +1065,7 @@ async def test_plan_tool_stash_cleared_on_rebind(
     # Track per-connection handlers so we can reach Forwarders. The
     # Connection's _handler holds the MessageRouter, not the
     # ConnectionHandler, so we can't navigate through the conn.
-    from inspect_ai.agent._acp._connection import ConnectionHandler
+    from inspect_ai.agent._acp.connection import ConnectionHandler
 
     handlers: list[ConnectionHandler] = []
     original_init = ConnectionHandler.__init__

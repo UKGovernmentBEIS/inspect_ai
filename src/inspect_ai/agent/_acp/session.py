@@ -6,11 +6,11 @@ Protocol, ``TurnCancelled`` exception, and the ``acp_session()`` /
 ``current_acp_session()`` factory + accessor. The two implementations
 live in sibling files:
 
-- :mod:`._session_noop` — :class:`NoOpAcpSession`, the null object
+- :mod:`.session_noop` — :class:`NoOpAcpSession`, the null object
   used as the default ContextVar value and as the shadow installed
   when ``acp_session()`` is opened inside an already-active session
   (sub-agent case).
-- :mod:`._session_live` — :class:`LiveAcpSession`, the active
+- :mod:`.session_live` — :class:`LiveAcpSession`, the active
   implementation that owns the in-process pub/sub bus, the
   user-message queue, the turn cancel scope, and the cancel/inject
   machinery.
@@ -72,7 +72,7 @@ class ApproverClient(Protocol):
     through ACP when at least one client is attached, falling back to
     the in-proc panel / console flow when none are.
 
-    Implementations: ``ConnectionHandler`` in ``_connection.py`` (wraps
+    Implementations: ``ConnectionHandler`` in ``connection.py`` (wraps
     ``conn.send_request("session/request_permission", ...)``); tests
     pass small stubs to exercise the race semantics without a real
     socket.
@@ -367,9 +367,9 @@ class AcpSession(Protocol):
 
 # NoOpAcpSession is imported at module bottom (after the Protocol
 # definitions it depends on) to keep the load order coherent: importing
-# ``_session_noop`` triggers a re-import of this module while it's still
+# ``session_noop`` triggers a re-import of this module while it's still
 # loading, and that re-import only needs the symbols defined above.
-from inspect_ai.agent._acp._session_noop import NoOpAcpSession  # noqa: E402
+from inspect_ai.agent._acp.session_noop import NoOpAcpSession  # noqa: E402
 
 _NOOP_SINGLETON: AcpSession = NoOpAcpSession()
 
@@ -421,12 +421,12 @@ async def acp_session() -> AsyncIterator[AcpSession]:
         finally:
             _acp_var.reset(token_var)
     else:
-        # Deferred import: ``_session_live`` imports from this module,
+        # Deferred import: ``session_live`` imports from this module,
         # so importing it at module load would create a fragile cycle.
         # Importing here means the factory is the only path that
         # materializes the live impl; tests that import it directly
         # take care of their own ordering.
-        from inspect_ai.agent._acp._session_live import LiveAcpSession
+        from inspect_ai.agent._acp.session_live import LiveAcpSession
 
         # First entry — become the live session and mark the chain
         # so all descendants shadow.

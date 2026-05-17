@@ -1,6 +1,6 @@
 """Transcript-event → ACP-notification mapping.
 
-Distinct from :mod:`._session_router`, which forwards already-mapped
+Distinct from :mod:`.session_router`, which forwards already-mapped
 notifications out over a bound connection. This module is the
 in-process step before that — transcript events become typed
 ``acp.SessionNotification`` payloads on the session's pub/sub bus.
@@ -31,7 +31,7 @@ the live router). Used by the replay-on-attach path so late-joining
 clients see recent transcript context before live updates start.
 
 Tool-call rendering (titles, kind mapping, view / result content
-blocks, file-edit diffs) lives in :mod:`._tool_content` so the approval
+blocks, file-edit diffs) lives in :mod:`.tool_content` so the approval
 shim can reuse it without pulling in the live router's transcript
 subscription.
 """
@@ -57,7 +57,7 @@ from acp.schema import (
 )
 
 from inspect_ai._util.content import ContentReasoning, ContentText
-from inspect_ai.agent._acp._tool_content import (
+from inspect_ai.agent._acp.tool_content import (
     _content_for_start,
     _content_for_update,
     _descriptive_title,
@@ -76,7 +76,7 @@ from inspect_ai.model._model_info import get_model_info
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp._session_live import LiveAcpSession
+    from inspect_ai.agent._acp.session_live import LiveAcpSession
 
 _ToolCallStatus = Literal["pending", "in_progress", "completed", "failed"]
 
@@ -100,7 +100,7 @@ class SubagentDepthTracker:
     Used by:
     - :class:`_AcpEventRouter` (live event publication)
     - :func:`replay_transcript` (replay-on-attach with filter param)
-    - :func:`inspect_ai.agent._acp._session_router._filter_subagent_events`
+    - :func:`inspect_ai.agent._acp.session_router._filter_subagent_events`
       (snapshot pre-filter for replay)
     """
 

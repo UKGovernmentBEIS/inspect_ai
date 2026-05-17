@@ -31,9 +31,9 @@ from textual.containers import Vertical
 from textual.widget import Widget
 from textual.widgets import Static
 
-from .._state import MessageGroup, Segment
-from ._markdown import StyledMarkdown
-from ._tool_call import _CollapsibleContent
+from ..state import MessageGroup, Segment
+from .markdown import StyledMarkdown
+from .tool_call import _CollapsibleContent
 
 # Braille spinner — same idiom Inspect's task display uses. Ten frames
 # is enough to feel like smooth motion without strobing the eye.

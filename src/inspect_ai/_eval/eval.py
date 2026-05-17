@@ -10,7 +10,7 @@ import anyio
 from anyio.abc import TaskGroup
 
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
-from inspect_ai.agent._acp._server import acp_server as _acp_server
+from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model._model_config import model_roles_config_to_model_roles

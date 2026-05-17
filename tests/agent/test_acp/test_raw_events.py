@@ -34,10 +34,10 @@ from acp.helpers import (
 )
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai.agent._acp import _picker
-from inspect_ai.agent._acp._server import acp_server
-from inspect_ai.agent._acp._session_live import LiveAcpSession
-from inspect_ai.agent._acp._session_router import ELISION_THRESHOLD_BYTES
+from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp.server import acp_server
+from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.session_router import ELISION_THRESHOLD_BYTES
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._interrupt import InterruptEvent
@@ -64,7 +64,7 @@ def short_data_dir(monkeypatch):
         return path
 
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._discovery.inspect_data_dir",
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
         _stub_data_dir,
     )
     try:
@@ -103,7 +103,7 @@ def _make_active_sample(*, acp_session: Any) -> Any:
 @pytest.fixture
 def register_target(monkeypatch):
     def _register(*targets: Any) -> None:
-        monkeypatch.setattr(_picker, "active_samples", lambda: list(targets))
+        monkeypatch.setattr(picker, "active_samples", lambda: list(targets))
         monkeypatch.setattr(
             "inspect_ai.log._samples.active_samples",
             lambda: list(targets),

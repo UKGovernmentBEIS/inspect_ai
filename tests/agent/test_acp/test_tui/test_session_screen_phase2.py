@@ -23,11 +23,11 @@ from acp.schema import (
 from test_helpers.utils import skip_if_trio
 from textual.widgets import Static
 
-from inspect_ai.agent._acp._tui._app import InspectAcpApp
-from inspect_ai.agent._acp._tui._client import SessionRow
-from inspect_ai.agent._acp._tui._session_screen import SessionScreen
-from inspect_ai.agent._acp._tui._state import SessionState, StatusState
-from inspect_ai.agent._acp._tui._widgets import (
+from inspect_ai.agent._acp.tui.app import InspectAcpApp
+from inspect_ai.agent._acp.tui.client import SessionRow
+from inspect_ai.agent._acp.tui.session_screen import SessionScreen
+from inspect_ai.agent._acp.tui.state import SessionState, StatusState
+from inspect_ai.agent._acp.tui.widgets import (
     MessageWidget,
     SessionHeaderWidget,
     ToolCallWidget,

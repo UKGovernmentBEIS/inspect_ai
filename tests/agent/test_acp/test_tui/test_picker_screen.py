@@ -13,9 +13,9 @@ import pytest
 from test_helpers.utils import skip_if_trio
 from textual.widgets import DataTable, Input, Markdown, Static
 
-from inspect_ai.agent._acp._tui._app import InspectAcpApp
-from inspect_ai.agent._acp._tui._client import SessionRow
-from inspect_ai.agent._acp._tui._picker_screen import (
+from inspect_ai.agent._acp.tui.app import InspectAcpApp
+from inspect_ai.agent._acp.tui.client import SessionRow
+from inspect_ai.agent._acp.tui.picker_screen import (
     PickerScreen,
     _format_running,
 )
@@ -208,7 +208,7 @@ async def test_picker_running_column_ticks_in_place(monkeypatch) -> None:
     """
     from pathlib import Path
 
-    from inspect_ai.agent._acp._discovery import TargetAddress
+    from inspect_ai.agent._acp.discovery import TargetAddress
 
     now_for_fixture = time.time()
     rows = [
@@ -334,7 +334,7 @@ async def test_picker_row_select_attaches_session(
             await pilot.pause()
             if app.screen is not picker:
                 break
-        from inspect_ai.agent._acp._tui._session_screen import SessionScreen
+        from inspect_ai.agent._acp.tui.session_screen import SessionScreen
 
         assert isinstance(app.screen, SessionScreen)
 

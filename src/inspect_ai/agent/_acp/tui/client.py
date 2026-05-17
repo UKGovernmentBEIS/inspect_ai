@@ -27,7 +27,7 @@ from acp.connection import Connection
 from acp.router import MessageRouter, Route
 from acp.schema import SessionNotification
 
-from inspect_ai.agent._acp._discovery import TargetAddress
+from inspect_ai.agent._acp.discovery import TargetAddress
 
 CLIENT_INFO = {"name": "inspect-acp-tui", "version": "1"}
 """Sent in ``initialize`` so the server can tailor capability negotiation
@@ -277,7 +277,7 @@ async def _open_socket(
 ) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     """Open an asyncio stream pair for a TargetAddress.
 
-    Mirrors :func:`inspect_ai.agent._acp._stdio._open_socket` — same
+    Mirrors :func:`inspect_ai.agent._acp.stdio._open_socket` — same
     pattern, separate definition because importing the stdio bridge
     just for one helper would be a cross-module dependency for no
     architectural reason.

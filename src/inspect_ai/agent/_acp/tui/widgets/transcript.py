@@ -13,9 +13,9 @@ from __future__ import annotations
 from textual.containers import VerticalScroll
 from textual.widget import Widget
 
-from .._state import MessageGroup, SessionState, ToolCallState
-from ._message import MessageWidget
-from ._tool_call import ToolCallWidget, tool_state_fingerprint
+from ..state import MessageGroup, SessionState, ToolCallState
+from .message import MessageWidget
+from .tool_call import ToolCallWidget, tool_state_fingerprint
 
 
 def _message_fingerprint(

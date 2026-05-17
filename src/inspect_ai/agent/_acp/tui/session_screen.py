@@ -27,9 +27,9 @@ from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import Footer, Input
 
-from ._client import AttachedSession
-from ._state import SessionState
-from ._widgets import (
+from .client import AttachedSession
+from .state import SessionState
+from .widgets import (
     SessionHeaderWidget,
     TranscriptWidget,
 )

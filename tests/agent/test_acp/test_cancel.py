@@ -6,9 +6,9 @@ import anyio
 import pytest
 
 from inspect_ai.agent import acp_session
-from inspect_ai.agent._acp._session import TurnCancelled
-from inspect_ai.agent._acp._session_live import LiveAcpSession
-from inspect_ai.agent._acp._session_noop import NoOpAcpSession
+from inspect_ai.agent._acp.session import TurnCancelled
+from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.session_noop import NoOpAcpSession
 from inspect_ai.event import InterruptEvent, ModelEvent
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import ChatMessageTool, ChatMessageUser

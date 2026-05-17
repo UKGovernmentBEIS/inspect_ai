@@ -43,7 +43,7 @@ from logging import getLogger
 
 import anyio
 
-from inspect_ai.agent._acp._discovery import TargetAddress
+from inspect_ai.agent._acp.discovery import TargetAddress
 
 logger = getLogger(__name__)
 

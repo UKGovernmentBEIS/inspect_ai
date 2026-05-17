@@ -23,12 +23,12 @@ from acp.helpers import (
 )
 from acp.schema import AgentPlanUpdate
 
-from inspect_ai.agent._acp._connection import (
+from inspect_ai.agent._acp.connection import (
     PLAN_RENDERING_META_KEY,
     Bound,
     ConnectionHandler,
 )
-from inspect_ai.agent._acp._session_router import PLAN_TOOL_NAMES, Forwarders
+from inspect_ai.agent._acp.session_router import PLAN_TOOL_NAMES, Forwarders
 
 # ---------------------------------------------------------------------------
 # Helpers

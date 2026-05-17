@@ -10,8 +10,8 @@ agent task.
 These tests cover the registration path independently of the TUI.
 """
 
-from inspect_ai.agent._acp._session import _NOOP_SESSION_ID, acp_session
-from inspect_ai.agent._acp._session_live import LiveAcpSession
+from inspect_ai.agent._acp.session import _NOOP_SESSION_ID, acp_session
+from inspect_ai.agent._acp.session_live import LiveAcpSession
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._samples import ActiveSample
 from inspect_ai.log._samples import _sample_active as samples_var

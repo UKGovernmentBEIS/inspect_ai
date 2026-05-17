@@ -40,18 +40,18 @@ from acp.schema import (
 from pydantic import BaseModel, Field
 from shortuuid import uuid
 
-from inspect_ai.agent._acp._picker import (
+from inspect_ai.agent._acp.picker import (
     PICKER_META_KEY,
     PickerTarget,
     build_picker_notification,
     list_picker_targets,
     resolve_selection,
 )
-from inspect_ai.agent._acp._session_router import Forwarders
+from inspect_ai.agent._acp.session_router import Forwarders
 from inspect_ai.model._chat_message import ChatMessageUser
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp._session import AcpSession
+    from inspect_ai.agent._acp.session import AcpSession
     from inspect_ai.log._samples import ActiveSample
 
 logger = getLogger(__name__)

@@ -25,8 +25,8 @@ from textual.widgets import Static
 from inspect_ai._util.rich import clean_control_characters
 from inspect_ai._util.text import truncate_lines
 
-from .._state import ToolCallState
-from ._markdown import StyledMarkdown
+from ..state import ToolCallState
+from .markdown import StyledMarkdown
 
 _DEFAULT_TOOL_OUTPUT_MAX_LINES = 15
 """How many lines of tool output to show before truncating.

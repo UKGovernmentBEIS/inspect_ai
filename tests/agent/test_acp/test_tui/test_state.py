@@ -19,7 +19,7 @@ from acp.schema import (
     UserMessageChunk,
 )
 
-from inspect_ai.agent._acp._tui._state import (
+from inspect_ai.agent._acp.tui.state import (
     MessageGroup,
     Segment,
     SessionState,
@@ -605,7 +605,7 @@ def test_consecutive_empty_pending_signals_collapse_as_retry() -> None:
     # All three pending signals collapsed into ONE bubble.
     assert len(state.items) == 1
     group = state.items[0]
-    from inspect_ai.agent._acp._tui._state import MessageGroup
+    from inspect_ai.agent._acp.tui.state import MessageGroup
 
     assert isinstance(group, MessageGroup)
     # First attempt + 2 retries.
@@ -622,7 +622,7 @@ def test_retry_completion_marker_targets_collapsed_group() -> None:
     state.consume(_completion_marker("m2"))
     assert len(state.items) == 1
     group = state.items[0]
-    from inspect_ai.agent._acp._tui._state import MessageGroup
+    from inspect_ai.agent._acp.tui.state import MessageGroup
 
     assert isinstance(group, MessageGroup)
     assert group.retries == 1
@@ -649,7 +649,7 @@ def test_pending_signal_creates_visible_assistant_block() -> None:
     state.consume(_pending_signal("m1"))
     assert len(state.items) == 1
     item = state.items[0]
-    from inspect_ai.agent._acp._tui._state import MessageGroup
+    from inspect_ai.agent._acp.tui.state import MessageGroup
 
     assert isinstance(item, MessageGroup)
     assert item.role == "assistant"
@@ -747,7 +747,7 @@ def test_turn_cap_drops_oldest_assistant_groups_past_limit() -> None:
     realism); the kept window should be exactly the 15 most recent
     assistants plus everything chronologically newer.
     """
-    from inspect_ai.agent._acp._tui._state import _MAX_ASSISTANT_TURNS
+    from inspect_ai.agent._acp.tui.state import _MAX_ASSISTANT_TURNS
 
     state = SessionState()
     state.consume(_user_chunk("kick off", message_id="mu-0"))
@@ -777,7 +777,7 @@ def test_turn_cap_retains_user_prompt_preceding_oldest_kept_assistant() -> None:
     Keeps the window starting with a real user→assistant pair rather
     than an orphan response.
     """
-    from inspect_ai.agent._acp._tui._state import _MAX_ASSISTANT_TURNS
+    from inspect_ai.agent._acp.tui.state import _MAX_ASSISTANT_TURNS
 
     state = SessionState()
     # Each turn starts with its own user message so the user prompts
@@ -800,7 +800,7 @@ def test_turn_cap_strips_aliases_for_evicted_groups() -> None:
     Otherwise late chunks for those ids would silently route into
     deleted state.
     """
-    from inspect_ai.agent._acp._tui._state import _MAX_ASSISTANT_TURNS
+    from inspect_ai.agent._acp.tui.state import _MAX_ASSISTANT_TURNS
 
     state = SessionState()
     # Seed an alias by simulating a retry on the first turn.
@@ -814,7 +814,7 @@ def test_turn_cap_strips_aliases_for_evicted_groups() -> None:
 
 def test_turn_cap_below_limit_is_a_noop() -> None:
     """Under the cap, nothing is evicted — index identity preserved."""
-    from inspect_ai.agent._acp._tui._state import _MAX_ASSISTANT_TURNS
+    from inspect_ai.agent._acp.tui.state import _MAX_ASSISTANT_TURNS
 
     state = SessionState()
     for n in range(_MAX_ASSISTANT_TURNS):

@@ -24,8 +24,8 @@ from acp.schema import (
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent import react
 from inspect_ai.agent._acp import acp_session
-from inspect_ai.agent._acp._event_mapping import _AcpEventRouter, _tool_call_status
-from inspect_ai.agent._acp._session_live import LiveAcpSession
+from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, _tool_call_status
+from inspect_ai.agent._acp.session_live import LiveAcpSession
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._as_tool import as_tool
 from inspect_ai.event import (
@@ -236,7 +236,7 @@ def test_router_exception_does_not_propagate_to_loop(monkeypatch) -> None:
     tr = Transcript()
     token = _transcript.set(tr)
     try:
-        from inspect_ai.agent._acp import _event_mapping
+        from inspect_ai.agent._acp import event_mapping
 
         session = _new_session()
         _attach_router(session)
@@ -248,7 +248,7 @@ def test_router_exception_does_not_propagate_to_loop(monkeypatch) -> None:
         # The mapping logic is hoisted out of the class so the replay
         # path can reuse it; the router instance no longer has an own
         # `_map` method.
-        monkeypatch.setattr(_event_mapping, "_map_event", bad_map)
+        monkeypatch.setattr(event_mapping, "_map_event", bad_map)
         # tr._event must not raise even though _process → _map_event
         # → bad_map raises.
         tr._event(_model_event(text="x"))
@@ -565,7 +565,7 @@ def test_tool_kind_mapping_for_built_in_tools() -> None:
     sandbox model. See the module-level comment on
     ``_TOOL_KIND_BY_NAME``.
     """
-    from inspect_ai.agent._acp._tool_content import _tool_kind_for
+    from inspect_ai.agent._acp.tool_content import _tool_kind_for
 
     # Shell-execution tools: None (no kind). Title carries the
     # command instead — see _descriptive_title.
@@ -748,7 +748,7 @@ def test_descriptive_title_per_known_tool() -> None:
     String-typed args that look like patterns/queries/element refs
     are quoted; paths and URLs are not.
     """
-    from inspect_ai.agent._acp._tool_content import _descriptive_title
+    from inspect_ai.agent._acp.tool_content import _descriptive_title
 
     def _ev(function: str, **args: Any) -> ToolEvent:
         return ToolEvent(id="x", function=function, arguments=args)
@@ -897,7 +897,7 @@ def test_shell_tool_result_fence_survives_truncation() -> None:
     closing ``\`\`\`\`\`\`\`\`\`` could be cut off, leaving the editor
     rendering an unclosed code block that swallows everything after.
     """
-    from inspect_ai.agent._acp._tool_content import _RESULT_CONTENT_MAX_BYTES
+    from inspect_ai.agent._acp.tool_content import _RESULT_CONTENT_MAX_BYTES
 
     tr = Transcript()
     token = _transcript.set(tr)
@@ -935,7 +935,7 @@ def test_replay_completed_tool_carries_result_in_first_sight_start() -> None:
     Pinned because previously ``_map_tool_event``'s first-sight
     branch only ever sent ``_content_from_view`` (no result).
     """
-    from inspect_ai.agent._acp._event_mapping import replay_transcript
+    from inspect_ai.agent._acp.event_mapping import replay_transcript
 
     # Build a transcript with one completed tool event (already has
     # a result; no pending=True intermediate).
@@ -969,7 +969,7 @@ def test_replay_completed_tool_carries_result_in_first_sight_start() -> None:
 
 def test_is_shell_execution_tool_membership() -> None:
     """Pin the shell-execution family so a refactor can't silently drift it."""
-    from inspect_ai.agent._acp._tool_content import _is_shell_execution_tool
+    from inspect_ai.agent._acp.tool_content import _is_shell_execution_tool
 
     assert _is_shell_execution_tool("bash")
     assert _is_shell_execution_tool("python")
@@ -1092,7 +1092,7 @@ def test_completed_tool_with_empty_result_does_not_overwrite_view() -> None:
 
 def test_completed_tool_result_truncated_when_oversized() -> None:
     """Huge results get truncated with a marker; full payload is on the event."""
-    from inspect_ai.agent._acp._tool_content import _RESULT_CONTENT_MAX_BYTES
+    from inspect_ai.agent._acp.tool_content import _RESULT_CONTENT_MAX_BYTES
 
     tr = Transcript()
     token = _transcript.set(tr)

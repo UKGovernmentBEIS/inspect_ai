@@ -1,7 +1,7 @@
 """Integration tests for the TUI client helpers against a real `AcpServer`.
 
 These tests spin up an in-process AF_UNIX ACP server, populate
-`_picker.active_samples` with controlled stubs, and verify that
+`picker.active_samples` with controlled stubs, and verify that
 `enumerate_sessions` / `attach_session` round-trip correctly through
 the real wire protocol — exercising the picker payload extensions
 (#1 startedAt, #5 agentName) end-to-end.
@@ -23,10 +23,10 @@ from unittest.mock import MagicMock
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai.agent._acp import _picker
-from inspect_ai.agent._acp._discovery import TargetAddress
-from inspect_ai.agent._acp._server import acp_server
-from inspect_ai.agent._acp._tui._client import (
+from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp.discovery import TargetAddress
+from inspect_ai.agent._acp.server import acp_server
+from inspect_ai.agent._acp.tui.client import (
     attach_session,
     enumerate_sessions,
 )
@@ -75,7 +75,7 @@ def short_data_dir(monkeypatch):
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    monkeypatch.setattr("inspect_ai.agent._acp._discovery.inspect_data_dir", _stub)
+    monkeypatch.setattr("inspect_ai.agent._acp.discovery.inspect_data_dir", _stub)
     try:
         yield dirpath
     finally:
@@ -96,7 +96,7 @@ def short_data_dir(monkeypatch):
 @pytest.fixture
 def stub_targets(monkeypatch):
     def _set(samples: list[Any]) -> None:
-        monkeypatch.setattr(_picker, "active_samples", lambda: samples)
+        monkeypatch.setattr(picker, "active_samples", lambda: samples)
 
     return _set
 

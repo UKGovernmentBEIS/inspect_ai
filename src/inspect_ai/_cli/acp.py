@@ -24,13 +24,13 @@ import sys
 import click
 from acp.stdio import stdio_streams
 
-from inspect_ai.agent._acp._discovery import (
+from inspect_ai.agent._acp.discovery import (
     DiscoveredEval,
     TargetAddress,
     TargetResolutionError,
     resolve_target,
 )
-from inspect_ai.agent._acp._stdio import bridge_stdio
+from inspect_ai.agent._acp.stdio import bridge_stdio
 
 
 @click.group(name="acp", invoke_without_command=True)
@@ -80,7 +80,7 @@ def acp_command(
         if stdio:
             asyncio.run(_run_stdio_bridge(eval_id=eval_id, server=server))
         else:
-            from inspect_ai.agent._acp._tui import run_tui
+            from inspect_ai.agent._acp.tui import run_tui
 
             asyncio.run(run_tui(eval_id=eval_id, server=server))
     except KeyboardInterrupt:

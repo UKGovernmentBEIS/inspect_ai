@@ -17,12 +17,12 @@ from pathlib import Path
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai.agent._acp._discovery import (
+from inspect_ai.agent._acp.discovery import (
     cleanup_stale_discovery_files,
     parse_host_port,
     pid_alive,
 )
-from inspect_ai.agent._acp._server import acp_server
+from inspect_ai.agent._acp.server import acp_server
 
 
 def _read_discovery(path: Path) -> dict[str, object]:
@@ -47,7 +47,7 @@ def short_data_dir(monkeypatch):
         return path
 
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._discovery.inspect_data_dir",
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
         _stub_data_dir,
     )
     try:

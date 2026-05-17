@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 from acp.schema import AgentMessageChunk, SessionNotification, TextContentBlock
 
-from inspect_ai.agent._acp import _picker
-from inspect_ai.agent._acp._picker import (
+from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp.picker import (
     PICKER_META_KEY,
     PickerTarget,
     build_picker_notification,
@@ -64,7 +64,7 @@ def test_list_picker_targets_skips_samples_without_acp_session(monkeypatch) -> N
         _make_sample(task="t2", sample_id="s2", epoch=0, session_id=None),
         _make_sample(task="t3", sample_id="s3", epoch=0, session_id="uuid-c"),
     ]
-    monkeypatch.setattr(_picker, "active_samples", lambda: samples)
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
 
     targets = list_picker_targets()
     assert [t.session_id for t in targets] == ["uuid-a", "uuid-c"]
@@ -76,7 +76,7 @@ def test_list_picker_targets_skips_noop_sessions(monkeypatch) -> None:
         _make_sample(task="t1", sample_id="s1", epoch=0, session_id="noop"),
         _make_sample(task="t2", sample_id="s2", epoch=0, session_id="uuid-real"),
     ]
-    monkeypatch.setattr(_picker, "active_samples", lambda: samples)
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
 
     targets = list_picker_targets()
     assert [t.session_id for t in targets] == ["uuid-real"]
@@ -85,7 +85,7 @@ def test_list_picker_targets_skips_noop_sessions(monkeypatch) -> None:
 def test_list_picker_targets_stringifies_int_sample_id(monkeypatch) -> None:
     """Sample.id may be int; the target's sample_id is always str."""
     samples = [_make_sample(task="t", sample_id=42, epoch=0, session_id="uuid")]
-    monkeypatch.setattr(_picker, "active_samples", lambda: samples)
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
 
     targets = list_picker_targets()
     assert targets[0].sample_id == "42"
@@ -94,7 +94,7 @@ def test_list_picker_targets_stringifies_int_sample_id(monkeypatch) -> None:
 def test_list_picker_targets_handles_none_sample_id(monkeypatch) -> None:
     """Sample.id is Optional; missing ids surface as empty string."""
     samples = [_make_sample(task="t", sample_id=None, epoch=0, session_id="uuid")]
-    monkeypatch.setattr(_picker, "active_samples", lambda: samples)
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
 
     targets = list_picker_targets()
     assert targets[0].sample_id == ""
@@ -106,7 +106,7 @@ def test_list_picker_targets_preserves_order(monkeypatch) -> None:
         _make_sample(task=f"t{i}", sample_id=f"s{i}", epoch=0, session_id=f"u{i}")
         for i in range(5)
     ]
-    monkeypatch.setattr(_picker, "active_samples", lambda: samples)
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
 
     targets = list_picker_targets()
     assert [t.session_id for t in targets] == [f"u{i}" for i in range(5)]
@@ -218,7 +218,7 @@ def test_list_picker_targets_propagates_agent_name_and_started(monkeypatch) -> N
             started=1_700_000_000.0,
         )
     ]
-    monkeypatch.setattr(_picker, "active_samples", lambda: samples)
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
 
     targets = list_picker_targets()
     assert targets[0].agent_name == "react"
@@ -239,7 +239,7 @@ def test_list_picker_targets_propagates_total_tokens(monkeypatch) -> None:
         session_id="uuid",
     )
     sample.total_tokens = 0
-    monkeypatch.setattr(_picker, "active_samples", lambda: [sample])
+    monkeypatch.setattr(picker, "active_samples", lambda: [sample])
 
     assert list_picker_targets()[0].total_tokens == 0
 

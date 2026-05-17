@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, AsyncGenerator, Iterator, Literal
 if TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-    from inspect_ai.agent._acp._session import AcpSession
+    from inspect_ai.agent._acp.session import AcpSession
     from inspect_ai.hooks._hooks import SampleEvent
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
 

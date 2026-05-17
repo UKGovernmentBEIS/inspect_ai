@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from inspect_ai.agent._acp._discovery import (
+from inspect_ai.agent._acp.discovery import (
     DiscoveredEval,
     TargetAddress,
     TargetResolutionError,
@@ -49,11 +49,11 @@ def short_data_dir(monkeypatch):
         return path
 
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._discovery.inspect_data_dir",
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
         _stub,
     )
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._discovery.pid_alive",
+        "inspect_ai.agent._acp.discovery.pid_alive",
         lambda pid: pid > 0,
     )
     try:
@@ -290,7 +290,7 @@ def test_auto_stale_pid_filtered_so_resolution_succeeds(
     # Override the fixture's "everything alive" patch with one that
     # treats PID 999999 as dead and everything else as alive.
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._discovery.pid_alive",
+        "inspect_ai.agent._acp.discovery.pid_alive",
         lambda pid: pid > 0 and pid != 999999,
     )
     _write_discovery(

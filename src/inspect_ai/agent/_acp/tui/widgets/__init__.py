@@ -1,14 +1,14 @@
 """Textual widgets for the Phase 2 conversation pane.
 
-Each widget is driven by :mod:`inspect_ai.agent._acp._tui._state` —
+Each widget is driven by :mod:`inspect_ai.agent._acp.tui.state` —
 they read snapshots of ``SessionState`` and update on its subscribe
 callback. No widget touches the wire directly.
 """
 
-from ._header import AppHeaderWidget, SessionHeaderWidget
-from ._message import MessageWidget
-from ._tool_call import ToolCallWidget
-from ._transcript import TranscriptWidget
+from .header import AppHeaderWidget, SessionHeaderWidget
+from .message import MessageWidget
+from .tool_call import ToolCallWidget
+from .transcript import TranscriptWidget
 
 __all__ = [
     "AppHeaderWidget",

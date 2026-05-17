@@ -6,7 +6,7 @@ import anyio
 
 from inspect_ai.agent import react
 from inspect_ai.agent._acp import AcpSession
-from inspect_ai.agent._acp._session_live import LiveAcpSession
+from inspect_ai.agent._acp.session_live import LiveAcpSession
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.event import InterruptEvent
 from inspect_ai.log._transcript import Transcript, _transcript

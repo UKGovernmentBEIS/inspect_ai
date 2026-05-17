@@ -9,8 +9,8 @@ and accepts incoming connections.
 
 This module is responsible for **transport only** — bind / accept /
 shutdown plus per-connection setup that delegates to
-:class:`ConnectionHandler` from :mod:`._connection` for the actual
-method dispatch and to :class:`Forwarders` from :mod:`._session_router`
+:class:`ConnectionHandler` from :mod:`.connection` for the actual
+method dispatch and to :class:`Forwarders` from :mod:`.session_router`
 for outbound forwarding.
 
 asyncio anchor — this module is **asyncio-bound** at the
@@ -35,7 +35,7 @@ from acp.connection import Connection
 from acp.interfaces import Agent
 from acp.router import Route
 
-from inspect_ai.agent._acp._connection import (
+from inspect_ai.agent._acp.connection import (
     ConnectionHandler,
     _CancelSampleParams,
     _CancelToolCallParams,
@@ -43,7 +43,7 @@ from inspect_ai.agent._acp._connection import (
     _NewSessionParams,
     _wrap_action_handler,
 )
-from inspect_ai.agent._acp._discovery import (
+from inspect_ai.agent._acp.discovery import (
     cleanup_stale_discovery_files,
     default_socket_path,
     discovery_dir,

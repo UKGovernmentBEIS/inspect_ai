@@ -22,10 +22,10 @@ from unittest.mock import MagicMock
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai.agent._acp import _picker
-from inspect_ai.agent._acp._discovery import TargetAddress
-from inspect_ai.agent._acp._server import acp_server
-from inspect_ai.agent._acp._stdio import bridge_stdio
+from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp.discovery import TargetAddress
+from inspect_ai.agent._acp.server import acp_server
+from inspect_ai.agent._acp.stdio import bridge_stdio
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript
 
@@ -46,7 +46,7 @@ def short_data_dir(monkeypatch):
         return path
 
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._discovery.inspect_data_dir",
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
         _stub,
     )
     try:
@@ -200,7 +200,7 @@ def _stub_active_sample(
 
 
 def _register_via_picker_and_samples(monkeypatch, samples: list[Any]) -> None:
-    monkeypatch.setattr(_picker, "active_samples", lambda: list(samples))
+    monkeypatch.setattr(picker, "active_samples", lambda: list(samples))
     monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: list(samples))
 
 

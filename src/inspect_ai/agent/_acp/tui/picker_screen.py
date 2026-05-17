@@ -26,7 +26,7 @@ from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Input, Markdown, Static
 from textual.widgets._data_table import CellDoesNotExist
 
-from ._client import SessionRow
+from .client import SessionRow
 
 
 def _format_running(started_at: float | None, now: float | None = None) -> str:
@@ -305,7 +305,7 @@ class PickerScreen(Screen[None]):
         # pulls ``_format_tokens`` from this module for the tokens chip
         # on the session header. Keeping the import inside compose
         # defers it until after this module is fully initialized.
-        from ._widgets import AppHeaderWidget
+        from .widgets import AppHeaderWidget
 
         yield AppHeaderWidget()
         if not self._rows:

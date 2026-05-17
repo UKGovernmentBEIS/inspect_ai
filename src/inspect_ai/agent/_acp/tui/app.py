@@ -16,18 +16,18 @@ from typing import Any
 from textual.app import App
 from textual.binding import Binding
 
-from inspect_ai.agent._acp._discovery import (
+from inspect_ai.agent._acp.discovery import (
     TargetAddress,
     TargetResolutionError,
     list_discovered_evals,
     parse_host_port,
 )
 
-from . import _client
-from ._client import AttachedSession, SessionRow
-from ._picker_screen import PickerScreen
-from ._session_screen import SessionScreen
-from ._state import SessionState
+from . import client as _client
+from .client import AttachedSession, SessionRow
+from .picker_screen import PickerScreen
+from .session_screen import SessionScreen
+from .state import SessionState
 
 
 class InspectAcpApp(App[None]):
@@ -77,10 +77,10 @@ class InspectAcpApp(App[None]):
 
         ``client`` is an injection point for tests — a module-like
         object exposing ``enumerate_sessions`` and ``attach_session``
-        with the same signatures as :mod:`._client`. Defaults to the
+        with the same signatures as :mod:`.client`. Defaults to the
         real module. Typed ``Any`` because the injection is duck-
-        typed; ``_client`` is a module rather than a Protocol-shaped
-        object.
+        typed; the module is passed as an object rather than a
+        Protocol-shaped value.
         """
         super().__init__()
         self._eval_id = eval_id

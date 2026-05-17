@@ -8,8 +8,8 @@ from typing import Callable
 
 import pytest
 
-from inspect_ai.agent._acp._discovery import TargetAddress
-from inspect_ai.agent._acp._tui._client import SessionRow
+from inspect_ai.agent._acp.discovery import TargetAddress
+from inspect_ai.agent._acp.tui.client import SessionRow
 
 
 @pytest.fixture

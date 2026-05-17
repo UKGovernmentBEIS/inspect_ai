@@ -21,11 +21,11 @@ from anyio.streams.memory import MemoryObjectReceiveStream
 # Runtime imports: ``AcpUpdate`` is subscripted at runtime by
 # ``anyio.create_memory_object_stream[AcpUpdate]`` inside ``attach()``;
 # ``_NOOP_SESSION_ID`` is a string constant returned by ``session_id``.
-from inspect_ai.agent._acp._session import _NOOP_SESSION_ID, AcpUpdate
+from inspect_ai.agent._acp.session import _NOOP_SESSION_ID, AcpUpdate
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp._session import AcpSession, ApproverClient
+    from inspect_ai.agent._acp.session import AcpSession, ApproverClient
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 

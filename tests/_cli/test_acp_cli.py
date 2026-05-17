@@ -82,11 +82,11 @@ def short_data_dir(monkeypatch):
         return path
 
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._discovery.inspect_data_dir",
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
         _stub,
     )
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._discovery.pid_alive",
+        "inspect_ai.agent._acp.discovery.pid_alive",
         lambda pid: pid > 0,
     )
     try:
@@ -152,7 +152,7 @@ def test_bare_command_invokes_tui_runner(short_data_dir: Path, monkeypatch) -> N
         captured["server"] = server
 
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._tui.run_tui",
+        "inspect_ai.agent._acp.tui.run_tui",
         _fake_run_tui,
     )
 

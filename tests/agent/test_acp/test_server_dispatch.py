@@ -1,7 +1,7 @@
 """Phase 9 integration tests for the picker / dispatch layer of `AcpServer`.
 
 These tests exercise the full request/response + notification cycle
-over a real AF_UNIX loopback socket. They stub `_picker.active_samples`
+over a real AF_UNIX loopback socket. They stub `picker.active_samples`
 to control the target list rather than spinning up real eval samples.
 
 Notification ordering rule we rely on: the ACP server pushes
@@ -25,9 +25,9 @@ from unittest.mock import MagicMock
 import pytest
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai.agent._acp import _picker
-from inspect_ai.agent._acp._picker import PICKER_META_KEY
-from inspect_ai.agent._acp._server import acp_server
+from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp.picker import PICKER_META_KEY
+from inspect_ai.agent._acp.server import acp_server
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -45,7 +45,7 @@ def short_data_dir(monkeypatch):
         return path
 
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._discovery.inspect_data_dir",
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
         _stub_data_dir,
     )
     try:
@@ -101,10 +101,10 @@ def _make_sample(
 
 @pytest.fixture
 def stub_targets(monkeypatch):
-    """Helper that patches `_picker.active_samples` to a controlled list."""
+    """Helper that patches `picker.active_samples` to a controlled list."""
 
     def _set(samples: list[Any]) -> None:
-        monkeypatch.setattr(_picker, "active_samples", lambda: samples)
+        monkeypatch.setattr(picker, "active_samples", lambda: samples)
 
     return _set
 
@@ -806,7 +806,7 @@ async def test_bound_mode_prompt_with_unreachable_target_returns_internal_error(
     bound-mode prompts. Phase 10 forwards them to the bound target's
     ``submit_user_message`` via :func:`_find_live_session`, which walks
     the real ``active_samples()`` registry. The dispatch tests use
-    ``stub_targets`` (monkeypatched at ``_picker.active_samples``)
+    ``stub_targets`` (monkeypatched at ``picker.active_samples``)
     which does NOT plug into the registry the forwarder reads, so
     targets are present at picker time but unreachable at forward
     time — surfaces as ``internal_error`` with a clear reason. Real
@@ -999,7 +999,7 @@ async def test_picker_numeric_selection_pins_to_snapshot_under_reorder(
         call_count["n"] += 1
         return initial if call_count["n"] == 1 else reshuffled
 
-    monkeypatch.setattr(_picker, "active_samples", _changing_active_samples)
+    monkeypatch.setattr(picker, "active_samples", _changing_active_samples)
 
     async with acp_server(eval_id="evt-snap-reorder", transport=True) as server:
         assert server is not None
@@ -1009,8 +1009,8 @@ async def test_picker_numeric_selection_pins_to_snapshot_under_reorder(
                 "session/new", {"cwd": "/tmp", "mcpServers": []}
             )
             control_id = resp["result"]["sessionId"]
-            picker = await client.next_notification()
-            shown = [t["sessionId"] for t in picker["params"]["_meta"][PICKER_META_KEY]]
+            notif = await client.next_notification()
+            shown = [t["sessionId"] for t in notif["params"]["_meta"][PICKER_META_KEY]]
             assert shown == ["uuid-A", "uuid-B", "uuid-C"]
 
             await client.request(
@@ -1060,7 +1060,7 @@ async def test_picker_selection_of_finished_target_redisplays(
         call_count["n"] += 1
         return initial if call_count["n"] == 1 else after_finish
 
-    monkeypatch.setattr(_picker, "active_samples", _changing_active_samples)
+    monkeypatch.setattr(picker, "active_samples", _changing_active_samples)
 
     async with acp_server(eval_id="evt-snap-stale", transport=True) as server:
         assert server is not None

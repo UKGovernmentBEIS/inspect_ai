@@ -32,8 +32,8 @@ from acp.schema import (
 )
 from test_helpers.utils import skip_if_trio
 
-from inspect_ai.agent._acp._server import acp_server
-from inspect_ai.agent._acp._session_live import LiveAcpSession
+from inspect_ai.agent._acp.server import acp_server
+from inspect_ai.agent._acp.session_live import LiveAcpSession
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human.acp import (
     _approval_from_response,
@@ -595,7 +595,7 @@ def short_data_dir(monkeypatch):
         return path
 
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._discovery.inspect_data_dir",
+        "inspect_ai.agent._acp.discovery.inspect_data_dir",
         _stub,
     )
     try:
@@ -719,7 +719,7 @@ async def test_approval_over_real_socket_round_trip(
     sample.epoch = 0
     monkeypatch.setattr("inspect_ai.log._samples.active_samples", lambda: [sample])
     monkeypatch.setattr(
-        "inspect_ai.agent._acp._picker.active_samples", lambda: [sample]
+        "inspect_ai.agent._acp.picker.active_samples", lambda: [sample]
     )
 
     async with acp_server(eval_id="evt-appr", transport=True) as server:

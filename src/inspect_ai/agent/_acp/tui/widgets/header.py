@@ -21,9 +21,9 @@ from textual.containers import Horizontal
 from textual.widget import Widget
 from textual.widgets import Static
 
-from .._client import SessionRow
-from .._picker_screen import _format_tokens
-from .._state import UsageState
+from ..client import SessionRow
+from ..picker_screen import _format_tokens
+from ..state import UsageState
 
 
 def _short_task_name(name: str) -> str:

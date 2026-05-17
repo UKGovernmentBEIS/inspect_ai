@@ -31,11 +31,11 @@ from acp.schema import (
     ToolCallStart,
 )
 
-from inspect_ai.agent._acp._event_mapping import SubagentDepthTracker, replay_transcript
+from inspect_ai.agent._acp.event_mapping import SubagentDepthTracker, replay_transcript
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp._connection import ConnectionState
-    from inspect_ai.agent._acp._session import AcpSession, ApproverClient
+    from inspect_ai.agent._acp.connection import ConnectionState
+    from inspect_ai.agent._acp.session import AcpSession, ApproverClient
 
 logger = getLogger(__name__)
 

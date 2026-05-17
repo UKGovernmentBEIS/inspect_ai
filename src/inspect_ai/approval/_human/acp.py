@@ -69,7 +69,7 @@ from .._approval import Approval, ApprovalDecision
 if TYPE_CHECKING:
     from acp.schema import ContentToolCallContent
 
-    from inspect_ai.agent._acp._session import ApproverClient
+    from inspect_ai.agent._acp.session import ApproverClient
 
 logger = getLogger(__name__)
 
@@ -191,7 +191,7 @@ def _build_request(
     already send for live tools: a descriptive title (``bash ls -la``
     rather than just ``bash``), the tool's ``ToolCallView`` content
     as inline markdown, ``raw_input`` for the debug view. Reuses
-    :func:`inspect_ai.agent._acp._tool_content.descriptive_title` and
+    :func:`inspect_ai.agent._acp.tool_content.descriptive_title` and
     :func:`content_blocks_from_view` so the approval prompt and the
     live tool-call rendering stay visually consistent in editors.
 
@@ -212,11 +212,11 @@ def _build_request(
     ``{{command}}`` / ``{{path}}`` placeholders.
     """
     # Deferred imports to avoid an import cycle through
-    # ``inspect_ai.agent._acp._tool_content`` → ``inspect_ai.log._transcript``
+    # ``inspect_ai.agent._acp.tool_content`` → ``inspect_ai.log._transcript``
     # (which the approval module is loaded too early to participate
     # in at registry-init time). Routing through ACP only fires at
     # actual approval time, so the deferral has no perf cost.
-    from inspect_ai.agent._acp._tool_content import (
+    from inspect_ai.agent._acp.tool_content import (
         content_blocks_from_view,
         descriptive_title,
     )
