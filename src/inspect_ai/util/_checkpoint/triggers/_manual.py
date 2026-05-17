@@ -6,15 +6,11 @@ trigger and always writes a sidecar with ``trigger="manual"``).
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from inspect_ai.util._checkpoint.layout import CheckpointTriggerKind
+from ._base import CheckpointTrigger, CheckpointTriggerKind
 
 
-class Manual:
-    """No-op trigger: ``tick()`` always returns ``False``."""
+class Manual(CheckpointTrigger):
+    """No-op trigger: ``tick()`` always returns ``None``."""
 
-    kind: ClassVar[CheckpointTriggerKind] = "manual"
-
-    def tick(self) -> bool:
-        return False
+    def tick(self) -> CheckpointTriggerKind | None:
+        return None

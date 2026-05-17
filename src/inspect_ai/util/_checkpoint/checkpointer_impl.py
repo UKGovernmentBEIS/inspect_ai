@@ -1,19 +1,18 @@
 """Active checkpoint-session implementation (heavy).
 
-Contains the on-disk write path: parses policy, fires checkpoints,
-runs restic backups (host + sandboxes), writes per-checkpoint sidecars.
-Imports the parts of ``inspect_ai`` that ultimately reach
-``solver._task_state`` and ``dataset.Sample``, so this module must
-*not* be imported during initial inspect_ai package load — only at
-sample-run time, via :func:`build_session` (called from
-``Checkpointer.__aenter__`` in :mod:`_session`).
+Contains the on-disk write path: fires checkpoints, runs restic backups
+(host + sandboxes), writes per-checkpoint sidecars. Imports the parts
+of ``inspect_ai`` that ultimately reach ``solver._task_state`` and
+``dataset.Sample``, so this module must *not* be imported during
+initial inspect_ai package load — only at sample-run time, via the
+``_CheckpointerSetup`` async ctx mgr that the harness stashes on
+:class:`ActiveSample`.
 """
 
 from __future__ import annotations
 
 import contextlib
 import copy
-import json
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
@@ -24,11 +23,9 @@ from typing import Any, TypeVar
 
 import anyio
 from pydantic import BaseModel, JsonValue, TypeAdapter
-from pydantic_core import to_jsonable_python
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai.event._event import Event
-from inspect_ai.log import EventsData
 from inspect_ai.log._pool import (
     _build_call_index,
     _build_msg_index,
@@ -42,13 +39,14 @@ from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._span import span
 from inspect_ai.util._store import Store, store_jsonable
 
+from . import host_context
 from .checkpointer import (
     Checkpointer,
     ResumeCheckpoint,
 )
-from .config import CheckpointConfig
-from .hydrate import hydrate
-from .layout import CheckpointTriggerKind, SnapshotInfo
+from .config import ResolvedCheckpointConfig
+from .hydrate import HydrationResult, hydrate
+from .layout import SnapshotInfo
 from .restic import (
     ResticBackupSummary,
     egress_sandbox,
@@ -56,6 +54,7 @@ from .restic import (
     run_sandbox_backup,
 )
 from .sample_checkpoints_dir import write_sidecar
+from .triggers import CheckpointTriggerKind
 
 logger = getLogger(__name__)
 
@@ -67,20 +66,20 @@ T = TypeVar("T")
 _JSON_PRIMITIVE_TYPES: tuple[type, ...] = (int, float, str, bool, type(None))
 
 
-class _Checkpointer(AbstractAsyncContextManager[Checkpointer]):
+class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
     """Pre-entry phase — stashes inputs; runs the I/O on ``__aenter__``.
 
     Lives on :class:`ActiveSample`. Its ``__aenter__`` performs the
     on-disk + sandbox setup and constructs a fully-formed
-    :class:`_Checkpointer`. The instance is cached so re-entry within
-    the same sample reuses the same live checkpointer rather than
-    redoing the I/O.
+    :class:`_EnteredCheckpointer`. The instance is cached so re-entry
+    within the same sample reuses the same live checkpointer rather
+    than redoing the I/O.
     """
 
     def __init__(
         self,
         *,
-        config: CheckpointConfig,
+        config: ResolvedCheckpointConfig,
         log_location: str,
         sample_id: int | str,
         epoch: int,
@@ -105,16 +104,8 @@ class _Checkpointer(AbstractAsyncContextManager[Checkpointer]):
         )
         self._cached = _EnteredCheckpointer(
             config=self._config,
-            sample_checkpoints_dir=result.sample_checkpoints_dir,
-            sample_working_dir=result.sample_working_dir,
-            host_restic=result.host_restic,
-            host_repo=result.host_repo,
-            restic_password=result.restic_password,
+            hydration=result,
             resume_checkpoint=self._resume_checkpoint,
-            agent_state=result.host.agent_state,
-            condensed_events=result.host.condensed_events,
-            msg_pool=result.host.msg_pool,
-            call_pool=result.host.call_pool,
         )
         return self._cached
 
@@ -134,27 +125,19 @@ class _EnteredCheckpointer:
     def __init__(
         self,
         *,
-        config: CheckpointConfig,
-        sample_checkpoints_dir: str,
-        sample_working_dir: str,
-        host_restic: Path,
-        host_repo: str,
-        restic_password: str,
+        config: ResolvedCheckpointConfig,
+        hydration: HydrationResult,
         resume_checkpoint: ResumeCheckpoint | None,
-        agent_state: dict[str, Any] | None = None,
-        condensed_events: list[Event] | None = None,
-        msg_pool: list[ChatMessage] | None = None,
-        call_pool: list[JsonValue] | None = None,
     ) -> None:
         self._config = config
-        self._sample_checkpoints_dir = sample_checkpoints_dir
-        self._sample_working_dir = sample_working_dir
-        self._host_restic = host_restic
-        self._host_repo = host_repo
-        self._restic_password = restic_password
+        self._sample_checkpoints_dir = hydration.sample_checkpoints_dir
+        self._sample_working_dir = hydration.sample_working_dir
+        self._host_restic = hydration.host_restic
+        self._host_repo = hydration.host_repo
+        self._restic_password = hydration.restic_password
         self._resume_checkpoint = resume_checkpoint
         self._agent_state: dict[str, Any] = (
-            agent_state if agent_state is not None else {}
+            hydration.host.agent_state if hydration.host.agent_state is not None else {}
         )
         # Sync per-session state — turn counters, callbacks, pools.
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
@@ -164,8 +147,6 @@ class _EnteredCheckpointer:
         # across many samples; the trigger holds per-session state
         # (turn counter, time of last fire) and would otherwise mix
         # between samples.
-        if config.trigger is None:
-            raise ValueError("_EnteredCheckpointer requires `config.trigger` to be set")
         self._trigger = copy.deepcopy(config.trigger)
         # `checkpoint N` span open across the agent's current
         # work-between-fires window. Owned across `span_session()`'s
@@ -177,10 +158,10 @@ class _EnteredCheckpointer:
         # On resume, hydrate seeds the pools (and `_events_consumed` to the
         # transcript-event count of pushed history) so the next fire writes
         # a snapshot containing old + new events.
-        self._condensed_events: list[Event] = list(condensed_events or [])
-        self._msg_pool: list[ChatMessage] = list(msg_pool or [])
+        self._condensed_events: list[Event] = list(hydration.host.condensed_events)
+        self._msg_pool: list[ChatMessage] = list(hydration.host.msg_pool)
         self._msg_index: dict[str, int] = _build_msg_index(self._msg_pool)
-        self._call_pool: list[JsonValue] = list(call_pool or [])
+        self._call_pool: list[JsonValue] = list(hydration.host.call_pool)
         self._call_index: dict[str, int] = _build_call_index(self._call_pool)
         self._events_consumed = len(self._condensed_events)
 
@@ -190,8 +171,9 @@ class _EnteredCheckpointer:
 
     async def tick(self) -> None:
         self._turn += 1
-        if self._trigger.tick():
-            await self._fire(self._trigger.kind)
+        kind = self._trigger.tick()
+        if kind is not None:
+            await self._fire(kind)
 
     async def checkpoint(self) -> None:
         await self._fire("manual")
@@ -387,21 +369,22 @@ class _EnteredCheckpointer:
             self._call_pool.extend(c for _, c in new_calls)
             self._condensed_events.extend(cond)
             self._events_consumed = len(events)
-        events_data = EventsData(messages=self._msg_pool, calls=self._call_pool)
-        sample_dir = anyio.Path(sample_working_dir)
-        await (sample_dir / "events.json").write_text(
-            _json_dump(self._condensed_events)
+        agent_state = (
+            {key: cb() for key, cb in self._on_checkpoint_callbacks.items()}
+            if self._on_checkpoint_callbacks
+            else None
         )
-        await (sample_dir / "events_data.json").write_text(_json_dump(events_data))
-        await (sample_dir / "attachments.json").write_text(
-            _json_dump(dict(attachments))
+        await host_context.write(
+            sample_working_dir,
+            host_context.HostContext(
+                condensed_events=self._condensed_events,
+                msg_pool=self._msg_pool,
+                call_pool=self._call_pool,
+                attachments=dict(attachments),
+                store=store_jsonable(store),
+                agent_state=agent_state,
+            ),
         )
-        await (sample_dir / "store.json").write_text(_json_dump(store_jsonable(store)))
-        if self._on_checkpoint_callbacks:
-            agent_state = {
-                key: cb() for key, cb in self._on_checkpoint_callbacks.items()
-            }
-            await (sample_dir / "agent_state.json").write_text(_json_dump(agent_state))
 
     async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
         return await run_host_backup(
@@ -451,12 +434,4 @@ def _snapshot_info(summary: ResticBackupSummary) -> SnapshotInfo:
         snapshot_id=summary.snapshot_id,
         size_bytes=summary.data_added_packed,
         duration_ms=int(summary.total_duration * 1000),
-    )
-
-
-def _json_dump(obj: object) -> str:
-    """Serialize ``obj`` to JSON, excluding ``None`` fields, with a trailing newline."""
-    return (
-        json.dumps(to_jsonable_python(obj, exclude_none=True, fallback=lambda _: None))
-        + "\n"
     )

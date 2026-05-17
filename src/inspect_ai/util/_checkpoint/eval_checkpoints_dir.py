@@ -19,6 +19,20 @@ from .config import CheckpointConfig
 _LOG_SUFFIX = ".eval"
 
 
+def log_basename(log_location: str) -> str:
+    """Return the log's basename with any trailing ``.eval`` stripped.
+
+    Used to derive the per-eval ``<log-base>.checkpoints/`` directory
+    name (durable, alongside the log) and the matching per-eval working
+    dir under ``inspect_cache_dir("checkpoints")/`` (ephemeral, host
+    cache). Single owner of the ``.eval`` suffix convention.
+    """
+    base = basename(log_location)
+    if base.endswith(_LOG_SUFFIX):
+        base = base[: -len(_LOG_SUFFIX)]
+    return base
+
+
 def eval_checkpoints_dir(log_location: str, override_root: str | None) -> str:
     """Compute the eval checkpoints dir path.
 
@@ -26,11 +40,8 @@ def eval_checkpoints_dir(log_location: str, override_root: str | None) -> str:
     ``.checkpoints``. Parent is ``override_root`` (the *evals
     checkpoints dir*) if provided, else the log's directory.
     """
-    base = basename(log_location)
-    if base.endswith(_LOG_SUFFIX):
-        base = base[: -len(_LOG_SUFFIX)]
     parent = override_root if override_root else dirname(log_location)
-    return f"{parent}/{base}.checkpoints"
+    return f"{parent}/{log_basename(log_location)}.checkpoints"
 
 
 def eval_checkpoints_dir_from_config(

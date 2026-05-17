@@ -17,7 +17,7 @@ from shortuuid import uuid
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
-from inspect_ai.util._checkpoint.config import CheckpointConfig
+from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxConnection
 from inspect_ai.util._sandbox.context import sandbox_connections
@@ -142,7 +142,7 @@ async def active_sample(
     fails_on_error: bool,
     transcript: Transcript,
     eval_id: str,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: ResolvedCheckpointConfig | None = None,
     resume_checkpoint: ResumeCheckpoint | None = None,
     eval_set_id: str | None = None,
     run_id: str | None = None,

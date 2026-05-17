@@ -3,14 +3,14 @@ from contextlib import AbstractAsyncContextManager
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
-from inspect_ai.util._checkpoint.checkpointer_impl import _Checkpointer, logger
+from inspect_ai.util._checkpoint.checkpointer_impl import _CheckpointerSetup, logger
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
-from inspect_ai.util._checkpoint.config import CheckpointConfig
+from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 
 
 def create_checkpointer(
     *,
-    config: CheckpointConfig | None,
+    config: ResolvedCheckpointConfig | None,
     log_location: str,
     sample_id: int | str,
     epoch: int,
@@ -18,9 +18,9 @@ def create_checkpointer(
 ) -> AbstractAsyncContextManager[Checkpointer]:
     """Build the per-sample checkpointer setup.
 
-    Returns a :class:`_NoopSetup` when ``config`` is ``None`` or the
-    development gate is off; otherwise returns a
-    :class:`_CheckpointerSetup` whose ``__aenter__`` performs the
+    Returns a :class:`_NoopCheckpointer` when ``config`` is ``None`` or
+    the development gate is off; otherwise returns a
+    :class:`_CheckpointerSetupSetup` whose ``__aenter__`` performs the
     on-disk + sandbox setup and yields the agent-facing
     :class:`Checkpointer`.
 
@@ -42,7 +42,7 @@ def create_checkpointer(
     if config is None:
         return _NoopCheckpointer()
 
-    return _Checkpointer(
+    return _CheckpointerSetup(
         config=config,
         log_location=log_location,
         sample_id=sample_id,

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
-from inspect_ai.util._checkpoint.layout import CheckpointTriggerKind
+from ._base import CheckpointTrigger, CheckpointTriggerKind
 
 
-class TurnInterval:
+class TurnInterval(CheckpointTrigger):
     """Fire after every ``every`` agent turns of work.
 
     The very first ``tick()`` call marks the boundary *before* turn 1
@@ -18,21 +16,19 @@ class TurnInterval:
     opening tick.
     """
 
-    kind: ClassVar[CheckpointTriggerKind] = "turn"
-
     def __init__(self, every: int) -> None:
         self.every = every
         self._ticks = 0
         self._turns_since_fire = 0
 
-    def tick(self) -> bool:
+    def tick(self) -> CheckpointTriggerKind | None:
         self._ticks += 1
         if self._ticks > 1:
             self._turns_since_fire += 1
         if self._turns_since_fire >= self.every:
             self._turns_since_fire = 0
-            return True
-        return False
+            return "turn"
+        return None
 
     def __eq__(self, other: object) -> bool:
         return isinstance(other, TurnInterval) and other.every == self.every

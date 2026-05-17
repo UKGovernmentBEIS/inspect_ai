@@ -17,13 +17,13 @@ default-policy knowledge.
 
 from __future__ import annotations
 
-import re
 from datetime import timedelta
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inspect_ai._util.config import resolve_args
+from inspect_ai._util.duration import parse_duration
 
 from .config import CheckpointConfig, Retention
 from .triggers import CheckpointTrigger, Manual, TimeInterval, TurnInterval
@@ -44,7 +44,11 @@ def parse_checkpoint(value: str | None) -> CheckpointConfig | None:
                 trigger=TurnInterval(every=_parse_positive_int(rest, "turn"))
             )
         case ("time", ":", rest):
-            return CheckpointConfig(trigger=TimeInterval(every=_parse_duration(rest)))
+            return CheckpointConfig(
+                trigger=TimeInterval(
+                    every=parse_duration(rest, error_prefix="--checkpoint time")
+                )
+            )
         case _:
             return _parse_config_file(value)
 
@@ -59,25 +63,6 @@ def _parse_positive_int(value: str, kind: str) -> int:
     if n <= 0:
         raise ValueError(f"--checkpoint {kind}: value must be > 0, got {n}")
     return n
-
-
-_DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhd]?)\s*$", re.IGNORECASE)
-_DURATION_UNITS_S = {"": 1.0, "s": 1.0, "m": 60.0, "h": 3600.0, "d": 86400.0}
-
-
-def _parse_duration(value: str) -> timedelta:
-    """Parse ``15m``, ``30s``, ``2h``, ``1d``, or a bare integer (seconds)."""
-    m = _DURATION_RE.match(value)
-    if m is None:
-        raise ValueError(
-            f"--checkpoint time: expected <number><s|m|h|d>, got {value!r}"
-        )
-    n = float(m.group(1))
-    unit = m.group(2).lower()
-    seconds = n * _DURATION_UNITS_S[unit]
-    if seconds <= 0:
-        raise ValueError(f"--checkpoint time: duration must be > 0, got {value!r}")
-    return timedelta(seconds=seconds)
 
 
 # --- YAML/JSON config loader ----------------------------------------
@@ -101,13 +86,14 @@ _TriggerModel = Annotated[
 ]
 
 
-class _RetentionModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    after_eval: Literal["delete", "retain"] = "delete"
-
-
 class _CheckpointConfigModel(BaseModel):
-    """Pydantic mirror of :class:`CheckpointConfig` for YAML/JSON loading."""
+    """Pydantic mirror of :class:`CheckpointConfig` for YAML/JSON loading.
+
+    Two fields differ from the real dataclass:
+    - ``trigger`` accepts a discriminated dict (``{"type": "turn", "every": 5}``)
+      or the literal ``"manual"``, and translates to a strategy instance.
+    - All other fields validate directly against their dataclass counterparts.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
@@ -115,7 +101,7 @@ class _CheckpointConfigModel(BaseModel):
     checkpoints_location: str | None = None
     sandbox_paths: dict[str, list[str]] = Field(default_factory=dict)
     max_consecutive_failures: int | None = None
-    retention: _RetentionModel = Field(default_factory=_RetentionModel)
+    retention: Retention = Field(default_factory=Retention)
 
     def to_dataclass(self) -> CheckpointConfig:
         return CheckpointConfig(
@@ -123,7 +109,7 @@ class _CheckpointConfigModel(BaseModel):
             checkpoints_location=self.checkpoints_location,
             sandbox_paths=self.sandbox_paths,
             max_consecutive_failures=self.max_consecutive_failures,
-            retention=Retention(after_eval=self.retention.after_eval),
+            retention=self.retention,
         )
 
 
@@ -141,7 +127,7 @@ def _trigger_model_to_strategy(
 
 def _coerce_duration(value: int | float | str) -> timedelta:
     return (
-        _parse_duration(value)
+        parse_duration(value, error_prefix="checkpoint time")
         if isinstance(value, str)
         else timedelta(seconds=float(value))
     )

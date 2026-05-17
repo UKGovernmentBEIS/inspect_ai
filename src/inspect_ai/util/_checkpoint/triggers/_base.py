@@ -10,44 +10,49 @@ Each concrete trigger lives in its own module under this package.
 
 from __future__ import annotations
 
-from typing import Any, ClassVar, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import GetCoreSchemaHandler
 from pydantic_core import CoreSchema, core_schema
 
-from inspect_ai.util._checkpoint.layout import CheckpointTriggerKind
+CheckpointTriggerKind = Literal["time", "turn", "manual"]
+"""Identifier of which trigger fired, as recorded on the sidecar.
+
+Distinct from :class:`CheckpointTrigger`, which is the strategy
+protocol implemented by each trigger. This is the runtime *label*
+recorded on the sidecar for the trigger that fired this checkpoint.
+"""
 
 
 class CheckpointTrigger(Protocol):
     """Strategy for deciding when a checkpoint should fire.
 
-    Each concrete trigger declares a class-level :attr:`kind` label
-    (recorded on the sidecar when this trigger fires) and implements
-    ``tick()``. The :class:`Checkpointer` calls ``tick()`` once per
-    agent turn boundary and consults ``kind`` if it returns ``True``.
-    The trigger owns its own state — the same instance is reused
-    across ``tick()`` calls for the lifetime of one sample.
+    The :class:`Checkpointer` calls ``tick()`` once per agent turn
+    boundary. Return the :data:`CheckpointTriggerKind` label this
+    trigger fires under (written into the sidecar) when a checkpoint
+    should fire at this boundary, or ``None`` to skip. The trigger
+    owns its own state — the same instance is reused across ``tick()``
+    calls for the lifetime of one sample.
     """
 
-    kind: ClassVar[CheckpointTriggerKind]
-
-    def tick(self) -> bool: ...
+    def tick(self) -> CheckpointTriggerKind | None: ...
 
 
+# Pydantic walks `dataset.Sample` (a BaseModel) into `CheckpointSampleConfig`
+# (a @dataclass) into its `trigger: CheckpointTrigger | None` field.
+# A Protocol has no schema pydantic can build — concrete trigger instances
+# are runtime-only strategy objects with no JSON contract. Attach a hook
+# that tells pydantic to accept any object for this type. `setattr` is
+# used to avoid grafting `__get_pydantic_core_schema__` onto the Protocol's
+# interface (concrete triggers shouldn't have to implement it).
 def _trigger_pydantic_schema(
     cls: type, source_type: Any, handler: GetCoreSchemaHandler
 ) -> CoreSchema:
-    # Triggers are runtime-only strategy instances; pydantic can't walk
-    # the Protocol to build a schema, so accept any object here. Used
-    # when a pydantic model (e.g. ``dataset.Sample``) contains a
-    # :class:`CheckpointSampleConfig` field whose ``trigger`` is typed
-    # ``CheckpointTrigger``.
     return core_schema.any_schema()
 
 
-# Register pydantic's schema hook on the Protocol class itself, after
-# class definition, so it's *not* part of the Protocol's interface
-# (concrete trigger classes don't need to implement it).
-CheckpointTrigger.__get_pydantic_core_schema__ = classmethod(  # type: ignore[attr-defined]
-    _trigger_pydantic_schema
+setattr(
+    CheckpointTrigger,
+    "__get_pydantic_core_schema__",
+    classmethod(_trigger_pydantic_schema),
 )

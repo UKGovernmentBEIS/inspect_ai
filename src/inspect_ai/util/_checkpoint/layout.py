@@ -9,18 +9,10 @@ helpers live with the Phase 3 write code.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-CheckpointTriggerKind = Literal["time", "turn", "manual"]
-"""Identifier of which trigger fired, as recorded on the sidecar.
-
-Distinct from :class:`inspect_ai.util._checkpoint.triggers.CheckpointTrigger`,
-which is the strategy protocol implemented by each trigger. This is
-the runtime *label* recorded on the sidecar for the trigger that
-fired this checkpoint.
-"""
+from .triggers import CheckpointTriggerKind
 
 
 class SnapshotInfo(BaseModel):

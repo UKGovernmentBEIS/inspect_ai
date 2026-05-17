@@ -1,6 +1,6 @@
 """Policy + outer-facade tests for the checkpointer.
 
-The policy tests drive ``_Checkpointer`` directly with prepared dirs
+The policy tests drive ``_CheckpointerSetup`` directly with prepared dirs
 and call its methods without going through the public facade.
 Outer-facade tests cover dispatch, sample-identity validation, and
 ContextVar wiring (the public ``checkpointer`` is what registers the
@@ -31,19 +31,20 @@ from inspect_ai.model._chat_message import (
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.util._checkpoint import (
-    CheckpointConfig,
     Manual,
     TimeInterval,
     TurnInterval,
     checkpointer,
 )
 from inspect_ai.util._checkpoint.checkpointer_impl import (
-    _Checkpointer,
+    _CheckpointerSetup,
     _EnteredCheckpointer,
 )
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
-from inspect_ai.util._checkpoint.layout import CheckpointTriggerKind
+from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
+from inspect_ai.util._checkpoint.hydrate import HydrationResult, _HostHydrationResult
 from inspect_ai.util._checkpoint.restic import ResticBackupSummary
+from inspect_ai.util._checkpoint.triggers import CheckpointTriggerKind
 from inspect_ai.util._store import Store
 
 
@@ -82,9 +83,9 @@ class _Dirs:
 def _patch_sample_runtime() -> Iterator[None]:
     """Patch sample_state() and transcript() for tests that drive _fire.
 
-    `_Checkpointer._fire` reads ``sample_state().store`` and
+    `_CheckpointerSetup._fire` reads ``sample_state().store`` and
     ``transcript().events`` directly from ContextVars. Tests that
-    construct `_Checkpointer` outside a real sample run need stand-ins.
+    construct `_CheckpointerSetup` outside a real sample run need stand-ins.
     """
     from types import SimpleNamespace
 
@@ -129,16 +130,24 @@ class _CountingCheckpointer(_EnteredCheckpointer):
         return _fake_summary(checkpoint_id)
 
 
-def _counting(config: CheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
+def _fake_hydration(
+    sample_checkpoints_dir: str, sample_working_dir: str
+) -> HydrationResult:
+    return HydrationResult(
+        sample_checkpoints_dir=sample_checkpoints_dir,
+        sample_working_dir=sample_working_dir,
+        host_restic=Path("/fake/restic"),
+        host_repo=f"{sample_checkpoints_dir}/host",
+        restic_password="test-pwd",
+        host=_HostHydrationResult(),
+    )
+
+
+def _counting(config: ResolvedCheckpointConfig, dirs: _Dirs) -> _CountingCheckpointer:
     return _CountingCheckpointer(
         config=config,
-        sample_checkpoints_dir=dirs.checkpoints,
-        sample_working_dir=dirs.working,
-        host_restic=Path("/fake/restic"),
-        host_repo=f"{dirs.checkpoints}/host",
-        restic_password="test-pwd",
+        hydration=_fake_hydration(dirs.checkpoints, dirs.working),
         resume_checkpoint=None,
-        agent_state=None,
     )
 
 
@@ -149,14 +158,14 @@ async def test_turn_interval_fires_at_each_threshold(dirs: _Dirs) -> None:
     # First tick is informational (boundary before turn 1) — doesn't
     # count toward the threshold. With every=3, fires happen on ticks
     # 4, 7, 10 — capturing 3 turns each. 10 ticks → 3 fires.
-    cp = _counting(CheckpointConfig(trigger=TurnInterval(every=3)), dirs)
+    cp = _counting(ResolvedCheckpointConfig(trigger=TurnInterval(every=3)), dirs)
     for _ in range(10):
         await cp.tick()
     assert cp.fire_count == 3
 
 
 async def test_turn_interval_resets_counter_on_fire(dirs: _Dirs) -> None:
-    cp = _counting(CheckpointConfig(trigger=TurnInterval(every=4)), dirs)
+    cp = _counting(ResolvedCheckpointConfig(trigger=TurnInterval(every=4)), dirs)
     # 4 ticks: first is informational, then 3 turns elapsed — no fire.
     for _ in range(4):
         await cp.tick()
@@ -185,7 +194,8 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
 
     with patch("inspect_ai.util._checkpoint.checkpointer_impl.time.monotonic", clock):
         cp = _counting(
-            CheckpointConfig(trigger=TimeInterval(every=timedelta(seconds=10))), dirs
+            ResolvedCheckpointConfig(trigger=TimeInterval(every=timedelta(seconds=10))),
+            dirs,
         )
         fake_now[0] = 1004.0
         await cp.tick()
@@ -208,14 +218,14 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
 
 
 async def test_manual_policy_tick_never_fires(dirs: _Dirs) -> None:
-    cp = _counting(CheckpointConfig(trigger=Manual()), dirs)
+    cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
     for _ in range(50):
         await cp.tick()
     assert cp.fire_count == 0
 
 
 async def test_checkpoint_method_fires(dirs: _Dirs) -> None:
-    cp = _counting(CheckpointConfig(trigger=Manual()), dirs)
+    cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
     await cp.tick()
     await cp.checkpoint()
     await cp.checkpoint()
@@ -236,7 +246,7 @@ class _FakeActiveSample:
     epoch: int = 0
     log_location: str = ""  # filled in by the `active_sample` fixture
     eval_id: str | None = "test-eval-001"
-    checkpoint: CheckpointConfig | None = None
+    checkpoint: ResolvedCheckpointConfig | None = None
     # E2E tests assign this after building via `build_impl`.
     checkpointer: object = field(default_factory=_NoopCheckpointer)
 
@@ -340,7 +350,7 @@ async def test_fire_writes_sample_json_and_sidecars(
     """Driving the outer checkpointer end-to-end writes destination + working tree."""
     active_sample.sample.id = "s7"
     active_sample.epoch = 2
-    active_sample.checkpoint = CheckpointConfig(trigger=TurnInterval(every=2))
+    active_sample.checkpoint = ResolvedCheckpointConfig(trigger=TurnInterval(every=2))
 
     # Inject a real checkpointer into the fake, mirroring what
     # `task_run_sample` does in production before opening `active_sample`.
@@ -409,9 +419,9 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
     work = tmp_path / "work"
     work.mkdir()
     cp = _EnteredCheckpointer(
-        config=CheckpointConfig(trigger=TurnInterval(every=1)),
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
         resume_checkpoint=None,
-        **_fake_live_kwargs(),  # type: ignore[arg-type]
     )
     await cp._write_host_context(str(work), events, {}, Store())
 
@@ -433,23 +443,12 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
     assert [len(e.input) for e in model_events] == [2, 4, 5]
 
 
-def _fake_live_kwargs(tmp_path: Path | None = None) -> dict[str, object]:
-    base = tmp_path if tmp_path is not None else Path("/tmp/cp-test")
-    return {
-        "sample_checkpoints_dir": str(base / "ckpts"),
-        "sample_working_dir": str(base / "work"),
-        "host_restic": Path("/fake/restic"),
-        "host_repo": str(base / "ckpts/host"),
-        "restic_password": "test-pwd",
-        "agent_state": None,
-    }
-
-
 def _make_cp(**kwargs: object) -> _EnteredCheckpointer:
+    base = Path("/tmp/cp-test")
     defaults: dict[str, object] = {
-        "config": CheckpointConfig(trigger=TurnInterval(every=1)),
+        "config": ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        "hydration": _fake_hydration(str(base / "ckpts"), str(base / "work")),
         "resume_checkpoint": None,
-        **_fake_live_kwargs(),
     }
     defaults.update(kwargs)
     return _EnteredCheckpointer(**defaults)  # type: ignore[arg-type]
@@ -553,8 +552,8 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
     """All I/O setup (incl. sandbox loop) runs in _CheckpointerSetup.__aenter__."""
     from unittest.mock import AsyncMock, MagicMock
 
-    setup = _Checkpointer(
-        config=CheckpointConfig(
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(
             trigger=TurnInterval(every=1),
             sandbox_paths={"web": ["/var/www"]},
         ),
@@ -625,7 +624,7 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             inject.assert_awaited_once_with(fake_env)
             init_sandbox.assert_awaited_once_with(fake_env, "pwd")
 
-        # re-entering returns the cached _Checkpointer — no extra I/O calls
+        # re-entering returns the cached _CheckpointerSetup — no extra I/O calls
         async with setup as cp2:
             assert cp2 is cp
             ensure_ckpt.assert_awaited_once()
@@ -639,9 +638,9 @@ async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
     work = tmp_path / "work"
     work.mkdir()
     cp = _EnteredCheckpointer(
-        config=CheckpointConfig(trigger=TurnInterval(every=1)),
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
         resume_checkpoint=None,
-        **_fake_live_kwargs(),  # type: ignore[arg-type]
     )
     await cp._write_host_context(str(work), [], attachments, Store())
 
@@ -675,9 +674,9 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
     work = tmp_path / "work"
     work.mkdir()
     cp = _EnteredCheckpointer(
-        config=CheckpointConfig(trigger=TurnInterval(every=1)),
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
         resume_checkpoint=None,
-        **_fake_live_kwargs(),  # type: ignore[arg-type]
     )
 
     await cp._write_host_context(str(work), fire1_events, {}, Store())

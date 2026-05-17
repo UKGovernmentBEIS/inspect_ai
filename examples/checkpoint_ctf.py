@@ -154,7 +154,7 @@ def cp_ctf() -> Task:
 # ---------------------------------------------------------------------------
 # Debug entry point: run this file as a script (under a debugger) to kick off
 # a retry of the most recent `cp_ctf` log without going through the CLI. Drop
-# breakpoints anywhere in the retry flow (e.g. `_Checkpointer.__aenter__`,
+# breakpoints anywhere in the retry flow (e.g. `_CheckpointerSetup.__aenter__`,
 # `eval_log_sample_source._resume_if_checkpointed`, `run_sample`'s
 # `ResumeCheckpoint` branch) and step through.
 #

@@ -25,12 +25,8 @@ import anyio
 
 from inspect_ai._util.file import file, filesystem
 
-from .layout import (
-    CheckpointSample,
-    CheckpointSidecar,
-    CheckpointTriggerKind,
-    SnapshotInfo,
-)
+from .layout import CheckpointSample, CheckpointSidecar, SnapshotInfo
+from .triggers import CheckpointTriggerKind
 
 
 def _sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:

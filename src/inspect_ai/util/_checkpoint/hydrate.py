@@ -1,6 +1,6 @@
 """Per-sample checkpoint hydration.
 
-``_hydrate`` is called from ``_Checkpointer.__aenter__`` to set up the
+``_hydrate`` is called from ``_CheckpointerSetup.__aenter__`` to set up the
 on-disk + in-sandbox state for the sample's checkpointer and return
 everything :class:`_EnteredCheckpointer` needs at construction.
 
@@ -30,7 +30,6 @@ using the returned :class:`_HydrationResult`.
 from __future__ import annotations
 
 import glob
-import json
 import shutil
 from dataclasses import dataclass, field
 from functools import partial
@@ -43,15 +42,15 @@ from pydantic import JsonValue
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.file import local_path
 from inspect_ai.event._event import Event
-from inspect_ai.log._condense import _chat_messages_adapter, _events_adapter
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.util._restic._resolver import resolve_restic
 from inspect_ai.util._sandbox.context import sandbox
 
+from . import host_context
 from .checkpointer import ResumeCheckpoint
-from .config import CheckpointConfig
+from .config import ResolvedCheckpointConfig
 from .eval_checkpoints_dir import eval_checkpoints_dir
 from .restic import (
     ingress_sandbox,
@@ -103,7 +102,7 @@ class HydrationResult:
 
 async def hydrate(
     *,
-    config: CheckpointConfig,
+    config: ResolvedCheckpointConfig,
     log_location: str,
     sample_id: int | str,
     epoch: int,
@@ -205,7 +204,13 @@ async def _hydrate_host(
         f" -> {host_repo}"
     )
     await anyio.to_thread.run_sync(
-        _fs_copy_host_repo, resume.sample_checkpoints_dir, host_repo
+        partial(
+            _fs_copy_repo,
+            resume.sample_checkpoints_dir,
+            "host",
+            host_repo,
+            label="host",
+        )
     )
     print(f"[hydrate.host] restic restore latest -> {sample_working_dir}")
     await restore_host_repo(host_restic, host_repo, restic_password, sample_working_dir)
@@ -272,10 +277,13 @@ async def _hydrate_sandbox(
         f" {resume.sample_checkpoints_dir}/sandboxes/{name} -> {new_host_side_repo}"
     )
     await anyio.to_thread.run_sync(
-        _fs_copy_sandbox_repo,
-        resume.sample_checkpoints_dir,
-        name,
-        new_host_side_repo,
+        partial(
+            _fs_copy_repo,
+            resume.sample_checkpoints_dir,
+            f"sandboxes/{name}",
+            new_host_side_repo,
+            label=f"sandbox {name!r}",
+        )
     )
     print(
         f"[hydrate.sandbox:{name}] ingress into container + restic restore"
@@ -304,70 +312,44 @@ def _fs_copy_cross_cutting(old_sample_dir: str, new_sample_dir: str) -> None:
     print(f"[hydrate.copy] sidecars copied: {len(sidecars)}")
 
 
-def _fs_copy_host_repo(old_sample_dir: str, new_host_repo: str) -> None:
-    """Copy the old host restic repo into the new sample's host repo path."""
-    src = Path(local_path(old_sample_dir)) / "host"
-    if not src.is_dir():
-        raise RuntimeError(f"resume: expected host repo at {src}, but it doesn't exist")
-    file_count = sum(1 for _ in src.rglob("*") if _.is_file())
-    shutil.copytree(src, new_host_repo, dirs_exist_ok=True)
-    print(f"[hydrate.copy] host repo: {src} -> {new_host_repo} ({file_count} files)")
-
-
-def _fs_copy_sandbox_repo(
-    old_sample_dir: str, name: str, new_host_side_repo: str
+def _fs_copy_repo(
+    old_sample_dir: str, subpath: str, new_repo: str, *, label: str
 ) -> None:
-    """Copy one host-side sandbox repo from the old sample dir to the new."""
-    src = Path(local_path(old_sample_dir)) / "sandboxes" / name
+    """Recursively copy a restic repo subtree from old sample dir to new.
+
+    ``subpath`` is the per-domain path under the old sample checkpoints
+    dir (``"host"`` or ``"sandboxes/<name>"``). ``label`` is a short
+    descriptor used only for the diagnostic print line.
+    """
+    src = Path(local_path(old_sample_dir)) / subpath
     if not src.is_dir():
         raise RuntimeError(
-            f"resume: expected sandbox repo {name!r} at {src}, but it doesn't exist"
+            f"resume: expected {label} repo at {src}, but it doesn't exist"
         )
-    file_count = sum(1 for _ in src.rglob("*") if _.is_file())
-    shutil.copytree(src, new_host_side_repo, dirs_exist_ok=True)
-    print(
-        f"[hydrate.copy] sandbox repo {name!r}: {src} -> {new_host_side_repo}"
-        f" ({file_count} files)"
-    )
+    file_count = sum(1 for entry in src.rglob("*") if entry.is_file())
+    shutil.copytree(src, new_repo, dirs_exist_ok=True)
+    print(f"[hydrate.copy] {label} repo: {src} -> {new_repo} ({file_count} files)")
 
 
 def _load_and_push_host_state(sample_working_dir: str) -> _HostHydrationResult:
-    """Read restored ``<working_dir>/*.json`` and push framework state.
+    """Read the restored host context and push framework state.
 
-    Loads the five JSON files written by ``_write_host_context`` at fire
-    time, pushes events/attachments/store into the live ``Transcript``
-    and ``Store`` (so the agent's continued run sees the cumulative
-    history), and returns the parts the agent-facing
+    Loads via :mod:`host_context`, pushes events/attachments/store into
+    the live ``Transcript`` and ``Store`` (so the agent's continued run
+    sees the cumulative history), and returns the parts the agent-facing
     :class:`_EnteredCheckpointer` needs at construction:
 
     - ``agent_state`` — for ``track()`` to return persisted values.
     - ``condensed_events``, ``msg_pool``, ``call_pool`` — seeds for the
       checkpointer's pools so the next fire writes a cumulative snapshot.
-
-    ``agent_state.json`` is the only optional file (skipped when the
-    prior run never called ``track()``).
     """
-    working = Path(local_path(sample_working_dir))
-    condensed_events: list[Event] = _events_adapter().validate_json(
-        (working / "events.json").read_text()
-    )
-    raw_data = json.loads((working / "events_data.json").read_text())
-    msg_pool: list[ChatMessage] = _chat_messages_adapter().validate_python(
-        raw_data.get("messages", [])
-    )
-    call_pool: list[JsonValue] = raw_data.get("calls", [])
-    attachments: dict[str, str] = json.loads((working / "attachments.json").read_text())
-    store_data: dict[str, Any] = json.loads((working / "store.json").read_text())
-    agent_state_path = working / "agent_state.json"
-    agent_state: dict[str, Any] | None = (
-        json.loads(agent_state_path.read_text()) if agent_state_path.is_file() else None
-    )
+    ctx = host_context.read(local_path(sample_working_dir))
 
     print(
-        f"[hydrate.host] loaded: events={len(condensed_events)} "
-        f"msgs={len(msg_pool)} calls={len(call_pool)} "
-        f"attachments={len(attachments)} store_keys={len(store_data)} "
-        f"agent_state={'yes' if agent_state else 'no'}"
+        f"[hydrate.host] loaded: events={len(ctx.condensed_events)} "
+        f"msgs={len(ctx.msg_pool)} calls={len(ctx.call_pool)} "
+        f"attachments={len(ctx.attachments)} store_keys={len(ctx.store)} "
+        f"agent_state={'yes' if ctx.agent_state else 'no'}"
     )
 
     # Push framework-owned state into the live transcript + store so the
@@ -377,7 +359,7 @@ def _load_and_push_host_state(sample_working_dir: str) -> _HostHydrationResult:
     # attachment-ref form and must not be reprocessed.
     ts = transcript()
     pre = [_event_label(e) for e in ts._events]
-    restored = [_event_label(e) for e in condensed_events]
+    restored = [_event_label(e) for e in ctx.condensed_events]
     print(f"[hydrate.host] pre-hydration transcript.events (n={len(pre)}): {pre}")
     print(f"[hydrate.host] restored events to push (n={len(restored)}): {restored}")
     # Events hydration temporarily disabled — pushing OLD events into the
@@ -385,12 +367,12 @@ def _load_and_push_host_state(sample_working_dir: str) -> _HostHydrationResult:
     # at indices [0..N), OLD events at [N..]). Pools / attachments travel
     # with events, so they're paused together. Store + agent_state stay
     # enabled.
-    # ts._events.extend(condensed_events)
-    # ts._attachments.update(attachments)
+    # ts._events.extend(ctx.condensed_events)
+    # ts._attachments.update(ctx.attachments)
     state = sample_state()
     if state is None:
         raise RuntimeError("_hydrate_host: no active sample state to populate Store")
-    for key, value in store_data.items():
+    for key, value in ctx.store.items():
         state.store.set(key, value)
     print(
         f"[hydrate.host] pushed: transcript.events={len(ts._events)} "
@@ -399,10 +381,10 @@ def _load_and_push_host_state(sample_working_dir: str) -> _HostHydrationResult:
     )
 
     return _HostHydrationResult(
-        agent_state=agent_state,
-        # condensed_events=condensed_events,
-        # msg_pool=msg_pool,
-        # call_pool=call_pool,
+        agent_state=ctx.agent_state,
+        # condensed_events=ctx.condensed_events,
+        # msg_pool=ctx.msg_pool,
+        # call_pool=ctx.call_pool,
     )
 
 
