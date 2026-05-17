@@ -924,9 +924,14 @@ async def test_transcript_auto_scrolls_when_tool_output_grows_at_same_status() -
         # auto-scroll path should run.
         tool.content = [_FakeContentBlock("first chunk\nsecond chunk\nthird chunk")]
         tr.refresh_from(state)
-        # ``call_after_refresh`` schedules the scroll for after the
-        # next refresh cycle — pause twice to let it fire.
-        await pilot.pause()
+        # The scroll is now debounced — pause long enough for the
+        # debounce timer to expire AND for the pending callback to
+        # actually run (one tick after the timer fires).
+        from inspect_ai.agent._acp.tui.widgets.transcript import (
+            _SCROLL_DEBOUNCE_SECONDS,
+        )
+
+        await pilot.pause(_SCROLL_DEBOUNCE_SECONDS + 0.05)
         await pilot.pause()
 
         assert scroll_calls, (
