@@ -27,7 +27,7 @@ CLAUDE_4_6_SONNET = "anthropic/claude-sonnet-4-6"
 CLAUDE_4_6_OPUS = "anthropic/claude-opus-4-6"
 GEMINI_3_FLASH_PREVIEW = "google/gemini-3-flash-preview"
 MISTRAL_LARGE_2411 = "mistral/mistral-large-2411"
-GROK_3_MINI = "grok/grok-3-mini"
+GROK_4_3 = "grok/grok-4.3"
 GROQ_LLAMA_3_3_70B_VERSATILE = "groq/llama-3.3-70b-versatile"
 CLOUDFLARE_LLAMA_3_1_8B = "cf/meta/llama-3.1-8b-instruct-awq"
 TOGETHER_MINI_MAX_27 = "together/MiniMaxAI/MiniMax-M2.7"
@@ -40,7 +40,7 @@ MODELS = {
     CLAUDE_4_6_OPUS: 1000000,
     GEMINI_3_FLASH_PREVIEW: 1048576,
     MISTRAL_LARGE_2411: 131000,
-    GROK_3_MINI: 131072,
+    GROK_4_3: 1000000,
     GROQ_LLAMA_3_3_70B_VERSATILE: 128000,
     CLOUDFLARE_LLAMA_3_1_8B: 128000,
     TOGETHER_MINI_MAX_27: 196000,
@@ -111,7 +111,7 @@ async def test_model_length_mistral():
 
 @skip_if_no_grok
 async def test_model_length_grok():
-    await check_model_length(GROK_3_MINI)
+    await check_model_length(GROK_4_3)
 
 
 @skip_if_no_groq
