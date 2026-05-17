@@ -53,12 +53,12 @@ _KIND_ICONS: dict[str | None, str] = {
     None: "",
 }
 
-_STATUS_LABELS: dict[str, str] = {
-    "pending": "pending",
-    "in_progress": "running",
-    "completed": "completed",
-    "failed": "failed",
-}
+# Braille spinner — same ten-frame idiom MessageWidget uses for the
+# assistant chip, so the in-flight cards visually match the chip above.
+_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+
+_COMPLETED_GLYPH = "✓"
+_FAILED_GLYPH = "✗"
 
 
 def _item_signature(item: object) -> tuple[Any, ...]:
@@ -299,6 +299,10 @@ class ToolCallWidget(Widget):
         # blocks instead of tearing the whole body down on each
         # ToolCallProgress — that wholesale rebuild was the visible
         # flash the user saw whenever new content arrived.
+        # In-flight spinner frame, advanced by ``tick_duration``. Same
+        # cadence as the assistant chip spinner (driven by the
+        # SessionScreen's periodic timer).
+        self._spinner_frame = 0
         self._mounted_header = self._header_text()
         self._mounted_footer = self._footer_text()
         self._mounted_status = self._state.status
@@ -518,24 +522,34 @@ class ToolCallWidget(Widget):
         return f"[{type_name}]"
 
     def _footer_text(self) -> str:
-        status = _STATUS_LABELS.get(self._state.status, self._state.status)
+        # Status reads as a single glyph: animated spinner while in
+        # flight, ✓ on success, ✗ on failure. Border colour already
+        # carries the redundant status signal so the glyph + duration
+        # is enough text to scan.
+        if self._state.status == "completed":
+            glyph = _COMPLETED_GLYPH
+        elif self._state.status == "failed":
+            glyph = _FAILED_GLYPH
+        else:
+            glyph = _SPINNER_FRAMES[self._spinner_frame % len(_SPINNER_FRAMES)]
         # In-flight: derive elapsed from start_time so the card surfaces
         # progress without waiting for a terminal status.
         if self._state.is_terminal:
             duration = _format_duration(self._state.duration_seconds)
         else:
             duration = _format_duration(time.monotonic() - self._state.start_time)
-        return f"{status} · {duration}"
+        return f"{glyph} {duration}"
 
     def tick_duration(self) -> None:
-        """Refresh just the footer so the in-flight elapsed value advances.
+        """Refresh just the footer so the in-flight elapsed + spinner advance.
 
         Called by the SessionScreen's periodic tick — terminal states
-        already show the final duration so we skip them and avoid
-        needless DOM churn.
+        already show the final glyph + duration so we skip them and
+        avoid needless DOM churn.
         """
         if self._state.is_terminal:
             return
+        self._spinner_frame += 1
         try:
             self.query_one(".footer", Static).update(self._footer_text())
         except Exception:
