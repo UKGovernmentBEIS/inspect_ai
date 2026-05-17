@@ -27,11 +27,11 @@ from acp.exceptions import RequestError
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import _picker
-from inspect_ai.agent._acp._server import (
+from inspect_ai.agent._acp._connection import (
     _ConnectionHandler,
     _find_active_sample,
-    acp_server,
 )
+from inspect_ai.agent._acp._server import acp_server
 from inspect_ai.event import SpanBeginEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript
@@ -45,10 +45,20 @@ from inspect_ai.util._span import AGENT_SPAN_TYPE
 def _handler(
     *, wire_session_id: str = "wire", target_session_id: str | None = "tgt"
 ) -> _ConnectionHandler:
-    """Fresh handler primed for direct method calls (no socket)."""
+    """Fresh handler primed for direct method calls (no socket).
+
+    ``target_session_id=None`` keeps the connection unbound (no
+    ``binding`` assignment) so tests can exercise the
+    "called before binding" rejection paths. Otherwise the handler
+    is set to :class:`Bound` for the given wire+target pair.
+    """
+    from inspect_ai.agent._acp._connection import Bound
+
     h = _ConnectionHandler()
-    h.state.wire_session_id = wire_session_id
-    h.state.target_session_id = target_session_id
+    if target_session_id is not None:
+        h.state.binding = Bound(
+            wire_session_id=wire_session_id, target_session_id=target_session_id
+        )
     return h
 
 

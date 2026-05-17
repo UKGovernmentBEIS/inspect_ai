@@ -37,12 +37,12 @@ from acp.helpers import (
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import _picker
-from inspect_ai.agent._acp._server import (
+from inspect_ai.agent._acp._server import acp_server
+from inspect_ai.agent._acp._session import _LiveAcpSession
+from inspect_ai.agent._acp._session_router import (
     ELISION_THRESHOLD_BYTES,
     REPLAY_MAX_EVENTS,
-    acp_server,
 )
-from inspect_ai.agent._acp._session import _LiveAcpSession
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript
@@ -1002,9 +1002,9 @@ async def test_start_forwarders_returns_early_when_session_exits_during_title_se
     # First _find_live_session call returns the live target; second
     # (the re-check after title-send) returns None as if the session
     # exited mid-await.
-    from inspect_ai.agent._acp import _server as server_mod
+    from inspect_ai.agent._acp import _connection as connection_mod
 
-    original_find = server_mod._find_live_session
+    original_find = connection_mod._find_live_session
     call_count = {"n": 0}
 
     def fake_find(session_id: str) -> Any:
@@ -1013,7 +1013,7 @@ async def test_start_forwarders_returns_early_when_session_exits_during_title_se
             return original_find(session_id)
         return None
 
-    monkeypatch.setattr(server_mod, "_find_live_session", fake_find)
+    monkeypatch.setattr(connection_mod, "_find_live_session", fake_find)
 
     async with acp_server(eval_id="evt-race-title", transport=True) as server:
         assert server is not None
@@ -1039,14 +1039,17 @@ async def test_start_forwarders_returns_early_when_session_exits_during_title_se
 async def test_plan_tool_stash_cleared_on_rebind(
     short_data_dir: Path, register_target, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """``_plan_tool_stash`` is emptied by ``_stop_forwarders``.
+    """Plan-tool stash from a previous bind cannot leak to the next bind.
 
     A plan-capable client (Zed-named) suppresses the ``ToolCallStart``
     of an ``update_plan`` / ``todo_write`` invocation and stashes its
     raw_input until ``ToolCallProgress(completed)`` arrives. If the
     stashed call never completes (cancelled mid-flight, sample exited,
-    etc.) and the connection rebinds to a different target, the stash
-    entry was previously leaked for the connection lifetime.
+    etc.) and the connection rebinds to a different target, the prior
+    bind's stash entries used to leak for the connection lifetime.
+
+    Now structurally impossible: each bind owns its own ``Forwarders``
+    instance, which holds the stash. Rebind destroys it.
     """
     target_a, _tr_a = _make_live_session_with_transcript()
     target_b, _tr_b = _make_live_session_with_transcript()
@@ -1059,11 +1062,10 @@ async def test_plan_tool_stash_cleared_on_rebind(
         ),
     )
 
-    # Capture the per-connection handler so we can inspect its private
-    # _plan_tool_stash. The Connection's _handler field holds the
-    # MessageRouter, not the _ConnectionHandler, so we have to track
-    # construction instead of reaching through the connection.
-    from inspect_ai.agent._acp._server import _ConnectionHandler
+    # Track per-connection handlers so we can reach Forwarders. The
+    # Connection's _handler holds the MessageRouter, not the
+    # _ConnectionHandler, so we can't navigate through the conn.
+    from inspect_ai.agent._acp._connection import _ConnectionHandler
 
     handlers: list[_ConnectionHandler] = []
     original_init = _ConnectionHandler.__init__
@@ -1091,7 +1093,9 @@ async def test_plan_tool_stash_cleared_on_rebind(
 
             assert len(handlers) == 1
             handler = handlers[0]
-            assert handler._plan_tool_stash == {}
+            forwarders_a = handler._forwarders
+            assert forwarders_a is not None
+            assert forwarders_a._plan_tool_stash == {}
 
             # Plan tool start is stashed (not forwarded to the client).
             target_a.publish(
@@ -1106,7 +1110,7 @@ async def test_plan_tool_stash_cleared_on_rebind(
                 )
             )
             await asyncio.sleep(0.05)
-            assert "tc1" in handler._plan_tool_stash, (
+            assert "tc1" in forwarders_a._plan_tool_stash, (
                 "plan-tool start should have been stashed for plan-capable client"
             )
 
@@ -1121,9 +1125,13 @@ async def test_plan_tool_stash_cleared_on_rebind(
             )
             await _drain_bind_preamble(client)
 
-            assert handler._plan_tool_stash == {}, (
-                "_stop_forwarders did not clear _plan_tool_stash; stale "
-                "entries from prior bind leak across rebinds"
+            forwarders_b = handler._forwarders
+            assert forwarders_b is not None
+            assert forwarders_b is not forwarders_a, (
+                "rebind should construct a fresh Forwarders instance"
+            )
+            assert forwarders_b._plan_tool_stash == {}, (
+                "stale entries from prior bind leaked into the new Forwarders"
             )
         finally:
             await client.close()

@@ -65,16 +65,31 @@ The agent is the *server* in ACP. Our eval process is the agent.
 ## Architecture
 
 ```
-Editor (Zed)                  inspect acp                    inspect eval --agent-acp
+Editor (Zed)                  inspect acp                    inspect eval --acp-server
 +----------+   ACP over   +------------------+   ACP over   +-------------------------+
 |          | <==========> | stdio↔socket     | <==========> | AcpServer (JSON-RPC mux)|
-| editor   |    stdio     | bridge + session |   AF_UNIX    +-------------------------+
-|          |              | picker (thin)    |    /TCP                  |
-+----------+              +------------------+                          | dispatch
+| editor   |    stdio     | bridge + session |   AF_UNIX    |   _server.py            |
+|          |              | picker (thin)    |    /TCP      +-------------------------+
++----------+              +------------------+                          | accept
                                                                         v
                                                             +-----------------------+
-                                                            | SessionRouter         |
-                                                            |  per (task, sid, ep)  |
+                                                            | ConnectionHandler     |
+                                                            |  per connection       |
+                                                            |  - Agent methods      |
+                                                            |  - inspect/* actions  |
+                                                            |  - picker dispatch    |
+                                                            |   _connection.py      |
+                                                            +-----------------------+
+                                                                        | bind
+                                                                        v
+                                                            +-----------------------+
+                                                            | Forwarders            |
+                                                            |  per bind             |
+                                                            |  - semantic forwarder |
+                                                            |  - raw event forwarder|
+                                                            |  - replay-on-attach   |
+                                                            |  - plan policy        |
+                                                            |   _session_router.py  |
                                                             +-----------------------+
                                                                         |
                                                             +-----------------------+
@@ -82,6 +97,7 @@ Editor (Zed)                  inspect acp                    inspect eval --agen
                                                             |  - user-msg queue     |
                                                             |  - turn cancel scope  |
                                                             |  - transcript→update  |
+                                                            |   _session.py         |
                                                             +-----------------------+
                                                                         |
                                                               react() / deepagent()
@@ -89,8 +105,14 @@ Editor (Zed)                  inspect acp                    inspect eval --agen
                                                                points to AcpSession)
 ```
 
-Four cooperating layers — agent-side `AcpSession`, eval-side `SessionRouter`,
-eval-side `AcpServer`, external `inspect acp` stub.
+Four cooperating layers — agent-side `AcpSession`, eval-side
+`ConnectionHandler` + `Forwarders` (the per-connection inbound side
+and the per-bind outbound side, together filling the original
+"SessionRouter" role from the design), eval-side `AcpServer`, and the
+external `inspect acp` stub. The middle layer was a single
+`SessionRouter` box through Phases 6–14 and lived entirely in
+`_server.py`; see the "Post-Phase-14 hardening" section near the end
+for the split rationale.
 
 ## Component design
 
@@ -704,8 +726,11 @@ strings only matter at the picker step.
 - The agent-side facade is named **`AcpSession`** (accessor:
   `current_acp_session()`). Maps to ACP's own session vocabulary;
   `AcpClient` was rejected as misleading (in ACP, the editor is the
-  client). The transport-side `SessionRouter` keeps its name — the two
-  collaborate to implement one ACP session from different sides.
+  client). The transport-side `SessionRouter` role is fulfilled by two
+  classes after the post-Phase-14 split: **`ConnectionHandler`**
+  (`_connection.py`, per-connection inbound dispatch) and **`Forwarders`**
+  (`_session_router.py`, per-bind outbound forwarding). Together with
+  `AcpSession`, they implement one ACP session from three sides.
 - `AcpSession` is **always installed** with a no-op default; agents call
   it unconditionally.
 - Agents **claim ACP** by calling `before_turn()` for the first time. No
@@ -741,6 +766,12 @@ strings only matter at the picker step.
   `"input" | "generate" | "operator"`.
 - Cancelled tool calls are repaired with **synthetic
   `ChatMessageTool(error="cancelled by user")`** in `state.messages`.
+- Per-connection routing state is a **tagged union**:
+  `BindingMode = Unbound | PickerMode | Bound` (added post-Phase-14).
+  Three independent nullable fields (`wire_session_id`,
+  `target_session_id`, `picker_targets`) used to police the three legal
+  combinations via ad-hoc null checks; now dispatch uses `match` on
+  `state.binding` and the type system enforces the contract.
 
 ## Open questions
 
@@ -1327,6 +1358,76 @@ Routes the **human leaf** of the configured approval chain through ACP `session/
 - **Live approval card with diff preview for `edit` tools.** Currently the prompt content is the same markdown the live tool-call notification carries; richer per-kind formatting (e.g. `FileEditToolCallContent` for diff previews) is a follow-up.
 
 **Verification.** `pytest tests/agent/test_acp/ tests/_cli/test_acp_server_flag.py tests/_cli/test_acp_cli.py tests/approval/` — 382 passed. `ruff format` + `ruff check` clean across all modified source and test files. `mypy --exclude tests/test_package src tests` clean (1026 source files). Manual smoke against Zed via `inspect eval <task> --acp-server --approval=human` confirms the permission card renders with the bash command and the user's response advances the eval.
+
+
+### Post-Phase-14 hardening: bug fixes + structural refactor
+
+Phases 1–14 landed the full functional surface. A subsequent three-review pass (bugs/correctness, maintainability, architectural critique) over the server-side code surfaced five concrete bugs introduced during the in-flight TUI conversation-view work, plus an architectural drift where `_server.py` had silently absorbed the design's Layer-2 `SessionRouter` responsibilities. Shipped as two PRs:
+
+**PR1 — Bug fixes (5):**
+
+1. **P1 — `_enter_picker_mode` did not stop existing forwarders.** Connection auto-binds to one target, a second target appears, client calls `newSession` again → picker entered with the prior bind's semantic forwarder still running, leaking live events under the new picker control sessionId. Fix: `await self._stop_forwarders()` at picker-mode entry, mirroring the pattern in `_start_forwarders`.
+2. **P2 — race in `_start_forwarders` between title-send and `attach()`.** The `_send_session_info_title` await is the one yield point between the initial `_find_live_session` lookup and `target.attach()`. If the agent task exits the session in that window, `attach()` creates an orphan never-EOF subscriber and the forwarder task hangs. Fix: re-verify with `_find_live_session` after the title-send and early-return on miss.
+3. **P2 — `_plan_tool_stash` never cleared on rebind.** Plan-capable client suppresses ToolCallStart of a plan tool and stashes raw_input until the matching ToolCallProgress arrives. Cancellations mid-progress + connection rebind left stale entries leaking for the connection lifetime. Fix: clear in `_stop_forwarders`. PR2's `Forwarders`-per-bind extraction makes the leak structurally impossible (stash dies with the instance).
+4. **P2 — `_raw_recv` not explicitly closed in `_stop_forwarders`.** Send half closed; receive half nulled but unclosed. Buffered events stayed allocated until GC.
+5. **P2 — Dead `_AcpServer._tasks` set + iteration.** Initialized and iterated in `stop()` but never populated; the `_ConnectionHandler._semantic_task` / `_raw_task` fields are the real per-connection task references.
+
+Three regression tests added to `tests/agent/test_acp/test_server_forwarding.py` cover the multi-target picker rebind (P1), the title-send race (P2), and the plan-stash rebind (P2).
+
+**PR2 — Structural refactor.**
+
+The 1850-line `_server.py` was split into three files matching the original design-doc layering:
+
+| File | LoC | Responsibility |
+|---|---|---|
+| `_server.py` | ~380 | Transport only — `_AcpServer` socket bind/accept/shutdown + `acp_server()` context manager. |
+| `_connection.py` | ~1000 | Per-connection inbound — `_ConnectionHandler` (Agent-protocol methods, `inspect/*` actions, picker dispatch, approver-client implementation), `_ConnectionState`, param Pydantic models, prompt-block translation, `_find_live_session` / `_find_active_sample`. |
+| `_session_router.py` | ~550 | Per-bind outbound — `Forwarders` (semantic + raw forwarder tasks, replay-on-attach, plan policy, elision). |
+
+The file naming aligns the codebase with the design-doc vocabulary again: `_session_router.py` is the home of the Layer-2 SessionRouter responsibilities (per-bind outbound forwarding) the design called out; `_connection.py` is per-connection inbound dispatch.
+
+**`Forwarders` is per-bind** — constructed fresh inside `_start_forwarders` and destroyed in `_stop_forwarders`. This makes the plan-stash leak (PR1.3) structurally impossible since the stash lives on the instance. It also gives the codebase a single coherent place to read about the outbound side: stop, snapshot, attach, register approver, replay, run live tasks.
+
+**`ConnectionState.binding` is now a tagged union** of three dataclasses:
+
+```python
+@dataclass(frozen=True)
+class Unbound: ...
+
+@dataclass(frozen=True)
+class PickerMode:
+    wire_session_id: str
+    picker_targets: list[_PickerTarget]
+
+@dataclass(frozen=True)
+class Bound:
+    wire_session_id: str
+    target_session_id: str
+
+BindingMode = Unbound | PickerMode | Bound
+```
+
+Replaces three independent nullable fields (`wire_session_id`, `target_session_id`, `picker_targets`) whose three legal combinations had been policed by ad-hoc null checks at every dispatch site. Dispatch now uses `match` on `state.binding`, which makes the type system enforce the contract; the "defensive — wire is set but neither picker nor bound" branch (previously unreachable but expressible) is gone. State transitions are "assign a new variant," not "mutate fields."
+
+A `wire_session_id` property on `_ConnectionState` returns the wire id from `PickerMode` / `Bound` or `None` from `Unbound`, so read-only callers (`Forwarders`, title-send, replay) don't need to `match` for the common-case lookup.
+
+**Two consolidations** that fell out of the split:
+
+- **`SubagentDepthTracker` class** in `_router.py` — replaces three copies of the boundary-span depth-tracking state machine (the live router's `_process`, `replay_transcript`, and `_filter_subagent_events`). Returns `"consume" | "skip" | "emit"` per event; callers compose with their own filtering policy.
+- **`_require_bound(session_id, method_name)` helper** on `_ConnectionHandler` — collapses the duplicated `isinstance(state.binding, Bound)` + wire-id validation block at the top of `cancel_sample` / `cancel_tool_call`.
+
+**File-locality cleanup.** Three things still live in `_session.py` and were called out for follow-up extraction (`TranscriptCapture`, `InterruptCoordinator`, `UserMessageQueue`) but were not part of this PR — they're within-file groupings that don't affect inter-module architecture, and the user's primary concern (server cleanliness) is addressed by the inter-file split.
+
+**Verification.** `pytest tests/agent/test_acp/ tests/_cli/test_acp_* tests/agent/test_agent_react.py tests/log/test_transcript_subscribers.py tests/approval/` — 511 passed, 328 skipped, no regressions. `ruff format` / `ruff check` clean. `mypy --exclude tests/test_package src tests` clean (1051 source files). Net diff +213 / −1646 LoC (the `_server.py` shrink dominates).
+
+**Tests touched by the file split.** A handful of tests imported internal symbols from `_server` directly and were updated to the new module paths:
+- `test_action_methods.py`: `_ConnectionHandler`, `_find_active_sample` → `_connection`
+- `test_plan_policy.py`: `_maybe_transform_plan_tool` / `_build_plan_update` / `_plan_tool_stash` tests now build a `Forwarders` directly (with a `MagicMock` `Connection`) since those methods moved off the handler; `_handler()` test helper updated to set `state.binding = Bound(...)` for the tagged-union shape.
+- `test_raw_events.py` + `test_server_forwarding.py`: `ELISION_THRESHOLD_BYTES`, `REPLAY_MAX_EVENTS` → `_session_router`.
+- `test_router.py`: `router._sub_agent_depth` → `router._depth_tracker.depth`.
+- `test_server_forwarding.py::test_start_forwarders_returns_early_when_session_exits_during_title_send`: `_find_live_session` is now in `_connection`; monkeypatch updated accordingly.
+
+No back-compat re-exports remain in `_server.py` — this is a feature-branch refactor and the test imports were updated to point at the canonical locations.
 
 
 ### Phase 15: `inspect acp` (Textual TUI client)

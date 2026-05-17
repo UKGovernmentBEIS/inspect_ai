@@ -83,14 +83,66 @@ logger = getLogger(__name__)
 
 _ToolCallStatus = Literal["pending", "in_progress", "completed", "failed"]
 
+_SubagentAction = Literal["consume", "skip", "emit"]
+
+
+class SubagentDepthTracker:
+    """Track depth into sub-agent boundary spans for event filtering.
+
+    Sub-agent invocations (``@agent``-decorated functions called via
+    ``run()`` / ``as_tool()`` / ``handoff()`` / ``task_tool``) open a
+    ``SpanBeginEvent(type=AGENT_SPAN_TYPE)`` and close it with the
+    matching ``SpanEndEvent``. Events emitted **between** the two are
+    considered "inside a sub-agent" and the ACP semantic forwarder
+    drops them so the editor sees only the outermost conversation.
+
+    Boundary spans are paired by id so out-of-order or unknown
+    ``SpanEndEvent``s (e.g. one that opened before the tracker was
+    constructed) don't underflow the counter.
+
+    Used by:
+    - :class:`_AcpEventRouter` (live event publication)
+    - :func:`replay_transcript` (replay-on-attach with filter param)
+    - :func:`inspect_ai.agent._acp._session_router._filter_subagent_events`
+      (snapshot pre-filter for replay)
+    """
+
+    def __init__(self) -> None:
+        self._depth: int = 0
+        self._boundary_span_ids: set[str] = set()
+
+    @property
+    def depth(self) -> int:
+        """Current nesting depth (0 = at top level)."""
+        return self._depth
+
+    def process(self, event: Event) -> _SubagentAction:
+        """Classify ``event`` and update internal depth state.
+
+        Returns:
+        - ``"consume"`` — the event is a boundary marker; the caller
+          should NOT emit it (it's bookkeeping).
+        - ``"skip"`` — the event was emitted inside a sub-agent; the
+          caller should drop it if filtering is enabled.
+        - ``"emit"`` — the event is top-level and should be emitted.
+        """
+        if isinstance(event, SpanBeginEvent) and event.type == AGENT_SPAN_TYPE:
+            self._boundary_span_ids.add(event.id)
+            self._depth += 1
+            return "consume"
+        if isinstance(event, SpanEndEvent) and event.id in self._boundary_span_ids:
+            self._boundary_span_ids.discard(event.id)
+            self._depth -= 1
+            return "consume"
+        return "skip" if self._depth > 0 else "emit"
+
 
 class _AcpEventRouter:
     """Subscribe to a transcript, map events, publish session notifications."""
 
     def __init__(self, session: "_LiveAcpSession") -> None:
         self._session = session
-        self._sub_agent_depth: int = 0
-        self._boundary_span_ids: set[str] = set()
+        self._depth_tracker = SubagentDepthTracker()
         self._seen_tool_call_ids: set[str] = set()
         # ModelEvent uuids we've already emitted chunks for. The
         # generate flow records the event twice — once pending=True at
@@ -132,19 +184,10 @@ class _AcpEventRouter:
             self._unsubscribe = None
 
     def _process(self, event: Event) -> None:
-        # Boundary depth tracking. We pair span begin/end by id so an
-        # arbitrary out-of-order or unknown SpanEndEvent (e.g. one that
-        # opened before the router attached) doesn't underflow.
-        if isinstance(event, SpanBeginEvent) and event.type == AGENT_SPAN_TYPE:
-            self._boundary_span_ids.add(event.id)
-            self._sub_agent_depth += 1
+        action = self._depth_tracker.process(event)
+        if action == "consume":
             return
-        if isinstance(event, SpanEndEvent) and event.id in self._boundary_span_ids:
-            self._boundary_span_ids.discard(event.id)
-            self._sub_agent_depth -= 1
-            return
-
-        if self._sub_agent_depth > 0 and self._session._filter_subagent_events:
+        if action == "skip" and self._session._filter_subagent_events:
             return
 
         for notification in _map_event(
@@ -176,24 +219,17 @@ def replay_transcript(
     inside sub-agent spans (useful for the raw-event firehose where
     callers explicitly opted in for full visibility).
     """
-    sub_agent_depth = 0
-    boundary_span_ids: set[str] = set()
+    tracker = SubagentDepthTracker()
     seen_tool_call_ids: set[str] = set()
     seen_model_event_ids: set[str] = set()
     seen_pending_event_ids: set[str] = set()
     seen_user_message_ids: set[str] = set()
 
     for event in events:
-        if isinstance(event, SpanBeginEvent) and event.type == AGENT_SPAN_TYPE:
-            boundary_span_ids.add(event.id)
-            sub_agent_depth += 1
+        action = tracker.process(event)
+        if action == "consume":
             continue
-        if isinstance(event, SpanEndEvent) and event.id in boundary_span_ids:
-            boundary_span_ids.discard(event.id)
-            sub_agent_depth -= 1
-            continue
-
-        if sub_agent_depth > 0 and filter_subagents:
+        if action == "skip" and filter_subagents:
             continue
 
         yield from _map_event(

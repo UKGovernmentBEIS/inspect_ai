@@ -159,15 +159,15 @@ def test_depth_counter_increments_and_decrements_on_agent_spans() -> None:
     try:
         session = _new_session()
         router, _ = _attach_router(session)
-        assert router._sub_agent_depth == 0
+        assert router._depth_tracker.depth == 0
         tr._event(_span_begin("a"))
-        assert router._sub_agent_depth == 1
+        assert router._depth_tracker.depth == 1
         tr._event(_span_begin("b"))
-        assert router._sub_agent_depth == 2
+        assert router._depth_tracker.depth == 2
         tr._event(_span_end("b"))
-        assert router._sub_agent_depth == 1
+        assert router._depth_tracker.depth == 1
         tr._event(_span_end("a"))
-        assert router._sub_agent_depth == 0
+        assert router._depth_tracker.depth == 0
     finally:
         _transcript.reset(token)
 
@@ -182,7 +182,7 @@ def test_depth_counter_ignores_non_agent_spans() -> None:
         tr._event(_span_begin("t", span_type="tool"))
         tr._event(_span_begin("h", span_type="handoff"))
         tr._event(_span_begin("n", span_type=None))
-        assert router._sub_agent_depth == 0
+        assert router._depth_tracker.depth == 0
     finally:
         _transcript.reset(token)
 
@@ -210,7 +210,7 @@ def test_unknown_span_end_does_not_underflow() -> None:
         session = _new_session()
         router, _ = _attach_router(session)
         tr._event(_span_end("never-began"))
-        assert router._sub_agent_depth == 0
+        assert router._depth_tracker.depth == 0
     finally:
         _transcript.reset(token)
 

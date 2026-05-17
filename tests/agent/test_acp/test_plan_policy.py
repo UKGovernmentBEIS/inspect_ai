@@ -23,11 +23,12 @@ from acp.helpers import (
 )
 from acp.schema import AgentPlanUpdate
 
-from inspect_ai.agent._acp._server import (
+from inspect_ai.agent._acp._connection import (
     PLAN_RENDERING_META_KEY,
-    PLAN_TOOL_NAMES,
+    Bound,
     _ConnectionHandler,
 )
+from inspect_ai.agent._acp._session_router import PLAN_TOOL_NAMES, Forwarders
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -35,10 +36,24 @@ from inspect_ai.agent._acp._server import (
 
 
 def _handler() -> _ConnectionHandler:
-    """Fresh handler with a wire_session_id pre-set (needed by translators)."""
+    """Fresh handler bound to a synthetic wire session (needed by translators)."""
     h = _ConnectionHandler()
-    h.state.wire_session_id = "wire-session"
+    h.state.binding = Bound(
+        wire_session_id="wire-session", target_session_id="wire-session"
+    )
     return h
+
+
+def _forwarders(*, client_renders_plan: bool = False) -> Forwarders:
+    """Fresh Forwarders for plan-policy transform tests.
+
+    Uses a bare handler for the ConnectionState ref + as the approver
+    client placeholder; MagicMock for the Connection (transform tests
+    never call ``send_notification``).
+    """
+    h = _handler()
+    h.state.client_renders_plan = client_renders_plan
+    return Forwarders(h.state, MagicMock(), h)
 
 
 def _client_info(name: str) -> Any:
@@ -152,7 +167,7 @@ async def test_raw_events_default_off() -> None:
 
 def test_build_plan_update_translates_update_plan() -> None:
     """update_plan's {plan: [{step, status}, ...]} → AgentPlanUpdate entries."""
-    h = _handler()
+    f = _forwarders()
     raw_input = {
         "plan": [
             {"step": "Analyze the requirements", "status": "completed"},
@@ -160,7 +175,7 @@ def test_build_plan_update_translates_update_plan() -> None:
             {"step": "Run tests", "status": "pending"},
         ]
     }
-    notif = h._build_plan_update("update_plan", raw_input)
+    notif = f._build_plan_update("update_plan", raw_input)
     assert notif is not None
     assert notif.session_id == "wire-session"
     assert isinstance(notif.update, AgentPlanUpdate)
@@ -175,14 +190,14 @@ def test_build_plan_update_translates_update_plan() -> None:
 
 def test_build_plan_update_translates_todo_write() -> None:
     """todo_write's {todos: [{content, status}, ...]} → AgentPlanUpdate entries."""
-    h = _handler()
+    f = _forwarders()
     raw_input = {
         "todos": [
             {"content": "Set up CI", "status": "in_progress"},
             {"content": "Write docs", "status": "pending"},
         ]
     }
-    notif = h._build_plan_update("todo_write", raw_input)
+    notif = f._build_plan_update("todo_write", raw_input)
     assert notif is not None
     assert isinstance(notif.update, AgentPlanUpdate)
     assert [e.content for e in notif.update.entries] == [
@@ -196,28 +211,28 @@ def test_build_plan_update_translates_todo_write() -> None:
 
 def test_build_plan_update_returns_none_for_unknown_title() -> None:
     """A title that isn't a plan tool returns None (caller passes through)."""
-    h = _handler()
-    assert h._build_plan_update("some_other_tool", {"plan": []}) is None
+    f = _forwarders()
+    assert f._build_plan_update("some_other_tool", {"plan": []}) is None
 
 
 def test_build_plan_update_returns_none_for_missing_items_list() -> None:
     """Malformed raw_input (no plan/todos list) returns None."""
-    h = _handler()
-    assert h._build_plan_update("update_plan", {}) is None
-    assert h._build_plan_update("todo_write", {"plan": []}) is None  # wrong key
+    f = _forwarders()
+    assert f._build_plan_update("update_plan", {}) is None
+    assert f._build_plan_update("todo_write", {"plan": []}) is None  # wrong key
 
 
 def test_build_plan_update_returns_none_for_non_dict_raw_input() -> None:
     """raw_input must be a dict; otherwise return None."""
-    h = _handler()
-    assert h._build_plan_update("update_plan", None) is None
-    assert h._build_plan_update("update_plan", "garbage") is None
+    f = _forwarders()
+    assert f._build_plan_update("update_plan", None) is None
+    assert f._build_plan_update("update_plan", "garbage") is None
 
 
 def test_build_plan_update_handles_partial_item_dicts() -> None:
     """Items missing fields default sensibly (status="pending", content="")."""
-    h = _handler()
-    notif = h._build_plan_update("update_plan", {"plan": [{}, {"step": "x"}]})
+    f = _forwarders()
+    notif = f._build_plan_update("update_plan", {"plan": [{}, {"step": "x"}]})
     assert notif is not None
     assert isinstance(notif.update, AgentPlanUpdate)
     assert notif.update.entries[0].content == ""
@@ -227,8 +242,8 @@ def test_build_plan_update_handles_partial_item_dicts() -> None:
 
 def test_build_plan_update_skips_non_dict_items() -> None:
     """Items that aren't dicts are silently skipped."""
-    h = _handler()
-    notif = h._build_plan_update(
+    f = _forwarders()
+    notif = f._build_plan_update(
         "update_plan", {"plan": [{"step": "a", "status": "pending"}, "junk", 42]}
     )
     assert notif is not None
@@ -260,30 +275,27 @@ def _progress(tool_id: str, status: Any) -> Any:
 
 def test_non_plan_capable_client_passthrough() -> None:
     """Without client_renders_plan, every notification passes through."""
-    h = _handler()
-    h.state.client_renders_plan = False
+    f = _forwarders(client_renders_plan=False)
     notif = _start("tc1", "update_plan", "completed", {"plan": [{"step": "x"}]})
-    assert h._maybe_transform_plan_tool(notif) is notif
+    assert f._maybe_transform_plan_tool(notif) is notif
 
 
 def test_plan_capable_in_progress_start_is_suppressed() -> None:
     """Plan-capable + in_progress plan-tool start → suppress (return None)."""
-    h = _handler()
-    h.state.client_renders_plan = True
+    f = _forwarders(client_renders_plan=True)
     notif = _start(
         "tc1", "update_plan", "in_progress", {"plan": [{"step": "x", "status": "p"}]}
     )
-    assert h._maybe_transform_plan_tool(notif) is None
+    assert f._maybe_transform_plan_tool(notif) is None
     # Tool is stashed for later progress notification.
-    assert "tc1" in h._plan_tool_stash
+    assert "tc1" in f._plan_tool_stash
 
 
 def test_plan_capable_completed_progress_emits_plan() -> None:
     """ToolCallProgress(completed) for stashed plan tool → AgentPlanUpdate."""
-    h = _handler()
-    h.state.client_renders_plan = True
+    f = _forwarders(client_renders_plan=True)
     # First, the start notification stashes raw_input.
-    h._maybe_transform_plan_tool(
+    f._maybe_transform_plan_tool(
         _start(
             "tc1",
             "update_plan",
@@ -292,25 +304,24 @@ def test_plan_capable_completed_progress_emits_plan() -> None:
         )
     )
     # Then progress arrives.
-    out = h._maybe_transform_plan_tool(_progress("tc1", "completed"))
+    out = f._maybe_transform_plan_tool(_progress("tc1", "completed"))
     assert out is not None
     assert isinstance(out.update, AgentPlanUpdate)
     assert out.update.entries[0].content == "step-a"
     # Stash cleared on emit.
-    assert "tc1" not in h._plan_tool_stash
+    assert "tc1" not in f._plan_tool_stash
 
 
 def test_plan_capable_instant_complete_start_emits_plan() -> None:
     """A plan-tool start that's already completed (instant) emits Plan directly."""
-    h = _handler()
-    h.state.client_renders_plan = True
+    f = _forwarders(client_renders_plan=True)
     notif = _start(
         "tc-instant",
         "update_plan",
         "completed",
         {"plan": [{"step": "fast", "status": "completed"}]},
     )
-    out = h._maybe_transform_plan_tool(notif)
+    out = f._maybe_transform_plan_tool(notif)
     assert out is not None
     assert isinstance(out.update, AgentPlanUpdate)
     assert out.update.entries[0].content == "fast"
@@ -318,28 +329,25 @@ def test_plan_capable_instant_complete_start_emits_plan() -> None:
 
 def test_plan_capable_non_plan_tool_passthrough() -> None:
     """Plan-capable + non-plan-tool notification → passthrough."""
-    h = _handler()
-    h.state.client_renders_plan = True
+    f = _forwarders(client_renders_plan=True)
     notif = _start("tc-x", "bash", "completed", {"cmd": "ls"})
-    assert h._maybe_transform_plan_tool(notif) is notif
+    assert f._maybe_transform_plan_tool(notif) is notif
 
 
 def test_plan_capable_non_tool_notification_passthrough() -> None:
     """Plan-capable + agent_message_chunk (not a tool call) → passthrough."""
-    h = _handler()
-    h.state.client_renders_plan = True
+    f = _forwarders(client_renders_plan=True)
     notif = session_notification(
         "wire-session", update_agent_message(text_block("hello"))
     )
-    assert h._maybe_transform_plan_tool(notif) is notif
+    assert f._maybe_transform_plan_tool(notif) is notif
 
 
 def test_progress_without_stash_passes_through() -> None:
     """A progress notif for an untracked tool_call_id passes through."""
-    h = _handler()
-    h.state.client_renders_plan = True
+    f = _forwarders(client_renders_plan=True)
     # No prior start_tool_call → no stash.
-    out = h._maybe_transform_plan_tool(_progress("tc-unknown", "completed"))
+    out = f._maybe_transform_plan_tool(_progress("tc-unknown", "completed"))
     # Passthrough (returns the same notif, not None).
     assert out is not None
     # Update kind is still ToolCallProgress, not AgentPlanUpdate.
