@@ -27,6 +27,7 @@ from .sample_checkpoints_dir import (
     ensure_sample_json,
     has_sample_checkpoint,
     sample_checkpoints_dir,
+    scan_latest_committed_id,
     write_sidecar,
 )
 from .sidecar import CheckpointSample, CheckpointSidecar, SnapshotInfo
@@ -45,5 +46,6 @@ __all__ = [
     "host_context",
     "log_basename",
     "sample_checkpoints_dir",
+    "scan_latest_committed_id",
     "write_sidecar",
 ]

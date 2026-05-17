@@ -117,6 +117,38 @@ def _read_sample_json_blocking(sample_dir: str) -> CheckpointSample:
         return CheckpointSample.model_validate_json(f.read())
 
 
+def scan_latest_committed_id(sample_checkpoints_dir: str) -> int | None:
+    """Return the highest checkpoint id whose sidecar parses cleanly.
+
+    Walks ``ckpt-NNNNN.json`` files in the sample dir from highest N to
+    lowest; the first whose contents validate as a
+    :class:`CheckpointSidecar` is the commit point. A torn-write sidecar
+    is silently skipped. Returns ``None`` if no sidecar exists or none
+    parses (caller is responsible for treating that as a meaningful
+    state — typically an error on resume).
+    """
+    fs = filesystem(sample_checkpoints_dir)
+    if not fs.exists(sample_checkpoints_dir):
+        return None
+    ids: list[int] = []
+    for entry in fs.ls(sample_checkpoints_dir):
+        name = entry.name.rsplit("/", 1)[-1]
+        if name.startswith("ckpt-") and name.endswith(".json"):
+            try:
+                ids.append(int(name.removeprefix("ckpt-").removesuffix(".json")))
+            except ValueError:
+                continue
+    for n in sorted(ids, reverse=True):
+        path = f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
+        try:
+            with file(path, "r") as f:
+                CheckpointSidecar.model_validate_json(f.read())
+            return n
+        except Exception:
+            continue
+    return None
+
+
 async def write_sidecar(
     *,
     sample_checkpoints_dir: str,
