@@ -203,7 +203,7 @@ class Retention:
     after_eval: Literal["delete", "retain"] = "delete"
     """What to do with the checkpoint directory after the eval completes
     successfully. "delete" (default) removes it; "retain" keeps it for
-    later inspection or replay. See §8d."""
+    later inspection or replay. See §8e."""
 
 class CheckpointSampleConfig:
     """Fields settable at any layer including the sample."""
@@ -218,7 +218,7 @@ class CheckpointSampleConfig:
 
     max_consecutive_failures: int | None = None
     """If set, the sample fails after N consecutive failed checkpoint attempts.
-    None = unlimited tolerance (default). 0 = any failure is fatal. See §8c."""
+    None = unlimited tolerance (default). 0 = any failure is fatal. See §8d."""
 
 class CheckpointConfig(CheckpointSampleConfig):
     """Adds eval-wide fields; used at the task and eval layers only."""
@@ -232,7 +232,7 @@ class CheckpointConfig(CheckpointSampleConfig):
 
     retention: Retention = Retention()
     """Controls when checkpoint data is deleted. Eval-wide — settable
-    only at the task or eval layer. See §8d."""
+    only at the task or eval layer. See §8e."""
 ```
 
 All triggers fire at turn boundaries only; an agent is never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint. To disable checkpointing, omit the ``CheckpointConfig`` at every level.
@@ -549,11 +549,25 @@ The lambda closes over the local `attempt_count` cell, so subsequent rebinds (`a
 
 Each checkpoint attempt emits a structured `CheckpointEvent` into the normal event stream, carrying at minimum: `checkpoint_id`, `trigger` (time/turn/manual), outcome (success/failure), duration, on-disk size, and — on failure — the error. Events are part of the `.eval` log, so checkpoint history is preserved in the normal log. No dedicated checkpoint journal file in v1.
 
-### 8b. TUI surface
+### 8b. Per-checkpoint transcript spans
+
+The agent's checkpointed scope is bracketed by a sequence of transcript spans (`SpanBeginEvent` / `SpanEndEvent`). Spans are **peers** — siblings under whatever span was active when the agent opened `async with checkpointer()` (typically `react/agent` or another solver span). They do not nest. Each span's `name` is `f"checkpoint {N}"` and `type` is `"checkpoint"`, where `N` is the sidecar id this span fires under — the same 1-indexed numbering as `ckpt-NNNNN.json`.
+
+- On `async with checkpointer()` entry, the first span opens with `N = (max committed sidecar id) + 1`. A fresh sample opens `checkpoint 1`; a resumed sample with `M` prior commits opens `checkpoint M+1`.
+- On fire, the current span closes **before** `write_host_context` so the `SpanEndEvent` lands inside this checkpoint's `events.json`. After the sidecar is committed, the next span opens with the updated `next_checkpoint_id`.
+- On `async with checkpointer()` exit, whatever span is currently open closes.
+
+A sample that completes without ever firing a checkpoint leaves an unclosed `checkpoint 1` span — expected and informative: it records the work that would have been the first checkpoint had any fire happened. Same shape on resume: an attempt with `M` prior commits that finishes without firing leaves an unclosed `checkpoint M+1`.
+
+The trailing span gets no matching `ckpt-NN.json` on disk — by design.
+
+For the no-op checkpointer (checkpointing disabled), no spans are emitted: `span_session()` returns `contextlib.nullcontext()`.
+
+### 8c. TUI surface
 
 The inspect TUI shows a small indicator while a checkpoint is running and the last-checkpoint timestamp.
 
-### 8c. Checkpoint-attempt failures
+### 8d. Checkpoint-attempt failures
 
 A failed checkpoint attempt (disk full, sandbox exec error, restic error, etc.) is logged as a warning. **Failed attempts are not retried in the moment** — the next attempt fires on the next policy boundary. The policy cadence is itself the retry; there is no per-attempt retry count.
 
@@ -569,13 +583,13 @@ Rationale for unlimited as the default: durability is a nicety, not a correctnes
 
 Known risk under the unlimited default: a customer not monitoring the event stream could believe they have recent checkpoints when they don't. The TUI indicator and event-stream visibility make this visible in practice; setting a finite tolerance gives a hard signal instead.
 
-### 8d. Retention
+### 8e. Retention
 
 -   **On successful eval completion (default):** delete the `foo.eval.checkpoints/` tree.
 -   **Opt-in "retain forever":** a configuration option keeps the checkpoint directory after success. CLI/config surface TBD.
 -   **During the eval:** all checkpoints are retained. We do not collapse, merge, or prune older checkpoints into the head. Rationale: preserves the option of resuming from an arbitrary non-head checkpoint (a future capability). Practically: no `restic forget` / `restic prune` on active repos.
 
-### 8e. Pre-checkpoint hook
+### 8f. Pre-checkpoint hook
 
 Inspect's `Hooks` API gains a new lifecycle method fired immediately before each checkpoint cycle begins:
 
@@ -594,7 +608,7 @@ Useful for flushing in-memory agent state to disk so it is captured by the snaps
 
 ## 9. Open questions
 
--   **Retention granularity: eval-complete vs. sample-complete.** §8d says checkpoints are deleted "on successful eval completion." Open: should a sample's checkpoint subtree instead be deleted (or at least eligible for deletion) as soon as *that sample* completes successfully, rather than waiting for the whole eval to finish? Eval-complete is simpler and keeps everything available until the run is done; sample-complete reclaims space sooner and scales better for evals with many long-running samples. Interacts with retain-forever (which would presumably still hold things until eval end).
+-   **Retention granularity: eval-complete vs. sample-complete.** §8e says checkpoints are deleted "on successful eval completion." Open: should a sample's checkpoint subtree instead be deleted (or at least eligible for deletion) as soon as *that sample* completes successfully, rather than waiting for the whole eval to finish? Eval-complete is simpler and keeps everything available until the run is done; sample-complete reclaims space sooner and scales better for evals with many long-running samples. Interacts with retain-forever (which would presumably still hold things until eval end).
 -   **Engine commitment.** Restic is strongly preferred but not formally committed. The case is stronger now that it's used on both halves (host repo + sandbox repos); alternatives (borg, kopia, rsync-based, custom) remain theoretically on the table.
 
 ## Appendix A — Restic characteristics

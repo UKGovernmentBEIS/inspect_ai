@@ -11,9 +11,10 @@ sample-run time, via :func:`build_session` (called from
 
 from __future__ import annotations
 
+import contextlib
 import json
 import time
-from collections.abc import Awaitable, Callable, Mapping, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from functools import partial
 from logging import getLogger
@@ -37,6 +38,7 @@ from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.util._sandbox.context import sandbox
+from inspect_ai.util._span import span
 from inspect_ai.util._store import Store, store_jsonable
 
 from .checkpointer import (
@@ -158,6 +160,10 @@ class _EnteredCheckpointer:
         self._turn = 0
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
+        # `checkpoint N` span open across the agent's current
+        # work-between-fires window. Owned across `span_session()`'s
+        # enter/exit and rotated inside `_fire()`.
+        self._current_span_cm: AbstractAsyncContextManager[None] | None = None
         # Persisted across fires: each fire processes only the new event slice
         # and appends to these accumulators. Safe because checkpoints fire at
         # turn boundaries, after which prior events are immutable.
@@ -183,6 +189,33 @@ class _EnteredCheckpointer:
 
     async def checkpoint(self) -> None:
         await self._fire("manual")
+
+    @contextlib.asynccontextmanager
+    async def span_session(self) -> AsyncIterator[None]:
+        await self._open_next_span()
+        try:
+            yield
+        finally:
+            await self._close_current_span()
+
+    async def _open_next_span(self) -> None:
+        # Span name matches the sidecar id this span will fire under
+        # (1-indexed, same as `ckpt-NNNNN.json`). Fresh run opens
+        # `checkpoint 1`; on resume of an attempt with M prior commits,
+        # opens `checkpoint M+1`. A sample that ends without firing
+        # leaves an unclosed span at whatever id was about to fire next.
+        next_id = await anyio.to_thread.run_sync(
+            _scan_next_checkpoint_id, self._sample_checkpoints_dir
+        )
+        cm = span(name=f"checkpoint {next_id}", type="checkpoint")
+        await cm.__aenter__()
+        self._current_span_cm = cm
+
+    async def _close_current_span(self) -> None:
+        if self._current_span_cm is None:
+            return
+        cm, self._current_span_cm = self._current_span_cm, None
+        await cm.__aexit__(None, None, None)
 
     def track(
         self,
@@ -267,6 +300,11 @@ class _EnteredCheckpointer:
             _scan_next_checkpoint_id, self._sample_checkpoints_dir
         )
 
+        # Close `checkpoint N` *before* `write_host_context` so the
+        # ``SpanEndEvent`` lands in this checkpoint's ``events.json`` —
+        # the persisted snapshot must show the span closing within it.
+        await self._close_current_span()
+
         state = sample_state()
         if not state:
             raise RuntimeError("Checkpointer must find sample state")
@@ -317,6 +355,10 @@ class _EnteredCheckpointer:
         )
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
+
+        # Sidecar is committed; open the next `checkpoint N+1` span so
+        # subsequent agent events nest under it.
+        await self._open_next_span()
 
     async def _write_host_context(
         self,
