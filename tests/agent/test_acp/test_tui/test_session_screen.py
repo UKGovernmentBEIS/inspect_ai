@@ -94,6 +94,25 @@ async def test_session_screen_meta_row_handles_missing_agent_name(
 
 @skip_if_trio
 @pytest.mark.anyio
+async def test_composer_has_top_margin_for_separation_from_transcript(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Composer must not sit flush against the last transcript item."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        composer = app.screen.query_one("#composer", Input)
+        assert composer.styles.margin.top == 1
+
+
+@skip_if_trio
+@pytest.mark.anyio
 async def test_session_screen_starts_with_connected_indicator(
     sample_rows: list[SessionRow],
 ) -> None:

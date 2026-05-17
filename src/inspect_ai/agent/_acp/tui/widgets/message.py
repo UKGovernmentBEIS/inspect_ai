@@ -26,7 +26,6 @@ from __future__ import annotations
 import time
 
 from textual.app import ComposeResult
-from textual.binding import Binding
 from textual.containers import Vertical
 from textual.css.query import NoMatches
 from textual.widget import Widget
@@ -45,77 +44,97 @@ easily run hundreds of lines; without a cap they push the rest of the
 transcript off-screen on every paint. 12 lines fits the typical
 operator's "scan the response, decide next action" window — anything
 longer reads as documentation and benefits from the click-to-expand
-affordance ``CollapsibleContent`` provides. Reasoning segments use
-their own ^E collapse and skip this cap entirely.
+affordance ``CollapsibleContent`` provides.
 """
 
 
-class _ReasoningBlock(Widget, can_focus=True):
-    """Collapsible reasoning sub-block within an assistant message.
+# Per-role chip colour. Role identification comes from the coloured
+# bullet + role word plus the body's left-indent under the role word
+# — backgrounds were redundant once that landed and were removed to
+# quiet the transcript. Hex values are brand tints, not theme tokens;
+# if a light theme arrives this dict is the lift-and-shift point.
+_PALETTE: dict[str, str] = {
+    "system": "#7aa2f7",
+    "user": "#e0af68",
+    "operator": "#bb9af7",
+    "assistant": "#7aa2f7",
+}
 
-    Dim by default; ``^E`` toggles expand/collapse. Each block tracks
-    its own state so multiple reasoning blocks in one assistant message
-    can be expanded independently.
+
+class _ReasoningBlock(Widget):
+    """Click-to-toggle reasoning block.
+
+    Default state shows ONLY the word "reasoning" rendered with the
+    same italic + underline + muted treatment :class:`CollapsibleContent`
+    uses for its "…N more lines" affordance — so the operator reads
+    the link as clickable on sight without a fresh visual vocabulary
+    to learn. Click anywhere on the block to expand the body in
+    place; click again to collapse it back to the resting link.
+
+    Reasoning is signal-heavy when needed but visually noisy by
+    default; this keeps the resting transcript clean and lets the
+    operator opt in to detail — and back out of it when they're done.
     """
 
     DEFAULT_CSS = """
-    _ReasoningBlock {
-        height: auto;
+    /* Default to a 1-row bottom margin so an expanded reasoning body
+     * doesn't run flush into the assistant text that follows. The two
+     * overrides below zero it back out in the cases where the margin
+     * would be wasted space:
+     *   - ``.collapsed``: only the link is visible, nothing below to
+     *     separate from.
+     *   - ``:last-child``: nothing follows in the message body, so
+     *     the margin would just add a blank row before the message's
+     *     own bottom margin. */
+    _ReasoningBlock { height: auto; margin-bottom: 1; }
+    _ReasoningBlock.collapsed { margin-bottom: 0; }
+    _ReasoningBlock:last-child { margin-bottom: 0; }
+    /* Link styling mirrors CollapsibleContent's .truncation-note so
+     * the affordance reads consistently across the transcript:
+     * italic + underline + muted, with an accent hover tint. */
+    _ReasoningBlock .reasoning-link {
         color: $text-muted;
+        text-style: italic underline;
+        height: auto;
     }
-    _ReasoningBlock .header { text-style: italic; }
-    _ReasoningBlock .body {
-        padding-left: 2;
-        margin-top: 1;
+    _ReasoningBlock .reasoning-link:hover { color: $accent; }
+    _ReasoningBlock .reasoning-body {
+        color: $text-muted;
+        height: auto;
     }
-    _ReasoningBlock.collapsed .body { display: none; }
-    _ReasoningBlock:focus > .header { text-style: italic underline; }
+    /* Body hidden until the click expands. Toggled by removing the
+     * ``collapsed`` class in ``on_click``. */
+    _ReasoningBlock.collapsed .reasoning-body { display: none; }
     """
 
-    BINDINGS = [
-        Binding("ctrl+e", "toggle_reasoning", "expand", show=False),
-    ]
-
-    def __init__(self, text: str, *, collapsed: bool = True) -> None:
+    def __init__(self, text: str) -> None:
         super().__init__()
         self._text = text
-        self._collapsed = collapsed
+        # Start collapsed — only the "reasoning" link is visible.
+        self.add_class("collapsed")
 
     def compose(self) -> ComposeResult:
-        glyph = "▸" if self._collapsed else "▾"
-        yield Static(f"{glyph} reasoning", classes="header")
-        yield Static(StyledMarkdown(self._text), classes="body")
-        if self._collapsed:
-            self.add_class("collapsed")
-
-    def action_toggle_reasoning(self) -> None:
-        self._collapsed = not self._collapsed
-        if self._collapsed:
-            self.add_class("collapsed")
-        else:
-            self.remove_class("collapsed")
-        try:
-            header = self.query_one(".header", Static)
-            header.update(("▸" if self._collapsed else "▾") + " reasoning")
-        except NoMatches:
-            pass
+        yield Static("reasoning", classes="reasoning-link")
+        yield Static(StyledMarkdown(self._text), classes="reasoning-body")
 
     def on_click(self) -> None:
-        # Mirror the ^E keyboard shortcut so a mouse click anywhere in
-        # the block toggles expand/collapse — keyboard-only was missing
-        # the most natural pointer affordance.
-        self.action_toggle_reasoning()
+        # Toggle — click expands when collapsed, collapses when
+        # expanded. Diverges from CollapsibleContent (which is
+        # one-way) because reasoning bodies are typically scannable
+        # rather than something you copy out, so making the operator
+        # rescroll to hide them again would be friction.
+        self.toggle_class("collapsed")
 
     def set_text(self, text: str) -> None:
         """Replace the reasoning body text in place.
 
         Lets the parent MessageWidget extend the reasoning content on
-        streaming chunks without remounting (and losing the collapsed
-        / expanded state the user set).
+        streaming chunks without remounting (and without losing the
+        expanded state if the operator already clicked).
         """
         self._text = text
         try:
-            self.query_one(".body", Static).update(StyledMarkdown(text))
+            self.query_one(".reasoning-body", Static).update(StyledMarkdown(self._text))
         except NoMatches:
             pass
 
@@ -123,40 +142,23 @@ class _ReasoningBlock(Widget, can_focus=True):
 class MessageWidget(Widget):
     """Renders one MessageGroup as user or assistant content."""
 
+    # No background tints — role identification rides entirely on the
+    # coloured bullet + role word (from ``_PALETTE``) and the body's
+    # ``padding-left: 2`` indent under the role word. The ``operator``
+    # CSS class is still added so future styling can hook off it
+    # without restructuring widget composition.
     DEFAULT_CSS = """
-    /* All message bubbles share the same padding + bottom margin so
-     * the colored backgrounds form an even rhythm down the
-     * transcript. Per-role classes only override the background. Hex
-     * values come straight from the message-colors design spec —
-     * they're brand tints, not semantic, so Textual theme tokens
-     * (``$primary 8%`` etc.) aren't a clean fit. If we ever add
-     * theme variants (light mode), swap this palette in one place
-     * rather than threading aliases through. */
     MessageWidget {
         height: auto;
-        padding: 1 2;
+        padding: 0 2;
         margin-bottom: 1;
     }
-    MessageWidget.system    { background: #262d35; }
-    MessageWidget.user      { background: #392113; }
-    MessageWidget.user.operator { background: #2f1a2d; }
-    MessageWidget.assistant { background: #052740; }
-    /* Default chip colour matches body text — markup uses bold for
-     * the role word and `[dim]…[/dim]` for the provenance suffix, so
-     * the role still reads first against the tinted band. */
     MessageWidget .chip { color: $foreground; }
-    /* The body Vertical is always mounted so update_state can append
-     * segment widgets without restructuring the parent. ``with-content``
-     * class is toggled to enable the top margin only once segments
-     * actually exist — otherwise an empty body would add a blank row
-     * inside an empty pending bubble. */
-    MessageWidget .body { height: auto; }
-    MessageWidget .body.with-content { margin-top: 1; }
+    MessageWidget .body {
+        height: auto;
+        padding-left: 2;
+    }
     MessageWidget .segment-text { height: auto; }
-    /* Spacer mounted between adjacent segments — gives reasoning →
-     * text (and any future cross-kind transition) a row of air without
-     * adding trailing whitespace when reasoning is the only segment. */
-    MessageWidget .segment-spacer { height: 1; }
     """
 
     def __init__(
@@ -188,46 +190,40 @@ class MessageWidget(Widget):
             self.add_class("operator")
 
     def compose(self) -> ComposeResult:
-        # ``markup=True`` so we can bold the role word and dim the
-        # provenance suffix in one Static.
+        # ``markup=True`` so we can colour the bullet + role word and
+        # dim the provenance suffix in one Static.
         yield Static(self._chip_text(), classes="chip", markup=True)
         # Always mount the body container so update_state can append
         # segment widgets without having to restructure the parent.
-        # The ``with-content`` class is toggled in on_mount / update.
-        body = Vertical(classes="body")
-        if self._group.segments:
-            body.add_class("with-content")
-        with body:
-            for i, seg in enumerate(self._group.segments):
-                if i > 0:
-                    yield Static("", classes="segment-spacer", markup=False)
+        # Segments now sit flush — no inter-segment spacer widgets.
+        with Vertical(classes="body"):
+            for seg in self._group.segments:
                 yield from self._compose_segment(seg)
 
     def _chip_text(self) -> str:
-        # Role word stands out (bold + default colour); the suffix
-        # ("model X" / "input" / "operator") rides as dim provenance
-        # so the eye lands on WHO is speaking before the source.
-        # Every chip is prefixed with a dim ``• `` glyph (or spinner
-        # for an in-flight assistant) so all three roles share a
-        # consistent left-rail.
+        # Bullet + role word both carry the role colour from _PALETTE
+        # so each speaker is identifiable without relying on the
+        # background tint. Provenance suffix ("· input" / "· operator"
+        # / "· model-name") stays dim so the role word reads first
+        # against the band.
+        fg = _PALETTE[self._palette_key()]
         if self._group.role == "system":
-            return "[dim]•[/dim] [bold]system[/bold]"
+            return f"[{fg}]•[/] [bold {fg}]system[/]"
         if self._group.role == "user":
             source = self._group.user_source
-            base = "[bold]user[/bold]"
+            base = f"[bold {fg}]user[/]"
             if source:
                 base = f"{base} [dim]· {source}[/dim]"
-            return f"[dim]•[/dim] {base}"
+            return f"[{fg}]•[/] {base}"
         # Assistant: prefer the group's own model attribution; fall back
         # to the session's current model when the chunk had no
         # `_meta["inspect.model"]` (e.g. an old server).
         model = self._group.model or self._current_model or "—"
-        base = f"[bold]assistant[/bold] [dim]· {model}[/dim]"
+        base = f"[bold {fg}]assistant[/] [dim]· {model}[/dim]"
         # Glyph prefix on every assistant chip — animated braille
         # spinner while the model event is in flight, then a small
-        # static bullet once it's complete. Replayed assistant
-        # messages come in non-pending so they get the bullet without
-        # a spinner phase.
+        # static bullet once it's complete. Both pick up the role
+        # colour so the spinner reads as "this speaker is in flight".
         if self._group.pending:
             glyph = SPINNER_FRAMES[self._spinner_frame % len(SPINNER_FRAMES)]
         else:
@@ -245,7 +241,28 @@ class MessageWidget(Widget):
             elapsed = time.monotonic() - self._group.pending_started_at
             extras.append(format_duration(elapsed))
         suffix = "".join(f" [dim]· {e}[/dim]" for e in extras)
-        return f"[dim]{glyph}[/dim] {base}{suffix}"
+        # Quiet hint while the model call is in flight — gives the
+        # operator a no-look reminder that ``Esc`` cancels this turn,
+        # without making them hunt the footer for the keymap.
+        if self._group.pending:
+            suffix += " [dim](esc to interrupt)[/dim]"
+        return f"[{fg}]{glyph}[/] {base}{suffix}"
+
+    def _palette_key(self) -> str:
+        """Resolve the MessageGroup role + source to a ``_PALETTE`` key.
+
+        The dict has four keys (system / user / operator / assistant)
+        and the operator user is a sub-case of user — so this small
+        helper centralises the mapping rather than threading the
+        if/elif chain through every call site.
+        """
+        if self._group.role == "user" and self._group.user_source == "operator":
+            return "operator"
+        if self._group.role == "user":
+            return "user"
+        if self._group.role == "system":
+            return "system"
+        return "assistant"
 
     def tick_spinner(self) -> None:
         """Advance the spinner / elapsed timer and re-render the chip.
@@ -325,16 +342,10 @@ class MessageWidget(Widget):
         body = self._body()
         if body is None:
             return
-        # Walk backward to find the last NON-spacer child — that's the
-        # widget rendering the last segment.
-        last_widget: Widget | None = None
-        for child in reversed(list(body.children)):
-            if isinstance(child, Static) and child.has_class("segment-spacer"):
-                continue
-            last_widget = child
-            break
-        if last_widget is None:
+        children = list(body.children)
+        if not children:
             return
+        last_widget = children[-1]
         if seg.kind == "text" and isinstance(last_widget, CollapsibleContent):
             # Streaming chunks land here — replace_text re-runs the
             # truncate-or-expand decision in place so a growing
@@ -345,21 +356,12 @@ class MessageWidget(Widget):
             last_widget.set_text(seg.text)
 
     def _mount_new_segments(self, start: int) -> None:
-        """Mount segment widgets (+ spacers) for ``segments[start:]``.
-
-        Toggles the body's ``with-content`` class on the first
-        mounted segment so the top margin gets activated only when
-        there's actual content (not for empty pending bubbles).
-        """
+        """Mount segment widgets for ``segments[start:]`` — no spacers."""
         body = self._body()
         if body is None:
             return
-        if not body.has_class("with-content"):
-            body.add_class("with-content")
         for i in range(start, len(self._group.segments)):
             seg = self._group.segments[i]
-            if i > 0:
-                body.mount(Static("", classes="segment-spacer", markup=False))
             if seg.kind == "reasoning":
                 body.mount(_ReasoningBlock(seg.text))
             else:

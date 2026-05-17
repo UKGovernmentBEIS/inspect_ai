@@ -66,9 +66,12 @@ class SessionScreen(Screen[None]):
 
     DEFAULT_CSS = """
     SessionScreen { layout: vertical; }
+    /* margin-top: 1 so the composer doesn't sit flush against the
+     * last transcript item — gives the input visual breathing room
+     * from the conversation it's appending to. */
     #composer {
         height: 3;
-        margin: 0 2 1 2;
+        margin: 1 2 1 2;
         border: tall $primary 30%;
     }
     """

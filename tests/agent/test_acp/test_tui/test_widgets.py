@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 from test_helpers.utils import skip_if_trio
 from textual.app import App, ComposeResult
+from textual.containers import Vertical
 from textual.widgets import Static
 
 from inspect_ai.agent._acp.tui.state import (
@@ -192,10 +193,10 @@ async def test_system_message_renders_system_chip() -> None:
 async def test_operator_user_message_gets_operator_class() -> None:
     """``user_source='operator'`` adds the ``.operator`` CSS class.
 
-    Pinned because the CSS rule that swaps the user clay background
-    for plum keys off this class. A regression that drops the class
-    would silently re-render operator messages with the dataset-input
-    color.
+    The class is no longer load-bearing for background colour
+    (backgrounds were removed; chip colour now carries operator-vs-
+    input identity), but kept as a marker hook so future styling
+    can target operator messages without restructuring composition.
     """
     group = MessageGroup(
         message_id="m1",
@@ -320,11 +321,23 @@ async def test_assistant_falls_back_to_current_model_when_group_missing() -> Non
 @skip_if_trio
 @pytest.mark.anyio
 async def test_assistant_with_reasoning_segment_mounts_reasoning_block() -> None:
+    """Reasoning is a standalone click-to-expand block — no CollapsibleContent.
+
+    Pins three decisions:
+    - collapsed by default; only the ``reasoning`` link is visible
+    - the link carries the same italic + underline + muted treatment
+      ``CollapsibleContent.truncation-note`` uses, so the affordance
+      reads consistently
+    - no ``CollapsibleContent`` inside (no ``…N more lines`` text);
+      the widget owns its own click-to-toggle expand via ``on_click``
+    """
+    from inspect_ai.agent._acp.tui.widgets._collapsible import CollapsibleContent
+
     group = MessageGroup(
         message_id="m1",
         role="assistant",
         segments=[
-            Segment(kind="reasoning", text="thinking..."),
+            Segment(kind="reasoning", text="thinking line 1\nthinking line 2"),
             Segment(kind="text", text="answer"),
         ],
     )
@@ -334,14 +347,92 @@ async def test_assistant_with_reasoning_segment_mounts_reasoning_block() -> None
         mw = app.query_one(MessageWidget)
         reasoning_blocks = list(mw.query(_ReasoningBlock))
         assert len(reasoning_blocks) == 1
-        # Collapsed by default — body has the `display: none` class on
-        # the parent. We check the CSS class.
-        assert reasoning_blocks[0].has_class("collapsed")
+        block = reasoning_blocks[0]
+        # Collapsed by default — body is hidden, only the link shows.
+        assert block.has_class("collapsed")
+        # Standalone widget — no CollapsibleContent wrapper, no "...
+        # more lines" text.
+        assert len(list(block.query(CollapsibleContent))) == 0
+        # Link is present with the shared truncation-note treatment.
+        link = block.query_one(".reasoning-link", Static)
+        assert str(link.content) == "reasoning"
+        # Body is mounted (so it's ready to reveal) but hidden via the
+        # ``.collapsed`` class — assert it exists at all.
+        assert len(list(block.query(".reasoning-body"))) == 1
+        # No ^E binding leftover, no action_toggle_reasoning method.
+        assert all(getattr(b, "key", None) != "ctrl+e" for b in block.BINDINGS)
+        assert not hasattr(block, "action_toggle_reasoning")
 
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_reasoning_block_toggle_action_expands() -> None:
+async def test_reasoning_block_collapsed_has_no_bottom_margin() -> None:
+    """Collapsed reasoning sits flush — no margin, nothing below to push apart."""
+    group = MessageGroup(
+        message_id="m1",
+        role="assistant",
+        segments=[
+            Segment(kind="reasoning", text="thoughts"),
+            Segment(kind="text", text="answer"),
+        ],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        block = app.query_one(_ReasoningBlock)
+        assert block.has_class("collapsed")
+        assert block.styles.margin.bottom == 0
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_reasoning_block_expanded_with_trailing_text_has_bottom_margin() -> None:
+    """Expanded reasoning + following text → 1-row gap separates them."""
+    group = MessageGroup(
+        message_id="m1",
+        role="assistant",
+        segments=[
+            Segment(kind="reasoning", text="thoughts"),
+            Segment(kind="text", text="answer"),
+        ],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        block = app.query_one(_ReasoningBlock)
+        block.on_click()
+        await pilot.pause()
+        assert not block.has_class("collapsed")
+        assert block.styles.margin.bottom == 1
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_reasoning_block_expanded_as_last_child_has_no_bottom_margin() -> None:
+    """Reasoning-only message: expanded reasoning is :last-child → no margin.
+
+    The 1-row gap would just stack against the message's own
+    ``margin-bottom: 1`` and read as a wasted blank row.
+    """
+    group = MessageGroup(
+        message_id="m1",
+        role="assistant",
+        segments=[Segment(kind="reasoning", text="thoughts")],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        block = app.query_one(_ReasoningBlock)
+        block.on_click()
+        await pilot.pause()
+        assert not block.has_class("collapsed")
+        assert block.styles.margin.bottom == 0
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_reasoning_block_click_toggles() -> None:
+    """Click expands; click again collapses back to the resting link."""
     group = MessageGroup(
         message_id="m1",
         role="assistant",
@@ -352,12 +443,29 @@ async def test_reasoning_block_toggle_action_expands() -> None:
         await pilot.pause()
         block = app.query_one(_ReasoningBlock)
         assert block.has_class("collapsed")
-        block.action_toggle_reasoning()
+        block.on_click()
         await pilot.pause()
         assert not block.has_class("collapsed")
-        block.action_toggle_reasoning()
+        # Second click collapses back to the hidden state.
+        block.on_click()
         await pilot.pause()
         assert block.has_class("collapsed")
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_message_widget_has_bottom_margin_between_items() -> None:
+    """Messages reserve a 1-row bottom margin for neighbour separation.
+
+    Without it the next message or tool-call card sits flush against
+    the message, which reads as one continuous block.
+    """
+    group = MessageGroup(message_id="m1", role="assistant")
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        mw = app.query_one(MessageWidget)
+        assert mw.styles.margin.bottom == 1
 
 
 # ---------------------------------------------------------------------------
@@ -367,7 +475,7 @@ async def test_reasoning_block_toggle_action_expands() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_renders_kind_icon_and_title() -> None:
+async def test_tool_call_renders_bullet_and_title() -> None:
     state = ToolCallState(
         tool_call_id="tc-1",
         title="read /etc/hosts",
@@ -379,10 +487,11 @@ async def test_tool_call_renders_kind_icon_and_title() -> None:
         await pilot.pause()
         w = app.query_one(ToolCallWidget)
         header = w.query_one(".header", Static)
-        # Header is markup-rendered: tool name bold, args dim. Render
-        # to plain text so we can assert on what the user actually sees.
+        # Header is markup-rendered: coloured bullet, tool name bold,
+        # args dim. Render to plain text so we can assert on what the
+        # user actually sees.
         rendered = header.render_str(str(header.content)).plain
-        assert "📄" in rendered
+        assert rendered.startswith("• ")
         assert "read /etc/hosts" in rendered
         # And the raw markup distinguishes name from args.
         raw = str(header.content)
@@ -533,30 +642,6 @@ async def test_tool_call_truncated_content_expands_on_click() -> None:
         collapsible.on_click()
         await pilot.pause()
         assert len(w.query(".truncation-note")) == 0
-
-
-@skip_if_trio
-@pytest.mark.anyio
-async def test_reasoning_block_click_toggles_expand() -> None:
-    """Reviewer: clicking a reasoning block should toggle expand/collapse."""
-    from inspect_ai.agent._acp.tui.widgets.message import _ReasoningBlock
-
-    group = MessageGroup(
-        message_id="m1",
-        role="assistant",
-        segments=[Segment(kind="reasoning", text="thoughts")],
-    )
-    app = _harness(lambda: MessageWidget(group))
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        block = app.query_one(_ReasoningBlock)
-        assert block.has_class("collapsed")
-        # Drive the click handler directly — the on_click method is
-        # what Textual calls when the user clicks anywhere on the
-        # widget; mirrors what a real mouse click would do.
-        block.on_click()
-        await pilot.pause()
-        assert not block.has_class("collapsed")
 
 
 @skip_if_trio
@@ -1037,3 +1122,316 @@ def test_status_state_enum_membership_is_phase_2_only() -> None:
     """Sanity guard: Phase 2 ships three states; later phases add more."""
     members = {s.value for s in StatusState}
     assert members == {"awaiting_input", "generating", "calling_tools"}
+
+
+# ---------------------------------------------------------------------------
+# Layout palette + spacing
+# ---------------------------------------------------------------------------
+
+
+def test_palette_is_role_to_color_only_no_backgrounds() -> None:
+    """Pins the simplified palette: role identity rides on the chip colour.
+
+    Backgrounds were dropped after the coloured header + indented body
+    proved enough to distinguish speakers — change with intent.
+    ``_PALETTE`` is now ``role -> hex string``, not a nested dict.
+    """
+    from inspect_ai.agent._acp.tui.widgets.message import _PALETTE
+
+    assert set(_PALETTE.keys()) == {"system", "user", "operator", "assistant"}
+    for role, fg in _PALETTE.items():
+        assert isinstance(fg, str), f"{role} should map to a hex string"
+        assert fg.startswith("#"), f"{role} fg should be a hex literal"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_message_widget_has_no_background_for_any_role() -> None:
+    """No role tints the background — the chip colour carries identity.
+
+    Textual reports an untinted widget as a transparent ``Color``;
+    any of the previous hex backgrounds (e.g. ``#262d35``) would
+    have been opaque, so ``is_transparent`` is the regression guard.
+    """
+    cases = [
+        MessageGroup(message_id="m1", role="system"),
+        MessageGroup(message_id="m2", role="user", user_source="input"),
+        MessageGroup(message_id="m3", role="user", user_source="operator"),
+        MessageGroup(message_id="m4", role="assistant"),
+    ]
+    for group in cases:
+        app = _harness(lambda g=group: MessageWidget(g))
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            mw = app.query_one(MessageWidget)
+            assert mw.styles.background.is_transparent, (
+                f"{group.role}: unexpected background {mw.styles.background!r}"
+            )
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_chip_markup_applies_role_color_to_bullet_and_role_word() -> None:
+    """Per-role colour from _PALETTE wraps both the bullet and the role word.
+
+    Pins the palette decisions — a future tweak that accidentally
+    drops the colour from either the bullet or the role word will
+    fail this assertion. Test reads RAW markup (not plain text)
+    because the colour is what we're validating.
+    """
+    from inspect_ai.agent._acp.tui.widgets.message import _PALETTE
+
+    cases = [
+        ("system", MessageGroup(message_id="m1", role="system"), "system"),
+        (
+            "user",
+            MessageGroup(message_id="m2", role="user", user_source="input"),
+            "user",
+        ),
+        (
+            "operator",
+            MessageGroup(message_id="m3", role="user", user_source="operator"),
+            "user",
+        ),
+        ("assistant", MessageGroup(message_id="m4", role="assistant"), "assistant"),
+    ]
+    for key, group, role_word in cases:
+        fg = _PALETTE[key]
+        app = _harness(lambda g=group: MessageWidget(g))
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            chip = app.query_one(MessageWidget).query_one(".chip", Static)
+            raw = str(chip.content)
+            assert f"[{fg}]" in raw, f"{key}: bullet missing {fg} in {raw!r}"
+            assert f"[bold {fg}]{role_word}[/]" in raw, (
+                f"{key}: role word missing colour in {raw!r}"
+            )
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_message_body_has_left_padding_aligning_with_role_word() -> None:
+    """Body padding-left == 2 so content sits under the role word, not the bullet."""
+    group = MessageGroup(
+        message_id="m1",
+        role="assistant",
+        segments=[Segment(kind="text", text="answer")],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        body = app.query_one(MessageWidget).query_one(".body", Vertical)
+        assert body.styles.padding.left == 2
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_message_widget_does_not_mount_segment_spacers() -> None:
+    """Reasoning → text transitions sit flush — no 1-row spacer widget."""
+    group = MessageGroup(
+        message_id="m1",
+        role="assistant",
+        segments=[
+            Segment(kind="reasoning", text="planning"),
+            Segment(kind="text", text="here we go"),
+        ],
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        mw = app.query_one(MessageWidget)
+        assert len(list(mw.query(".segment-spacer"))) == 0
+        # And the body never gets the ``with-content`` toggle class.
+        body = mw.query_one(".body", Vertical)
+        assert not body.has_class("with-content")
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_header_has_blank_row_below_title() -> None:
+    """Header reserves a 1-row gap before the first body item.
+
+    Without it the code block / plan / output sits flush against the
+    title, which reads as one continuous block rather than "title,
+    then body".
+    """
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="read /etc/hosts",
+        kind="read",
+        status="in_progress",
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        header = app.query_one(ToolCallWidget).query_one(".header", Static)
+        assert header.styles.padding.bottom == 1
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_body_is_indented_under_tool_name() -> None:
+    """Body has ``padding-left: 2`` — content lines up under the tool name (not the bullet).
+
+    Parallel to MessageWidget's body indent: bullet sits in its own
+    column, body sits under the role/tool word.
+    """
+    from textual.containers import Vertical
+
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="read /etc/hosts",
+        kind="read",
+        status="in_progress",
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        body = app.query_one(ToolCallWidget).query_one(".body", Vertical)
+        assert body.styles.padding.left == 2
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_footer_is_indented_under_tool_name() -> None:
+    """Footer also indents under the tool name so the whole row reads as one column."""
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash ls",
+        kind="execute",
+        status="in_progress",
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        footer = app.query_one(ToolCallWidget).query_one(".footer", Static)
+        assert footer.styles.padding.left == 2
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_has_no_border() -> None:
+    """No card border — status is carried by the footer glyph alone.
+
+    Pins the visual decision that tool calls share the message
+    widget's flush layout rather than being chrome-wrapped cards.
+    """
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash ls",
+        kind="execute",
+        status="in_progress",
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        w = app.query_one(ToolCallWidget)
+        # styles.border is a Border-tuple-like; "none" / empty type
+        # is the absence-of-border signal across status classes.
+        for edge in ("top", "right", "bottom", "left"):
+            border_type = getattr(w.styles.border, edge)[0]
+            assert border_type in ("", "none", None), (
+                f"{edge} border should be absent, got {border_type!r}"
+            )
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_header_uses_tool_bullet_color() -> None:
+    """Bullet in the header carries ``_TOOL_BULLET_COLOR`` markup.
+
+    Pins the palette decision so a future tweak is intentional.
+    """
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _TOOL_BULLET_COLOR
+
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash ls",
+        kind="execute",
+        status="in_progress",
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        raw = str(app.query_one(ToolCallWidget).query_one(".header", Static).content)
+        assert f"[{_TOOL_BULLET_COLOR}]•[/]" in raw
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_inflight_tool_call_footer_shows_esc_to_interrupt_hint() -> None:
+    """In-flight footer carries a quiet ``(esc to interrupt)`` hint.
+
+    Gives the operator a no-look reminder of the cancel affordance.
+    Hint goes away once the tool reaches a terminal state — at that
+    point Esc is a no-op (gated by ``has_active_work`` on the screen).
+    """
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash",
+        kind="execute",
+        status="in_progress",
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        footer = app.query_one(ToolCallWidget).query_one(".footer", Static)
+        assert "(esc to interrupt)" in str(footer.content)
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_completed_tool_call_footer_omits_esc_hint() -> None:
+    """Terminal tools have nothing to interrupt — drop the hint."""
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash",
+        kind="execute",
+        status="completed",
+        end_time=1.0,
+    )
+    state.start_time = 0.0
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        footer = app.query_one(ToolCallWidget).query_one(".footer", Static)
+        assert "(esc to interrupt)" not in str(footer.content)
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_pending_assistant_chip_shows_esc_to_interrupt_hint() -> None:
+    """Pending assistant chip carries the quiet ``(esc to interrupt)`` hint.
+
+    Visible only while ``pending`` — once content arrives (or the
+    completion marker lands), pending flips false and the hint
+    disappears.
+    """
+    group = MessageGroup(
+        message_id="m1",
+        role="assistant",
+        model="my-model",
+        pending=True,
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        chip = app.query_one(MessageWidget).query_one(".chip", Static)
+        assert "(esc to interrupt)" in str(chip.content)
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_completed_assistant_chip_omits_esc_hint() -> None:
+    """Non-pending assistant chip drops the hint."""
+    group = MessageGroup(
+        message_id="m1",
+        role="assistant",
+        model="my-model",
+        pending=False,
+    )
+    app = _harness(lambda: MessageWidget(group))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        chip = app.query_one(MessageWidget).query_one(".chip", Static)
+        assert "(esc to interrupt)" not in str(chip.content)

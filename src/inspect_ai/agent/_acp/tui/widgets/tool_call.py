@@ -1,14 +1,18 @@
 """Tool-call card widget — renders one :class:`ToolCallState`.
 
-Composition:
+Composition (matches :class:`MessageWidget`'s bullet + indented-body
+layout so tool calls read as another row in the conversation, not a
+visually distinct card):
 
-- Header: kind icon + tool title
-- Body: per content variant (text content blocks, native
-  :class:`FileEditToolCallContent` diff, terminal placeholder)
-- Footer: status chip + client-derived duration
+- Header: coloured bullet + tool name + dim args.
+- Body: indented under the tool name (``padding-left: 2``). Per
+  content variant — text content blocks, native
+  :class:`FileEditToolCallContent` diff, terminal placeholder.
+- Footer: status glyph (✓/✗/spinner) + client-derived duration, also
+  indented under the tool name.
 
-The card border colour propagates from the session status pill: teal
-while in-flight, sage on success, rust on failure.
+Status is carried by the footer glyph alone — no border colour — to
+match the calmer, flush layout the message widget uses.
 """
 
 from __future__ import annotations
@@ -40,47 +44,62 @@ trailing ``[+N more lines]`` indicator tells the operator something
 was elided.
 """
 
-_KIND_ICONS: dict[str | None, str] = {
-    "read": "📄",
-    "edit": "✎",
-    "search": "⌕",
-    "fetch": "↓",
-    "delete": "✕",
-    "move": "→",
-    "execute": "▶",
-    "think": "◆",
-    "switch_mode": "⇄",
-    # Unknown / generic kinds get no glyph — the tool name itself
-    # carries enough signal in the header and a bullet was just
-    # adding visual noise to most cards.
-    "other": "",
-    None: "",
-}
-
 _COMPLETED_GLYPH = "✓"
 _FAILED_GLYPH = "✗"
+
+# Bullet colour for the tool-call header — single static colour so the
+# tool-call header reads as a "row in the conversation" (parallel to
+# the role bullets on MessageWidget). Status info is carried by the
+# footer glyph (✓/✗/spinner) instead of the bullet, the same way
+# MessageWidget keeps its role colour static and lets the chip's
+# spinner reflect pending state. Hex chosen as a Tokyo-Night-ish cyan
+# so tools read distinctly from the system / assistant blue.
+_TOOL_BULLET_COLOR = "#7dcfff"
 
 _PLACEHOLDER_SIG: tuple[Any, ...] = ("placeholder",)
 
 
 class ToolCallWidget(Widget):
-    """Bordered card showing one tool call."""
+    """Bullet-prefixed tool-call row, matched to :class:`MessageWidget`.
+
+    No border: the colour-coded bullet (cyan) plus body indentation
+    are the only structural cues. Status info lives in the footer
+    glyph (✓/✗/spinner), not in chrome around the card.
+    """
 
     DEFAULT_CSS = """
     ToolCallWidget {
         height: auto;
-        margin: 0 2 1 2;
-        padding: 0 1;
-        border: round $primary 40%;
+        /* padding-bottom: 1 (not margin-bottom) is the *only* source
+         * of trailing space below the footer:
+         *   - It replaces the row the old card border occupied, so
+         *     content doesn't look truncated.
+         *   - Being internal, it never gets clipped by VerticalScroll
+         *     when the tool call is the last transcript item.
+         *   - And because there's no margin-bottom on top of it, the
+         *     gap to the next message / tool / composer comes from
+         *     one source instead of two stacking to a 2-row gap.
+         * (MessageWidget achieves the same single-row gap via its
+         * margin-bottom — but messages aren't followed by a chrome
+         * element like a footer, so the clipping risk doesn't bite.) */
+        padding: 0 2 1 2;
     }
-    ToolCallWidget.in-flight { border: round $warning 60%; }
-    ToolCallWidget.completed { border: round $success 50%; }
-    ToolCallWidget.failed { border: round $error; }
+    /* padding-bottom: 1 gives the title row a blank line below it
+     * before the first body item (code block / output / plan), so
+     * the header reads as a heading instead of running into the
+     * body content. */
     ToolCallWidget .header {
         height: auto;
         padding-bottom: 1;
     }
-    ToolCallWidget .body { height: auto; }
+    /* Body + footer share the role-word indent so everything below
+     * the bullet visually lines up under the *tool name* rather than
+     * the bullet itself — parallel to MessageWidget's `.body`
+     * padding-left. */
+    ToolCallWidget .body {
+        height: auto;
+        padding-left: 2;
+    }
     /* Visual separation between successive content items (input view
      * vs output, multiple result blocks) — each item lives in its own
      * ``.content-item`` wrapper so update_state can append-only mount
@@ -94,8 +113,8 @@ class ToolCallWidget(Widget):
     }
     ToolCallWidget .footer {
         color: $text-muted;
-        text-style: italic;
         height: auto;
+        padding-left: 2;
     }
     /* Truncation-note styling is on CollapsibleContent itself —
      * portable across tool cards + message bubbles. */
@@ -449,7 +468,12 @@ class ToolCallWidget(Widget):
     # ------------------------------------------------------------------
 
     def _header_text(self) -> str:
-        """Header: optional icon + bold tool name + dim args.
+        """Header: coloured bullet + bold tool name + dim args.
+
+        Mirrors :meth:`MessageWidget._chip_text` — coloured bullet on
+        the left so the eye reads tool calls as another row in the
+        conversation, with the body indented under the *tool name*
+        rather than the bullet.
 
         The router formats ``title`` via
         :func:`inspect_ai.agent._acp.tool_content.descriptive_title` —
@@ -460,16 +484,15 @@ class ToolCallWidget(Widget):
         on the wire, not the raw ``(fn, arguments)`` pair the function
         needs.
         """
-        icon = _KIND_ICONS.get(self._state.kind, _KIND_ICONS[None])
-        prefix = f"{icon} " if icon else ""
+        fg = _TOOL_BULLET_COLOR
         title = self._state.title or self._state.tool_call_id
         name, _, args = title.partition(" ")
         # Escape brackets in args so any ``[…]`` inside a path or URL
         # isn't interpreted as Rich markup.
         if args:
             args_escaped = args.replace("[", r"\[").replace("]", r"\]")
-            return f"{prefix}[bold]{name}[/bold] [dim]{args_escaped}[/dim]"
-        return f"{prefix}[bold]{name}[/bold]"
+            return f"[{fg}]•[/] [bold]{name}[/bold] [dim]{args_escaped}[/dim]"
+        return f"[{fg}]•[/] [bold]{name}[/bold]"
 
     def _footer_text(self) -> str:
         # Status reads as a single glyph: animated spinner while in
@@ -483,12 +506,13 @@ class ToolCallWidget(Widget):
         else:
             glyph = SPINNER_FRAMES[self._spinner_frame % len(SPINNER_FRAMES)]
         # In-flight: derive elapsed from start_time so the card surfaces
-        # progress without waiting for a terminal status.
+        # progress without waiting for a terminal status, and append a
+        # quiet "(esc to interrupt)" hint so the operator knows the
+        # action is available without having to scan the footer keymap.
         if self._state.is_terminal:
-            duration = format_duration(self._state.duration_seconds)
-        else:
-            duration = format_duration(time.monotonic() - self._state.start_time)
-        return f"{glyph} {duration}"
+            return f"{glyph} {format_duration(self._state.duration_seconds)}"
+        duration = format_duration(time.monotonic() - self._state.start_time)
+        return f"{glyph} {duration} (esc to interrupt)"
 
     def _text_for_inner(self, inner: object) -> str:
         # TextContentBlock → text; everything else gets a placeholder
