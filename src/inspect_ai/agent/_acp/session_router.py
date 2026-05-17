@@ -165,11 +165,18 @@ class Forwarders:
         # or any other transport error), the underlying ``acp`` library's
         # sender task has died — a subsequent live ``send_notification``
         # would enqueue a future with no sender left to complete it.
-        # Skip the live forwarder launch in that case; the connection
-        # is bound but inert until ``stop()`` runs (typically right
-        # away — ``Connection.main_loop`` exits when the sender dies).
+        # Tear down what we've already attached and bail. We can't rely
+        # on ``Connection.main_loop`` exiting to trigger our outer
+        # cleanup: ``acp``'s ``TaskSupervisor`` only logs the dead-task
+        # failure, it doesn't close the receive loop. Without an
+        # explicit ``stop()`` here, the semantic pub/sub subscriber,
+        # raw transcript subscriber, and approver registration would
+        # all stay attached with no forwarder tasks draining them.
+        # ``stop()`` is idempotent and handles partial state (no
+        # ``_semantic_task`` yet, possibly-not-started raw forwarder).
         replay_status = await self._run_replay(snapshot)
         if replay_status.should_exit:
+            await self.stop()
             return
 
         # LIVE forwarders — drain the buffers that have been filling
@@ -308,13 +315,17 @@ class Forwarders:
 
         Returns a :class:`SendStatus`. ``should_exit`` is True iff a
         send failed (disconnect or otherwise) — :meth:`start` checks
-        this and skips launching the live forwarder tasks. The
-        underlying ``acp`` library's sender task dies on any send
-        failure, so a subsequent live send would enqueue a future
-        with no sender left to complete it; the only safe move is to
-        leave the connection bound but inert until ``stop()`` runs
-        (typically right away, as ``Connection.main_loop`` exits when
-        the sender dies).
+        this, calls :meth:`stop` to detach what's already been
+        attached, and returns without launching the live forwarder
+        tasks. The underlying ``acp`` library's sender task dies on
+        any send failure, so a subsequent live send would enqueue a
+        future with no sender left to complete it. We can't wait for
+        ``Connection.main_loop`` to exit and trigger outer cleanup
+        either: ``acp``'s ``TaskSupervisor`` only logs the dead-task
+        failure, it doesn't close the receive loop. The explicit
+        :meth:`stop` call in :meth:`start` is what guarantees the
+        attached subscribers (semantic pub/sub, raw transcript, and
+        approver registration) don't leak.
 
         Per-step error boundary:
         - Raw replay send failure → mirror :class:`SendStatus` and
