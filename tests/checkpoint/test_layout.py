@@ -65,9 +65,7 @@ def test_sidecar_basic_round_trip() -> None:
     assert rehydrated == sidecar
 
 
-@pytest.mark.parametrize(
-    "trigger", ["time", "turn", "manual", "token", "cost", "budget"]
-)
+@pytest.mark.parametrize("trigger", ["time", "turn", "manual"])
 def test_sidecar_accepts_all_documented_triggers(trigger: str) -> None:
     payload = {**_BASE_SIDECAR, "trigger": trigger}
     sidecar = CheckpointSidecar.model_validate(payload)

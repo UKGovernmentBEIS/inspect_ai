@@ -12,6 +12,7 @@ sample-run time, via :func:`build_session` (called from
 from __future__ import annotations
 
 import contextlib
+import copy
 import json
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
@@ -45,7 +46,7 @@ from .checkpointer import (
     Checkpointer,
     ResumeCheckpoint,
 )
-from .config import CheckpointConfig, TimeInterval, TurnInterval
+from .config import CheckpointConfig
 from .hydrate import hydrate
 from .layout import CheckpointTriggerKind, SnapshotInfo
 from .restic import (
@@ -158,8 +159,14 @@ class _EnteredCheckpointer:
         # Sync per-session state — turn counters, callbacks, pools.
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
-        self._turns_since_fire = 0
-        self._last_fire_monotonic = time.monotonic()
+        # Deep-copy the configured trigger so each session has its own
+        # state. The user's config (Sample/Task/eval) may be shared
+        # across many samples; the trigger holds per-session state
+        # (turn counter, time of last fire) and would otherwise mix
+        # between samples.
+        if config.trigger is None:
+            raise ValueError("_EnteredCheckpointer requires `config.trigger` to be set")
+        self._trigger = copy.deepcopy(config.trigger)
         # `checkpoint N` span open across the agent's current
         # work-between-fires window. Owned across `span_session()`'s
         # enter/exit and rotated inside `_fire()`.
@@ -183,16 +190,8 @@ class _EnteredCheckpointer:
 
     async def tick(self) -> None:
         self._turn += 1
-        # The very first tick of the session marks the boundary *before*
-        # any turn has run — agents place `tick()` at the top of their
-        # loop, so tick K stands between turns K-1 and K. Don't count
-        # this boundary toward "turns since last fire"; otherwise
-        # `TurnInterval(every=1)` would fire an empty checkpoint on the
-        # opening tick.
-        if self._turn > 1:
-            self._turns_since_fire += 1
-        if self._should_fire():
-            await self._fire(self._policy_trigger())
+        if self._trigger.tick():
+            await self._fire(self._trigger.kind)
 
     async def checkpoint(self) -> None:
         await self._fire("manual")
@@ -270,29 +269,6 @@ class _EnteredCheckpointer:
             return value
         return initial_value
 
-    def _should_fire(self) -> bool:
-        policy = self._config.trigger
-        if policy == "manual":
-            return False
-        if isinstance(policy, TimeInterval):
-            elapsed = time.monotonic() - self._last_fire_monotonic
-            return elapsed >= policy.every.total_seconds()
-        if isinstance(policy, TurnInterval):
-            return self._turns_since_fire >= policy.every
-        # __init__ rejects the other variants; this is unreachable.
-        raise AssertionError(f"unexpected policy: {policy!r}")
-
-    def _policy_trigger(self) -> CheckpointTriggerKind:
-        policy = self._config.trigger
-        if isinstance(policy, TimeInterval):
-            return "time"
-        if isinstance(policy, TurnInterval):
-            return "turn"
-        # `_should_fire()` returns False for "manual" so we never reach
-        # here from `tick()`; the unimplemented variants are blocked at
-        # construction time.
-        raise AssertionError(f"unexpected policy: {policy!r}")
-
     async def _fire(self, trigger: CheckpointTriggerKind) -> None:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
@@ -360,8 +336,6 @@ class _EnteredCheckpointer:
             sandboxes=sandbox_infos,
             duration_ms=duration_ms,
         )
-        self._turns_since_fire = 0
-        self._last_fire_monotonic = time.monotonic()
 
         # Sidecar is committed; open the next `checkpoint N+1` span so
         # subsequent agent events nest under it.

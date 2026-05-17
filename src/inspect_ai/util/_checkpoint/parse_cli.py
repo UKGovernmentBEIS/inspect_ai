@@ -3,9 +3,9 @@
 Accepted forms (in order of detection):
 
 - ``None`` / empty → ``None`` (checkpointing disabled).
-- ``"<kind>:<value>"`` shorthand where ``kind`` ∈
-  ``{turn, time, token, cost}`` → parsed shorthand trigger.
-- The literal ``"manual"`` → ``trigger="manual"``.
+- ``"<kind>:<value>"`` shorthand where ``kind`` ∈ ``{turn, time}`` →
+  parsed shorthand trigger.
+- The literal ``"manual"`` → ``trigger=Manual()``.
 - Otherwise → treat as a file path; load YAML/JSON via
   :func:`inspect_ai._util.config.resolve_args` and validate against
   :class:`_CheckpointConfigModel`.
@@ -25,16 +25,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inspect_ai._util.config import resolve_args
 
-from .config import (
-    BudgetPercent,
-    CheckpointConfig,
-    CheckpointTrigger,
-    CostInterval,
-    Retention,
-    TimeInterval,
-    TokenInterval,
-    TurnInterval,
-)
+from .config import CheckpointConfig, Retention
+from .triggers import CheckpointTrigger, Manual, TimeInterval, TurnInterval
 
 
 def parse_checkpoint(value: str | None) -> CheckpointConfig | None:
@@ -45,7 +37,7 @@ def parse_checkpoint(value: str | None) -> CheckpointConfig | None:
     if not value:
         return None
     if value == "manual":
-        return CheckpointConfig(trigger="manual")
+        return CheckpointConfig(trigger=Manual())
     match value.partition(":"):
         case ("turn", ":", rest):
             return CheckpointConfig(
@@ -53,14 +45,6 @@ def parse_checkpoint(value: str | None) -> CheckpointConfig | None:
             )
         case ("time", ":", rest):
             return CheckpointConfig(trigger=TimeInterval(every=_parse_duration(rest)))
-        case ("token", ":", rest):
-            return CheckpointConfig(
-                trigger=TokenInterval(every=_parse_positive_int(rest, "token"))
-            )
-        case ("cost", ":", rest):
-            return CheckpointConfig(
-                trigger=CostInterval(every=_parse_positive_float(rest, "cost"))
-            )
         case _:
             return _parse_config_file(value)
 
@@ -75,18 +59,6 @@ def _parse_positive_int(value: str, kind: str) -> int:
     if n <= 0:
         raise ValueError(f"--checkpoint {kind}: value must be > 0, got {n}")
     return n
-
-
-def _parse_positive_float(value: str, kind: str) -> float:
-    try:
-        x = float(value)
-    except ValueError as exc:
-        raise ValueError(
-            f"--checkpoint {kind}: expected a number, got {value!r}"
-        ) from exc
-    if x <= 0:
-        raise ValueError(f"--checkpoint {kind}: value must be > 0, got {x}")
-    return x
 
 
 _DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhd]?)\s*$", re.IGNORECASE)
@@ -123,31 +95,8 @@ class _TimeTriggerModel(BaseModel):
     every: int | float | str
 
 
-class _TokenTriggerModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    type: Literal["token"]
-    every: int = Field(gt=0)
-
-
-class _CostTriggerModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    type: Literal["cost"]
-    every: float = Field(gt=0)
-
-
-class _BudgetTriggerModel(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    type: Literal["budget"]
-    budget: Literal["token", "cost", "time", "working"]
-    percent: float = Field(gt=0)
-
-
 _TriggerModel = Annotated[
-    _TurnTriggerModel
-    | _TimeTriggerModel
-    | _TokenTriggerModel
-    | _CostTriggerModel
-    | _BudgetTriggerModel,
+    _TurnTriggerModel | _TimeTriggerModel,
     Field(discriminator="type"),
 ]
 
@@ -170,7 +119,7 @@ class _CheckpointConfigModel(BaseModel):
 
     def to_dataclass(self) -> CheckpointConfig:
         return CheckpointConfig(
-            trigger=_trigger_model_to_dataclass(self.trigger),
+            trigger=_trigger_model_to_strategy(self.trigger),
             checkpoints_location=self.checkpoints_location,
             sandbox_paths=self.sandbox_paths,
             max_consecutive_failures=self.max_consecutive_failures,
@@ -178,22 +127,16 @@ class _CheckpointConfigModel(BaseModel):
         )
 
 
-def _trigger_model_to_dataclass(
+def _trigger_model_to_strategy(
     model: _TriggerModel | Literal["manual"],
 ) -> CheckpointTrigger:
     match model:
         case "manual":
-            return "manual"
+            return Manual()
         case _TurnTriggerModel(every=n):
             return TurnInterval(every=n)
         case _TimeTriggerModel(every=v):
             return TimeInterval(every=_coerce_duration(v))
-        case _TokenTriggerModel(every=n):
-            return TokenInterval(every=n)
-        case _CostTriggerModel(every=n):
-            return CostInterval(every=n)
-        case _BudgetTriggerModel(budget=b, percent=p):
-            return BudgetPercent(budget=b, percent=p)
 
 
 def _coerce_duration(value: int | float | str) -> timedelta:

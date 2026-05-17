@@ -3,7 +3,7 @@
 These dataclasses are the public surface that users construct when
 configuring checkpointing on a :class:`Sample`, :class:`Task`, or
 ``eval(...)``. Configs at different levels are combined via per-field
-merging — see :func:`merge_checkpoint_configs` in ``_resolve.py``. The
+merging — see :func:`merge_checkpoint_configs` in this module. The
 full semantic model is described in
 ``design/plans/checkpointing-working.md`` §2.
 
@@ -15,70 +15,9 @@ default value." The merge resolver materializes defaults at the end.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Literal
 
-
-@dataclass
-class TimeInterval:
-    """Fire every N of wall-clock time."""
-
-    every: timedelta
-
-
-@dataclass
-class TurnInterval:
-    """Fire every N agent turns."""
-
-    every: int
-
-
-@dataclass
-class TokenInterval:
-    """Fire every N tokens generated. Not yet implemented (Phase 5)."""
-
-    every: int
-
-
-@dataclass
-class CostInterval:
-    """Fire every $N spent. Not yet implemented (Phase 5)."""
-
-    every: float
-
-
-@dataclass
-class BudgetPercent:
-    """Fire at percentage milestones of a named budget. Not yet implemented (Phase 5).
-
-    Example: ``BudgetPercent(budget="cost", percent=10)`` fires at 10%, 20%, …
-    of the ``cost_limit`` configured on the task or sample.
-    """
-
-    budget: Literal["token", "cost", "time", "working"]
-    percent: float
-
-
-CheckpointTrigger = (
-    TimeInterval
-    | TurnInterval
-    | TokenInterval
-    | CostInterval
-    | BudgetPercent
-    | Literal["manual"]
-)
-"""Checkpoint trigger policy.
-
-- :class:`TimeInterval` — every N of wall-clock time
-- :class:`TurnInterval` — every N agent turns
-- :class:`TokenInterval` — every N tokens generated (Phase 5)
-- :class:`CostInterval` — every $N spent (Phase 5)
-- :class:`BudgetPercent` — at percentage milestones of a named budget (Phase 5)
-- ``"manual"`` — agent-triggered via :func:`checkpoint`
-
-To disable checkpointing entirely, omit ``checkpoint=...`` at every
-level (eval / task / sample).
-"""
+from .triggers import CheckpointTrigger
 
 
 @dataclass
@@ -107,9 +46,10 @@ class CheckpointSampleConfig:
     """
 
     trigger: CheckpointTrigger | None = None
-    """Checkpoint trigger. See :data:`CheckpointTrigger`. ``None`` means
-    "inherit from a lower-priority layer"; the final merged config must
-    have a non-None trigger or resolution raises."""
+    """Checkpoint trigger strategy — any implementer of
+    :class:`CheckpointTrigger` (see :mod:`.triggers`). ``None`` means
+    "inherit from a lower-priority layer"; the final merged config
+    must have a non-None trigger or resolution raises."""
 
     sandbox_paths: dict[str, list[str]] | None = None
     """Per-sandbox-name list of absolute paths to capture inside the

@@ -32,6 +32,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.util._checkpoint import (
     CheckpointConfig,
+    Manual,
     TimeInterval,
     TurnInterval,
     checkpointer,
@@ -207,14 +208,14 @@ async def test_time_interval_fires_when_elapsed_exceeds_threshold(dirs: _Dirs) -
 
 
 async def test_manual_policy_tick_never_fires(dirs: _Dirs) -> None:
-    cp = _counting(CheckpointConfig(trigger="manual"), dirs)
+    cp = _counting(CheckpointConfig(trigger=Manual()), dirs)
     for _ in range(50):
         await cp.tick()
     assert cp.fire_count == 0
 
 
 async def test_checkpoint_method_fires(dirs: _Dirs) -> None:
-    cp = _counting(CheckpointConfig(trigger="manual"), dirs)
+    cp = _counting(CheckpointConfig(trigger=Manual()), dirs)
     await cp.tick()
     await cp.checkpoint()
     await cp.checkpoint()

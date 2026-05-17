@@ -13,13 +13,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-CheckpointTriggerKind = Literal["time", "turn", "manual", "token", "cost", "budget"]
+CheckpointTriggerKind = Literal["time", "turn", "manual"]
 """Identifier of which trigger fired, as recorded on the sidecar.
 
-Distinct from :data:`inspect_ai.util._checkpoint.CheckpointTrigger`, which is
-the *configuration* type (a union of `TimeInterval`/`TurnInterval`/etc.
-plus the ``"manual"`` literal). This is the runtime *label* for the
-configured trigger that fired this checkpoint.
+Distinct from :class:`inspect_ai.util._checkpoint.triggers.CheckpointTrigger`,
+which is the strategy protocol implemented by each trigger. This is
+the runtime *label* recorded on the sidecar for the trigger that
+fired this checkpoint.
 """
 
 
