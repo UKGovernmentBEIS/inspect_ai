@@ -165,6 +165,32 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             return filesystem(filename).info(filename)
 
+    async def exists(self, filename: str) -> bool:
+        """Return True if `filename` exists, False otherwise."""
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            if current_async_backend() == "asyncio":
+                from botocore.exceptions import ClientError
+
+                try:
+                    await (await self.s3_client_async()).head_object(
+                        Bucket=bucket, Key=key
+                    )
+                    return True
+                except ClientError as e:
+                    if e.response.get("Error", {}).get("Code") in (
+                        "404",
+                        "NoSuchKey",
+                        "NotFound",
+                    ):
+                        return False
+                    raise
+            return await anyio.to_thread.run_sync(
+                s3_exists, self.s3_client(), bucket, key
+            )
+        else:
+            return filesystem(filename).exists(filename)
+
     async def read_file(self, filename: str) -> bytes:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
@@ -308,6 +334,20 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             ) as f:
                 shutil.copyfileobj(source, f, length=_STREAMING_COPY_BUFSIZE)
 
+    async def get_file(self, remote: str, local: str) -> None:
+        """Download `remote` to local path `local`."""
+        if is_s3_filename(remote):
+            bucket, key = s3_bucket_and_key(remote)
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                await client.download_file(Bucket=bucket, Key=key, Filename=local)
+            else:
+                await anyio.to_thread.run_sync(
+                    s3_get_file, self.s3_client(), bucket, key, local
+                )
+        else:
+            filesystem(remote).get_file(remote, local)
+
     @override
     async def __aenter__(self) -> "AsyncFilesystem":
         existing = _current_async_fs.get()
@@ -441,6 +481,22 @@ def s3_write_file_streaming(s3: Any, bucket: str, key: str, source: BinaryIO) ->
     s3.upload_fileobj(
         Fileobj=source, Bucket=bucket, Key=key, Config=_s3_transfer_config()
     )
+
+
+def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:
+    s3.download_file(Bucket=bucket, Key=key, Filename=filename)
+
+
+def s3_exists(s3: Any, bucket: str, key: str) -> bool:
+    from botocore.exceptions import ClientError
+
+    try:
+        s3.head_object(Bucket=bucket, Key=key)
+        return True
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+            return False
+        raise
 
 
 def s3_bucket_and_key(filename: str) -> tuple[str, str]:
