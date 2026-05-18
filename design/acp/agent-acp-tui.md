@@ -11,7 +11,7 @@ For the broader ACP design (server, sessions, router, asyncio boundary, phased b
 ## Constraints
 
 - **Standalone client** — the TUI is built as a self-contained Textual app and **does not reuse existing Textual code in this repo** (e.g. the `--display full` app under `src/inspect_ai/_display/textual/`). We may want to ship the `inspect acp` binary separately from the main `inspect` package, so its only hard dependencies are `textual` itself, the `acp` Python library, and a thin slice of types shared with the ACP server side.
-- **Single sample per attach** for v1; multi-sample navigation is Phase 7.
+- **Single sample per attach** for v1; multi-sample navigation is Phase 8.
 - **asyncio at the transport leaf** — same constraint as the rest of the ACP code (see [`agent-acp.md`](agent-acp.md) "asyncio / anyio boundary"); the `acp` library requires it.
 
 ## Screens
@@ -190,7 +190,31 @@ Distinct from `Esc` (which fires `session/cancel` and cancels the whole turn inc
 - Manual: start a long-running tool, cancel just that tool via the per-card affordance, confirm sibling tools + the model loop keep going.
 - Automated: pilot test for the card-level cancel sequence; integration test pinning that `inspect/cancel_tool_call` is sent with the matching `toolCallId`.
 
-### Phase 3 — Cancel Sample modal
+### Phase 3 — Queued user messages
+
+Let the operator send a message while the agent is busy — type, hit Enter, message lands in the queue and is delivered at the next turn boundary without interrupting the current one. Today the only path during a busy state is `Esc` → interrupt → type → send, which discards in-flight work; queuing is what you want when "this current turn is fine, but here's one more thing for the next one."
+
+The protocol primitive already exists — `agent-acp.md` Phase 3 shipped `submit_user_message()` queuing and `before_turn()` draining. This phase adds the TUI surface so the operator can actually use the queue.
+
+**Ships**
+
+- Composer accepts Enter while the pill is `Generating` / `Calling tools` — the send fires `session/prompt` (which fans out to `submit_user_message` on the agent side) without firing `session/cancel`. Sends during `Awaiting input` keep their existing immediate-delivery semantics.
+- Composer Enter stays disabled in `Scoring` / `Completed` / `Errored` — there's no further `before_turn` to drain into, so a "queued" send would silently disappear.
+- Queued-message visual in the transcript: messages sent during `Generating` / `Calling tools` render with a `queued · awaits next turn` chip in lieu of the normal `user · operator` chip. The chip resolves to the normal treatment when the agent's next `before_turn` picks the message up.
+- Status-row indicator: `N queued` chip next to the pill while one or more messages are queued but undrained. Clears as the queue empties.
+- `Esc` semantics unchanged — it still interrupts the current turn. The two paths now coexist: queue (deliver later, current turn keeps running) vs interrupt (deliver now, current turn is cut short).
+
+**Protocol extensions landed**: none expected — uses the already-shipped `submit_user_message` / `before_turn` drain path. Any extension that proves necessary during implementation (e.g. a server → client confirmation so the client can reliably clear the queued chip) is recorded in [`agent-acp.md`](agent-acp.md) per the convention above.
+
+**Acceptance**
+
+- Manual: type during `Calling tools`, hit Enter — queued chip appears, status-row counter shows `1 queued`; current turn completes; next turn begins with the operator message visible in the transcript, queued chip cleared.
+- Manual: queue several messages back-to-back during one turn — all drain in order at the next `before_turn`.
+- Manual: `Esc` → interrupt still works and does not double-deliver any already-queued message.
+- Manual: composer Enter is disabled in `Scoring` / `Completed` / `Errored`.
+- Automated: pilot tests for the queued-send path, the queued-chip → normal-chip transition, the status-row counter increment/clear, and the disabled-send guard in non-draining states.
+
+### Phase 4 — Cancel Sample modal
 
 Gives the operator a way to terminate a single sample without killing the whole eval process. Server-side `inspect/cancel_sample` is already implemented; this phase adds the keyboard surface.
 
@@ -206,9 +230,9 @@ Gives the operator a way to terminate a single sample without killing the whole 
 - Manual: `^X` modal — both cancel-with-score and cancel-with-error paths verified end-to-end.
 - Automated: pilot tests for both dispositions; pilot test confirming the `[e] error` row is hidden under `fail_on_error=True`.
 
-### Phase 4 — Terminal states & connection resilience
+### Phase 5 — Terminal states & connection resilience
 
-What the operator sees when things end (well or badly) and when the connection drops. Through Phase 3 the TUI works on the happy path; this phase covers what users actually see when things go wrong.
+What the operator sees when things end (well or badly) and when the connection drops. Through Phase 4 the TUI works on the happy path; this phase covers what users actually see when things go wrong.
 
 **Ships**
 
@@ -224,7 +248,7 @@ What the operator sees when things end (well or badly) and when the connection d
 - Manual: complete-normally → green banner. Force-error → red banner with traceback frames. Kill + restart the server during a stream → client reconnects and missed events replay.
 - Automated: pilot tests for both terminal banners; integration test for the disconnect / replay path using an in-process server fixture.
 
-### Phase 5 — Scoring lifecycle
+### Phase 6 — Scoring lifecycle
 
 A design problem the prior schedule missed: **scoring runs AFTER the agent's `acp_session()` context manager exits**, so scoring events (`ScoreEvent`s mid-stream, final score on the sample-completed banner) never reach attached clients today. The connection has already closed by the time the scorer fires.
 
@@ -237,7 +261,7 @@ A design problem the prior schedule missed: **scoring runs AFTER the agent's `ac
 5. Scorer runs — emits `ScoreEvent`s into the transcript. No ACP client is listening any more.
 6. Sample completes.
 
-Steps 5–6 are invisible to ACP clients. Phase 4's "completed banner with score line" depends on this gap being closed.
+Steps 5–6 are invisible to ACP clients. Phase 5's "completed banner with score line" depends on this gap being closed.
 
 **Design work**
 
@@ -257,10 +281,10 @@ Pick one of:
 
 **Acceptance**
 
-- Manual: eval with a multi-turn scorer; mid-stream scores appear as chips in the TUI; final score appears in the Phase 4 completed banner.
+- Manual: eval with a multi-turn scorer; mid-stream scores appear as chips in the TUI; final score appears in the Phase 5 completed banner.
 - Automated: integration test pinning that the connection stays open through scoring; pilot tests for the score chips and the completed banner's score line.
 
-### Phase 6 — Rich event rendering
+### Phase 7 — Rich event rendering
 
 Fidelity work: covers every remaining event type from the events-stream mockup. Doesn't unlock new capability, but it's what makes the transcript actually readable for non-trivial agents.
 
@@ -282,7 +306,7 @@ Fidelity work: covers every remaining event type from the events-stream mockup. 
 - Manual: a synthetic eval emits every variant; each renders per the mockups.
 - Automated: snapshot test per variant.
 
-### Phase 7 — Picker theming / appearance / functionality
+### Phase 8 — Picker theming / appearance / functionality
 
 Improvements to the attach picker — both visual polish and live-multi-sample ergonomics. The shipped picker is functional but minimal; this phase makes it pleasant to live with as evals proliferate and incorporates the original "multi-sample navigation" goal as one piece of the broader picker rework.
 
