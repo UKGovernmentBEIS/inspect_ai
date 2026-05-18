@@ -161,7 +161,9 @@ def test_sandbox_basemodel_config(capsys) -> None:
         image: str
         memory: str = "2g"
 
-    log = _make_log(SandboxEnvironmentSpec(type="docker", config=DockerConfig(image="ubuntu")))
+    log = _make_log(
+        SandboxEnvironmentSpec(type="docker", config=DockerConfig(image="ubuntu"))
+    )
     d = eval_log_to_run_config_dict(log)
 
     assert d["sandbox"] == "docker"
