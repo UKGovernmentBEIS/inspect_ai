@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -20,8 +20,12 @@ from unittest.mock import patch
 
 import pytest
 
+from inspect_ai.dataset import Sample
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.log import expand_events
+from inspect_ai.log._transcript import Transcript
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -80,16 +84,20 @@ class _Dirs:
 def _patch_sample_runtime() -> Iterator[None]:
     """Patch sample_state() and transcript() for tests that drive _fire.
 
-    `_Checkpointer._fire` reads ``sample_state().store`` and
-    ``transcript().events`` directly from ContextVars. Tests that
-    construct `_Checkpointer` outside a real sample run need stand-ins.
+    `_Checkpointer._fire` reads ``sample_state().store`` and subscribes to
+    ``transcript()`` directly from ContextVars. Tests that construct
+    `_Checkpointer` outside a real sample run need stand-ins.
     """
     from types import SimpleNamespace
 
     from inspect_ai.util._store import Store
 
     fake_state = SimpleNamespace(store=Store())
-    fake_transcript = SimpleNamespace(events=[], attachments={})
+
+    def subscribe(callback: object) -> Callable[[], None]:
+        return lambda: None
+
+    fake_transcript = SimpleNamespace(attachments={}, events=[], subscribe=subscribe)
     with (
         patch(
             "inspect_ai.util._checkpoint.checkpointer_impl.sample_state",
@@ -363,6 +371,23 @@ async def test_fire_writes_manifest_and_sidecars(
     assert (sample_working / "store.json").is_file()
 
 
+async def test_checkpointer_unsubscribes_transcript_on_exit(
+    active_sample: _FakeActiveSample,
+) -> None:
+    """Public context teardown releases the real transcript subscription."""
+    active_sample.checkpoint = CheckpointConfig(trigger=TurnInterval(every=1))
+    real_transcript = Transcript()
+
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+        return_value=real_transcript,
+    ):
+        async with checkpointer():
+            assert len(real_transcript._event_loggers) == 1
+
+    assert real_transcript._event_loggers == []
+
+
 # === _write_host_context: condensed events round-trip =======================
 
 
@@ -539,7 +564,7 @@ async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
 
 
 async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> None:
-    """Each fire processes only the new event slice; pool + events grow append-only."""
+    """Each fire processes only new subscribed events; pool + events grow append-only."""
     msg_sys: ChatMessage = ChatMessageSystem(content="sys")
     msg_u1: ChatMessage = ChatMessageUser(content="q1")
     msg_a1: ChatMessage = ChatMessageAssistant(content="a1")
@@ -559,8 +584,8 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
         _model_event([msg_sys, msg_u1]),
         _model_event([msg_sys, msg_u1, msg_a1]),
     ]
-    # Fire 2 appends one more event; the prior two stay condensed-as-is.
-    fire2_events = [*fire1_events, _model_event([msg_sys, msg_u1, msg_a1, msg_u2])]
+    # Fire 2 receives one more event; the prior two stay condensed-as-is.
+    fire2_events = [_model_event([msg_sys, msg_u1, msg_a1, msg_u2])]
 
     work = tmp_path / "work"
     work.mkdir()
@@ -577,7 +602,6 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
     events_after_1 = json.loads((work / "events.json").read_text())
     assert len(pool_after_1) == 3  # sys, u1, a1
     assert len(events_after_1) == 2
-    assert cp._events_consumed == 2
 
     await cp._write_host_context(str(work), fire2_events, {}, Store())
     pool_after_2 = json.loads((work / "events_data.json").read_text())["messages"]
@@ -588,7 +612,6 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
     # Events grew by one; the first two are byte-identical to fire 1.
     assert events_after_2[:2] == events_after_1
     assert len(events_after_2) == 3
-    assert cp._events_consumed == 3
 
     # Full round-trip still works on the cumulative output.
     expanded = expand_events(
@@ -597,3 +620,107 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
     )
     model_events = [e for e in expanded if isinstance(e, ModelEvent)]
     assert [len(e.input) for e in model_events] == [2, 3, 4]
+
+
+async def test_fire_collapses_same_cycle_event_updates(tmp_path: Path) -> None:
+    """Append + update notifications serialize once with the event's final state."""
+    work = tmp_path / "work"
+    work.mkdir()
+    transcript = Transcript()
+    cp = _Checkpointer(
+        config=CheckpointConfig(trigger=TurnInterval(every=1)),
+        sample_checkpoints_dir=str(tmp_path / "ckpts"),
+        sample_working_dir=str(work),
+        host_restic=Path("/fake"),
+        restic_password="pwd",
+    )
+    event = InfoEvent(data="first")
+
+    from types import SimpleNamespace
+
+    with (
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.sample_state",
+            return_value=SimpleNamespace(store=Store()),
+        ),
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+            return_value=transcript,
+        ),
+        patch.object(cp, "_backup_host", return_value=_fake_summary(1)),
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.write_sidecar",
+        ),
+    ):
+        cp._ensure_transcript_subscription()
+        transcript._event(event)
+        event.data = "updated"
+        transcript._event_updated(event)
+        await cp._fire("manual")
+
+    events = json.loads((work / "events.json").read_text())
+    assert len(events) == 1
+    assert events[0]["uuid"] == event.uuid
+    assert events[0]["data"] == "updated"
+
+
+async def test_late_checkpointer_subscription_rejects_truncated_transcript(
+    tmp_path: Path,
+) -> None:
+    transcript = Transcript(bounded=True, resident_tail=1)
+    transcript._event(InfoEvent(data="evicted"))
+    transcript._event(InfoEvent(data="resident"))
+    cp = _Checkpointer(
+        config=CheckpointConfig(trigger=TurnInterval(every=1)),
+        sample_checkpoints_dir=str(tmp_path / "ckpts"),
+        sample_working_dir=str(tmp_path / "work"),
+        host_restic=Path("/fake"),
+        restic_password="pwd",
+    )
+
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+        return_value=transcript,
+    ):
+        with pytest.raises(RuntimeError, match="Cannot seed checkpoint events"):
+            cp._ensure_transcript_subscription()
+
+
+async def test_fire_seeds_events_emitted_before_subscription(tmp_path: Path) -> None:
+    """First fire includes transcript events that already existed at subscribe time."""
+    work = tmp_path / "work"
+    work.mkdir()
+    transcript = Transcript()
+    cp = _Checkpointer(
+        config=CheckpointConfig(trigger=TurnInterval(every=1)),
+        sample_checkpoints_dir=str(tmp_path / "ckpts"),
+        sample_working_dir=str(work),
+        host_restic=Path("/fake"),
+        restic_password="pwd",
+    )
+    init_event = SampleInitEvent(sample=Sample(input="hi", id="s1"), state={})
+    later_event = InfoEvent(data="after")
+
+    from types import SimpleNamespace
+
+    transcript._event(init_event)
+    with (
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.sample_state",
+            return_value=SimpleNamespace(store=Store()),
+        ),
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+            return_value=transcript,
+        ),
+        patch.object(cp, "_backup_host", return_value=_fake_summary(1)),
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.write_sidecar",
+        ),
+    ):
+        cp._ensure_transcript_subscription()
+        transcript._event(later_event)
+        await cp._fire("manual")
+
+    events = json.loads((work / "events.json").read_text())
+    assert [event["uuid"] for event in events] == [init_event.uuid, later_event.uuid]

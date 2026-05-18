@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import os
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -18,6 +19,11 @@ from inspect_ai._util.content import ContentReasoning
 from inspect_ai._util.text import truncate_lines
 
 from .format import format_function_call
+
+
+def transcript_bounded_enabled() -> bool:
+    value = os.environ.get("INSPECT_TRANSCRIPT_BOUNDED", "false").lower()
+    return value in {"1", "true", "yes", "on"}
 
 
 def transcript_code_theme() -> str:

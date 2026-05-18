@@ -18,7 +18,7 @@ import json
 from collections.abc import Mapping, Sequence
 from typing import Final, TypeVar
 
-from pydantic import JsonValue
+from pydantic import JsonValue, TypeAdapter
 
 from inspect_ai._util.hash import mm3_hash
 from inspect_ai.model._chat_message import ChatMessage
@@ -26,6 +26,10 @@ from inspect_ai.model._chat_message import ChatMessage
 from ..event._event import Event
 from ..event._model import ModelEvent
 from ._log import EvalSample
+
+_chat_message_list_adapter: TypeAdapter[list[ChatMessage]] = TypeAdapter(
+    list[ChatMessage]
+)
 
 
 def _msg_hash(msg: ChatMessage) -> str:
@@ -268,7 +272,9 @@ def resolve_sample_events_data(sample: EvalSample) -> EvalSample:
     """
     if sample.events_data is None:
         return sample
-    msg_pool = sample.events_data["messages"]
+    msg_pool = _chat_message_list_adapter.validate_python(
+        sample.events_data["messages"], context={"deserializing": True}
+    )
     call_pool = sample.events_data["calls"]
     resolved_events = resolve_model_event_inputs(sample.events, msg_pool)
     resolved_events = resolve_model_event_calls(resolved_events, call_pool)
