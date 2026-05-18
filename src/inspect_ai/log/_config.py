@@ -96,6 +96,16 @@ def eval_log_to_run_config_dict(log: EvalLog) -> dict[str, Any]:
             cfg = spec.sandbox.config
             if isinstance(cfg, str) and cfg:
                 out["sandbox"] = f"{spec.sandbox.type}:{cfg}"
+            elif hasattr(cfg, "model_dump"):
+                import sys
+
+                print(
+                    f"Warning: sandbox config is a Python object ({type(cfg).__name__}) "
+                    "and cannot be fully exported. Only the sandbox type has been included — "
+                    "you will need to supply the sandbox config manually when re-running.",
+                    file=sys.stderr,
+                )
+                out["sandbox"] = spec.sandbox.type
             else:
                 out["sandbox"] = spec.sandbox.type
         elif isinstance(spec.sandbox, str):

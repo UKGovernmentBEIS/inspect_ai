@@ -3,13 +3,29 @@ import tempfile
 from pathlib import Path
 
 import yaml
+from pydantic import BaseModel
 
 from inspect_ai import Task, eval, task
 from inspect_ai.dataset import Sample
 from inspect_ai.log._config import eval_log_to_run_config_dict
 from inspect_ai.log._file import list_eval_logs, read_eval_log
+from inspect_ai.log._log import EvalConfig, EvalDataset, EvalLog, EvalSpec
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.solver import SolverSpec, solver
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
+
+
+def _make_log(sandbox: SandboxEnvironmentSpec | None = None) -> EvalLog:
+    return EvalLog(
+        eval=EvalSpec(
+            task="test_task",
+            model="mockllm/model",
+            created="2024-01-01T00:00:00Z",
+            dataset=EvalDataset(),
+            config=EvalConfig(),
+            sandbox=sandbox,
+        )
+    )
 
 
 @solver
@@ -126,3 +142,27 @@ def test_eval_log_run_config_round_trip() -> None:
     assert log2.eval.model_roles["grader"].model == "mockllm/model"
     assert log2.eval.model_roles["grader"].config.temperature == 0.3
     assert log2.eval.model_roles["grader"].config.max_tokens == 500
+
+
+def test_sandbox_string_config() -> None:
+    log = _make_log(SandboxEnvironmentSpec(type="docker", config="compose.yaml"))
+    d = eval_log_to_run_config_dict(log)
+    assert d["sandbox"] == "docker:compose.yaml"
+
+
+def test_sandbox_no_config() -> None:
+    log = _make_log(SandboxEnvironmentSpec(type="local"))
+    d = eval_log_to_run_config_dict(log)
+    assert d["sandbox"] == "local"
+
+
+def test_sandbox_basemodel_config(capsys) -> None:
+    class DockerConfig(BaseModel):
+        image: str
+        memory: str = "2g"
+
+    log = _make_log(SandboxEnvironmentSpec(type="docker", config=DockerConfig(image="ubuntu")))
+    d = eval_log_to_run_config_dict(log)
+
+    assert d["sandbox"] == "docker"
+    assert "DockerConfig" in capsys.readouterr().err
