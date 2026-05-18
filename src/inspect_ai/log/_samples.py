@@ -74,6 +74,8 @@ class ActiveSample:
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
         self.event_done: anyio.Event | None = None
+        self.event_queue_warned: bool = False
+        """True once we've logged a queue-saturation warning for this sample."""
 
     def start(self, tg: TaskGroup) -> None:
         self.started = datetime.now(timezone.utc).timestamp()
