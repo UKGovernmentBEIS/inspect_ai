@@ -303,13 +303,16 @@ async def test_session_prompt_forwards_to_submit_user_message(
 async def test_session_prompt_marks_connection_as_active_driver(
     short_data_dir: Path, register_target
 ) -> None:
-    """A bound `session/prompt` also promotes the connection to active approver-driver.
+    """`session/new` auto-bind AND `session/prompt` both promote the connection.
 
     Pinned because the single-driver approval semantic depends on
-    this: the most-recently-prompted client wins the next
-    ``session/request_permission``. If the connection handler
-    skipped ``mark_active_approver_client``, the chain would always
-    fall back to first-attached and operator intent would be lost.
+    this: each deliberate operator action (bind via session/new or
+    session/load, prompt via session/prompt) makes that connection
+    the active approver-driver. Without the bind-time promotion, a
+    re-attaching operator would not pick up an in-flight approval
+    that was orphaned by a previous client disconnect — see
+    ``_request_from_driver_with_fallback`` for the wait-and-retry
+    side.
     """
     session, _tr = _make_live_session_with_transcript()
     mark_calls: list[Any] = []
@@ -331,6 +334,13 @@ async def test_session_prompt_marks_connection_as_active_driver(
             target_id = resp["result"]["sessionId"]
             await _drain_bind_preamble(client)
 
+            # session/new auto-bind has already promoted the connection
+            # once via _post_bind_setup_locked.
+            from inspect_ai.agent._acp.connection import ConnectionHandler
+
+            assert len(mark_calls) == 1
+            assert isinstance(mark_calls[0], ConnectionHandler)
+
             await client.request(
                 "session/prompt",
                 {
@@ -339,12 +349,55 @@ async def test_session_prompt_marks_connection_as_active_driver(
                 },
             )
 
-            # Exactly one mark — the connection promoted itself.
-            assert len(mark_calls) == 1
-            # The promoted client is the ConnectionHandler (it
-            # implements ApproverClient via its `request_permission`).
+            # session/prompt promotes again — same connection.
+            assert len(mark_calls) == 2
+            assert mark_calls[1] is mark_calls[0]
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_session_load_marks_connection_as_active_driver(
+    short_data_dir: Path, register_target
+) -> None:
+    """`session/load` promotes the loading connection to active approver-driver.
+
+    This is the "re-attach grabs the stick" behavior: an operator
+    re-attaching to a running session becomes the active driver so
+    any in-flight approval that was orphaned when the previous
+    client disconnected is re-issued to them. Without this
+    promotion, the approval would route to the original
+    first-attached client (which may be gone) and the operator
+    would never see it.
+    """
+    session, _tr = _make_live_session_with_transcript()
+    mark_calls: list[Any] = []
+    session.mark_active_approver_client = (  # type: ignore[method-assign]
+        lambda client: mark_calls.append(client)
+    )
+
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    async with acp_server(eval_id="evt-load-mark", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            await client.request(
+                "session/load",
+                {
+                    "cwd": "/tmp",
+                    "mcpServers": [],
+                    "sessionId": session.session_id,
+                },
+            )
+            await _drain_bind_preamble(client)
+
             from inspect_ai.agent._acp.connection import ConnectionHandler
 
+            assert len(mark_calls) == 1
             assert isinstance(mark_calls[0], ConnectionHandler)
         finally:
             await client.close()

@@ -169,6 +169,23 @@ class NoOpAcpSession:
         """No-op session never has attached approver clients."""
         return False
 
+    def has_ever_had_approver_client(self) -> bool:
+        """No-op session never had approver clients."""
+        return False
+
+    def subscribe_approver_attach(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """No-op subscribe — no attaches can fire on the no-op session."""
+
+        def _noop_unsubscribe() -> None:
+            return None
+
+        return _noop_unsubscribe
+
+    def notify_approver_attach(self, client: ApproverClient) -> None:
+        """No-op: no subscribers can be registered on the no-op session."""
+
     def mark_active_approver_client(self, client: ApproverClient) -> None:
         """No-op: nothing to promote in the no-op session."""
 

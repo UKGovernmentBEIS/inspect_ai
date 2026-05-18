@@ -337,6 +337,9 @@ class AcpSession(Protocol):
 
         Returns an idempotent unsubscribe callable. No-op session
         returns a no-op unsubscribe (no clients can attach).
+
+        Attaching the same client object twice is not supported —
+        each connection is its own approver-client instance.
         """
         ...
 
@@ -345,6 +348,41 @@ class AcpSession(Protocol):
 
         Cheap predicate used by the human-approver to decide whether
         to route via ACP. No-op session always returns False.
+        """
+        ...
+
+    def has_ever_had_approver_client(self) -> bool:
+        """True if any approver client has attached during this session.
+
+        One-way bit: flips True on first attach and never resets.
+        Used by the approval shim to distinguish "no operator ever
+        connected" from "operator attached then disconnected
+        mid-approval". No-op session always returns False.
+        """
+        ...
+
+    def subscribe_approver_attach(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Register ``callback`` to fire on :meth:`notify_approver_attach`.
+
+        Used by the approval shim to park until a fresh client is
+        fully ready after the current driver chain exhausts. Returns
+        an idempotent unsubscribe callable. No-op session returns a
+        no-op unsubscribe.
+        """
+        ...
+
+    def notify_approver_attach(self, client: ApproverClient) -> None:
+        """Promote ``client`` from pending to ready and fire subscribers.
+
+        Decoupled from :meth:`attach_approver_client` (which runs
+        before replay and registers as pending) so subscribers wake
+        only after replay completes AND the connection has promoted
+        itself via :meth:`mark_active_approver_client`. Half-bound
+        clients are invisible to :meth:`approver_driver_chain` until
+        this notification fires. The connection handler invokes this
+        from its post-bind setup. No-op session does nothing.
         """
         ...
 

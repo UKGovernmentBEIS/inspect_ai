@@ -997,9 +997,35 @@ class ConnectionHandler:
         lock for its whole body, so the deferred / locked split
         avoids re-entry) and via ``_post_bind_setup`` for the
         deferred newSession / loadSession paths.
+
+        After forwarders are up we promote ourselves to the active
+        approver-driver for the bound session, THEN wake any parked
+        approval shim via ``notify_approver_attach``. Every path
+        through here (``session/load``, ``session/new`` auto-bind,
+        picker selection) is a deliberate "this client is now
+        driving" signal, parallel to the ``session/prompt`` promotion
+        at the bound-mode prompt handler.
+
+        Ordering matters: promote-then-notify ensures a parked shim
+        re-snapshots a driver chain that already has THIS connection
+        at position 0, so the re-issued approval routes here rather
+        than to a stale first-attached client. The notification fires
+        ONLY here (not from the registry's ``attach``), so subscribers
+        wake after replay completes and the forwarder is live — no
+        race where the operator sees an approval card before the
+        conversation context replays.
+
+        Silently no-ops if the live session disappeared between
+        ``_start_forwarders`` and now (e.g. sample finished); also
+        no-ops if we aren't a registered approver client, which can
+        happen if forwarder startup raised partway through.
         """
         await self._notify_binding(target)
         await self._start_forwarders(target.session_id)
+        live = _find_live_session(target.session_id)
+        if live is not None:
+            live.mark_active_approver_client(self)
+            live.notify_approver_attach(self)
 
     async def _send_notification_if_current(self, notification: Any, gen: int) -> None:
         """Send a ``session/update`` only if the bind generation still matches.

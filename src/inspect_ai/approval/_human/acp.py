@@ -43,7 +43,7 @@ even though the orchestration is asyncio.
 from __future__ import annotations
 
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Callable, Protocol, cast
 
 import anyio
 from acp.schema import (
@@ -70,6 +70,25 @@ if TYPE_CHECKING:
     from inspect_ai.tool._tool_call import ToolCallContent
 
 logger = getLogger(__name__)
+
+
+class _ApprovalRoutingSession(Protocol):
+    """Narrowed view of ``AcpSession`` for the approval shim.
+
+    Only the three primitives the shim actually uses: the driver-chain
+    snapshot, the one-way "has ever attached" bit, and the attach
+    subscription. Narrowed (rather than parameterising on the full
+    :class:`~inspect_ai.agent._acp.session.AcpSession`) so tests can
+    pass a minimal stub without implementing the full session surface.
+    """
+
+    def approver_driver_chain(self) -> list["ApproverClient"]: ...
+
+    def has_ever_had_approver_client(self) -> bool: ...
+
+    def subscribe_approver_attach(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]: ...
 
 
 # Stable mapping from the configured ``human_approver`` choices to
@@ -361,86 +380,136 @@ def _build_request(
 
 
 async def _request_from_driver_with_fallback(
-    clients_in_order: list[ApproverClient],
+    session: _ApprovalRoutingSession,
     request: RequestPermissionRequest,
     choices: list[ApprovalDecision],
 ) -> Approval | None:
-    """Send ``request`` to the driver; fall through to the next on failure.
+    """Send ``request`` to the driver; park-and-retry on chain exhaustion.
 
-    ``clients_in_order`` is the session's driver chain (driver first,
-    other attached clients in attach order). Single-driver semantics
-    replaced the previous broadcast/race model because ACP has no
-    protocol-level cancel for outbound requests — broadcasting left
-    losing editors with a stale permission card forever. Routing to
-    one client at a time means the operator only sees the prompt on
-    the client they're actually using.
+    Routing model: single-driver, with a fallback chain. ACP has no
+    protocol-level cancel for outbound requests, so broadcasting to N
+    clients leaves the losers' editors showing a stale permission card
+    forever (whatever they click later is silently discarded). Picking
+    one driver keeps the UX coherent.
 
-    Fallback shape: if the driver's request raises (typically
-    ``ConnectionError`` on mid-prompt disconnect, or any other
-    transport-level failure), move on to the next client in the
-    chain. Cancellation (``CancelledError`` from sample-level cancel)
-    propagates to the caller; we don't catch it.
+    Behavior (per iteration):
 
-    Returns ``None`` when every client in the chain raised — caller
-    falls back to the in-proc panel / console flow.
+    1. **Subscribe FIRST** to the next-attach event, so any attach
+       that races our snapshot/dispatch lands on a live subscriber
+       (and ``anyio.Event.set`` makes the subsequent ``event.wait``
+       return immediately). Critical: doing this AFTER the snapshot
+       creates a window where an attach fires with no subscriber and
+       we park forever despite a live client being present.
+    2. Snapshot the driver chain. If empty AND no ACP client has ever
+       attached to this session (``--acp-server`` + TTY case where no
+       operator ran ``inspect acp`` yet), return ``None`` so the caller
+       falls back to the in-proc panel.
+    3. Otherwise, try each client in chain order. Drain notifications
+       first (best-effort ordering barrier), then ``request_permission``.
+       On success, return the approval. On per-client failure, try
+       the next.
+    4. If every client in the snapshot raised (operator switched
+       away mid-approval) — or the chain was empty-but-ever-attached
+       — park on the attach event we subscribed in step 1. The fresh
+       client is fully bound, promoted, AND ready (replay completed)
+       before the notify fires — see ``_post_bind_setup_locked`` and
+       ``LiveAcpSession.notify_approver_attach``.
+    5. Cancellation (sample-level cancel, Esc-interrupt) unwinds via
+       ``anyio.Event.wait`` cleanly — no try/except on the cancel exc.
+
+    Why re-snapshot rather than reuse: by the time the wait returns,
+    the freshly-attached client has already been promoted to position
+    0 of the chain. Re-querying ``approver_driver_chain()`` picks them
+    up automatically. Spurious wake-ups (client attaches then
+    disconnects before we reach it) are harmless — the ``for`` loop
+    sees no surviving client, raises, and we loop back to the wait.
+
+    Re-issue safety: ``RequestPermissionRequest`` has no mutable
+    per-send state, so the same ``request`` object can be sent to
+    multiple clients across retries.
 
     "Wait forever for a response" matches the in-proc human approver:
-    if the driver is connected but the operator is afk, the eval
-    blocks. That's the explicit design decision in the original
-    Phase 14 doc; not changed here.
+    if the operator is afk (or absent entirely), the sample blocks
+    until they show up or the sample is cancelled. Explicit design
+    decision in the Phase 14 doc; unchanged here.
     """
-    if not clients_in_order:
-        return None
     cancel_exc = anyio.get_cancelled_exc_class()
-    for client in clients_in_order:
-        # Drain pending ``session/update`` notifications BEFORE the
-        # request goes out, so the operator sees the model's
-        # accompanying ``agent_message_chunk`` (the "why" the agent
-        # gave) above the approval card rather than AFTER it (or
-        # never, if they decide before the chunk arrives).
-        # Notifications travel via the in-process pub/sub bus +
-        # per-connection forwarder task, while ``request_permission``
-        # calls ``conn.send_request`` directly on the agent task —
-        # without this barrier the request can win the race to the
-        # wire and the operator decides with no narration context.
-        # See the ``Forwarders.drain`` docstring for the ordering
-        # mechanics.
-        #
-        # Drain is BEST-EFFORT ordering, NOT a gate on whether the
-        # request goes out. If drain itself raises a non-cancel
-        # exception (e.g. an unexpected Python-level bug in the
-        # statistics() call), log + proceed with the request —
-        # otherwise a drain bug would silently skip the driver and
-        # route the approval to a fallback client (or to nothing),
-        # which is a worse failure mode than slightly-out-of-order
-        # notifications.
+    while True:
+        # Subscribe BEFORE snapshotting / dispatching so an attach
+        # that lands during the dispatch attempt still sets the
+        # event we wait on below. ``anyio.Event.set`` is idempotent;
+        # if attach fires before ``event.wait``, the wait returns
+        # immediately and we re-iterate.
+        event = anyio.Event()
+        unsub = session.subscribe_approver_attach(event.set)
         try:
-            await client.drain_notifications()
-        except cancel_exc:
-            raise
-        except Exception as drain_exc:
-            logger.warning(
-                "ACP approval drain_notifications failed for client %r; "
-                "proceeding with request anyway: %s",
-                client,
-                drain_exc,
-            )
-        try:
-            response = await client.request_permission(request)
-        except cancel_exc:
-            raise
-        except Exception as exc:
-            # Transport failure or other client-side error. Try the
-            # next client in the fallback chain. If this was the
-            # only one we'll return None at the end.
-            logger.debug(
-                "ACP approval request failed for client %r; trying next: %s",
-                client,
-                exc,
-            )
-            continue
-        return _approval_from_response(response, choices)
-    return None
+            clients_in_order = session.approver_driver_chain()
+            if not clients_in_order:
+                if not session.has_ever_had_approver_client():
+                    # No ACP client has ever attached for this session.
+                    # ``--acp-server`` + TTY with no operator: fall
+                    # back to the in-proc panel rather than parking
+                    # forever.
+                    return None
+                # Empty chain but operator was here at some point —
+                # they disconnected. Fall through to the wait below.
+            else:
+                for client in clients_in_order:
+                    # Drain pending ``session/update`` notifications
+                    # BEFORE the request goes out, so the operator sees
+                    # the model's accompanying ``agent_message_chunk``
+                    # (the "why" the agent gave) above the approval
+                    # card rather than AFTER it (or never, if they
+                    # decide before the chunk arrives). Notifications
+                    # travel via the in-process pub/sub bus +
+                    # per-connection forwarder task, while
+                    # ``request_permission`` calls ``conn.send_request``
+                    # directly on the agent task — without this barrier
+                    # the request can win the race to the wire and the
+                    # operator decides with no narration context. See
+                    # the ``Forwarders.drain`` docstring for the
+                    # ordering mechanics.
+                    #
+                    # Drain is BEST-EFFORT ordering, NOT a gate on
+                    # whether the request goes out. If drain itself
+                    # raises a non-cancel exception, log + proceed with
+                    # the request — otherwise a drain bug would
+                    # silently skip the driver and route the approval
+                    # to a fallback client, which is a worse failure
+                    # mode than slightly-out-of-order notifications.
+                    try:
+                        await client.drain_notifications()
+                    except cancel_exc:
+                        raise
+                    except Exception as drain_exc:
+                        logger.warning(
+                            "ACP approval drain_notifications failed for "
+                            "client %r; proceeding with request anyway: %s",
+                            client,
+                            drain_exc,
+                        )
+                    try:
+                        response = await client.request_permission(request)
+                    except cancel_exc:
+                        raise
+                    except Exception as exc:
+                        # Transport failure or other client-side error.
+                        # Try the next client in the fallback chain.
+                        logger.debug(
+                            "ACP approval request failed for client %r; "
+                            "trying next: %s",
+                            client,
+                            exc,
+                        )
+                        continue
+                    # Successful dispatch — finally below unsubscribes.
+                    return _approval_from_response(response, choices)
+            # Either empty-but-ever-attached, or every client raised.
+            # Park until a fresh attach lands (or returns immediately
+            # if an attach raced us between subscribe and now).
+            await event.wait()
+        finally:
+            unsub()
 
 
 async def request_human_approval_via_acp(
@@ -495,7 +564,13 @@ async def request_human_approval_via_acp(
         if sample is None or sample.acp_session is None:
             return None
         session = sample.acp_session
-        if not session.has_approver_clients():
+        # Use "has ever attached" rather than "has currently attached":
+        # in --acp-server + TTY mode an operator may attach via
+        # ``inspect acp``, trigger an approval, then disconnect. The
+        # wait-and-retry loop inside ``_request_from_driver_with_fallback``
+        # parks until they (or another client) re-attach. Falling back
+        # to the panel only kicks in when no operator has EVER connected.
+        if not session.has_ever_had_approver_client():
             return None
         request = _build_request(
             session_id=session.session_id,
@@ -503,7 +578,5 @@ async def request_human_approval_via_acp(
             view=view,
             choices=choices,
         )
-        return await _request_from_driver_with_fallback(
-            session.approver_driver_chain(), request, choices
-        )
+        return await _request_from_driver_with_fallback(session, request, choices)
     return None

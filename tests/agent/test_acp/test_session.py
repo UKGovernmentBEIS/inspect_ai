@@ -438,6 +438,19 @@ class _StubApproverClient:
         """No-op — registry tests don't exercise the drain barrier."""
 
 
+def _bind_approver(acp, client):
+    """Attach + promote-to-ready as the connection handler would.
+
+    Mirrors the two-step ``attach_approver_client`` (pending) +
+    ``notify_approver_attach(client)`` (ready) sequence the
+    connection handler runs across the replay await. Returns the
+    unsubscribe from ``attach_approver_client``.
+    """
+    unsub = acp.attach_approver_client(client)
+    acp.notify_approver_attach(client)
+    return unsub
+
+
 async def test_approver_clients_starts_empty() -> None:
     async with acp_session() as acp:
         assert acp.has_approver_clients() is False
@@ -445,10 +458,10 @@ async def test_approver_clients_starts_empty() -> None:
 
 
 async def test_attach_approver_client_flips_predicate_and_unsubscribe_reverts() -> None:
-    """One attach → True; calling the returned unsubscribe → False."""
+    """One attach+notify → True; calling the returned unsubscribe → False."""
     async with acp_session() as acp:
         client = _StubApproverClient()
-        unsub = acp.attach_approver_client(client)
+        unsub = _bind_approver(acp, client)
         assert acp.has_approver_clients() is True
         assert acp.approver_driver_chain() == [client]
         unsub()
@@ -461,9 +474,12 @@ async def test_attach_multiple_clients_independent_unsubscribe() -> None:
     async with acp_session() as acp:
         client_a = _StubApproverClient()
         client_b = _StubApproverClient()
-        unsub_a = acp.attach_approver_client(client_a)
-        unsub_b = acp.attach_approver_client(client_b)
-        # No prompt has been sent yet → driver chain is attach order.
+        unsub_a = _bind_approver(acp, client_a)
+        unsub_b = _bind_approver(acp, client_b)
+        # Notify alone doesn't promote — driver_chain falls back to
+        # first-attached order. (In production the connection handler
+        # also calls mark_active right before notify; that promotion
+        # is tested separately.)
         assert acp.approver_driver_chain() == [client_a, client_b]
         unsub_a()
         assert acp.approver_driver_chain() == [client_b]
@@ -480,7 +496,7 @@ async def test_approver_driver_chain_returns_snapshot_copy() -> None:
     """
     async with acp_session() as acp:
         client = _StubApproverClient()
-        acp.attach_approver_client(client)
+        _bind_approver(acp, client)
         snapshot = acp.approver_driver_chain()
         snapshot.clear()
         assert acp.approver_driver_chain() == [client]  # registry unchanged
@@ -492,11 +508,16 @@ async def test_mark_active_promotes_client_to_head_of_chain() -> None:
         a = _StubApproverClient()
         b = _StubApproverClient()
         c = _StubApproverClient()
-        acp.attach_approver_client(a)
-        acp.attach_approver_client(b)
-        acp.attach_approver_client(c)
-        # No prompt yet — first-attached is the fallback driver.
-        assert acp.approver_driver_chain() == [a, b, c]
+        # Attach + notify each, but explicitly reset _last_active to
+        # None to test the no-prompt-yet fallback. (In production,
+        # notify_approver_attach is called after mark_active in the
+        # bind path, but here we want the explicit first-attached
+        # fallback behavior.)
+        for client in (a, b, c):
+            acp.attach_approver_client(client)
+            acp.notify_approver_attach(client)
+        # Reset driver to test the explicit mark_active calls below.
+        acp.mark_active_approver_client(_StubApproverClient())  # unknown → no-op
         # Mark middle client active — it moves to head; others keep
         # attach order (a, c).
         acp.mark_active_approver_client(b)
@@ -515,7 +536,7 @@ async def test_mark_active_ignores_unknown_client() -> None:
     async with acp_session() as acp:
         a = _StubApproverClient()
         rogue = _StubApproverClient()
-        acp.attach_approver_client(a)
+        _bind_approver(acp, a)
         acp.mark_active_approver_client(rogue)  # no-op
         # Driver chain unchanged.
         assert acp.approver_driver_chain() == [a]
@@ -526,8 +547,8 @@ async def test_unsubscribing_the_active_driver_resets_to_first_attached() -> Non
     async with acp_session() as acp:
         a = _StubApproverClient()
         b = _StubApproverClient()
-        acp.attach_approver_client(a)
-        unsub_b = acp.attach_approver_client(b)
+        _bind_approver(acp, a)
+        unsub_b = _bind_approver(acp, b)
         acp.mark_active_approver_client(b)
         assert acp.approver_driver_chain() == [b, a]
         unsub_b()
@@ -539,7 +560,7 @@ async def test_session_exit_clears_approver_clients() -> None:
     """``__aexit__`` drops registrations so late callbacks can't fire into a closed connection."""
     fake_session = None
     async with acp_session() as acp:
-        acp.attach_approver_client(_StubApproverClient())
+        _bind_approver(acp, _StubApproverClient())
         assert acp.has_approver_clients() is True
         fake_session = acp
     # Outside the context manager, the session is closed.
@@ -560,11 +581,190 @@ async def test_noop_session_approver_client_is_no_op() -> None:
     from inspect_ai.agent._acp.session_noop import NoOpAcpSession
 
     noop = NoOpAcpSession()
+    client = _StubApproverClient()
     assert noop.has_approver_clients() is False
+    assert noop.has_ever_had_approver_client() is False
     assert noop.approver_driver_chain() == []
-    unsub = noop.attach_approver_client(_StubApproverClient())
+    unsub = noop.attach_approver_client(client)
     # Still False — the no-op session doesn't actually register.
     assert noop.has_approver_clients() is False
-    # mark_active on no-op is also safe.
-    noop.mark_active_approver_client(_StubApproverClient())
+    assert noop.has_ever_had_approver_client() is False
+    # mark_active and notify_approver_attach on no-op are also safe.
+    noop.mark_active_approver_client(client)
+    noop.notify_approver_attach(client)
     unsub()  # no-op, no raise
+    # subscribe_approver_attach on no-op returns a no-op unsubscribe.
+    cb_unsub = noop.subscribe_approver_attach(lambda: None)
+    cb_unsub()  # no-op, no raise
+
+
+async def test_has_ever_had_approver_client_starts_false() -> None:
+    """Bare session: no client has ever attached → predicate is False."""
+    async with acp_session() as acp:
+        assert acp.has_ever_had_approver_client() is False
+
+
+async def test_has_ever_had_approver_client_flips_true_on_attach() -> None:
+    """attach_approver_client flips the one-way bit (even before notify).
+
+    Pinned because this is the signal the approval shim uses to
+    distinguish "no operator ever connected" (panel fallback OK)
+    from "operator was here, dropped mid-approval" (must park).
+    The bit must flip on registration (NOT on notify) so a parked
+    approval shim that loses its client mid-bind still knows ACP
+    routing was intended.
+    """
+    async with acp_session() as acp:
+        client = _StubApproverClient()
+        unsub = acp.attach_approver_client(client)
+        # Bit flips on pending attach, even before notify.
+        assert acp.has_ever_had_approver_client() is True
+        # But the client isn't yet routable.
+        assert acp.has_approver_clients() is False
+        unsub()
+        # One-way: detach does NOT reset the flag.
+        assert acp.has_ever_had_approver_client() is True
+        assert acp.has_approver_clients() is False
+
+
+async def test_attach_alone_hides_client_from_driver_chain() -> None:
+    """Pending (attached-but-not-notified) clients are invisible to dispatch.
+
+    Pinned regression of the half-bound visibility race the
+    reviewer flagged: ``Forwarders.start`` registers the approver
+    BEFORE the replay await. If the registry exposed the new
+    client in ``driver_chain`` at that point, a concurrent
+    approval shim could dispatch into the half-bound connection
+    before replay shows the operator the conversation context.
+    The fix routes pending clients through ``_pending_clients`` —
+    invisible to ``driver_chain`` until ``notify_approver_attach``
+    promotes them.
+    """
+    async with acp_session() as acp:
+        client = _StubApproverClient()
+        acp.attach_approver_client(client)
+        # Pending: ``has_ever_had`` is True (operator intent recorded),
+        # but ``has_approver_clients`` / ``driver_chain`` are empty.
+        assert acp.has_ever_had_approver_client() is True
+        assert acp.has_approver_clients() is False
+        assert acp.approver_driver_chain() == []
+        # notify_approver_attach promotes to ready.
+        acp.notify_approver_attach(client)
+        assert acp.has_approver_clients() is True
+        assert acp.approver_driver_chain() == [client]
+
+
+async def test_attach_alone_does_not_fire_subscribers() -> None:
+    """``attach_approver_client`` is a registration-only step.
+
+    Companion to the half-bound visibility fix: subscribers ALSO
+    must not fire on registration. If they did, a parked approval
+    shim could wake and snapshot the driver chain — finding it
+    empty (good) but then re-parking with a fresh subscription
+    that races the upcoming ``notify_approver_attach``. Decoupling
+    means the bind is fully atomic from the shim's perspective:
+    one wake-up, one consistent snapshot.
+    """
+    async with acp_session() as acp:
+        fires = 0
+
+        def _on_attach() -> None:
+            nonlocal fires
+            fires += 1
+
+        acp.subscribe_approver_attach(_on_attach)
+        acp.attach_approver_client(_StubApproverClient())
+        # Registration alone does NOT fire — the bind isn't ready yet.
+        assert fires == 0
+
+
+async def test_notify_approver_attach_promotes_and_fires() -> None:
+    """``notify_approver_attach(client)`` promotes pending → ready and fires subscribers."""
+    async with acp_session() as acp:
+        fires = 0
+
+        def _on_attach() -> None:
+            nonlocal fires
+            fires += 1
+
+        unsub_cb = acp.subscribe_approver_attach(_on_attach)
+        client = _StubApproverClient()
+        acp.attach_approver_client(client)
+        assert fires == 0
+        assert acp.approver_driver_chain() == []  # pending, invisible
+        acp.notify_approver_attach(client)
+        assert fires == 1
+        assert acp.approver_driver_chain() == [client]  # promoted
+        # Spurious re-notify on an already-ready client is safe —
+        # client stays in ``_clients`` (no duplicate), subscribers
+        # fire again (the approval shim's event re-arm dedupes).
+        acp.notify_approver_attach(client)
+        assert fires == 2
+        assert acp.approver_driver_chain() == [client]
+        unsub_cb()
+        acp.notify_approver_attach(client)
+        assert fires == 2  # unsubscribed
+
+
+async def test_notify_approver_attach_does_not_fabricate_after_unsub() -> None:
+    """Notify after unsub does NOT re-add the client to ready.
+
+    Pinned regression of a fabrication bug: if ``Forwarders.start``
+    aborts replay and runs ``stop()`` (which unsubscribes), but
+    ``_post_bind_setup_locked`` still calls
+    ``notify_approver_attach(self)`` afterward — an unconditional
+    promote would re-insert the cleaned-up handler into
+    ``_clients`` with no unsubscribe left to remove it. The shim
+    would then dispatch into a dead connection forever. The fix
+    gates promotion on the client being currently pending.
+    """
+    async with acp_session() as acp:
+        client = _StubApproverClient()
+        unsub = acp.attach_approver_client(client)
+        unsub()  # simulate teardown between attach and notify
+        # Subscribers should still fire (spurious wake is harmless),
+        # but the client must NOT reappear in ready.
+        fires = 0
+
+        def _on_attach() -> None:
+            nonlocal fires
+            fires += 1
+
+        acp.subscribe_approver_attach(_on_attach)
+        acp.notify_approver_attach(client)
+        assert fires == 1
+        assert acp.approver_driver_chain() == []
+        assert acp.has_approver_clients() is False
+
+
+async def test_notify_approver_attach_for_specific_pending_client_only() -> None:
+    """Only the named client is promoted; sibling pending clients stay pending.
+
+    Pinned because the two-connection-concurrent-bind scenario
+    requires per-client notify: if connection A finishes binding
+    while connection B is still mid-replay, A's notify must NOT
+    accidentally promote B (whose replay isn't done yet). Each
+    bind sequence notifies for its own client.
+    """
+    async with acp_session() as acp:
+        a = _StubApproverClient()
+        b = _StubApproverClient()
+        acp.attach_approver_client(a)
+        acp.attach_approver_client(b)
+        # Both pending, neither visible.
+        assert acp.approver_driver_chain() == []
+        # Promote A only.
+        acp.notify_approver_attach(a)
+        assert acp.approver_driver_chain() == [a]
+        # B still pending.
+        # Now promote B.
+        acp.notify_approver_attach(b)
+        assert acp.approver_driver_chain() == [a, b]
+
+
+async def test_subscribe_approver_attach_unsubscribe_is_idempotent() -> None:
+    """Double-unsubscribe of an attach callback is safe."""
+    async with acp_session() as acp:
+        unsub = acp.subscribe_approver_attach(lambda: None)
+        unsub()
+        unsub()  # no raise

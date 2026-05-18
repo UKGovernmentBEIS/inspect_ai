@@ -81,6 +81,63 @@ def _cancelled() -> RequestPermissionResponse:
     return RequestPermissionResponse(outcome=DeniedOutcome(outcome="cancelled"))
 
 
+class _StubSession:
+    """Minimal AcpSession-like for ``_request_from_driver_with_fallback``.
+
+    Reports a fixed driver chain plus the three primitives the shim
+    needs: ``approver_driver_chain`` (snapshot), ``has_ever_had_approver_client``
+    (the one-way bit), and ``subscribe_approver_attach`` (callback
+    list, mirroring the registry's pattern).
+
+    Tests that exercise wait-and-retry mutate ``clients`` then call
+    ``trigger_attach()`` to fire subscribers — that's the only signal
+    the shim uses to re-snapshot the chain.
+    """
+
+    def __init__(
+        self,
+        clients: list[Any] | None = None,
+        ever_attached: bool | None = None,
+    ) -> None:
+        # ``Any``-typed so tests can pass real ``ConnectionHandler``
+        # instances alongside ``_StubClient`` stubs.
+        self.clients: list[Any] = list(clients) if clients else []
+        # Default: ever_attached follows whether any client was present
+        # at construction. Tests can override to simulate "operator
+        # was here, all clients dropped" (clients=[], ever=True).
+        self._ever_attached = (
+            ever_attached if ever_attached is not None else bool(self.clients)
+        )
+        self._attach_subscribers: list = []
+
+    def approver_driver_chain(self) -> list:
+        return list(self.clients)
+
+    def has_ever_had_approver_client(self) -> bool:
+        return self._ever_attached
+
+    def subscribe_approver_attach(self, cb):
+        self._attach_subscribers.append(cb)
+
+        def _unsub() -> None:
+            try:
+                self._attach_subscribers.remove(cb)
+            except ValueError:
+                pass
+
+        return _unsub
+
+    def trigger_attach(self) -> None:
+        """Fire subscribers as if a client just attached.
+
+        Caller is responsible for mutating ``self.clients`` first if
+        the shim is expected to find a fresh client on retry.
+        """
+        self._ever_attached = True
+        for cb in list(self._attach_subscribers):
+            cb()
+
+
 class _StubClient:
     """An ApproverClient that returns a pre-set response (or raises).
 
@@ -230,7 +287,7 @@ async def test_driver_only_first_client_in_chain_is_called() -> None:
     choices: list[ApprovalDecision] = ["approve", "reject"]
 
     result = await _request_from_driver_with_fallback(
-        [driver, others], _trivial_request(), choices
+        _StubSession([driver, others]), _trivial_request(), choices
     )
     assert result is not None
     assert result.decision == "approve"
@@ -255,7 +312,9 @@ async def test_shim_drains_notifications_before_each_request() -> None:
     # Driver succeeds — only one client contacted.
     driver = _StubClient(response=_selected("approve"))
     choices: list[ApprovalDecision] = ["approve", "reject"]
-    await _request_from_driver_with_fallback([driver], _trivial_request(), choices)
+    await _request_from_driver_with_fallback(
+        _StubSession([driver]), _trivial_request(), choices
+    )
 
     # Exactly one drain and one request, drain first.
     assert driver.calls == ["drain", "request"]
@@ -284,7 +343,7 @@ async def test_shim_proceeds_with_request_when_drain_raises() -> None:
     choices: list[ApprovalDecision] = ["approve", "reject"]
 
     result = await _request_from_driver_with_fallback(
-        [client], _trivial_request(), choices
+        _StubSession([client]), _trivial_request(), choices
     )
     # Drain raised; request STILL fired and we got a real decision.
     assert result is not None
@@ -306,7 +365,7 @@ async def test_shim_drains_each_fallback_client_in_turn() -> None:
     choices: list[ApprovalDecision] = ["approve", "reject"]
 
     result = await _request_from_driver_with_fallback(
-        [broken, survivor], _trivial_request(), choices
+        _StubSession([broken, survivor]), _trivial_request(), choices
     )
     assert result is not None
     assert result.decision == "approve"
@@ -323,7 +382,7 @@ async def test_driver_disconnect_falls_through_to_next_client() -> None:
     choices: list[ApprovalDecision] = ["approve", "reject"]
 
     result = await _request_from_driver_with_fallback(
-        [broken_driver, fallback], _trivial_request(), choices
+        _StubSession([broken_driver, fallback]), _trivial_request(), choices
     )
     assert result is not None
     assert result.decision == "reject"
@@ -333,25 +392,165 @@ async def test_driver_disconnect_falls_through_to_next_client() -> None:
 
 
 @skip_if_trio
-async def test_all_clients_raise_returns_none() -> None:
-    """Every client in the chain errors → ``None`` so caller falls back to in-proc."""
+async def test_all_clients_raise_then_waits_for_attach() -> None:
+    """Every client raises → park on attach event, retry on next attach.
+
+    Replaces the previous "all-fail → None" behavior. The previous
+    semantic blocked on stdin in --acp-server mode when an operator
+    disconnected mid-approval; the new semantic re-issues the
+    approval to whoever attaches next. Headless ``inspect eval``
+    isn't affected — it returns earlier via ``has_ever_had_approver_client``.
+    """
     a = _StubClient(exc=ConnectionError("a down"))
     b = _StubClient(exc=ConnectionError("b down"))
+    survivor = _StubClient(response=_selected("approve"))
+    session = _StubSession([a, b])
     choices: list[ApprovalDecision] = ["approve", "reject"]
-    result = await _request_from_driver_with_fallback(
-        [a, b], _trivial_request(), choices
+
+    shim_task = asyncio.create_task(
+        _request_from_driver_with_fallback(session, _trivial_request(), choices)
     )
-    assert result is None
-    # Both were tried.
+    # Let the shim cycle through both failing clients and park on
+    # the attach event.
+    await asyncio.sleep(0.05)
     assert len(a.received) == 1
     assert len(b.received) == 1
+    assert not shim_task.done()  # parked, not returned
+
+    # Simulate a fresh ``inspect acp`` attaching: swap the chain and
+    # fire the attach event.
+    session.clients = [survivor]
+    session.trigger_attach()
+
+    result = await shim_task
+    assert result is not None
+    assert result.decision == "approve"
+    assert len(survivor.received) == 1
 
 
-async def test_empty_chain_returns_none() -> None:
-    """Empty chain → ``None`` immediately, no I/O attempted."""
+async def test_empty_chain_returns_none_when_never_attached() -> None:
+    """No client ever attached → ``None`` so caller falls back to in-proc panel.
+
+    Distinguishes "no operator has ever connected via ``inspect acp``"
+    (panel fallback OK — TTY is available) from "operator attached
+    then disconnected" (must park; see
+    ``test_all_clients_raise_then_waits_for_attach``).
+    """
     choices: list[ApprovalDecision] = ["approve", "reject"]
-    result = await _request_from_driver_with_fallback([], _trivial_request(), choices)
+    session = _StubSession([], ever_attached=False)
+    result = await _request_from_driver_with_fallback(
+        session, _trivial_request(), choices
+    )
     assert result is None
+
+
+@skip_if_trio
+async def test_empty_chain_waits_when_ever_attached() -> None:
+    """Operator attached then dropped → park, do NOT fall through to panel.
+
+    Pinned regression of the bug this whole work fixes: the previous
+    behavior fell through to panel_approval on empty chain, which
+    blocked on stdin in --acp-server headless mode and silently
+    routed past the editor approval UI in --acp-server + TTY mode.
+    """
+    survivor = _StubClient(response=_selected("approve"))
+    session = _StubSession([], ever_attached=True)
+    choices: list[ApprovalDecision] = ["approve", "reject"]
+
+    shim_task = asyncio.create_task(
+        _request_from_driver_with_fallback(session, _trivial_request(), choices)
+    )
+    await asyncio.sleep(0.05)
+    assert not shim_task.done()  # parked on subscribe_approver_attach
+
+    session.clients = [survivor]
+    session.trigger_attach()
+
+    result = await shim_task
+    assert result is not None
+    assert result.decision == "approve"
+
+
+@skip_if_trio
+async def test_no_lost_attach_signal_during_snapshot() -> None:
+    """Attach that fires during chain snapshot is not lost.
+
+    Pinned regression of the high-severity race the reviewer
+    flagged: if the shim called ``subscribe_approver_attach`` AFTER
+    ``approver_driver_chain``, an attach landing in between would
+    fire with no subscriber and the shim would park forever despite
+    a live client being present.
+
+    Driven by a custom session whose ``approver_driver_chain``
+    has a side effect: the FIRST call returns empty AND
+    immediately fires an attach. The fix subscribes before the
+    snapshot, so the synchronous attach sets the event and the
+    subsequent ``await event.wait()`` returns immediately.
+    """
+    survivor = _StubClient(response=_selected("approve"))
+
+    class _RacingSession(_StubSession):
+        def __init__(self) -> None:
+            super().__init__([], ever_attached=True)
+            self._first_snapshot = True
+
+        def approver_driver_chain(self):
+            # First call: empty AND simulate a concurrent attach
+            # landing before the shim gets to wait. With the OLD
+            # subscribe-after-snapshot ordering, the trigger_attach
+            # fire would have no subscriber and we'd park forever.
+            if self._first_snapshot:
+                self._first_snapshot = False
+                self.clients = [survivor]
+                self.trigger_attach()
+                return []
+            return list(self.clients)
+
+    session = _RacingSession()
+    choices: list[ApprovalDecision] = ["approve", "reject"]
+
+    result = await _request_from_driver_with_fallback(
+        session, _trivial_request(), choices
+    )
+    assert result is not None
+    assert result.decision == "approve"
+    assert len(survivor.received) == 1
+
+
+@skip_if_trio
+async def test_no_busy_spin_on_spurious_attach() -> None:
+    """Spurious attach (client gone before we reach it) re-parks cleanly.
+
+    If a client attaches and disconnects between the wake and the
+    re-snapshot, the for-loop sees no surviving client (or every
+    client raises), and we loop back to wait. Verified by triggering
+    multiple spurious attaches before the real survivor lands.
+    """
+    survivor = _StubClient(response=_selected("approve"))
+    session = _StubSession([], ever_attached=True)
+    choices: list[ApprovalDecision] = ["approve", "reject"]
+
+    shim_task = asyncio.create_task(
+        _request_from_driver_with_fallback(session, _trivial_request(), choices)
+    )
+    await asyncio.sleep(0.05)
+
+    # Spurious wake — empty chain, no client to dispatch to.
+    session.trigger_attach()
+    await asyncio.sleep(0.05)
+    assert not shim_task.done()
+
+    # Another spurious wake.
+    session.trigger_attach()
+    await asyncio.sleep(0.05)
+    assert not shim_task.done()
+
+    # Real attach with a survivor.
+    session.clients = [survivor]
+    session.trigger_attach()
+    result = await shim_task
+    assert result is not None
+    assert result.decision == "approve"
 
 
 @skip_if_trio
@@ -362,11 +561,35 @@ async def test_cancellation_propagates_to_caller() -> None:
     choices: list[ApprovalDecision] = ["approve", "reject"]
 
     shim_task = asyncio.create_task(
-        _request_from_driver_with_fallback([slow], _trivial_request(), choices)
+        _request_from_driver_with_fallback(
+            _StubSession([slow]), _trivial_request(), choices
+        )
     )
     # Let the shim enter the client's request_permission.
     await asyncio.sleep(0.01)
     assert len(slow.received) == 1
+
+    shim_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await shim_task
+
+
+@skip_if_trio
+async def test_cancellation_unwinds_park() -> None:
+    """Sample-level cancel while parked on attach event unwinds cleanly.
+
+    Pinned because the wait sits on an ``anyio.Event``; without
+    backend-agnostic cancellation handling the parked shim could
+    leak into the next sample.
+    """
+    session = _StubSession([], ever_attached=True)
+    choices: list[ApprovalDecision] = ["approve", "reject"]
+
+    shim_task = asyncio.create_task(
+        _request_from_driver_with_fallback(session, _trivial_request(), choices)
+    )
+    await asyncio.sleep(0.05)
+    assert not shim_task.done()  # parked
 
     shim_task.cancel()
     with pytest.raises(asyncio.CancelledError):
@@ -532,7 +755,7 @@ async def test_driver_chain_falls_through_stale_handler_after_rebind() -> None:
 
     request = _permission_request_for("real-target")
     result = await _request_from_driver_with_fallback(
-        [stale, good], request, ["approve", "reject"]
+        _StubSession([stale, good]), request, ["approve", "reject"]
     )
     assert result is not None
     assert result.decision == "approve"
@@ -605,6 +828,7 @@ async def test_entry_routes_to_attached_client(patch_sample_active) -> None:
     session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
+    session.notify_approver_attach(client)
     patch_sample_active(session)
 
     result = await request_human_approval_via_acp(
@@ -643,6 +867,7 @@ async def test_entry_prepends_assistant_message_as_content_block(
     session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
+    session.notify_approver_attach(client)
     patch_sample_active(session)
 
     await request_human_approval_via_acp(
@@ -672,6 +897,7 @@ async def test_entry_omits_message_block_for_empty_message(
     session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
+    session.notify_approver_attach(client)
     patch_sample_active(session)
 
     await request_human_approval_via_acp(
@@ -703,6 +929,7 @@ async def test_entry_substitutes_view_placeholders_with_call_arguments(
     session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
+    session.notify_approver_attach(client)
     patch_sample_active(session)
 
     # Custom view with placeholders.
@@ -751,6 +978,7 @@ async def test_entry_carries_view_content_in_request(patch_sample_active) -> Non
     session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
+    session.notify_approver_attach(client)
     patch_sample_active(session)
 
     await request_human_approval_via_acp(
