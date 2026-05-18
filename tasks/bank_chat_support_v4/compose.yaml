@@ -1,0 +1,7 @@
+services:
+  default:
+    build: .
+    working_dir: /task
+    command: tail -f /dev/null
+    volumes:
+      - ./output:/task/output

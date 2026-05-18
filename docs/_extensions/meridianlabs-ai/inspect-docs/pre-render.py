@@ -96,9 +96,9 @@ def main() -> None:
     if changelog_src.exists() and not changelog_dst.exists():
         changelog_dst.symlink_to(changelog_src)
 
-    # symlink README.md from repo root as index.qmd if no index.qmd exists
+    # symlink README_original.md from repo root as index.qmd if no index.qmd exists
     index_dst = Path("index.qmd")
-    readme_src = Path("../README.md")
+    readme_src = Path("../README_original.md")
     if not index_dst.exists() and readme_src.exists():
         index_dst.symlink_to(readme_src)
 

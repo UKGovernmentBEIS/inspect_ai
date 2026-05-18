@@ -32,7 +32,7 @@ class Resolution(TypedDict):
     height: int
 
 
-# sizes above XGA/WXGA are not recommended (see README.md)
+# sizes above XGA/WXGA are not recommended (see README_original.md)
 # scale down to one of these targets if ComputerTool._scaling_enabled is set
 MAX_SCALING_TARGETS: dict[str, Resolution] = {
     "XGA": Resolution(width=1024, height=768),  # 4:3 - 1.33 - 768k pixels

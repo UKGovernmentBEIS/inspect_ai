@@ -1,0 +1,10 @@
+{
+  "name": "toloka-cowork",
+  "plugins": [
+    {
+      "name": "gdpval-cowork-plugin",
+      "source": "./gdpval-cowork-plugin",
+      "description": "GDPVal evaluation workflow skills for creating, running, calibrating, and publishing LLM evaluation tasks: difficulty-calibration, final-report, ground-truth-check, task-init, task-push, task-run."
+    }
+  ]
+}

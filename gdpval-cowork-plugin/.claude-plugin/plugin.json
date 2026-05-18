@@ -1,0 +1,6 @@
+{
+  "name": "gdpval-cowork-plugin",
+  "version": "1.0.1",
+  "description": "GDPVal workflow skills for creating, running, calibrating, and publishing LLM evaluation tasks.",
+  "author": { "name": "Toloka" }
+}
