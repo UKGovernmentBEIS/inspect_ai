@@ -177,6 +177,17 @@ async def _execute_tools_impl(
                     "unicode_decode",
                     f"Error decoding bytes to {ex.encoding}: {ex.reason}",
                 )
+            except ValueError as ex:
+                # CPython's subprocess module raises ValueError("embedded null byte")
+                # when a command or argument string contains '\x00'. Surface it as
+                # a tool error so the model can recover instead of crashing the sample.
+                if "embedded null byte" in str(ex):
+                    tool_error = ToolCallError(
+                        "parsing",
+                        f"An argument to tool '{call.function}' contained an embedded null byte.",
+                    )
+                else:
+                    raise
             except PermissionError as ex:
                 err = f"{ex.strerror or str(ex)}."
                 if isinstance(ex.filename, str):

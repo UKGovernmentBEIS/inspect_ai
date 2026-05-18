@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from inspect_scout._scanspec import ScanSpec
 
 
-class EvalScannerConfig(BaseModel):
+class ScannerConfig(BaseModel):
     """Configure scanners attached to an `eval_set` run.
 
     A subset of scout's `ScanJob` / `ScanJobConfig` schema, narrowed to
@@ -89,8 +89,8 @@ class EvalScannerConfig(BaseModel):
     """Named roles available to scanners via `get_model(role=...)`."""
 
     @classmethod
-    def from_file(cls, path: str) -> "EvalScannerConfig":
-        """Load an `EvalScannerConfig` from a YAML or JSON config file.
+    def from_file(cls, path: str) -> "ScannerConfig":
+        """Load a `ScannerConfig` from a YAML or JSON config file.
 
         Scanner entries in the file are written as `ScannerSpec` references
         (a registry `name` plus optional `params` and `file`). They are
@@ -102,7 +102,7 @@ class EvalScannerConfig(BaseModel):
             path: Path or URL (e.g. `s3://...`) to a YAML or JSON file.
 
         Returns:
-            A populated `EvalScannerConfig` ready to pass as
+            A populated `ScannerConfig` ready to pass as
             `eval_set(scanner=...)`.
         """
         from inspect_ai._util.config import read_config_object, resolve_args
@@ -148,16 +148,23 @@ def _realize_scanner_specs(scanners: Any) -> Any:
     return scanners
 
 
-EvalScanners: TypeAlias = (
-    "Sequence[Scanner[Any] | tuple[str, Scanner[Any]]] "
-    "| dict[str, Scanner[Any]] "
-    "| EvalScannerConfig"
-)
-"""Argument shape accepted by `eval_set(scanner=...)`."""
+if TYPE_CHECKING:
+    Scanners: TypeAlias = (
+        Sequence[Scanner[Any] | tuple[str, Scanner[Any]]]
+        | dict[str, Scanner[Any]]
+        | ScannerConfig
+    )
+    """Argument shape accepted by `eval_set(scanner=...)`."""
+else:
+    # Runtime placeholder so downstream modules can `from ... import Scanners`
+    # without forcing `inspect_scout` to be installed (it's an optional dep,
+    # imported lazily inside functions). The type checkers see the real alias
+    # above; runtime users only reference it inside string annotations.
+    Scanners = Any
 
 
 async def scan_init(
-    scanner: "EvalScanners",
+    scanner: "Scanners",
     *,
     scan_id: str,
     log_dir: str,
@@ -248,7 +255,7 @@ def _display_spec(spec: "ScanSpec") -> "ScanSpec":
 
 async def scan_eval_sample(
     eval_sample: EvalSample,
-    scanner: "EvalScanners | None",
+    scanner: "Scanners | None",
     *,
     scan_id: str | None,
     eval_id: str,
@@ -321,7 +328,7 @@ async def scan_eval_sample(
 
 async def resume_scan_previous_sample(
     eval_sample: EvalSample,
-    scanner: "EvalScanners | None",
+    scanner: "Scanners | None",
     scanned_per_scanner: dict[str, set[str]],
     sample_semaphore: contextlib.AbstractAsyncContextManager[Any],
     *,
@@ -368,7 +375,7 @@ async def scan_finalize(
     *,
     scan_id: str,
     log_dir: str,
-    scanner: "EvalScanners | None" = None,
+    scanner: "Scanners | None" = None,
 ) -> None:
     """Compact buffer parquets and snapshot the recorded transcripts.
 
@@ -438,9 +445,7 @@ def _invalidate_finalized_flag(scan_dir: str) -> None:
         summary_path.write_text(json.dumps(data))
 
 
-def scan_already_clean(
-    scanner: "EvalScanners | None", scan_id: str, log_dir: str
-) -> bool:
+def scan_already_clean(scanner: "Scanners | None", scan_id: str, log_dir: str) -> bool:
     """True if the prior scan finalized cleanly and no call has run since.
 
     Used by `eval_set` to short-circuit the success-logs-as-PreviousTask
@@ -484,7 +489,7 @@ def _scan_finalized_clean(scan_dir: str) -> bool:
 
 
 def scanned_transcripts_for_resume(
-    scanner: "EvalScanners | None",
+    scanner: "Scanners | None",
     scan_id: str | None,
     log_location: str,
 ) -> dict[str, set[str]]:
@@ -524,7 +529,7 @@ def scanned_transcripts_for_resume(
 
 
 async def _cleanup_orphan_scan_rows(
-    scan_dir: str, log_dir: str, scanner: "EvalScanners"
+    scan_dir: str, log_dir: str, scanner: "Scanners"
 ) -> None:
     """Drop scan rows whose transcript_id has no corresponding sample.
 
@@ -685,7 +690,7 @@ def _snapshot_from_compacted(scan_dir: Any, *, log_dir: str) -> Any:
 
 @contextlib.contextmanager
 def scan_context(
-    scanner: "EvalScanners | None",
+    scanner: "Scanners | None",
     *,
     scan_id: str,
     log_dir: str,
@@ -701,7 +706,7 @@ def scan_context(
         run_coroutine(scan_finalize(scan_id=scan_id, log_dir=log_dir, scanner=scanner))
 
 
-def print_scan_status(log_dir: str, scanner: "EvalScanners | None" = None) -> None:
+def print_scan_status(log_dir: str, scanner: "Scanners | None" = None) -> None:
     """Print the most recent scan dir's final status as plain text.
 
     Called from `eval` / `eval_set` after they have rendered their
@@ -717,7 +722,7 @@ def print_scan_status(log_dir: str, scanner: "EvalScanners | None" = None) -> No
     reflects the call that just finished. No-op when no scan dir
     exists.
 
-    `scanner` is forwarded so `EvalScannerConfig.scans` (the override
+    `scanner` is forwarded so `ScannerConfig.scans` (the override
     that redirects scan output to a different location, e.g. an S3
     bucket) is honored — without it the search would look under
     `<log_dir>/scans/` and miss the redirected dir entirely.
@@ -754,7 +759,7 @@ def print_scan_status(log_dir: str, scanner: "EvalScanners | None" = None) -> No
         print(f"Complete (ignoring errors): scout scan complete {path}\n")
 
 
-def _scans_location(log_dir: str, scanner: "EvalScanners | None" = None) -> str:
+def _scans_location(log_dir: str, scanner: "Scanners | None" = None) -> str:
     """Where scan outputs land.
 
     Defaults to `<log_dir>/scans/`. A `ScanJob`/`ScanJobConfig` may
@@ -766,51 +771,51 @@ def _scans_location(log_dir: str, scanner: "EvalScanners | None" = None) -> str:
     return base.rstrip("/")
 
 
-def _scan_dir(log_dir: str, scan_id: str, scanner: "EvalScanners | None" = None) -> str:
+def _scan_dir(log_dir: str, scan_id: str, scanner: "Scanners | None" = None) -> str:
     return f"{_scans_location(log_dir, scanner)}/scan_id={scan_id}"
 
 
 def _normalize_scanners(
-    scanner: "EvalScanners | None",
+    scanner: "Scanners | None",
 ) -> "dict[str, Scanner[Any]]":
     from inspect_scout import ScanJob
 
     if scanner is None:
         return {}
-    if isinstance(scanner, EvalScannerConfig):
+    if isinstance(scanner, ScannerConfig):
         return ScanJob(scanners=scanner.scanners)._scanners
     return ScanJob(scanners=scanner)._scanners
 
 
-def _normalize_scans(scanner: "EvalScanners | None") -> str | None:
+def _normalize_scans(scanner: "Scanners | None") -> str | None:
     """Extract the scan-output-location override (`scans`), if any."""
-    if isinstance(scanner, EvalScannerConfig):
+    if isinstance(scanner, ScannerConfig):
         return scanner.scans
     return None
 
 
-def _normalize_tags(scanner: "EvalScanners | None") -> list[str] | None:
-    """Tags carried on `EvalScannerConfig`, written into the scan spec."""
-    if isinstance(scanner, EvalScannerConfig):
+def _normalize_tags(scanner: "Scanners | None") -> list[str] | None:
+    """Tags carried on `ScannerConfig`, written into the scan spec."""
+    if isinstance(scanner, ScannerConfig):
         return scanner.tags
     return None
 
 
-def _normalize_scan_name(scanner: "EvalScanners | None") -> str:
-    """Scan-name override from `EvalScannerConfig`, else "eval_set"."""
-    if isinstance(scanner, EvalScannerConfig):
+def _normalize_scan_name(scanner: "Scanners | None") -> str:
+    """Scan-name override from `ScannerConfig`, else "eval_set"."""
+    if isinstance(scanner, ScannerConfig):
         return scanner.name or "eval_set"
     return "eval_set"
 
 
-def _normalize_metadata(scanner: "EvalScanners | None") -> "dict[str, Any] | None":
-    """Metadata carried on `EvalScannerConfig`, written into the scan spec."""
-    if isinstance(scanner, EvalScannerConfig):
+def _normalize_metadata(scanner: "Scanners | None") -> "dict[str, Any] | None":
+    """Metadata carried on `ScannerConfig`, written into the scan spec."""
+    if isinstance(scanner, ScannerConfig):
         return scanner.metadata
     return None
 
 
-def _install_scan_model_context(scanner: "EvalScanners | None") -> None:
+def _install_scan_model_context(scanner: "Scanners | None") -> None:
     """Install scout's scan-time model context for this sample.
 
     Always invokes scout's `init_scan_model_context` so the scanner's
@@ -831,7 +836,7 @@ def _install_scan_model_context(scanner: "EvalScanners | None") -> None:
     from inspect_scout._scan import init_scan_model_context
 
     kwargs: dict[str, Any] = {}
-    if isinstance(scanner, EvalScannerConfig):
+    if isinstance(scanner, ScannerConfig):
         if scanner.model is not None:
             kwargs["model"] = scanner.model
         if scanner.generate_config is not None:
@@ -861,7 +866,7 @@ def _rewrap_no_model_error(scanner_name: str, error: Exception) -> Exception:
         return PrerequisiteError(
             f"Scanner '{scanner_name}' tried to use a model but no "
             "scan-side model is configured. Set one via "
-            "`EvalScannerConfig(model=...)`, the CLI flag `--scan-model`, "
+            "`ScannerConfig(model=...)`, the CLI flag `--scan-model`, "
             "or the `SCOUT_SCAN_MODEL` environment variable."
         )
     return error
@@ -870,7 +875,7 @@ def _rewrap_no_model_error(scanner_name: str, error: Exception) -> Exception:
 def _verify_scanner_config_unchanged(
     *,
     prior: "ScanSpec",
-    requested: "EvalScanners | None",
+    requested: "Scanners | None",
     requested_scanners_dict: "dict[str, Scanner[Any]]",
 ) -> None:
     """Raise `PrerequisiteError` if the scanner config differs from `prior`.
@@ -932,7 +937,7 @@ def _verify_scanner_config_unchanged(
         )
 
 
-def _apply_label_updates(recorder: Any, scanner: "EvalScanners | None") -> None:
+def _apply_label_updates(recorder: Any, scanner: "Scanners | None") -> None:
     """Refresh `name` / `tags` / `metadata` on the on-disk `_scan.json`.
 
     Called after `_verify_scanner_config_unchanged` passes. The fields
@@ -966,7 +971,7 @@ def _apply_label_updates(recorder: Any, scanner: "EvalScanners | None") -> None:
     recorder._write_scan_spec()
 
 
-def _scan_config_hash(scanner: "EvalScanners | None") -> str:
+def _scan_config_hash(scanner: "Scanners | None") -> str:
     """Hash inspect_ai-side scanner config that isn't in `ScannerSpec`.
 
     Scout's `ScannerSpec` already captures per-scanner identity
@@ -980,9 +985,9 @@ def _scan_config_hash(scanner: "EvalScanners | None") -> str:
     invalidate the prior scan. Excludes labels (`name`, `tags`,
     `metadata`, `scans`) — changing those shouldn't force a rescan.
 
-    Non-EvalScannerConfig inputs (raw scanner list/dict) hash to a
+    Non-ScannerConfig inputs (raw scanner list/dict) hash to a
     canonical "no eval-side config" value, identical to passing an
-    EvalScannerConfig with all defaults.
+    ScannerConfig with all defaults.
 
     `Model` instances passed for `model` / `model_roles[*]` are
     coerced via `str()` first because `to_json_safe`'s fallback drops
@@ -990,7 +995,7 @@ def _scan_config_hash(scanner: "EvalScanners | None") -> str:
     want to detect. `str(model)` produces "<api>/<name>", stable
     across runs of the same model.
     """
-    config = scanner if isinstance(scanner, EvalScannerConfig) else None
+    config = scanner if isinstance(scanner, ScannerConfig) else None
     payload = {
         "filter": _normalize_filters(scanner),
         "model": str(config.model) if (config and config.model is not None) else None,
@@ -1006,15 +1011,15 @@ def _scan_config_hash(scanner: "EvalScanners | None") -> str:
     return hashlib.sha256(to_json_safe(payload, indent=None)).hexdigest()
 
 
-def _normalize_filters(scanner: "EvalScanners | None") -> list[str]:
+def _normalize_filters(scanner: "Scanners | None") -> list[str]:
     """Extract SQL filter clauses from the scanner argument.
 
-    `EvalScannerConfig.filter` is the user-facing surface — a string
+    `ScannerConfig.filter` is the user-facing surface — a string
     or list of SQL WHERE clauses applied to the transcripts to scan.
     Scout's direct scan path applies these via `Transcripts.where(...)`;
     we lift them out and apply per-sample in `scan_eval_sample`.
     """
-    if not isinstance(scanner, EvalScannerConfig):
+    if not isinstance(scanner, ScannerConfig):
         return []
     raw = scanner.filter
     if isinstance(raw, list):
