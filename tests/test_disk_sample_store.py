@@ -1,12 +1,13 @@
-import glob
 import os
-import tempfile
+from functools import partial
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import pytest
 from pydantic import JsonValue
 
 from inspect_ai import Task, eval
+from inspect_ai._eval.task import store as store_module
 from inspect_ai._eval.task.store import (
     DiskSampleStore,
     deep_getsizeof,
@@ -52,14 +53,21 @@ def test_disk_sample_store_roundtrip() -> None:
     assert not os.path.exists(store._path)
 
 
-def test_disk_sample_store_constructor_failure_cleans_up() -> None:
+def test_disk_sample_store_constructor_failure_cleans_up(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """If pickling fails in __init__, the temp file must not be leaked."""
+    monkeypatch.setattr(
+        store_module.tempfile,
+        "mkstemp",
+        partial(store_module.tempfile.mkstemp, dir=tmp_path),
+    )
     bad_sample = Sample(input="ok", metadata={"fn": lambda: None})
-    before = set(glob.glob(os.path.join(tempfile.gettempdir(), "*.pkl")))
+
     with pytest.raises(Exception):
         DiskSampleStore([bad_sample])
-    after = set(glob.glob(os.path.join(tempfile.gettempdir(), "*.pkl")))
-    leaked = after - before
+
+    leaked = list(tmp_path.glob("*.pkl"))
     assert not leaked, f"Temp file leaked: {leaked}"
 
 
