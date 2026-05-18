@@ -1,5 +1,6 @@
 ## 0.3.222 (16 May 2026)
 
+- Google: Add a default 1 hour SDK transport timeout for GenAI requests.
 - Scanners: Declare Scanner import in a way that's compatible with pyright type checking.
 
 ## 0.3.221 (16 May 2026)
