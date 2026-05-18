@@ -92,6 +92,8 @@ class ActiveSample:
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
         self.event_done: anyio.Event | None = None
+        self.event_queue_warned: bool = False
+        """True once we've logged a queue-saturation warning for this sample."""
         # Live ACP session for this sample, if any. Set by
         # `LiveAcpTransport.__aenter__` on entry; cleared at `__aexit__`.
         # The Inspect TUI reads this to decide whether to render the

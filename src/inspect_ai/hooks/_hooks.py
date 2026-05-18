@@ -1,4 +1,3 @@
-import math
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Awaitable, Callable, Literal, Type, TypeVar, cast
@@ -28,6 +27,14 @@ from inspect_ai.tool._tool_info import ToolInfo
 from inspect_ai.util._limit import LimitExceededError
 
 logger = getLogger(__name__)
+
+SAMPLE_EVENT_QUEUE_CAPACITY = 4096
+"""Maximum sample events buffered for hook delivery before drop-oldest kicks in.
+
+Sized to cap the live hook queue at roughly 70 MB worst-case per sample
+(assuming ~17 KB/event). Hooks are best-effort; durable event storage
+lives in the event store.
+"""
 
 
 @dataclass(frozen=True)
@@ -681,6 +688,28 @@ def emit_sample_event(
     )
     try:
         active.event_send.send_nowait(data)
+    except anyio.WouldBlock:
+        if active.event_receive is not None:
+            try:
+                active.event_receive.receive_nowait()
+            except (anyio.WouldBlock, anyio.EndOfStream, anyio.ClosedResourceError):
+                pass
+            try:
+                active.event_send.send_nowait(data)
+            except (
+                anyio.WouldBlock,
+                anyio.ClosedResourceError,
+                anyio.BrokenResourceError,
+            ):
+                pass
+        if not active.event_queue_warned:
+            active.event_queue_warned = True
+            logger.warning(
+                "Hook event queue saturated for sample %s; events are being "
+                "dropped. Check hook responsiveness — durable event storage "
+                "is unaffected.",
+                sample_id,
+            )
     except (anyio.ClosedResourceError, anyio.BrokenResourceError):
         pass
 
@@ -695,7 +724,7 @@ def start_sample_event_emitter() -> None:
         return
 
     send_stream, receive_stream = anyio.create_memory_object_stream[SampleEvent](
-        math.inf
+        SAMPLE_EVENT_QUEUE_CAPACITY
     )
     active.event_send = send_stream
     active.event_receive = receive_stream
