@@ -22,11 +22,11 @@ import time
 from typing import Any
 
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
+from textual.containers import Vertical
 from textual.css.query import NoMatches
 from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Button, Static
+from textual.widgets import Static
 
 from inspect_ai._util.rich import clean_control_characters
 
@@ -154,9 +154,7 @@ class ToolCallWidget(Widget):
         # Tracks whether the approval section is currently mounted in
         # the approval-area. Diff against this in update_state to
         # mount/unmount minimally as ``pending_approval`` toggles.
-        self._mounted_has_pending: bool = (
-            self._state.pending_approval is not None
-        )
+        self._mounted_has_pending: bool = self._state.pending_approval is not None
         self._refresh_status_class()
 
     # ------------------------------------------------------------------
@@ -335,7 +333,7 @@ class ToolCallWidget(Widget):
         here, so the area stays empty after the operator decides.
         """
         if self._state.pending_approval is not None:
-            yield _ApprovalSection(self._state)
+            yield _ApprovalContent(self._state)
 
     def _body_changed(self) -> bool:
         new_kind = "plan" if self._is_plan_state() else "content"
@@ -467,7 +465,7 @@ class ToolCallWidget(Widget):
         """Render one body item; delegates to the module-level dispatcher.
 
         Kept as a thin instance wrapper so the widget's existing call
-        sites don't churn; new call sites (e.g. ``_ApprovalSection``)
+        sites don't churn; new call sites (e.g. ``_ApprovalContent``)
         should call :func:`compose_content_item` directly.
         """
         yield from compose_content_item(item, context_id=self._state.tool_call_id)
@@ -541,9 +539,7 @@ class ToolCallWidget(Widget):
         if self._state.is_terminal:
             duration = format_duration(self._state.duration_seconds)
         else:
-            duration = format_duration(
-                time.monotonic() - self._state.start_time
-            )
+            duration = format_duration(time.monotonic() - self._state.start_time)
         base = f"{glyph} {duration}"
         # Append, on the same line, either:
         # - The pending-approval marker (while a permission request
@@ -650,7 +646,7 @@ def _common_prefix(old: list[tuple[Any, ...]], new: list[tuple[Any, ...]]) -> in
 
 # ----------------------------------------------------------------------
 # Content-item rendering — shared by the tool card body and the inline
-# approval section. Module-level so ``_ApprovalSection`` can render the
+# approval section. Module-level so ``_ApprovalContent`` can render the
 # request's ``tool_call.content`` blocks (markdown / diff / terminal
 # variants) through the same pipeline as a live tool card, honoring
 # the tool author's custom presentation (via ``@tool(viewer=...)``).
@@ -725,7 +721,7 @@ def _text_for_inner(inner: object) -> str:
 def _is_separator_block(block: object) -> bool:
     """True iff ``block`` is the producer-side ``---`` rule block.
 
-    Used by :class:`_ApprovalSection` to apply a tight (no-margin)
+    Used by :class:`_ApprovalContent` to apply a tight (no-margin)
     wrapper around the rule so it doesn't double-space the
     transition between view halves. Match shape: a
     ``ContentToolCallContent`` whose inner ``TextContentBlock.text``
@@ -742,11 +738,16 @@ def _is_separator_block(block: object) -> bool:
 
 # ----------------------------------------------------------------------
 # Approval section (inline on the tool-call card)
+#
+# The card hosts the CONTEXT PREVIEW (``_ApprovalContent`` below). The
+# action buttons live in :class:`_ApprovalBar` (composer area) and
+# post :class:`ApprovalDecisionRequested` using the
+# ``_BUTTON_ID_PREFIX`` id convention defined here.
 # ----------------------------------------------------------------------
 
 
 class ApprovalDecisionRequested(Message):
-    """Posted up from ``_ApprovalSection`` when an action button is pressed.
+    """Posted up from :class:`_ApprovalBar` when an action button is pressed.
 
     Routes to :meth:`SessionScreen.on_tool_call_approval_decision_requested`
     which calls :meth:`SessionState.resolve_approval` — that fires the
@@ -763,25 +764,29 @@ class ApprovalDecisionRequested(Message):
 _BUTTON_ID_PREFIX = "approve-opt-"
 
 
-class _ApprovalSection(Vertical):
-    """Inline approval prompt + action buttons on a tool-call card.
+class _ApprovalContent(Vertical):
+    """Inline approval CONTEXT PREVIEW on a tool-call card.
 
-    Mirrors the in-proc :class:`ApprovalRequestContent` +
-    :class:`ApprovalRequestActions` pattern from
-    ``src/inspect_ai/approval/_human/panel.py`` but adapted for inline
-    use on a transcript card. The visual structure (bold per-half
-    titles + horizontal-rule separator between view.context and
-    view.call) comes from the markdown the server already embedded in
-    the request payload — no client-side ``_meta`` parsing required.
+    Renders the ``view.context`` / separator / ``view.call`` halves
+    that the server baked into the approval request's markdown so
+    the operator can see WHAT they're being asked to approve. The
+    action buttons live in :class:`_ApprovalBar` (composer area) —
+    keeping them out of the card prevents the "scroll up to find
+    the buttons" issue on long tool cards with diffs / code blocks.
+
+    Mirrors the structure of the in-proc
+    :class:`ApprovalRequestContent` from
+    ``src/inspect_ai/approval/_human/panel.py`` — content only,
+    no actions.
     """
 
     DEFAULT_CSS = """
-    _ApprovalSection {
+    _ApprovalContent {
         height: auto;
         padding-left: 2;
         margin-bottom: 1;
     }
-    _ApprovalSection .approval-content {
+    _ApprovalContent .approval-content {
         height: auto;
         margin-bottom: 1;
     }
@@ -790,7 +795,7 @@ class _ApprovalSection(Vertical):
      * previous block's content. Pair-matched with
      * ``.approval-separator`` (zero margins) — together they make
      * the divider read as a tight transition, not a buffered one. */
-    _ApprovalSection .approval-content-tight {
+    _ApprovalContent .approval-content-tight {
         height: auto;
         margin-bottom: 0;
     }
@@ -800,34 +805,9 @@ class _ApprovalSection(Vertical):
      * (one blank below the previous block AND one below the rule),
      * pushing the next heading two rows below the divider. Render
      * tight: no top or bottom margin around the rule itself. */
-    _ApprovalSection .approval-separator {
+    _ApprovalContent .approval-separator {
         height: auto;
         margin: 0;
-    }
-    _ApprovalSection .approval-actions {
-        height: auto;
-    }
-    _ApprovalSection .approval-actions Button {
-        margin-right: 1;
-        min-width: 16;
-    }
-    /* Per-kind colour treatment mirrors ApprovalRequestActions in
-     * panel.py:148–233. ``allow_*`` reads as the safe / green
-     * action; ``reject_once`` as a soft no; ``reject_always`` as
-     * the strongest deny (typically ``terminate``). */
-    _ApprovalSection .approval-actions Button.allow-once,
-    _ApprovalSection .approval-actions Button.allow-always {
-        color: $success;
-    }
-    _ApprovalSection .approval-actions Button.reject-once {
-        color: $warning;
-    }
-    /* Margin-left mirrors the panel's visual separation: ``terminate``
-     * gets pushed away from the safer ``approve`` / ``reject``
-     * cluster so it's harder to fat-finger. */
-    _ApprovalSection .approval-actions Button.reject-always {
-        color: $error;
-        margin-left: 3;
     }
     """
 
@@ -843,10 +823,7 @@ class _ApprovalSection(Vertical):
             return
         # No "⚠ approval requested" intro line: the lifecycle pill
         # in the session header already says "awaiting approval"
-        # and the action buttons below this section are the obvious
-        # call to action. An extra in-card heading just adds a row
-        # of chrome under the tool name without telling the operator
-        # anything new.
+        # and the composer bar below is the obvious call to action.
         #
         # Content area: same renderer as the tool card body. The
         # server's ``_build_request`` baked bold view titles + a
@@ -882,44 +859,6 @@ class _ApprovalSection(Vertical):
                 yield from compose_content_item(
                     block, context_id=self._state.tool_call_id
                 )
-        with Horizontal(classes="approval-actions"):
-            for option in pending.request.options:
-                # ACP ``PermissionOptionKind`` uses underscores
-                # (``allow_once``, ``reject_always``); Textual CSS
-                # class names use dashes by convention. Translate.
-                kind_class = option.kind.replace("_", "-")
-                button = Button(
-                    option.name, id=f"{_BUTTON_ID_PREFIX}{option.option_id}"
-                )
-                button.add_class(kind_class)
-                yield button
-
-    def on_mount(self) -> None:
-        # Focus the first action button so Tab+Enter works without
-        # the operator needing to click into the section first.
-        # Mirrors ``ApprovalRequestActions.activate``'s
-        # ``approve.focus()`` pattern.
-        try:
-            first = self.query(Button).first()
-        except NoMatches:
-            return
-        if first is not None:
-            first.focus()
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        button_id = event.button.id
-        if button_id and button_id.startswith(_BUTTON_ID_PREFIX):
-            option_id = button_id[len(_BUTTON_ID_PREFIX) :]
-            self.post_message(
-                ApprovalDecisionRequested(
-                    tool_call_id=self._state.tool_call_id,
-                    option_id=option_id,
-                )
-            )
-            # Stop the event from bubbling further; the parent screen
-            # picks it up via our ``ApprovalDecisionRequested``
-            # message instead.
-            event.stop()
 
 
 # Post-resolution approval text + colour, appended to the tool's

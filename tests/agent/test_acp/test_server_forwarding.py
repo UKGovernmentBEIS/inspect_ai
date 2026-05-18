@@ -1283,8 +1283,7 @@ async def test_forwarders_drain_blocks_until_pending_notifications_sent() -> Non
         while len(send_calls) <= preamble_count:
             if asyncio.get_event_loop().time() > deadline:
                 raise AssertionError(
-                    "forwarder did not start processing published items "
-                    "within 1s"
+                    "forwarder did not start processing published items within 1s"
                 )
             await asyncio.sleep(0)
 

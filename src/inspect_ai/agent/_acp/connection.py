@@ -885,9 +885,7 @@ class ConnectionHandler:
         # the session id it actually knows. Skip the copy when they
         # already match (auto-bind / direct-loadSession fast-path).
         if binding.wire_session_id != request.session_id:
-            request = request.model_copy(
-                update={"session_id": binding.wire_session_id}
-            )
+            request = request.model_copy(update={"session_id": binding.wire_session_id})
         payload = request.model_dump(mode="json", by_alias=True, exclude_none=True)
         raw = await self.connection.send_request("session/request_permission", payload)
         return RequestPermissionResponse.model_validate(raw)

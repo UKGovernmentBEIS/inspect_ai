@@ -492,6 +492,32 @@ class SessionState:
             tc.pending_approval is not None for tc in self._tool_calls_by_id.values()
         )
 
+    def current_pending_approval(self) -> PendingApproval | None:
+        """The first in-flight ``PendingApproval``, or ``None``.
+
+        Drives the composer-area approval bar — only one approval is
+        rendered at a time. Parallel tool calls each get their own
+        ``ToolCallState.pending_approval`` slot; the bar shows them
+        in insertion order (``_tool_calls_by_id`` is a regular
+        dict). On resolve, the bar advances to the next pending.
+        """
+        for tc in self._tool_calls_by_id.values():
+            if tc.pending_approval is not None:
+                return tc.pending_approval
+        return None
+
+    def current_pending_tool_call_id(self) -> str | None:
+        """The tool_call_id of the first in-flight approval, or ``None``.
+
+        Sibling to :meth:`current_pending_approval` — the screen's
+        binding handlers need this to call
+        :meth:`resolve_approval`.
+        """
+        for tc_id, tc in self._tool_calls_by_id.items():
+            if tc.pending_approval is not None:
+                return tc_id
+        return None
+
     def mark_complete(self) -> None:
         """Sticky-mark the session as ended (transport disconnect / end).
 

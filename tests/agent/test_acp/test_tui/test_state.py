@@ -1830,3 +1830,49 @@ def test_decision_label_unknown_option_id_defaults_to_denied() -> None:
 
     tc = state._tool_calls_by_id["tc-1"]
     assert tc.last_approval_decision == "denied"
+
+
+def test_current_pending_approval_returns_none_with_no_pending() -> None:
+    """Accessor returns ``None`` when no tool call has a pending approval."""
+    state = SessionState()
+    assert state.current_pending_approval() is None
+    assert state.current_pending_tool_call_id() is None
+
+
+def test_current_pending_approval_returns_the_pending_one() -> None:
+    """Accessor returns the ``PendingApproval`` + its tool_call_id when one is pending.
+
+    Used by :class:`_ApprovalBar` to know which approval to render
+    in the composer-area bar.
+    """
+    state = SessionState()
+    req = _permission_request("tc-1")
+    pending = _pending(req)
+    state.consume_approval_request(pending)
+
+    assert state.current_pending_approval() is pending
+    assert state.current_pending_tool_call_id() == "tc-1"
+
+
+def test_current_pending_approval_returns_first_when_multiple_pending() -> None:
+    """Parallel tool calls can each be pending; the bar handles one at a time.
+
+    Returns the FIRST pending in insertion order — matching the
+    visual transcript order so the bar advances top-to-bottom as the
+    operator resolves each.
+    """
+    state = SessionState()
+    req1 = _permission_request("tc-1", title="ls")
+    req2 = _permission_request("tc-2", title="cat /etc/passwd")
+    pending1 = _pending(req1)
+    pending2 = _pending(req2)
+    state.consume_approval_request(pending1)
+    state.consume_approval_request(pending2)
+
+    assert state.current_pending_approval() is pending1
+    assert state.current_pending_tool_call_id() == "tc-1"
+
+    # Resolve first → second advances.
+    state.resolve_approval("tc-1", option_id="approve")
+    assert state.current_pending_approval() is pending2
+    assert state.current_pending_tool_call_id() == "tc-2"

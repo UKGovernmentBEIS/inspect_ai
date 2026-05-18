@@ -1486,97 +1486,11 @@ def _pending_approval(req, event=None):
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_approval_section_mounts_buttons_per_option() -> None:
-    """When state has a pending approval, the section mounts with one button per option."""
-    from textual.widgets import Button
-
-    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalSection
-
-    state = ToolCallState(
-        tool_call_id="tc-1",
-        title="bash ls",
-        status="pending",
-    )
-    req = _approval_request(
-        options=[
-            ("approve", "allow_once"),
-            ("reject", "reject_once"),
-            ("terminate", "reject_always"),
-        ],
-    )
-    state.pending_approval = _pending_approval(req)
-
-    app = _harness(lambda: ToolCallWidget(state))
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        section = app.query_one(_ApprovalSection)
-        buttons = list(section.query(Button))
-        assert len(buttons) == 3
-        ids = [b.id for b in buttons]
-        assert "approve-opt-approve" in ids
-        assert "approve-opt-reject" in ids
-        assert "approve-opt-terminate" in ids
-
-
-@skip_if_trio
-@pytest.mark.anyio
-async def test_approval_section_clicking_button_posts_decision_message() -> None:
-    """Pilot-click on Approve → ApprovalDecisionRequested bubbles up; state resolves."""
-    from inspect_ai.agent._acp.tui.state import SessionState
-    from inspect_ai.agent._acp.tui.widgets.tool_call import (
-        ApprovalDecisionRequested,
-        _ApprovalSection,
-    )
-
-    # Use a SessionState-attached card so the screen-style handler
-    # path (state.resolve_approval) is exercised.
-    session_state = SessionState()
-    req = _approval_request()
-    pending = _pending_approval(req)
-    session_state.consume_approval_request(pending)
-    tc = session_state._tool_calls_by_id["tc-1"]
-
-    received: list[ApprovalDecisionRequested] = []
-
-    class _ButtonHostApp(App[None]):
-        def compose(self) -> ComposeResult:
-            yield ToolCallWidget(tc)
-
-        def on_approval_decision_requested(
-            self, message: ApprovalDecisionRequested
-        ) -> None:
-            received.append(message)
-            # Mirror SessionScreen's handler — calls into state.
-            session_state.resolve_approval(
-                message.tool_call_id, option_id=message.option_id
-            )
-            message.stop()
-
-    app = _ButtonHostApp()
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        section = app.query_one(_ApprovalSection)
-        # Click the Approve button.
-        await pilot.click(section.query_one("#approve-opt-approve"))
-        await pilot.pause()
-
-    assert len(received) == 1
-    assert received[0].option_id == "approve"
-    assert received[0].tool_call_id == "tc-1"
-    # State resolved + event set + label recorded.
-    assert tc.pending_approval is None
-    assert tc.last_approval_decision == "approved"
-    assert pending.event.is_set()
-    assert pending.chosen_option_id == "approve"
-
-
-@skip_if_trio
-@pytest.mark.anyio
-async def test_approval_section_renders_diff_content_variant() -> None:
+async def test_approval_content_renders_diff_content_variant() -> None:
     """A ``FileEditToolCallContent`` block in the request renders as a diff."""
     from acp.schema import FileEditToolCallContent
 
-    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalSection
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalContent
 
     diff = FileEditToolCallContent(
         type="diff",
@@ -1591,7 +1505,7 @@ async def test_approval_section_renders_diff_content_variant() -> None:
     app = _harness(lambda: ToolCallWidget(state))
     async with app.run_test() as pilot:
         await pilot.pause()
-        section = app.query_one(_ApprovalSection)
+        section = app.query_one(_ApprovalContent)
         old_lines = [str(s.content) for s in section.query(".diff-old")]
         new_lines = [str(s.content) for s in section.query(".diff-new")]
         headers = [str(s.content) for s in section.query(".diff-header")]
@@ -1603,11 +1517,11 @@ async def test_approval_section_renders_diff_content_variant() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_approval_section_renders_terminal_content_variant() -> None:
+async def test_approval_content_renders_terminal_content_variant() -> None:
     """A ``TerminalToolCallContent`` block in the request renders as terminal placeholder."""
     from acp.schema import TerminalToolCallContent
 
-    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalSection
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalContent
 
     term = TerminalToolCallContent(type="terminal", terminal_id="t-42")
     req = _approval_request(content_blocks=[term])
@@ -1617,7 +1531,7 @@ async def test_approval_section_renders_terminal_content_variant() -> None:
     app = _harness(lambda: ToolCallWidget(state))
     async with app.run_test() as pilot:
         await pilot.pause()
-        section = app.query_one(_ApprovalSection)
+        section = app.query_one(_ApprovalContent)
         body_text = " ".join(str(s.content) for s in section.query(".body-content"))
         assert "[terminal: t-42]" in body_text
 
@@ -1625,7 +1539,7 @@ async def test_approval_section_renders_terminal_content_variant() -> None:
 @skip_if_trio
 @pytest.mark.anyio
 async def test_decision_appears_on_footer_after_resolve() -> None:
-    """After resolve_approval, the section unmounts and the decision suffixes the footer.
+    """After resolve_approval, the content section unmounts and the decision suffixes the footer.
 
     Compact layout: the post-resolution decision (``approved by
     you`` / ``denied by you`` / ``cancelled``) appears inline on
@@ -1634,7 +1548,7 @@ async def test_decision_appears_on_footer_after_resolve() -> None:
     with this tool call" (it ran AND who approved it) in one
     anchor.
     """
-    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalSection
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalContent
 
     state = ToolCallState(tool_call_id="tc-1", title="bash", status="pending")
     state.pending_approval = _pending_approval(_approval_request())
@@ -1643,8 +1557,8 @@ async def test_decision_appears_on_footer_after_resolve() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         widget = app.query_one(ToolCallWidget)
-        # Section mounted while pending.
-        assert len(widget.query(_ApprovalSection)) == 1
+        # Content section mounted while pending.
+        assert len(widget.query(_ApprovalContent)) == 1
         # Footer has NO decision suffix yet.
         footer_before = str(widget.query_one(".footer", Static).content)
         assert "approved by you" not in footer_before
@@ -1657,8 +1571,8 @@ async def test_decision_appears_on_footer_after_resolve() -> None:
         widget.update_state(state)
         await pilot.pause()
 
-        # Section gone.
-        assert len(widget.query(_ApprovalSection)) == 0
+        # Content section gone.
+        assert len(widget.query(_ApprovalContent)) == 0
         # No separate summary widget either — decision lives on
         # the footer now.
         assert len(widget.query(".decision-summary")) == 0
@@ -1827,9 +1741,7 @@ async def test_approval_area_sizes_to_content_not_remaining_space() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         area = app.query_one("#approval-area", Vertical)
-        content_height = sum(
-            child.region.height for child in area.children
-        )
+        content_height = sum(child.region.height for child in area.children)
         # Slack of 3 rows for any margins (margin-bottom on the
         # section + any wrapper padding); a 1fr runaway would
         # exceed this by an order of magnitude.
@@ -1838,29 +1750,6 @@ async def test_approval_area_sizes_to_content_not_remaining_space() -> None:
             f"its content height ({content_height}) by more than the "
             f"margin slack — the Vertical's 1fr default is back."
         )
-
-
-@skip_if_trio
-@pytest.mark.anyio
-async def test_approval_section_first_button_is_focused_on_mount() -> None:
-    """First action button focused so Tab+Enter works without a click."""
-    from textual.widgets import Button
-
-    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalSection
-
-    state = ToolCallState(tool_call_id="tc-1", title="bash", status="pending")
-    state.pending_approval = _pending_approval(_approval_request())
-
-    app = _harness(lambda: ToolCallWidget(state))
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        section = app.query_one(_ApprovalSection)
-        first_button = section.query(Button).first()
-        assert first_button is not None
-        # Note: Textual's focus chain may not have reached the button
-        # yet in some race-y test scenarios; check that .has_focus
-        # OR the focused widget is the button.
-        assert first_button.has_focus or app.focused is first_button
 
 
 @skip_if_trio
@@ -1882,6 +1771,252 @@ async def test_tool_card_has_approval_css_class_while_pending() -> None:
         widget.update_state(state)
         await pilot.pause()
         assert "approval" not in widget.classes
+
+
+# ---------------------------------------------------------------------------
+# Composer-area approval bar (_ApprovalBar)
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_hidden_when_no_pending() -> None:
+    """Bar carries the ``-hidden`` class when no approval is pending."""
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+
+    state = SessionState()
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        assert "-hidden" in bar.classes
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_visible_when_pending_arrives() -> None:
+    """``consume_approval_request`` makes the bar visible via its subscription."""
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+
+    state = SessionState()
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        assert "-hidden" in bar.classes
+
+        state.consume_approval_request(_pending_approval(_approval_request()))
+        await pilot.pause()
+        assert "-hidden" not in bar.classes
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_mounts_action_per_option() -> None:
+    """One ``_ApprovalAction`` per option with the standard ``approve-opt-<id>`` ids."""
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import (
+        _ApprovalAction,
+        _ApprovalBar,
+    )
+
+    state = SessionState()
+    state.consume_approval_request(
+        _pending_approval(
+            _approval_request(
+                options=[
+                    ("approve", "allow_once"),
+                    ("reject", "reject_once"),
+                    ("terminate", "reject_always"),
+                ],
+            )
+        )
+    )
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        ids = [a.id for a in bar.query(_ApprovalAction)]
+        assert ids == [
+            "approve-opt-approve",
+            "approve-opt-reject",
+            "approve-opt-terminate",
+        ]
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_first_action_is_focused_on_mount() -> None:
+    """First action focused so Tab+Enter works without a click."""
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import (
+        _ApprovalAction,
+        _ApprovalBar,
+    )
+
+    state = SessionState()
+    state.consume_approval_request(_pending_approval(_approval_request()))
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        first = bar.query(_ApprovalAction).first()
+        assert first is not None
+        # Textual's focus chain may not have transferred yet under
+        # the test event loop — accept either the widget's own focus
+        # flag or the app-level focused pointer.
+        assert first.has_focus or app.focused is first
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_clicking_action_posts_decision_message() -> None:
+    """Pilot-click on Approve → ``ApprovalDecisionRequested`` bubbles up; state resolves."""
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+    from inspect_ai.agent._acp.tui.widgets.tool_call import ApprovalDecisionRequested
+
+    state = SessionState()
+    pending = _pending_approval(_approval_request())
+    state.consume_approval_request(pending)
+    tc = state._tool_calls_by_id["tc-1"]
+
+    received: list[ApprovalDecisionRequested] = []
+
+    class _ActionHostApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield _ApprovalBar(state)
+
+        def on_approval_decision_requested(
+            self, message: ApprovalDecisionRequested
+        ) -> None:
+            received.append(message)
+            state.resolve_approval(message.tool_call_id, option_id=message.option_id)
+            message.stop()
+
+    app = _ActionHostApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        await pilot.click(bar.query_one("#approve-opt-approve"))
+        await pilot.pause()
+
+    assert len(received) == 1
+    assert received[0].option_id == "approve"
+    assert received[0].tool_call_id == "tc-1"
+    assert tc.pending_approval is None
+    assert tc.last_approval_decision == "approved"
+    assert pending.event.is_set()
+    assert pending.chosen_option_id == "approve"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_hides_after_resolve() -> None:
+    """Resolving the pending approval re-hides the bar via the state subscription."""
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+
+    state = SessionState()
+    state.consume_approval_request(_pending_approval(_approval_request()))
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        assert "-hidden" not in bar.classes
+
+        state.resolve_approval("tc-1", option_id="approve")
+        await pilot.pause()
+        assert "-hidden" in bar.classes
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_action_pressed_carries_mounted_tool_call_id() -> None:
+    """``Pressed`` carries the tool_call_id active at mount time.
+
+    Pinned because the bar previously dispatched via
+    ``current_pending_tool_call_id()`` at handler time, which races
+    when parallel approvals queue up: a click on the FIRST approval
+    could resolve as if it applied to the SECOND if the first cleared
+    between click capture and message dispatch.
+    """
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import (
+        _ApprovalAction,
+        _ApprovalBar,
+    )
+
+    state = SessionState()
+    state.consume_approval_request(_pending_approval(_approval_request("tc-1")))
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        action = bar.query_one("#approve-opt-approve", _ApprovalAction)
+        # The action's bound tool_call_id should match its mount-time
+        # request, not a fresh state lookup.
+        assert action._tool_call_id == "tc-1"
+        # The Pressed message built by action_press carries the same id.
+        msg = _ApprovalAction.Pressed(action._tool_call_id, action._option_id)
+        assert msg.tool_call_id == "tc-1"
+        assert msg.option_id == "approve"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_drops_stale_press_for_resolved_tool_call() -> None:
+    """The bar's handler must drop a press whose carried id no longer matches.
+
+    Pinned because a queued click / Enter that lands after the first
+    approval already resolved would otherwise apply to the NEXT
+    pending approval (different tool_call_id) — silently approving
+    something the operator never clicked on.
+
+    Validation point: ``on_approval_action_pressed`` compares
+    ``event.tool_call_id`` to ``state.current_pending_tool_call_id()``
+    and short-circuits before posting an
+    :class:`ApprovalDecisionRequested`. We exercise that gate by
+    spying on ``post_message`` so we don't depend on the message bus
+    plumbing for the assertion.
+    """
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import (
+        _ApprovalAction,
+        _ApprovalBar,
+    )
+    from inspect_ai.agent._acp.tui.widgets.tool_call import ApprovalDecisionRequested
+
+    state = SessionState()
+    state.consume_approval_request(_pending_approval(_approval_request("tc-1")))
+
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        action_tc1 = bar.query_one("#approve-opt-approve", _ApprovalAction)
+        assert action_tc1._tool_call_id == "tc-1"
+
+        # Resolve tc-1 out of band (e.g. a fast keystroke or a second
+        # client's response). The bar will re-render with no pending,
+        # but a press that was already in flight could still land
+        # carrying tc-1's id.
+        state.resolve_approval("tc-1", option_id="approve")
+        await pilot.pause()
+        assert state.current_pending_tool_call_id() is None
+
+        # Spy on post_message so we can assert the handler does NOT
+        # fan out an ApprovalDecisionRequested for the stale press.
+        posted: list[object] = []
+        original_post = bar.post_message
+
+        def _spy(message: object) -> bool:
+            posted.append(message)
+            return original_post(message)
+
+        bar.post_message = _spy
+
+        bar.on_approval_action_pressed(_ApprovalAction.Pressed("tc-1", "approve"))
+
+        # The handler must early-return without posting anything.
+        decisions = [m for m in posted if isinstance(m, ApprovalDecisionRequested)]
+        assert decisions == [], (
+            f"Stale press for resolved tc-1 was not dropped; posted={decisions!r}"
+        )
 
 
 @skip_if_trio

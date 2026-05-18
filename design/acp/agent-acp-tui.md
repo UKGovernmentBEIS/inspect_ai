@@ -141,7 +141,19 @@ Single-screen overlay listing the full keymap. Bound globally except when the co
 
 **In modals & pickers (no text input):**
 
-Bare letters work directly: `a` / `o` / `d` in approval, `s` / `e` in cancel-sample, `↑↓ ↵ /` in pickers.
+Bare letters work directly: `s` / `e` in cancel-sample, `↑↓ ↵ /` in pickers.
+
+**During tool-call approval** (composer Input is replaced by the approval bar — see Phase 1):
+
+| Key | Action |
+|---|---|
+| a | approve |
+| r | reject |
+| e | escalate |
+| t | terminate |
+| m | modify |
+| Tab + ↵ | navigate buttons + activate |
+| mouse | click any bar button |
 
 ## Implementation phases
 
@@ -166,23 +178,23 @@ Pivot from the original modal design: keeping the approval anchored to the tool-
 
 - **Client-side request route** — `tui/client.py` registers `Route(method="session/request_permission", kind="request")` on the `MessageRouter`. The handler validates the request, creates a `PendingApproval` (request + `asyncio.Event`), invokes the screen-side callback, parks on the event, returns `AllowedOutcome(option_id=…)` on operator choice or `DeniedOutcome(cancelled)` on cancellation/unmount. `try/finally` cancellation safety flips `pending.cancelled` and fires the event so concurrent readers see a consistent state.
 - **State extension** — `PendingApproval` dataclass + `pending_approval` / `last_approval_decision` fields on `ToolCallState`. `consume_approval_request(pending)` synthesizes a card from the request payload if no `ToolCallStart` has arrived yet (the permission flow fires before tool execution). `resolve_approval(tool_call_id, option_id=…)` clears the slot, records the post-resolution label, fires the event. `mark_complete` / `mark_interrupted` also resolve any in-flight approvals with `cancelled=True` so disconnect / Esc don't leave the JSON-RPC handler parked. `ToolCallStatus` literal unchanged — the UI gates on `pending_approval is not None`, orthogonal to `pending/in_progress/completed/failed`.
-- **Inline `_ApprovalSection`** on the tool-call card — port of `ApprovalRequestActions` (`approval/_human/panel.py:148–233`). Visual structure: muted "⚠ approval requested" intro line; content area dispatching `request.tool_call.content` blocks through the existing `_compose_item` pipeline (so `FileEditToolCallContent` renders as a real diff, `TerminalToolCallContent` as terminal output, `ContentToolCallContent` as markdown via `StyledMarkdown`); action `Horizontal` of `Button`s with per-decision colour treatment (`$success` / `$warning-darken-3` / `$primary-darken-3` / `$error-darken-1`) and extra `margin-left: 3` on `Escalate` / `Terminate`. First button focused on mount → Tab+Enter works without click. Mouse + Tab/Enter only — no bare-letter or Ctrl-modifier shortcuts (deliberately avoids composer conflict).
-- **Post-resolution decision suffix** — after the operator (or session cancellation) resolves, the section unmounts and the decision is appended to the tool card's footer row in colour: `"✓ Ns · approved by you"` / `"✗ Ns · denied by you"` / `"⊘ Ns · cancelled"`. Uses `$success` / `$error` / `$warning` colour tokens. Inline on the same row as the tool's status glyph + duration — saves a row vs. a separate summary line.
-- **`approval` lifecycle pill** — new `Lifecycle` literal value with `"⚠ awaiting approval"` text and `$warning` colour. Priority order: `complete > approval > running > interrupted > idle`. Composer placeholder switches to `"awaiting your approval · click an action above"` when lifecycle is `approval`.
+- **Inline `_ApprovalContent`** on the tool-call card — context preview rendering the `view.context` / separator / `view.call` halves the server baked into the approval request's markdown. Dispatches `request.tool_call.content` blocks through the existing `_compose_item` pipeline (so `FileEditToolCallContent` renders as a real diff, `TerminalToolCallContent` as terminal output, `ContentToolCallContent` as markdown via `StyledMarkdown`). No action buttons live in the card — those moved to the composer-area `_ApprovalBar` (next bullet).
+- **Composer-area `_ApprovalBar`** — when an approval is pending, the composer `Input` is hidden and a bar takes the row: `> approve?   [ a ] approve   [ r ] reject   [ e ] escalate   [ t ] terminate   [ m ] modify`. Bracketed underlined letters double as bare-letter shortcuts (gated to `approval` lifecycle via `check_action` so they don't fire while typing into the composer). Buttons are also Tab-navigable and mouse-clickable. Per-kind colour: `allow_*` → `$success`, `reject_once` → `$warning`, `reject_always` → `$error`. First button focused on mount so Tab+Enter works without a click. Anchoring the actions at the bottom of the screen keeps the next-thing-to-do in the operator's eye line and avoids the "scroll up to find the buttons" issue the earlier in-card design had on long tool cards.
+- **Post-resolution decision suffix** — after the operator (or session cancellation) resolves, the bar hides, the inline content section unmounts, and the decision is appended to the tool card's footer row in colour: `"✓ Ns · approved by you"` / `"✗ Ns · denied by you"` / `"⊘ Ns · cancelled"`. Uses `$success` / `$error` / `$warning` colour tokens. Inline on the same row as the tool's status glyph + duration — saves a row vs. a separate summary line.
+- **`approval` lifecycle pill** — new `Lifecycle` literal value with `"⚠ awaiting approval"` text and `$warning` colour. Priority order: `complete > approval > running > interrupted > idle`. Composer `Input` is hidden (`display: none`) while the lifecycle is `approval`; the bar shows in its place.
 - **Producer-side markdown structure** — `approval/_human/acp.py:_build_request` bakes the in-proc `render_tool_approval` visual structure (bold per-half titles, horizontal-rule separator between `view.context` and `view.call`, fenced code for non-markdown format) directly into the markdown text it sends. **No protocol extension** — every ACP client (Zed, future ones) renders the structure natively from stock markdown. The TUI's existing `_compose_item` → `StyledMarkdown` pipeline picks up the headings and rules for free.
 
 **Protocol extensions landed**: none. The whole feature lands on existing ACP `session/request_permission` semantics; the visual structure improvement is plain markdown in the request body. Strict superset for non-Inspect clients.
 
 **Acceptance**
 
-- Manual: eval with a human-approver tool (`inspect eval <task> --acp-server --approval=human`); attach via `inspect acp` in another terminal. When a `bash` tool fires, watch the card appear with the inline approval section showing the syntax-highlighted command preview. Click "Approve" via mouse; observe the card transition to decision summary + running tool. Repeat with Tab+Enter; repeat with "Deny". Header pill cycles `running → ⚠ awaiting approval → running` cleanly.
-- Manual: trigger an approval for a tool whose viewer produces a `FileEditToolCallContent` diff variant; confirm the inline section renders the actual diff (not a stringified blob).
+- Manual: eval with a human-approver tool (`inspect eval <task> --acp-server --approval=human`); attach via `inspect acp` in another terminal. When a `bash` tool fires, watch the card appear with the inline content preview AND the composer-area approval bar with `[ a ] approve [ r ] reject …`. Press `a`; observe the card transition to decision summary + running tool, the bar disappear, and the composer Input return. Repeat with Tab+Enter; repeat with a mouse click on Reject. Header pill cycles `running → ⚠ awaiting approval → running` cleanly.
+- Manual: trigger an approval for a tool whose viewer produces a `FileEditToolCallContent` diff variant; confirm the inline content section renders the actual diff (not a stringified blob).
 - Manual (multi-client): attach Zed alongside `inspect acp`. The driver chain (last-prompt-wins, per `agent-acp.md`'s single-driver section) routes the approval to whichever client most recently typed; the other observes via the normal event stream and never sees a competing prompt — no stale-card scenario to test.
-- Automated: pure-function tests for the state handshake (`consume_approval_request` / `resolve_approval` / auto-dismiss heuristic / lifecycle priority / decision-label mapping); pilot tests for the inline section mount, button-press round-trip, decision-summary swap, custom-presentation rendering (diff + terminal variants); producer-side tests for the embedded title/separator/fence markdown shape; wire-level tests for the handler's response shape (`AllowedOutcome` + `DeniedOutcome` + cancellation propagation).
+- Automated: pure-function tests for the state handshake (`consume_approval_request` / `resolve_approval` / `current_pending_approval` accessor / auto-dismiss heuristic / lifecycle priority / decision-label mapping); pilot tests for the inline content section render + the composer bar (mount, hide-when-no-pending, first-button focus, button-press round-trip, action_approval_decide gate); producer-side tests for the embedded title/separator/fence markdown shape; wire-level tests for the handler's response shape (`AllowedOutcome` + `DeniedOutcome` + cancellation propagation).
 
 **Known v1 gaps (intentional)**
 
-- **No keyboard shortcuts beyond Tab+Enter** — bare-letter and Ctrl-modifier options were considered and explicitly rejected for v1 in favour of zero composer-conflict surface area.
 - **`?` help overlay** — originally bundled into this phase. Deferred — the inline approval feature is self-contained and shipping the help overlay separately keeps the diff focused.
 
 ### Phase 2 — Cancel Tool Call

@@ -812,3 +812,368 @@ async def test_action_newline_is_noop_when_session_complete(
         app.screen.action_newline()
         await pilot.pause()
         assert composer.value == "draft"
+
+
+def _bar_pending_request(tool_call_id: str = "tc-1", *, title: str = "bash ls"):
+    """Build a pending RequestPermissionRequest for action_approval_decide tests."""
+    from acp.schema import (
+        PermissionOption,
+        RequestPermissionRequest,
+        ToolCallUpdate,
+    )
+
+    return RequestPermissionRequest(
+        session_id="sid",
+        tool_call=ToolCallUpdate(
+            tool_call_id=tool_call_id,
+            title=title,
+            status="pending",
+            raw_input={"command": "ls"},
+        ),
+        options=[
+            PermissionOption(option_id="approve", name="Approve", kind="allow_once"),
+            PermissionOption(option_id="reject", name="Reject", kind="reject_once"),
+            PermissionOption(
+                option_id="terminate", name="Terminate", kind="reject_always"
+            ),
+        ],
+    )
+
+
+def _bar_pending(req: Any) -> Any:
+    """Build a PendingApproval for action_approval_decide tests.
+
+    Returns ``Any`` so mypy doesn't get tangled in the optional
+    typing chain when the same value flows through
+    ``ToolCallState.pending_approval`` (``PendingApproval | None``).
+    """
+    import asyncio
+
+    from inspect_ai.agent._acp.tui.state import PendingApproval
+
+    return PendingApproval(request=req, event=asyncio.Event())
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_pressing_a_resolves_approve_via_screen_binding(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Pressing bare ``a`` while approval is pending fires the screen binding.
+
+    Pins the live-use regression where the bar appeared, the first
+    action got mounted, but pressing ``a`` did nothing until the
+    operator clicked into the bar — symptom of either focus
+    stranded on the now-hidden composer ``Input`` (which would
+    eat the keystroke) or the action mount sequence racing with
+    ``first.focus()`` so the screen's ``priority=True`` binding
+    didn't reach ``check_action`` cleanly.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # Reproduce live use: the composer Input has focus when the
+        # approval arrives (typical case — operator was typing or just
+        # finished a message). The Input gets hidden when lifecycle
+        # flips to ``approval``, but Textual's focus might stay
+        # stranded on it.
+        composer = app.screen.query_one("#composer", Input)
+        composer.focus()
+        await pilot.pause()
+        assert app.screen.focused is composer
+
+        pending = _bar_pending(_bar_pending_request("tc-1"))
+        app.screen.state.consume_approval_request(pending)
+        await pilot.pause()
+
+        # Press the bare letter — no click first.
+        await pilot.press("a")
+        await pilot.pause()
+
+        tc = app.screen.state._tool_calls_by_id["tc-1"]
+        assert tc.pending_approval is None, (
+            f"Expected `a` keystroke to resolve the pending approval; "
+            f"instead it's still pending. focused={app.screen.focused!r}, "
+            f"composer.display={composer.display!r}, "
+            f"composer.value={composer.value!r}"
+        )
+        assert tc.last_approval_decision == "approved"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_approval_decide_resolves_pending_approval(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Bare ``a`` (action_approval_decide('approve')) routes through state.resolve_approval."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        pending = _bar_pending(_bar_pending_request("tc-1"))
+        app.screen.state.consume_approval_request(pending)
+        await pilot.pause()
+        assert app.screen.state.lifecycle == "approval"
+
+        app.screen.action_approval_decide("approve")
+        await pilot.pause()
+
+        tc = app.screen.state._tool_calls_by_id["tc-1"]
+        assert tc.pending_approval is None
+        assert tc.last_approval_decision == "approved"
+        assert pending.event.is_set()
+        assert pending.chosen_option_id == "approve"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_approval_decide_noop_outside_approval_lifecycle(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Belt-and-braces: action_approval_decide is a no-op when no approval is pending.
+
+    ``check_action`` already gates the binding so it never fires
+    outside ``approval`` lifecycle — but the action itself
+    re-checks defensively so a direct call (test / future caller)
+    can't accidentally resolve nothing.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+        # No pending approval → lifecycle is not "approval".
+        assert app.screen.state.lifecycle != "approval"
+
+        # Should not raise; should not mutate any state.
+        app.screen.action_approval_decide("approve")
+        await pilot.pause()
+
+        assert app.screen.state._tool_calls_by_id == {}
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_approval_decide_noop_when_option_not_in_request(
+    sample_rows: list[SessionRow],
+) -> None:
+    """``human_approver(choices=[...])`` can omit options — pressing them is a no-op.
+
+    Example: a request configured with only ``approve`` / ``reject``
+    doesn't accept ``terminate``. Pressing ``t`` in that case
+    should NOT silently resolve as approved or denied — it should
+    do nothing so the operator can press a real option.
+    """
+    from acp.schema import (
+        PermissionOption,
+        RequestPermissionRequest,
+        ToolCallUpdate,
+    )
+
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # Request with only approve + reject — no terminate.
+        req = RequestPermissionRequest(
+            session_id="sid",
+            tool_call=ToolCallUpdate(tool_call_id="tc-1", title="ls", status="pending"),
+            options=[
+                PermissionOption(
+                    option_id="approve", name="Approve", kind="allow_once"
+                ),
+                PermissionOption(option_id="reject", name="Reject", kind="reject_once"),
+            ],
+        )
+        pending = _bar_pending(req)
+        app.screen.state.consume_approval_request(pending)
+        await pilot.pause()
+
+        app.screen.action_approval_decide("terminate")
+        await pilot.pause()
+
+        # Pending unchanged — the decision didn't land.
+        assert not pending.event.is_set()
+        tc = app.screen.state._tool_calls_by_id["tc-1"]
+        assert tc.pending_approval is pending
+        assert tc.last_approval_decision is None
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_check_action_gates_approval_decide_outside_approval(
+    sample_rows: list[SessionRow],
+) -> None:
+    """``check_action('approval_decide', ...)`` returns False outside approval mode.
+
+    Without this gate, typing ``r`` into the composer would fire
+    the reject action instead of inserting the letter.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # No approval pending → gate must close.
+        assert app.screen.check_action("approval_decide", ("approve",)) is False
+
+        # Approval pending → gate opens.
+        app.screen.state.consume_approval_request(
+            _bar_pending(_bar_pending_request("tc-1"))
+        )
+        await pilot.pause()
+        assert app.screen.check_action("approval_decide", ("approve",)) is True
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_composer_input_hidden_during_approval_lifecycle(
+    sample_rows: list[SessionRow],
+) -> None:
+    """``_apply_lifecycle`` hides the composer Input so the approval bar takes the row."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+        composer = app.screen.query_one("#composer", Input)
+        # Default: visible.
+        assert composer.display
+
+        # Pending approval → hidden.
+        app.screen.state.consume_approval_request(
+            _bar_pending(_bar_pending_request("tc-1"))
+        )
+        await pilot.pause()
+        assert not composer.display
+
+        # Resolved → visible again.
+        app.screen.state.resolve_approval("tc-1", option_id="approve")
+        await pilot.pause()
+        assert composer.display
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_submit_noop_during_approval_with_stranded_focus(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Enter must not ship the hidden composer's draft while approval is pending.
+
+    Pinned regression: the composer Input is ``display: none`` during
+    approval but its ``value`` is intact. With focus on a non-approval
+    widget (transcript, plan strip, or stranded on the now-hidden
+    Input itself), Enter's ``priority=True`` binding would otherwise
+    drop into the composer-submit path and send the invisible draft
+    to the agent while the agent is parked awaiting permission.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # Seed a draft, then enter approval lifecycle.
+        composer = app.screen.query_one("#composer", Input)
+        composer.value = "draft that must NOT ship"
+        app.screen.state.consume_approval_request(
+            _bar_pending(_bar_pending_request("tc-1"))
+        )
+        await pilot.pause()
+        # Force focus onto the screen itself (not the bar's action) so
+        # the action-press delegation path doesn't apply.
+        app.screen.focus()
+        await pilot.pause()
+
+        await app.screen.action_submit()
+        await pilot.pause()
+
+        conn = cast(Any, app.screen._session.connection)
+        assert conn.requests == [], (
+            f"Composer value was shipped while approval was pending: {conn.requests}"
+        )
+        # Draft preserved (not cleared by a stray submit).
+        assert composer.value == "draft that must NOT ship"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_newline_noop_during_approval(
+    sample_rows: list[SessionRow],
+) -> None:
+    r"""⇧↵ must not smuggle a literal newline into the hidden composer.
+
+    Pinned regression: the Input is hidden during approval but its
+    ``value`` survives. Without a lifecycle guard, ⇧↵ (``priority=True``)
+    would insert ``\n`` into the invisible draft, which would then
+    ship on the next non-approval submit.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        composer = app.screen.query_one("#composer", Input)
+        composer.value = "draft"
+        composer.cursor_position = len(composer.value)
+        app.screen.state.consume_approval_request(
+            _bar_pending(_bar_pending_request("tc-1"))
+        )
+        await pilot.pause()
+
+        app.screen.action_newline()
+        await pilot.pause()
+
+        assert composer.value == "draft", (
+            f"Expected newline insertion to be a no-op in approval lifecycle; "
+            f"composer.value={composer.value!r}"
+        )
