@@ -438,7 +438,7 @@ class _StubApproverClient:
 async def test_approver_clients_starts_empty() -> None:
     async with acp_session() as acp:
         assert acp.has_approver_clients() is False
-        assert acp.approver_clients() == []
+        assert acp.approver_driver_chain() == []
 
 
 async def test_attach_approver_client_flips_predicate_and_unsubscribe_reverts() -> None:
@@ -447,10 +447,10 @@ async def test_attach_approver_client_flips_predicate_and_unsubscribe_reverts() 
         client = _StubApproverClient()
         unsub = acp.attach_approver_client(client)
         assert acp.has_approver_clients() is True
-        assert acp.approver_clients() == [client]
+        assert acp.approver_driver_chain() == [client]
         unsub()
         assert acp.has_approver_clients() is False
-        assert acp.approver_clients() == []
+        assert acp.approver_driver_chain() == []
 
 
 async def test_attach_multiple_clients_independent_unsubscribe() -> None:
@@ -460,26 +460,76 @@ async def test_attach_multiple_clients_independent_unsubscribe() -> None:
         client_b = _StubApproverClient()
         unsub_a = acp.attach_approver_client(client_a)
         unsub_b = acp.attach_approver_client(client_b)
-        assert acp.approver_clients() == [client_a, client_b]
+        # No prompt has been sent yet → driver chain is attach order.
+        assert acp.approver_driver_chain() == [client_a, client_b]
         unsub_a()
-        assert acp.approver_clients() == [client_b]
+        assert acp.approver_driver_chain() == [client_b]
         unsub_b()
-        assert acp.approver_clients() == []
+        assert acp.approver_driver_chain() == []
 
 
-async def test_approver_clients_returns_snapshot_copy() -> None:
-    """``approver_clients()`` returns a copy — mutating it doesn't affect the registry.
+async def test_approver_driver_chain_returns_snapshot_copy() -> None:
+    """``approver_driver_chain()`` returns a copy — mutating it doesn't affect the registry.
 
-    Pinned because the race orchestrator iterates the returned list
-    concurrently with possible attach/detach. A live reference
-    would race.
+    Pinned because the approval shim iterates the returned list
+    while the connection can attach/detach concurrently. A live
+    reference would race.
     """
     async with acp_session() as acp:
         client = _StubApproverClient()
         acp.attach_approver_client(client)
-        snapshot = acp.approver_clients()
+        snapshot = acp.approver_driver_chain()
         snapshot.clear()
-        assert acp.approver_clients() == [client]  # registry unchanged
+        assert acp.approver_driver_chain() == [client]  # registry unchanged
+
+
+async def test_mark_active_promotes_client_to_head_of_chain() -> None:
+    """``mark_active`` makes ``client`` the driver; chain is [driver, ...rest_in_attach_order]."""
+    async with acp_session() as acp:
+        a = _StubApproverClient()
+        b = _StubApproverClient()
+        c = _StubApproverClient()
+        acp.attach_approver_client(a)
+        acp.attach_approver_client(b)
+        acp.attach_approver_client(c)
+        # No prompt yet — first-attached is the fallback driver.
+        assert acp.approver_driver_chain() == [a, b, c]
+        # Mark middle client active — it moves to head; others keep
+        # attach order (a, c).
+        acp.mark_active_approver_client(b)
+        assert acp.approver_driver_chain() == [b, a, c]
+        # Mark another active — it moves to head; b drops to attach order.
+        acp.mark_active_approver_client(c)
+        assert acp.approver_driver_chain() == [c, a, b]
+
+
+async def test_mark_active_ignores_unknown_client() -> None:
+    """``mark_active`` with a non-registered client silently no-ops.
+
+    Defensive against the detach-before-prompt race: a client could
+    detach between the prompt arriving and ``mark_active`` firing.
+    """
+    async with acp_session() as acp:
+        a = _StubApproverClient()
+        rogue = _StubApproverClient()
+        acp.attach_approver_client(a)
+        acp.mark_active_approver_client(rogue)  # no-op
+        # Driver chain unchanged.
+        assert acp.approver_driver_chain() == [a]
+
+
+async def test_unsubscribing_the_active_driver_resets_to_first_attached() -> None:
+    """If the active driver detaches, the chain falls back to first-attached order."""
+    async with acp_session() as acp:
+        a = _StubApproverClient()
+        b = _StubApproverClient()
+        acp.attach_approver_client(a)
+        unsub_b = acp.attach_approver_client(b)
+        acp.mark_active_approver_client(b)
+        assert acp.approver_driver_chain() == [b, a]
+        unsub_b()
+        # b is gone — fall back to first-attached.
+        assert acp.approver_driver_chain() == [a]
 
 
 async def test_session_exit_clears_approver_clients() -> None:
@@ -491,7 +541,7 @@ async def test_session_exit_clears_approver_clients() -> None:
         fake_session = acp
     # Outside the context manager, the session is closed.
     assert fake_session.has_approver_clients() is False
-    assert fake_session.approver_clients() == []
+    assert fake_session.approver_driver_chain() == []
 
 
 async def test_attach_unsubscribe_is_idempotent() -> None:
@@ -503,13 +553,15 @@ async def test_attach_unsubscribe_is_idempotent() -> None:
 
 
 async def test_noop_session_approver_client_is_no_op() -> None:
-    """No-op session: predicate False, attach returns no-op unsubscribe, list empty."""
+    """No-op session: predicate False, attach returns no-op unsubscribe, chain empty."""
     from inspect_ai.agent._acp.session_noop import NoOpAcpSession
 
     noop = NoOpAcpSession()
     assert noop.has_approver_clients() is False
-    assert noop.approver_clients() == []
+    assert noop.approver_driver_chain() == []
     unsub = noop.attach_approver_client(_StubApproverClient())
     # Still False — the no-op session doesn't actually register.
     assert noop.has_approver_clients() is False
+    # mark_active on no-op is also safe.
+    noop.mark_active_approver_client(_StubApproverClient())
     unsub()  # no-op, no raise

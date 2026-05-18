@@ -307,9 +307,12 @@ class AcpSession(Protocol):
 
         When the configured ``human_approver`` is reached and at least
         one client is attached, the approval prompt is routed via ACP
-        ``session/request_permission`` to all attached clients (first
-        response wins). When no clients are attached, the existing
-        in-proc panel / console flow runs unchanged.
+        ``session/request_permission`` to a single driver (the client
+        whose ``session/prompt`` most recently landed, or
+        first-attached when no prompt has been sent on this session).
+        Other attached clients observe via the normal event stream
+        and don't receive the request. When no clients are attached,
+        the existing in-proc panel / console flow runs unchanged.
 
         Returns an idempotent unsubscribe callable. No-op session
         returns a no-op unsubscribe (no clients can attach).
@@ -324,11 +327,29 @@ class AcpSession(Protocol):
         """
         ...
 
-    def approver_clients(self) -> list[ApproverClient]:
-        """Snapshot of currently-attached approver clients.
+    def mark_active_approver_client(self, client: ApproverClient) -> None:
+        """Promote ``client`` to be the active driver for approvals.
 
-        Returns a copy so iteration is stable against concurrent
-        attach/detach (clients can disconnect mid-race).
+        Called by the connection handler after a ``session/prompt``
+        forwards to this session — the strongest signal that this
+        client is the operator's current surface. The next
+        ``session/request_permission`` will route to this client
+        first; if it raises (typically ``ConnectionError`` on
+        mid-prompt disconnect), the shim falls through to the next
+        attached client.
+
+        Silently no-ops if the client isn't (or is no longer) in
+        the registry. No-op session does nothing.
+        """
+        ...
+
+    def approver_driver_chain(self) -> list[ApproverClient]:
+        """Approver clients in fallback order: driver first, then others.
+
+        The driver is the client whose ``session/prompt`` most
+        recently landed; subsequent entries are the remaining
+        attached clients in attach order. Returns a snapshot copy
+        so iteration is stable against concurrent attach/detach.
         """
         ...
 

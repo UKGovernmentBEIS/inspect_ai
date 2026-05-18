@@ -3,13 +3,15 @@
 Covers:
 - option-list construction from configured choices
 - response → ``Approval`` round-trip (selected / cancelled / unknown)
-- race semantics with stubbed clients (first-wins, exception tolerance,
-  all-raise → None, zero-clients → None)
-- end-to-end over a real socket (single-client + dual-client race)
+- single-driver semantics with stubbed clients (driver-only routing,
+  fallback-on-disconnect, all-fail → None, empty-chain → None,
+  cancellation propagation)
+- end-to-end over a real socket (single-client + multi-client driver
+  chain)
 
 The shim is at ``src/inspect_ai/approval/_human/acp.py``; the
-session-side registry is exercised separately in
-``test_session.py`` (Phase 14 section).
+session-side registry (``mark_active`` / ``driver_chain``) is
+exercised separately in ``test_session.py``.
 """
 
 from __future__ import annotations
@@ -38,7 +40,7 @@ from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human.acp import (
     _approval_from_response,
     _options_from_choices,
-    _race_first_response,
+    _request_from_driver_with_fallback,
     request_human_approval_via_acp,
 )
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
@@ -184,7 +186,7 @@ def test_approval_from_response_unknown_option_becomes_reject() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _race_first_response — multi-client semantics
+# _request_from_driver_with_fallback — single-driver semantics
 # ---------------------------------------------------------------------------
 
 
@@ -197,147 +199,253 @@ def _trivial_request() -> RequestPermissionRequest:
 
 
 @skip_if_trio
-async def test_race_first_responder_wins_and_returns_immediately() -> None:
-    """Two clients race; first wins; race returns without waiting for slow client.
+async def test_driver_only_first_client_in_chain_is_called() -> None:
+    """Single-driver semantics — the second client is NEVER sent the request.
 
-    Note we do NOT assert the slow client's local task was cancelled
-    — ACP has no protocol-level cancel for outbound requests, so we
-    deliberately drain losers in the background rather than
-    cancelling. The slow client's eventual response is discarded;
-    its editor (in reality) keeps showing the stale permission card
-    until disconnect. The race orchestrator's contract is just
-    "return the first winning response immediately."
+    Pinned because the broadcast-to-all behavior left losing editors
+    with stale cards forever. Routing to one driver means the
+    secondary clients never see the prompt; they observe via the
+    normal event stream instead.
     """
-    fast = _StubClient(response=_selected("approve"), delay=0.0)
-    slow = _StubClient(response=_selected("reject"), delay=1.0)
+    driver = _StubClient(response=_selected("approve"))
+    others = _StubClient(response=_selected("reject"))
     choices: list[ApprovalDecision] = ["approve", "reject"]
 
-    # Should return promptly — well before the slow client's 1s delay.
-    result = await asyncio.wait_for(
-        _race_first_response([fast, slow], _trivial_request(), choices),
-        timeout=0.5,
+    result = await _request_from_driver_with_fallback(
+        [driver, others], _trivial_request(), choices
     )
     assert result is not None
     assert result.decision == "approve"
-    # Slow client did receive the request (race broadcast to all).
-    assert len(slow.received) == 1
+    assert len(driver.received) == 1
+    # The non-driver client was NOT contacted.
+    assert len(others.received) == 0
 
 
 @skip_if_trio
-async def test_race_cancellation_drains_in_flight_per_client_tasks() -> None:
-    """When the race itself is cancelled, per-client tasks aren't orphaned.
-
-    Pinned because the per-client request tasks are spawned with
-    ``asyncio.create_task`` — they're INDEPENDENT of the awaiting
-    race task. If the race coroutine is cancelled mid-wait without
-    cleanup, those tasks survive without an owner and either fire
-    "unhandled task exception" if they later raise, or linger
-    forever if the client never responds. The race's ``finally``
-    block hands survivors to a background drain that awaits and
-    discards them — so the per-client tasks ARE still alive but
-    they have an owner (the drain task) that will await them when
-    they finish.
-
-    Test strategy: simulate a real cancellation, then verify (a)
-    the per-client tasks raising LATE doesn't fire an unhandled
-    task exception, and (b) the drain tasks complete cleanly when
-    their wrapped client task does.
-    """
-    # Capture any unhandled exceptions that the loop would normally
-    # log. The drain's whole job is to prevent these.
-    unhandled: list[dict[str, Any]] = []
-    loop = asyncio.get_event_loop()
-    prev_handler = loop.get_exception_handler()
-    loop.set_exception_handler(lambda lp, ctx: unhandled.append(ctx))
-
-    try:
-        # Slow clients that will eventually RAISE, exercising the
-        # "unhandled task exception" risk specifically.
-        a = _StubClient(exc=RuntimeError("a failed"), delay=0.1)
-        b = _StubClient(exc=RuntimeError("b failed"), delay=0.1)
-        choices: list[ApprovalDecision] = ["approve", "reject"]
-
-        race_task = asyncio.create_task(
-            _race_first_response([a, b], _trivial_request(), choices)
-        )
-        # Let the race actually enter asyncio.wait.
-        await asyncio.sleep(0.01)
-        assert len(a.received) == 1
-        assert len(b.received) == 1
-
-        # Cancel the race mid-wait — the caller would do this if the
-        # sample is cancelled while the approval is pending.
-        race_task.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await race_task
-
-        # Wait long enough for the slow clients' raises to land and
-        # the drain tasks to consume them.
-        await asyncio.sleep(0.2)
-
-        # The drain's contract: any per-client task that raises is
-        # awaited by a drain, which swallows the exception. So no
-        # unhandled task exceptions should have reached the loop's
-        # default handler.
-        unhandled_msgs = [ctx.get("message", "") for ctx in unhandled]
-        unhandled_excs = [ctx.get("exception") for ctx in unhandled]
-        assert not unhandled, (
-            f"per-client tasks fired unhandled exceptions after race "
-            f"cancellation: messages={unhandled_msgs!r}, "
-            f"exceptions={unhandled_excs!r}"
-        )
-    finally:
-        loop.set_exception_handler(prev_handler)
-
-
-@skip_if_trio
-async def test_race_drains_losing_request_in_background() -> None:
-    """Slow losing response is awaited in the background, not abandoned.
-
-    The drain prevents zombie pending-request entries in the
-    connection's state, without trying to cancel the (uncancellable)
-    remote request.
-    """
-    fast = _StubClient(response=_selected("approve"), delay=0.0)
-    # Slow loser: short enough to complete during the test.
-    slow = _StubClient(response=_selected("reject"), delay=0.05)
+async def test_driver_disconnect_falls_through_to_next_client() -> None:
+    """Driver raises (typ. ``ConnectionError``) → fall through to next attached client."""
+    broken_driver = _StubClient(exc=ConnectionError("disconnected"))
+    fallback = _StubClient(response=_selected("reject"))
     choices: list[ApprovalDecision] = ["approve", "reject"]
 
-    await _race_first_response([fast, slow], _trivial_request(), choices)
-    # Wait long enough for the background drain to complete the
-    # slow loser's request without raising.
-    await asyncio.sleep(0.15)
-    # The slow client's stub recorded the request and was NOT cancelled
-    # (drain awaits the natural completion).
-    assert slow.cancelled is False
-
-
-@skip_if_trio
-async def test_race_skips_raising_client_uses_survivor() -> None:
-    """First client raises (disconnect); second responds; we get the second's decision."""
-    broken = _StubClient(exc=ConnectionError("disconnected"))
-    good = _StubClient(response=_selected("reject"), delay=0.01)
-    choices: list[ApprovalDecision] = ["approve", "reject"]
-    result = await _race_first_response([broken, good], _trivial_request(), choices)
+    result = await _request_from_driver_with_fallback(
+        [broken_driver, fallback], _trivial_request(), choices
+    )
     assert result is not None
     assert result.decision == "reject"
+    # Both clients were contacted — driver first, then fallback.
+    assert len(broken_driver.received) == 1
+    assert len(fallback.received) == 1
 
 
 @skip_if_trio
-async def test_race_all_clients_raise_returns_none() -> None:
-    """Every client errors → caller falls back to in-proc flow."""
+async def test_all_clients_raise_returns_none() -> None:
+    """Every client in the chain errors → ``None`` so caller falls back to in-proc."""
     a = _StubClient(exc=ConnectionError("a down"))
     b = _StubClient(exc=ConnectionError("b down"))
     choices: list[ApprovalDecision] = ["approve", "reject"]
-    result = await _race_first_response([a, b], _trivial_request(), choices)
+    result = await _request_from_driver_with_fallback(
+        [a, b], _trivial_request(), choices
+    )
     assert result is None
+    # Both were tried.
+    assert len(a.received) == 1
+    assert len(b.received) == 1
 
 
-async def test_race_no_clients_returns_none() -> None:
-    """Empty client list → None immediately, no I/O attempted."""
+async def test_empty_chain_returns_none() -> None:
+    """Empty chain → ``None`` immediately, no I/O attempted."""
     choices: list[ApprovalDecision] = ["approve", "reject"]
-    result = await _race_first_response([], _trivial_request(), choices)
+    result = await _request_from_driver_with_fallback([], _trivial_request(), choices)
     assert result is None
+
+
+@skip_if_trio
+async def test_cancellation_propagates_to_caller() -> None:
+    """Sample-level cancel mid-await is propagated, not swallowed by the fallback loop."""
+    # Slow client that will be awaiting when we cancel.
+    slow = _StubClient(response=_selected("approve"), delay=1.0)
+    choices: list[ApprovalDecision] = ["approve", "reject"]
+
+    shim_task = asyncio.create_task(
+        _request_from_driver_with_fallback([slow], _trivial_request(), choices)
+    )
+    # Let the shim enter the client's request_permission.
+    await asyncio.sleep(0.01)
+    assert len(slow.received) == 1
+
+    shim_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await shim_task
+
+
+# ---------------------------------------------------------------------------
+# ConnectionHandler.request_permission — binding check + sessionId rewrite
+# ---------------------------------------------------------------------------
+#
+# The connection handler is the ``ApproverClient`` implementation
+# behind external editor connections. ``request_permission`` must
+# rewrite the outbound payload's ``sessionId`` from the target id
+# (which the shim builds from the agent-side session) to the wire id
+# (which the client actually knows). In auto-bind / direct-loadSession
+# the two match, but in picker mode the wire is a synthetic control
+# id minted at ``session/new`` — without the rewrite the client would
+# reject the prompt as cross-session traffic. Mirrors
+# ``Forwarders._rewrite_session_id`` in ``session_router.py``.
+#
+# The binding-state check on entry also makes the approval shim's
+# driver-fallback work cleanly: if a snapshotted driver chain entry
+# detaches or rebinds between the snapshot and our turn, we raise
+# instead of sending to a stale connection.
+
+
+def _bound_handler(wire: str, target: str):
+    """Fresh ConnectionHandler with a stubbed Connection + Bound binding."""
+    from unittest.mock import AsyncMock
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+
+    h = ConnectionHandler()
+    h.state.binding = Bound(wire_session_id=wire, target_session_id=target)
+    # AsyncMock so ``await self.connection.send_request(...)`` is awaitable
+    # and we can capture / assert the outbound payload.
+    h.connection = AsyncMock()
+    h.connection.send_request = AsyncMock(
+        return_value={"outcome": {"outcome": "selected", "optionId": "approve"}}
+    )
+    return h
+
+
+def _permission_request_for(session_id: str) -> RequestPermissionRequest:
+    return RequestPermissionRequest(
+        session_id=session_id,
+        tool_call=ToolCallUpdate(tool_call_id="tc1", title="bash ls"),
+        options=_options_from_choices(["approve", "reject"]),
+    )
+
+
+@skip_if_trio
+async def test_request_permission_passes_through_when_wire_equals_target() -> None:
+    """Auto-bind / direct-loadSession path: wire == target, payload unchanged."""
+    h = _bound_handler(wire="sess-1", target="sess-1")
+    request = _permission_request_for("sess-1")
+
+    await h.request_permission(request)
+
+    sent_method, sent_payload = h.connection.send_request.call_args.args
+    assert sent_method == "session/request_permission"
+    assert sent_payload["sessionId"] == "sess-1"
+
+
+@skip_if_trio
+async def test_request_permission_rewrites_session_id_in_picker_mode() -> None:
+    """Picker bind: wire (synthetic control id) != target — payload's sessionId rewrites to wire.
+
+    Pinned because without the rewrite, the client receives a
+    sessionId it doesn't know (it only ever saw the synthetic
+    control id from its ``session/new`` response) and would reject
+    the prompt as cross-session traffic.
+    """
+    h = _bound_handler(wire="control-uuid", target="real-target-uuid")
+    # The approval shim builds the request from the AGENT-side session id
+    # (i.e. the target).
+    request = _permission_request_for("real-target-uuid")
+
+    await h.request_permission(request)
+
+    sent_method, sent_payload = h.connection.send_request.call_args.args
+    assert sent_method == "session/request_permission"
+    # Outbound carries the wire id the client actually knows.
+    assert sent_payload["sessionId"] == "control-uuid"
+
+
+@skip_if_trio
+async def test_request_permission_raises_on_target_mismatch() -> None:
+    """Connection rebound to a different target since the chain snapshot → raise.
+
+    Drives the single-driver-with-fallback chain in the shim: the
+    snapshotted stale driver raises, the shim moves to the next
+    client in the chain. Without this check, the request would
+    silently dispatch to the wrong target's UI.
+    """
+    h = _bound_handler(wire="sess-A", target="sess-A")
+    # Approval is for a different session than this connection is bound to.
+    request = _permission_request_for("sess-B")
+
+    with pytest.raises(ConnectionError, match="target mismatch"):
+        await h.request_permission(request)
+    # We never sent anything over the wire.
+    h.connection.send_request.assert_not_called()
+
+
+@skip_if_trio
+async def test_request_permission_raises_when_not_bound() -> None:
+    """Connection in Unbound / PickerMode → raise so the shim falls through."""
+    from unittest.mock import AsyncMock
+
+    from inspect_ai.agent._acp.connection import ConnectionHandler, Unbound
+
+    h = ConnectionHandler()
+    h.state.binding = Unbound()
+    h.connection = AsyncMock()
+    h.connection.send_request = AsyncMock()
+
+    with pytest.raises(ConnectionError, match="not bound"):
+        await h.request_permission(_permission_request_for("sess-1"))
+    h.connection.send_request.assert_not_called()
+
+
+@skip_if_trio
+async def test_request_permission_raises_when_connection_missing() -> None:
+    """Connection torn down (race with disconnect) → raise immediately."""
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+
+    h = ConnectionHandler()
+    h.state.binding = Bound(wire_session_id="s", target_session_id="s")
+    # connection slot stays None — never attached.
+    with pytest.raises(ConnectionError, match="not attached"):
+        await h.request_permission(_permission_request_for("s"))
+
+
+@skip_if_trio
+async def test_driver_chain_falls_through_stale_handler_after_rebind() -> None:
+    """Snapshotted handler that rebound to a different target gets skipped cleanly.
+
+    Composition test for the P2 fix. The approval shim snapshots
+    the driver chain, then iterates it. If a chain entry's
+    connection rebinds (or unbinds) between snapshot and our turn,
+    its request_permission raises — and the shim moves on to the
+    next entry. Without the binding check inside
+    ``ConnectionHandler.request_permission``, the prompt would
+    silently dispatch to the wrong target's UI.
+    """
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+
+    # Stale handler — bound to a DIFFERENT target than the approval.
+    stale = ConnectionHandler()
+    stale.state.binding = Bound(
+        wire_session_id="stale-wire", target_session_id="stale-target"
+    )
+    from unittest.mock import AsyncMock
+
+    stale.connection = AsyncMock()
+    stale.connection.send_request = AsyncMock(
+        return_value={"outcome": {"outcome": "selected", "optionId": "approve"}}
+    )
+
+    # Good fallback — actually bound to the approval's target.
+    good = _bound_handler(wire="real-target", target="real-target")
+
+    request = _permission_request_for("real-target")
+    result = await _request_from_driver_with_fallback(
+        [stale, good], request, ["approve", "reject"]
+    )
+    assert result is not None
+    assert result.decision == "approve"
+    # Stale handler raised before sending — its connection was never used.
+    stale.connection.send_request.assert_not_called()
+    # Good fallback DID send.
+    good.connection.send_request.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

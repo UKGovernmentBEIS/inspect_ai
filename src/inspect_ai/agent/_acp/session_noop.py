@@ -169,6 +169,9 @@ class NoOpAcpSession:
         """No-op session never has attached approver clients."""
         return False
 
-    def approver_clients(self) -> list[ApproverClient]:
-        """No-op session returns an empty list."""
+    def mark_active_approver_client(self, client: ApproverClient) -> None:
+        """No-op: nothing to promote in the no-op session."""
+
+    def approver_driver_chain(self) -> list[ApproverClient]:
+        """No-op session returns an empty driver chain."""
         return []

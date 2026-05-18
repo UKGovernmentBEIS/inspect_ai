@@ -9,15 +9,18 @@ point returns ``None`` and the caller (``human_approver``) falls
 through to the existing panel / console flow — no behavior change
 in the no-client case.
 
-Multi-client semantics: broadcast the request to all attached
-clients; first non-exception response wins; losing clients'
-in-flight tasks are handed to a background drain (ACP has no
-protocol-level cancel for outbound requests, so the losing
-editors keep showing their permission card until the user clicks
-something or the connection drops — only our own pending-request
-state is cleaned up). If every client raises (typically
-``ConnectionError`` on disconnect mid-prompt), return ``None`` so
-the in-proc flow takes over.
+Single-driver semantics: the request is sent to ONE client at a
+time — the driver, which is the client whose ``session/prompt``
+most recently landed on this session (fallback: first-attached
+when no prompt has been sent yet). If the driver's request raises
+(typically ``ConnectionError`` on mid-prompt disconnect), the shim
+falls through to the next attached client in attach order. ACP has
+no protocol-level cancel for outbound requests, so broadcasting
+would leave losing editors with a stale permission card forever
+(whatever they later click is silently discarded). Routing to one
+driver means the operator only sees the prompt on the client
+they're actually using; others observe via the normal event
+stream.
 
 Wait-forever: no timeout. The human at the editor is the source
 of truth; default-deny on timeout would be surprising and matches
@@ -30,22 +33,15 @@ literal :data:`ApprovalDecision` string (``"approve"``,
 asyncio boundary note
 =====================
 
-This module is intentionally **asyncio-bound** (not anyio). The
-race awaits asyncio futures returned by ``conn.send_request``
-(the ``acp`` library is asyncio-only). The drain-losers pattern
-relies on ``asyncio.create_task`` for loose task spawning that
-intentionally outlives the race's scope — anyio's structured
-concurrency actively prevents this; a migration would require
-plumbing a long-lived session-scoped background task group through
-to here. The "drain instead of cancel" semantic is what's clean
-in asyncio; anyio would be more code, not less. Cancellation
-catches use ``anyio.get_cancelled_exc_class()`` so they're
-backend-agnostic even though the orchestration is asyncio.
+This module is intentionally **asyncio-bound** (not anyio). It
+awaits asyncio futures returned by ``conn.send_request`` (the
+``acp`` library is asyncio-only). Cancellation catches use
+``anyio.get_cancelled_exc_class()`` so they're backend-agnostic
+even though the orchestration is asyncio.
 """
 
 from __future__ import annotations
 
-import asyncio
 from logging import getLogger
 from typing import TYPE_CHECKING, Any, cast
 
@@ -276,112 +272,55 @@ def _build_request(
     )
 
 
-async def _drain_losing_response(task: asyncio.Task[Any]) -> None:
-    """Background drain for a loser's in-flight permission request.
-
-    ACP has no protocol-level cancel for outbound requests (no
-    ``$/cancelRequest``-style primitive on
-    ``session/request_permission``). The losing client's editor keeps
-    showing the permission card until the user clicks something or
-    disconnects — we can't dismiss it remotely. What we CAN do is
-    ensure our own pending-request state is cleaned up by awaiting
-    the response (or exception) without blocking the winning
-    approval.
-
-    Discards the response. Logs unexpected failures at debug — the
-    common cases (disconnect, eventual late click) aren't notable.
-    """
-    try:
-        await task
-    except (anyio.get_cancelled_exc_class(), Exception) as exc:
-        logger.debug("losing ACP approval request drained: %s", exc)
-
-
-async def _race_first_response(
-    clients: list[ApproverClient],
+async def _request_from_driver_with_fallback(
+    clients_in_order: list[ApproverClient],
     request: RequestPermissionRequest,
     choices: list[ApprovalDecision],
 ) -> Approval | None:
-    """Broadcast ``request`` to ``clients``; return first non-error response.
+    """Send ``request`` to the driver; fall through to the next on failure.
 
-    Uses ``asyncio.wait(..., return_when=FIRST_COMPLETED)`` so a
-    successful response from any client immediately wins.
+    ``clients_in_order`` is the session's driver chain (driver first,
+    other attached clients in attach order). Single-driver semantics
+    replaced the previous broadcast/race model because ACP has no
+    protocol-level cancel for outbound requests — broadcasting left
+    losing editors with a stale permission card forever. Routing to
+    one client at a time means the operator only sees the prompt on
+    the client they're actually using.
 
-    Losing-client semantics: ACP has no cancel-outbound-request
-    primitive, so we can't dismiss the permission card on the
-    losing editor. Their card stays open until the user clicks
-    something or the connection drops. To avoid a zombie
-    pending-request in our own connection state, the in-flight
-    losing tasks are handed to a background drain (which awaits
-    each loser and discards the response). The race orchestrator
-    returns immediately with the winner's decision.
+    Fallback shape: if the driver's request raises (typically
+    ``ConnectionError`` on mid-prompt disconnect, or any other
+    transport-level failure), move on to the next client in the
+    chain. Cancellation (``CancelledError`` from sample-level cancel)
+    propagates to the caller; we don't catch it.
 
-    If every task finishes with an exception (typically
-    ``ConnectionError`` from disconnect), returns ``None`` so the
-    caller falls back to the in-proc panel / console flow.
+    Returns ``None`` when every client in the chain raised — caller
+    falls back to the in-proc panel / console flow.
+
+    "Wait forever for a response" matches the in-proc human approver:
+    if the driver is connected but the operator is afk, the eval
+    blocks. That's the explicit design decision in the original
+    Phase 14 doc; not changed here.
     """
-    if not clients:
+    if not clients_in_order:
         return None
-
-    tasks = [
-        asyncio.create_task(
-            client.request_permission(request),
-            name=f"acp-approval-{i}",
-        )
-        for i, client in enumerate(clients)
-    ]
-    # Track ALL spawned per-client tasks so the finally below can
-    # hand any survivors to the background drain — including the
-    # case where this race itself is cancelled by the caller (e.g.
-    # sample cancellation during a pending approval). Without this
-    # finally, a cancelled race leaves per-client tasks orphaned;
-    # they'd either fire as "unhandled task exception" if they
-    # later raised, or linger forever if the client just never
-    # responded.
-    try:
-        while tasks:
-            done, pending = await asyncio.wait(
-                tasks, return_when=asyncio.FIRST_COMPLETED
+    cancel_exc = anyio.get_cancelled_exc_class()
+    for client in clients_in_order:
+        try:
+            response = await client.request_permission(request)
+        except cancel_exc:
+            raise
+        except Exception as exc:
+            # Transport failure or other client-side error. Try the
+            # next client in the fallback chain. If this was the
+            # only one we'll return None at the end.
+            logger.debug(
+                "ACP approval request failed for client %r; trying next: %s",
+                client,
+                exc,
             )
-            for task in done:
-                exc = task.exception()
-                if exc is None:
-                    # First success wins. Drain the remaining tasks in
-                    # the background — see _drain_losing_response for
-                    # why we can't actually cancel the remote requests.
-                    response = task.result()
-                    for other in pending:
-                        asyncio.create_task(
-                            _drain_losing_response(other),
-                            name="acp-approval-drain",
-                        )
-                    # Hand-off complete — clear ``tasks`` so the
-                    # ``finally`` below doesn't redundantly spawn a
-                    # second drain for the same ``pending`` tasks
-                    # (legal but produces duplicate debug logs).
-                    tasks = []
-                    return _approval_from_response(response, choices)
-                # Exception — log and keep racing the survivors.
-                logger.debug("ACP approval request failed for one client: %s", exc)
-            tasks = list(pending)
-        return None
-    finally:
-        # Hand any still-running per-client tasks to the background
-        # drain. Covers two cases:
-        # 1. Caller cancelled us mid-wait — ``tasks`` and the
-        #    iteration's ``pending`` set still contain live tasks.
-        # 2. An unexpected exception inside the loop bypassed the
-        #    winner-path drain — same survivors.
-        # Calling create_task here is safe even during cancellation
-        # propagation: the new drain tasks attach to the running
-        # loop, not to our cancelled scope. Each drain itself
-        # tolerates CancelledError (see _drain_losing_response).
-        for task in tasks:
-            if not task.done():
-                asyncio.create_task(
-                    _drain_losing_response(task),
-                    name="acp-approval-drain-on-cancel",
-                )
+            continue
+        return _approval_from_response(response, choices)
+    return None
 
 
 async def request_human_approval_via_acp(
@@ -438,5 +377,7 @@ async def request_human_approval_via_acp(
             view=view,
             choices=choices,
         )
-        return await _race_first_response(session.approver_clients(), request, choices)
+        return await _request_from_driver_with_fallback(
+            session.approver_driver_chain(), request, choices
+        )
     return None

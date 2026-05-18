@@ -498,15 +498,31 @@ class _TurnCancelMachinery:
 class _ApproverClientRegistry:
     """Attached ACP clients capable of handling ``session/request_permission``.
 
-    The configured ``human_approver`` routes tool-approval prompts
-    through here when at least one client is attached, falling back to
-    the in-proc panel / console flow when none are. Clients register on
-    bind (``Forwarders.start``) and detach on unbind / disconnect
+    The configured ``human_approver`` routes tool-approval prompts to
+    a SINGLE driver — the last client to send a ``session/prompt`` on
+    this session, with first-attached as the fallback when no prompt
+    has been sent yet. Clients register on bind
+    (``Forwarders.start``) and detach on unbind / disconnect
     (``Forwarders.stop``).
+
+    Why single-driver and not broadcast: ACP has no protocol-level
+    cancel for outbound requests, so broadcasting to N clients and
+    racing leaves the losers' editors showing a stale permission
+    card forever (whatever they click later is silently discarded
+    by the server). Picking one driver keeps the UX coherent: the
+    operator sees the prompt on the client they're actually using,
+    others observe via the normal event stream. Aligns with the
+    design doc's stated 'one driver + read-only observers' intent.
     """
 
     def __init__(self) -> None:
         self._clients: list[ApproverClient] = []
+        # The client whose ``session/prompt`` most recently landed —
+        # set by :meth:`mark_active` (called from the connection
+        # handler after a successful prompt-forward). ``None`` until
+        # any client sends a prompt, in which case ``driver_chain``
+        # falls back to first-attached.
+        self._last_active: ApproverClient | None = None
 
     def attach(self, client: ApproverClient) -> Callable[[], None]:
         self._clients.append(client)
@@ -516,18 +532,49 @@ class _ApproverClientRegistry:
                 self._clients.remove(client)
             except ValueError:
                 pass
+            # If the active driver just detached, drop the slot so
+            # ``driver_chain`` falls back cleanly to first-attached.
+            if self._last_active is client:
+                self._last_active = None
 
         return _unsubscribe
 
     def has_clients(self) -> bool:
         return bool(self._clients)
 
-    def clients(self) -> list[ApproverClient]:
-        """Snapshot copy so iteration is stable against concurrent attach/detach."""
-        return list(self._clients)
+    def mark_active(self, client: ApproverClient) -> None:
+        """Promote ``client`` to be the driver for subsequent approvals.
+
+        Called by the connection handler when it forwards a
+        ``session/prompt`` — that's the strongest signal that this
+        client is the operator's current surface. Silently no-ops if
+        the client isn't (or is no longer) in the registry, which
+        covers the race where a client detaches between attach and
+        prompt-forward.
+        """
+        if client in self._clients:
+            self._last_active = client
+
+    def driver_chain(self) -> list[ApproverClient]:
+        """Clients in fallback order: driver first, then others by attach order.
+
+        The approval shim tries each client in turn; if the driver's
+        request raises (typically ``ConnectionError`` on mid-prompt
+        disconnect), the shim moves on to the next attached client.
+        Returns a snapshot copy so iteration stays stable against
+        concurrent attach / detach.
+        """
+        if not self._clients:
+            return []
+        driver = self._last_active
+        if driver is None or driver not in self._clients:
+            # No prompt yet → first-attached is the fallback driver.
+            return list(self._clients)
+        return [driver] + [c for c in self._clients if c is not driver]
 
     def clear(self) -> None:
         self._clients.clear()
+        self._last_active = None
 
 
 # ---------------------------------------------------------------------------
@@ -955,16 +1002,45 @@ class LiveAcpSession:
             return self._approvers.has_clients()
         return False
 
-    def approver_clients(self) -> list[ApproverClient]:
-        """Snapshot copy of attached clients.
+    def mark_active_approver_client(self, client: ApproverClient) -> None:
+        """Promote ``client`` to be the active driver for approvals.
 
-        Returns a copy so iteration is stable against concurrent
-        attach / detach (a client can disconnect mid-race). On
-        internal error, returns an empty list — caller falls back to
-        in-proc approval.
+        Called by the connection handler after it forwards a
+        ``session/prompt`` — that's the strongest signal the client
+        is the operator's current surface. The next
+        ``session/request_permission`` will route to this client
+        first; if the client has since disconnected, the shim falls
+        through to the next attached client in attach order.
+
+        Silently no-ops if the client isn't (or is no longer) in
+        the registry. On internal error, logs a warning and continues
+        — the worst case is the approval routes to a stale-but-
+        present client, which the shim's per-client fallback handles.
         """
-        with acp_guard("ACP approver_clients raised; falling back to in-proc approval"):
-            return self._approvers.clients()
+        with acp_guard(
+            "ACP mark_active_approver_client raised; driver selection unchanged"
+        ):
+            self._approvers.mark_active(client)
+
+    def approver_driver_chain(self) -> list[ApproverClient]:
+        """Approver clients in fallback order: driver first, then others.
+
+        The driver is the client whose ``session/prompt`` most
+        recently landed (via :meth:`mark_active_approver_client`);
+        when no prompt has been sent yet on this session, the
+        fallback is first-attached. Subsequent entries are the
+        remaining attached clients in attach order — the approval
+        shim tries each in turn if the driver's request raises (typ.
+        ``ConnectionError`` on mid-prompt disconnect).
+
+        Returns a snapshot copy so iteration is stable against
+        concurrent attach / detach. On internal error, returns an
+        empty list — caller falls back to in-proc approval.
+        """
+        with acp_guard(
+            "ACP approver_driver_chain raised; falling back to in-proc approval"
+        ):
+            return self._approvers.driver_chain()
         return []
 
     def cancel_current_turn(self) -> None:

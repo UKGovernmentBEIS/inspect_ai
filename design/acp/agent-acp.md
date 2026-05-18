@@ -670,39 +670,55 @@ wants to be notified with the rich detail, separate from the normal
 ## Deep dive: approval UI
 
 When ACP clients are attached and Inspect's `approval` framework would
-otherwise prompt a human (`human_approver` etc.), the prompt should be
-routed to **the attached clients** rather than the local input panel.
+otherwise prompt a human (`human_approver` etc.), the prompt is routed
+to **a single attached client** rather than the local input panel.
 Both the in-process TUI client and external editor clients are normal
 ACP attachments, so the same mechanism serves both.
 
 **Flow.**
 1. Approver decides "I need a human decision" for a pending tool call.
-2. Adapter broadcasts an ACP `session/request_permission` to **all**
-   attached clients on this session (TUI + any external).
-3. Whichever client responds first wins; subsequent responses are
-   ignored.
-4. Adapter resolves the approval future with the decision; tool
-   execution proceeds (or is denied).
-5. Adapter sends a `session/update` to the other clients indicating
-   the decision was already made (so their UI can clear the pending
-   prompt).
+2. Adapter sends an ACP `session/request_permission` to the **driver**
+   client — the one whose `session/prompt` most recently landed on
+   this session, with first-attached as the fallback when no prompt
+   has been sent yet.
+3. Driver responds; adapter resolves the approval future with the
+   decision; tool execution proceeds (or is denied).
+4. If the driver's request raises (typically `ConnectionError` on
+   mid-prompt disconnect), adapter falls through to the next
+   attached client in attach order, and so on.
+5. Non-driver clients observe the tool's eventual `ToolCallProgress`
+   via the normal event stream — they're not asked to decide.
 
-**Why broadcast + first-wins:** the user might have both Zed and the
-TUI open. Forcing them to pick one channel before answering would be
-annoying. Either can approve; whichever fires first is authoritative.
+**Why single-driver and not broadcast.** ACP has no protocol-level
+cancel for outbound requests (no `$/cancelRequest`-equivalent on
+`session/request_permission`). A broadcast model would leave losing
+editors with a stale permission card forever — whatever they
+eventually click is silently discarded server-side. Picking one
+driver means the operator only sees the prompt on the client they're
+actually using; the others stay clean. Aligns with the doc's
+"one driver + read-only observers" decision below.
+
+**Driver selection: last-prompt wins.** The strongest signal of
+operator attention is "I just typed something here." The connection
+handler calls `mark_active_approver_client(self)` after every
+successful `session/prompt` forward (`connection.py`), promoting
+itself to the head of the driver chain. Attach order is the
+fallback when no prompt has been sent — typical for dataset-driven
+first turns. Disconnecting clients drop out of the chain
+automatically.
 
 **Fallback.** If no clients are attached at the moment a prompt is
 needed, fall back to the existing approver behavior (input panel,
 defaults, etc.) — ACP doesn't *replace* the approval system, it just
 proxies for it when a human is reachable.
 
-**Timeout.** If clients are attached but none responds within the
-configured approval timeout, fall back to default policy (typically
-deny) and tell the clients via `session/update`.
+**Timeout.** No timeout. Matches the in-proc human approver's
+wait-forever behavior; default-deny on timeout would be surprising
+and risk silently rejecting tools the operator intended to approve.
 
 Worth designing carefully because approval is the one place where ACP
 clients can *block agent progress* outside of the cancel/turn-scope
-mechanism. The futures and broadcast must be robust to client
+mechanism. The driver-fallback chain must be robust to client
 disconnect mid-prompt.
 
 ## Deep dive: enumeration & routing
@@ -759,7 +775,13 @@ strings only matter at the picker step.
   returns `invalid_params` rather than falling back to picker — silent
   rebind of an explicit `session/load` call would surprise the client.
 - **Multiple concurrent connections to different sessions** are supported
-  by default. Within one session: one driver + read-only observers.
+  by default. Within one session: **one driver + read-only observers**.
+  The driver is the client whose `session/prompt` most recently landed
+  (implicit claim — no explicit `inspect/claimDriver` extension); first-
+  attached is the fallback when no prompt has been sent yet.
+  `session/request_permission` routes to the driver only; the registry
+  exposes a `driver_chain()` accessor so the approval shim can fall
+  through to the next attached client on driver disconnect.
 - A **`InterruptEvent`** in the transcript records every cancellation
   (user, limit, system) for a uniform record of "agent was interrupted".
 - User messages injected via ACP are marked
@@ -780,9 +802,11 @@ strings only matter at the picker step.
 1. **Replay on attach** — replay last N messages (configurable), eliding
    large tool call payloads. Pick the default N and elision threshold.
 
-2. **Driver claim mechanics in multi-attach** — implicit (last
-   `session/prompt` wins) vs explicit (a `inspect/claimDriver` extension).
-   Lean toward implicit for v1.
+2. ~~**Driver claim mechanics in multi-attach**~~ — *resolved during the
+   Phase 14 single-driver revision.* Implicit (last `session/prompt`
+   wins, first-attached as fallback) shipped; the `mark_active`/
+   `driver_chain` registry surface is the implementation. No
+   `inspect/claimDriver` extension was needed.
 
 3. **Token-level streaming** — requires hooking into the provider stream
    before the message is finalized. Cleanest path is a streaming hook on
@@ -1335,27 +1359,27 @@ Routes the **human leaf** of the configured approval chain through ACP `session/
 
 **Components landed:**
 
-- **Per-session approver-client registry** (`src/inspect_ai/agent/_acp/session.py`). `ApproverClient` Protocol (one method: `async def request_permission(request) -> response`) + `LiveAcpSession.attach_approver_client(client) → unsubscribe` / `has_approver_clients()` / `approver_clients()`. NoOp session returns empty / False / no-op unsubscribe so callers don't need isinstance guards. Cleared on `__aexit__` so a late callback can't fire into a closed connection. Same hook pattern as the existing interrupted-subscriber registry.
-- **Connection handler implements `ApproverClient`** (`connection.py`). `ConnectionHandler.request_permission` wraps `conn.send_request("session/request_permission", payload)` and validates the response. Self-registers in `Forwarders.start` after the bind completes; deregisters in `Forwarders.stop`. Lifecycle mirrors the semantic / raw event forwarder tasks exactly.
-- **Approval shim** (`src/inspect_ai/approval/_human/acp.py`). `request_human_approval_via_acp(message, call, view, choices) → Approval | None`. Returns `None` to signal "fall through to in-proc panel/console" when no clients attached or every client raised. Otherwise builds a `RequestPermissionRequest` (reusing `descriptive_title` + `content_blocks_from_view` from `_tool_content` for visual consistency with live tool-call rendering), races attached clients via `asyncio.wait(FIRST_COMPLETED)`, cancels losers, maps the first-non-exception response back to `Approval` via `optionId` round-trip. Wait-forever (no timeout — the human at the editor is the source of truth).
+- **Per-session approver-client registry** (`src/inspect_ai/agent/_acp/session_live.py`). `ApproverClient` Protocol (one method: `async def request_permission(request) -> response`) + `LiveAcpSession.attach_approver_client(client) → unsubscribe` / `has_approver_clients()` / `mark_active_approver_client(client)` / `approver_driver_chain()`. NoOp session returns empty / False / no-op unsubscribe so callers don't need isinstance guards. Cleared on `__aexit__` so a late callback can't fire into a closed connection. Same hook pattern as the existing interrupted-subscriber registry. **Single-driver semantics** (revised from the initial broadcast/race shipped in Phase 14): the registry tracks a `_last_active` slot, set by `mark_active`. `driver_chain()` returns `[driver, ...rest_in_attach_order]` so the shim tries one client at a time with a fallback chain on disconnect.
+- **Connection handler implements `ApproverClient`** (`connection.py`). `ConnectionHandler.request_permission` wraps `conn.send_request("session/request_permission", payload)` and validates the response. Self-registers in `Forwarders.start` after the bind completes; deregisters in `Forwarders.stop`. After each successful `session/prompt` forward in the prompt handler, calls `target.mark_active_approver_client(self)` so the next approval routes here — the strongest signal that this client is the operator's current surface. Lifecycle mirrors the semantic / raw event forwarder tasks exactly.
+- **Approval shim** (`src/inspect_ai/approval/_human/acp.py`). `request_human_approval_via_acp(message, call, view, choices) → Approval | None`. Returns `None` to signal "fall through to in-proc panel/console" when no clients attached or every client in the driver chain raised. Otherwise builds a `RequestPermissionRequest` (reusing `descriptive_title` + `content_blocks_from_view` from `_tool_content` for visual consistency with live tool-call rendering), then calls `_request_from_driver_with_fallback` which iterates the driver chain sequentially: first success wins, transport-level failures on a given client fall through to the next, cancellation propagates to the caller. Wait-forever (no timeout — the human at the editor is the source of truth). The original broadcast/race shipped with Phase 14 was replaced because ACP has no `$/cancelRequest`-equivalent for outbound requests — broadcasting left losing editors with stale permission cards forever.
 - **`human_approver` checks ACP first** (`src/inspect_ai/approval/_human/approver.py`). One added line: call the shim before falling through to `panel_approval` / `console_approval`. Zero behavior change in the no-client case — the ACP routing is a strict superset.
 - **Tool-content helpers** (`tool_content.py`). `descriptive_title(fn, args)` and `content_blocks_from_view(view)` take primitives so they're shareable between the live-event router (which has `ToolEvent`) and the approval shim (which has `ToolCall` + `ToolCallView`). `_descriptive_title(event)` / `_content_from_view(event)` remain as thin adapters for the router's own use.
 
 **Decisions settled with the user:**
 
-- **Multi-client: broadcast + race.** First non-exception response wins; in-flight requests on losing clients are cancelled (their futures resolve with CancelledError on the client side).
+- **Multi-client: single-driver + fallback chain.** The driver is the client whose `session/prompt` most recently landed (first-attached when none has prompted yet). If the driver's request raises, the shim falls through to the next attached client in attach order. Replaced the initial broadcast/race because ACP can't dismiss a stale permission card on losing editors.
 - **Timeout: wait forever.** Mirrors the in-proc human approver's blocking behavior; default-deny on timeout would be surprising.
-- **Disconnect mid-prompt: fall back gracefully.** If other clients are still racing, their responses still count; if every client raises (typically `ConnectionError` after disconnect), shim returns `None` and the existing in-proc panel/console path runs.
+- **Disconnect mid-prompt: fall back gracefully.** The driver's request raises (`ConnectionError`); the shim moves to the next client in the chain. If every client raises, the shim returns `None` and the existing in-proc panel/console path runs.
 - **Option mapping: configured `choices` is the source of truth.** Each `PermissionOption.optionId` is the literal `ApprovalDecision` string (`"approve"` / `"reject"` / `"terminate"` / `"escalate"` / `"modify"`) so the response round-trips losslessly. `PermissionOptionKind` is a best-effort visual hint (`approve` → `allow_once`, `reject` → `reject_once`, `terminate` → `reject_always`).
 - **No conflict with the in-proc TUI.** When ACP is attached, ACP "gets the stick" — the in-proc panel never opens. When ACP is not attached, the in-proc flow is unchanged.
 
-**Test coverage** — 40 new tests in `tests/agent/test_acp/test_session.py` (7 — registry mechanics) and `tests/agent/test_acp/test_approval.py` (~22 — option mapping, response round-trip, race semantics, entry-point predicates, end-to-end over real AF_UNIX socket). Plus several integration tests in the existing suites verifying nothing regressed (382 ACP+CLI+approval passing total).
+**Test coverage** — tests in `tests/agent/test_acp/test_session.py` (registry mechanics including `mark_active` / `driver_chain` / unsubscribe-of-driver fallback) and `tests/agent/test_acp/test_approval.py` (option mapping, response round-trip, driver-only routing, fallback-on-disconnect, all-fail returns None, cancellation propagation, entry-point predicates, end-to-end over real AF_UNIX socket). Plus integration tests in `test_server_forwarding.py` pinning that `session/prompt` forwards both to `submit_user_message` AND `mark_active_approver_client`.
 
 **Out of scope (deferred):**
 
 - **`modify` decision over ACP.** ACP's `PermissionOption` doesn't have a "modify the call before approving" affordance; `Approval.modified` (a new `ToolCall`) would need a custom UI surface. If a configured `human_approver` includes `modify` in its choices, the optionId round-trips but downstream `apply_tool_approval` degenerates to using the original call (no modification). Could add a richer flow later via an `_meta`-flagged option for Inspect-aware clients.
 - **`escalate` decision over ACP.** Same shape problem — sends and round-trips, but ACP options are binary allow/deny variants and most editors render it as a generic button without the escalation-chain semantics.
-- **Timeout / approval expiry.** Wait-forever per the decision above. If a future deployment needs unattended fallback, an opt-in `timeout=` parameter on `human_approver` could become the ACP race deadline.
+- **Timeout / approval expiry.** Wait-forever per the decision above. If a future deployment needs unattended fallback, an opt-in `timeout=` parameter on `human_approver` could bound how long the shim waits on the driver before falling through or defaulting.
 - **Telemetry / audit for "approval came from ACP client X vs in-proc".** `Approval.metadata` could carry it; not in v1.
 - **Live approval card with diff preview for `edit` tools.** Currently the prompt content is the same markdown the live tool-call notification carries; richer per-kind formatting (e.g. `FileEditToolCallContent` for diff previews) is a follow-up.
 
@@ -1521,10 +1545,11 @@ Every call site that crosses into `acp.Connection` is therefore asyncio-anchored
 
 **What IS anyio-native within ACP.** The in-process pub/sub layer in `session.py` uses `anyio.create_memory_object_stream`, `anyio.Event`, `anyio.CancelScope`, and `anyio.BrokenResourceError` throughout. The session is the natural composition point with the rest of inspect_ai's agent framework (which IS anyio); the transport/JSON-RPC layer below it is the asyncio island.
 
-**Deliberate asyncio idioms (not just "haven't migrated yet").** Two patterns are kept in asyncio because the anyio equivalent would be strictly more complex:
+**Deliberate asyncio idioms (not just "haven't migrated yet").** One pattern is kept in asyncio because the anyio equivalent would be strictly more complex:
 
 1. **Bridge two-way race** (`stdio.py`): `asyncio.create_task` × 2 → `asyncio.wait(FIRST_COMPLETED)` → cancel-loser. The CLI bridge is a leaf that doesn't compose with anyio code elsewhere; the asyncio idiom is clean for the symmetric stdin↔socket forwarder topology.
-2. **Approval race + drain-losers** (`approval/_human/acp.py`): `asyncio.create_task` for the per-client request, with losers handed to a background drain (`asyncio.create_task(_drain_losing_response(t))`) that intentionally outlives the race scope. anyio's structured concurrency actively prevents loose-task spawning — a migration would require plumbing a session-scoped long-lived background task group through to the approval shim. More code, not less.
+
+(The approval shim previously also carried an asyncio race + drain-losers idiom for broadcasting `session/request_permission` to all attached clients. That broadcast was replaced with single-driver semantics — sequential send-with-fallback over the driver chain — which removed both the race AND the drain-losers complexity. The shim is now a plain async for-loop over the driver chain; no `create_task`, no `wait`, no background drain.)
 
 **Backend-agnostic cancellation catches.** All `except asyncio.CancelledError` / `isinstance(exc, asyncio.CancelledError)` sites use `anyio.get_cancelled_exc_class()` instead (which resolves to `asyncio.CancelledError` on asyncio, `trio.Cancelled` on trio). Zero semantic change at runtime; strict superset for future portability if the `acp` library ever ships an anyio API.
 

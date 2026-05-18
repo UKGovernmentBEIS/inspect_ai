@@ -300,6 +300,58 @@ async def test_session_prompt_forwards_to_submit_user_message(
 
 @skip_if_trio
 @unix_only
+async def test_session_prompt_marks_connection_as_active_driver(
+    short_data_dir: Path, register_target
+) -> None:
+    """A bound `session/prompt` also promotes the connection to active approver-driver.
+
+    Pinned because the single-driver approval semantic depends on
+    this: the most-recently-prompted client wins the next
+    ``session/request_permission``. If the connection handler
+    skipped ``mark_active_approver_client``, the chain would always
+    fall back to first-attached and operator intent would be lost.
+    """
+    session, _tr = _make_live_session_with_transcript()
+    mark_calls: list[Any] = []
+    session.mark_active_approver_client = (  # type: ignore[method-assign]
+        lambda client: mark_calls.append(client)
+    )
+
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    async with acp_server(eval_id="evt-mark-active", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            resp = await client.request(
+                "session/new", {"cwd": "/tmp", "mcpServers": []}
+            )
+            target_id = resp["result"]["sessionId"]
+            await _drain_bind_preamble(client)
+
+            await client.request(
+                "session/prompt",
+                {
+                    "sessionId": target_id,
+                    "prompt": [{"type": "text", "text": "hello"}],
+                },
+            )
+
+            # Exactly one mark — the connection promoted itself.
+            assert len(mark_calls) == 1
+            # The promoted client is the ConnectionHandler (it
+            # implements ApproverClient via its `request_permission`).
+            from inspect_ai.agent._acp.connection import ConnectionHandler
+
+            assert isinstance(mark_calls[0], ConnectionHandler)
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
 async def test_session_cancel_notification_forwards_to_cancel_current_turn(
     short_data_dir: Path, register_target
 ) -> None:

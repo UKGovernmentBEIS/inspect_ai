@@ -336,6 +336,15 @@ class ConnectionHandler:
                 text = _translate_prompt_blocks(prompt)
                 msg = ChatMessageUser(content=text, source="operator")
                 target.submit_user_message(msg)
+                # Promote ourselves to the active driver for any
+                # subsequent ``session/request_permission`` on this
+                # session — the operator just typed here, so this is
+                # where they're paying attention. Silently no-ops if
+                # we aren't (or no longer are) a registered approver
+                # client (e.g. the approval forwarder hasn't started
+                # yet, or we were just torn down). See the registry's
+                # docstring for the single-driver semantics.
+                target.mark_active_approver_client(self)
                 return PromptResponse(stop_reason="end_turn")
             case _:
                 # Unreachable: the outer match above already raised on
@@ -833,17 +842,52 @@ class ConnectionHandler:
         ``LiveAcpSession`` registers this handler when the connection
         binds (via :class:`Forwarders`); the configured
         ``human_approver`` calls this method (via the
-        ``approval/_human/acp.py`` race orchestrator) when a tool
+        ``approval/_human/acp.py`` driver-fallback chain) when a tool
         needs approval.
 
-        Raises :class:`ConnectionError` if the connection is missing
-        (race with disconnect during binding) so the race orchestrator
-        treats this as a losing entrant. Any other exception (transport
-        failure, malformed response) also propagates so the
-        orchestrator can drop us from the race.
+        Two binding checks gate the actual send:
+
+        - Connection still attached. If not (race with disconnect
+          during binding), raise :class:`ConnectionError`.
+        - Connection is ``Bound`` AND its ``target_session_id``
+          matches the request's ``sessionId``. Covers the race where
+          the connection unbinds or rebinds to a different target
+          between the approval shim snapshotting the driver chain
+          and this method being called.
+
+        The outbound payload's ``sessionId`` is rewritten to the
+        connection's ``wire_session_id``. In auto-bind /
+        direct-loadSession this is a no-op (wire == target); in
+        picker mode the wire is a synthetic control id minted at
+        ``session/new`` and the client would otherwise reject the
+        prompt as cross-session traffic. Mirrors
+        ``Forwarders._rewrite_session_id`` in ``session_router.py``.
+
+        Any exception (binding mismatch, transport failure, malformed
+        response) propagates so the approval shim's driver-fallback
+        loop drops us and tries the next client.
         """
         if self.connection is None:
             raise ConnectionError("approver client connection is not attached")
+        binding = self.state.binding
+        if not isinstance(binding, Bound):
+            raise ConnectionError(
+                "approver client is not bound to a target session "
+                f"(current binding: {type(binding).__name__})"
+            )
+        if binding.target_session_id != request.session_id:
+            raise ConnectionError(
+                "approver client target mismatch: bound to "
+                f"{binding.target_session_id!r}, request is for "
+                f"{request.session_id!r}"
+            )
+        # Rewrite session_id → wire_session_id so the client receives
+        # the session id it actually knows. Skip the copy when they
+        # already match (auto-bind / direct-loadSession fast-path).
+        if binding.wire_session_id != request.session_id:
+            request = request.model_copy(
+                update={"session_id": binding.wire_session_id}
+            )
         payload = request.model_dump(mode="json", by_alias=True, exclude_none=True)
         raw = await self.connection.send_request("session/request_permission", payload)
         return RequestPermissionResponse.model_validate(raw)
