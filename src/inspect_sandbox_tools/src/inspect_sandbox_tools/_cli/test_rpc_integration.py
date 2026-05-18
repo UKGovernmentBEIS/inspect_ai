@@ -1,12 +1,15 @@
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 import time
+from pathlib import Path
 from typing import Any, Dict
 
 import pytest
 
-from inspect_sandbox_tools._util.constants import SOCKET_PATH
+from inspect_sandbox_tools._util.constants import SERVER_DIR_ENV, SOCKET_PATH
 
 
 def cleanup_socket():
@@ -37,17 +40,29 @@ def setup_and_teardown():
     cleanup_server_processes()
 
 
-def exec_rpc_request(request: Dict[str, Any], timeout: int = 10) -> Dict[str, Any]:
+_REPO_ROOT = str(Path(__file__).resolve().parents[4])
+"""Root of the inspect_sandbox_tools source tree, used as PYTHONPATH
+so that the CLI subprocess can find the package from any CWD."""
+
+
+def exec_rpc_request(
+    request: Dict[str, Any],
+    timeout: int = 10,
+    cwd: str | None = None,
+    env: Dict[str, str] | None = None,
+) -> Dict[str, Any]:
     """Execute an RPC request via the CLI and return the parsed response."""
     request_json = json.dumps(request)
 
+    run_env = {**os.environ, "PYTHONPATH": _REPO_ROOT, **(env or {})}
     result = subprocess.run(
-        ["python", "-m", "src.inspect_sandbox_tools._cli.main", "exec"],
+        ["python", "-m", "inspect_sandbox_tools._cli.main", "exec"],
         input=request_json,
         text=True,
         capture_output=True,
         timeout=timeout,
-        cwd=os.getcwd(),
+        cwd=cwd or os.getcwd(),
+        env=run_env,
         check=False,
     )
 
@@ -141,3 +156,142 @@ def test_malformed_jsonrpc_request():
 
     # Should fail with validation error
     assert result.returncode != 0
+
+
+def test_global_server_stale_cwd():
+    """Demonstrate the bug: a global server outlives its CWD.
+
+    When the server is started from a temporary directory that is later
+    deleted, child processes inherit the stale CWD and fail with
+    "getcwd() failed". This is the failure mode for sandbox="local"
+    where sample_cleanup deletes the TemporaryDirectory but the server
+    keeps running.
+    """
+    # 1. Start the server from a temp dir (simulates first eval run).
+    first_sandbox = tempfile.mkdtemp()
+    exec_rpc_request(
+        {
+            "jsonrpc": "2.0",
+            "method": "exec_remote_start",
+            "params": {"command": "true"},
+            "id": 1,
+        },
+        cwd=first_sandbox,
+    )
+
+    # 2. Delete the temp dir (simulates sample_cleanup).
+    shutil.rmtree(first_sandbox)
+
+    # 3. Run a new command from a different dir (simulates second eval run).
+    #    The server is still alive with a dangling CWD, so child processes
+    #    inherit it and get "getcwd() failed".
+    second_sandbox = tempfile.mkdtemp()
+    try:
+        response = exec_rpc_request(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {"command": "echo hello"},
+                "id": 2,
+            },
+            cwd=second_sandbox,
+        )
+        pid = response["result"]["pid"]
+
+        time.sleep(0.5)
+
+        poll_response = exec_rpc_request(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_poll",
+                "params": {"pid": pid, "ack_seq": 0},
+                "id": 3,
+            },
+            cwd=second_sandbox,
+        )
+        stderr = poll_response["result"]["stderr"]
+        assert "getcwd() failed" in stderr, (
+            f"Expected stale-CWD error from global server, got stderr: {stderr!r}"
+        )
+    finally:
+        shutil.rmtree(second_sandbox, ignore_errors=True)
+
+
+def test_per_sandbox_server_dir_avoids_stale_cwd():
+    """Fix: scoping the server dir per-sandbox avoids the stale CWD bug.
+
+    Setting INSPECT_SANDBOX_TOOLS_DIR to a path inside each sandbox's
+    temp dir gives each sandbox its own server. Deleting the first
+    sandbox's temp dir doesn't affect the second sandbox's server.
+    """
+    # 1. First "sandbox" — start server scoped to its temp dir
+    first_sandbox = tempfile.mkdtemp()
+    first_server_dir = str(Path(first_sandbox) / "sandbox-tools")
+    exec_rpc_request(
+        {
+            "jsonrpc": "2.0",
+            "method": "exec_remote_start",
+            "params": {"command": "true"},
+            "id": 1,
+        },
+        cwd=first_sandbox,
+        env={SERVER_DIR_ENV: first_server_dir},
+    )
+
+    # 2. Tear down the first sandbox (simulates sample_cleanup).
+    shutil.rmtree(first_sandbox)
+
+    # 3. Second "sandbox" — gets its own server with a valid CWD.
+    second_sandbox = tempfile.mkdtemp()
+    second_server_dir = str(Path(second_sandbox) / "sandbox-tools")
+    try:
+        response = exec_rpc_request(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_start",
+                "params": {"command": "echo hello"},
+                "id": 2,
+            },
+            cwd=second_sandbox,
+            env={SERVER_DIR_ENV: second_server_dir},
+        )
+        pid = response["result"]["pid"]
+
+        time.sleep(0.5)
+
+        poll_response = exec_rpc_request(
+            {
+                "jsonrpc": "2.0",
+                "method": "exec_remote_poll",
+                "params": {"pid": pid, "ack_seq": 0},
+                "id": 3,
+            },
+            cwd=second_sandbox,
+            env={SERVER_DIR_ENV: second_server_dir},
+        )
+        result = poll_response["result"]
+        assert result["stderr"] == "", (
+            f"Expected no errors with per-sandbox server dir, got: {result['stderr']!r}"
+        )
+        assert "hello" in result["stdout"]
+    finally:
+        shutil.rmtree(second_sandbox, ignore_errors=True)
+
+
+def test_custom_server_dir():
+    """Server uses INSPECT_SANDBOX_TOOLS_DIR when set."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        custom_dir = str(Path(tmpdir) / "tools")
+
+        response = exec_rpc_request(
+            {"jsonrpc": "2.0", "method": "bash_session_new_session", "id": 1},
+            env={SERVER_DIR_ENV: custom_dir},
+        )
+
+        assert "result" in response
+        assert (Path(custom_dir) / "sandbox-tools.sock").exists(), (
+            "Server should have started in the custom directory"
+        )
+        assert not SOCKET_PATH.exists(), (
+            "Default socket path should not have been created"
+        )
