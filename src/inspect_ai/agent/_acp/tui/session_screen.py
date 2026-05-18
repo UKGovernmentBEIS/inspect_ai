@@ -213,7 +213,7 @@ class SessionScreen(Screen[None]):
             # to surface that the session is finished and freeze the
             # input than to let the operator type into a dead pipe.
             if lifecycle == "complete":
-                composer.placeholder = "session complete"
+                composer.placeholder = "sample complete"
                 composer.disabled = True
             else:
                 composer.placeholder = (

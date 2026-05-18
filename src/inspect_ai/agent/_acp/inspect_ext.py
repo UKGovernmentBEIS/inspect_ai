@@ -103,6 +103,15 @@ INSPECT_CANCEL_TOOL_CALL_METHOD = "inspect/cancel_tool_call"
 INSPECT_NEW_SESSION_METHOD = "inspect/new_session"
 INSPECT_LIST_SESSIONS_METHOD = "inspect/list_sessions"
 
+# Server → client notification: the bound LiveAcpSession has exited
+# on the server side (sample's react loop returned). Fired by the
+# per-bind semantic forwarder when its subscriber stream sees clean
+# EOF — gives the client a positive "this session is done" signal
+# WITHOUT requiring the underlying transport to close (the connection
+# stays alive so the client can switch to a different sample via the
+# picker). Params: ``{"sessionId": "<live-session-uuid>"}``.
+INSPECT_SESSION_ENDED_METHOD = "inspect/session_ended"
+
 
 # ---------------------------------------------------------------------------
 # Capability-detection inputs

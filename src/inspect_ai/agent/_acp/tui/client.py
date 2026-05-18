@@ -286,6 +286,30 @@ async def attach_session(
         row=row,
     )
 
+    # Server-side ``inspect/session_ended`` notification → flip the
+    # session's ``disconnected`` event. The SessionScreen's watcher
+    # treats that as "this session is done" and flips the lifecycle
+    # pill to ``complete``. This is what gives us a positive
+    # end-of-session signal mid-eval; without it, a client bound to
+    # an early-finishing sample wouldn't see ``complete`` until the
+    # entire eval shut down and the transport closed.
+    async def _on_session_ended(params: Any) -> None:
+        ended_id = params.get("sessionId") if isinstance(params, dict) else None
+        # Identity guard so a stray notification meant for a different
+        # bound session (shouldn't happen on a one-connection-per-
+        # session client, but cheap to enforce) doesn't tear ours
+        # down prematurely.
+        if ended_id == session.session_id:
+            session.disconnected.set()
+
+    router.add_route(
+        Route(
+            method="inspect/session_ended",
+            func=_on_session_ended,
+            kind="notification",
+        )
+    )
+
     async def _run_receive_loop() -> None:
         """Drive the connection's receive loop; flag disconnected on exit."""
         try:

@@ -476,3 +476,48 @@ async def test_multi_connection_isolation(short_data_dir: Path) -> None:
                     await w.wait_closed()
                 except Exception:
                     pass
+
+
+@skip_if_trio
+async def test_server_stop_unblocks_connected_clients(short_data_dir: Path) -> None:
+    """``acp_server`` exit must not hang on a still-connected client.
+
+    Pins the fix for the eval-process-never-terminates symptom:
+    ``AcpServer`` builds each ``Connection`` with ``listening=False``
+    and drives ``main_loop`` itself. ``Connection.close()`` doesn't
+    interrupt the receive loop (which is blocked in
+    ``reader.readline()``) or close the underlying writer, so a
+    naive ``server.stop()`` would have to wait out the peer.
+
+    The fix tracks the writer per-connection and force-closes it in
+    ``stop()`` so the reader gets EOF and the per-connection task
+    exits — this test wraps the whole shutdown in a tight timeout so
+    a regression hangs the test rather than the test suite.
+    """
+    port = _free_port()
+    reader_client = writer_client = None
+    try:
+        async with asyncio.timeout(10.0):
+            async with acp_server(eval_id="evt-stop", transport=port) as server:
+                assert server is not None
+                # Open a real client connection and HOLD IT OPEN —
+                # this is the case that previously hung the server's
+                # __aexit__ on ``Server.wait_closed()``.
+                reader_client, writer_client = await asyncio.open_connection(
+                    "127.0.0.1", port
+                )
+                # Give the server's _on_connection a tick to register
+                # the connection in its tracking dict.
+                await asyncio.sleep(0.05)
+            # __aexit__ has returned — without the writer-close fix
+            # we'd still be hung inside ``server.wait_closed()``.
+            # The client's reader should now see EOF.
+            data = await reader_client.read(4096)
+            assert data == b"", "expected EOF on client side after server stop"
+    finally:
+        if writer_client is not None:
+            writer_client.close()
+            try:
+                await writer_client.wait_closed()
+            except Exception:
+                pass

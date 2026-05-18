@@ -27,6 +27,7 @@ from acp.schema import SessionNotification
 from inspect_ai.agent._acp._guards import SendStatus, acp_guard, acp_send_guard
 from inspect_ai.agent._acp.event_mapping import SubagentDepthTracker, replay_transcript
 from inspect_ai.agent._acp.inspect_ext import (
+    INSPECT_SESSION_ENDED_METHOD,
     PlanPolicyTransformer,
     RawEventForwarder,
 )
@@ -274,6 +275,31 @@ class Forwarders:
                     return
         if outer.should_exit:
             return
+        # Reaching here means the subscriber stream returned EOF —
+        # the LiveAcpSession's ``__aexit__`` ran ``_pubsub.close_all()``
+        # because the sample's react loop returned. Signal the client
+        # so it can flip its lifecycle pill to ``complete`` even though
+        # the underlying transport remains open (the connection is
+        # reusable for picker → another sample). The previous design
+        # had no positive end-of-session signal, so a client bound to
+        # sample 1 wouldn't know sample 1 had finished until either
+        # the entire eval ended (transport disconnect) or the client
+        # noticed via some other side-effect.
+        await self._send_session_ended()
+
+    async def _send_session_ended(self) -> None:
+        """Notify the client that the bound session has ended on the server.
+
+        Best-effort: a send failure here means the peer is gone
+        (which is functionally the same state we're signalling), so
+        the ``acp_send_guard`` is sufficient — no caller action
+        beyond logging.
+        """
+        with acp_send_guard("ACP semantic forwarder: session_ended send failed"):
+            await self._connection.send_notification(
+                INSPECT_SESSION_ENDED_METHOD,
+                {"sessionId": self._wire_session_id},
+            )
 
     def _rewrite_session_id(self, notif: SessionNotification) -> SessionNotification:
         """Return ``notif`` keyed to the wire sessionId.

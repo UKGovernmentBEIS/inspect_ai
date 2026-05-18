@@ -13,8 +13,11 @@ helper tests at the top of the file) and run on every collection.
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
 from test_helpers.utils import skip_if_trio
+from textual.binding import Binding
 from textual.widgets import Input, Static
 
 from inspect_ai.agent._acp.tui.app import InspectAcpApp
@@ -24,6 +27,18 @@ from inspect_ai.agent._acp.tui.session_screen import SessionScreen
 from .conftest import make_fake_client
 
 pytestmark = pytest.mark.slow
+
+
+def _bindings_by_key() -> dict[str, Binding]:
+    """Return a key→Binding map for SessionScreen's BINDINGS.
+
+    ``ClassVar[BINDINGS]`` is typed as the union ``Binding |
+    tuple[str, str] | tuple[str, str, str]`` upstream so subclasses
+    can use the shorthand tuple form. SessionScreen's bindings are
+    all the ``Binding`` form, so filter to narrow before the tests
+    poke at the structured attributes.
+    """
+    return {b.key: b for b in SessionScreen.BINDINGS if isinstance(b, Binding)}
 
 
 @skip_if_trio
@@ -145,17 +160,9 @@ async def test_session_screen_switch_sample_returns_to_picker(
         # fire on the user-initiated path.
         original_notify = app.notify
 
-        def _capture(
-            message: str,
-            *,
-            title: str = "",
-            severity: str | None = None,
-            **kwargs: object,
-        ) -> None:
-            notifications.append((message, severity))
-            original_notify(
-                message, title=title, severity=severity or "information", **kwargs
-            )  # type: ignore[arg-type]
+        def _capture(message: str, *args: Any, **kwargs: Any) -> None:
+            notifications.append((message, kwargs.get("severity")))
+            original_notify(message, *args, **kwargs)
 
         app.notify = _capture  # type: ignore[method-assign]
 
@@ -165,7 +172,7 @@ async def test_session_screen_switch_sample_returns_to_picker(
             if isinstance(app.screen, PickerScreen):
                 break
         assert isinstance(app.screen, PickerScreen)
-        assert app._attached is None  # type: ignore[attr-defined]
+        assert cast(Any, app)._attached is None
         # No "disconnected from server" toast — the user knows they
         # asked to switch.
         assert not any("disconnected" in msg.lower() for msg, _ in notifications), (
@@ -189,13 +196,11 @@ async def test_session_screen_binds_ctrl_s_to_switch_sample(
             if isinstance(app.screen, SessionScreen):
                 break
         assert isinstance(app.screen, SessionScreen)
-        matched = [
-            b for b in SessionScreen.BINDINGS if getattr(b, "key", None) == "ctrl+s"
-        ]
-        assert matched, "expected a ctrl+s binding on SessionScreen"
-        assert matched[0].action == "switch_sample"
+        by_key = _bindings_by_key()
+        assert "ctrl+s" in by_key, "expected a ctrl+s binding on SessionScreen"
+        assert by_key["ctrl+s"].action == "switch_sample"
         # show=True so the Footer hint surfaces.
-        assert matched[0].show is True
+        assert by_key["ctrl+s"].show is True
 
 
 @skip_if_trio
@@ -204,7 +209,7 @@ async def test_session_screen_binds_enter_and_escape(
     sample_rows: list[SessionRow],
 ) -> None:
     """↵ submit / Esc interrupt must appear in the Footer keymap."""
-    by_key = {b.key: b for b in SessionScreen.BINDINGS}
+    by_key = _bindings_by_key()
     assert "enter" in by_key
     assert by_key["enter"].action == "submit"
     assert by_key["enter"].show is True
@@ -226,7 +231,7 @@ async def test_session_screen_binds_shift_enter_to_newline(
     the character lives in ``Input.value`` and ships on submit. This
     pins the binding so the footer hint matches what the action does.
     """
-    by_key = {b.key: b for b in SessionScreen.BINDINGS}
+    by_key = _bindings_by_key()
     assert "shift+enter" in by_key
     assert by_key["shift+enter"].action == "newline"
     assert by_key["shift+enter"].show is True
@@ -249,6 +254,7 @@ async def test_action_newline_inserts_literal_newline_into_composer(
             await pilot.pause()
             if isinstance(app.screen, SessionScreen):
                 break
+        assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", Input)
         composer.value = "line one"
         composer.cursor_position = len(composer.value)
@@ -258,7 +264,7 @@ async def test_action_newline_inserts_literal_newline_into_composer(
         # And no requests were sent — the newline is composer-local.
         # ``FakeConnection.requests`` records ``(method, params)``
         # tuples, so an empty list is the precise invariant.
-        conn = app.screen._session.connection  # type: ignore[attr-defined]
+        conn = cast(Any, app.screen._session.connection)
         assert conn.requests == []
 
 
@@ -283,7 +289,7 @@ async def test_action_submit_sends_prompt_and_clears_composer(
         composer.value = "  please continue  "
         await app.screen.action_submit()
         await pilot.pause()
-        conn = app.screen._session.connection  # type: ignore[attr-defined]
+        conn = cast(Any, app.screen._session.connection)
         assert conn.requests == [
             (
                 "session/prompt",
@@ -316,7 +322,7 @@ async def test_action_submit_with_empty_composer_is_noop(
         composer.value = "   "
         await app.screen.action_submit()
         await pilot.pause()
-        conn = app.screen._session.connection  # type: ignore[attr-defined]
+        conn = cast(Any, app.screen._session.connection)
         assert conn.requests == []
 
 
@@ -340,7 +346,7 @@ async def test_action_interrupt_clears_draft_when_composer_nonempty(
         composer.value = "draft text"
         await app.screen.action_interrupt()
         await pilot.pause()
-        conn = app.screen._session.connection  # type: ignore[attr-defined]
+        conn = cast(Any, app.screen._session.connection)
         assert conn.notifications == []
         assert composer.value == ""
 
@@ -376,7 +382,7 @@ async def test_action_interrupt_sends_cancel_when_agent_working(
         assert app.screen.state.status == StatusState.GENERATING
         await app.screen.action_interrupt()
         await pilot.pause()
-        conn = app.screen._session.connection  # type: ignore[attr-defined]
+        conn = cast(Any, app.screen._session.connection)
         assert conn.notifications == [
             (
                 "session/cancel",
@@ -385,7 +391,9 @@ async def test_action_interrupt_sends_cancel_when_agent_working(
         ]
         # Optimistic local clear must have fired so the pill stops
         # advertising GENERATING during the server's cancel propagation.
-        assert app.screen.state.status == StatusState.AWAITING_INPUT
+        # mypy narrowed status to GENERATING from the earlier assertion;
+        # action_interrupt mutated it via mark_interrupted.
+        assert app.screen.state.status == StatusState.AWAITING_INPUT  # type: ignore[comparison-overlap]
         assert app.screen.state._pending_message_ids == set()
 
 
@@ -418,7 +426,7 @@ async def test_action_interrupt_is_noop_when_awaiting_input(
         assert app.screen.state.status == StatusState.AWAITING_INPUT
         await app.screen.action_interrupt()
         await pilot.pause()
-        conn = app.screen._session.connection  # type: ignore[attr-defined]
+        conn = cast(Any, app.screen._session.connection)
         assert conn.notifications == []
 
 
@@ -460,7 +468,7 @@ async def test_action_interrupt_is_noop_during_quiescence_tail(
 
         await app.screen.action_interrupt()
         await pilot.pause()
-        conn = app.screen._session.connection  # type: ignore[attr-defined]
+        conn = cast(Any, app.screen._session.connection)
         assert conn.notifications == []
 
 
@@ -509,6 +517,7 @@ async def test_session_screen_lifecycle_pill_flips_to_running(
             await pilot.pause()
             if isinstance(app.screen, SessionScreen):
                 break
+        assert isinstance(app.screen, SessionScreen)
         # Inject a pending signal into state.
         chunk = AgentMessageChunk(
             session_update="agent_message_chunk",
@@ -542,6 +551,7 @@ async def test_session_screen_lifecycle_pill_flips_to_interrupted(
             await pilot.pause()
             if isinstance(app.screen, SessionScreen):
                 break
+        assert isinstance(app.screen, SessionScreen)
         # Pending first so the interrupt actually tears something down.
         chunk = AgentMessageChunk(
             session_update="agent_message_chunk",
@@ -583,8 +593,9 @@ async def test_peer_disconnect_marks_complete_and_closes_session(
             await pilot.pause()
             if isinstance(app.screen, SessionScreen):
                 break
+        assert isinstance(app.screen, SessionScreen)
         # Spy on close so we can assert it was called by the watcher.
-        session = app.screen._session  # type: ignore[attr-defined]
+        session = cast(Any, app.screen)._session
         close_calls: list[int] = []
         original_close = session.close
 
@@ -592,25 +603,28 @@ async def test_peer_disconnect_marks_complete_and_closes_session(
             close_calls.append(1)
             await original_close()
 
-        session.close = _spy_close  # type: ignore[method-assign]
+        session.close = _spy_close
 
         # Trigger peer-side disconnect — same signal the receive
         # loop sets on EOF / read error.
         session.disconnected.set()
         for _ in range(20):
             await pilot.pause()
-            if app.screen.state.lifecycle == "complete":
+            if (
+                isinstance(app.screen, SessionScreen)
+                and app.screen.state.lifecycle == "complete"
+            ):
                 break
 
+        assert isinstance(app.screen, SessionScreen)
         assert app.screen.state.lifecycle == "complete"
         assert close_calls == [1]
         # Screen is still mounted (no auto-pop) so the operator can
         # read the transcript.
-        assert isinstance(app.screen, SessionScreen)
         # Composer goes read-only with the completion placeholder.
         composer = app.screen.query_one("#composer", Input)
         assert composer.disabled is True
-        assert composer.placeholder == "session complete"
+        assert composer.placeholder == "sample complete"
 
 
 @skip_if_trio
@@ -634,6 +648,7 @@ async def test_action_submit_is_noop_when_session_complete(
             await pilot.pause()
             if isinstance(app.screen, SessionScreen):
                 break
+        assert isinstance(app.screen, SessionScreen)
         # Force the lifecycle into ``complete`` without going through
         # the disconnect path so we isolate the submit-guard.
         app.screen.state.mark_complete()
@@ -644,7 +659,7 @@ async def test_action_submit_is_noop_when_session_complete(
         composer.value = "anything"
         await app.screen.action_submit()
         await pilot.pause()
-        conn = app.screen._session.connection  # type: ignore[attr-defined]
+        conn = cast(Any, cast(Any, app.screen)._session.connection)
         assert conn.requests == []
         # And the composer value is preserved — we didn't clear it.
         assert composer.value == "anything"
@@ -672,6 +687,7 @@ async def test_action_newline_is_noop_when_session_complete(
             await pilot.pause()
             if isinstance(app.screen, SessionScreen):
                 break
+        assert isinstance(app.screen, SessionScreen)
         app.screen.state.mark_complete()
         await pilot.pause()
         composer = app.screen.query_one("#composer", Input)

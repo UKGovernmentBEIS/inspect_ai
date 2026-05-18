@@ -113,7 +113,10 @@ class SessionHeaderWidget(Widget):
     SessionHeaderWidget #lifecycle-indicator { width: auto; }
     SessionHeaderWidget #lifecycle-indicator.running { color: $success; }
     SessionHeaderWidget #lifecycle-indicator.interrupted { color: $warning; }
-    SessionHeaderWidget #lifecycle-indicator.complete { color: $accent; }
+    /* ``$primary`` is the blue brand token in Textual's default
+     * dark theme; ``$accent`` rendered orange in practice and
+     * clashed with the ``$warning``-orange interrupted state. */
+    SessionHeaderWidget #lifecycle-indicator.complete { color: $primary; }
     /* Idle: hide entirely. Keeps the band quiet between turns. */
     SessionHeaderWidget #lifecycle-indicator.idle { display: none; }
     """

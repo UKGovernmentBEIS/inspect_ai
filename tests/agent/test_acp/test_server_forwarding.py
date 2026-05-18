@@ -1096,3 +1096,48 @@ async def test_plan_policy_stash_cleared_on_rebind(
             )
         finally:
             await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_session_ended_notification_fires_when_live_session_exits(
+    short_data_dir: Path, register_target
+) -> None:
+    """Bound LiveAcpSession exit fires ``inspect/session_ended`` on the wire.
+
+    Even though the underlying transport stays open (the connection
+    is reusable for picking another sample via the picker), the
+    semantic forwarder emits a positive end-of-session signal as it
+    exits naturally on EOF. Previously, with sample 1 done and
+    sample 2 still running, a client bound to sample 1 wouldn't see
+    ``complete`` until the whole eval shut down.
+    """
+    session, _tr = _make_live_session_with_transcript()
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    async with acp_server(eval_id="evt-ended", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(client)
+
+            # Simulate the LiveAcpSession exiting: close all subscriber
+            # streams. The semantic forwarder sees EOF on its
+            # subscriber stream, fires the session_ended notification,
+            # then exits naturally.
+            session._pubsub.close_all()
+
+            notif = await client.next_notification()
+            assert notif["method"] == "inspect/session_ended"
+            # The wire session id is whatever the bind handed us — for
+            # the auto/load paths it equals the LiveAcpSession's id;
+            # for picker selection it's the synthetic control id. We
+            # just need a non-empty string so the client's identity
+            # guard can match.
+            assert isinstance(notif["params"]["sessionId"], str)
+            assert notif["params"]["sessionId"]
+        finally:
+            await client.close()

@@ -859,7 +859,10 @@ def test_mark_interrupted_drops_empty_pending_groups() -> None:
 
     state.mark_interrupted()
 
-    assert state.status == StatusState.AWAITING_INPUT
+    # mypy narrows `state.status` to GENERATING from the assert above,
+    # but `mark_interrupted` resets it back to AWAITING_INPUT —
+    # mypy can't model the state mutation across calls.
+    assert state.status == StatusState.AWAITING_INPUT  # type: ignore[comparison-overlap]
     assert state._pending_message_ids == set()
     # The empty placeholder bubble is gone — both the items list and
     # the lookup index drop it.
@@ -1015,7 +1018,9 @@ def test_mark_interrupted_marks_in_flight_tools_failed() -> None:
     state.mark_interrupted()
 
     assert state.tools_in_flight == 0
-    assert state.status == StatusState.AWAITING_INPUT
+    # mypy narrowed `status` to CALLING_TOOLS from the earlier assert;
+    # `mark_interrupted` resets it but mypy can't track that mutation.
+    assert state.status == StatusState.AWAITING_INPUT  # type: ignore[comparison-overlap]
     tc1 = state._tool_calls_by_id["tc-1"]
     tc2 = state._tool_calls_by_id["tc-2"]
     assert tc1.status == "failed"
@@ -1162,7 +1167,9 @@ def test_lifecycle_interrupted_clears_on_next_real_agent_chunk() -> None:
     state.mark_interrupted()
     assert state.lifecycle == "interrupted"
     state.consume(_pending_signal("m2"))
-    assert state.lifecycle == "running"
+    # mypy narrowed `lifecycle` to "interrupted" above; the new pending
+    # signal flips it back to "running" but that's a state mutation.
+    assert state.lifecycle == "running"  # type: ignore[comparison-overlap]
 
 
 def test_lifecycle_running_persists_through_quiescence_tail() -> None:
@@ -1250,4 +1257,6 @@ def test_lifecycle_tail_stamped_when_long_pending_completes() -> None:
 
     # Past the tail, falls to idle as expected.
     clock.t += 2.0
-    assert state.lifecycle == "idle"
+    # mypy narrowed `lifecycle` to "running" earlier; the clock-driven
+    # expiry flips it to "idle" but mypy can't model time-based mutation.
+    assert state.lifecycle == "idle"  # type: ignore[comparison-overlap]
