@@ -609,19 +609,6 @@ $ inspect log dump file:///home/user/log/logfile.json
 $ inspect log dump s3://my-evals-bucket/logfile.json
 ```
 
-### Exporting Run Config {#exporting-run-config}
-
-The `inspect log export-config` command reads a log file and writes a YAML (or JSON) file that captures the complete configuration used for that run — task, model, model roles, generation parameters, solver, and eval settings. The output can be passed directly to `inspect eval --run-config` to reproduce the run:
-
-``` bash
-$ inspect log export-config logs/my_run.eval > run.yaml
-$ inspect eval --run-config run.yaml
-```
-
-This closes the round-trip: `eval → log → export-config → eval`. By default output goes to stdout; use `--output` to write to a file, and `--format json` for JSON instead of YAML.
-
-See [Run Config File](task-configuration.qmd#run-config) for the full schema that `--run-config` accepts.
-
 ### Converting Logs {#converting-logs}
 
 You can convert between the two underlying [log formats](#sec-log-format) using the `inspect log convert` command. The convert command takes a source path (with either a log file or a directory of log files) along with two required arguments that specify the conversion (`--to` and `--output-dir`). For example:
@@ -639,6 +626,19 @@ $ inspect log convert logs --to eval --output-dir logs-eval
 Logs that are already in the target format are simply copied to the output directory. By default, log files in the target directory will not be overwritten, however you can add the `--overwrite` flag to force an overwrite.
 
 Note that the output directory is always required to enforce the practice of not doing conversions that result in side-by-side log files that are identical save for their format.
+
+### Exporting Run Config {#exporting-run-config}
+
+The `inspect log export-config` command reads a log file and writes a YAML (or JSON) file that captures the complete configuration used for that run — task, model, model roles, generation parameters, solver, and eval settings. The output can be passed directly to `inspect eval --run-config` to reproduce the run:
+
+``` bash
+$ inspect log export-config logs/my_run.eval > run.yaml
+$ inspect eval --run-config run.yaml
+```
+
+This closes the round-trip: `eval → log → export-config → eval`. By default output goes to stdout; use `--output` to write to a file, and `--format json` for JSON instead of YAML.
+
+See [Run Config File](task-configuration.qmd#run-config) for the full schema that `--run-config` accepts.
 
 ### Log Schema
 
