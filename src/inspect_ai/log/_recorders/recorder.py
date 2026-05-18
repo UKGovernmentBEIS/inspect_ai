@@ -1,8 +1,13 @@
 import abc
-from typing import IO
+from functools import lru_cache
+from typing import IO, TYPE_CHECKING
+
+from pydantic import TypeAdapter
 
 from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.error import EvalError
+from inspect_ai.event import Event
 from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._log import (
     EvalLog,
@@ -15,6 +20,38 @@ from inspect_ai.log._log import (
     EvalStats,
     EvalStatus,
 )
+from inspect_ai.log._pool import resolve_sample_events_data
+
+if TYPE_CHECKING:
+    from inspect_ai.log._event_store.history import SampleHistory
+
+
+@lru_cache(maxsize=1)
+def _events_adapter() -> TypeAdapter[list[Event]]:
+    return TypeAdapter(list[Event])
+
+
+def materialize_streaming_events(events: list[object]) -> list[Event]:
+    return _events_adapter().validate_python(
+        events, context=get_deserializing_context()
+    )
+
+
+def materialize_streaming_sample(
+    sample: EvalSample, history: "SampleHistory"
+) -> EvalSample:
+    events = materialize_streaming_events(list(history.iter_events()))
+    materialized = resolve_sample_events_data(
+        sample.model_copy(update={"events": events, "events_data": history.events_data})
+    )
+    return materialized.model_copy(
+        update={
+            "attachments": {
+                **materialized.attachments,
+                **history.attachments,
+            }
+        }
+    )
 
 
 class Recorder(abc.ABC):
@@ -40,6 +77,11 @@ class Recorder(abc.ABC):
 
     @abc.abstractmethod
     async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None: ...
+
+    async def log_sample_streaming(
+        self, eval: EvalSpec, sample: EvalSample, history: "SampleHistory"
+    ) -> None:
+        await self.log_sample(eval, materialize_streaming_sample(sample, history))
 
     @abc.abstractmethod
     async def flush(self, eval: EvalSpec) -> None: ...

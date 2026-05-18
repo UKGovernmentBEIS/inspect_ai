@@ -37,6 +37,10 @@ class Checkpointer(Protocol):
         """Force a fire regardless of policy (used by manual triggers)."""
         ...
 
+    def close(self) -> None:
+        """Release resources owned by this checkpointer session."""
+        ...
+
     def track(
         self,
         key: str,
@@ -95,4 +99,5 @@ async def checkpointer() -> AsyncIterator[Checkpointer]:
     try:
         yield impl
     finally:
+        impl.close()
         _active_checkpointer.reset(token)

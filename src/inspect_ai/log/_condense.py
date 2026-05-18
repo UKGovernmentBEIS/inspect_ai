@@ -51,17 +51,13 @@ from ._pool import (
     condense_model_event_inputs,
     resolve_model_event_calls,
     resolve_model_event_inputs,
+    validate_chat_messages,
 )
 
 
 @lru_cache(maxsize=1)
 def _events_adapter() -> TypeAdapter[list[Event]]:
     return TypeAdapter(list[Event])
-
-
-@lru_cache(maxsize=1)
-def _chat_messages_adapter() -> TypeAdapter[list[ChatMessage]]:
-    return TypeAdapter(list[ChatMessage])
 
 
 logger = getLogger(__name__)
@@ -116,7 +112,7 @@ def expand_events(
     if isinstance(data, str):
         raw = json.loads(data)
         data = EventsData(
-            messages=_chat_messages_adapter().validate_python(raw.get("messages", [])),
+            messages=validate_chat_messages(raw.get("messages", [])),
             calls=raw.get("calls", []),
         )
     result = resolve_model_event_inputs(list(events), data["messages"])

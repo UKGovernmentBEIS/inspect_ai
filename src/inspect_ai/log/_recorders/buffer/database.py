@@ -23,6 +23,7 @@ from inspect_ai._util.file import basename, dirname, filesystem
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.log._event_store.history import SampleHistory
 from inspect_ai.model import ChatMessage
 
 from ..._condense import (
@@ -89,6 +90,9 @@ class SampleBufferDatabase(SampleBuffer):
         sample_epoch INTEGER,
         data TEXT -- JSON containing full event
     );
+
+    CREATE INDEX IF NOT EXISTS idx_events_sample_uuid
+        ON events(sample_id, sample_epoch, event_id, id);
 
     CREATE TABLE attachments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -168,11 +172,16 @@ class SampleBufferDatabase(SampleBuffer):
                 raise FileNotFoundError("Log database for '{location}' not found.")
 
         # Per-sample hash → pool index maps; full pool entries live in SQLite.
-        self._msg_indices: dict[tuple[str | int, int], dict[str, int]] = {}
-        self._call_indices: dict[tuple[str | int, int], dict[str, int]] = {}
+        self._msg_indices: dict[tuple[str, int], dict[str, int]] = {}
+        self._call_indices: dict[tuple[str, int], dict[str, int]] = {}
 
         # Prevent late ModelEvents from restarting indices at 0 after completion.
-        self._completed_samples: set[tuple[str | int, int]] = set()
+        self._completed_samples: set[tuple[str, int]] = set()
+
+        self._sample_read_leases: dict[tuple[str, int], int] = {}
+        self._pending_sample_removals: set[tuple[str, int]] = set()
+        self._cleanup_pending = False
+        self._lease_lock = threading.Lock()
 
         # create sync filestore if log_shared
         self._sync_filestore = (
@@ -233,7 +242,7 @@ class SampleBufferDatabase(SampleBuffer):
                 (to_json_str_safe(summary), str(summary.id), summary.epoch),
             )
 
-            key = (summary.id, summary.epoch)
+            key = (str(summary.id), summary.epoch)
             self._msg_indices.pop(key, None)
             self._call_indices.pop(key, None)
             self._completed_samples.add(key)
@@ -250,6 +259,20 @@ class SampleBufferDatabase(SampleBuffer):
             )
 
     def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:
+        ready: list[tuple[str, int]] = []
+
+        with self._lease_lock:
+            for sample_id, epoch in samples:
+                key = (str(sample_id), epoch)
+                if key in self._sample_read_leases:
+                    self._pending_sample_removals.add(key)
+                else:
+                    ready.append(key)
+
+        if ready:
+            self._remove_samples_now(ready)
+
+    def _remove_samples_now(self, samples: list[tuple[str, int]]) -> None:
         # short circuit no samples
         if len(samples) == 0:
             return
@@ -301,6 +324,17 @@ class SampleBufferDatabase(SampleBuffer):
 
     @override
     def cleanup(self) -> None:
+        if not self._close_sync_worker_for_cleanup():
+            return
+
+        with self._lease_lock:
+            if self._sample_read_leases:
+                self._cleanup_pending = True
+                return
+
+        self._cleanup_now()
+
+    def _close_sync_worker_for_cleanup(self) -> bool:
         sync_thread: threading.Thread | None = None
         with self._sync_lock:
             self._sync_closed = True
@@ -312,7 +346,7 @@ class SampleBufferDatabase(SampleBuffer):
                 "Skipping log buffer cleanup from active sync worker for %s",
                 self.location,
             )
-            return
+            return False
 
         if sync_thread is not None and sync_thread.is_alive():
             sync_thread.join(timeout=SYNC_CLEANUP_TIMEOUT)
@@ -321,8 +355,11 @@ class SampleBufferDatabase(SampleBuffer):
                     "Timed out waiting for log buffer sync; skipping cleanup for %s",
                     self.location,
                 )
-                return
+                return False
 
+        return True
+
+    def _cleanup_now(self) -> None:
         cleanup_sample_buffer_db(self.db_path)
         if self._sync_filestore is not None:
             self._sync_filestore.cleanup()
@@ -405,6 +442,63 @@ class SampleBufferDatabase(SampleBuffer):
                 )
         except FileNotFoundError:
             return None
+
+    @contextmanager
+    def open_sample_history(
+        self,
+        id: str | int,
+        epoch: int,
+    ) -> Iterator[SampleHistory]:
+        with self._acquire_sample_read_lease(id, epoch):
+            with self._get_connection() as conn:
+                conn.execute("BEGIN IMMEDIATE")
+                events = list(self._get_events(conn, id, epoch, latest_only=True))
+                message_pool = [
+                    json.loads(entry.data)
+                    for entry in self._get_message_pool(conn, id, epoch)
+                ]
+                call_pool = [
+                    json.loads(entry.data)
+                    for entry in self._get_call_pool(conn, id, epoch)
+                ]
+                attachments = {
+                    entry.hash: entry.content
+                    for entry in self._get_attachments(conn, id, epoch)
+                }
+                history = SampleHistory(events, message_pool, call_pool, attachments)
+                conn.commit()
+            yield history
+
+    @contextmanager
+    def _acquire_sample_read_lease(
+        self,
+        id: str | int,
+        epoch: int,
+    ) -> Iterator[None]:
+        key = (str(id), epoch)
+        with self._lease_lock:
+            self._sample_read_leases[key] = self._sample_read_leases.get(key, 0) + 1
+        try:
+            yield
+        finally:
+            ready_remove = False
+            cleanup_ready = False
+            with self._lease_lock:
+                lease_count = self._sample_read_leases[key] - 1
+                if lease_count > 0:
+                    self._sample_read_leases[key] = lease_count
+                else:
+                    del self._sample_read_leases[key]
+                    if key in self._pending_sample_removals:
+                        self._pending_sample_removals.remove(key)
+                        ready_remove = True
+                    if self._cleanup_pending and not self._sample_read_leases:
+                        self._cleanup_pending = False
+                        cleanup_ready = True
+            if ready_remove:
+                self._remove_samples_now([key])
+            if cleanup_ready:
+                self._cleanup_now()
 
     @contextmanager
     def _get_connection(self, *, write: bool = False) -> Iterator[Connection]:
@@ -571,18 +665,37 @@ class SampleBufferDatabase(SampleBuffer):
         epoch: int,
         after_event_id: int | None = None,
         resolve_attachments: bool | Literal["full", "core"] = False,
+        latest_only: bool = False,
     ) -> Iterator[EventData]:
-        query = """
-            SELECT id, event_id, data
-            FROM events e WHERE sample_id = ? AND sample_epoch = ?
-        """
-        params: list[str | int] = [str(id), epoch]
+        if latest_only:
+            query = """
+                WITH first_rows AS (
+                    SELECT
+                        COALESCE(NULLIF(event_id, ''), CAST(id AS TEXT)) AS logical_id,
+                        MIN(id) AS first_id,
+                        MAX(id) AS latest_id
+                    FROM events
+                    WHERE sample_id = ? AND sample_epoch = ?
+                    GROUP BY COALESCE(NULLIF(event_id, ''), CAST(id AS TEXT))
+                )
+                SELECT e.id, fr.logical_id AS event_id, e.data
+                FROM first_rows fr
+                JOIN events e ON e.id = fr.latest_id
+                ORDER BY fr.first_id
+            """
+            params: list[str | int] = [str(id), epoch]
+        else:
+            query = """
+                SELECT id, COALESCE(NULLIF(e.event_id, ''), CAST(e.id AS TEXT)) AS event_id, data
+                FROM events e WHERE sample_id = ? AND sample_epoch = ?
+            """
+            params = [str(id), epoch]
 
-        if after_event_id is not None:
-            query += " AND e.id > ?"
-            params.append(after_event_id)
+            if after_event_id is not None:
+                query += " AND e.id > ?"
+                params.append(after_event_id)
 
-        query += " ORDER BY e.id"
+            query += " ORDER BY e.id"
 
         cursor = conn.execute(query, params)
 
@@ -728,7 +841,7 @@ class SampleBufferDatabase(SampleBuffer):
 
         # message/call pool dedup for ModelEvents
         if isinstance(event.event, ModelEvent):
-            key = (event.id, event.epoch)
+            key = (str(event.id), event.epoch)
             if key in self._completed_samples:
                 raise RuntimeError(
                     f"ModelEvent for sample {key} arrived after "

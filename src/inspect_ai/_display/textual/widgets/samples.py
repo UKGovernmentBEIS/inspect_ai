@@ -527,11 +527,7 @@ class SampleToolbar(Horizontal):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if self.sample:
             if event.button.id == self.TIMEOUT_TOOL_CALL:
-                last_event = (
-                    self.sample.transcript.events[-1]
-                    if self.sample.transcript.events
-                    else None
-                )
+                last_event = self.sample.transcript.last_event
                 if isinstance(last_event, ToolEvent):
                     last_event._cancel()
                     event.button.disabled = True
@@ -579,11 +575,7 @@ class SampleToolbar(Horizontal):
                 cancel_with_error.tooltip = self.CANCEL_RAISE_ERROR_ENABLED
 
             # if we have a pending event then start the clock and show pending status
-            last_event = (
-                sample.transcript.events[-1]
-                if len(sample.transcript.events) > 0
-                else None
-            )
+            last_event = sample.transcript.last_event
             if last_event and last_event.pending:
                 pending_status.visible = True
                 pending_caption = cast(

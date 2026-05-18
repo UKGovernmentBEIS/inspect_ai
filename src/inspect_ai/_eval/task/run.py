@@ -43,6 +43,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_unqualified_name,
 )
+from inspect_ai._util.transcript import transcript_bounded_enabled
 from inspect_ai._util.working import (
     init_sample_working_time,
     sample_start_datetime,
@@ -75,6 +76,8 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     eval_error,
 )
+from inspect_ai.log._recorders.recorder import materialize_streaming_sample
+from inspect_ai.log._recorders.streaming import eval_retry_error_from_history
 from inspect_ai.log._samples import (
     active_sample,
 )
@@ -865,10 +868,19 @@ async def task_run_sample(
         init_sample_model_usage()
         init_sample_role_usage()
         set_sample_state(state)
-        sample_transcript = Transcript(log_model_api=log_model_api)
+        sample_transcript_bounded = (
+            logger is not None
+            and logger.buffer_db is not None
+            and transcript_bounded_enabled()
+        )
+        sample_transcript = Transcript(
+            log_model_api=log_model_api,
+            bounded=sample_transcript_bounded,
+            resident_tail=100,
+        )
         init_transcript(sample_transcript)
         init_subtask_store(state.store)
-        sample_transcript._subscribe(on_sample_event)
+        sample_transcript.subscribe(on_sample_event)
         if scorers:
             init_scoring_context(scorers, Target(sample.target))
         init_sample_assistant_internal()
@@ -1355,22 +1367,29 @@ async def task_run_sample(
                         state = state_without_base64_content(state)
 
                     # emit/log sample end
-                    eval_sample = create_eval_sample(
-                        start_time=start_time,
-                        sample=sample,
-                        state=state,
-                        scores=results,
-                        error=error,
-                        limit=limit,
-                        error_retries=error_retries,
-                        started_at=sample_start_datetime(),
-                    )
+                    def make_eval_sample(include_events: bool = True) -> EvalSample:
+                        return create_eval_sample(
+                            start_time=start_time,
+                            sample=sample,
+                            state=state,
+                            scores=results,
+                            error=error,
+                            limit=limit,
+                            error_retries=error_retries,
+                            started_at=sample_start_datetime(),
+                            include_events=include_events,
+                        )
+
                     if logger:
-                        await log_sample(
-                            eval_sample=eval_sample,
+                        eval_sample = await log_sample(
+                            eval_sample=make_eval_sample(
+                                include_events=logger.buffer_db is None
+                            ),
                             logger=logger,
                             log_images=log_images,
                         )
+                    else:
+                        eval_sample = make_eval_sample()
                     await scan_eval_sample(
                         eval_sample,
                         scanner,
@@ -1395,6 +1414,8 @@ async def task_run_sample(
         and active.interrupt_action is None
     ):
         await emit_attempt_end(will_retry=True)
+
+        retry_error = _eval_retry_error(error, logger, state.sample_id, state.epoch)
 
         # remove any buffered sample events
         if logger is not None:
@@ -1428,7 +1449,7 @@ async def task_run_sample(
             retry_on_error=retry_on_error - 1,
             score_on_error=score_on_error,
             # forward on error that caused retry
-            error_retries=copy(error_retries) + [_eval_retry_error(error)],
+            error_retries=copy(error_retries) + [retry_error],
             time_limit=time_limit,
             working_limit=working_limit,
             semaphore=semaphore,
@@ -1468,6 +1489,7 @@ def create_eval_sample(
     limit: EvalSampleLimit | None,
     error_retries: list[EvalRetryError],
     started_at: datetime | None = None,
+    include_events: bool = True,
 ) -> EvalSample:
     # sample must have id to be logged
     id = sample.id
@@ -1496,7 +1518,7 @@ def create_eval_sample(
         scores={k: v.score for k, v in scores.items()},
         store=dict(state.store.items()),
         uuid=state.uuid,
-        events=list(transcript().events),
+        events=list(transcript().events) if include_events else [],
         timelines=list(transcript().timelines) or None,
         attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
@@ -1514,9 +1536,26 @@ def create_eval_sample(
 
 
 async def log_sample(
-    eval_sample: EvalSample, logger: TaskLogger, log_images: bool
-) -> None:
-    await logger.complete_sample(condense_sample(eval_sample, log_images), flush=True)
+    eval_sample: EvalSample,
+    logger: TaskLogger,
+    log_images: bool,
+) -> EvalSample:
+    if logger.buffer_db is None:
+        await logger.complete_sample(
+            condense_sample(eval_sample, log_images), flush=True
+        )
+        return eval_sample
+
+    logging_sample = condense_sample(
+        eval_sample.model_copy(update={"events": [], "events_data": None}),
+        log_images,
+    )
+    with logger.buffer_db.open_sample_history(
+        eval_sample.id, eval_sample.epoch
+    ) as history:
+        materialized_sample = materialize_streaming_sample(eval_sample, history)
+        await logger.complete_sample_streaming(logging_sample, history, flush=True)
+    return materialized_sample
 
 
 # we can reuse samples from a previous eval_log if and only if:
@@ -1669,16 +1708,27 @@ def init_sample_assistant_internal() -> None:
             pass
 
 
-def _eval_retry_error(error: EvalError) -> EvalRetryError:
+def _eval_retry_error(
+    error: EvalError,
+    logger: TaskLogger | None = None,
+    sample_id: str | int | None = None,
+    epoch: int | None = None,
+) -> EvalRetryError:
     """Create retry error with events from the most recent ModelEvent onward."""
     from inspect_ai.event._model import ModelEvent
 
-    events = transcript().events
-    recent_events = list(events)
-    for i in range(len(events) - 1, -1, -1):
-        if isinstance(events[i], ModelEvent):
-            recent_events = list(events[i:])
-            break
+    if logger is not None and logger.buffer_db is not None and sample_id is not None:
+        with logger.buffer_db.open_sample_history(
+            sample_id, epoch if epoch is not None else 0
+        ) as history:
+            return eval_retry_error_from_history(error, history)
+
+    sample_transcript = transcript()
+    recent_events = (
+        []
+        if sample_transcript.events_truncated
+        else sample_transcript.events_since_last(ModelEvent)
+    )
     return EvalRetryError(
         message=error.message,
         traceback=error.traceback,
