@@ -22,14 +22,15 @@ import time
 from typing import Any
 
 from textual.app import ComposeResult
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
+from textual.message import Message
 from textual.widget import Widget
-from textual.widgets import Static
+from textual.widgets import Button, Static
 
 from inspect_ai._util.rich import clean_control_characters
 
-from ..state import ToolCallState
+from ..state import ApprovalDecisionLabel, ToolCallState
 from ._collapsible import CollapsibleContent
 from ._fingerprint import item_signature
 from ._formatting import SPINNER_FRAMES, format_duration
@@ -125,6 +126,13 @@ class ToolCallWidget(Widget):
     ToolCallWidget .body-content { height: auto; }
     ToolCallWidget .plan-entry { height: auto; }
     ToolCallWidget .plan-spacer { height: 1; }
+    /* Approval area sizes to its content (the inline approval
+     * section while pending, empty otherwise — the post-resolution
+     * decision text lives on the footer row, see
+     * ``_footer_text``). Without an explicit ``height: auto`` the
+     * Vertical inherits its ``1fr`` default and eats the remaining
+     * vertical space in the card. */
+    ToolCallWidget #approval-area { height: auto; }
     """
 
     def __init__(self, state: ToolCallState) -> None:
@@ -143,6 +151,12 @@ class ToolCallWidget(Widget):
         self._mounted_status = self._state.status
         self._mounted_kind: str = "plan" if self._is_plan_state() else "content"
         self._mounted_item_sigs: list[tuple[Any, ...]] = self._compute_item_sigs()
+        # Tracks whether the approval section is currently mounted in
+        # the approval-area. Diff against this in update_state to
+        # mount/unmount minimally as ``pending_approval`` toggles.
+        self._mounted_has_pending: bool = (
+            self._state.pending_approval is not None
+        )
         self._refresh_status_class()
 
     # ------------------------------------------------------------------
@@ -151,9 +165,17 @@ class ToolCallWidget(Widget):
 
     def compose(self) -> ComposeResult:
         yield Static(self._header_text(), classes="header", markup=True)
+        # Approval area sits BETWEEN header and body: pending approvals
+        # are visually the most important thing on the card when
+        # present (the agent is blocked on us). Mounted dynamically by
+        # ``_update_approval_area_if_changed`` — starts empty.
+        with Vertical(id="approval-area"):
+            yield from self._compose_approval_area()
         with Vertical(classes="body"):
             yield from self._compose_body()
-        yield Static(self._footer_text(), classes="footer", markup=False)
+        # ``markup=True`` so ``_footer_text`` can colour the
+        # post-resolution approval-decision suffix.
+        yield Static(self._footer_text(), classes="footer", markup=True)
 
     def _refresh_status_class(self) -> None:
         for cls in ("in-flight", "completed", "failed"):
@@ -164,6 +186,14 @@ class ToolCallWidget(Widget):
             self.add_class("completed")
         else:
             self.add_class("in-flight")
+        # ``.approval`` is orthogonal to the status class — layered on
+        # top so the approval section's visual hooks can apply without
+        # affecting the existing in-flight / completed / failed
+        # styling that drives the footer glyph.
+        if self._state.pending_approval is not None:
+            self.add_class("approval")
+        else:
+            self.remove_class("approval")
 
     # ------------------------------------------------------------------
     # Periodic tick — keeps in-flight spinner + elapsed advancing
@@ -210,6 +240,7 @@ class ToolCallWidget(Widget):
         self._update_status_class_if_changed()
         self._update_header_if_changed()
         self._update_footer_if_changed()
+        self._update_approval_area_if_changed()
 
         if not self._body_changed():
             return
@@ -264,6 +295,47 @@ class ToolCallWidget(Widget):
         except NoMatches:
             pass
         self._mounted_footer = new_footer
+
+    def _update_approval_area_if_changed(self) -> None:
+        """Mount / unmount the approval section to match ``pending_approval``.
+
+        Two transitions:
+        - ``False → True``: a permission request just arrived. Mount
+          the section.
+        - ``True → False``: operator (or Esc / session completion)
+          resolved. Unmount the section; the decision text appears
+          inline on the footer row (see ``_footer_text``).
+        Idle states (``False → False``, ``True → True``) are no-ops.
+
+        Also refreshes the ``.approval`` CSS class on the card — it
+        toggles with ``pending_approval`` (not with ``status``), so
+        the regular ``_update_status_class_if_changed`` path can't
+        catch this transition.
+        """
+        has_pending = self._state.pending_approval is not None
+        if has_pending == self._mounted_has_pending:
+            return
+        try:
+            area = self.query_one("#approval-area", Vertical)
+        except NoMatches:
+            return
+        for child in list(area.children):
+            child.remove()
+        for w in self._compose_approval_area():
+            area.mount(w)
+        self._mounted_has_pending = has_pending
+        # Approval CSS class transitions piggyback on this update — it
+        # toggles with ``pending_approval`` independently of ``status``.
+        self._refresh_status_class()
+
+    def _compose_approval_area(self) -> ComposeResult:
+        """Yield the approval section (or nothing).
+
+        Post-resolution the decision lives on the footer row, not
+        here, so the area stays empty after the operator decides.
+        """
+        if self._state.pending_approval is not None:
+            yield _ApprovalSection(self._state)
 
     def _body_changed(self) -> bool:
         new_kind = "plan" if self._is_plan_state() else "content"
@@ -392,53 +464,13 @@ class ToolCallWidget(Widget):
                 yield from self._compose_item(item)
 
     def _compose_item(self, item: object) -> ComposeResult:
-        type_name = getattr(item, "type", None)
-        if type_name == "diff":
-            yield from self._compose_diff(item)
-            return
-        if type_name == "terminal":
-            terminal_id = getattr(item, "terminal_id", "?")
-            yield Static(
-                f"[terminal: {terminal_id}]", classes="body-content", markup=False
-            )
-            return
-        if type_name == "content":
-            inner = getattr(item, "content", None)
-            text = self._text_for_inner(inner)
-            if not text:
-                yield Static("", classes="body-content", markup=False)
-                return
-            # Clean control characters first — untrusted tool stdout
-            # can include ANSI escapes / NUL bytes that confuse rich's
-            # measurement pass (same util the rich display uses).
-            cleaned = clean_control_characters(text)
-            # CollapsibleContent handles its own truncation +
-            # click-to-expand. Body rendered via StyledMarkdown so
-            # fenced code is syntax-highlighted vs plain stdout.
-            yield CollapsibleContent(cleaned, max_lines=_DEFAULT_TOOL_OUTPUT_MAX_LINES)
-            return
-        # Unknown content type — log so a router-side bug surfaces
-        # instead of being silently swallowed. Still emit a placeholder
-        # so the card stays renderable.
-        logger.warning(
-            "ToolCallWidget: unknown content item type %r on tool_call_id=%s",
-            type_name,
-            self._state.tool_call_id,
-        )
-        yield Static(
-            f"[{type_name or 'unknown'}]", classes="body-content", markup=False
-        )
+        """Render one body item; delegates to the module-level dispatcher.
 
-    def _compose_diff(self, item: object) -> ComposeResult:
-        path = getattr(item, "path", "?")
-        old_text = getattr(item, "old_text", None)
-        new_text = getattr(item, "new_text", "") or ""
-        yield Static(f"--- {path}", classes="diff-header", markup=False)
-        if old_text:
-            for line in old_text.splitlines() or [""]:
-                yield Static(f"- {line}", classes="diff-old", markup=False)
-        for line in new_text.splitlines() or [""]:
-            yield Static(f"+ {line}", classes="diff-new", markup=False)
+        Kept as a thin instance wrapper so the widget's existing call
+        sites don't churn; new call sites (e.g. ``_ApprovalSection``)
+        should call :func:`compose_content_item` directly.
+        """
+        yield from compose_content_item(item, context_id=self._state.tool_call_id)
 
     def _compose_plan(self, entries: list[dict[str, Any]]) -> ComposeResult:
         for entry in entries:
@@ -507,8 +539,30 @@ class ToolCallWidget(Widget):
         # placeholder while ``lifecycle == "running"`` (single source
         # of truth) — repeating it on every tool card was noise.
         if self._state.is_terminal:
-            return f"{glyph} {format_duration(self._state.duration_seconds)}"
-        return f"{glyph} {format_duration(time.monotonic() - self._state.start_time)}"
+            duration = format_duration(self._state.duration_seconds)
+        else:
+            duration = format_duration(
+                time.monotonic() - self._state.start_time
+            )
+        base = f"{glyph} {duration}"
+        # Append, on the same line, either:
+        # - The pending-approval marker (while a permission request
+        #   is in flight) — no explicit colour markup; inherits the
+        #   footer's ``$text-muted`` so it reads at the same muted
+        #   intensity as the duration on its left.
+        # - The post-resolution decision (once the operator decides)
+        #   — coloured per outcome (success / error / warning).
+        # Both share the same footer-row slot — saves a separate
+        # row and groups the whole tool-call outcome in one anchor.
+        if self._state.pending_approval is not None:
+            base = f"{base} · tool call approval requested"
+        else:
+            decision = self._state.last_approval_decision
+            if decision is not None:
+                color = _DECISION_COLOR[decision]
+                text = _DECISION_TEXT[decision]
+                base = f"{base} [{color}]· {text}[/]"
+        return base
 
     def _text_for_inner(self, inner: object) -> str:
         # TextContentBlock → text; everything else gets a placeholder
@@ -592,3 +646,316 @@ def _common_prefix(old: list[tuple[Any, ...]], new: list[tuple[Any, ...]]) -> in
     while n < len(old) and n < len(new) and old[n] == new[n]:
         n += 1
     return n
+
+
+# ----------------------------------------------------------------------
+# Content-item rendering — shared by the tool card body and the inline
+# approval section. Module-level so ``_ApprovalSection`` can render the
+# request's ``tool_call.content`` blocks (markdown / diff / terminal
+# variants) through the same pipeline as a live tool card, honoring
+# the tool author's custom presentation (via ``@tool(viewer=...)``).
+# ----------------------------------------------------------------------
+
+
+def compose_content_item(item: object, *, context_id: str = "") -> ComposeResult:
+    """Dispatch one ACP ``ToolCallContent`` variant to its renderer.
+
+    Three ACP variants per ``ToolCallUpdate.content``:
+    - ``"content"`` (``ContentToolCallContent``) — wraps a markdown /
+      text content block; rendered via :class:`CollapsibleContent`
+      with truncation + syntax highlighting.
+    - ``"diff"`` (``FileEditToolCallContent``) — bespoke
+      ``--- path / - old / + new`` styling.
+    - ``"terminal"`` (``TerminalToolCallContent``) — placeholder for
+      the terminal id (full streaming-terminal rendering is deferred).
+
+    ``context_id`` is logged on unknown content types for debugging.
+    """
+    type_name = getattr(item, "type", None)
+    if type_name == "diff":
+        yield from compose_diff_item(item)
+        return
+    if type_name == "terminal":
+        terminal_id = getattr(item, "terminal_id", "?")
+        yield Static(f"[terminal: {terminal_id}]", classes="body-content", markup=False)
+        return
+    if type_name == "content":
+        inner = getattr(item, "content", None)
+        text = _text_for_inner(inner)
+        if not text:
+            yield Static("", classes="body-content", markup=False)
+            return
+        # Clean control characters first — untrusted tool stdout can
+        # include ANSI escapes / NUL bytes that confuse rich's
+        # measurement pass.
+        cleaned = clean_control_characters(text)
+        yield CollapsibleContent(cleaned, max_lines=_DEFAULT_TOOL_OUTPUT_MAX_LINES)
+        return
+    logger.warning(
+        "compose_content_item: unknown content item type %r (context_id=%s)",
+        type_name,
+        context_id,
+    )
+    yield Static(f"[{type_name or 'unknown'}]", classes="body-content", markup=False)
+
+
+def compose_diff_item(item: object) -> ComposeResult:
+    """Render a ``FileEditToolCallContent`` (ACP ``Diff`` variant)."""
+    path = getattr(item, "path", "?")
+    old_text = getattr(item, "old_text", None)
+    new_text = getattr(item, "new_text", "") or ""
+    yield Static(f"--- {path}", classes="diff-header", markup=False)
+    if old_text:
+        for line in old_text.splitlines() or [""]:
+            yield Static(f"- {line}", classes="diff-old", markup=False)
+    for line in new_text.splitlines() or [""]:
+        yield Static(f"+ {line}", classes="diff-new", markup=False)
+
+
+def _text_for_inner(inner: object) -> str:
+    """Extract display text from a content block (text vs. placeholder)."""
+    if inner is None:
+        return ""
+    if getattr(inner, "type", None) == "text":
+        return getattr(inner, "text", "") or ""
+    type_name = getattr(inner, "type", None) or "content"
+    return f"[{type_name}]"
+
+
+def _is_separator_block(block: object) -> bool:
+    """True iff ``block`` is the producer-side ``---`` rule block.
+
+    Used by :class:`_ApprovalSection` to apply a tight (no-margin)
+    wrapper around the rule so it doesn't double-space the
+    transition between view halves. Match shape: a
+    ``ContentToolCallContent`` whose inner ``TextContentBlock.text``
+    stripped equals ``---`` — exactly what
+    ``_separator_block`` in ``approval/_human/acp.py`` emits.
+    """
+    if getattr(block, "type", None) != "content":
+        return False
+    inner = getattr(block, "content", None)
+    if inner is None or getattr(inner, "type", None) != "text":
+        return False
+    return getattr(inner, "text", "").strip() == "---"
+
+
+# ----------------------------------------------------------------------
+# Approval section (inline on the tool-call card)
+# ----------------------------------------------------------------------
+
+
+class ApprovalDecisionRequested(Message):
+    """Posted up from ``_ApprovalSection`` when an action button is pressed.
+
+    Routes to :meth:`SessionScreen.on_tool_call_approval_decision_requested`
+    which calls :meth:`SessionState.resolve_approval` — that fires the
+    pending event the client-side JSON-RPC handler is parked on, and
+    the response goes back over the wire.
+    """
+
+    def __init__(self, tool_call_id: str, option_id: str) -> None:
+        super().__init__()
+        self.tool_call_id = tool_call_id
+        self.option_id = option_id
+
+
+_BUTTON_ID_PREFIX = "approve-opt-"
+
+
+class _ApprovalSection(Vertical):
+    """Inline approval prompt + action buttons on a tool-call card.
+
+    Mirrors the in-proc :class:`ApprovalRequestContent` +
+    :class:`ApprovalRequestActions` pattern from
+    ``src/inspect_ai/approval/_human/panel.py`` but adapted for inline
+    use on a transcript card. The visual structure (bold per-half
+    titles + horizontal-rule separator between view.context and
+    view.call) comes from the markdown the server already embedded in
+    the request payload — no client-side ``_meta`` parsing required.
+    """
+
+    DEFAULT_CSS = """
+    _ApprovalSection {
+        height: auto;
+        padding-left: 2;
+        margin-bottom: 1;
+    }
+    _ApprovalSection .approval-content {
+        height: auto;
+        margin-bottom: 1;
+    }
+    /* Variant for the block IMMEDIATELY BEFORE a separator: drop
+     * the bottom margin so the rule sits flush against the
+     * previous block's content. Pair-matched with
+     * ``.approval-separator`` (zero margins) — together they make
+     * the divider read as a tight transition, not a buffered one. */
+    _ApprovalSection .approval-content-tight {
+        height: auto;
+        margin-bottom: 0;
+    }
+    /* The separator block (a horizontal rule) IS the visual divider
+     * between view.context and view.call — wrapping it in the
+     * standard margin-bottom: 1 wrapper would double-space the rule
+     * (one blank below the previous block AND one below the rule),
+     * pushing the next heading two rows below the divider. Render
+     * tight: no top or bottom margin around the rule itself. */
+    _ApprovalSection .approval-separator {
+        height: auto;
+        margin: 0;
+    }
+    _ApprovalSection .approval-actions {
+        height: auto;
+    }
+    _ApprovalSection .approval-actions Button {
+        margin-right: 1;
+        min-width: 16;
+    }
+    /* Per-kind colour treatment mirrors ApprovalRequestActions in
+     * panel.py:148–233. ``allow_*`` reads as the safe / green
+     * action; ``reject_once`` as a soft no; ``reject_always`` as
+     * the strongest deny (typically ``terminate``). */
+    _ApprovalSection .approval-actions Button.allow-once,
+    _ApprovalSection .approval-actions Button.allow-always {
+        color: $success;
+    }
+    _ApprovalSection .approval-actions Button.reject-once {
+        color: $warning;
+    }
+    /* Margin-left mirrors the panel's visual separation: ``terminate``
+     * gets pushed away from the safer ``approve`` / ``reject``
+     * cluster so it's harder to fat-finger. */
+    _ApprovalSection .approval-actions Button.reject-always {
+        color: $error;
+        margin-left: 3;
+    }
+    """
+
+    def __init__(self, state: ToolCallState) -> None:
+        super().__init__()
+        self._state = state
+
+    def compose(self) -> ComposeResult:
+        pending = self._state.pending_approval
+        if pending is None:
+            # Defensive: the parent only mounts us while pending is
+            # set, but a fast race could see it cleared. Yield nothing.
+            return
+        # No "⚠ approval requested" intro line: the lifecycle pill
+        # in the session header already says "awaiting approval"
+        # and the action buttons below this section are the obvious
+        # call to action. An extra in-card heading just adds a row
+        # of chrome under the tool name without telling the operator
+        # anything new.
+        #
+        # Content area: same renderer as the tool card body. The
+        # server's ``_build_request`` baked bold view titles + a
+        # horizontal-rule block between view.context and view.call
+        # into the markdown text, so the visual structure of the
+        # in-proc ``ApprovalPanel`` falls out for free.
+        blocks = list(pending.request.tool_call.content or [])
+        for i, block in enumerate(blocks):
+            # Three wrapper classes:
+            # - ``approval-separator``: the rule itself, zero margin.
+            # - ``approval-content-tight``: a normal block whose
+            #   NEXT sibling is the separator. Drop the bottom
+            #   margin so the rule sits flush against this block's
+            #   content (otherwise the standard 1-row margin would
+            #   put a blank row above the divider).
+            # - ``approval-content``: standard block with the usual
+            #   1-row bottom margin separating it from the next.
+            if _is_separator_block(block):
+                # Custom render — same dotted-leader Rule the in-proc
+                # ``ApprovalPanel`` uses (see ``render_tool_approval``
+                # in ``approval/_human/util.py``). The wire still
+                # carries ``---`` so non-TUI clients (Zed et al.)
+                # render a standard markdown horizontal rule; the
+                # nicer dotted style is purely a TUI flourish.
+                with Vertical(classes="approval-separator"):
+                    yield _approval_separator_widget()
+                continue
+            if i + 1 < len(blocks) and _is_separator_block(blocks[i + 1]):
+                wrapper_class = "approval-content-tight"
+            else:
+                wrapper_class = "approval-content"
+            with Vertical(classes=wrapper_class):
+                yield from compose_content_item(
+                    block, context_id=self._state.tool_call_id
+                )
+        with Horizontal(classes="approval-actions"):
+            for option in pending.request.options:
+                # ACP ``PermissionOptionKind`` uses underscores
+                # (``allow_once``, ``reject_always``); Textual CSS
+                # class names use dashes by convention. Translate.
+                kind_class = option.kind.replace("_", "-")
+                button = Button(
+                    option.name, id=f"{_BUTTON_ID_PREFIX}{option.option_id}"
+                )
+                button.add_class(kind_class)
+                yield button
+
+    def on_mount(self) -> None:
+        # Focus the first action button so Tab+Enter works without
+        # the operator needing to click into the section first.
+        # Mirrors ``ApprovalRequestActions.activate``'s
+        # ``approve.focus()`` pattern.
+        try:
+            first = self.query(Button).first()
+        except NoMatches:
+            return
+        if first is not None:
+            first.focus()
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        button_id = event.button.id
+        if button_id and button_id.startswith(_BUTTON_ID_PREFIX):
+            option_id = button_id[len(_BUTTON_ID_PREFIX) :]
+            self.post_message(
+                ApprovalDecisionRequested(
+                    tool_call_id=self._state.tool_call_id,
+                    option_id=option_id,
+                )
+            )
+            # Stop the event from bubbling further; the parent screen
+            # picks it up via our ``ApprovalDecisionRequested``
+            # message instead.
+            event.stop()
+
+
+# Post-resolution approval text + colour, appended to the tool's
+# footer row (see ``ToolCallWidget._footer_text``). Keeping the
+# decision inline on the same line as the duration / status glyph
+# is more compact than a separate summary widget AND groups the
+# whole tool-call outcome (it ran AND the operator approved it) in
+# one anchor.
+def _approval_separator_widget() -> Static:
+    """Dotted-leader rule, matching the in-proc ``ApprovalPanel``.
+
+    The in-proc panel renders the divider between ``view.context``
+    and ``view.call`` with Rich's ``Rule`` using a one-dot-leader
+    character (``U+2024``) and a subtle dark-grey style — see
+    ``render_tool_approval`` in ``approval/_human/util.py``. Mirror
+    that exact shape here so the inline approval card reads with
+    the same visual restraint.
+
+    The wire payload still carries ``---`` (markdown horizontal
+    rule) so non-TUI ACP clients render a standard rule; the dotted
+    leader is a TUI-side flourish that doesn't require any protocol
+    extension.
+    """
+    from rich.rule import Rule
+
+    return Static(Rule("", style="#282c34", align="left", characters="․"))
+
+
+_DECISION_TEXT: dict[ApprovalDecisionLabel, str] = {
+    "approved": "approved by you",
+    "denied": "denied by you",
+    "cancelled": "cancelled",
+}
+
+_DECISION_COLOR: dict[ApprovalDecisionLabel, str] = {
+    "approved": "$success",
+    "denied": "$error",
+    "cancelled": "$warning",
+}

@@ -892,6 +892,24 @@ class ConnectionHandler:
         raw = await self.connection.send_request("session/request_permission", payload)
         return RequestPermissionResponse.model_validate(raw)
 
+    async def drain_notifications(self) -> None:
+        """Wait until pending ``session/update`` notifications have been sent.
+
+        Implements the :class:`ApproverClient` drain barrier by
+        delegating to the per-bind :class:`Forwarders`. Safe no-op
+        when there's no active binding (pre-bind, post-disconnect,
+        between picker rebinds) — there's no forwarder to drain.
+
+        Called by the approval shim immediately before
+        :meth:`request_permission` so the operator's connection
+        delivers the model's accompanying ``agent_message_chunk``
+        BEFORE the approval card lands. See ``Forwarders.drain`` for
+        the ordering rationale.
+        """
+        if self._forwarders is None:
+            return
+        await self._forwarders.drain()
+
     # ------------------------------------------------------------------
     # Bind / unbind orchestration
     # ------------------------------------------------------------------

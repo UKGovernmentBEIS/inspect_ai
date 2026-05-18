@@ -19,19 +19,27 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from collections.abc import Coroutine
 from dataclasses import dataclass
 from typing import Any, Callable
 
 from acp import PROTOCOL_VERSION
 from acp.connection import Connection
 from acp.router import MessageRouter, Route
-from acp.schema import SessionNotification
+from acp.schema import (
+    AllowedOutcome,
+    DeniedOutcome,
+    RequestPermissionRequest,
+    RequestPermissionResponse,
+    SessionNotification,
+)
 
 from inspect_ai.agent._acp.discovery import TargetAddress
 from inspect_ai.agent._acp.inspect_ext import (
     INSPECT_LIST_SESSIONS_METHOD,
     PLAN_RENDERING_META_KEY,
 )
+from inspect_ai.agent._acp.tui.state import PendingApproval
 
 CLIENT_INFO = {"name": "inspect-acp-tui", "version": "1"}
 """Sent in ``initialize`` so the server can tailor capability negotiation
@@ -263,13 +271,20 @@ async def attach_session(
     row: SessionRow,
     *,
     on_session_update: Callable[[SessionNotification], None] | None = None,
+    on_request_permission: Callable[[PendingApproval], None] | None = None,
 ) -> AttachedSession:
     """Open a fresh connection bound to ``row.session_id``.
 
-    Calls ``initialize`` then ``session/load(sessionId)``. The
-    ``session/update`` notification route is registered before the
-    receive loop starts; ``on_session_update`` (if given) receives
-    each notification synchronously from the receive task.
+    Calls ``initialize`` then ``session/load(sessionId)``. Route
+    registrations happen before the receive loop starts:
+
+    - ``session/update`` (notification): ``on_session_update`` (if
+      given) receives each notification synchronously.
+    - ``session/request_permission`` (request): ``on_request_permission``
+      (if given) receives a fresh :class:`PendingApproval` and must
+      arrange for somebody to call
+      :meth:`SessionState.resolve_approval` on the matching tool_call_id
+      so this handler can fire its response back over the wire.
 
     The Connection is constructed with ``listening=False`` so we own
     the receive task and can fire :attr:`AttachedSession.disconnected`
@@ -293,6 +308,9 @@ async def attach_session(
         router.add_route(
             Route(method="session/update", func=_func, kind="notification")
         )
+
+    if on_request_permission is not None:
+        _register_permission_route(router, on_request_permission)
     conn = Connection(
         handler=router,
         writer=writer,
@@ -390,3 +408,80 @@ async def _open_socket(
     if target.host is not None and target.port is not None:
         return await asyncio.open_connection(target.host, target.port)
     raise ValueError(f"invalid TargetAddress: {target.describe()}")
+
+
+def _make_permission_handler(
+    on_request_permission: Callable[[PendingApproval], None],
+) -> Callable[[Any], Coroutine[Any, Any, dict[str, Any]]]:
+    """Build the ``session/request_permission`` handler closure.
+
+    Extracted from :func:`_register_permission_route` so tests can
+    exercise the handler directly without a live socket round-trip.
+
+    Handler contract:
+    - Validates ``params`` to :class:`RequestPermissionRequest`.
+    - Creates a :class:`PendingApproval` (with a fresh
+      ``asyncio.Event``) and hands it to the screen-side callback,
+      which attaches it to the matching tool-call card via
+      :meth:`SessionState.consume_approval_request`.
+    - Parks on ``pending.event``. The button-press handler in
+      :class:`SessionScreen` calls :meth:`SessionState.resolve_approval`
+      which fires the event and populates the resolution flags.
+    - Returns a JSON-RPC-serializable response dict:
+      - ``chosen_option_id`` set → ``AllowedOutcome(outcome="selected", optionId=...)``.
+      - Otherwise (cancelled / decided_elsewhere) →
+        ``DeniedOutcome(outcome="cancelled")``.
+
+    Cancellation: ``asyncio.CancelledError`` (screen unmount /
+    disconnect) sets ``pending.cancelled`` and fires the event so
+    any other reader sees a consistent state, then re-raises so the
+    JSON-RPC dispatcher abandons the response.
+    """
+
+    async def _handler(params: Any) -> dict[str, Any]:
+        request = RequestPermissionRequest.model_validate(params)
+        pending = PendingApproval(request=request, event=asyncio.Event())
+        # Invoke the screen-side callback INSIDE the try block so a
+        # synchronous exception from it (e.g. a Textual ``NoMatches``
+        # if the screen has just unmounted, or any other unexpected
+        # error) still marks the pending as cancelled and fires the
+        # event before propagating. Otherwise any concurrent reader
+        # holding the ``PendingApproval`` reference would observe a
+        # half-initialised slot, and the server's request future
+        # would be permanently parked waiting for a response we'll
+        # never send.
+        try:
+            on_request_permission(pending)
+            await pending.event.wait()
+        except (asyncio.CancelledError, Exception):
+            if not pending.event.is_set():
+                pending.cancelled = True
+                pending.event.set()
+            raise
+        if pending.chosen_option_id is not None:
+            response = RequestPermissionResponse(
+                outcome=AllowedOutcome(
+                    outcome="selected", option_id=pending.chosen_option_id
+                )
+            )
+        else:
+            response = RequestPermissionResponse(
+                outcome=DeniedOutcome(outcome="cancelled")
+            )
+        return response.model_dump(mode="json", by_alias=True, exclude_none=True)
+
+    return _handler
+
+
+def _register_permission_route(
+    router: MessageRouter,
+    on_request_permission: Callable[[PendingApproval], None],
+) -> None:
+    """Register the permission-request handler on the client router."""
+    router.add_route(
+        Route(
+            method="session/request_permission",
+            func=_make_permission_handler(on_request_permission),
+            kind="request",
+        )
+    )

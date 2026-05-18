@@ -27,6 +27,7 @@ Out of scope for Phase 2 (and absent here):
 
 from __future__ import annotations
 
+import asyncio
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -37,6 +38,7 @@ from acp.schema import (
     AgentPlanUpdate,
     AgentThoughtChunk,
     PlanEntry,
+    RequestPermissionRequest,
     SessionInfoUpdate,
     SessionNotification,
     TextContentBlock,
@@ -201,6 +203,34 @@ class MessageGroup:
 
 ToolCallStatus = Literal["pending", "in_progress", "completed", "failed"]
 
+ApprovalDecisionLabel = Literal["approved", "denied", "cancelled"]
+"""Post-resolution label shown in the tool card's decision-summary line.
+
+Kept narrow: the actual ``ApprovalDecision`` (approve / reject / modify
+/ terminate / escalate) is recorded server-side; the TUI only needs
+to distinguish "the operator allowed it" vs. "denied it" vs. "we were
+cancelled / interrupted before deciding".
+"""
+
+
+@dataclass
+class PendingApproval:
+    """An in-flight ACP ``session/request_permission`` awaiting a decision.
+
+    Attached to a ``ToolCallState`` while the request is pending and
+    cleared when the operator clicks an action (or :meth:`mark_complete`
+    / :meth:`mark_interrupted` resolves it). The ``event`` lets the
+    client-side JSON-RPC handler park on ``event.wait()`` until the
+    button-press handler calls :meth:`SessionState.resolve_approval`,
+    which sets the event and populates ``chosen_option_id`` (or the
+    ``cancelled`` flag) for the handler to read.
+    """
+
+    request: RequestPermissionRequest
+    event: asyncio.Event
+    chosen_option_id: str | None = None
+    cancelled: bool = False
+
 
 @dataclass
 class ToolCallState:
@@ -222,6 +252,24 @@ class ToolCallState:
     raw_output: Any = None
     start_time: float = field(default_factory=time.monotonic)
     end_time: float | None = None
+    pending_approval: PendingApproval | None = None
+    """The current pending ACP permission request, if any.
+
+    Set by :meth:`SessionState.consume_approval_request` when a
+    ``session/request_permission`` arrives for this tool call's id;
+    cleared by :meth:`SessionState.resolve_approval` once the operator
+    decides (or another client decides, or we get cancelled). The UI
+    gates the inline approval section on ``pending_approval is not
+    None`` — kept orthogonal to ``status`` so the existing
+    pending/in_progress/completed/failed semantics don't change.
+    """
+    last_approval_decision: ApprovalDecisionLabel | None = None
+    """The most recent decision, for the post-resolution summary line.
+
+    Set when :meth:`SessionState.resolve_approval` clears
+    ``pending_approval``. Persists for the lifetime of the card so the
+    summary stays visible while the tool runs to completion below.
+    """
 
     @property
     def is_terminal(self) -> bool:
@@ -236,6 +284,34 @@ class ToolCallState:
 
 
 TranscriptItem = Union[MessageGroup, ToolCallState]
+
+
+_APPROVE_OPTION_IDS = frozenset({"approve", "modify"})
+"""The ``ApprovalDecision`` ids that map to the ``approved`` summary label.
+
+``option_id`` from the server is always one of the literal
+:class:`ApprovalDecision` strings (set by ``_options_from_choices``
+in ``approval/_human/acp.py``) — match those directly rather than
+re-deriving from :class:`PermissionOption.kind`. ``approve`` is the
+plain allow; ``modify`` is "approve with modification" which the
+in-proc panel also treats as the allow half (see
+``_KIND_BY_DECISION`` in the shim). Anything else (``reject`` /
+``terminate`` / ``escalate``, or an unknown id from a misbehaving
+client) maps to ``denied``.
+"""
+
+
+def _decision_label(
+    *,
+    option_id: str | None,
+    cancelled: bool,
+) -> ApprovalDecisionLabel:
+    """Map a resolution outcome to the post-resolution summary label."""
+    if cancelled:
+        return "cancelled"
+    if option_id in _APPROVE_OPTION_IDS:
+        return "approved"
+    return "denied"
 
 
 class StatusState(str, Enum):
@@ -364,14 +440,22 @@ class SessionState:
     # ------------------------------------------------------------------
 
     @property
-    def lifecycle(self) -> Literal["idle", "running", "interrupted", "complete"]:
+    def lifecycle(
+        self,
+    ) -> Literal["idle", "running", "interrupted", "approval", "complete"]:
         """Coarse-grained turn lifecycle for the header pill.
 
-        Four states, in priority order so a true terminal signal
-        always wins over transient turn state:
+        Five states, in priority order so a true terminal signal
+        always wins over transient turn state, and an operator-blocking
+        approval beats general in-flight activity:
 
         - ``complete``: the server-side session has ended (transport
           disconnect / explicit end). Sticky — once set, stays set.
+        - ``approval``: at least one tool call is awaiting an operator
+          decision via ``session/request_permission``. Prioritized
+          above ``running`` because the agent is genuinely blocked on
+          us — the operator needs to know they're the holdup, not just
+          that "something is happening".
         - ``running``: at least one model event or tool call is
           currently in flight (``has_active_work``), OR the last
           activity was within ``_RUNNING_QUIESCENCE_SECONDS`` (covers
@@ -389,6 +473,8 @@ class SessionState:
         """
         if self._complete:
             return "complete"
+        if self._has_pending_approval():
+            return "approval"
         if self.has_active_work:
             return "running"
         if self._interrupted:
@@ -400,15 +486,36 @@ class SessionState:
             return "running"
         return "idle"
 
+    def _has_pending_approval(self) -> bool:
+        """True iff any tool-call card holds an unresolved approval."""
+        return any(
+            tc.pending_approval is not None for tc in self._tool_calls_by_id.values()
+        )
+
     def mark_complete(self) -> None:
         """Sticky-mark the session as ended (transport disconnect / end).
 
         Idempotent — subsequent calls are no-ops. Notifies subscribers
         on the first transition so the pill can flip immediately.
+
+        Also resolves any still-pending approvals with
+        ``cancelled=True`` so stale action buttons disappear from the
+        post-completion read-only postmortem view. The client-side
+        JSON-RPC handler task is being torn down (or already has been)
+        by the disconnect / close, so its ``await pending.event.wait()``
+        either already woke up cancelled OR is about to — either way
+        the matching ``ToolCallState.pending_approval`` slot must be
+        cleared so the lifecycle pill leaves ``approval`` and the
+        inline section collapses to the ``⊘ cancelled`` summary line.
         """
         if self._complete:
             return
         self._complete = True
+        # Batch the approval-cancel sweep with the sticky-complete
+        # flip so subscribers only see ONE notification (lifecycle
+        # ``complete``), not a flicker through whatever the
+        # post-clear / pre-complete state would imply.
+        self._clear_pending_approvals()
         self._notify()
 
     def mark_interrupted(self) -> None:
@@ -422,7 +529,7 @@ class SessionState:
         actually produces content before the cancel lands, the next
         chunk just re-establishes pending state honestly.
 
-        Four things change:
+        Five things change:
         - pending message groups with no content yet are *dropped*
           entirely (the empty "assistant is thinking" bubble is just
           chrome once we know the turn was cancelled before any text
@@ -435,6 +542,14 @@ class SessionState:
         - the inter-chunk quiescence timer is reset so the
           quiescence-based ``GENERATING`` branch doesn't keep firing
           until the timer expires on its own.
+        - any pending approvals are resolved with
+          ``cancelled=True``. Without this, an Esc during a
+          pending approval would leave the client-side JSON-RPC
+          handler parked on ``PendingApproval.event`` (so the
+          server's request future never resolves) AND leave the
+          inline section's action buttons visible on a card the
+          operator just told us to abandon. Esc means "stop
+          what's happening" — that includes the approval.
         """
         changed = False
         empty_pending_ids: list[str] = []
@@ -476,6 +591,14 @@ class SessionState:
                 if tc.end_time is None:
                     tc.end_time = now
                 changed = True
+        # Resolve any in-flight approvals as cancelled — same
+        # rationale as ``mark_complete``. Goes through the no-notify
+        # batch helper so we can flip ``_interrupted`` below in the
+        # SAME tick; otherwise the per-approval notify would expose
+        # a transient ``lifecycle == 'idle'`` to subscribers (pending
+        # cleared, ``_interrupted`` not yet True).
+        if self._clear_pending_approvals():
+            changed = True
         # ``_interrupted`` flips to True regardless of ``changed`` so
         # the lifecycle indicator reflects the Esc even if no in-flight
         # work was actually torn down (operator pressed Esc twice, or
@@ -576,6 +699,165 @@ class SessionState:
             if was_active or self.has_active_work:
                 self._last_running_at = self._now()
             self._notify()
+
+    # ------------------------------------------------------------------
+    # Approval handshake
+    # ------------------------------------------------------------------
+    #
+    # An incoming ``session/request_permission`` request takes a
+    # different path from notifications — it's an inbound RPC the
+    # client must respond to. The client.py handler validates the
+    # request, parks on a ``PendingApproval.event``, and waits for the
+    # operator to click an action. ``consume_approval_request`` and
+    # ``resolve_approval`` are the two halves of that handshake on the
+    # state side. The asyncio.Event handshake mirrors the in-proc
+    # ``human_approval_manager`` pattern (``approval/_human/panel.py``).
+
+    def consume_approval_request(self, pending: PendingApproval) -> None:
+        """Attach a pre-built ``PendingApproval`` to the matching tool-call card.
+
+        The caller (typically the client-side ``session/request_permission``
+        handler) owns the ``PendingApproval`` and reads its
+        ``chosen_option_id`` / ``cancelled`` flags AFTER awaiting
+        ``pending.event``. By passing the object
+        in (rather than letting state synthesize it from
+        ``(request, event)``) the handler keeps the same reference
+        that :meth:`resolve_approval` mutates — single source of truth
+        for the resolution outcome.
+
+        Permission requests fire BEFORE the tool executes, so the
+        matching ``ToolCallStart`` may not have arrived yet. In that
+        case we synthesize a card from the request's ``tool_call``
+        payload (which already carries title, kind, raw_input, content
+        per the server-side ``_build_request``); the later
+        ``ToolCallStart`` merges in via the normal
+        ``_consume_tool_update`` path.
+        """
+        tool_call_id = pending.request.tool_call.tool_call_id
+        tc = self._tool_calls_by_id.get(tool_call_id)
+        if tc is None:
+            tc = self._tool_call_state_from_request(pending.request)
+            self._tool_calls_by_id[tool_call_id] = tc
+            self.items.append(tc)
+        tc.pending_approval = pending
+        self._notify()
+
+    def resolve_approval(
+        self,
+        tool_call_id: str,
+        *,
+        option_id: str | None = None,
+        cancelled: bool = False,
+    ) -> None:
+        """Resolve a pending approval; fires the event so the handler returns.
+
+        Idempotent: re-resolving an already-resolved approval is a
+        no-op (button double-click safety). The decision is recorded
+        on ``last_approval_decision`` for the post-resolution summary
+        line, then ``pending_approval`` is cleared.
+
+        Pass ``option_id`` for an operator-driven decision (the literal
+        ``ApprovalDecision`` string round-tripped from the wire), or
+        ``cancelled=True`` for unmount / disconnect / Esc / session
+        completion — the handler reads the ``PendingApproval`` flags
+        set here to build its wire response.
+        """
+        if self._resolve_approval_inner(
+            tool_call_id, option_id=option_id, cancelled=cancelled
+        ):
+            self._notify()
+
+    def _resolve_approval_inner(
+        self,
+        tool_call_id: str,
+        *,
+        option_id: str | None = None,
+        cancelled: bool = False,
+    ) -> bool:
+        """Mutate-only resolve. Returns True if anything changed.
+
+        Used by :meth:`resolve_approval` (which notifies after) and
+        by bulk-transition helpers like :meth:`_clear_pending_approvals`
+        that batch many resolves into a single ``_notify()``. Keeps the
+        bulk path from firing intermediate notifications that briefly
+        expose an inconsistent lifecycle to subscribers (e.g. ``Esc``
+        clearing approvals BEFORE ``_interrupted`` flips would otherwise
+        let one subscriber observation slip through with
+        ``lifecycle == 'idle'``).
+
+        Fires ``pending.event`` here so the parked JSON-RPC handler
+        wakes immediately — the wire response is unrelated to the
+        UI-refresh notification.
+        """
+        tc = self._tool_calls_by_id.get(tool_call_id)
+        if tc is None or tc.pending_approval is None:
+            return False
+        pending = tc.pending_approval
+        pending.chosen_option_id = option_id
+        pending.cancelled = cancelled
+        tc.last_approval_decision = _decision_label(
+            option_id=option_id,
+            cancelled=cancelled,
+        )
+        tc.pending_approval = None
+        pending.event.set()
+        return True
+
+    def _clear_pending_approvals(self) -> bool:
+        """Resolve every in-flight approval as cancelled, NO notify.
+
+        Returns True if any approvals were cleared. Used by
+        :meth:`mark_complete` and :meth:`mark_interrupted` so they
+        can batch the approval-cancel sweep alongside their other
+        mutations and fire ``_notify()`` exactly once at the end.
+        Without this, the per-call notifies inside ``resolve_approval``
+        would fire mid-transition (before ``_interrupted`` /
+        ``_complete`` is set) and subscribers would briefly observe a
+        lifecycle that doesn't reflect what's about to happen.
+        """
+        any_cleared = False
+        for tc in list(self._tool_calls_by_id.values()):
+            if tc.pending_approval is not None and self._resolve_approval_inner(
+                tc.tool_call_id, cancelled=True
+            ):
+                any_cleared = True
+        return any_cleared
+
+    def _tool_call_state_from_request(
+        self,
+        request: RequestPermissionRequest,
+    ) -> ToolCallState:
+        """Synthesize a card from a pre-execution permission request.
+
+        The ``ToolCallUpdate`` inside the request carries title /
+        kind / raw_input — these become the card's identity. We
+        deliberately do NOT copy ``tu.content`` into ``tc.content``:
+        the inline approval section already renders the request's
+        content blocks directly (assistant message + view halves +
+        separator), and ``_compose_body`` would otherwise render the
+        same blocks again under the section. ``content`` stays
+        ``None`` until the eventual ``ToolCallStart`` arrives with
+        the actual tool-input view (typically the same view, but it
+        belongs in the body, not duplicated above it).
+
+        ``status`` is normalized to ``"pending"`` since that's what
+        the request declares (and what the server's ``_build_request``
+        sets).
+        """
+        tu = request.tool_call
+        status: ToolCallStatus = (
+            tu.status if tu.status in ("pending", "in_progress") else "pending"
+        )
+        return ToolCallState(
+            tool_call_id=tu.tool_call_id,
+            title=tu.title,
+            kind=tu.kind,
+            status=status,
+            content=None,
+            raw_input=tu.raw_input,
+            raw_output=tu.raw_output,
+            start_time=self._now(),
+        )
 
     def _role_for(
         self,

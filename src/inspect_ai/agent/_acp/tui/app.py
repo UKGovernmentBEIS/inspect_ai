@@ -188,9 +188,15 @@ class InspectAcpApp(App[None]):
             # Pass state.consume directly: the client's notification
             # route fires it from the reader task, which runs on the
             # same asyncio loop as Textual so widget refreshes happen
-            # synchronously without a thread hop.
+            # synchronously without a thread hop. Same routing for
+            # ``session/request_permission`` — the request handler
+            # calls ``consume_approval_request`` with a fresh
+            # ``PendingApproval``; the screen's button-press handler
+            # later calls ``resolve_approval`` to fire the response.
             session = await self._client.attach_session(
-                row, on_session_update=state.consume
+                row,
+                on_session_update=state.consume,
+                on_request_permission=state.consume_approval_request,
             )
         except Exception as exc:
             self.notify(f"failed to attach: {exc}", severity="error")

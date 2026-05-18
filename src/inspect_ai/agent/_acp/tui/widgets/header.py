@@ -29,18 +29,24 @@ from ..client import SessionRow
 from ..state import UsageState
 from ._formatting import format_tokens
 
-Lifecycle = Literal["idle", "running", "interrupted", "complete"]
+Lifecycle = Literal["idle", "running", "interrupted", "approval", "complete"]
 
 _LIFECYCLE_TEXT: dict[Lifecycle, str] = {
     # Glyphs picked so the *shape* alone carries state even before
     # colour registers: filled dot for live, slashed circle for
-    # halted, check for done. Colour styling lives in the CSS rules
-    # on ``#lifecycle-indicator.<state>``. Idle has no text — the
-    # pill goes invisible via the ``.idle`` rule so the chrome stays
-    # quiet when nothing is happening.
+    # halted, check for done, warning triangle for "agent is blocked
+    # on you". Colour styling lives in the CSS rules on
+    # ``#lifecycle-indicator.<state>``. Idle has no text — the pill
+    # goes invisible via the ``.idle`` rule so the chrome stays quiet
+    # when nothing is happening.
     "idle": "",
     "running": "● running",
     "interrupted": "⊘ interrupted",
+    # ``approval`` reads as more urgent than ``running`` (the agent is
+    # specifically waiting on the operator) — same warning colour as
+    # ``interrupted`` since both are "an operator should look at this
+    # now" states.
+    "approval": "⚠ awaiting approval",
     "complete": "✓ complete",
 }
 
@@ -113,6 +119,10 @@ class SessionHeaderWidget(Widget):
     SessionHeaderWidget #lifecycle-indicator { width: auto; }
     SessionHeaderWidget #lifecycle-indicator.running { color: $success; }
     SessionHeaderWidget #lifecycle-indicator.interrupted { color: $warning; }
+    /* Approval shares the warning colour with ``interrupted`` — both
+     * are "operator attention needed" states and we want one visual
+     * vocabulary for them. The glyph + text distinguish the cause. */
+    SessionHeaderWidget #lifecycle-indicator.approval { color: $warning; }
     /* ``$primary`` is the blue brand token in Textual's default
      * dark theme; ``$accent`` rendered orange in practice and
      * clashed with the ``$warning``-orange interrupted state. */
@@ -185,7 +195,7 @@ class SessionHeaderWidget(Widget):
             pill = self.query_one("#lifecycle-indicator", Static)
         except NoMatches:
             return
-        for cls in ("idle", "running", "interrupted", "complete"):
+        for cls in ("idle", "running", "interrupted", "approval", "complete"):
             pill.remove_class(cls)
         pill.update(_LIFECYCLE_TEXT[state])
         pill.add_class(state)

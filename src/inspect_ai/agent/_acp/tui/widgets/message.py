@@ -53,8 +53,13 @@ affordance ``CollapsibleContent`` provides.
 # — backgrounds were redundant once that landed and were removed to
 # quiet the transcript. Hex values are brand tints, not theme tokens;
 # if a light theme arrives this dict is the lift-and-shift point.
+#
+# Distinct hue per role so the operator can scan the transcript
+# without reading the role word — system gets a paler yellow than
+# user (which uses ``#e0af68`` amber) so the two don't collide,
+# while still reading as "yellow" at a glance.
 _PALETTE: dict[str, str] = {
-    "system": "#7aa2f7",
+    "system": "#e6dc7a",
     "user": "#e0af68",
     "operator": "#bb9af7",
     "assistant": "#7aa2f7",

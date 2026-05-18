@@ -74,8 +74,8 @@ class ApproverClient(Protocol):
 
     Implementations: ``ConnectionHandler`` in ``connection.py`` (wraps
     ``conn.send_request("session/request_permission", ...)``); tests
-    pass small stubs to exercise the race semantics without a real
-    socket.
+    pass small stubs to exercise the driver-fallback semantics
+    without a real socket.
     """
 
     async def request_permission(
@@ -84,9 +84,30 @@ class ApproverClient(Protocol):
         """Send the request to the underlying client and await the response.
 
         Raises (typically :class:`ConnectionError`) if the client
-        disconnected before responding — the race orchestrator in
-        ``approval/_human/acp.py`` treats that as one entrant's loss
-        and waits for any remaining clients.
+        disconnected before responding — the driver-fallback loop in
+        ``approval/_human/acp.py`` treats that as a fallback signal
+        and tries the next client in the chain.
+        """
+        ...
+
+    async def drain_notifications(self) -> None:
+        """Wait until pending ``session/update`` notifications have been sent.
+
+        Called by the approval shim immediately before
+        :meth:`request_permission` so the operator sees the model's
+        accompanying ``agent_message_chunk`` (the "why" the agent
+        gave) BEFORE the approval card appears. Without this
+        barrier, the request can race the bus-buffered notifications
+        to the wire: the request goes via ``conn.send_request``
+        directly on the calling task, while notifications flow
+        through the per-connection forwarder task that drains the
+        in-process pub/sub bus — and the request can win the race,
+        leaving the operator deciding with no model-narration
+        context visible.
+
+        Implementations must return promptly when there's nothing
+        to drain (forwarder caught up, or no forwarder running).
+        Stubs in tests can no-op. Cancellation propagates.
         """
         ...
 

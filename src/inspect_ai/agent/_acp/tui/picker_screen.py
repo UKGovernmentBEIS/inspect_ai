@@ -283,12 +283,20 @@ class PickerScreen(Screen[None]):
                 "Run eval or eval-set with the ACP server enabled, "
                 "then return here:\n\n"
                 "```bash\n"
+                "# start server\n"
                 "inspect eval <task> --acp-server\n"
                 "```\n\n"
                 "To use ACP with a remote machine, pass a host/port "
-                "to `--acp-server`:\n\n"
+                "to `--acp-server` then pass that server to `inspect acp`:\n\n"
                 "```bash\n"
-                'inspect eval <task> --acp-server "0.0.0.0:4545"\n'
+                "# start server\n"
+                'inspect eval <task> --acp-server "0.0.0.0:4545"\n\n'
+                "# connect to server\n"
+                # 198.51.100.0/24 is the RFC 5737 reserved
+                # documentation block; "98.51.100.0" was a typo
+                # missing the leading "1" and is a real allocated
+                # address.
+                "inspect acp --server 198.51.100.0:4545\n"
                 "```\n"
             )
         else:

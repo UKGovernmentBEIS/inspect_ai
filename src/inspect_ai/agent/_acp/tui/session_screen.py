@@ -25,7 +25,7 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.screen import Screen
-from textual.widgets import Input, Static
+from textual.widgets import Button, Input, Static
 
 from .client import AttachedSession
 from .state import SessionState
@@ -36,6 +36,7 @@ from .widgets import (
     TranscriptWidget,
 )
 from .widgets.plan import PlanOverlayScreen
+from .widgets.tool_call import _BUTTON_ID_PREFIX, ApprovalDecisionRequested
 
 _STATUS_TICK_SECONDS = 0.5
 """How often time-driven UI bits get nudged.
@@ -262,6 +263,13 @@ class SessionScreen(Screen[None]):
             if lifecycle == "complete":
                 composer.placeholder = "sample complete"
                 composer.disabled = True
+            elif lifecycle == "approval":
+                # Agent is blocked on a permission decision. Surface
+                # what the operator needs to do in the placeholder so
+                # the input itself acts as a hint even before they
+                # look at the inline section above.
+                composer.placeholder = "awaiting your approval · click an action above"
+                composer.disabled = False
             else:
                 composer.placeholder = (
                     "type a message · esc to interrupt"
@@ -325,6 +333,21 @@ class SessionScreen(Screen[None]):
     # Actions
     # ------------------------------------------------------------------
 
+    def on_approval_decision_requested(
+        self, message: ApprovalDecisionRequested
+    ) -> None:
+        """Resolve the pending approval bubbled up from a tool-call card.
+
+        The button-press handler on :class:`_ApprovalSection` posts a
+        message up through the transcript widget; we land it here and
+        call :meth:`SessionState.resolve_approval`, which fires the
+        ``PendingApproval.event`` the client-side JSON-RPC handler is
+        parked on. That handler then writes the response back over
+        the wire.
+        """
+        self._state.resolve_approval(message.tool_call_id, option_id=message.option_id)
+        message.stop()
+
     def action_switch_sample(self) -> None:
         """Disconnect from the current session and return to the picker."""
         self._user_initiated_close = True
@@ -359,7 +382,32 @@ class SessionScreen(Screen[None]):
         already disabled in that state, but the binding is
         ``priority=True`` so a stray ↵ during a focus-change window
         could still land. Belt + braces.
+
+        Button-focus delegation: the ``enter`` binding is
+        ``priority=True`` (so the composer ``Input`` doesn't eat it
+        and fire ``Input.Submitted`` instead). That ALSO eats Enter
+        when a ``Button`` has focus — e.g. an approval action
+        button. Detect that case and programmatically press the
+        focused button, mirroring what Enter does on an unbound
+        screen. Without this, Tab+Enter through the approval
+        section would silently submit the composer's draft (or
+        no-op when the composer is empty) instead of approving.
+
+        Scoped to APPROVAL buttons only (id prefix
+        ``_BUTTON_ID_PREFIX`` from ``widgets.tool_call``) so that
+        unrelated buttons added later don't get programmatic-
+        pressed by Enter from the composer context. If you add a
+        new button class that needs the same delegation, add its
+        id prefix here explicitly.
         """
+        focused = self.focused
+        if (
+            isinstance(focused, Button)
+            and focused.id
+            and focused.id.startswith(_BUTTON_ID_PREFIX)
+        ):
+            focused.action_press()
+            return
         if self._state.lifecycle == "complete":
             return
         composer = self._composer_or_none()

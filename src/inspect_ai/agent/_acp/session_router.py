@@ -121,6 +121,25 @@ class Forwarders:
         self._plan_policy = PlanPolicyTransformer(state)
         # Approver client unsubscribe callable.
         self._approver_unsub: Callable[[], None] | None = None
+        # Drain barrier — see :meth:`drain` and ``_run_semantic_forwarder``.
+        # ``_notifications_sent`` counts items the forwarder has
+        # fully processed (transform + send + finally tick). The
+        # event fires (and gets replaced with a fresh one) on every
+        # increment so ``drain`` waiters can re-check the counter
+        # on each tick.
+        #
+        # ``_processing_item`` flips True the moment the forwarder
+        # has PULLED an item from the stream but has not yet
+        # finished its try/finally for that item. The drain barrier
+        # MUST account for this in-flight window: the item is no
+        # longer in ``current_buffer_used`` (the stream's
+        # statistics) but also hasn't bumped the counter — without
+        # tracking it explicitly, ``drain`` would see "buffer empty
+        # + counter still N" and return BEFORE that item's send
+        # completes, defeating the whole ordering guarantee.
+        self._notifications_sent: int = 0
+        self._sent_event: anyio.Event = anyio.Event()
+        self._processing_item: bool = False
 
     async def start(self, target: "AcpSession") -> None:
         """Begin live forwarding for a freshly-bound target session.
@@ -257,22 +276,50 @@ class Forwarders:
         out: SessionNotification | None = None
         with acp_send_guard("ACP semantic forwarder: stream iteration failed") as outer:
             async for notif in recv_stream:
-                with acp_guard(
-                    "ACP semantic forwarder: transform / rewrite failed "
-                    "for one notification; skipping"
-                ) as t:
-                    transformed = self._plan_policy.transform(notif)
-                    if transformed is None:
-                        # plan-policy suppressed this notification
-                        out = None
-                    else:
-                        out = self._rewrite_session_id(transformed)
-                if t.failed or out is None:
-                    continue
-                with acp_send_guard("ACP semantic forwarder: send failed") as send:
-                    await self._send_session_update(out)
-                if send.should_exit:
-                    return
+                # Mark the in-flight window so ``drain`` accounts
+                # for this item even though it's no longer counted
+                # in the stream's ``current_buffer_used`` (we've
+                # already pulled it). Cleared in the same
+                # try/finally that bumps the counter.
+                self._processing_item = True
+                # Track every item we PULL from the stream so the
+                # drain barrier counts plan-policy-suppressed items
+                # too — the caller only cares that the buffer it
+                # snapshotted is empty, not whether each item ended
+                # up on the wire vs. dropped.
+                try:
+                    with acp_guard(
+                        "ACP semantic forwarder: transform / rewrite failed "
+                        "for one notification; skipping"
+                    ) as t:
+                        transformed = self._plan_policy.transform(notif)
+                        if transformed is None:
+                            # plan-policy suppressed this notification
+                            out = None
+                        else:
+                            out = self._rewrite_session_id(transformed)
+                    if t.failed or out is None:
+                        continue
+                    with acp_send_guard("ACP semantic forwarder: send failed") as send:
+                        await self._send_session_update(out)
+                    if send.should_exit:
+                        return
+                finally:
+                    # Bump the drain-barrier counter and wake any
+                    # waiters whether or not the send succeeded —
+                    # draining is about "this buffered item has been
+                    # processed by the forwarder", not "the wire
+                    # accepted it". A failed send means we're about
+                    # to exit the loop anyway; waiters watching us
+                    # also bail via the ``_semantic_task.done()``
+                    # guard in :meth:`drain`. Clear ``_processing_item``
+                    # IN THE FINALLY so the drain barrier never sees
+                    # the in-flight window cross a yield without
+                    # being accounted for.
+                    self._notifications_sent += 1
+                    self._processing_item = False
+                    self._sent_event.set()
+                    self._sent_event = anyio.Event()
         if outer.should_exit:
             return
         # Reaching here means the subscriber stream returned EOF —
@@ -300,6 +347,75 @@ class Forwarders:
                 INSPECT_SESSION_ENDED_METHOD,
                 {"sessionId": self._wire_session_id},
             )
+
+    async def drain(self) -> None:
+        """Block until the forwarder has processed all currently-buffered items.
+
+        The approval shim calls this immediately before sending a
+        ``session/request_permission`` so the operator sees the
+        model's accompanying ``agent_message_chunk`` (rendered as
+        an assistant chip in the conversation stream) BEFORE the
+        approval card appears on the same connection.
+
+        Without this barrier the wire order can be wrong:
+        notifications travel through the in-process pub/sub bus →
+        per-connection forwarder task → ``conn.send_notification``;
+        the permission request goes via ``conn.send_request``
+        directly on the calling task. When the forwarder task
+        hasn't been scheduled yet, the request reaches the wire
+        before the queued notification, and the operator sees the
+        approval card with no "why" context.
+
+        Semantics: yield until every item that was sitting in our
+        subscriber stream's buffer AT CALL TIME has been processed.
+        Items published AFTER this call don't need to be ordered
+        before our caller's next send — they belong AFTER it.
+
+        Safe no-op when the forwarder isn't running (pre-start /
+        post-stop / forwarder task already exited). Cancellation
+        propagates naturally via the ``Event.wait`` inside the
+        loop.
+        """
+        if (
+            self._semantic_stream is None
+            or self._semantic_task is None
+            or self._semantic_task.done()
+        ):
+            return
+        # Snapshot what the forwarder still has to process:
+        # - ``current_buffer_used``: items SITTING in the stream
+        #   buffer, not yet pulled by the forwarder loop.
+        # - ``_processing_item``: True iff the forwarder has pulled
+        #   an item but hasn't reached the ``finally`` block that
+        #   bumps the counter. This window is invisible to
+        #   ``current_buffer_used`` (the item already left the
+        #   buffer) AND to ``_notifications_sent`` (the counter
+        #   hasn't bumped yet) — without it, ``drain`` would return
+        #   while a pulled-but-not-yet-sent item is still in flight,
+        #   defeating the ordering guarantee.
+        try:
+            buffered = self._semantic_stream.statistics().current_buffer_used
+        except Exception:
+            # If statistics() ever changes shape under us, fail open
+            # — better to skip the barrier than to hang the approval.
+            return
+        in_flight = 1 if self._processing_item else 0
+        pending_to_process = buffered + in_flight
+        if pending_to_process == 0:
+            return
+        target = self._notifications_sent + pending_to_process
+        # Loop: check the counter, wait on the per-tick event,
+        # re-check. The event is replaced on each tick (so multiple
+        # ticks between our wait() returns don't make us miss
+        # signals — each loop iteration captures the current event
+        # reference before waiting).
+        while self._notifications_sent < target:
+            if self._semantic_task.done():
+                # Forwarder died (peer disconnect / unhandled
+                # exception). Stop waiting — the caller's request
+                # would fail too, and that's the more useful error.
+                return
+            await self._sent_event.wait()
 
     def _rewrite_session_id(self, notif: SessionNotification) -> SessionNotification:
         """Return ``notif`` keyed to the wire sessionId.

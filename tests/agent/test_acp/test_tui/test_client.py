@@ -306,3 +306,157 @@ async def test_attach_session_initialize_sets_plan_rendering(
     for client_info, client_capabilities in captured:
         assert client_info.name == "inspect-acp-tui"
         assert client_capabilities.field_meta == {"inspect.plan_rendering": True}
+
+
+# ---------------------------------------------------------------------------
+# session/request_permission handler (response shape + cancellation path)
+# ---------------------------------------------------------------------------
+
+
+def _permission_request_dict(
+    tool_call_id: str = "tc-1",
+    *,
+    option_ids: tuple[str, ...] = ("approve", "reject"),
+) -> dict[str, Any]:
+    """JSON-RPC params payload mirroring what the server would send."""
+    options = [
+        {"optionId": oid, "name": oid.capitalize(), "kind": "allow_once"}
+        for oid in option_ids
+    ]
+    return {
+        "sessionId": "sid",
+        "toolCall": {
+            "toolCallId": tool_call_id,
+            "title": "bash ls",
+            "status": "pending",
+            "rawInput": {"command": "ls"},
+            "content": [],
+        },
+        "options": options,
+    }
+
+
+@skip_if_trio
+async def test_permission_handler_returns_allowed_outcome_for_chosen_option() -> None:
+    """Handler resolves with ``AllowedOutcome(option_id=...)`` on operator click."""
+    import asyncio
+
+    from inspect_ai.agent._acp.tui.client import _make_permission_handler
+    from inspect_ai.agent._acp.tui.state import PendingApproval
+
+    captured: list[PendingApproval] = []
+
+    def _callback(pending: PendingApproval) -> None:
+        captured.append(pending)
+
+        # Simulate the operator clicking Approve on the next event-loop tick.
+        async def _resolve() -> None:
+            await asyncio.sleep(0)
+            pending.chosen_option_id = "approve"
+            pending.event.set()
+
+        asyncio.create_task(_resolve())
+
+    handler = _make_permission_handler(_callback)
+    response = await handler(_permission_request_dict())
+
+    assert response["outcome"]["outcome"] == "selected"
+    assert response["outcome"]["optionId"] == "approve"
+    # Sanity: the handler did hand the pending to the callback.
+    assert len(captured) == 1
+    assert captured[0].request.tool_call.tool_call_id == "tc-1"
+
+
+@skip_if_trio
+async def test_permission_handler_returns_denied_outcome_for_cancelled() -> None:
+    """Handler resolves with ``DeniedOutcome(cancelled)`` when no choice was made."""
+    import asyncio
+
+    from inspect_ai.agent._acp.tui.client import _make_permission_handler
+    from inspect_ai.agent._acp.tui.state import PendingApproval
+
+    def _callback(pending: PendingApproval) -> None:
+        async def _resolve() -> None:
+            await asyncio.sleep(0)
+            pending.cancelled = True
+            pending.event.set()
+
+        asyncio.create_task(_resolve())
+
+    handler = _make_permission_handler(_callback)
+    response = await handler(_permission_request_dict())
+
+    assert response["outcome"]["outcome"] == "cancelled"
+    # AllowedOutcome's optionId field is absent in DeniedOutcome.
+    assert "optionId" not in response["outcome"]
+
+
+@skip_if_trio
+async def test_permission_handler_propagates_cancellation_and_marks_pending() -> None:
+    """``CancelledError`` (screen unmount) flips ``pending.cancelled`` + re-raises."""
+    import asyncio
+
+    from inspect_ai.agent._acp.tui.client import _make_permission_handler
+    from inspect_ai.agent._acp.tui.state import PendingApproval
+
+    captured: list[PendingApproval] = []
+
+    def _callback(pending: PendingApproval) -> None:
+        captured.append(pending)
+        # Never resolve — leave the handler parked.
+
+    handler = _make_permission_handler(_callback)
+    task = asyncio.create_task(handler(_permission_request_dict()))
+    # Let the handler's callback fire + park.
+    await asyncio.sleep(0)
+    assert len(captured) == 1
+    pending = captured[0]
+    assert not pending.event.is_set()
+
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    # Pending was marked cancelled + event fired (so any concurrent
+    # reader sees a consistent state).
+    assert pending.cancelled is True
+    assert pending.event.is_set()
+
+
+@skip_if_trio
+async def test_permission_handler_propagates_callback_exception_and_marks_pending() -> (
+    None
+):
+    """Synchronous exception from the screen callback also fires ``pending.event``.
+
+    Pinned regression: an earlier revision called
+    ``on_request_permission(pending)`` BEFORE entering the
+    try/except, so a sync throw from the screen-side handler (e.g.
+    a Textual ``NoMatches`` if the screen has just unmounted)
+    propagated out without setting ``pending.event``. Any
+    concurrent reader holding the ``PendingApproval`` reference
+    would observe a half-initialised slot, and the server-side
+    request future would be permanently parked. The fix moves the
+    callback invocation inside the try block so cancellation +
+    sync-exception paths both flip the flag and signal the event.
+    """
+    from inspect_ai.agent._acp.tui.client import _make_permission_handler
+    from inspect_ai.agent._acp.tui.state import PendingApproval
+
+    captured: list[PendingApproval] = []
+
+    def _callback(pending: PendingApproval) -> None:
+        # Grab the reference BEFORE raising so the test can inspect
+        # post-throw state.
+        captured.append(pending)
+        raise RuntimeError("screen unmounted")
+
+    handler = _make_permission_handler(_callback)
+    with pytest.raises(RuntimeError, match="screen unmounted"):
+        await handler(_permission_request_dict())
+
+    assert len(captured) == 1
+    pending = captured[0]
+    # Marked cancelled + event fired despite the synchronous throw.
+    assert pending.cancelled is True
+    assert pending.event.is_set()

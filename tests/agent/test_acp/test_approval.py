@@ -39,8 +39,11 @@ from inspect_ai.agent._acp.session_live import LiveAcpSession
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human.acp import (
     _approval_from_response,
+    _build_request,
+    _format_view_content_as_markdown,
     _options_from_choices,
     _request_from_driver_with_fallback,
+    _separator_block,
     request_human_approval_via_acp,
 )
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
@@ -79,7 +82,13 @@ def _cancelled() -> RequestPermissionResponse:
 
 
 class _StubClient:
-    """An ApproverClient that returns a pre-set response (or raises)."""
+    """An ApproverClient that returns a pre-set response (or raises).
+
+    Tracks ``drain_calls`` so tests can assert the shim invokes the
+    drain barrier before each ``request_permission`` (preventing
+    the bus-vs-request ordering race documented on
+    ``ApproverClient.drain_notifications``).
+    """
 
     def __init__(
         self,
@@ -92,11 +101,20 @@ class _StubClient:
         self.delay = delay
         self.received: list[RequestPermissionRequest] = []
         self.cancelled = False
+        # Sequence of ("drain" | "request") so tests can pin the
+        # ordering of drain → request per fallback-chain entry.
+        self.calls: list[str] = []
+        self.drain_calls: int = 0
+
+    async def drain_notifications(self) -> None:
+        self.drain_calls += 1
+        self.calls.append("drain")
 
     async def request_permission(
         self, request: RequestPermissionRequest
     ) -> RequestPermissionResponse:
         self.received.append(request)
+        self.calls.append("request")
         try:
             if self.delay:
                 await asyncio.sleep(self.delay)
@@ -217,8 +235,84 @@ async def test_driver_only_first_client_in_chain_is_called() -> None:
     assert result is not None
     assert result.decision == "approve"
     assert len(driver.received) == 1
-    # The non-driver client was NOT contacted.
+    # The non-driver client was NOT contacted (no drain, no request).
     assert len(others.received) == 0
+    assert others.drain_calls == 0
+
+
+@skip_if_trio
+async def test_shim_drains_notifications_before_each_request() -> None:
+    """``drain_notifications`` runs immediately before each ``request_permission``.
+
+    Pinned because notifications travel via the in-process pub/sub
+    bus + per-connection forwarder task, while
+    ``request_permission`` goes via ``conn.send_request`` directly.
+    Without the drain barrier the request can win the race to the
+    wire and the operator sees the approval card with no
+    ``agent_message_chunk`` context (model's "why" arrives AFTER
+    they've already decided).
+    """
+    # Driver succeeds — only one client contacted.
+    driver = _StubClient(response=_selected("approve"))
+    choices: list[ApprovalDecision] = ["approve", "reject"]
+    await _request_from_driver_with_fallback([driver], _trivial_request(), choices)
+
+    # Exactly one drain and one request, drain first.
+    assert driver.calls == ["drain", "request"]
+
+
+@skip_if_trio
+async def test_shim_proceeds_with_request_when_drain_raises() -> None:
+    """Drain is BEST-EFFORT ordering, NOT a gate on whether the request goes out.
+
+    Pinned regression: a previous revision shared one ``try/except``
+    block between drain and request, so a drain-side exception
+    silently skipped the client and tried the next one in the chain.
+    That's worse than slightly-out-of-order notifications — it
+    routes the approval to the wrong client (or to nothing). The
+    fix splits the try blocks: drain errors log + fall through to
+    the request anyway.
+    """
+
+    class _DrainFailingClient(_StubClient):
+        async def drain_notifications(self) -> None:
+            self.drain_calls += 1
+            self.calls.append("drain")
+            raise RuntimeError("drain bug")
+
+    client = _DrainFailingClient(response=_selected("approve"))
+    choices: list[ApprovalDecision] = ["approve", "reject"]
+
+    result = await _request_from_driver_with_fallback(
+        [client], _trivial_request(), choices
+    )
+    # Drain raised; request STILL fired and we got a real decision.
+    assert result is not None
+    assert result.decision == "approve"
+    assert client.calls == ["drain", "request"]
+
+
+@skip_if_trio
+async def test_shim_drains_each_fallback_client_in_turn() -> None:
+    """Fallback path: drain → request on the loser, then drain → request on the survivor.
+
+    Each fallback step is its own request — and each request needs
+    its own drain on the connection it's being sent on. Pinned so
+    the drain wiring doesn't accidentally short-circuit after the
+    first client.
+    """
+    broken = _StubClient(exc=ConnectionError("disconnected"))
+    survivor = _StubClient(response=_selected("approve"))
+    choices: list[ApprovalDecision] = ["approve", "reject"]
+
+    result = await _request_from_driver_with_fallback(
+        [broken, survivor], _trivial_request(), choices
+    )
+    assert result is not None
+    assert result.decision == "approve"
+    # Both clients drained-then-requested in turn.
+    assert broken.calls == ["drain", "request"]
+    assert survivor.calls == ["drain", "request"]
 
 
 @skip_if_trio
@@ -535,14 +629,16 @@ async def test_entry_routes_to_attached_client(patch_sample_active) -> None:
 async def test_entry_prepends_assistant_message_as_content_block(
     patch_sample_active,
 ) -> None:
-    """The model's accompanying message rides as the first content block.
+    """The model's accompanying message is NOT embedded in the approval card.
 
-    Pinned because the in-proc panel renders the message under an
-    ``**Assistant**`` header above the view (see
-    ``approval/_human/util.py:render_tool_approval``). Without
-    forwarding it, the editor card is under-contextualized — the
-    operator sees the tool call shape but not the "why" the agent
-    gave.
+    Pinned regression of the inverse: an earlier revision wrapped
+    ``message`` as an ``**Assistant**`` block and prepended it to
+    the request content (mirroring the in-proc panel). That
+    duplicated the same text a few rows apart in inline-on-
+    transcript clients — the assistant chip from the conversation
+    stream already shows the model's "why" right above the tool
+    card. The shim now passes ``message`` to ``_build_request``
+    purely for API stability; it doesn't ride on the wire.
     """
     session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
@@ -558,23 +654,21 @@ async def test_entry_prepends_assistant_message_as_content_block(
 
     req = client.received[0]
     assert req.tool_call.content is not None
-    # First block is the assistant message — Assistant header + body.
-    msg_block = req.tool_call.content[0]
-    inner = msg_block.content
-    assert hasattr(inner, "text")
-    assert "**Assistant**" in inner.text
-    assert "largest files" in inner.text
+    # Scan ALL emitted blocks — the message text must NOT appear
+    # anywhere in the request body. The conversation stream is the
+    # canonical home for the model's narration.
+    for block in req.tool_call.content:
+        inner = block.content
+        if hasattr(inner, "text"):
+            assert "**Assistant**" not in inner.text
+            assert "largest files" not in inner.text
 
 
 @skip_if_trio
 async def test_entry_omits_message_block_for_empty_message(
     patch_sample_active,
 ) -> None:
-    """An empty / whitespace-only message produces no leading block.
-
-    Without this guard, every approval card would have an empty
-    "Assistant" header padding the top of the prompt.
-    """
+    """Empty / whitespace-only message is also a no-op (still no Assistant block)."""
     session = LiveAcpSession()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
@@ -588,8 +682,6 @@ async def test_entry_omits_message_block_for_empty_message(
     )
 
     req = client.received[0]
-    # First (only) block should be the view content, NOT a stray
-    # empty Assistant block.
     assert req.tool_call.content is not None
     first_block = req.tool_call.content[0]
     inner = first_block.content
@@ -679,6 +771,224 @@ async def test_entry_carries_view_content_in_request(patch_sample_active) -> Non
             rendered_text += inner.text
     assert "ls -la" in rendered_text
     assert "```bash" in rendered_text
+
+
+# ---------------------------------------------------------------------------
+# Producer-side: markdown shape of view halves
+# ---------------------------------------------------------------------------
+#
+# These tests pin the markdown structure emitted by ``_build_request``
+# so the inline approval card (in the TUI) and any other ACP client
+# (Zed etc.) see headings + horizontal rules natively via stock
+# markdown rendering — no ``_meta`` markers required. Mirrors the
+# visual structure of the in-proc ``ApprovalPanel`` (which uses
+# ``render_tool_approval`` to draw bold per-half titles + a ``Rule``
+# separator between context and call).
+
+
+def _texts(blocks: list[Any] | None) -> list[str]:
+    """Extract the ``.text`` from each text-bearing content block."""
+    out: list[str] = []
+    for block in blocks or []:
+        inner = block.content
+        if hasattr(inner, "text"):
+            out.append(inner.text)
+    return out
+
+
+def test_format_view_content_prepends_bold_title() -> None:
+    view_content = ToolCallContent(
+        title="Bash command", format="markdown", content="```bash\nls -la\n```\n"
+    )
+    formatted = _format_view_content_as_markdown(view_content)
+    assert formatted.format == "markdown"
+    assert formatted.title is None  # title was baked into the body
+    assert formatted.content.startswith("**Bash command**\n\n")
+    assert "ls -la" in formatted.content
+
+
+def test_format_view_content_fences_plain_text() -> None:
+    view_content = ToolCallContent(
+        title=None, format="text", content="line1\n  indented\nline3"
+    )
+    formatted = _format_view_content_as_markdown(view_content)
+    assert formatted.content.startswith("```\n")
+    assert formatted.content.endswith("\n```")
+    # Indentation preserved inside the fence.
+    assert "  indented" in formatted.content
+
+
+def test_format_view_content_omits_heading_when_no_title() -> None:
+    view_content = ToolCallContent(
+        title=None, format="markdown", content="just markdown"
+    )
+    formatted = _format_view_content_as_markdown(view_content)
+    assert formatted.content == "just markdown"
+
+
+def test_format_view_content_picks_safe_fence_longer_than_embedded_backticks() -> None:
+    """Plain-text content containing ``` doesn't break out of the fence.
+
+    Pinned regression: a fixed 3-backtick fence wrapping plain text
+    that itself contains ``` (e.g. a tool dumping markdown source
+    or help output with code-block examples) would close early and
+    the remainder would render as live markdown. Use a fence longer
+    than any backtick run in the body.
+    """
+    # Content embeds a 3-backtick run — fence must be 4+.
+    view_content = ToolCallContent(
+        title=None,
+        format="text",
+        content="before\n```\ninside\n```\nafter",
+    )
+    formatted = _format_view_content_as_markdown(view_content)
+    assert formatted.content.startswith("````\n")
+    assert formatted.content.endswith("\n````")
+    # The original ``` runs are preserved verbatim inside the longer fence.
+    assert "```\ninside\n```" in formatted.content
+
+
+def test_format_view_content_fence_grows_for_longer_backtick_runs() -> None:
+    """Content with a 5-backtick run requires a 6-backtick fence."""
+    view_content = ToolCallContent(
+        title=None,
+        format="text",
+        content="opening `````\nbody",
+    )
+    formatted = _format_view_content_as_markdown(view_content)
+    assert formatted.content.startswith("``````\n")
+    assert formatted.content.endswith("\n``````")
+    assert "`````" in formatted.content
+
+
+def test_separator_block_is_horizontal_rule_markdown() -> None:
+    block = _separator_block()
+    assert block.type == "content"
+    # Exactly ``---`` — no leading/trailing whitespace. Each
+    # ContentToolCallContent block is its own structural unit on
+    # every ACP client we target, so the rule is already on a line
+    # by itself; surrounding ``\n``s would render as redundant blank
+    # rows on top of the inline section's per-block margin (one
+    # extra row above the content below the separator).
+    assert block.content.text == "---"
+
+
+def test_build_request_titles_each_view_half() -> None:
+    """Both ``view.context`` and ``view.call`` titles end up as bold markdown."""
+    view = ToolCallView(
+        context=ToolCallContent(
+            title="Current state", format="markdown", content="file is empty"
+        ),
+        call=ToolCallContent(
+            title="Bash command", format="markdown", content="```bash\nls -la\n```"
+        ),
+    )
+    req = _build_request(
+        session_id="s1",
+        call=_make_call(),
+        view=view,
+        choices=["approve", "reject"],
+    )
+    texts = _texts(req.tool_call.content)
+    joined = "\n".join(texts)
+    assert "**Current state**" in joined
+    assert "**Bash command**" in joined
+
+
+def test_build_request_inserts_separator_between_context_and_call() -> None:
+    """A ``---`` block sits between ``view.context`` and ``view.call`` blocks."""
+    view = ToolCallView(
+        context=ToolCallContent(
+            title="Context", format="markdown", content="context body"
+        ),
+        call=ToolCallContent(title="Call", format="markdown", content="call body"),
+    )
+    req = _build_request(
+        session_id="s1",
+        call=_make_call(),
+        view=view,
+        choices=["approve"],
+    )
+    texts = _texts(req.tool_call.content)
+    # Expect: [context, separator, call] in order.
+    assert len(texts) == 3
+    assert "context body" in texts[0]
+    assert "---" in texts[1]
+    assert "call body" in texts[2]
+
+
+def test_build_request_omits_separator_when_one_half_missing() -> None:
+    """Only one view half present → no separator block."""
+    view = ToolCallView(
+        call=ToolCallContent(title="Call", format="markdown", content="call body"),
+    )
+    req = _build_request(
+        session_id="s1",
+        call=_make_call(),
+        view=view,
+        choices=["approve"],
+    )
+    texts = _texts(req.tool_call.content)
+    # Just the call block; no separator.
+    assert len(texts) == 1
+    assert "call body" in texts[0]
+    assert "---" not in texts[0]
+
+
+def test_build_request_fences_plain_text_view_content() -> None:
+    """``view.format == "text"`` content is wrapped in a fenced code block."""
+    view = ToolCallView(
+        call=ToolCallContent(
+            title=None, format="text", content="raw\n  preserve indent\n"
+        ),
+    )
+    req = _build_request(
+        session_id="s1",
+        call=_make_call(),
+        view=view,
+        choices=["approve"],
+    )
+    texts = _texts(req.tool_call.content)
+    assert len(texts) == 1
+    assert texts[0].startswith("```\n")
+    assert "  preserve indent" in texts[0]
+
+
+def test_build_request_markdown_snapshot_for_typical_bash_approval() -> None:
+    """End-to-end markdown shape for a representative bash approval.
+
+    Pins the wire shape that Zed (and any other ACP client) will
+    render via stock markdown: view title heading + fenced code
+    block from the view body. The model's accompanying message is
+    NOT embedded — it streams to clients as a separate
+    ``agent_message_chunk`` notification and renders as an
+    assistant chip in the conversation stream above the tool card,
+    so duplicating it here would mean the same text twice a few
+    rows apart in inline-on-transcript clients. No ``_meta`` keys.
+    """
+    view = ToolCallView(
+        call=ToolCallContent(
+            title="bash", format="markdown", content="```bash\nls -la\n```"
+        ),
+    )
+    req = _build_request(
+        session_id="s1",
+        call=_make_call(),
+        view=view,
+        choices=["approve", "reject"],
+    )
+    # One block — just the formatted view call. No assistant message.
+    texts = _texts(req.tool_call.content)
+    assert len(texts) == 1
+    assert "**Assistant**" not in texts[0]
+    assert "I want to list files." not in texts[0]
+    assert texts[0].startswith("**bash**\n\n")
+    assert "```bash\nls -la\n```" in texts[0]
+    # No protocol extension: no `_meta` keys on any block.
+    for block in req.tool_call.content or []:
+        assert block.field_meta is None, (
+            "approval prompt must not depend on `_meta` extensions"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -308,6 +308,117 @@ async def test_action_submit_sends_prompt_and_clears_composer(
 
 @skip_if_trio
 @pytest.mark.anyio
+async def test_action_submit_with_focused_button_delegates_to_button(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Enter on a focused approval Button fires Button.Pressed, not the composer send.
+
+    Pinned regression for the Tab+Enter approval bug: the screen's
+    ``enter`` binding is ``priority=True`` (so the composer ``Input``
+    doesn't eat Enter and submit instead of running the screen
+    action). Without delegation, that priority also eats Enter when
+    the operator has Tab'd to an approval action button — silently
+    submitting the composer's draft (or no-op when empty) instead
+    of approving. Fix: detect the focused-Button case in
+    ``action_submit`` and forward to ``Button.action_press`` —
+    scoped to APPROVAL buttons (id prefix ``approve-opt-``) so
+    unrelated buttons added later don't get programmatic-pressed.
+    """
+    from textual.widgets import Button
+
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # Mount a focusable Button using the APPROVAL id prefix
+        # (``approve-opt-…``) so the delegation guard recognises it.
+        # Composer carries a draft so we can prove action_submit
+        # does NOT submit it when an approval button has focus.
+        composer = app.screen.query_one("#composer", Input)
+        composer.value = "this draft must not be sent"
+        pressed: list[Button] = []
+
+        class _SpyButton(Button):
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                pressed.append(event.button)
+
+        spy = _SpyButton("approve", id="approve-opt-spy")
+        await app.screen.mount(spy)
+        spy.focus()
+        await pilot.pause()
+        assert app.screen.focused is spy
+
+        await app.screen.action_submit()
+        await pilot.pause()
+
+        # The button fired its Pressed event.
+        assert pressed == [spy]
+        # The composer's draft was NOT submitted to the server.
+        conn = cast(Any, app.screen._session.connection)
+        assert conn.requests == []
+        # And the draft is still in the composer (not cleared).
+        assert composer.value == "this draft must not be sent"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_submit_with_focused_non_approval_button_does_not_delegate(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Delegation is scoped to ``approve-opt-`` buttons; others go through composer path.
+
+    Pinned because the earlier revision delegated to ANY focused
+    Button, which would silently fire a programmatic press on a
+    future non-approval button (confirm-disconnect dialog, error
+    recovery, etc.) when the operator hit Enter in the composer
+    context. Scoped delegation prevents that surprise.
+    """
+    from textual.widgets import Button
+
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        composer = app.screen.query_one("#composer", Input)
+        composer.value = "please continue"
+        pressed: list[Button] = []
+
+        class _SpyButton(Button):
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                pressed.append(event.button)
+
+        # Non-approval id — delegation must NOT fire here.
+        spy = _SpyButton("OK", id="some-other-button")
+        await app.screen.mount(spy)
+        spy.focus()
+        await pilot.pause()
+
+        await app.screen.action_submit()
+        await pilot.pause()
+
+        # The button was NOT programmatically pressed.
+        assert pressed == []
+        # The composer's draft WAS submitted (composer path took over).
+        conn = cast(Any, app.screen._session.connection)
+        assert conn.requests and conn.requests[0][0] == "session/prompt"
+
+
+@skip_if_trio
+@pytest.mark.anyio
 async def test_action_submit_with_empty_composer_is_noop(
     sample_rows: list[SessionRow],
 ) -> None:

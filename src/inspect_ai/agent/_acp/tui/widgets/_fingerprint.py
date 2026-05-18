@@ -48,10 +48,17 @@ def tool_state_fingerprint(state: "ToolCallState") -> tuple[Any, ...]:
 
     Returns a hashable tuple that changes whenever anything the user
     would see changes: status, title, kind, the list of content items
-    (with text hashes so same-length replacements register), and the
+    (with text hashes so same-length replacements register), the
     raw_input shape (plan-style tools render from raw_input not
-    content). The transcript layer uses this to gate the auto-scroll
-    decision so live-tail follows in-progress tool output.
+    content), AND the approval slot (pending / resolved-decision)
+    — the inline approval section + the footer's decision suffix
+    are user-visible card state, so changes there MUST invalidate
+    the transcript's mounted-snapshot diff or the card never
+    re-renders after a ``consume_approval_request`` /
+    ``resolve_approval`` / ``mark_complete`` transition that didn't
+    also flip ``status`` / ``content``. The transcript layer uses
+    this to gate the auto-scroll decision so live-tail follows
+    in-progress tool output.
     """
     content_sig = tuple(item_signature(item) for item in (state.content or []))
     # raw_input shape matters for plan-style tools which render their
@@ -62,10 +69,20 @@ def tool_state_fingerprint(state: "ToolCallState") -> tuple[Any, ...]:
         raw_input_sig = hash(repr(sorted(state.raw_input.items(), key=str)))
     else:
         raw_input_sig = repr(state.raw_input)
+    # Approval slot fingerprint — boolean for "is there a pending
+    # request" (we don't hash the request payload itself; the
+    # section reads it directly off the PendingApproval ref, and
+    # we don't expect the same tool_call_id to receive a second,
+    # different request) + the resolved decision label.
+    approval_sig = (
+        state.pending_approval is not None,
+        state.last_approval_decision or "",
+    )
     return (
         state.status,
         state.title or "",
         state.kind or "",
         content_sig,
         raw_input_sig,
+        approval_sig,
     )

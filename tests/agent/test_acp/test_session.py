@@ -434,6 +434,9 @@ class _StubApproverClient:
     async def request_permission(self, request):
         raise NotImplementedError  # not exercised in registry tests
 
+    async def drain_notifications(self) -> None:
+        """No-op — registry tests don't exercise the drain barrier."""
+
 
 async def test_approver_clients_starts_empty() -> None:
     async with acp_session() as acp:

@@ -1427,6 +1427,463 @@ async def test_completed_assistant_chip_drops_retry_and_elapsed() -> None:
         assert rendered.count("·") == 1
 
 
+# ---------------------------------------------------------------------------
+# Inline approval section
+# ---------------------------------------------------------------------------
+
+
+def _approval_request(
+    tool_call_id: str = "tc-1",
+    *,
+    title: str = "bash ls",
+    options: list[tuple[str, str]] | None = None,
+    content_blocks=None,
+):
+    """Build a RequestPermissionRequest for pilot tests."""
+    from acp.schema import (
+        ContentToolCallContent,
+        PermissionOption,
+        RequestPermissionRequest,
+        TextContentBlock,
+        ToolCallUpdate,
+    )
+
+    opts_pairs = options or [("approve", "allow_once"), ("reject", "reject_once")]
+    perm_options = [
+        PermissionOption(
+            option_id=oid,
+            name=oid.capitalize(),
+            kind=kind,  # type: ignore[arg-type]
+        )
+        for oid, kind in opts_pairs
+    ]
+    if content_blocks is None:
+        content_blocks = [
+            ContentToolCallContent(
+                type="content",
+                content=TextContentBlock(type="text", text="**Assistant**\n\nrun ls"),
+            ),
+        ]
+    tc = ToolCallUpdate(
+        tool_call_id=tool_call_id,
+        title=title,
+        status="pending",
+        raw_input={"command": "ls"},
+        content=content_blocks,
+    )
+    return RequestPermissionRequest(
+        session_id="sid", tool_call=tc, options=perm_options
+    )
+
+
+def _pending_approval(req, event=None):
+    import asyncio
+
+    from inspect_ai.agent._acp.tui.state import PendingApproval
+
+    return PendingApproval(request=req, event=event or asyncio.Event())
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_section_mounts_buttons_per_option() -> None:
+    """When state has a pending approval, the section mounts with one button per option."""
+    from textual.widgets import Button
+
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalSection
+
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash ls",
+        status="pending",
+    )
+    req = _approval_request(
+        options=[
+            ("approve", "allow_once"),
+            ("reject", "reject_once"),
+            ("terminate", "reject_always"),
+        ],
+    )
+    state.pending_approval = _pending_approval(req)
+
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        section = app.query_one(_ApprovalSection)
+        buttons = list(section.query(Button))
+        assert len(buttons) == 3
+        ids = [b.id for b in buttons]
+        assert "approve-opt-approve" in ids
+        assert "approve-opt-reject" in ids
+        assert "approve-opt-terminate" in ids
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_section_clicking_button_posts_decision_message() -> None:
+    """Pilot-click on Approve → ApprovalDecisionRequested bubbles up; state resolves."""
+    from inspect_ai.agent._acp.tui.state import SessionState
+    from inspect_ai.agent._acp.tui.widgets.tool_call import (
+        ApprovalDecisionRequested,
+        _ApprovalSection,
+    )
+
+    # Use a SessionState-attached card so the screen-style handler
+    # path (state.resolve_approval) is exercised.
+    session_state = SessionState()
+    req = _approval_request()
+    pending = _pending_approval(req)
+    session_state.consume_approval_request(pending)
+    tc = session_state._tool_calls_by_id["tc-1"]
+
+    received: list[ApprovalDecisionRequested] = []
+
+    class _ButtonHostApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield ToolCallWidget(tc)
+
+        def on_approval_decision_requested(
+            self, message: ApprovalDecisionRequested
+        ) -> None:
+            received.append(message)
+            # Mirror SessionScreen's handler — calls into state.
+            session_state.resolve_approval(
+                message.tool_call_id, option_id=message.option_id
+            )
+            message.stop()
+
+    app = _ButtonHostApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        section = app.query_one(_ApprovalSection)
+        # Click the Approve button.
+        await pilot.click(section.query_one("#approve-opt-approve"))
+        await pilot.pause()
+
+    assert len(received) == 1
+    assert received[0].option_id == "approve"
+    assert received[0].tool_call_id == "tc-1"
+    # State resolved + event set + label recorded.
+    assert tc.pending_approval is None
+    assert tc.last_approval_decision == "approved"
+    assert pending.event.is_set()
+    assert pending.chosen_option_id == "approve"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_section_renders_diff_content_variant() -> None:
+    """A ``FileEditToolCallContent`` block in the request renders as a diff."""
+    from acp.schema import FileEditToolCallContent
+
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalSection
+
+    diff = FileEditToolCallContent(
+        type="diff",
+        path="/tmp/a.txt",
+        old_text="alpha\nbeta",
+        new_text="gamma\ndelta",
+    )
+    req = _approval_request(content_blocks=[diff])
+    state = ToolCallState(tool_call_id="tc-1", title="edit", status="pending")
+    state.pending_approval = _pending_approval(req)
+
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        section = app.query_one(_ApprovalSection)
+        old_lines = [str(s.content) for s in section.query(".diff-old")]
+        new_lines = [str(s.content) for s in section.query(".diff-new")]
+        headers = [str(s.content) for s in section.query(".diff-header")]
+        # Confirm diff renderer was invoked — not a stringified blob.
+        assert any("alpha" in line for line in old_lines)
+        assert any("gamma" in line for line in new_lines)
+        assert any("/tmp/a.txt" in h for h in headers)
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_section_renders_terminal_content_variant() -> None:
+    """A ``TerminalToolCallContent`` block in the request renders as terminal placeholder."""
+    from acp.schema import TerminalToolCallContent
+
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalSection
+
+    term = TerminalToolCallContent(type="terminal", terminal_id="t-42")
+    req = _approval_request(content_blocks=[term])
+    state = ToolCallState(tool_call_id="tc-1", title="bash", status="pending")
+    state.pending_approval = _pending_approval(req)
+
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        section = app.query_one(_ApprovalSection)
+        body_text = " ".join(str(s.content) for s in section.query(".body-content"))
+        assert "[terminal: t-42]" in body_text
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_decision_appears_on_footer_after_resolve() -> None:
+    """After resolve_approval, the section unmounts and the decision suffixes the footer.
+
+    Compact layout: the post-resolution decision (``approved by
+    you`` / ``denied by you`` / ``cancelled``) appears inline on
+    the same row as the tool's status glyph + duration. Saves a
+    row vs. a separate summary line, and groups "what happened
+    with this tool call" (it ran AND who approved it) in one
+    anchor.
+    """
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalSection
+
+    state = ToolCallState(tool_call_id="tc-1", title="bash", status="pending")
+    state.pending_approval = _pending_approval(_approval_request())
+
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        widget = app.query_one(ToolCallWidget)
+        # Section mounted while pending.
+        assert len(widget.query(_ApprovalSection)) == 1
+        # Footer has NO decision suffix yet.
+        footer_before = str(widget.query_one(".footer", Static).content)
+        assert "approved by you" not in footer_before
+        assert "denied" not in footer_before
+
+        # Mutate state and re-apply (mirrors what SessionScreen does
+        # after state.resolve_approval).
+        state.pending_approval = None
+        state.last_approval_decision = "approved"
+        widget.update_state(state)
+        await pilot.pause()
+
+        # Section gone.
+        assert len(widget.query(_ApprovalSection)) == 0
+        # No separate summary widget either — decision lives on
+        # the footer now.
+        assert len(widget.query(".decision-summary")) == 0
+        # Decision suffix renders on the footer row.
+        footer_after = str(widget.query_one(".footer", Static).content)
+        assert "approved by you" in footer_after
+
+
+def test_fingerprint_changes_when_pending_approval_is_set() -> None:
+    """Setting ``pending_approval`` flips the tool fingerprint.
+
+    Pinned regression: without including approval state in the
+    fingerprint, the TranscriptWidget's mounted-snapshot gate
+    skips ``update_state()`` when ONLY approval state changes —
+    leaving the inline approval section unmounted on a card that
+    received a permission request between status updates.
+    """
+    from inspect_ai.agent._acp.tui.state import ToolCallState
+    from inspect_ai.agent._acp.tui.widgets._fingerprint import (
+        tool_state_fingerprint,
+    )
+
+    tc = ToolCallState(tool_call_id="tc-1", title="bash", status="in_progress")
+    before = tool_state_fingerprint(tc)
+
+    # Mimic the wire shape consume_approval_request would attach.
+    tc.pending_approval = _pending_approval(_approval_request())
+    after = tool_state_fingerprint(tc)
+    assert before != after
+
+
+def test_fingerprint_changes_when_pending_clears_to_decided() -> None:
+    """Clearing ``pending_approval`` + setting ``last_approval_decision`` flips the fingerprint.
+
+    Without this, the operator's button click would resolve the
+    state but the card would never re-render — buttons stay
+    visible until some other state change (status/content) happens
+    to invalidate the snapshot.
+    """
+    from inspect_ai.agent._acp.tui.state import ToolCallState
+    from inspect_ai.agent._acp.tui.widgets._fingerprint import (
+        tool_state_fingerprint,
+    )
+
+    tc = ToolCallState(tool_call_id="tc-1", title="bash", status="in_progress")
+    tc.pending_approval = _pending_approval(_approval_request())
+    pending_sig = tool_state_fingerprint(tc)
+
+    tc.pending_approval = None
+    tc.last_approval_decision = "approved"
+    resolved_sig = tool_state_fingerprint(tc)
+    assert pending_sig != resolved_sig
+
+
+def test_fingerprint_changes_between_different_decisions() -> None:
+    """Different post-resolution decision labels yield distinct fingerprints.
+
+    The footer's coloured decision suffix is user-visible — a
+    transition from ``approved`` to ``denied`` (e.g. via a
+    follow-up tool call's resolve path) must invalidate the
+    snapshot so the suffix re-renders.
+    """
+    from inspect_ai.agent._acp.tui.state import ToolCallState
+    from inspect_ai.agent._acp.tui.widgets._fingerprint import (
+        tool_state_fingerprint,
+    )
+
+    tc = ToolCallState(tool_call_id="tc-1", title="bash", status="completed")
+    tc.last_approval_decision = "approved"
+    approved_sig = tool_state_fingerprint(tc)
+    tc.last_approval_decision = "denied"
+    denied_sig = tool_state_fingerprint(tc)
+    assert approved_sig != denied_sig
+
+
+def test_is_separator_block_matches_producer_shape() -> None:
+    """``_is_separator_block`` recognises the exact wire shape ``_separator_block`` emits.
+
+    Pinned because the recogniser drives a CSS-class choice that
+    tightens the spacing around the rule. If the producer changes
+    the separator's text and the recogniser doesn't follow, the
+    rule reverts to the wide-margin wrapper and the operator sees
+    a double-spaced divider.
+    """
+    from acp.schema import ContentToolCallContent, TextContentBlock
+
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _is_separator_block
+
+    # The exact shape emitted by ``approval/_human/acp.py:_separator_block``.
+    sep = ContentToolCallContent(
+        type="content",
+        content=TextContentBlock(type="text", text="---"),
+    )
+    assert _is_separator_block(sep) is True
+
+    # Tolerant of surrounding whitespace too — defensive against
+    # historical / future producers that wrap with \n.
+    sep_with_ws = ContentToolCallContent(
+        type="content",
+        content=TextContentBlock(type="text", text="\n---\n"),
+    )
+    assert _is_separator_block(sep_with_ws) is True
+
+    # Non-separator content blocks return False.
+    normal = ContentToolCallContent(
+        type="content",
+        content=TextContentBlock(type="text", text="**Assistant**\n\nhello"),
+    )
+    assert _is_separator_block(normal) is False
+
+    # Diff / terminal variants are never separators.
+    from acp.schema import FileEditToolCallContent
+
+    diff = FileEditToolCallContent(
+        type="diff", path="/tmp/a.txt", old_text="x", new_text="y"
+    )
+    assert _is_separator_block(diff) is False
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_area_sizes_to_content_not_remaining_space() -> None:
+    """``#approval-area`` Vertical takes its content's height, not ``1fr``.
+
+    Pinned regression: Textual's ``Vertical`` defaults to ``height: 1fr``
+    (fills available space). Without an explicit ``height: auto`` on the
+    approval-area wrapper, the area claimed the rest of the card's
+    available vertical space, pushing the tool's body content down
+    past a giant empty gap.
+
+    Asserted with slack: a few rows for child margins is fine, but
+    egregious expansion (the 1fr-fills-screen bug) is not.
+    """
+    from textual.containers import Vertical
+
+    # Resolved state — approval area is EMPTY (decision lives on
+    # the footer now). With the 1fr bug the area would still claim
+    # the rest of the screen even with no children; with the fix
+    # it collapses to zero rows.
+    state_done = ToolCallState(
+        tool_call_id="tc-done", title="bash", status="in_progress"
+    )
+    state_done.last_approval_decision = "approved"
+    app = _harness(lambda: ToolCallWidget(state_done))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        area = app.query_one("#approval-area", Vertical)
+        # Hard ceiling: a couple of rows max. The 1fr-runaway bug
+        # would put us at 20+.
+        assert area.region.height <= 2, (
+            f"#approval-area height ({area.region.height}) is way "
+            f"larger than its empty content — the Vertical's 1fr "
+            f"default is back."
+        )
+
+    # Pending state — approval section is mounted. Content here is
+    # naturally taller (intro + content blocks + buttons), but the
+    # area should still match what the section actually renders, not
+    # expand beyond it. Slack accounts for the section's own
+    # margin-bottom.
+    state_pending = ToolCallState(
+        tool_call_id="tc-pend", title="bash", status="pending"
+    )
+    state_pending.pending_approval = _pending_approval(_approval_request())
+    app = _harness(lambda: ToolCallWidget(state_pending))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        area = app.query_one("#approval-area", Vertical)
+        content_height = sum(
+            child.region.height for child in area.children
+        )
+        # Slack of 3 rows for any margins (margin-bottom on the
+        # section + any wrapper padding); a 1fr runaway would
+        # exceed this by an order of magnitude.
+        assert area.region.height <= content_height + 3, (
+            f"#approval-area height ({area.region.height}) exceeds "
+            f"its content height ({content_height}) by more than the "
+            f"margin slack — the Vertical's 1fr default is back."
+        )
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_section_first_button_is_focused_on_mount() -> None:
+    """First action button focused so Tab+Enter works without a click."""
+    from textual.widgets import Button
+
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalSection
+
+    state = ToolCallState(tool_call_id="tc-1", title="bash", status="pending")
+    state.pending_approval = _pending_approval(_approval_request())
+
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        section = app.query_one(_ApprovalSection)
+        first_button = section.query(Button).first()
+        assert first_button is not None
+        # Note: Textual's focus chain may not have reached the button
+        # yet in some race-y test scenarios; check that .has_focus
+        # OR the focused widget is the button.
+        assert first_button.has_focus or app.focused is first_button
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_card_has_approval_css_class_while_pending() -> None:
+    """The ``.approval`` CSS class is added to the card while pending_approval is set."""
+    state = ToolCallState(tool_call_id="tc-1", title="bash", status="pending")
+    state.pending_approval = _pending_approval(_approval_request())
+
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        widget = app.query_one(ToolCallWidget)
+        assert "approval" in widget.classes
+
+        # Mutate state → class removed.
+        state.pending_approval = None
+        state.last_approval_decision = "approved"
+        widget.update_state(state)
+        await pilot.pause()
+        assert "approval" not in widget.classes
+
+
 @skip_if_trio
 @pytest.mark.anyio
 async def test_pending_assistant_chip_shows_retry_counter() -> None:

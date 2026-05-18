@@ -1193,3 +1193,301 @@ async def test_session_ended_notification_fires_when_live_session_exits(
             assert notif["params"]["sessionId"]
         finally:
             await client.close()
+
+
+# ---------------------------------------------------------------------------
+# Forwarders.drain — barrier the approval shim uses to flush the bus
+# before sending session/request_permission. Without it the request
+# can race notifications to the wire and arrive before the model's
+# accompanying ``agent_message_chunk``.
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+async def test_forwarders_drain_blocks_until_pending_notifications_sent() -> None:
+    """``Forwarders.drain()`` doesn't return until the bus is empty.
+
+    Setup: a live session + Forwarders + a connection whose
+    ``send_notification`` is gated by an anyio.Event so we can
+    observe drain blocking. Publish N items, call drain in a task,
+    confirm drain is pending while items are still buffered, then
+    release the gate and confirm drain completes after the forwarder
+    has processed every item.
+    """
+    from typing import cast
+    from unittest.mock import AsyncMock
+
+    import anyio
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    # Build a live session for the forwarder to subscribe to.
+    session, _tr = _make_live_session_with_transcript()
+
+    # Gate ``send_notification`` so the forwarder task is blocked
+    # mid-loop while we observe drain behavior.
+    release = anyio.Event()
+    send_calls: list[Any] = []
+
+    async def _gated_send(method: str, payload: dict[str, Any]) -> None:
+        send_calls.append((method, payload))
+        await release.wait()
+
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = _gated_send
+
+    # Forwarders needs a state + an ApproverClient; a bare handler
+    # is enough for both since the test never invokes any handler
+    # methods (just the drain primitive on Forwarders).
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-x", target_session_id=session.session_id
+    )
+
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-x",
+    )
+    await forwarders.start(session)
+    try:
+        # Drop the bind preamble (Forwarders.start sends one
+        # session-info notification synchronously during start).
+        # ``_gated_send`` is blocked on ``release`` though — so the
+        # preamble is sitting in the call list waiting. Account for
+        # it in our drain target.
+        preamble_count = len(send_calls)
+
+        # Publish three semantic notifications via the session's
+        # pub/sub. They land in the forwarder's subscriber stream.
+        from acp.helpers import session_notification, text_block, update_agent_message
+
+        for i in range(3):
+            notif = session_notification(
+                session.session_id,
+                update_agent_message(text_block(f"chunk {i}")),
+            )
+            session.publish(notif)
+
+        # Deterministic gate: wait until the forwarder has actually
+        # entered ``_gated_send`` for at least one published item
+        # (i.e. send_calls grew past the preamble). This replaces
+        # the prior heuristic ``for _ in range(5): await sleep(0)``
+        # which assumed a fixed number of yields was enough for the
+        # forwarder task to be scheduled and consume from the
+        # stream — flake-prone under CI load.
+        deadline = asyncio.get_event_loop().time() + 1.0
+        while len(send_calls) <= preamble_count:
+            if asyncio.get_event_loop().time() > deadline:
+                raise AssertionError(
+                    "forwarder did not start processing published items "
+                    "within 1s"
+                )
+            await asyncio.sleep(0)
+
+        # Drain starts: it should block because the forwarder is
+        # parked inside ``_gated_send`` (we just verified it entered
+        # the gate) and items are still buffered.
+        drain_task = asyncio.create_task(forwarders.drain())
+        # Yield once to let drain enter its wait loop, then verify
+        # it's still pending.
+        await asyncio.sleep(0)
+        assert not drain_task.done(), (
+            "drain returned while notifications were still buffered"
+        )
+
+        # Release the gate — forwarder catches up.
+        release.set()
+
+        # Drain completes once the forwarder has processed every
+        # item it had buffered when drain was invoked.
+        await asyncio.wait_for(drain_task, timeout=1.0)
+
+        # The forwarder must have called send_notification at least
+        # ``preamble + 3`` times (everything that was queued before
+        # drain returned). The exact count can be higher if the
+        # forwarder pulled additional items from the bus post-drain,
+        # but we asserted the lower bound.
+        cast(Any, fake_conn)  # silence unused-import-ish noise
+        assert len(send_calls) >= preamble_count + 3
+    finally:
+        # Make sure the gate is open so any in-flight sends complete
+        # before stop() awaits the task.
+        if not release.is_set():
+            release.set()
+        await forwarders.stop()
+
+
+@skip_if_trio
+async def test_forwarders_drain_waits_for_in_flight_item() -> None:
+    """Drain blocks for the item that's already pulled from the stream but not yet sent.
+
+    Pinned regression: previously drain only counted
+    ``current_buffer_used`` + ``_notifications_sent``. An item the
+    forwarder had already pulled (so buffer is empty) but was still
+    transforming / awaiting ``send_notification`` was invisible to
+    both — drain would return at zero while that item was still in
+    flight, defeating the ordering guarantee. The fix adds a
+    ``_processing_item`` flag flipped True at pull-time and
+    cleared in the same try/finally that bumps the counter; drain
+    treats it as +1 pending work.
+    """
+    from unittest.mock import AsyncMock
+
+    import anyio
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    session, _tr = _make_live_session_with_transcript()
+
+    release = anyio.Event()
+    send_calls: list[Any] = []
+
+    async def _gated_send(method: str, payload: dict[str, Any]) -> None:
+        send_calls.append((method, payload))
+        await release.wait()
+
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = _gated_send
+
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-inflight", target_session_id=session.session_id
+    )
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-inflight",
+    )
+    await forwarders.start(session)
+    try:
+        preamble_count = len(send_calls)
+
+        # Publish ONE notification. The forwarder pulls it from the
+        # stream and parks inside ``_gated_send``. At this point:
+        # - current_buffer_used == 0 (item already pulled)
+        # - _notifications_sent unchanged (counter only bumps in
+        #   the finally, which hasn't run yet)
+        # - _processing_item == True (the new flag)
+        from acp.helpers import session_notification, text_block, update_agent_message
+
+        notif = session_notification(
+            session.session_id, update_agent_message(text_block("only-chunk"))
+        )
+        session.publish(notif)
+
+        # Wait until the forwarder has entered the gated send (i.e.
+        # it has pulled the item out of the buffer).
+        deadline = asyncio.get_event_loop().time() + 1.0
+        while len(send_calls) <= preamble_count:
+            if asyncio.get_event_loop().time() > deadline:
+                raise AssertionError("forwarder didn't pull item within 1s")
+            await asyncio.sleep(0)
+
+        # Sanity: the buffer is now empty even though our item
+        # hasn't been sent yet — this is the bug window.
+        assert forwarders._semantic_stream.statistics().current_buffer_used == 0
+        assert forwarders._processing_item is True
+
+        # Drain MUST block here — the in-flight item isn't counted
+        # by current_buffer_used but is still pending.
+        drain_task = asyncio.create_task(forwarders.drain())
+        await asyncio.sleep(0)
+        assert not drain_task.done(), (
+            "drain returned while the in-flight item was still pending"
+        )
+
+        # Release the gate; drain catches up.
+        release.set()
+        await asyncio.wait_for(drain_task, timeout=1.0)
+    finally:
+        if not release.is_set():
+            release.set()
+        await forwarders.stop()
+
+
+@skip_if_trio
+async def test_forwarders_drain_is_noop_when_buffer_empty() -> None:
+    """Drain returns immediately when there are no buffered notifications."""
+    from unittest.mock import AsyncMock
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    session, _tr = _make_live_session_with_transcript()
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = AsyncMock(return_value=None)
+
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-y", target_session_id=session.session_id
+    )
+
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-y",
+    )
+    await forwarders.start(session)
+    try:
+        # Give the start preamble time to flush.
+        for _ in range(5):
+            await asyncio.sleep(0)
+        # Drain on an empty buffer: returns immediately.
+        await asyncio.wait_for(forwarders.drain(), timeout=0.5)
+    finally:
+        await forwarders.stop()
+
+
+@skip_if_trio
+async def test_forwarders_drain_returns_when_forwarder_task_dies() -> None:
+    """Drain doesn't hang forever if the forwarder task exited mid-buffer."""
+    from unittest.mock import AsyncMock
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    session, _tr = _make_live_session_with_transcript()
+
+    # send_notification raises on every call → the forwarder's
+    # acp_send_guard sees a send failure on the first item and
+    # exits the loop.
+    async def _always_fail(*_args: Any, **_kwargs: Any) -> None:
+        raise ConnectionError("peer gone")
+
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = _always_fail
+
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-z", target_session_id=session.session_id
+    )
+
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-z",
+    )
+    await forwarders.start(session)
+    try:
+        # Wait for the start preamble + the forwarder task to die.
+        for _ in range(10):
+            await asyncio.sleep(0.01)
+            if forwarders._semantic_task and forwarders._semantic_task.done():
+                break
+
+        # Even if drain captures a non-zero buffered count, it must
+        # not hang once the forwarder is done.
+        await asyncio.wait_for(forwarders.drain(), timeout=0.5)
+    finally:
+        await forwarders.stop()
