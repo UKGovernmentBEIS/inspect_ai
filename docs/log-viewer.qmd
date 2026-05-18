@@ -49,6 +49,8 @@ $ inspect view --log-dir ./experiment-logs --host 0.0.0.0
 
 You only need to run `inspect view` once at the beginning of a session (as it will automatically update to show new evaluations when they are run).
 
+`inspect view` is served by a FastAPI server. A legacy aiohttp server is still available as a fallback — set the `INSPECT_VIEW_FASTAPI_SERVER` environment variable to `0` (or `false`/`no`) to use it.
+
 ### Log History
 
 You can view and navigate between a history of all evals in the log directory using the menu at the top right:

@@ -1,3 +1,7 @@
+## Unreleased
+
+- Inspect View: The FastAPI server is now the default; `fastapi` and `uvicorn` are required dependencies. Set `INSPECT_VIEW_FASTAPI_SERVER=0` to fall back to the legacy aiohttp server.
+
 ## 0.3.222 (16 May 2026)
 
 - Scanners: Declare Scanner import in a way that's compatible with pyright type checking.
