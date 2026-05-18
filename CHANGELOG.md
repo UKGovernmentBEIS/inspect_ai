@@ -1,6 +1,9 @@
 ## Unreleased
 
+- Config: Add `inspect log export-config` command to export a run config from an existing log file.
+- Anthropic: Skip thinking blocks when placing lookback cache_control.
 - Model API: Add `ModelInfo.family` and `ModelAPI.model_family()`. Provider `is_*` capability checks now consult a registered `ModelInfo.family` (via `set_model_info()`) before falling back to model-name matching, so models with non-standard names can be classified as a known family.
+- AsyncFilesystem: Add `get_file()` and `exists()` methods.
 
 ## 0.3.222 (16 May 2026)
 
