@@ -255,6 +255,57 @@ def types() -> None:
     print(view_type_resource("generated.ts"))
 
 
+@log_command.command("export-config")
+@click.argument("log_file")
+@click.option(
+    "--output",
+    type=str,
+    default=None,
+    help="Write output to this file instead of stdout.",
+)
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["yaml", "json"], case_sensitive=False),
+    default="yaml",
+    show_default=True,
+    help="Output format.",
+)
+def export_config_command(log_file: str, output: str | None, fmt: str) -> None:
+    """Export the run configuration from a log file.
+
+    Reads LOG_FILE and writes a YAML (or JSON) file that can be passed directly
+    to 'inspect eval --run-config' to reproduce the run.
+
+    Example:
+        inspect log export-config logs/my_run.eval > run.yaml
+
+        inspect eval --run-config run.yaml
+    """
+    import yaml
+
+    from inspect_ai.log._config import eval_log_to_run_config_dict
+    from inspect_ai.log._file import read_eval_log
+
+    log = read_eval_log(log_file, header_only=True)
+    d = eval_log_to_run_config_dict(log)
+
+    if fmt == "json":
+        from json import dumps
+
+        text = dumps(d, indent=2)
+    else:
+        text = yaml.dump(
+            d, default_flow_style=False, sort_keys=False, allow_unicode=True
+        )
+
+    if output:
+        with open(output, "w", encoding="utf-8") as f:
+            f.write(text)
+    else:
+        print(text, end="")
+
+
 @log_command.command("recover")
 @click.argument("log_file", required=False)
 @click.option(

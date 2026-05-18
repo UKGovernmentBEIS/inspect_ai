@@ -1,3 +1,7 @@
+## Unreleased
+
+- Config: Add `inspect log export-config` command to export a run config from an existing log file.
+
 ## 0.3.222 (16 May 2026)
 
 - Scanners: Declare Scanner import in a way that's compatible with pyright type checking.
