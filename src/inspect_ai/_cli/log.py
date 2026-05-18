@@ -265,12 +265,13 @@ def types() -> None:
 )
 @click.option(
     "--format",
+    "fmt",
     type=click.Choice(["yaml", "json"], case_sensitive=False),
     default="yaml",
     show_default=True,
     help="Output format.",
 )
-def export_config_command(log_file: str, output: str | None, format: str) -> None:
+def export_config_command(log_file: str, output: str | None, fmt: str) -> None:
     """Export the run configuration from a log file.
 
     Reads LOG_FILE and writes a YAML (or JSON) file that can be passed directly
@@ -289,7 +290,7 @@ def export_config_command(log_file: str, output: str | None, format: str) -> Non
     log = read_eval_log(log_file, header_only=True)
     d = eval_log_to_run_config_dict(log)
 
-    if format == "json":
+    if fmt == "json":
         from json import dumps
 
         text = dumps(d, indent=2)
