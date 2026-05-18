@@ -5,12 +5,14 @@ they read snapshots of ``SessionState`` and update on its subscribe
 callback. No widget touches the wire directly.
 """
 
+from .footer import AppFooter
 from .header import AppHeaderWidget, SessionHeaderWidget
 from .message import MessageWidget
 from .tool_call import ToolCallWidget
 from .transcript import TranscriptWidget
 
 __all__ = [
+    "AppFooter",
     "AppHeaderWidget",
     "MessageWidget",
     "SessionHeaderWidget",

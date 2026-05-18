@@ -54,8 +54,9 @@ async def test_session_screen_meta_row_renders_all_fields(
         assert "inspect acp" not in text
         assert "eval-aaa" not in text
         assert "task: my_task" in text
-        assert "sample: 0" in text
-        assert "epoch 1" in text
+        # sample/epoch fused as one field — epoch is a sub-key of sample.
+        assert "sample: 0/1" in text
+        assert "epoch" not in text
         assert "agent: react" in text
 
 
@@ -97,7 +98,9 @@ async def test_session_screen_meta_row_handles_missing_agent_name(
 async def test_composer_has_top_margin_for_separation_from_transcript(
     sample_rows: list[SessionRow],
 ) -> None:
-    """Composer must not sit flush against the last transcript item."""
+    """Composer wrapper must not sit flush against the last transcript item."""
+    from textual.containers import Horizontal
+
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
@@ -107,27 +110,10 @@ async def test_composer_has_top_margin_for_separation_from_transcript(
             await pilot.pause()
             if isinstance(app.screen, SessionScreen):
                 break
-        composer = app.screen.query_one("#composer", Input)
-        assert composer.styles.margin.top == 1
-
-
-@skip_if_trio
-@pytest.mark.anyio
-async def test_session_screen_starts_with_connected_indicator(
-    sample_rows: list[SessionRow],
-) -> None:
-    client = make_fake_client(sample_rows)
-    app = InspectAcpApp(eval_id=None, server=None, client=client)
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
-        for _ in range(20):
-            await pilot.pause()
-            if isinstance(app.screen, SessionScreen):
-                break
-        indicator = app.screen.query_one("#conn-indicator", Static)
-        assert "connected" in str(indicator.content)
-        assert indicator.has_class("up")
+        # Margin moved from the inner Input to the bordered wrapper
+        # row, which now owns the chrome (border + spacing).
+        composer_row = app.screen.query_one("#composer-row", Horizontal)
+        assert composer_row.styles.margin.top == 1
 
 
 @skip_if_trio
@@ -227,6 +213,53 @@ async def test_session_screen_binds_enter_and_escape(
     assert by_key["escape"].action == "interrupt"
     assert by_key["escape"].show is True
     assert by_key["escape"].priority is True
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_session_screen_binds_shift_enter_to_newline(
+    sample_rows: list[SessionRow],
+) -> None:
+    r"""⇧↵ newline must surface in the Footer with a ``\n``-inserting action.
+
+    The single-line ``Input`` doesn't render the newline locally, but
+    the character lives in ``Input.value`` and ships on submit. This
+    pins the binding so the footer hint matches what the action does.
+    """
+    by_key = {b.key: b for b in SessionScreen.BINDINGS}
+    assert "shift+enter" in by_key
+    assert by_key["shift+enter"].action == "newline"
+    assert by_key["shift+enter"].show is True
+    assert by_key["shift+enter"].key_display == "⇧↵"
+    assert by_key["shift+enter"].priority is True
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_newline_inserts_literal_newline_into_composer(
+    sample_rows: list[SessionRow],
+) -> None:
+    r"""``action_newline`` writes ``\n`` at the cursor without submitting."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        composer = app.screen.query_one("#composer", Input)
+        composer.value = "line one"
+        composer.cursor_position = len(composer.value)
+        app.screen.action_newline()
+        await pilot.pause()
+        assert composer.value == "line one\n"
+        # And no requests were sent — the newline is composer-local.
+        # ``FakeConnection.requests`` records ``(method, params)``
+        # tuples, so an empty list is the precise invariant.
+        conn = app.screen._session.connection  # type: ignore[attr-defined]
+        assert conn.requests == []
 
 
 @skip_if_trio
@@ -429,3 +462,222 @@ async def test_action_interrupt_is_noop_during_quiescence_tail(
         await pilot.pause()
         conn = app.screen._session.connection  # type: ignore[attr-defined]
         assert conn.notifications == []
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_session_screen_lifecycle_pill_starts_idle_and_hidden(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Initial lifecycle is ``idle`` — pill carries the class but is hidden.
+
+    Pins the "no chrome noise at rest" property — the pill exists
+    only to signal change, so between turns (and at startup) it
+    must not occupy a visible cell.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        pill = app.screen.query_one("#lifecycle-indicator", Static)
+        assert pill.has_class("idle")
+        # The ``.idle`` rule hides the pill via display: none — pin
+        # the empty content as a proxy so future glyph tweaks don't
+        # accidentally show something at rest.
+        assert str(pill.content) == ""
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_session_screen_lifecycle_pill_flips_to_running(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Pending model event flips pill to ``running`` AND adds esc hint to placeholder."""
+    from acp.schema import AgentMessageChunk, SessionNotification, TextContentBlock
+
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        # Inject a pending signal into state.
+        chunk = AgentMessageChunk(
+            session_update="agent_message_chunk",
+            content=TextContentBlock(type="text", text=""),
+            message_id="m1",
+            field_meta={"inspect.model_event_pending": True},
+        )
+        app.screen.state.consume(SessionNotification(session_id="sid", update=chunk))
+        await pilot.pause()
+        pill = app.screen.query_one("#lifecycle-indicator", Static)
+        assert "running" in str(pill.content)
+        assert pill.has_class("running")
+        composer = app.screen.query_one("#composer", Input)
+        assert "esc to interrupt" in composer.placeholder
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_session_screen_lifecycle_pill_flips_to_interrupted(
+    sample_rows: list[SessionRow],
+) -> None:
+    """``mark_interrupted`` flips pill to ``interrupted`` AND drops esc hint from placeholder."""
+    from acp.schema import AgentMessageChunk, SessionNotification, TextContentBlock
+
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        # Pending first so the interrupt actually tears something down.
+        chunk = AgentMessageChunk(
+            session_update="agent_message_chunk",
+            content=TextContentBlock(type="text", text=""),
+            message_id="m1",
+            field_meta={"inspect.model_event_pending": True},
+        )
+        app.screen.state.consume(SessionNotification(session_id="sid", update=chunk))
+        await pilot.pause()
+        app.screen.state.mark_interrupted()
+        await pilot.pause()
+        pill = app.screen.query_one("#lifecycle-indicator", Static)
+        assert "interrupted" in str(pill.content)
+        assert pill.has_class("interrupted")
+        composer = app.screen.query_one("#composer", Input)
+        assert "esc to interrupt" not in composer.placeholder
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_peer_disconnect_marks_complete_and_closes_session(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Peer-side disconnect: complete + read-only + ``close()`` runs.
+
+    Lifecycle flips to ``complete``, the composer goes read-only,
+    and ``AttachedSession.close`` runs even though the screen stays
+    mounted. Without the explicit ``close()`` in the watcher, the
+    ACP Connection/Sender/Dispatcher/writer would leak — the screen
+    no longer pops back to the picker, so ``on_unmount`` won't fire
+    for a long time (or ever this session).
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        # Spy on close so we can assert it was called by the watcher.
+        session = app.screen._session  # type: ignore[attr-defined]
+        close_calls: list[int] = []
+        original_close = session.close
+
+        async def _spy_close() -> None:
+            close_calls.append(1)
+            await original_close()
+
+        session.close = _spy_close  # type: ignore[method-assign]
+
+        # Trigger peer-side disconnect — same signal the receive
+        # loop sets on EOF / read error.
+        session.disconnected.set()
+        for _ in range(20):
+            await pilot.pause()
+            if app.screen.state.lifecycle == "complete":
+                break
+
+        assert app.screen.state.lifecycle == "complete"
+        assert close_calls == [1]
+        # Screen is still mounted (no auto-pop) so the operator can
+        # read the transcript.
+        assert isinstance(app.screen, SessionScreen)
+        # Composer goes read-only with the completion placeholder.
+        composer = app.screen.query_one("#composer", Input)
+        assert composer.disabled is True
+        assert composer.placeholder == "session complete"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_submit_is_noop_when_session_complete(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Stray ↵ after completion must not push into a dead pipe.
+
+    Pins reviewer P2: the composer's ``disabled`` flag handles the
+    typical case, but the priority binding could still land during a
+    focus-change window — gate ``action_submit`` on lifecycle as
+    belt + braces.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        # Force the lifecycle into ``complete`` without going through
+        # the disconnect path so we isolate the submit-guard.
+        app.screen.state.mark_complete()
+        await pilot.pause()
+        composer = app.screen.query_one("#composer", Input)
+        # Bypass the disabled flag in the test by writing directly to
+        # value (an Input.disabled wouldn't block programmatic writes).
+        composer.value = "anything"
+        await app.screen.action_submit()
+        await pilot.pause()
+        conn = app.screen._session.connection  # type: ignore[attr-defined]
+        assert conn.requests == []
+        # And the composer value is preserved — we didn't clear it.
+        assert composer.value == "anything"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_newline_is_noop_when_session_complete(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Stray ⇧↵ after completion must not mutate the composer.
+
+    Pins reviewer P3: ``shift+enter`` is priority-bound, so the
+    composer's ``disabled`` flag alone doesn't block the binding
+    from firing during a focus-change window. Without the
+    lifecycle guard a read-only completed session could still
+    accumulate locally-inserted newlines.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        app.screen.state.mark_complete()
+        await pilot.pause()
+        composer = app.screen.query_one("#composer", Input)
+        # Pre-seed a value we can verify wasn't mutated.
+        composer.value = "draft"
+        composer.cursor_position = len(composer.value)
+        app.screen.action_newline()
+        await pilot.pause()
+        assert composer.value == "draft"

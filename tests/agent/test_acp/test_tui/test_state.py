@@ -291,7 +291,7 @@ def test_image_content_block_renders_as_placeholder() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_current_model_tracks_most_recent_chunk() -> None:
+def test_current_model_tracks_most_recent_agent_chunk() -> None:
     state = SessionState()
     state.consume(_agent_chunk("a", message_id="m1", model="m-1"))
     assert state.current_model == "m-1"
@@ -557,7 +557,7 @@ def test_pending_signal_holds_status_at_generating_past_quiescence() -> None:
     assert state.status == StatusState.GENERATING
 
 
-def test_pending_signal_cleared_by_real_content_chunk() -> None:
+def test_pending_signal_cleared_by_real_content_agent_chunk() -> None:
     """First real content chunk closes the pending tracker.
 
     Quiescence then takes over for the inter-chunk gap.
@@ -830,7 +830,7 @@ def test_turn_cap_below_limit_is_a_noop() -> None:
 # ---------------------------------------------------------------------------
 
 
-def _pending_chunk(message_id: str = "pending-1") -> SessionNotification:
+def _pending_agent_chunk(message_id: str = "pending-1") -> SessionNotification:
     """Build the exact 'generation started' marker the server emits.
 
     Carries ``inspect.model_event_pending=True`` in field_meta so the
@@ -849,7 +849,7 @@ def _pending_chunk(message_id: str = "pending-1") -> SessionNotification:
 def test_mark_interrupted_drops_empty_pending_groups() -> None:
     """A pending bubble with no streamed content is removed entirely."""
     state = SessionState()
-    state.consume(_pending_chunk("pending-1"))
+    state.consume(_pending_agent_chunk("pending-1"))
     assert state.status == StatusState.GENERATING
     assert "pending-1" in state._messages_by_id
     assert any(
@@ -873,7 +873,7 @@ def test_mark_interrupted_drops_empty_pending_groups() -> None:
 def test_mark_interrupted_keeps_pending_groups_with_partial_content() -> None:
     """If text streamed before the cancel, keep the bubble but drop pending."""
     state = SessionState()
-    state.consume(_pending_chunk("pending-2"))
+    state.consume(_pending_agent_chunk("pending-2"))
     # Partial content arrives — pending=False after _append_segment but
     # we re-pend to mimic a quick second model_event_pending re-signal
     # (router emits one per ModelEvent retry; mid-stream cancel can
@@ -895,7 +895,7 @@ def test_mark_interrupted_keeps_pending_groups_with_partial_content() -> None:
 def test_mark_interrupted_drops_retry_aliases_for_dropped_groups() -> None:
     """Aliases pointing at dropped empty groups must not linger."""
     state = SessionState()
-    state.consume(_pending_chunk("pending-3"))
+    state.consume(_pending_agent_chunk("pending-3"))
     state._message_id_aliases["retry-of-3"] = "pending-3"
 
     state.mark_interrupted()
@@ -904,7 +904,7 @@ def test_mark_interrupted_drops_retry_aliases_for_dropped_groups() -> None:
     assert "retry-of-3" not in state._message_id_aliases
 
 
-def _complete_marker_chunk(message_id: str) -> SessionNotification:
+def _complete_marker_agent_chunk(message_id: str) -> SessionNotification:
     """Mimic the server's late completion marker for a cancelled ModelEvent.
 
     Router's ``_map_model_event`` empty branch emits this when a
@@ -931,11 +931,11 @@ def test_late_completion_marker_for_dropped_group_is_ignored() -> None:
     bar we were trying to remove.
     """
     state = SessionState()
-    state.consume(_pending_chunk("pending-late"))
+    state.consume(_pending_agent_chunk("pending-late"))
     state.mark_interrupted()
     assert "pending-late" not in state._messages_by_id
 
-    state.consume(_complete_marker_chunk("pending-late"))
+    state.consume(_complete_marker_agent_chunk("pending-late"))
 
     # Suppressed — no resurrection.
     assert "pending-late" not in state._messages_by_id
@@ -945,12 +945,12 @@ def test_late_completion_marker_for_dropped_group_is_ignored() -> None:
 def test_new_pending_for_different_message_id_still_works() -> None:
     """Suppression must be scoped to the SPECIFIC dropped id, not blanket."""
     state = SessionState()
-    state.consume(_pending_chunk("pending-old"))
+    state.consume(_pending_agent_chunk("pending-old"))
     state.mark_interrupted()
 
     # A new turn starts — new ModelEvent uuid → new message_id. The
     # spinner bubble must appear normally.
-    state.consume(_pending_chunk("pending-new"))
+    state.consume(_pending_agent_chunk("pending-new"))
 
     assert "pending-new" in state._messages_by_id
     assert state.status == StatusState.GENERATING
@@ -971,7 +971,7 @@ def test_late_completion_marker_under_retry_alias_is_ignored() -> None:
     appears.
     """
     state = SessionState()
-    state.consume(_pending_chunk("canonical-1"))
+    state.consume(_pending_agent_chunk("canonical-1"))
     state._message_id_aliases["retry-1"] = "canonical-1"
 
     state.mark_interrupted()
@@ -981,7 +981,7 @@ def test_late_completion_marker_under_retry_alias_is_ignored() -> None:
     assert "retry-1" in state._dropped_message_ids
 
     # Late completion marker under the retry id must NOT resurrect.
-    state.consume(_complete_marker_chunk("retry-1"))
+    state.consume(_complete_marker_agent_chunk("retry-1"))
     assert "retry-1" not in state._messages_by_id
     assert "canonical-1" not in state._messages_by_id
     assert not any(isinstance(item, MessageGroup) for item in state.items)
@@ -990,7 +990,7 @@ def test_late_completion_marker_under_retry_alias_is_ignored() -> None:
 def test_drop_message_groups_returns_alias_keys_too() -> None:
     """The helper exposes the full set of message_ids late chunks can use."""
     state = SessionState()
-    state.consume(_pending_chunk("canonical-2"))
+    state.consume(_pending_agent_chunk("canonical-2"))
     state._message_id_aliases["alias-A"] = "canonical-2"
     state._message_id_aliases["alias-B"] = "canonical-2"
     # Decoy: an alias pointing somewhere unrelated must NOT be included.
@@ -1064,7 +1064,7 @@ def test_mark_interrupted_resets_quiescence_timer() -> None:
 
 def test_mark_interrupted_notifies_subscribers_once() -> None:
     state = SessionState()
-    state.consume(_pending_chunk("p1"))
+    state.consume(_pending_agent_chunk("p1"))
     state.consume(_tool_start("tc-1"))
     fires: list[int] = []
     state.subscribe(lambda: fires.append(1))
@@ -1074,12 +1074,180 @@ def test_mark_interrupted_notifies_subscribers_once() -> None:
     assert sum(fires) == 1
 
 
-def test_mark_interrupted_with_nothing_inflight_is_silent() -> None:
-    """No subscribers fire when there's nothing to clear."""
+def test_mark_interrupted_with_nothing_inflight_still_records_residue() -> None:
+    """Hitting Esc with nothing in flight still flips ``_interrupted``.
+
+    The lifecycle indicator needs to reflect that the operator did
+    press Esc, even if there was no in-flight work to actually
+    tear down — so subscribers fire once, the flag flips, and the
+    derived lifecycle becomes ``interrupted``.
+    """
     state = SessionState()
     fires: list[int] = []
     state.subscribe(lambda: fires.append(1))
 
     state.mark_interrupted()
 
-    assert fires == []
+    assert fires == [1]
+    assert state.lifecycle == "interrupted"
+
+
+def test_lifecycle_initial_is_idle() -> None:
+    """At session start the resting lifecycle is ``idle`` (pill hidden)."""
+    state = SessionState()
+    assert state.lifecycle == "idle"
+
+
+def test_lifecycle_running_while_pending_signal_active() -> None:
+    """Pending model event flips lifecycle to ``running``."""
+    state = SessionState()
+    state.consume(_pending_signal("m1"))
+    assert state.lifecycle == "running"
+
+
+def test_lifecycle_running_while_tool_in_flight() -> None:
+    """An in-flight tool call alone keeps lifecycle ``running``."""
+    state = SessionState()
+    state.consume(_tool_start(status="in_progress"))
+    assert state.lifecycle == "running"
+
+
+def test_lifecycle_back_to_idle_after_natural_turn_end() -> None:
+    """Resting state between turns (past quiescence) is ``idle`` — NOT ``complete``.
+
+    ``complete`` is reserved for the server-side session end
+    (transport disconnect). A natural turn ending on a still-live
+    session is just back to idle once the running-quiescence tail
+    expires.
+    """
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_pending_signal("m1"))
+    state.consume(_agent_chunk("hi", message_id="m1"))
+    clock.t += 2.5  # past _RUNNING_QUIESCENCE_SECONDS
+    assert state.lifecycle == "idle"
+
+
+def test_lifecycle_complete_only_after_mark_complete_and_sticky() -> None:
+    """``mark_complete`` is the only path to ``complete``, and it sticks.
+
+    Sticky-ness matters: after the server-side session ends, late
+    chunks that might still arrive on the wire must not unstick the
+    indicator — the run is over and the UI is read-only from that
+    point on.
+    """
+    state = SessionState()
+    state.mark_complete()
+    assert state.lifecycle == "complete"
+    # A subsequent (e.g. last-flush) chunk arriving on the dying
+    # connection must not flip us back to ``running``.
+    state.consume(_pending_signal("m1"))
+    assert state.lifecycle == "complete"
+
+
+def test_lifecycle_interrupted_persists_after_mark_interrupted() -> None:
+    """Esc during a turn leaves lifecycle at ``interrupted`` until next chunk."""
+    state = SessionState()
+    state.consume(_pending_signal("m1"))
+    state.consume(_agent_chunk("partial", message_id="m1"))
+    state.mark_interrupted()
+    assert state.lifecycle == "interrupted"
+
+
+def test_lifecycle_interrupted_clears_on_next_real_agent_chunk() -> None:
+    """A fresh non-dropped chunk for a NEW group flips lifecycle back to running."""
+    state = SessionState()
+    state.consume(_pending_signal("m1"))
+    state.consume(_agent_chunk("partial", message_id="m1"))
+    state.mark_interrupted()
+    assert state.lifecycle == "interrupted"
+    state.consume(_pending_signal("m2"))
+    assert state.lifecycle == "running"
+
+
+def test_lifecycle_running_persists_through_quiescence_tail() -> None:
+    """Sub-second gap between in-flight signals must not flicker the pill.
+
+    Reproduces the original strobing complaint: model event completes,
+    has_active_work briefly drops to False, then the next tool call
+    starts. Without the quiescence tail the pill would flip
+    ``running → idle → running`` in the gap. With it, ``running``
+    persists for the tail window.
+    """
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+
+    state.consume(_pending_signal("m1"))
+    assert state.lifecycle == "running"
+    # Pending completes (e.g. via content chunk that closes the
+    # pending window). ``has_active_work`` is now False, but we're
+    # still within the quiescence tail.
+    state.consume(_agent_chunk("hi", message_id="m1"))
+    clock.t += 0.5
+    assert state.lifecycle == "running", (
+        "expected the quiescence tail to keep the pill on running"
+    )
+
+
+def test_lifecycle_falls_to_idle_after_quiescence_window_expires() -> None:
+    """After the tail expires with no fresh activity, lifecycle is idle."""
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+
+    state.consume(_pending_signal("m1"))
+    state.consume(_agent_chunk("hi", message_id="m1"))
+    clock.t += 2.5  # past _RUNNING_QUIESCENCE_SECONDS
+    assert state.lifecycle == "idle"
+
+
+def test_lifecycle_interrupted_wins_over_running_quiescence_tail() -> None:
+    """Esc inside the tail window reads as ``interrupted``, not warm-running.
+
+    Without explicit priority, the post-Esc state (has_active_work
+    False, _interrupted True, _last_running_at still recent) could
+    have fallen back into the quiescence-tail ``running`` branch and
+    swallowed the interrupt signal.
+    """
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+
+    state.consume(_pending_signal("m1"))
+    state.consume(_agent_chunk("partial", message_id="m1"))
+    # We're now in the quiescence tail.
+    state.mark_interrupted()
+    assert state.lifecycle == "interrupted"
+
+
+def test_lifecycle_tail_stamped_when_long_pending_completes() -> None:
+    """Pending that runs >2s before completing still gets a fresh tail.
+
+    Regression: stamping only when ``has_active_work`` was True AFTER
+    the update meant the update that *ended* the only active work
+    left a stale stamp (from the pending signal seconds earlier).
+    The lifecycle then skipped the quiescence tail and fell straight
+    to ``idle`` the moment generation completed — flickering the
+    pill at every long turn boundary.
+    """
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+
+    state.consume(_pending_signal("m1"))
+    assert state.lifecycle == "running"
+
+    # Sit on the pending for longer than the quiescence window.
+    clock.t += 5.0
+    assert state.lifecycle == "running"  # has_active_work covers it
+
+    # Completion chunk arrives — has_active_work flips to False, but
+    # the tail should re-stamp NOW so we stay on running for the
+    # full quiescence window after the actual end of work.
+    state.consume(_agent_chunk("done", message_id="m1"))
+    assert state.lifecycle == "running"
+
+    # Half a tail in, still running.
+    clock.t += 1.0
+    assert state.lifecycle == "running"
+
+    # Past the tail, falls to idle as expected.
+    clock.t += 2.0
+    assert state.lifecycle == "idle"

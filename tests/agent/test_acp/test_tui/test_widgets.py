@@ -1359,12 +1359,13 @@ async def test_tool_call_header_uses_tool_bullet_color() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_inflight_tool_call_footer_shows_esc_to_interrupt_hint() -> None:
-    """In-flight footer carries a quiet ``(esc to interrupt)`` hint.
+async def test_tool_call_footer_does_not_repeat_esc_to_interrupt_hint() -> None:
+    """The cancel hint lives in the composer placeholder, not per-tool.
 
-    Gives the operator a no-look reminder of the cancel affordance.
-    Hint goes away once the tool reaches a terminal state — at that
-    point Esc is a no-op (gated by ``has_active_work`` on the screen).
+    Pins the single-source-of-truth decision: while
+    ``lifecycle == "running"`` the placeholder reads
+    "type a message · esc to interrupt", so repeating the hint on
+    every tool-call card is noise.
     """
     state = ToolCallState(
         tool_call_id="tc-1",
@@ -1376,37 +1377,13 @@ async def test_inflight_tool_call_footer_shows_esc_to_interrupt_hint() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         footer = app.query_one(ToolCallWidget).query_one(".footer", Static)
-        assert "(esc to interrupt)" in str(footer.content)
+        assert "esc to interrupt" not in str(footer.content)
 
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_completed_tool_call_footer_omits_esc_hint() -> None:
-    """Terminal tools have nothing to interrupt — drop the hint."""
-    state = ToolCallState(
-        tool_call_id="tc-1",
-        title="bash",
-        kind="execute",
-        status="completed",
-        end_time=1.0,
-    )
-    state.start_time = 0.0
-    app = _harness(lambda: ToolCallWidget(state))
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        footer = app.query_one(ToolCallWidget).query_one(".footer", Static)
-        assert "(esc to interrupt)" not in str(footer.content)
-
-
-@skip_if_trio
-@pytest.mark.anyio
-async def test_pending_assistant_chip_shows_esc_to_interrupt_hint() -> None:
-    """Pending assistant chip carries the quiet ``(esc to interrupt)`` hint.
-
-    Visible only while ``pending`` — once content arrives (or the
-    completion marker lands), pending flips false and the hint
-    disappears.
-    """
+async def test_assistant_chip_does_not_repeat_esc_to_interrupt_hint() -> None:
+    """Same single-source-of-truth rule for the assistant chip."""
     group = MessageGroup(
         message_id="m1",
         role="assistant",
@@ -1417,24 +1394,7 @@ async def test_pending_assistant_chip_shows_esc_to_interrupt_hint() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         chip = app.query_one(MessageWidget).query_one(".chip", Static)
-        assert "(esc to interrupt)" in str(chip.content)
-
-
-@skip_if_trio
-@pytest.mark.anyio
-async def test_completed_assistant_chip_omits_esc_hint() -> None:
-    """Non-pending assistant chip drops the hint."""
-    group = MessageGroup(
-        message_id="m1",
-        role="assistant",
-        model="my-model",
-        pending=False,
-    )
-    app = _harness(lambda: MessageWidget(group))
-    async with app.run_test() as pilot:
-        await pilot.pause()
-        chip = app.query_one(MessageWidget).query_one(".chip", Static)
-        assert "(esc to interrupt)" not in str(chip.content)
+        assert "esc to interrupt" not in str(chip.content)
 
 
 @skip_if_trio
@@ -1459,9 +1419,7 @@ async def test_completed_assistant_chip_drops_retry_and_elapsed() -> None:
     app = _harness(lambda: MessageWidget(group))
     async with app.run_test() as pilot:
         await pilot.pause()
-        rendered = str(
-            app.query_one(MessageWidget).query_one(".chip", Static).content
-        )
+        rendered = str(app.query_one(MessageWidget).query_one(".chip", Static).content)
         assert "retry" not in rendered
         assert "(" not in rendered  # no parens-note at all
         # And no elapsed marker either — the "· " dot-separator should
@@ -1471,12 +1429,12 @@ async def test_completed_assistant_chip_drops_retry_and_elapsed() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_pending_assistant_chip_combines_retry_and_esc_hint() -> None:
-    """When retries > 0 and pending, both notes share one ``(…)`` group.
+async def test_pending_assistant_chip_shows_retry_counter() -> None:
+    """When retries > 0 and pending, the chip shows ``(retry N)`` alone.
 
-    Pins the combined form ``(retry N, esc to interrupt)`` — reading
-    two adjacent parens clusters (``(retry 3) (esc to interrupt)``)
-    was busier than reading one comma-joined group.
+    The "esc to interrupt" hint moved to the composer placeholder
+    (single source of truth) — only the retry counter remains in
+    the chip's parens-note.
     """
     group = MessageGroup(
         message_id="m1",
@@ -1488,11 +1446,6 @@ async def test_pending_assistant_chip_combines_retry_and_esc_hint() -> None:
     app = _harness(lambda: MessageWidget(group))
     async with app.run_test() as pilot:
         await pilot.pause()
-        rendered = str(
-            app.query_one(MessageWidget).query_one(".chip", Static).content
-        )
-        assert "(retry 3, esc to interrupt)" in rendered
-        # And NOT the split form.
-        assert "(retry 3)" not in rendered.replace(
-            "(retry 3, esc to interrupt)", ""
-        )
+        rendered = str(app.query_one(MessageWidget).query_one(".chip", Static).content)
+        assert "(retry 3)" in rendered
+        assert "esc to interrupt" not in rendered

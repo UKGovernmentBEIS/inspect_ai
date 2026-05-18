@@ -24,10 +24,11 @@ from textual.binding import Binding
 from textual.containers import Container, Vertical
 from textual.css.query import NoMatches
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Input, Markdown, Static
+from textual.widgets import DataTable, Input, Markdown, Static
 from textual.widgets._data_table import CellDoesNotExist
 
 from .client import SessionRow
+from .widgets import AppFooter
 from .widgets._formatting import format_running, format_tokens
 
 # Column keys — module constants so add_column, update_cell, and per-tick
@@ -270,7 +271,7 @@ class PickerScreen(Screen[None]):
             yield from self._compose_empty()
         else:
             yield from self._compose_table()
-        yield Footer()
+        yield AppFooter()
 
     def _compose_empty(self) -> ComposeResult:
         # Differentiate the two empty cases: "no local discovery" vs

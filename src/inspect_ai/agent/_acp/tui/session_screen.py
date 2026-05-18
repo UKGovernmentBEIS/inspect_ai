@@ -22,14 +22,15 @@ from typing import Callable
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical
+from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.screen import Screen
-from textual.widgets import Footer, Input
+from textual.widgets import Input, Static
 
 from .client import AttachedSession
 from .state import SessionState
 from .widgets import (
+    AppFooter,
     SessionHeaderWidget,
     TranscriptWidget,
 )
@@ -54,6 +55,21 @@ class SessionScreen(Screen[None]):
     # the user can always leave the session.
     BINDINGS = [
         Binding("enter", "submit", "submit", show=True, key_display="↵", priority=True),
+        # ``shift+enter`` inserts a literal ``\n`` into the composer
+        # value. The current single-line ``Input`` doesn't render the
+        # newline locally — it survives in ``Input.value`` and ships
+        # to the server on submit, but the composer column shows the
+        # text as one line until we swap the composer for ``TextArea``.
+        # Advertising the shortcut now so muscle memory matches the
+        # eventual visible behaviour.
+        Binding(
+            "shift+enter",
+            "newline",
+            "newline",
+            show=True,
+            key_display="⇧↵",
+            priority=True,
+        ),
         Binding("escape", "interrupt", "interrupt", show=True, priority=True),
         Binding(
             "ctrl+s",
@@ -68,11 +84,33 @@ class SessionScreen(Screen[None]):
     SessionScreen { layout: vertical; }
     /* margin-top: 1 so the composer doesn't sit flush against the
      * last transcript item — gives the input visual breathing room
-     * from the conversation it's appending to. */
-    #composer {
+     * from the conversation it's appending to. Border tints $accent
+     * down so the chrome reads as part of the same family as the
+     * ``inspect acp`` caption without competing with transcript
+     * content for attention. */
+    #composer-row {
         height: 3;
         margin: 1 2 1 2;
-        border: tall $primary 30%;
+        border: tall $accent 55%;
+    }
+    /* Readonly "> " so the operator reads the row as a prompt
+     * (terminal convention). Dimmed accent + no bold to keep the
+     * chrome quiet — the prompt is a hint, not a call to action. */
+    #composer-prompt {
+        width: 3;
+        height: 1;
+        color: $accent 55%;
+        padding: 0 0 0 1;
+    }
+    /* Drop Input's own border + tint so it sits inside the wrapper
+     * border as a single composer affordance instead of two stacked
+     * boxes. */
+    #composer {
+        height: 1;
+        width: 1fr;
+        border: none;
+        background: transparent;
+        padding: 0;
     }
     """
 
@@ -102,11 +140,16 @@ class SessionScreen(Screen[None]):
         with Vertical():
             yield SessionHeaderWidget(self._session.row)
             yield TranscriptWidget()
-            yield Input(
-                placeholder="type a message for the agent…",
-                id="composer",
-            )
-        yield Footer()
+            with Horizontal(id="composer-row"):
+                yield Static("> ", id="composer-prompt", markup=False)
+                yield Input(
+                    # Resting-state placeholder. ``_apply_state``
+                    # appends "· esc to interrupt" while the
+                    # lifecycle is ``running``.
+                    placeholder="type a message",
+                    id="composer",
+                )
+        yield AppFooter()
 
     async def on_mount(self) -> None:
         self._apply_state()
@@ -143,45 +186,93 @@ class SessionScreen(Screen[None]):
             return
         header.set_usage(self._state.usage)
         transcript.refresh_from(self._state)
+        self._apply_lifecycle()
+
+    def _apply_lifecycle(self) -> None:
+        """Push the current lifecycle to the header pill + composer.
+
+        Split out from ``_apply_state`` because lifecycle is partly
+        TIME-driven (the ``running`` quiescence tail expires N
+        seconds after the last activity, without a state mutation to
+        fire ``subscribe``). The periodic ``_tick`` calls this so the
+        pill flips from ``running`` to ``idle`` when the tail
+        actually expires rather than at the next unrelated state
+        update.
+        """
+        try:
+            header = self.query_one(SessionHeaderWidget)
+        except NoMatches:
+            return
+        lifecycle = self._state.lifecycle
+        header.set_lifecycle(lifecycle)
+        composer = self._composer_or_none()
+        if composer is not None:
+            # Three placeholder states, and the composer goes
+            # read-only on ``complete``: the ACP session is gone so a
+            # submit would silently round-trip into the void. Better
+            # to surface that the session is finished and freeze the
+            # input than to let the operator type into a dead pipe.
+            if lifecycle == "complete":
+                composer.placeholder = "session complete"
+                composer.disabled = True
+            else:
+                composer.placeholder = (
+                    "type a message · esc to interrupt"
+                    if lifecycle == "running"
+                    else "type a message"
+                )
+                composer.disabled = False
 
     def _tick(self) -> None:
         # In-flight tool durations + the assistant chip spinner have no
         # state mutation that fires ``subscribe``, so we nudge them
-        # here on a timer.
+        # here on a timer. Same reason ``_apply_lifecycle`` runs here:
+        # the lifecycle's ``running`` quiescence tail is time-driven.
         try:
             self.query_one(TranscriptWidget).tick_inflight_durations()
         except NoMatches:
             pass
+        self._apply_lifecycle()
 
     # ------------------------------------------------------------------
     # Disconnect watch
     # ------------------------------------------------------------------
 
     async def _watch_disconnect(self) -> None:
-        """Notify + pop back to the picker as soon as the peer goes away.
+        """Flip the lifecycle pill to ``complete`` when the peer goes away.
 
         The client's receive-task sets ``disconnected`` on EOF / read
-        error / explicit close — so this just blocks on the event and
-        reacts. The previous polling loop was a workaround for the
-        absence of that wiring and added a ~500ms quantum to the
-        user-visible recovery.
+        error / explicit close. ACP has no explicit "session
+        complete" notification today, so transport disconnect is the
+        signal we have: the inspect agent loop returned, the server
+        tore the session down, no more updates are coming.
+
+        The previous behaviour popped back to the picker, which made
+        the transcript unreadable post-completion. Now we leave the
+        UI in place (so the operator can review the final state)
+        and just mark the session complete in state — the header
+        pill picks that up via the next ``_apply_state`` notify.
+
+        ^S still pops manually via ``action_switch_sample``.
         """
         try:
             await self._session.disconnected.wait()
         except asyncio.CancelledError:
             return
-        # User-initiated ^S switch closes the session itself, which
-        # fires ``disconnected``. The action handler has already kicked
-        # off the pop; the toast would be misleading ("disconnected"
-        # vs "you asked to switch") so swallow it.
+        # User-initiated ^S switch fires ``disconnected`` after the
+        # action handler has already kicked off the pop — no need to
+        # mark complete or do anything else here (``on_unmount`` will
+        # run ``close()`` as the pop tears down the screen).
         if self._user_initiated_close:
             return
-        try:
-            self.query_one(SessionHeaderWidget).set_connected(False)
-            self.app.notify("disconnected from server", severity="warning")
-        except NoMatches:
-            pass
-        self._on_disconnect()
+        self._state.mark_complete()
+        # Tear down the ACP Connection / Sender / Dispatcher and the
+        # writer NOW rather than at unmount — the screen stays
+        # mounted post-completion as a read-only postmortem, so
+        # ``on_unmount`` won't run for a long time (or ever, this
+        # session). ``close()`` is idempotent so a later
+        # user-initiated ^S unmount path stays safe.
+        await self._session.close()
 
     # ------------------------------------------------------------------
     # Actions
@@ -199,7 +290,14 @@ class SessionScreen(Screen[None]):
         meaningless request. Errors from the server (connection dead,
         session vanished) surface as a toast — the user still owns the
         text, since we only clear after the request returns.
+
+        Also a no-op once the session is complete — the composer is
+        already disabled in that state, but the binding is
+        ``priority=True`` so a stray ↵ during a focus-change window
+        could still land. Belt + braces.
         """
+        if self._state.lifecycle == "complete":
+            return
         composer = self._composer_or_none()
         if composer is None:
             return
@@ -222,6 +320,29 @@ class SessionScreen(Screen[None]):
             self.app.notify(f"failed to send: {exc}", severity="error")
             return
         composer.value = ""
+
+    def action_newline(self) -> None:
+        """Insert a literal newline at the composer cursor.
+
+        Hint-only for now: the single-line :class:`Input` doesn't
+        render the newline locally, but the character lives in
+        ``Input.value`` and ships to the server on submit. When the
+        composer migrates to ``TextArea`` the binding's UX will
+        match the footer hint without a key-rebind.
+
+        No-op once the session is complete — same belt-and-braces
+        reasoning as ``action_submit``: the composer is disabled in
+        that state, but ``shift+enter`` is ``priority=True`` so the
+        binding could still fire during a focus-change window.
+        Without this guard a "read-only" completed transcript could
+        still accumulate locally-inserted newlines.
+        """
+        if self._state.lifecycle == "complete":
+            return
+        composer = self._composer_or_none()
+        if composer is None:
+            return
+        composer.insert_text_at_cursor("\n")
 
     async def action_interrupt(self) -> None:
         """Clear the composer draft, or interrupt the running turn.

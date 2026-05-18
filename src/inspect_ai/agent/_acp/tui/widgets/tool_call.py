@@ -56,8 +56,6 @@ _FAILED_GLYPH = "✗"
 # so tools read distinctly from the system / assistant blue.
 _TOOL_BULLET_COLOR = "#7dcfff"
 
-_PLACEHOLDER_SIG: tuple[Any, ...] = ("placeholder",)
-
 
 class ToolCallWidget(Widget):
     """Bullet-prefixed tool-call row, matched to :class:`MessageWidget`.
@@ -281,18 +279,16 @@ class ToolCallWidget(Widget):
     ) -> bool:
         """True when the body can't be patched in place.
 
-        Triggers: kind switch (plan ↔ content), any change inside a
-        plan body (plans are short and rebuild cheaply), or a
-        transition into / out of the empty ``(no output yet)``
-        placeholder.
+        Triggers: kind switch (plan ↔ content), or any change inside
+        a plan body (plans are short and rebuild cheaply). The
+        empty-body case is handled by ``_can_append_only`` —
+        ``[] → [item, …]`` has an empty common prefix equal to the
+        empty mounted list, so the append-only path mounts the new
+        items without a full teardown.
         """
         if new_kind != self._mounted_kind:
             return True
-        if new_kind == "plan":
-            return True
-        was_placeholder = self._mounted_item_sigs == [_PLACEHOLDER_SIG]
-        is_placeholder = new_sigs == [_PLACEHOLDER_SIG]
-        return was_placeholder or is_placeholder
+        return new_kind == "plan"
 
     def _can_extend_last_item(self, new_sigs: list[tuple[Any, ...]]) -> bool:
         """True when the only change is that the last content item grew.
@@ -383,9 +379,9 @@ class ToolCallWidget(Widget):
             return
 
         items = self._state.content or []
-        if not items:
-            yield Static("(no output yet)", classes="body-content", markup=False)
-            return
+        # No items yet → empty body. The header + footer (spinner +
+        # elapsed) already convey "in flight, no output yet" without
+        # a dedicated placeholder row.
         # Each content item lives in its own ``.content-item`` wrapper
         # so update_state can identify "the widget for item N" and
         # append-only mount new wrappers without disturbing existing
@@ -506,13 +502,13 @@ class ToolCallWidget(Widget):
         else:
             glyph = SPINNER_FRAMES[self._spinner_frame % len(SPINNER_FRAMES)]
         # In-flight: derive elapsed from start_time so the card surfaces
-        # progress without waiting for a terminal status, and append a
-        # quiet "(esc to interrupt)" hint so the operator knows the
-        # action is available without having to scan the footer keymap.
+        # progress without waiting for a terminal status. The
+        # "esc to interrupt" affordance lives in the composer
+        # placeholder while ``lifecycle == "running"`` (single source
+        # of truth) — repeating it on every tool card was noise.
         if self._state.is_terminal:
             return f"{glyph} {format_duration(self._state.duration_seconds)}"
-        duration = format_duration(time.monotonic() - self._state.start_time)
-        return f"{glyph} {duration} (esc to interrupt)"
+        return f"{glyph} {format_duration(time.monotonic() - self._state.start_time)}"
 
     def _text_for_inner(self, inner: object) -> str:
         # TextContentBlock → text; everything else gets a placeholder
@@ -536,8 +532,6 @@ class ToolCallWidget(Widget):
         if plan is not None:
             return [("plan", tuple(_plan_entry_sig(e) for e in plan))]
         items = self._state.content or []
-        if not items:
-            return [_PLACEHOLDER_SIG]
         return [item_signature(item) for item in items]
 
     def _is_plan_state(self) -> bool:

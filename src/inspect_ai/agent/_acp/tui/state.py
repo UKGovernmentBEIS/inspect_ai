@@ -59,6 +59,14 @@ from inspect_ai.agent._acp.inspect_ext import (
 # flickering during typical stream gaps.
 _GENERATING_QUIESCENCE_SECONDS = 2.0
 
+# Lifecycle ``running`` pill stays visible for this many seconds after
+# ``has_active_work`` drops to False. Covers the sub-second gaps
+# between model events and tool calls (otherwise the pill flickers
+# "running → idle → running" several times per turn). Real activity
+# either resumes inside this window (re-stamping the timestamp) or
+# never resumes (which is the genuine idle case worth surfacing).
+_RUNNING_QUIESCENCE_SECONDS = 2.0
+
 _MAX_ASSISTANT_TURNS = 15
 """Maximum number of assistant message groups retained in the transcript.
 
@@ -290,6 +298,29 @@ class SessionState:
         # interrupts that fired before any content streamed; in
         # practice tiny.
         self._dropped_message_ids: set[str] = set()
+        # Sticky flag flipped True by ``mark_interrupted`` and cleared
+        # the next time real content lands. Powers the resting-state
+        # lifecycle indicator's ``interrupted`` value — without it
+        # there's no way to distinguish "Esc was hit and the turn
+        # unwound" from "the turn completed normally", since both
+        # leave ``has_active_work`` False.
+        self._interrupted: bool = False
+        # Sticky flag flipped True by ``mark_complete`` when the
+        # server-side session ends (transport disconnect / explicit
+        # end). Once set the lifecycle pill stays on ``complete``
+        # regardless of in-flight residue — the session is gone and
+        # the UI is just a read-only postmortem from that point on.
+        self._complete: bool = False
+        # Wall-clock of the most recent moment ``has_active_work`` was
+        # True. Used to keep the lifecycle pill on ``running`` through
+        # the sub-second micro-gaps between model events and tool
+        # calls (otherwise the pill strobes "running → idle → running"
+        # several times per turn as each pending/tool finishes
+        # nanoseconds before the next one starts). Same quiescence
+        # idea the ``status`` property uses for ``GENERATING``, but
+        # this one tracks ALL active work — chunks + tool events —
+        # instead of just chunks.
+        self._last_running_at: float | None = None
         self._subscribers: list[Callable[[], None]] = []
 
     # ------------------------------------------------------------------
@@ -319,6 +350,54 @@ class SessionState:
     # ------------------------------------------------------------------
     # Operator-driven mutations
     # ------------------------------------------------------------------
+
+    @property
+    def lifecycle(self) -> Literal["idle", "running", "interrupted", "complete"]:
+        """Coarse-grained turn lifecycle for the header pill.
+
+        Four states, in priority order so a true terminal signal
+        always wins over transient turn state:
+
+        - ``complete``: the server-side session has ended (transport
+          disconnect / explicit end). Sticky — once set, stays set.
+        - ``running``: at least one model event or tool call is
+          currently in flight (``has_active_work``), OR the last
+          activity was within ``_RUNNING_QUIESCENCE_SECONDS`` (covers
+          the sub-second gap between, e.g., a model event completing
+          and the next tool call starting — without the tail the
+          pill strobed on every micro-gap).
+        - ``interrupted``: the operator hit Esc during a turn and
+          no fresh content has arrived since. Checked *before* the
+          quiescence tail so an Esc immediately reads as interrupted
+          rather than waiting out the tail in ``running``.
+        - ``idle``: resting between turns or the initial state. Pill
+          hides on this value so the chrome stays quiet when nothing
+          is happening — the indicator exists to signal change, not
+          to fill space at rest.
+        """
+        if self._complete:
+            return "complete"
+        if self.has_active_work:
+            return "running"
+        if self._interrupted:
+            return "interrupted"
+        if (
+            self._last_running_at is not None
+            and (self._now() - self._last_running_at) < _RUNNING_QUIESCENCE_SECONDS
+        ):
+            return "running"
+        return "idle"
+
+    def mark_complete(self) -> None:
+        """Sticky-mark the session as ended (transport disconnect / end).
+
+        Idempotent — subsequent calls are no-ops. Notifies subscribers
+        on the first transition so the pill can flip immediately.
+        """
+        if self._complete:
+            return
+        self._complete = True
+        self._notify()
 
     def mark_interrupted(self) -> None:
         """Optimistically clear in-flight signals after the operator hits Esc.
@@ -371,6 +450,13 @@ class SessionState:
         if self._last_chunk_at is not None:
             self._last_chunk_at = None
             changed = True
+        # Reset the running-quiescence stamp too: without this, after
+        # ``_interrupted`` clears (on the next real chunk), a stale
+        # stamp from before the Esc would briefly extend the
+        # ``running`` tail past a genuinely-idle gap.
+        if self._last_running_at is not None:
+            self._last_running_at = None
+            changed = True
         now = self._now()
         for tc in self._tool_calls_by_id.values():
             if tc.status in ("pending", "in_progress"):
@@ -378,6 +464,13 @@ class SessionState:
                 if tc.end_time is None:
                     tc.end_time = now
                 changed = True
+        # ``_interrupted`` flips to True regardless of ``changed`` so
+        # the lifecycle indicator reflects the Esc even if no in-flight
+        # work was actually torn down (operator pressed Esc twice, or
+        # a quiescence-tail Esc that was previously gated out).
+        if not self._interrupted:
+            self._interrupted = True
+            changed = True
         if changed:
             self._notify()
 
@@ -440,6 +533,12 @@ class SessionState:
             return
 
         update = notification.update
+        # Snapshot BEFORE applying the update so the running-tail
+        # stamp also fires on the update that ENDS active work —
+        # otherwise a long pending (>2s) that completes on a single
+        # content/completion chunk would leave a stale stamp and the
+        # lifecycle would skip the tail and fall straight to ``idle``.
+        was_active = self.has_active_work
         changed = False
         if isinstance(update, (UserMessageChunk, AgentMessageChunk, AgentThoughtChunk)):
             changed = self._consume_chunk(update)
@@ -452,6 +551,16 @@ class SessionState:
         elif isinstance(update, SessionInfoUpdate):
             changed = self._consume_session_info(update)
         if changed:
+            # Stamp the running-window timestamp BEFORE notifying so
+            # subscribers (notably the header pill) see the freshest
+            # ``has_active_work`` and the quiescence window in sync.
+            # Stamp on EITHER edge of has_active_work being True
+            # (before-or-after the update): covers steady-state
+            # activity AND the True→False transition (when the
+            # current update is what ended the only active work, so
+            # the tail starts fresh at that moment).
+            if was_active or self.has_active_work:
+                self._last_running_at = self._now()
             self._notify()
 
     def _role_for(
@@ -511,6 +620,13 @@ class SessionState:
         self._apply_pending_lifecycle(group, is_pending_signal, meta)
         self._append_segment(group, update)
         self._apply_chunk_metadata(group, role, meta)
+        # Fresh non-tombstoned content clears the "interrupted" residue
+        # — the next turn's chunks have started flowing, so the
+        # lifecycle indicator should leave the interrupted state. Done
+        # after the resolve/apply calls above so we only react to
+        # chunks that actually made it through (not the early-return
+        # dropped paths above).
+        self._interrupted = False
 
         # The "Generating" derivation is time-based — record the latest
         # chunk activity so :attr:`status` can decide when to fall back

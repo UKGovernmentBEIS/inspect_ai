@@ -241,15 +241,12 @@ class MessageWidget(Widget):
                     time.monotonic() - self._group.pending_started_at
                 )
                 suffix += f" [dim]· {elapsed}[/dim]"
-            # Retry counter + "esc to interrupt" hint share one parens
-            # group — reading two adjacent ``(…)`` clusters
-            # (``(retry 3) (esc to interrupt)``) was busier than
-            # reading one ``(retry 3, esc to interrupt)``.
-            notes: list[str] = []
+            # Retry counter rides as a parens-note. The
+            # "esc to interrupt" affordance lives in the composer
+            # placeholder while ``lifecycle == "running"`` (single
+            # source of truth) — repeating it on every chip was noise.
             if self._group.retries > 0:
-                notes.append(f"retry {self._group.retries}")
-            notes.append("esc to interrupt")
-            suffix += f" [dim]({', '.join(notes)})[/dim]"
+                suffix += f" [dim](retry {self._group.retries})[/dim]"
         return f"[{fg}]{glyph}[/] {base}{suffix}"
 
     def _palette_key(self) -> str:

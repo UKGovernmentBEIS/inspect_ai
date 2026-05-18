@@ -1,4 +1,4 @@
-"""One-row headers — app title + (optionally) session meta + connection.
+"""One-row headers — app title + (optionally) session meta + lifecycle.
 
 Two widgets share the same tinted band + ``inspect acp`` left-rail
 treatment so the picker and session screens read as part of one
@@ -6,7 +6,8 @@ chrome:
 
 - :class:`AppHeaderWidget` — title only, used by the picker.
 - :class:`SessionHeaderWidget` — title + task/sample/epoch/agent/tokens
-  identifiers + connection indicator, used while attached to a session.
+  identifiers + a turn-lifecycle pill (running / interrupted /
+  complete), used while attached to a session.
 
 Labels are dim provenance; values render in the default text colour
 so the eye lands on the identifying VALUES first and the labels
@@ -15,6 +16,8 @@ second. Mirrors the same hierarchy used in the assistant chip
 """
 
 from __future__ import annotations
+
+from typing import Literal
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal
@@ -25,6 +28,21 @@ from textual.widgets import Static
 from ..client import SessionRow
 from ..state import UsageState
 from ._formatting import format_tokens
+
+Lifecycle = Literal["idle", "running", "interrupted", "complete"]
+
+_LIFECYCLE_TEXT: dict[Lifecycle, str] = {
+    # Glyphs picked so the *shape* alone carries state even before
+    # colour registers: filled dot for live, slashed circle for
+    # halted, check for done. Colour styling lives in the CSS rules
+    # on ``#lifecycle-indicator.<state>``. Idle has no text — the
+    # pill goes invisible via the ``.idle`` rule so the chrome stays
+    # quiet when nothing is happening.
+    "idle": "",
+    "running": "● running",
+    "interrupted": "⊘ interrupted",
+    "complete": "✓ complete",
+}
 
 
 def _short_task_name(name: str) -> str:
@@ -92,9 +110,12 @@ class SessionHeaderWidget(Widget):
     SessionHeaderWidget .meta {
         width: 1fr;
     }
-    SessionHeaderWidget #conn-indicator { width: auto; }
-    SessionHeaderWidget #conn-indicator.up { color: $success; }
-    SessionHeaderWidget #conn-indicator.down { color: $error; }
+    SessionHeaderWidget #lifecycle-indicator { width: auto; }
+    SessionHeaderWidget #lifecycle-indicator.running { color: $success; }
+    SessionHeaderWidget #lifecycle-indicator.interrupted { color: $warning; }
+    SessionHeaderWidget #lifecycle-indicator.complete { color: $accent; }
+    /* Idle: hide entirely. Keeps the band quiet between turns. */
+    SessionHeaderWidget #lifecycle-indicator.idle { display: none; }
     """
 
     def __init__(self, row: SessionRow) -> None:
@@ -108,7 +129,16 @@ class SessionHeaderWidget(Widget):
             yield Static(
                 self._meta_markup(), classes="meta", id="meta-text", markup=True
             )
-            yield Static("● connected", id="conn-indicator", classes="up", markup=False)
+            # Lifecycle pill — starts as ``idle`` (no work yet) and
+            # therefore hidden via the ``.idle`` rule.
+            # ``SessionScreen._apply_state`` calls ``set_lifecycle`` on
+            # every state notification to keep it in sync.
+            yield Static(
+                _LIFECYCLE_TEXT["idle"],
+                id="lifecycle-indicator",
+                classes="idle",
+                markup=False,
+            )
 
     def _meta_markup(self) -> str:
         # Labels are dim provenance; values render in the default
@@ -118,10 +148,13 @@ class SessionHeaderWidget(Widget):
         row = self._row
         agent = row.agent_name or "—"
         task = _short_task_name(row.task)
+        # ``sample/epoch`` fuses into one field — epoch is a sub-key of
+        # the sample (each sample-epoch pair is its own session), so
+        # ``sample: foo/1`` reads as one identifier instead of two
+        # adjacent ones and frees a meta slot.
         parts = [
             f"[dim]task:[/dim] {task}",
-            f"[dim]sample:[/dim] {row.sample_id}",
-            f"[dim]epoch[/dim] {row.epoch}",
+            f"[dim]sample:[/dim] {row.sample_id}/{row.epoch}",
             f"[dim]agent:[/dim] {agent}",
         ]
         tokens = self._tokens_markup()
@@ -138,6 +171,22 @@ class SessionHeaderWidget(Widget):
             return ""
         return f"[dim]tokens[/dim] {format_tokens(u.used)}"
 
+    def set_lifecycle(self, state: Lifecycle) -> None:
+        """Reflect the latest turn lifecycle on the upper-right pill.
+
+        Driven by ``SessionScreen._apply_state`` so the pill and the
+        composer placeholder both read from the same
+        :attr:`SessionState.lifecycle` derivation.
+        """
+        try:
+            pill = self.query_one("#lifecycle-indicator", Static)
+        except NoMatches:
+            return
+        for cls in ("idle", "running", "interrupted", "complete"):
+            pill.remove_class(cls)
+        pill.update(_LIFECYCLE_TEXT[state])
+        pill.add_class(state)
+
     def set_usage(self, usage: UsageState | None) -> None:
         """Refresh the tokens chip from the latest UsageUpdate.
 
@@ -152,18 +201,3 @@ class SessionHeaderWidget(Widget):
             self.query_one("#meta-text", Static).update(self._meta_markup())
         except NoMatches:
             pass
-
-    def set_connected(self, connected: bool) -> None:
-        """Flip the connection indicator (sage when up, rust when down)."""
-        try:
-            indicator = self.query_one("#conn-indicator", Static)
-        except NoMatches:
-            return
-        if connected:
-            indicator.update("● connected")
-            indicator.remove_class("down")
-            indicator.add_class("up")
-        else:
-            indicator.update("○ disconnected")
-            indicator.remove_class("up")
-            indicator.add_class("down")
