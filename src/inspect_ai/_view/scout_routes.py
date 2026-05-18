@@ -1,7 +1,10 @@
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from fastapi import APIRouter
+
+logger = logging.getLogger(__name__)
 
 
 def get_scout_search_router() -> "APIRouter | None":
@@ -13,9 +16,9 @@ def get_scout_search_router() -> "APIRouter | None":
     """
     try:
         from inspect_scout._view._api_v2_search import create_search_router
-    except Exception:
+    except ImportError:
         return None
-    try:
-        return create_search_router()
-    except Exception:
+    except Exception as ex:
+        logger.warning(f"Failed to load inspect_scout search router: {ex}")
         return None
+    return create_search_router()
