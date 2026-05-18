@@ -1474,6 +1474,39 @@ Hook into provider streaming generators to emit partial assistant message conten
 **Tests.** Live streaming providers (Anthropic / OpenAI) emit incremental chunks; final assembled content equals the completed message; cancel mid-stream interrupts cleanly without leaving the connection in a bad state; `agent_thought_chunk` correctly distinguished from `agent_message_chunk` for thinking blocks.
 
 
+## Standard ACP compatibility
+
+The server runs a generic ACP client (e.g. Zed) end-to-end via standard methods only — no Inspect-specific knowledge required. `inspect_ext.py` is the single audited home of every deviation from the spec; everything else uses standard ACP. The contract is pinned by `tests/agent/test_acp/test_standard_acp_client.py`, a single end-to-end test that drives the full picker + bind + prompt + cancel + forwarding flow without calling any `inspect/*` method or reading any `inspect.*` `_meta` key.
+
+### Extensions and what non-Inspect clients see in their absence
+
+| Extension | Standard alternative | Non-Inspect client UX |
+|---|---|---|
+| `inspect/list_sessions` request | `session/new` → in-channel picker `session/update` carrying targets in the text body | Picker works fully; targets parsed from text instead of structured `_meta` |
+| `inspect/new_session` request (direct-bind by `task/sample_id/epoch`) | `session/load(<known sessionId>)` after a prior enumeration | Standard clients use `session/new` + picker selection; direct-bind is a TUI shortcut |
+| `inspect/cancel_sample` (terminal kill with score/error disposition) | None — ACP has no terminal sample-cancel | Standard clients can `session/cancel` the current turn, but cannot terminally kill a sample |
+| `inspect/cancel_tool_call` (per-tool-call scope cancel) | None — ACP `session/cancel` is per-turn only | Standard clients can only cancel the whole turn |
+| `inspect/event` notification (raw transcript firehose) | None — opt-in via `clientCapabilities._meta["inspect.raw_events"]` | Off by default; non-opted clients see the standard semantic `session/update` stream only |
+| `inspect/session_ended` notification | None — see below | Standard clients discover ended sessions lazily, via `session/prompt` returning `internal_error` with `reason: "bound session no longer active"` |
+| `inspect.model` / `inspect.model_event_pending` / `inspect.model_event_complete` `_meta` on chunks | None — ACP chunks carry no model or generation-lifecycle metadata | Standard clients render messages without a model chip; activity inferred from chunk arrival rather than explicit pending/complete markers |
+| `inspect.user_source` `_meta` on user chunks | None — ACP has no provenance distinction on user messages | Standard clients render dataset-input and operator-injected messages identically |
+| `inspect.message_role = "system"` `_meta` on user chunks | None — ACP has no system role; only `user_message_chunk` and `agent_message_chunk` | **Misleading**: standard clients render system messages as user messages with no indication they came from the system prompt. Tracked as a known gap; cleanest fix would be ACP gaining a system role, otherwise an Inspect-side choice between current "pack as user" and "suppress entirely" |
+| `inspect.picker.targets` `_meta` on picker `session/update` | Picker text body lists targets numbered | Standard clients parse the text body and respond with the index |
+| Plan-rendering substitution (`update_plan` / `todo_write` → `AgentPlanUpdate`) | Standard `tool_call` / `tool_call_update` notifications | Non-plan-capable clients get the standard tool-call notifications, which is correct |
+
+### Why `inspect/session_ended` has no standard equivalent
+
+ACP's `SessionNotification.update` union (`UserMessageChunk`, `AgentMessageChunk`, `AgentThoughtChunk`, `ToolCallStart`, `ToolCallProgress`, `AgentPlanUpdate`, `AvailableCommandsUpdate`, `CurrentModeUpdate`, `ConfigOptionUpdate`, `SessionInfoUpdate`, `UsageUpdate`) has no terminal variant, and `StopReason` (`end_turn` / `max_tokens` / `max_turn_requests` / `refusal` / `cancelled`) has no "session_ended" value. The only standard ACP session lifecycle method is `session/close`, which is **client-initiated** — ACP's model assumes sessions are perpetual on the server and clients manage closure on their side.
+
+Inspect samples genuinely terminate server-side mid-eval (the react loop exits, scoring runs, sample completes), which doesn't map onto that model. `inspect/session_ended` fills the gap by giving Inspect-aware clients a positive push signal so their UI can flip to `complete` without waiting for transport EOF (the connection stays open so the client can switch to another sample).
+
+For non-Inspect clients the discovery path is lazy-on-prompt: any `session/prompt` after the bound session is gone returns `internal_error` with `reason: "bound session no longer active"` and `target_session_id` in the structured payload. That's the standard ACP discovery pattern for this class of state mismatch and editors surface the error to the user. No additional server change makes the standard story better — there's no place in standard ACP to push the signal proactively.
+
+### Audit rule
+
+Every `inspect.*` string literal (method names, `_meta` keys, capability allowlists) lives in `src/inspect_ai/agent/_acp/inspect_ext.py`. Other modules import constants from that file rather than synthesizing the strings inline. A producer-side grep audit (`git grep -nE 'inspect[./]' src/inspect_ai/agent/_acp/`, filtering docstrings and the audit file itself) catches drift. Deleting `inspect_ext.py` would leave a strict-ACP server behind in principle, which is the test we run mentally when adding new functionality.
+
+
 ## asyncio / anyio boundary
 
 The rest of inspect_ai is **anyio-native** so the codebase can run under both asyncio and trio backends (per CLAUDE.md's `tg_collect`, `anyio.sleep`, `anyio.Event` conventions). The ACP implementation is an exception: it's intentionally **asyncio-bound** at the `acp`-library boundary. Documenting that here so future maintainers don't try to migrate the wrong things.
