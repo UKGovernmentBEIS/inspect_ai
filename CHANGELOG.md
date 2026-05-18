@@ -1,3 +1,7 @@
+## Unreleased
+
+- AsyncFilesystem: Add `get_file()` and `exists()` methods.
+
 ## 0.3.222 (16 May 2026)
 
 - Scanners: Declare Scanner import in a way that's compatible with pyright type checking.
