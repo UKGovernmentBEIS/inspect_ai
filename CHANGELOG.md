@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.223 (18 May 2026)
 
 - Config: Add `inspect log export-config` command to export a run config from an existing log file.
 - Anthropic: Skip thinking blocks when placing lookback cache_control.
