@@ -347,40 +347,40 @@ class OpenAIAPI(ModelAPI):
         return False
 
     def is_o_series(self) -> bool:
-        return is_o_series_model(self.service_model_name())
+        return is_o_series_model(self.model_family())
 
     def is_deep_research(self) -> bool:
-        return "deep-research" in self.service_model_name()
+        return "deep-research" in self.model_family()
 
     def is_gpt_5(self) -> bool:
-        return is_gpt_5_model(self.service_model_name())
+        return is_gpt_5_model(self.model_family())
 
     def is_gpt_5_plus(self) -> bool:
-        name = self.service_model_name()
+        name = self.model_family()
         return "gpt-5." in name
 
     def is_gpt_5_pro(self) -> bool:
-        name = self.service_model_name()
+        name = self.model_family()
         return self.is_gpt_5() and "-pro" in name
 
     def is_gpt_5_chat(self) -> bool:
-        name = self.service_model_name()
+        name = self.model_family()
         return self.is_gpt_5() and "-chat" in name
 
     def is_o1(self) -> bool:
-        name = self.service_model_name()
+        name = self.model_family()
         return "o1" in name
 
     def is_o3_mini(self) -> bool:
-        name = self.service_model_name()
+        name = self.model_family()
         return "o3-mini" in name
 
     def is_codex(self) -> bool:
-        name = self.service_model_name()
+        name = self.model_family()
         return "codex" in name
 
     def is_gpt(self) -> bool:
-        name = self.service_model_name()
+        name = self.model_family()
         return "gpt" in name
 
     @override
@@ -464,6 +464,15 @@ class OpenAIAPI(ModelAPI):
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
+
+    @override
+    def model_family(self) -> str:
+        from inspect_ai.model._model_info import get_model_info
+
+        info = get_model_info(self.canonical_name())
+        if info is not None and info.family:
+            return info.family
+        return self.service_model_name()
 
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""

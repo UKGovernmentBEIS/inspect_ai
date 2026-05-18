@@ -917,21 +917,20 @@ class AnthropicAPI(ModelAPI):
         return not self.is_claude_3() and not self.is_claude_3_5()
 
     def is_claude_3(self) -> bool:
-        return re.search(r"claude-3-[a-zA-Z]", self.service_model_name()) is not None
+        return re.search(r"claude-3-[a-zA-Z]", self.model_family()) is not None
 
     def is_claude_3_5(self) -> bool:
-        return "claude-3-5-" in self.service_model_name()
+        return "claude-3-5-" in self.model_family()
 
     def is_claude_3_7(self) -> bool:
-        return "claude-3-7-" in self.service_model_name()
+        return "claude-3-7-" in self.model_family()
 
     def is_claude_4(self) -> bool:
-        return re.search(r"claude-[a-zA-Z]+-4", self.service_model_name()) is not None
+        return re.search(r"claude-[a-zA-Z]+-4", self.model_family()) is not None
 
     def is_claude_4_0(self) -> bool:
         return self._is_claude_4_x(0) or (
-            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.service_model_name())
-            is not None
+            re.search(r"claude-[a-zA-Z]+-4[-@]20\d{6}", self.model_family()) is not None
         )
 
     def is_claude_4_1(self) -> bool:
@@ -947,12 +946,11 @@ class AnthropicAPI(ModelAPI):
         return self._is_claude_4_x(7)
 
     def is_claude_4_opus(self) -> bool:
-        return self.is_claude_4() and "opus" in self.service_model_name()
+        return self.is_claude_4() and "opus" in self.model_family()
 
     def _is_claude_4_x(self, x: int) -> bool:
         return (
-            re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.service_model_name())
-            is not None
+            re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.model_family()) is not None
         )
 
     # attempt to not require an inspect package update for new models
@@ -994,6 +992,15 @@ class AnthropicAPI(ModelAPI):
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
+
+    @override
+    def model_family(self) -> str:
+        from inspect_ai.model._model_info import get_model_info
+
+        info = get_model_info(self.canonical_name())
+        if info is not None and info.family:
+            return info.family
+        return self.service_model_name()
 
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
