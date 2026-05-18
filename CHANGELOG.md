@@ -4,6 +4,7 @@
 
 ## 0.3.221 (16 May 2026)
 
+- Scoring: Add `aggregate(key, agg=...)` metric factory that applies any standard metric (`mean`, `stderr`, `std`, `accuracy`, …) to a single field of a dict-valued `Score.value`. Migration note for users coming from `inspect_evals.utils.mean_of`: a present-but-`None` key is *not* routed through `on_missing` — it is passed through to `to_float` (which under the default `value_to_float()` warns and returns `0.0`).
 - OpenAI: Add GPT 5.5 as computer use model and exclude 'chat' and 'instant' models from computer use.
 - OpenAI Compatible: Parse OpenRouter-style `reasoning_details` in OpenAI-compatible responses.
 - Anthropic: Capture `extra_body` fields from `Message` response.
