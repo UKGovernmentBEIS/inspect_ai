@@ -1,3 +1,7 @@
+## Unreleased
+
+- Config: Add `inspect log export-config` command to export a run config from an existing log file.
+
 ## 0.3.222 (16 May 2026)
 
 - Scanners: Declare Scanner import in a way that's compatible with pyright type checking.
@@ -29,7 +33,6 @@
 - Analysis: Use score reducer in `evals_df()` column name when there are multiple reducers.
 - Hooks: Cache list of registered hooks (invalidate cache on `registry_add()`).
 - Config: Add `--run-config` option to `inspect eval` for single-file run configuration.
-- Config: Add `inspect log export-config` command to export a run config from an existing log file, enabling round-trip reproduction of evaluations.
 - Eval Set: Run [Inspect Scout](https://meridianlabs-ai.github.io/inspect_scout/) scanners over each task's logs as part of `eval_set` (CLI `--scanner` / `ScannerConfig`). Scans incrementally as logs land, reuses prior results across resumes, and renders progress alongside the existing eval view.
 - Eval Set: Fail fast with "No inspect tasks were found at the specified paths." when a task spec resolves to nothing (e.g. uninstalled package); previously crashed with `IndexError` inside `resolve_tasks` after passing an empty task list to `eval`.
 - Eval Set: Add `score_display` argument to `eval_set()` function.
