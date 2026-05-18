@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Config: Add `inspect log export-config` command to export a run config from an existing log file.
+- Web Search: Close web search HTTP clients after provider calls.
 
 ## 0.3.222 (16 May 2026)
 
