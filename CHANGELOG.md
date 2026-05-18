@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Config: Add `inspect log export-config` command to export a run config from an existing log file.
+- Anthropic: Skip thinking blocks when placing lookback cache_control.
 - AsyncFilesystem: Add `get_file()` and `exists()` methods.
 
 ## 0.3.222 (16 May 2026)
