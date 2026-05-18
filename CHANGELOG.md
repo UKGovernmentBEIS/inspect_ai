@@ -1,5 +1,6 @@
 ## Unreleased
 
+- AsyncFilesystem: Add `iter_files()` and `iter_dirs()` methods.
 - Scoring: Add `pass_k` reducer for computing the probability that all `k` epoch attempts succeed (τ-bench reliability metric).
 - Model Roles: Preserve overrides of config when calling `get_model()` with `role`.
 - OpenAI Compatible: Add support for `responses_phase` parameter.
