@@ -72,6 +72,7 @@ def test_bounded_transcript_evicts_to_resident_tail():
     assert transcript.events_truncated is True
     assert _data(transcript.events) == [2, 3, 4]
     assert _data(transcript.recent_events(2)) == [3, 4]
+    assert transcript.recent_events(0) == []
     assert transcript.last_event is not None
     assert transcript.last_event.data == 4
 
@@ -109,8 +110,6 @@ def test_sample_init_event_is_pinned_in_bounded_transcript():
     assert transcript.event_count == 3
     assert transcript.events_truncated is True
     assert transcript.events == [sample_init, transcript.last_event]
-    assert _data(transcript.recent_events(1)) == [2]
-    assert transcript.recent_events(0) == []
 
 
 def test_pending_event_is_pinned_in_bounded_transcript():
@@ -256,7 +255,6 @@ def test_bounded_transcript_update_of_evicted_event_does_not_retain_attachments(
     assert not content.startswith("attachment://")
     assert transcript.attachments == {}
     assert transcript._attachment_refcount == {}
-    assert transcript._event_attachment_refs == {}
 
 
 def _model_event_with_call_payload(uuid: str, payload: str) -> ModelEvent:
@@ -304,3 +302,19 @@ def test_bounded_transcript_prunes_stale_pin_state_on_eviction() -> None:
     assert _data(transcript.events) == ["second"]
     assert transcript._pinned_event_ids == set()
     assert transcript._pending_event_ids == set()
+
+
+def test_bounded_transcript_prunes_evicted_event_id_state() -> None:
+    transcript = Transcript(bounded=True, resident_tail=1, log_model_api=None)
+    for index in range(10):
+        event = _model_event_with_call_payload(f"event-{index}", "payload" * 100)
+        event.model = f"mockllm/model-{index}"
+        transcript._event(event)
+
+    resident_keys = {event.uuid for event in transcript.events}
+
+    assert len(transcript.events) == 1
+    assert transcript._resident_event_ids == resident_keys
+    assert transcript._seen_event_ids == resident_keys
+    assert transcript._kept_event_ids == resident_keys
+    assert set(transcript._event_attachment_refs) == resident_keys

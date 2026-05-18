@@ -40,7 +40,7 @@ def materialize_streaming_events(events: list[object]) -> list[Event]:
 def materialize_streaming_sample(
     sample: EvalSample, history: "SampleHistory"
 ) -> EvalSample:
-    events = materialize_streaming_events(list(history.event_dicts()))
+    events = materialize_streaming_events(list(history.iter_events()))
     materialized = resolve_sample_events_data(
         sample.model_copy(update={"events": events, "events_data": history.events_data})
     )

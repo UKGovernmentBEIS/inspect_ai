@@ -724,3 +724,30 @@ async def test_fire_seeds_events_emitted_before_subscription(tmp_path: Path) -> 
 
     events = json.loads((work / "events.json").read_text())
     assert [event["uuid"] for event in events] == [init_event.uuid, later_event.uuid]
+
+
+def test_subscription_does_not_keep_raw_pending_events_when_transcript_evicts(
+    tmp_path: Path,
+) -> None:
+    transcript = Transcript(bounded=True, resident_tail=1)
+    cp = _Checkpointer(
+        config=CheckpointConfig(trigger=TurnInterval(every=1)),
+        sample_checkpoints_dir=str(tmp_path / "ckpts"),
+        sample_working_dir=str(tmp_path / "work"),
+        host_restic=Path("/fake"),
+        restic_password="pwd",
+    )
+
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+        return_value=transcript,
+    ):
+        cp._ensure_transcript_subscription()
+        for index in range(10):
+            transcript._event(InfoEvent(uuid=f"event-{index}", data=index))
+
+    assert not hasattr(cp, "_pending_events")
+    assert [event.uuid for event in transcript.events] == ["event-9"]
+    assert [event.uuid for event in cp._condensed_events] == [
+        f"event-{index}" for index in range(10)
+    ]

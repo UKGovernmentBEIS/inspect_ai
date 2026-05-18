@@ -170,17 +170,13 @@ class _Checkpointer:
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
         self._next_checkpoint_id = 1
-        # Persisted across fires: each fire processes only events received from
-        # the transcript subscription since the previous fire and appends to
-        # these accumulators. Safe because checkpoints fire at turn boundaries,
-        # after which prior events are immutable.
+        # Incremental checkpoint state accumulated across fires.
         self._condensed_events: list[Event] = []
         self._condensed_event_index: dict[str | int, int] = {}
         self._msg_pool: list[ChatMessage] = []
         self._msg_index: dict[str, int] = {}
         self._call_pool: list[JsonValue] = []
         self._call_index: dict[str, int] = {}
-        self._pending_events: list[Event] = []
         self._transcript_subscription: Callable[[], None] | None = None
         self._transcript_seeded = False
 
@@ -238,9 +234,7 @@ class _Checkpointer:
         raise AssertionError(f"unexpected policy: {policy!r}")
 
     async def _fire(self, trigger: CheckpointTriggerKind) -> None:
-        # Phase 3 (in progress): writes placeholder host context, runs
-        # restic backups (host + sandboxes in parallel), then writes
-        # the per-checkpoint sidecar.
+        # Write host context, back up host/sandboxes, then commit the checkpoint sidecar.
         cycle_start = time.monotonic()
 
         state = sample_state()
@@ -248,11 +242,9 @@ class _Checkpointer:
             raise RuntimeError("Checkpointer must find sample state")
         ts = transcript()
         self._ensure_transcript_subscription()
-        pending_events = _collapse_pending_events(self._pending_events)
-        self._pending_events.clear()
         await self._write_host_context(
             self._sample_working_dir,
-            pending_events,
+            [],
             ts.attachments,
             state.store,
         )
@@ -306,9 +298,10 @@ class _Checkpointer:
                     "Cannot seed checkpoint events from a truncated Transcript. "
                     "Create the checkpointer before bounded transcript eviction starts."
                 )
-            self._pending_events.extend(ts.events)
+            for event in ts.events:
+                self._track_transcript_event(event)
             self._transcript_seeded = True
-        self._transcript_subscription = ts.subscribe(self._pending_events.append)
+        self._transcript_subscription = ts.subscribe(self._track_transcript_event)
 
     async def _write_host_context(
         self,
@@ -328,39 +321,13 @@ class _Checkpointer:
           here so the snapshot is self-contained.
         - ``store.json`` — Store key/value as a single JSON object.
         - ``agent_state.json`` — agent-defined property bag, written
-          only when the agent registered at least one callback via
-          :meth:`Checkpointer.track`. Each registered key becomes a
-          top-level field in the dict. The agent's conversation
-          messages typically live here (e.g. under the ``"messages"``
-          key) — the protocol no longer privileges them as a top-level
-          file. Presence on disk signals opt-in.
+          only when ``Checkpointer.track`` callbacks are registered.
         """
-        # Pool ModelEvent input + call messages — the big O(N²) redundancy.
-        # We process only the new events collected since the previous fire and
-        # append to the accumulators on the session, so total hashing work is
-        # O(N) over a sample rather than O(N) per fire. Safe because checkpoints
-        # fire at turn boundaries, after which prior events are immutable.
-        # Attachments come pre-extracted on the transcript (call payloads
-        # >100 chars are rewritten to attachment:// refs as events flow in,
-        # with originals in transcript.attachments) — we persist that pool
-        # here so resume can resolve the refs.
+        # Condense only newly observed events, then merge them into the cumulative
+        # checkpoint event stream. Attachments are already extracted by Transcript
+        # and are written alongside the event refs.
         if events:
-            cond, self._msg_index, new_msgs = condense_model_event_inputs(
-                events, len(self._msg_pool), self._msg_index
-            )
-            self._msg_pool.extend(m for _, m in new_msgs)
-            cond, self._call_index, new_calls = condense_model_event_calls(
-                cond, len(self._call_pool), self._call_index
-            )
-            self._call_pool.extend(c for _, c in new_calls)
-            for event in cond:
-                key = _event_key(event)
-                index = self._condensed_event_index.get(key)
-                if index is None:
-                    self._condensed_event_index[key] = len(self._condensed_events)
-                    self._condensed_events.append(event)
-                else:
-                    self._condensed_events[index] = event
+            self._merge_events_into_checkpoint_stream(events)
         events_data = EventsData(messages=self._msg_pool, calls=self._call_pool)
         sample_dir = anyio.Path(sample_working_dir)
         await (sample_dir / "events.json").write_text(
@@ -376,6 +343,29 @@ class _Checkpointer:
                 key: cb() for key, cb in self._on_checkpoint_callbacks.items()
             }
             await (sample_dir / "agent_state.json").write_text(_json_dump(agent_state))
+
+    def _track_transcript_event(self, event: Event) -> None:
+        self._merge_events_into_checkpoint_stream([event])
+
+    def _merge_events_into_checkpoint_stream(self, events: Sequence[Event]) -> None:
+        cond, self._msg_index, new_msgs = condense_model_event_inputs(
+            events, len(self._msg_pool), self._msg_index
+        )
+        self._msg_pool.extend(m for _, m in new_msgs)
+        cond, self._call_index, new_calls = condense_model_event_calls(
+            cond, len(self._call_pool), self._call_index
+        )
+        self._call_pool.extend(c for _, c in new_calls)
+        for event in cond:
+            self._merge_event_into_checkpoint_stream(event, _event_key(event))
+
+    def _merge_event_into_checkpoint_stream(self, event: Event, key: str | int) -> None:
+        index = self._condensed_event_index.get(key)
+        if index is None:
+            self._condensed_event_index[key] = len(self._condensed_events)
+            self._condensed_events.append(event)
+        else:
+            self._condensed_events[index] = event
 
     async def _backup_host(self) -> ResticBackupSummary:
         return await run_host_backup(
@@ -411,20 +401,6 @@ def _snapshot_info(summary: ResticBackupSummary) -> SnapshotInfo:
         size_bytes=summary.data_added_packed,
         duration_ms=int(summary.total_duration * 1000),
     )
-
-
-def _collapse_pending_events(events: Sequence[Event]) -> list[Event]:
-    collapsed: list[Event] = []
-    index_by_key: dict[str | int, int] = {}
-    for event in events:
-        key = _event_key(event)
-        index = index_by_key.get(key)
-        if index is None:
-            index_by_key[key] = len(collapsed)
-            collapsed.append(event)
-        else:
-            collapsed[index] = event
-    return collapsed
 
 
 def _event_key(event: Event) -> str | int:

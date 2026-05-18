@@ -42,7 +42,7 @@ class Transcript:
         self,
         *,
         log_model_api: bool | None = None,
-        bounded: bool | None = None,
+        bounded: bool = False,
         resident_tail: int = 100,
     ) -> None: ...
 
@@ -51,7 +51,7 @@ class Transcript:
         self,
         events: list[Event],
         log_model_api: bool | None = None,
-        bounded: bool | None = None,
+        bounded: bool = False,
         resident_tail: int = 100,
     ) -> None: ...
 
@@ -59,7 +59,7 @@ class Transcript:
         self,
         events: list[Event] | None = None,
         log_model_api: bool | None = None,
-        bounded: bool | None = None,
+        bounded: bool = False,
         resident_tail: int = 100,
     ) -> None:
         self._event_loggers = []
@@ -72,7 +72,7 @@ class Transcript:
         self._timelines: list[Timeline] = []
         self._model_call_counts: dict[str, int] = {}
         self._kept_event_ids: set[str] = set()
-        self._bounded = bool(bounded) if bounded is not None else False
+        self._bounded = bounded
         self._resident_tail = resident_tail
         self._event_count = len(self._events)
         self._events_truncated = False
@@ -248,20 +248,12 @@ class Transcript:
             return
 
         event_key = self._event_key(event)
-        previous_refs = self._event_attachment_refs.get(event_key)
+        previous_refs = self._event_attachment_refs.get(event_key, set())
         current_refs = self._attachment_refs(event)
-        if previous_refs is None:
-            for ref in current_refs:
-                self._attachment_refcount[ref] = (
-                    self._attachment_refcount.get(ref, 0) + 1
-                )
-        else:
-            for ref in previous_refs - current_refs:
-                self._decrement_attachment_ref(ref)
-            for ref in current_refs - previous_refs:
-                self._attachment_refcount[ref] = (
-                    self._attachment_refcount.get(ref, 0) + 1
-                )
+        for ref in previous_refs - current_refs:
+            self._decrement_attachment_ref(ref)
+        for ref in current_refs - previous_refs:
+            self._attachment_refcount[ref] = self._attachment_refcount.get(ref, 0) + 1
         if current_refs:
             self._event_attachment_refs[event_key] = current_refs
         else:
@@ -322,12 +314,7 @@ class Transcript:
             if len(evictable_indices) > resident_tail:
                 evicted = True
                 evict_index = evictable_indices.pop(0)
-                evict_event = retained_events[evict_index]
                 retained_events[evict_index] = None
-                if evict_event is not None:
-                    evict_key = self._event_key(evict_event)
-                    for ref in self._event_attachment_refs.pop(evict_key, set()):
-                        self._decrement_attachment_ref(ref)
 
         if evicted:
             self._events = [event for event in retained_events if event is not None]
@@ -339,6 +326,17 @@ class Transcript:
         self._resident_event_ids = resident_event_keys
         self._pinned_event_ids.intersection_update(resident_event_keys)
         self._pending_event_ids.intersection_update(resident_event_keys)
+        if self._bounded:
+            self._seen_event_ids.intersection_update(resident_event_keys)
+            self._kept_event_ids.intersection_update(resident_event_keys)
+            self._prune_attachment_refs(resident_event_keys)
+
+    def _prune_attachment_refs(self, resident_event_keys: set[str]) -> None:
+        for event_key in list(self._event_attachment_refs):
+            if event_key in resident_event_keys:
+                continue
+            for ref in self._event_attachment_refs.pop(event_key):
+                self._decrement_attachment_ref(ref)
 
     def _is_resident(self, event: Event) -> bool:
         return self._event_key(event) in self._resident_event_ids
@@ -358,6 +356,13 @@ class Transcript:
         return event.uuid
 
     def subscribe(self, event_logger: Callable[[Event], None]) -> Callable[[], None]:
+        """Subscribe to transcript event notifications.
+
+        The callback is invoked when an event is added and when a resident event
+        is updated. Subscriber exceptions are logged and do not prevent other
+        subscribers or normal transcript processing. Returns an unsubscribe
+        callback that removes the subscription.
+        """
         self._event_loggers.append(event_logger)
 
         def unsubscribe() -> None:

@@ -629,7 +629,7 @@ class ZipLogFile:
         self, sample: EvalSample, history: "SampleHistory"
     ) -> None:
         async with self._lock:
-            events = list(history.event_dicts())
+            events = list(history.iter_events())
             events_data = history.events_data
             attachments = _sample_history_attachments(
                 sample, history, events, events_data

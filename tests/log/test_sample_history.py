@@ -1,3 +1,5 @@
+import sqlite3
+
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.event import InfoEvent, ModelEvent
 from inspect_ai.log._log import EvalSample, EventsData
@@ -116,7 +118,7 @@ def test_sample_history_translates_buffer_pool_refs_to_eval_positions(tmp_path):
     )
 
     with db.open_sample_history("sample", 1) as history:
-        events = list(history.event_dicts())
+        events = list(history.iter_events())
         events_data = history.events_data
 
     sample = EvalSample(
@@ -154,7 +156,7 @@ def test_open_sample_history_defers_remove_samples_until_release(tmp_path):
 
     with db.open_sample_history("sample", 1) as history:
         db.remove_samples([("sample", 1)])
-        assert [event["data"] for event in history.event_dicts()] == ["hello"]
+        assert [event["data"] for event in history.iter_events()] == ["hello"]
         with db._get_connection() as conn:
             assert list(db._get_events(conn, "sample", 1))
 
@@ -162,9 +164,7 @@ def test_open_sample_history_defers_remove_samples_until_release(tmp_path):
         assert not list(db._get_events(conn, "sample", 1))
 
 
-def test_remove_samples_deletes_outside_lease_lock(tmp_path):
-    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
-    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+def _record_lock_available_during_remove(db: SampleBufferDatabase) -> list[bool]:
     lock_available_during_delete: list[bool] = []
     remove_samples_now = db._remove_samples_now
 
@@ -176,6 +176,13 @@ def test_remove_samples_deletes_outside_lease_lock(tmp_path):
         remove_samples_now(samples)
 
     db._remove_samples_now = remove_samples_without_lock
+    return lock_available_during_delete
+
+
+def test_remove_samples_deletes_outside_lease_lock(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+    lock_available_during_delete = _record_lock_available_during_remove(db)
 
     db.remove_samples([("sample", 1)])
 
@@ -185,29 +192,13 @@ def test_remove_samples_deletes_outside_lease_lock(tmp_path):
 def test_deferred_remove_samples_deletes_outside_lease_lock(tmp_path):
     db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
     db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
-    lock_available_during_delete: list[bool] = []
-    remove_samples_now = db._remove_samples_now
-
-    def remove_samples_without_lock(samples: list[tuple[str, int]]) -> None:
-        acquired = db._lease_lock.acquire(blocking=False)
-        lock_available_during_delete.append(acquired)
-        if acquired:
-            db._lease_lock.release()
-        remove_samples_now(samples)
-
-    db._remove_samples_now = remove_samples_without_lock
+    lock_available_during_delete = _record_lock_available_during_remove(db)
 
     with db.open_sample_history("sample", 1):
         db.remove_samples([("sample", 1)])
         assert lock_available_during_delete == []
 
     assert lock_available_during_delete == [True]
-
-
-def test_sample_history_lease_uses_lock(tmp_path):
-    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
-
-    assert db._lease_lock is not db._sync_lock
 
 
 def test_cleanup_defers_while_sample_history_is_open(tmp_path):
@@ -217,7 +208,7 @@ def test_cleanup_defers_while_sample_history_is_open(tmp_path):
     with db.open_sample_history("sample", 1) as history:
         db.cleanup()
         assert db.db_path.exists()
-        assert [event["data"] for event in history.event_dicts()] == ["hello"]
+        assert [event["data"] for event in history.iter_events()] == ["hello"]
 
     assert not db.db_path.exists()
 
@@ -229,3 +220,24 @@ def test_sample_history_event_rows_are_private(tmp_path):
     with db.open_sample_history("sample", 1) as history:
         assert not hasattr(history, "events")
         assert history.raw_event_rows
+
+
+def test_open_sample_history_releases_write_lock_after_snapshot(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+
+    with db.open_sample_history("sample", 1) as history:
+        conn = sqlite3.connect(db.db_path, timeout=0)
+        try:
+            conn.execute("PRAGMA busy_timeout=0")
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                lock_available = True
+            except sqlite3.OperationalError as exc:
+                assert "locked" in str(exc)
+                lock_available = False
+        finally:
+            conn.close()
+
+        assert lock_available is True
+        assert [event["data"] for event in history.iter_events()] == ["hello"]

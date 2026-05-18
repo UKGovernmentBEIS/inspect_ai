@@ -451,6 +451,7 @@ class SampleBufferDatabase(SampleBuffer):
     ) -> Iterator[SampleHistory]:
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
+                conn.execute("BEGIN IMMEDIATE")
                 events = list(self._get_events(conn, id, epoch, latest_only=True))
                 message_pool = [
                     json.loads(entry.data)
@@ -464,7 +465,9 @@ class SampleBufferDatabase(SampleBuffer):
                     entry.hash: entry.content
                     for entry in self._get_attachments(conn, id, epoch)
                 }
-                yield SampleHistory(events, message_pool, call_pool, attachments)
+                history = SampleHistory(events, message_pool, call_pool, attachments)
+                conn.commit()
+            yield history
 
     @contextmanager
     def _acquire_sample_read_lease(

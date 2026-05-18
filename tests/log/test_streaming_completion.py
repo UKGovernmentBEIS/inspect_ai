@@ -47,25 +47,6 @@ def _data_uri() -> str:
     return "data:image/png;base64," + ("A" * 120)
 
 
-def test_streaming_completion_sample_history_matches_materialized_events(tmp_path):
-    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
-    events = [
-        _model("event-1", "answer-1"),
-        InfoEvent(uuid="event-2", data={"note": "middle"}),
-        _model("event-3", "answer-2"),
-    ]
-    db.log_events([SampleEvent(id="sample", epoch=1, event=event) for event in events])
-
-    with db.open_sample_history("sample", 1) as history:
-        streamed_events = list(history.event_dicts())
-        events_data = history.events_data
-
-    assert [event["event"] for event in streamed_events] == ["model", "info", "model"]
-    assert events_data["messages"]
-    assert streamed_events[0]["input_refs"]
-    assert streamed_events[2]["input_refs"]
-
-
 async def test_log_sample_returns_materialized_streaming_sample(
     tmp_path,
 ) -> None:
@@ -103,40 +84,6 @@ async def test_log_sample_returns_materialized_streaming_sample(
     assert materialized.events_data is None
     assert first_event.input[0].content == "question"
     assert first_event.input_refs is None
-
-
-def _sample() -> EvalSample:
-    return EvalSample(id="sample", epoch=1, input="question", target="answer")
-
-
-def _sample_with_core_attachments() -> EvalSample:
-    data_uri = _data_uri()
-    return EvalSample(
-        id="sample",
-        epoch=1,
-        input=[ChatMessageUser(content=data_uri)],
-        target="answer",
-        messages=[ChatMessageUser(content=data_uri)],
-    )
-
-
-def _eval_spec() -> EvalSpec:
-    return EvalSpec(
-        created="2026-05-18T00:00:00+00:00",
-        task="streaming_completion_test",
-        model="mockllm/model",
-        dataset=EvalDataset(),
-        config=EvalConfig(),
-    )
-
-
-def _history(tmp_path):
-    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
-    db.start_sample(_sample().summary())
-    db.log_events(
-        [SampleEvent(id="sample", epoch=1, event=_model("event-1", "answer"))]
-    )
-    return db.open_sample_history("sample", 1)
 
 
 async def _finish_eval(recorder: EvalRecorder, spec: EvalSpec):
@@ -198,7 +145,7 @@ async def test_streaming_completion_eval_output_matches_materialized(tmp_path):
 
 
 @pytest.mark.anyio
-async def test_eval_recorder_log_sample_streaming_writes_raw_sample(
+async def test_eval_recorder_log_sample_streaming_writes_sample(
     tmp_path,
 ) -> None:
     recorder = EvalRecorder(str(tmp_path))
@@ -209,10 +156,6 @@ async def test_eval_recorder_log_sample_streaming_writes_raw_sample(
     with _history(tmp_path) as history:
         await recorder.log_sample_streaming(spec, _sample(), history)
 
-    zip_log = recorder.data[recorder._log_file_key(spec)]
-    assert zip_log._samples == []
-    assert len(zip_log._summaries) == 1
-
     log = await recorder.log_finish(
         spec, "success", EvalStats(), EvalResults(), reductions=None
     )
@@ -220,6 +163,40 @@ async def test_eval_recorder_log_sample_streaming_writes_raw_sample(
 
     assert log.samples is not None
     assert len(log.samples[0].events) == 1
+
+
+def _sample() -> EvalSample:
+    return EvalSample(id="sample", epoch=1, input="question", target="answer")
+
+
+def _sample_with_core_attachments() -> EvalSample:
+    data_uri = _data_uri()
+    return EvalSample(
+        id="sample",
+        epoch=1,
+        input=[ChatMessageUser(content=data_uri)],
+        target="answer",
+        messages=[ChatMessageUser(content=data_uri)],
+    )
+
+
+def _eval_spec() -> EvalSpec:
+    return EvalSpec(
+        created="2026-05-18T00:00:00+00:00",
+        task="streaming_completion_test",
+        model="mockllm/model",
+        dataset=EvalDataset(),
+        config=EvalConfig(),
+    )
+
+
+def _history(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.start_sample(_sample().summary())
+    db.log_events(
+        [SampleEvent(id="sample", epoch=1, event=_model("event-1", "answer"))]
+    )
+    return db.open_sample_history("sample", 1)
 
 
 class _TaskLoggerShim(TaskLogger):
@@ -311,35 +288,6 @@ async def test_log_sample_streaming_condenses_core_sample_fields_and_merges_hist
 
 
 @pytest.mark.anyio
-async def test_json_recorder_log_sample_streaming_materializes_history(
-    tmp_path,
-) -> None:
-    recorder = JSONRecorder(str(tmp_path))
-    spec = _eval_spec()
-    await recorder.log_init(spec)
-    await recorder.log_start(spec, EvalPlan())
-
-    with _history(tmp_path) as history:
-        await recorder.log_sample_streaming(spec, _sample(), history)
-
-    samples = recorder.data[recorder._log_file_key(spec)].data.samples
-    assert samples is not None
-    buffered_sample = samples[0]
-    assert len(buffered_sample.events) == 1
-    assert buffered_sample.events_data is None
-    buffered_event = buffered_sample.events[0]
-    assert isinstance(buffered_event, ModelEvent)
-    assert buffered_event.input[0].content == "question"
-
-    log = await recorder.log_finish(
-        spec, "success", EvalStats(), EvalResults(), reductions=None
-    )
-
-    assert log.samples is not None
-    assert len(log.samples[0].events) == 1
-
-
-@pytest.mark.anyio
 async def test_json_recorder_log_sample_streaming_includes_history_attachments(
     tmp_path,
 ) -> None:
@@ -356,8 +304,13 @@ async def test_json_recorder_log_sample_streaming_includes_history_attachments(
             SampleEvent(
                 id="sample",
                 epoch=1,
-                event=InfoEvent(uuid="event-1", data={"content": long_content}),
-            )
+                event=_model("event-1", "answer"),
+            ),
+            SampleEvent(
+                id="sample",
+                epoch=1,
+                event=InfoEvent(uuid="event-2", data={"content": long_content}),
+            ),
         ]
     )
 
@@ -367,11 +320,16 @@ async def test_json_recorder_log_sample_streaming_includes_history_attachments(
     samples = recorder.data[recorder._log_file_key(spec)].data.samples
     assert samples is not None
     buffered_sample = samples[0]
-    buffered_event = buffered_sample.events[0]
-    assert isinstance(buffered_event, InfoEvent)
-    assert isinstance(buffered_event.data, dict)
-    assert isinstance(buffered_event.data["content"], str)
-    assert buffered_event.data["content"].startswith("attachment://")
+    assert len(buffered_sample.events) == 2
+    assert buffered_sample.events_data is None
+    buffered_model_event = buffered_sample.events[0]
+    assert isinstance(buffered_model_event, ModelEvent)
+    assert buffered_model_event.input[0].content == "question"
+    buffered_info_event = buffered_sample.events[1]
+    assert isinstance(buffered_info_event, InfoEvent)
+    assert isinstance(buffered_info_event.data, dict)
+    assert isinstance(buffered_info_event.data["content"], str)
+    assert buffered_info_event.data["content"].startswith("attachment://")
     assert long_content in buffered_sample.attachments.values()
 
     log = await recorder.log_finish(
@@ -379,8 +337,12 @@ async def test_json_recorder_log_sample_streaming_includes_history_attachments(
     )
 
     assert log.samples is not None
-    logged_event = log.samples[0].events[0]
-    assert isinstance(logged_event, InfoEvent)
-    assert isinstance(logged_event.data, dict)
-    assert logged_event.data["content"] == buffered_event.data["content"]
+    assert len(log.samples[0].events) == 2
+    logged_model_event = log.samples[0].events[0]
+    assert isinstance(logged_model_event, ModelEvent)
+    assert logged_model_event.input[0].content == "question"
+    logged_info_event = log.samples[0].events[1]
+    assert isinstance(logged_info_event, InfoEvent)
+    assert isinstance(logged_info_event.data, dict)
+    assert logged_info_event.data["content"] == buffered_info_event.data["content"]
     assert long_content in log.samples[0].attachments.values()

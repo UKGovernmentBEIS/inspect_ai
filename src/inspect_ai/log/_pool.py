@@ -32,6 +32,12 @@ _chat_message_list_adapter: TypeAdapter[list[ChatMessage]] = TypeAdapter(
 )
 
 
+def validate_chat_messages(
+    messages: object, *, context: dict[str, object] | None = None
+) -> list[ChatMessage]:
+    return _chat_message_list_adapter.validate_python(messages, context=context)
+
+
 def _msg_hash(msg: ChatMessage) -> str:
     """Compute a content hash for dedup keying.
 
@@ -272,7 +278,7 @@ def resolve_sample_events_data(sample: EvalSample) -> EvalSample:
     """
     if sample.events_data is None:
         return sample
-    msg_pool = _chat_message_list_adapter.validate_python(
+    msg_pool = validate_chat_messages(
         sample.events_data["messages"], context={"deserializing": True}
     )
     call_pool = sample.events_data["calls"]

@@ -1718,7 +1718,9 @@ def _eval_retry_error(
     from inspect_ai.event._model import ModelEvent
 
     if logger is not None and logger.buffer_db is not None and sample_id is not None:
-        with logger.buffer_db.open_sample_history(sample_id, epoch or 1) as history:
+        with logger.buffer_db.open_sample_history(
+            sample_id, epoch if epoch is not None else 0
+        ) as history:
             return eval_retry_error_from_history(error, history)
 
     sample_transcript = transcript()

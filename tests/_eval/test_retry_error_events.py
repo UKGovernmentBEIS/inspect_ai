@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from inspect_ai._eval.task.run import _eval_retry_error
+from inspect_ai._eval.task.run import TaskLogger, _eval_retry_error
 from inspect_ai.event import InfoEvent, ModelEvent
 from inspect_ai.log import EvalError, Transcript
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
@@ -105,3 +105,24 @@ def test_eval_retry_error_uses_buffer_history_when_transcript_truncated(
     assert isinstance(retry.events[0].input[0], ChatMessageUser)
     assert retry.events[0].input[0].content == "question"
     assert retry.events[0].input_refs is None
+
+
+def test_eval_retry_error_preserves_epoch_zero(tmp_path) -> None:
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events(
+        [
+            SampleEvent(id="sample", epoch=0, event=_model("model-0", "zero")),
+            SampleEvent(id="sample", epoch=1, event=_model("model-1", "one")),
+        ]
+    )
+    logger = _TaskLoggerShim(db)
+
+    retry = _eval_retry_error(_error(), logger, "sample", 0)
+
+    assert retry.events is not None
+    assert [event.uuid for event in retry.events] == ["model-0"]
+
+
+class _TaskLoggerShim(TaskLogger):
+    def __init__(self, buffer_db: SampleBufferDatabase) -> None:
+        self._buffer_db = buffer_db
