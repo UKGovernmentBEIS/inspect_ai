@@ -1100,20 +1100,9 @@
         "title": "ChatMessageUser",
         "type": "object"
       },
-      "CheckpointConfig": {
-        "description": "User-facing checkpoint configuration.\n\nSpecify on ``Sample(checkpoint=...)``, ``Task(checkpoint=...)``, or\n``eval(checkpoint=...)``. All fields default to ``None`` so that\neach level can supply a partial config; the layers are combined\nper-field at sample-run time (precedence: eval > sample > task).\n\nConstruct a config at the level that \"owns\" each value:\n- **Task**: defaults common to every sample (typical trigger,\n  sandbox paths).\n- **Sample**: per-row overrides (e.g. a particular sample needs a\n  tighter cadence or a different captured path).\n- **Eval / CLI**: run-level overrides (e.g. operator switches\n  cadence or destination for one run).\n\nSee ``design/plans/checkpointing-working.md`` \u00a72.",
+      "CheckpointSampleConfig": {
+        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_dir`` and\n``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.\n\nSee ``design/plans/checkpointing-working.md`` \u00a72.",
         "properties": {
-          "checkpoints_dir": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Checkpoints Dir"
-          },
           "max_consecutive_failures": {
             "anyOf": [
               {
@@ -1124,16 +1113,6 @@
               }
             ],
             "title": "Max Consecutive Failures"
-          },
-          "retention": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Retention"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "sandbox_paths": {
             "anyOf": [
@@ -1180,7 +1159,7 @@
             "title": "Trigger"
           }
         },
-        "title": "CheckpointConfig",
+        "title": "CheckpointSampleConfig",
         "type": "object"
       },
       "Citation": {
@@ -6673,32 +6652,13 @@
         "title": "ResponseSchema",
         "type": "object"
       },
-      "Retention": {
-        "description": "Controls when checkpoint data is deleted.",
-        "properties": {
-          "after_eval": {
-            "default": "delete",
-            "enum": [
-              "delete",
-              "retain"
-            ],
-            "title": "After Eval",
-            "type": "string"
-          }
-        },
-        "required": [
-          "after_eval"
-        ],
-        "title": "Retention",
-        "type": "object"
-      },
       "Sample": {
         "description": "Sample for an evaluation task.",
         "properties": {
           "checkpoint": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/CheckpointConfig"
+                "$ref": "#/components/schemas/CheckpointSampleConfig"
               },
               {
                 "type": "null"

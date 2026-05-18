@@ -2054,7 +2054,7 @@ requires-dist = [
     { name = "markdown", marker = "extra == 'dev'" },
     { name = "markdown", marker = "extra == 'doc'" },
     { name = "mcp", marker = "extra == 'dev'", specifier = ">=1.10.0" },
-    { name = "mistralai", marker = "extra == 'dev'", git = "https://github.com/mistralai/client-python.git?rev=v2.4.5" },
+    { name = "mistralai", marker = "extra == 'dev'", specifier = ">=2.4.5" },
     { name = "mmh3", specifier = ">3.1.0" },
     { name = "moto", extras = ["server"], marker = "extra == 'dev'", specifier = ">=5.1.5" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.17.0" },
@@ -3268,7 +3268,7 @@ wheels = [
 [[package]]
 name = "mistralai"
 version = "2.4.5"
-source = { git = "https://github.com/mistralai/client-python.git?rev=v2.4.5#7ebe84b5a9eee0714f81c687c8cf636eaa12476f" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "eval-type-backport" },
     { name = "httpx" },
@@ -3278,6 +3278,10 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dateutil" },
     { name = "typing-inspection" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8e/3f/5624d57c5897c83c55d3e4c7dd4127de42ad14fd3183e26566cdc7dca1bf/mistralai-2.4.5.tar.gz", hash = "sha256:ef165bb004ec4423cbf19a440bf0983ca0c3fc92ab12a35ebca097bdf418e33a", size = 424611, upload-time = "2026-05-07T11:46:43.888Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1b/48/2c5c4f853dec32a625c1a3d23809b80cf2e135c3441fe1764f72910dfea9/mistralai-2.4.5-py3-none-any.whl", hash = "sha256:bf3b6550258ab16dec8547b90e9c18bebf9099f55b7fc25a884bf0bbeffced0f", size = 995999, upload-time = "2026-05-07T11:46:41.915Z" },
 ]
 
 [[package]]

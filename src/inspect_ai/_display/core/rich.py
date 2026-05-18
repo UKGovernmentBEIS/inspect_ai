@@ -5,7 +5,6 @@ from typing import Any, Iterator
 
 import rich
 from rich.console import Console, ConsoleOptions, RenderResult
-from rich.markdown import CodeBlock, Markdown
 from rich.segment import Segment
 from rich.syntax import Syntax
 from typing_extensions import override
@@ -49,6 +48,8 @@ def rich_initialise(
         rich.reconfigure(quiet=True)
 
     # consistent markdown code bock background
+    from rich.markdown import CodeBlock, Markdown
+
     class CustomCodeBlock(CodeBlock):
         @override
         def __rich_console__(

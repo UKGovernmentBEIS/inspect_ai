@@ -205,6 +205,8 @@ These sections provide a more in depth treatment of the various components used 
 
 -   [Scorers](scorers.qmd) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
 
+-   [Scanners](scanners.qmd) review transcripts to find issues like misconfigured environments, refusals, and evaluation awareness.
+
 These sections cover defining custom tools as well as Inspect's standard built-in tools:
 
 -   [Tool Basics](tools.qmd): Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.

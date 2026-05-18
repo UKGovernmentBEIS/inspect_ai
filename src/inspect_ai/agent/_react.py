@@ -192,14 +192,19 @@ def react(
             if system_message:
                 state.messages.insert(0, system_message)
 
+            # track conversation messages (restored to prior value on resume)
+            state.messages = cp.track(
+                "messages", lambda: state.messages, state.messages
+            )
+
             # resolve overflow handling
             overflow = _resolve_overflow(truncation)
 
             # create compact function
             compact = _agent_compact(compaction, state.messages, tools, model)
 
-            # track attempts
-            attempt_count = 0
+            # track attempts (recovered from checkpoint state on resume)
+            attempt_count = cp.track("attempt_count", lambda: attempt_count, 0)
 
             # track consecutive content_filter responses
             consecutive_content_filter = 0
@@ -208,7 +213,7 @@ def react(
             # or if a message or token limit is hit
             while True:
                 # checkpoint at turn boundary (no-op when policy says so)
-                await cp.tick(state.messages)
+                await cp.tick()
 
                 # generate output and append assistant message
                 state = await _agent_generate(
@@ -369,6 +374,11 @@ def react_no_submit(
             if system_message:
                 state.messages.insert(0, system_message)
 
+            # track conversation messages (restored to prior value on resume)
+            state.messages = cp.track(
+                "messages", lambda: state.messages, state.messages
+            )
+
             # resolve overflow handling
             overflow = _resolve_overflow(truncation)
 
@@ -381,7 +391,7 @@ def react_no_submit(
             # main loop
             while True:
                 # checkpoint at turn boundary (no-op when policy says so)
-                await cp.tick(state.messages)
+                await cp.tick()
 
                 # generate output and append assistant message
                 state = await _agent_generate(
@@ -458,10 +468,13 @@ def _prompt_to_system_message(
                 and ("{submit}" not in prompt.assistant_prompt)
                 and prompt.submit_prompt
             ):
-                assistant_prompt = f"{prompt.assistant_prompt}\n{prompt.submit_prompt.format(submit=submit_tool)}"
+                assistant_prompt = (
+                    f"{prompt.assistant_prompt}\n"
+                    f"{prompt.submit_prompt.replace('{submit}', submit_tool)}"
+                )
             else:
-                assistant_prompt = prompt.assistant_prompt.format(
-                    submit=submit_tool or "submit"
+                assistant_prompt = prompt.assistant_prompt.replace(
+                    "{submit}", submit_tool or "submit"
                 )
             prompt_lines.append(assistant_prompt)
         prompt_content = "\n\n".join(prompt_lines)

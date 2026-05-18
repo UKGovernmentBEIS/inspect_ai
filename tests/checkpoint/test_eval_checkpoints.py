@@ -92,3 +92,39 @@ async def test_manifest_is_valid_json(tmp_path: Path) -> None:
     await init_eval_checkpoints_dir(eval_dir, eval_id="eval-001")
     parsed = json.loads((Path(eval_dir) / "manifest.json").read_text())
     assert parsed["eval_id"] == "eval-001"
+
+
+async def test_init_concurrent_callers_produce_single_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only one concurrent caller writes the manifest; the rest read it."""
+    import secrets as secrets_mod
+    from functools import partial
+
+    from inspect_ai._util._async import tg_collect
+
+    real_token_urlsafe = secrets_mod.token_urlsafe
+    write_count = 0
+
+    def counting_token_urlsafe(nbytes: int) -> str:
+        nonlocal write_count
+        write_count += 1
+        return real_token_urlsafe(nbytes)
+
+    monkeypatch.setattr(
+        "inspect_ai.util._checkpoint.eval_checkpoints_dir.secrets.token_urlsafe",
+        counting_token_urlsafe,
+    )
+
+    eval_dir = str(tmp_path / "foo.checkpoints")
+    await tg_collect(
+        [partial(init_eval_checkpoints_dir, eval_dir, "eval-001") for _ in range(20)]
+    )
+
+    # Lock serialized the 20 callers: exactly one generated a password
+    # and wrote the manifest; the other 19 saw it on disk and returned.
+    assert write_count == 1
+    manifest = CheckpointManifest.model_validate_json(
+        (Path(eval_dir) / "manifest.json").read_text()
+    )
+    assert manifest.eval_id == "eval-001"

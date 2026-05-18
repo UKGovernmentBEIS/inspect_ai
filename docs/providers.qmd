@@ -842,6 +842,41 @@ You can also access models from ModelScope rather than Hugging Face, see the [vL
 
 vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.
 
+### Multiple Servers
+
+`VLLM_BASE_URL` sets a single global endpoint, but a vLLM server only serves one model. If you need different models for different purposes — for example, a small model for the solver and a larger one as a judge for [model-graded scoring](scorers.qmd#model-graded) — start a vLLM server per model and pass a per-model `base_url` rather than relying on the env var.
+
+The most ergonomic path is [model roles](models.qmd#model-roles), which lets the built-in `model_graded_*` scorers automatically resolve their judge from the `grader` role:
+
+``` bash
+inspect eval task.py \
+    --model vllm/meta-llama/Llama-3-8B \
+    --model-base-url http://gpu1:8000/v1 \
+    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, base_url: http://gpu2:8000/v1}'
+```
+
+Equivalent from Python:
+
+``` python
+from inspect_ai import eval
+from inspect_ai.model import get_model
+
+eval(
+    "task.py",
+    model=get_model("vllm/meta-llama/Llama-3-8B", base_url="http://gpu1:8000/v1"),
+    model_roles={
+        "grader": get_model(
+            "vllm/meta-llama/Llama-3-70B-Instruct",
+            base_url="http://gpu2:8000/v1",
+        ),
+    },
+)
+```
+
+Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. `VLLM_API_KEY` is also accepted as a per-model `api_key=` argument if your servers use different keys.
+
+Note: Inspect reuses a single server entry per base model name, so two `vllm/<same-model>` instances pointed at different URLs will collapse to the first URL. This caveat does not apply to the typical solver-vs-judge setup since the two models are different.
+
 ### Batching
 
 vLLM automatically handles batching, so you generally don't have to worry about selecting the optimal batch size. However, you can still use the `max_connections` option to control the number of concurrent requests which defaults to 32. If the server has saturated the GPU it may reject requests---these are by default retried after 5 seconds (you can customize this using the `retry_delay` model args, e.g. `-M retry_delay=3`).
@@ -1268,6 +1303,12 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 : {tbl-colwidths=\[20,85\]}
 
 In addition, [Tool Emulation](#tool-emulation-openai) is available for models that don't yet support tool calling in their API.
+
+For `openrouter/anthropic/*` models, Anthropic [prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled by default: per-block `cache_control` markers are inserted on the last system block, the last tool definition, and a rolling pair of message-level breakpoints (mirroring the placement used by the direct `anthropic` provider). The markers are accepted by OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Cache writes returned upstream are surfaced as `ModelUsage.input_tokens_cache_write`. Pass `--cache-prompt=false` (or set `cache_prompt=False` in `GenerateConfig`) to disable. Single-turn evaluations that never re-issue the same prefix pay a small premium (Anthropic charges ~1.25× for cache writes) with no offsetting cache reads — disable caching for those workloads.
+
+Note that OpenRouter may distribute consecutive requests for the same model across multiple Anthropic-compatible backends (Anthropic-direct, Bedrock, Vertex), and each backend maintains its own prompt cache. To maximise the cache hit rate across a multi-turn run, pin routing to a single backend via the `provider` model-arg, for example `-M provider='{"order":["anthropic"],"allow_fallbacks":false}'`.
+
+The `cache_control` markers are injected just before the request reaches OpenRouter and so will not appear in the request snapshot recorded in `.eval` log files. Verify caching is active by inspecting the usage line (cache reads/writes) on returned `ModelOutput`s.
 
 The following environment variables are supported by the OpenRouter AI provider
 

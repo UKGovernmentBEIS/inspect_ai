@@ -22,7 +22,7 @@ from inspect_ai._display import (
     display,
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
-from inspect_ai._eval.task.scan import EvalScanners
+from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -180,7 +180,7 @@ class TaskRunOptions:
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
-    scanner: "EvalScanners | None" = field(default=None)
+    scanner: "Scanners | None" = field(default=None)
     scan_id: str | None = field(default=None)
     tags: list[str] | None = field(default=None)
     run_samples: bool | None = field(default=True)
@@ -802,7 +802,7 @@ async def task_run_sample(
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
-    scanner: "EvalScanners | None",
+    scanner: "Scanners | None",
     cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],
@@ -991,6 +991,7 @@ async def task_run_sample(
                 sample_summary = EvalSampleSummary(
                     id=sample_id,
                     epoch=state.epoch,
+                    uuid=state.uuid,
                     input=sample.input,
                     choices=sample.choices,
                     target=sample.target,

@@ -75,3 +75,24 @@ def test_claude_high_effort_keeps_max_tokens():
     api = _make_claude_api()
     config = GenerateConfig(reasoning_effort="high", max_tokens=2048)
     assert _nova_high_effort_reasoning(api, config) is False
+
+
+def test_nova_top_k_uses_nova_inference_config_extension():
+    api = _make_nova_api()
+    config = GenerateConfig(top_k=50)
+    fields = api._additional_model_request_fields(config, False)
+    assert fields == {"inferenceConfig": {"topK": 50}}
+
+
+def test_claude_top_k_keeps_existing_bedrock_shape():
+    api = _make_claude_api()
+    config = GenerateConfig(top_k=50)
+    fields = api._additional_model_request_fields(config, False)
+    assert fields == {"top_k": 50}
+
+
+def test_adaptive_thinking_model_omits_top_k():
+    api = _make_claude_api()
+    config = GenerateConfig(top_k=50)
+    fields = api._additional_model_request_fields(config, True)
+    assert fields == {}

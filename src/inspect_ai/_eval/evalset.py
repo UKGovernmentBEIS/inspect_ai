@@ -24,7 +24,7 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
-from inspect_ai._eval.task.scan import EvalScanners, scan_already_clean
+from inspect_ai._eval.task.scan import Scanners, scan_already_clean
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.error import PrerequisiteError
@@ -117,13 +117,14 @@ def eval_set(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
-    scanner: "EvalScanners | None" = None,
+    scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     score: bool = True,
+    score_display: bool | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
@@ -208,6 +209,7 @@ def eval_set(
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
         score: Score output (defaults to True)
+        score_display: Show scoring metrics in realtime (defaults to True)
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -349,6 +351,7 @@ def eval_set(
             log_shared=log_shared,
             log_header_only=True,
             score=score,
+            score_display=score_display,
             eval_set_id=eval_set_id,
             task_retry_attempts=task_retry_attempts,
             **kwargs,
@@ -477,6 +480,12 @@ def eval_set(
             sandbox,
             sample_shuffle,
         )
+
+        # fail with a legible error if no tasks were found (matches `eval`)
+        if len(resolved_tasks) == 0:
+            raise PrerequisiteError(
+                "Error: No inspect tasks were found at the specified paths."
+            )
 
         # list all logs currently in the log directory (update manifest if there are some)
         all_logs = list_all_eval_logs(log_dir)
@@ -688,7 +697,7 @@ def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str
 
 
 def _resume_scan_tasks(
-    scanner: "EvalScanners | None",
+    scanner: "Scanners | None",
     success_logs: list[Log],
     resolved_tasks: list[ResolvedTask],
     eval_set_args: EvalSetArgsInTaskIdentifier,

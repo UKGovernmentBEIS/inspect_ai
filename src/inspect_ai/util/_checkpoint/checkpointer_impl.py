@@ -12,18 +12,26 @@ sample-run time, via :func:`build_session` (called from
 from __future__ import annotations
 
 import json
+import os
 import time
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from functools import partial
 from logging import getLogger
 from pathlib import Path
+from typing import Any, TypeVar, cast
 
 import anyio
+from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.logger import warn_once
 from inspect_ai.event._event import Event
+from inspect_ai.log import EventsData
+from inspect_ai.log._pool import (
+    condense_model_event_calls,
+    condense_model_event_inputs,
+)
 from inspect_ai.log._samples import sample_active
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
@@ -50,7 +58,7 @@ from .working_dir import ensure_sample_working_dir
 
 logger = getLogger(__name__)
 
-prevent_use = True
+T = TypeVar("T")
 
 
 async def build_impl() -> Checkpointer:
@@ -62,11 +70,11 @@ async def build_impl() -> Checkpointer:
     sample has no checkpoint config; otherwise pre-ensures on-disk
     dirs and initializes the host + per-sandbox restic repos, then
     returns an :class:`_Checkpointer`.
-    """
-    if prevent_use:
-        warn_once(logger, "Checkpointing is still not yet fully implemented")
-        return _NoopCheckpointer()
 
+    Checkpointing is gated off by default while still under
+    development — the function returns a no-op session unless the
+    ``INSPECT_CHECKPOINTING`` env var is set to ``"1"``.
+    """
     # TODO(checkpointing-phase-3): capture the sample-level retry /
     # attempt index. `ActiveSample` does not currently carry it; the
     # value is published via the `on_sample_attempt_start` hook with
@@ -78,6 +86,10 @@ async def build_impl() -> Checkpointer:
     if active is None or active.checkpoint is None:
         return _NoopCheckpointer()
     config = active.checkpoint
+
+    if os.environ.get("INSPECT_CHECKPOINTING") != "1":
+        warn_once(logger, "Checkpointing is still not yet fully implemented")
+        return _NoopCheckpointer()
 
     if active.eval_id is None:
         raise RuntimeError(
@@ -114,11 +126,19 @@ async def build_impl() -> Checkpointer:
 class _NoopCheckpointer:
     """No-op session for ``Checkpointer()`` with no resolved config."""
 
-    async def tick(self, messages: Sequence[ChatMessage]) -> None:
+    async def tick(self) -> None:
         return None
 
-    async def checkpoint(self, messages: Sequence[ChatMessage]) -> None:
+    async def checkpoint(self) -> None:
         return None
+
+    def track(
+        self,
+        key: str,
+        callback: Callable[[], T],
+        initial_value: T,
+    ) -> T:
+        return initial_value
 
 
 class _Checkpointer:
@@ -131,6 +151,7 @@ class _Checkpointer:
         sample_working_dir: str,
         host_restic: Path,
         restic_password: str,
+        resume_state: dict[str, Any] | None = None,
     ) -> None:
         self._config = config
         self._sample_checkpoints_dir = sample_checkpoints_dir
@@ -138,19 +159,45 @@ class _Checkpointer:
         self._host_restic = host_restic
         self._host_repo = f"{sample_checkpoints_dir}/host"
         self._restic_password = restic_password
+        self._resume_state = resume_state
+        self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
         self._turns_since_fire = 0
         self._last_fire_monotonic = time.monotonic()
         self._next_checkpoint_id = 1
+        # Persisted across fires: each fire processes only the new event slice
+        # and appends to these accumulators. Safe because checkpoints fire at
+        # turn boundaries, after which prior events are immutable.
+        self._condensed_events: list[Event] = []
+        self._msg_pool: list[ChatMessage] = []
+        self._msg_index: dict[str, int] = {}
+        self._call_pool: list[JsonValue] = []
+        self._call_index: dict[str, int] = {}
+        self._events_consumed = 0
 
-    async def tick(self, messages: Sequence[ChatMessage]) -> None:
+    async def tick(self) -> None:
         self._turn += 1
         self._turns_since_fire += 1
         if self._should_fire():
-            await self._fire(self._policy_trigger(), messages)
+            await self._fire(self._policy_trigger())
 
-    async def checkpoint(self, messages: Sequence[ChatMessage]) -> None:
-        await self._fire("manual", messages)
+    async def checkpoint(self) -> None:
+        await self._fire("manual")
+
+    def track(
+        self,
+        key: str,
+        callback: Callable[[], T],
+        initial_value: T,
+    ) -> T:
+        if key in self._on_checkpoint_callbacks:
+            raise ValueError(
+                f"track already registered for key {key!r}; keys must be unique"
+            )
+        self._on_checkpoint_callbacks[key] = callback
+        if self._resume_state is None or key not in self._resume_state:
+            return initial_value
+        return cast(T, self._resume_state[key])
 
     def _should_fire(self) -> bool:
         policy = self._config.trigger
@@ -175,9 +222,7 @@ class _Checkpointer:
         # construction time.
         raise AssertionError(f"unexpected policy: {policy!r}")
 
-    async def _fire(
-        self, trigger: CheckpointTriggerKind, messages: Sequence[ChatMessage]
-    ) -> None:
+    async def _fire(self, trigger: CheckpointTriggerKind) -> None:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
         # the per-checkpoint sidecar.
@@ -186,8 +231,12 @@ class _Checkpointer:
         state = sample_state()
         if not state:
             raise RuntimeError("Checkpointer must find sample state")
+        ts = transcript()
         await self._write_host_context(
-            self._sample_working_dir, messages, transcript().events, state.store
+            self._sample_working_dir,
+            ts.events,
+            ts.attachments,
+            state.store,
         )
 
         # Host + each sandbox (backup → egress) in parallel. The
@@ -232,23 +281,64 @@ class _Checkpointer:
     async def _write_host_context(
         self,
         sample_working_dir: str,
-        messages: Sequence[ChatMessage],
         events: Sequence[Event],
+        attachments: Mapping[str, str],
         store: Store,
     ) -> None:
-        """Write the host context across three files.
+        """Write the host context across up to five files.
 
-        - ``messages.json`` — JSON array of ChatMessage. Append-only in
-          practice; restic's content-defined chunking dedups the
-          unchanged prefix across snapshots.
-        - ``events.json`` — JSON array of Event. Same property.
+        - ``events.json`` — condensed events; ModelEvent inputs / calls
+          replaced with refs into the pools below.
+        - ``events_data.json`` — ``{messages, calls}`` dedup pools.
+        - ``attachments.json`` — hash → original-content pool that
+          ``ModelEvent.call`` refs (`attachment://<hash>`) point into.
+          Captured live by ``Transcript._process_event``; serialized
+          here so the snapshot is self-contained.
         - ``store.json`` — Store key/value as a single JSON object.
-          Mutates anywhere; doesn't dedup, but it's the smallest file.
+        - ``agent_state.json`` — agent-defined property bag, written
+          only when the agent registered at least one callback via
+          :meth:`Checkpointer.track`. Each registered key becomes a
+          top-level field in the dict. The agent's conversation
+          messages typically live here (e.g. under the ``"messages"``
+          key) — the protocol no longer privileges them as a top-level
+          file. Presence on disk signals opt-in.
         """
+        # Pool ModelEvent input + call messages — the big O(N²) redundancy.
+        # We process only the new event slice each fire and append to the
+        # accumulators on the session, so total hashing work is O(N) over a
+        # sample rather than O(N) per fire. Safe because checkpoints fire at
+        # turn boundaries, after which prior events are immutable.
+        # Attachments come pre-extracted on the transcript (call payloads
+        # >100 chars are rewritten to attachment:// refs as events flow in,
+        # with originals in transcript.attachments) — we persist that pool
+        # here so resume can resolve the refs.
+        new = events[self._events_consumed :]
+        if new:
+            cond, self._msg_index, new_msgs = condense_model_event_inputs(
+                new, len(self._msg_pool), self._msg_index
+            )
+            self._msg_pool.extend(m for _, m in new_msgs)
+            cond, self._call_index, new_calls = condense_model_event_calls(
+                cond, len(self._call_pool), self._call_index
+            )
+            self._call_pool.extend(c for _, c in new_calls)
+            self._condensed_events.extend(cond)
+            self._events_consumed = len(events)
+        events_data = EventsData(messages=self._msg_pool, calls=self._call_pool)
         sample_dir = anyio.Path(sample_working_dir)
-        await (sample_dir / "messages.json").write_text(_json_dump(messages))
-        await (sample_dir / "events.json").write_text(_json_dump(events))
+        await (sample_dir / "events.json").write_text(
+            _json_dump(self._condensed_events)
+        )
+        await (sample_dir / "events_data.json").write_text(_json_dump(events_data))
+        await (sample_dir / "attachments.json").write_text(
+            _json_dump(dict(attachments))
+        )
         await (sample_dir / "store.json").write_text(_json_dump(store_jsonable(store)))
+        if self._on_checkpoint_callbacks:
+            agent_state = {
+                key: cb() for key, cb in self._on_checkpoint_callbacks.items()
+            }
+            await (sample_dir / "agent_state.json").write_text(_json_dump(agent_state))
 
     async def _backup_host(self) -> ResticBackupSummary:
         return await run_host_backup(
