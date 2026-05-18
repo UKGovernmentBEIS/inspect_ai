@@ -27,6 +27,7 @@ from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.discovery import TargetAddress
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.tui.client import (
+    CLIENT_CAPABILITIES,
     attach_session,
     enumerate_sessions,
 )
@@ -200,3 +201,108 @@ async def test_attach_session_binds_via_session_load(
         finally:
             await attached.close()
             assert not attached.is_connected
+
+
+# ---------------------------------------------------------------------------
+# Plan-rendering opt-in (verifies the TUI sends the right capability flag)
+# ---------------------------------------------------------------------------
+
+
+def test_client_capabilities_advertises_plan_rendering() -> None:
+    """Unit check: the constant ships ``inspect.plan_rendering = True``.
+
+    Both ``_list_for_target`` and ``attach_session`` send this dict
+    verbatim in their ``initialize`` request, so a single
+    structure-level assertion covers both code paths.
+    """
+    assert CLIENT_CAPABILITIES == {"_meta": {"inspect.plan_rendering": True}}
+
+
+@skip_if_trio
+@unix_only
+async def test_enumerate_session_initialize_sets_plan_rendering(
+    short_data_dir: Path, stub_targets, monkeypatch
+) -> None:
+    """The server sees ``client_renders_plan = True`` after enumerate.
+
+    Spies on ``detect_capabilities`` so we don't depend on the server
+    exposing per-connection state directly. The capability check fires
+    once per connection in ``ConnectionHandler.initialize``.
+    """
+    captured: list[Any] = []
+
+    import inspect_ai.agent._acp.connection as connection_mod
+    from inspect_ai.agent._acp.inspect_ext import detect_capabilities
+
+    def _spy(client_info: Any, client_capabilities: Any) -> tuple[bool, bool]:
+        captured.append((client_info, client_capabilities))
+        return detect_capabilities(client_info, client_capabilities)
+
+    monkeypatch.setattr(connection_mod, "detect_capabilities", _spy)
+
+    stub_targets(
+        [_make_active_sample(task="t", sample_id="s", epoch=0, session_id="uuid")]
+    )
+    async with acp_server(eval_id="evt-plan-enum", transport=True) as server:
+        assert server is not None
+        target = TargetAddress(socket_path=server.socket_path)
+        await enumerate_sessions([("evt-plan-enum", target)])
+
+    assert len(captured) == 1, (
+        f"expected one initialize call from enumerate, got {captured}"
+    )
+    client_info, client_capabilities = captured[0]
+    assert client_info is not None
+    assert client_info.name == "inspect-acp-tui"
+    assert client_capabilities is not None
+    assert client_capabilities.field_meta == {"inspect.plan_rendering": True}
+
+
+@skip_if_trio
+@unix_only
+async def test_attach_session_initialize_sets_plan_rendering(
+    short_data_dir: Path, stub_targets, monkeypatch
+) -> None:
+    """The server sees ``client_renders_plan = True`` after attach.
+
+    The two paths (``enumerate`` and ``attach``) share the same
+    ``CLIENT_CAPABILITIES`` constant, but a regression on either one
+    breaks plan rendering, so each gets its own integration check.
+    """
+    captured: list[Any] = []
+
+    import inspect_ai.agent._acp.connection as connection_mod
+    from inspect_ai.agent._acp.inspect_ext import detect_capabilities
+
+    def _spy(client_info: Any, client_capabilities: Any) -> tuple[bool, bool]:
+        captured.append((client_info, client_capabilities))
+        return detect_capabilities(client_info, client_capabilities)
+
+    monkeypatch.setattr(connection_mod, "detect_capabilities", _spy)
+
+    stub_targets(
+        [
+            _make_active_sample(
+                task="t1", sample_id="s1", epoch=0, session_id="uuid-attach-plan"
+            )
+        ]
+    )
+    async with acp_server(eval_id="evt-plan-attach", transport=True) as server:
+        assert server is not None
+        target = TargetAddress(socket_path=server.socket_path)
+        # enumerate first (also opts in — captured), then attach
+        # (second capture). The second one is the bound long-lived
+        # connection that actually consumes the plan notifications.
+        rows = await enumerate_sessions([("evt-plan-attach", target)])
+        attached = await attach_session(rows[0])
+        try:
+            assert attached.is_connected
+        finally:
+            await attached.close()
+
+    # Two connections: enumerate (closed after list) + attach (live).
+    # Both must carry the opt-in.
+    assert len(captured) == 2, captured
+    for client_info, client_capabilities in captured:
+        assert client_info.name == "inspect-acp-tui"
+        assert client_capabilities.field_meta == {"inspect.plan_rendering": True}

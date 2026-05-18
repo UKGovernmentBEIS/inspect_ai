@@ -697,17 +697,23 @@ def test_failing_subscriber_does_not_break_others() -> None:
 
 
 def test_unknown_update_kind_does_not_notify() -> None:
-    """Phase 2 ignores Plan / Mode / Config updates. Subscriber shouldn't fire."""
-    from acp.schema import AgentPlanUpdate, PlanEntry
+    """SessionUpdate variants the state doesn't model are silently ignored.
+
+    Picked ``CurrentModeUpdate`` as the representative "we don't model
+    this" variant — ``AgentPlanUpdate`` *is* handled now that the
+    plan strip widget consumes it, so it can't serve as the
+    unsupported-kind canary any more.
+    """
+    from acp.schema import CurrentModeUpdate
 
     state = SessionState()
     calls: list[int] = []
     state.subscribe(lambda: calls.append(1))
-    plan = AgentPlanUpdate(
-        session_update="plan",
-        entries=[PlanEntry(content="x", status="pending", priority="medium")],
+    mode = CurrentModeUpdate(
+        session_update="current_mode_update",
+        current_mode_id="some-mode",
     )
-    state.consume(SessionNotification(session_id="sid", update=plan))
+    state.consume(SessionNotification(session_id="sid", update=mode))
     assert calls == []
 
 
@@ -1260,3 +1266,165 @@ def test_lifecycle_tail_stamped_when_long_pending_completes() -> None:
     # mypy narrowed `lifecycle` to "running" earlier; the clock-driven
     # expiry flips it to "idle" but mypy can't model time-based mutation.
     assert state.lifecycle == "idle"  # type: ignore[comparison-overlap]
+
+
+# ---------------------------------------------------------------------------
+# Plan state — AgentPlanUpdate consumption + derived helpers
+# ---------------------------------------------------------------------------
+
+
+def _plan_update(
+    *entries: tuple[str, str],
+) -> SessionNotification:
+    """Build a SessionNotification carrying an AgentPlanUpdate.
+
+    ``entries`` is a list of ``(content, status)`` tuples — keeps the
+    test call sites compact and readable.
+    """
+    from acp.schema import AgentPlanUpdate, PlanEntry
+
+    plan_entries = [
+        PlanEntry(content=content, status=status, priority="medium")  # type: ignore[arg-type]
+        for content, status in entries
+    ]
+    return SessionNotification(
+        session_id="sid",
+        update=AgentPlanUpdate(session_update="plan", entries=plan_entries),
+    )
+
+
+def test_plan_entries_initially_none() -> None:
+    """Default state: no plan, derived counts return zero."""
+    state = SessionState()
+    assert state.plan_entries is None
+    assert state.plan_done_count == 0
+    assert state.plan_total_count == 0
+    assert state.plan_current_entry is None
+
+
+def test_plan_first_update_populates_entries() -> None:
+    state = SessionState()
+    state.consume(
+        _plan_update(
+            ("write tests", "completed"),
+            ("ship feature", "in_progress"),
+            ("celebrate", "pending"),
+        )
+    )
+    assert state.plan_entries is not None
+    assert [e.content for e in state.plan_entries] == [
+        "write tests",
+        "ship feature",
+        "celebrate",
+    ]
+    assert state.plan_done_count == 1
+    assert state.plan_total_count == 3
+
+
+def test_plan_subsequent_update_replaces_previous_entries() -> None:
+    """ACP plan updates are full replacement, not deltas."""
+    state = SessionState()
+    state.consume(_plan_update(("old task", "in_progress")))
+    state.consume(_plan_update(("new task A", "completed"), ("new task B", "pending")))
+    assert state.plan_entries is not None
+    assert [e.content for e in state.plan_entries] == ["new task A", "new task B"]
+
+
+def test_plan_consume_notifies_subscriber() -> None:
+    state = SessionState()
+    calls: list[int] = []
+    state.subscribe(lambda: calls.append(1))
+    state.consume(_plan_update(("only", "pending")))
+    assert calls == [1]
+
+
+def test_plan_current_prefers_in_progress_over_pending() -> None:
+    """A row explicitly marked in_progress beats the first pending row."""
+    state = SessionState()
+    state.consume(
+        _plan_update(
+            ("first pending", "pending"),
+            ("the active one", "in_progress"),
+            ("later pending", "pending"),
+        )
+    )
+    current = state.plan_current_entry
+    assert current is not None
+    assert current.content == "the active one"
+    assert current.status == "in_progress"
+
+
+def test_plan_current_falls_back_to_first_pending_when_none_running() -> None:
+    state = SessionState()
+    state.consume(
+        _plan_update(
+            ("done one", "completed"),
+            ("first up", "pending"),
+            ("later up", "pending"),
+        )
+    )
+    current = state.plan_current_entry
+    assert current is not None
+    assert current.content == "first up"
+
+
+def test_plan_current_index_matches_plan_current_entry() -> None:
+    """``plan_current_index`` and ``plan_current_entry`` point at the same row.
+
+    Both surfaces (strip + overlay) read these — they must agree.
+    Cover the tricky case where a pending row precedes the
+    in_progress row: index 1, not index 0.
+    """
+    state = SessionState()
+    state.consume(
+        _plan_update(
+            ("first pending", "pending"),
+            ("the active one", "in_progress"),
+            ("later pending", "pending"),
+        )
+    )
+    assert state.plan_current_index == 1
+    current = state.plan_current_entry
+    assert current is not None
+    assert state.plan_entries is not None
+    assert state.plan_entries[state.plan_current_index] is current
+
+
+def test_plan_current_index_none_when_all_completed() -> None:
+    state = SessionState()
+    state.consume(_plan_update(("a", "completed"), ("b", "completed")))
+    assert state.plan_current_index is None
+    assert state.plan_current_entry is None
+
+
+def test_plan_current_index_none_when_no_plan() -> None:
+    state = SessionState()
+    assert state.plan_current_index is None
+
+
+def test_plan_current_is_none_when_all_completed() -> None:
+    state = SessionState()
+    state.consume(_plan_update(("a", "completed"), ("b", "completed")))
+    assert state.plan_current_entry is None
+    # Tally still reflects the finished work.
+    assert state.plan_done_count == 2
+    assert state.plan_total_count == 2
+
+
+def test_plan_entries_decoupled_from_payload_list() -> None:
+    """The state stores a copy; mutating the caller's list won't drift state."""
+    from acp.schema import AgentPlanUpdate, PlanEntry
+
+    entries = [PlanEntry(content="x", status="pending", priority="medium")]
+    state = SessionState()
+    state.consume(
+        SessionNotification(
+            session_id="sid",
+            update=AgentPlanUpdate(session_update="plan", entries=entries),
+        )
+    )
+    entries.append(PlanEntry(content="y", status="pending", priority="medium"))
+    # State's snapshot stays length 1 even though the caller's list grew.
+    assert state.plan_entries is not None
+    assert len(state.plan_entries) == 1
+    assert state.plan_entries[0].content == "x"

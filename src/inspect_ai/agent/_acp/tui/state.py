@@ -34,7 +34,9 @@ from typing import Any, Callable, Literal, Union
 
 from acp.schema import (
     AgentMessageChunk,
+    AgentPlanUpdate,
     AgentThoughtChunk,
+    PlanEntry,
     SessionInfoUpdate,
     SessionNotification,
     TextContentBlock,
@@ -321,6 +323,16 @@ class SessionState:
         # this one tracks ALL active work — chunks + tool events —
         # instead of just chunks.
         self._last_running_at: float | None = None
+        # Most recent plan from the server's ``AgentPlanUpdate`` stream
+        # (collapsed plan-tool invocations for plan-rendering-capable
+        # clients — see ``inspect_ext.PlanPolicyTransformer``). ACP plan
+        # updates are full replacement, not deltas, so each new update
+        # overwrites the list verbatim. ``None`` is distinct from ``[]``:
+        # ``None`` means the agent has never emitted a plan and the strip
+        # widget stays hidden; ``[]`` would mean the agent explicitly
+        # cleared its plan (not produced by either Inspect planning tool
+        # today, but reserved for forward-compat).
+        self.plan_entries: list[PlanEntry] | None = None
         self._subscribers: list[Callable[[], None]] = []
 
     # ------------------------------------------------------------------
@@ -550,6 +562,8 @@ class SessionState:
             changed = self._consume_usage(update)
         elif isinstance(update, SessionInfoUpdate):
             changed = self._consume_session_info(update)
+        elif isinstance(update, AgentPlanUpdate):
+            changed = self._consume_plan_update(update)
         if changed:
             # Stamp the running-window timestamp BEFORE notifying so
             # subscribers (notably the header pill) see the freshest
@@ -967,6 +981,14 @@ class SessionState:
         self.session_title = update.title
         return True
 
+    def _consume_plan_update(self, update: AgentPlanUpdate) -> bool:
+        # Full replacement (ACP plan updates are not deltas). Copy the
+        # list so the caller's PlanEntry instances are decoupled from
+        # ours — guards against later mutation by the schema layer or
+        # by accident in a test.
+        self.plan_entries = list(update.entries)
+        return True
+
     # ------------------------------------------------------------------
     # Derivations
     # ------------------------------------------------------------------
@@ -978,6 +1000,60 @@ class SessionState:
             for tc in self._tool_calls_by_id.values()
             if tc.status == "in_progress" or tc.status == "pending"
         )
+
+    @property
+    def plan_done_count(self) -> int:
+        """Completed-entry count for the current plan, or 0 if no plan."""
+        if self.plan_entries is None:
+            return 0
+        return sum(1 for entry in self.plan_entries if entry.status == "completed")
+
+    @property
+    def plan_total_count(self) -> int:
+        """Total-entry count for the current plan, or 0 if no plan."""
+        if self.plan_entries is None:
+            return 0
+        return len(self.plan_entries)
+
+    @property
+    def plan_current_entry(self) -> PlanEntry | None:
+        """First non-completed plan entry — what the strip surfaces as "current".
+
+        Prefers an in-progress entry over a pending one if both exist
+        (an agent that explicitly marks one row as the active focus
+        should win over the first pending). Returns ``None`` when
+        there's no plan or every entry is completed.
+        """
+        idx = self.plan_current_index
+        if idx is None:
+            return None
+        # plan_current_index already implies plan_entries is non-empty.
+        assert self.plan_entries is not None
+        return self.plan_entries[idx]
+
+    @property
+    def plan_current_index(self) -> int | None:
+        """Index of the plan row the operator should focus on.
+
+        Single source of truth for "what's current" — used by the
+        strip's body formatter (via :attr:`plan_current_entry`) AND
+        by the overlay's auto-scroll. Both surfaces must agree, so
+        defining the selection logic once here avoids the strip
+        saying "current: B" while the overlay opens on row A.
+
+        Rule: prefer an explicitly ``in_progress`` row over the first
+        ``pending``. The agent sets one row ``in_progress`` to mark
+        the active focus; that should always win.
+        """
+        if not self.plan_entries:
+            return None
+        for i, entry in enumerate(self.plan_entries):
+            if entry.status == "in_progress":
+                return i
+        for i, entry in enumerate(self.plan_entries):
+            if entry.status != "completed":
+                return i
+        return None
 
     @property
     def has_active_work(self) -> bool:

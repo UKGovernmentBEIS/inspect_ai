@@ -31,9 +31,11 @@ from .client import AttachedSession
 from .state import SessionState
 from .widgets import (
     AppFooter,
+    PlanStripWidget,
     SessionHeaderWidget,
     TranscriptWidget,
 )
+from .widgets.plan import PlanOverlayScreen
 
 _STATUS_TICK_SECONDS = 0.5
 """How often time-driven UI bits get nudged.
@@ -71,6 +73,20 @@ class SessionScreen(Screen[None]):
             priority=True,
         ),
         Binding("escape", "interrupt", "interrupt", show=True, priority=True),
+        # ``^p`` opens the plan overlay; pressing it again (the overlay's
+        # own binding takes over there with ``priority=True``) closes it.
+        # Ordered after ``interrupt`` and before ``switch sample`` so
+        # the footer reads "submit / newline / interrupt / plan / switch".
+        # :meth:`check_action` hides the footer hint when the agent
+        # hasn't emitted a plan yet, so non-planning sessions see four
+        # entries instead of five.
+        Binding(
+            "ctrl+p",
+            "toggle_plan",
+            "plan",
+            show=True,
+            priority=True,
+        ),
         Binding(
             "ctrl+s",
             "switch_sample",
@@ -83,11 +99,11 @@ class SessionScreen(Screen[None]):
     DEFAULT_CSS = """
     SessionScreen { layout: vertical; }
     /* margin-top: 1 so the composer doesn't sit flush against the
-     * last transcript item — gives the input visual breathing room
-     * from the conversation it's appending to. Border tints $accent
-     * down so the chrome reads as part of the same family as the
-     * ``inspect acp`` caption without competing with transcript
-     * content for attention. */
+     * widget above (the plan strip when present, the transcript
+     * otherwise) — gives the input visual breathing room. Border
+     * tints ``$accent`` down so the chrome reads as part of the
+     * same family as the ``inspect acp`` caption without competing
+     * with transcript content for attention. */
     #composer-row {
         height: 3;
         margin: 1 2 1 2;
@@ -140,6 +156,12 @@ class SessionScreen(Screen[None]):
         with Vertical():
             yield SessionHeaderWidget(self._session.row)
             yield TranscriptWidget()
+            # Plan strip sits between transcript and composer so the
+            # operator sees "what is the agent working on next" in the
+            # immediate visual neighbourhood of the input. Self-hides
+            # when the session has no plan — non-planning agents see
+            # no chrome here.
+            yield PlanStripWidget(self._state)
             with Horizontal(id="composer-row"):
                 yield Static("> ", id="composer-prompt", markup=False)
                 yield Input(
@@ -187,6 +209,31 @@ class SessionScreen(Screen[None]):
         header.set_usage(self._state.usage)
         transcript.refresh_from(self._state)
         self._apply_lifecycle()
+        # Plan strip self-hides via subscriber callback; the ``^p``
+        # footer hint is gated by :meth:`check_action`, which Textual
+        # only consults on demand. Nudge the bindings view so the
+        # footer flips on the same tick the strip becomes visible.
+        self.refresh_bindings()
+
+    def check_action(self, action: str, _parameters: tuple[object, ...]) -> bool | None:
+        """Hide the ``^p plan`` footer hint when there's nothing to show.
+
+        Returns ``False`` for ``toggle_plan`` until the session has
+        received its first ``AgentPlanUpdate``; once a plan exists,
+        returns ``True``. Other actions fall through to the default.
+
+        Why ``False`` and not ``None``: in Textual 8.2.3,
+        ``Screen.active_bindings`` only skips bindings whose
+        ``check_action`` returns the literal ``False`` (see
+        ``screen.py`` ``active_bindings`` body — ``if action_state
+        is False: continue``). ``None`` falls through to
+        ``enabled = bool(None) = False`` and the binding renders as
+        visible-but-disabled in the footer. We want the slot gone
+        entirely while there's no plan to show, so ``False``.
+        """
+        if action == "toggle_plan":
+            return self._state.plan_entries is not None
+        return True
 
     def _apply_lifecycle(self) -> None:
         """Push the current lifecycle to the header pill + composer.
@@ -282,6 +329,23 @@ class SessionScreen(Screen[None]):
         """Disconnect from the current session and return to the picker."""
         self._user_initiated_close = True
         self._on_disconnect()
+
+    def action_toggle_plan(self) -> None:
+        """Open the plan overlay; no-op when the agent hasn't planned yet.
+
+        Also no-op when the overlay is already on the screen stack —
+        the ``PlanOverlayScreen``'s own ``^p`` binding handles the
+        close case with ``priority=True``, so this handler only fires
+        when no overlay is up. Both invocation paths (the ``^p``
+        binding and ``PlanStripWidget.on_click``) route here.
+
+        Passes the live :class:`SessionState` so the overlay can
+        subscribe and update in place as plan changes arrive while
+        it's open.
+        """
+        if self._state.plan_entries is None:
+            return
+        self.app.push_screen(PlanOverlayScreen(self._state))
 
     async def action_submit(self) -> None:
         """Send the composer's text to the agent as a ``session/prompt``.

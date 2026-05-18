@@ -113,7 +113,13 @@ async def test_session_screen_meta_row_handles_missing_agent_name(
 async def test_composer_has_top_margin_for_separation_from_transcript(
     sample_rows: list[SessionRow],
 ) -> None:
-    """Composer wrapper must not sit flush against the last transcript item."""
+    """Composer wrapper must not sit flush against the widget above.
+
+    A top margin of 1 keeps the composer visually separated from
+    whatever's directly above (plan strip when visible, transcript
+    otherwise) — collapsing it caused the plan overlay to render
+    on top of the composer chrome.
+    """
     from textual.containers import Horizontal
 
     client = make_fake_client(sample_rows)
@@ -125,8 +131,6 @@ async def test_composer_has_top_margin_for_separation_from_transcript(
             await pilot.pause()
             if isinstance(app.screen, SessionScreen):
                 break
-        # Margin moved from the inner Input to the bordered wrapper
-        # row, which now owns the chrome (border + spacing).
         composer_row = app.screen.query_one("#composer-row", Horizontal)
         assert composer_row.styles.margin.top == 1
 

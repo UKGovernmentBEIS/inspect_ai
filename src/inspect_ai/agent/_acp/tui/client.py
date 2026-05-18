@@ -28,12 +28,31 @@ from acp.router import MessageRouter, Route
 from acp.schema import SessionNotification
 
 from inspect_ai.agent._acp.discovery import TargetAddress
-from inspect_ai.agent._acp.inspect_ext import INSPECT_LIST_SESSIONS_METHOD
+from inspect_ai.agent._acp.inspect_ext import (
+    INSPECT_LIST_SESSIONS_METHOD,
+    PLAN_RENDERING_META_KEY,
+)
 
 CLIENT_INFO = {"name": "inspect-acp-tui", "version": "1"}
 """Sent in ``initialize`` so the server can tailor capability negotiation
 (plan rendering, raw events). The TUI is Inspect-aware; future phases
 may opt into ``inspect.raw_events`` via ``clientCapabilities._meta``."""
+
+CLIENT_CAPABILITIES = {"_meta": {PLAN_RENDERING_META_KEY: True}}
+"""ACP ``clientCapabilities`` advertised in ``initialize``.
+
+The TUI opts in to plan rendering: the server's
+:class:`PlanPolicyTransformer` substitutes ``AgentPlanUpdate`` for the
+standard tool-call notifications of ``update_plan`` / ``todo_write``,
+which the plan strip widget consumes as its single source of truth.
+The TUI is not in the server's ``PLAN_RENDERING_CLIENTS`` allowlist
+(which exists for third-party editors we can't ask to opt in
+explicitly — Zed, Toad); ``_meta`` is the right path for first-party
+clients we control.
+
+``_meta`` is the JSON wire key; ACP's Pydantic schema serializes it
+from ``ClientCapabilities.field_meta``. We construct the wire shape
+directly here since the request is sent as a raw JSON-RPC payload."""
 
 
 @dataclass(frozen=True)
@@ -130,6 +149,7 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
             {
                 "protocolVersion": PROTOCOL_VERSION,
                 "clientInfo": CLIENT_INFO,
+                "clientCapabilities": CLIENT_CAPABILITIES,
             },
         )
         response: Any = await conn.send_request(INSPECT_LIST_SESSIONS_METHOD, {})
@@ -338,6 +358,7 @@ async def attach_session(
             {
                 "protocolVersion": PROTOCOL_VERSION,
                 "clientInfo": CLIENT_INFO,
+                "clientCapabilities": CLIENT_CAPABILITIES,
             },
         )
         await conn.send_request(
