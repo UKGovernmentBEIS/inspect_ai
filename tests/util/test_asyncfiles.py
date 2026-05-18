@@ -400,6 +400,91 @@ def test_write_file_streaming_s3(mock_s3: None) -> None:
 
 
 # =============================================================================
+# Tests for get_file()
+# =============================================================================
+
+
+async def test_get_file_local() -> None:
+    """get_file copies a local source to a local destination."""
+    test_data = b"local get_file payload"
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        src = Path(temp_dir) / "src.bin"
+        dst = Path(temp_dir) / "dst.bin"
+        src.write_bytes(test_data)
+
+        async with AsyncFilesystem() as fs:
+            await fs.get_file(str(src), str(dst))
+
+        assert dst.read_bytes() == test_data
+
+
+def test_get_file_s3(mock_s3: None) -> None:
+    """get_file downloads an S3 source to a local destination."""
+    test_data = b"s3 get_file payload"
+    s3_path = f"{S3_BUCKET}/get_file_test/file.bin"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(s3_path, test_data)
+            with tempfile.TemporaryDirectory() as temp_dir:
+                dst = Path(temp_dir) / "downloaded.bin"
+                await fs.get_file(s3_path, str(dst))
+                assert dst.read_bytes() == test_data
+
+    asyncio.run(run())
+
+
+# =============================================================================
+# Tests for exists()
+# =============================================================================
+
+
+async def test_exists_local_true() -> None:
+    """Existing local file returns True."""
+    with tempfile.NamedTemporaryFile(mode="wb", delete=False) as f:
+        f.write(b"x")
+        temp_path = f.name
+
+    try:
+        async with AsyncFilesystem() as fs:
+            assert await fs.exists(temp_path) is True
+    finally:
+        Path(temp_path).unlink()
+
+
+async def test_exists_local_false() -> None:
+    """Missing local file returns False."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        missing = Path(temp_dir) / "does_not_exist.bin"
+        async with AsyncFilesystem() as fs:
+            assert await fs.exists(str(missing)) is False
+
+
+def test_exists_s3_true(mock_s3: None) -> None:
+    """Existing S3 key returns True."""
+    s3_path = f"{S3_BUCKET}/exists_test/present.bin"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(s3_path, b"data")
+            assert await fs.exists(s3_path) is True
+
+    asyncio.run(run())
+
+
+def test_exists_s3_false(mock_s3: None) -> None:
+    """Missing S3 key returns False."""
+    s3_path = f"{S3_BUCKET}/exists_test/absent.bin"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            assert await fs.exists(s3_path) is False
+
+    asyncio.run(run())
+
+
+# =============================================================================
 # Tests for AsyncFilesystem sharing via ContextVar
 # =============================================================================
 
