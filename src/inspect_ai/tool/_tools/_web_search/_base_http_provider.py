@@ -36,7 +36,6 @@ class BaseHttpProvider(ABC):
         self.max_connections = self._extract_max_connections(options)
         self.api_options = self._prepare_api_options(options)
         self.api_key = self._validate_api_key()
-        self.client = httpx.AsyncClient(timeout=30)
 
     @abstractmethod
     def prepare_headers(self, api_key: str) -> dict[str, str]:
@@ -90,8 +89,8 @@ class BaseHttpProvider(ABC):
             retry=retry_if_exception(httpx_should_retry),
             before_sleep=log_httpx_retry_attempt(self.api_endpoint),
         )
-        async def _search() -> httpx.Response:
-            response = await self.client.post(
+        async def _search(client: httpx.AsyncClient) -> httpx.Response:
+            response = await client.post(
                 self.api_endpoint,
                 headers=self.prepare_headers(self.api_key),
                 json={"query": query, **self.api_options},
@@ -100,5 +99,6 @@ class BaseHttpProvider(ABC):
             return response
 
         async with concurrency(self.concurrency_key, self.max_connections):
-            response_data = (await _search()).json()
-            return self.parse_response(response_data)
+            async with httpx.AsyncClient(timeout=30) as client:
+                response_data = (await _search(client)).json()
+                return self.parse_response(response_data)

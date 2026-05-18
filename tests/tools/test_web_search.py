@@ -25,6 +25,46 @@ ALL_INTERNAL_PROVIDERS: _NormalizedProviders = {
 }
 
 
+class _MockResponse:
+    def __init__(self, data):
+        self._data = data
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self._data
+
+
+def _mock_async_client_class(response_data):
+    class MockAsyncClient:
+        instances = []
+
+        def __init__(self, *args, **kwargs):
+            self.args = args
+            self.kwargs = kwargs
+            self.closed = False
+            self.posts = []
+            self.gets = []
+            type(self).instances.append(self)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            self.closed = True
+
+        async def post(self, *args, **kwargs):
+            self.posts.append((args, kwargs))
+            return _MockResponse(response_data)
+
+        async def get(self, *args, **kwargs):
+            self.gets.append((args, kwargs))
+            return _MockResponse(response_data)
+
+    return MockAsyncClient
+
+
 class TestNormalizeConfig:
     """Tests for the _normalize_config function in _web_search.py."""
 
@@ -342,6 +382,103 @@ class TestCreateExternalProvider:
     def test_exa_provider_with_bogus_config(self, mock_environ_get) -> None:
         with pytest.raises(ValidationError):
             _create_external_provider({"exa": {"text": "bogus"}})
+
+    async def test_tavily_provider_closes_http_client(self, monkeypatch) -> None:
+        monkeypatch.setenv("TAVILY_API_KEY", "fake-key")
+        mock_client = _mock_async_client_class(
+            {
+                "query": "query",
+                "answer": "answer",
+                "images": [],
+                "results": [
+                    {
+                        "title": "Example",
+                        "url": "https://example.com",
+                        "content": "content",
+                        "score": 1.0,
+                    }
+                ],
+                "response_time": 0.1,
+            }
+        )
+        monkeypatch.setattr(
+            "inspect_ai.tool._tools._web_search._base_http_provider.httpx.AsyncClient",
+            mock_client,
+        )
+
+        provider = _create_external_provider({"tavily": {}})
+        result = await provider("query")
+
+        assert result is not None
+        assert len(mock_client.instances) == 1
+        assert mock_client.instances[0].closed
+
+    async def test_exa_provider_closes_http_client(self, monkeypatch) -> None:
+        monkeypatch.setenv("EXA_API_KEY", "fake-key")
+        mock_client = _mock_async_client_class(
+            {
+                "answer": "answer",
+                "citations": [
+                    {
+                        "id": "1",
+                        "url": "https://example.com",
+                        "title": "Example",
+                        "text": "content",
+                    }
+                ],
+            }
+        )
+        monkeypatch.setattr(
+            "inspect_ai.tool._tools._web_search._base_http_provider.httpx.AsyncClient",
+            mock_client,
+        )
+
+        provider = _create_external_provider({"exa": {}})
+        result = await provider("query")
+
+        assert result is not None
+        assert len(mock_client.instances) == 1
+        assert mock_client.instances[0].closed
+
+    async def test_google_provider_closes_http_client(self, monkeypatch) -> None:
+        mock_client = _mock_async_client_class(
+            {
+                "items": [
+                    {
+                        "link": "https://example.com",
+                        "snippet": "snippet",
+                        "title": "Example",
+                    }
+                ]
+            }
+        )
+        monkeypatch.setattr(
+            "inspect_ai.tool._tools._web_search._google.maybe_get_google_api_keys",
+            lambda: ("fake-key", "fake-cse-id"),
+        )
+        monkeypatch.setattr(
+            "inspect_ai.tool._tools._web_search._google.httpx.AsyncClient",
+            mock_client,
+        )
+
+        async def page_if_relevant(url, query, relevance_model, client):
+            assert client is mock_client.instances[0]
+            assert not client.closed
+            return "fake result"
+
+        monkeypatch.setattr(
+            "inspect_ai.tool._tools._web_search._google.page_if_relevant",
+            page_if_relevant,
+        )
+
+        provider = _create_external_provider(
+            {"google": {"num_results": 1, "max_provider_calls": 1}}
+        )
+        result = await provider("query")
+
+        assert result == ["fake result"]
+        assert len(mock_client.instances) == 1
+        assert mock_client.instances[0].closed
 
 
 class TestOldSignatureVariants:

@@ -69,39 +69,41 @@ def google_search_provider(
         )
     google_api_key, google_cse_id = keys
 
-    # Create the client within the provider
-    client = httpx.AsyncClient()
-
     async def search(query: str) -> list[ContentText] | None:
-        # limit number of concurrent searches
-        results: list[ContentText] = []
-        search_calls = 0
+        async with httpx.AsyncClient() as client:
+            # limit number of concurrent searches
+            results: list[ContentText] = []
+            search_calls = 0
 
-        # Paginate through search results until we have successfully extracted num_results pages or we have reached max_provider_calls
-        while len(results) < num_results and search_calls < max_provider_calls:
-            async with concurrency("google_web_search", max_connections):
-                links = await _search(query, start_idx=search_calls * 10)
+            # Paginate through search results until we have successfully extracted num_results pages or we have reached max_provider_calls
+            while len(results) < num_results and search_calls < max_provider_calls:
+                async with concurrency("google_web_search", max_connections):
+                    links = await _search(
+                        query, start_idx=search_calls * 10, client=client
+                    )
 
-            async with anyio.create_task_group() as tg:
+                async with anyio.create_task_group() as tg:
 
-                async def process_link(link: SearchLink) -> None:
-                    try:
-                        if page := await page_if_relevant(
-                            link.url, query, model, client
-                        ):
-                            results.append(page)
-                    # exceptions fetching pages are very common!
-                    except Exception:
-                        pass
+                    async def process_link(link: SearchLink) -> None:
+                        try:
+                            if page := await page_if_relevant(
+                                link.url, query, model, client
+                            ):
+                                results.append(page)
+                        # exceptions fetching pages are very common!
+                        except Exception:
+                            pass
 
-                for lk in links:
-                    tg.start_soon(process_link, lk)
+                    for lk in links:
+                        tg.start_soon(process_link, lk)
 
-            search_calls += 1
+                search_calls += 1
 
-        return results or None
+            return results or None
 
-    async def _search(query: str, start_idx: int) -> list[SearchLink]:
+    async def _search(
+        query: str, start_idx: int, client: httpx.AsyncClient
+    ) -> list[SearchLink]:
         # List of allowed parameters can be found https://developers.google.com/custom-search/v1/reference/rest/v1/cse/list
         search_params = {
             "q": query,
