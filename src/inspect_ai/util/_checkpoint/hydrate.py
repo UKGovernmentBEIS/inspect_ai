@@ -39,10 +39,12 @@ from typing import Any
 
 import anyio
 from pydantic import JsonValue
+from shortuuid import uuid as shortuuid
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.file import local_path
 from inspect_ai.event._event import Event
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.solver._task_state import sample_state
@@ -449,6 +451,13 @@ def _load_and_push_host_state(
         f"agent_state={'yes' if ctx.agent_state else 'no'}"
     )
 
+    # Wrap the most-recent prior session's unwrapped checkpoint spans in
+    # a new `prior_run` span before pushing — every prior
+    # session ends up as a sibling wrap inside this attempt's events.
+    # See `_wrap_prior_run` for the slicing + reparenting
+    # mechanics.
+    pushed_events = _wrap_prior_run(ctx.condensed_events)
+
     # Push framework-owned state into the live transcript + store so the
     # agent's continued run appends to (rather than replaces) the prior
     # history. Direct mutation of the internal lists bypasses
@@ -456,13 +465,13 @@ def _load_and_push_host_state(
     # attachment-ref form and must not be reprocessed. The persisted
     # `condensed_events` is already span-only (the writer's accumulator
     # only ever captured events from the first `span_begin: checkpoint`
-    # onward), so we push it through as-is.
+    # onward), and the prior-session wrap we just added is balanced.
     ts = transcript()
     pre = [_event_label(e) for e in ts._events]
-    restored = [_event_label(e) for e in ctx.condensed_events]
+    restored = [_event_label(e) for e in pushed_events]
     print(f"[hydrate.host] pre-hydration transcript.events (n={len(pre)}): {pre}")
     print(f"[hydrate.host] restored events to push (n={len(restored)}): {restored}")
-    ts._events.extend(ctx.condensed_events)
+    ts._events.extend(pushed_events)
     ts._attachments.update(ctx.attachments)
     state = sample_state()
     if state is None:
@@ -475,16 +484,85 @@ def _load_and_push_host_state(
         f"store_keys={len(list(state.store.keys()))}"
     )
 
-    _validate_resume_state(
-        ctx.condensed_events, sample_checkpoints_dir, latest_committed_id
-    )
+    _validate_resume_state(pushed_events, sample_checkpoints_dir, latest_committed_id)
 
     return _HostHydrationResult(
         agent_state=ctx.agent_state,
-        condensed_events=ctx.condensed_events,
+        condensed_events=pushed_events,
         msg_pool=ctx.msg_pool,
         call_pool=ctx.call_pool,
     )
+
+
+def _wrap_prior_run(events: list[Event]) -> list[Event]:
+    """Wrap the trailing unwrapped checkpoint spans in a new ``prior_run`` span.
+
+    The "tail" is the slice of ``events`` after the last existing
+    ``prior_run`` ``span_end`` (or the whole list if there are
+    no prior wraps). That tail is the most-recent prior session's
+    checkpoint spans, which haven't been wrapped yet — the current
+    session wraps them at hydrate time.
+
+    Top-level ``span_begin`` events in the tail (depth 0 relative to the
+    new wrap — in practice the checkpoint span_begins) get their
+    ``parent_id`` rewritten to point at the new wrap's id, so the span
+    hierarchy reflects the new structure rather than carrying stale
+    parent ids from the prior session's transcript. ``span_end`` events
+    carry no ``parent_id``, so they pass through unchanged. The wrap's
+    own ``parent_id`` is ``None`` (sibling at the sample root,
+    alongside other prior wraps and the current session's checkpoint
+    spans).
+
+    Wrap numbering (``prior run 1``, ``2``, …) is the count
+    of existing wraps plus one, so each resume adds one numbered
+    sibling.
+
+    Timing: the wrap's ``timestamp`` defaults to *now* (resume time),
+    not the prior session's run time. The wrap represents the act of
+    rehydrating rather than the work being rehydrated; the contained
+    checkpoint spans carry their original timestamps.
+    """
+    prior_ids: set[str] = set()
+    last_prior_end_idx = -1
+    for i, e in enumerate(events):
+        if e.event == "span_begin" and getattr(e, "type", None) == "prior_run":
+            prior_ids.add(e.id)
+        elif e.event == "span_end" and getattr(e, "id", None) in prior_ids:
+            last_prior_end_idx = i
+
+    head = events[: last_prior_end_idx + 1]
+    tail = events[last_prior_end_idx + 1 :]
+
+    if not tail:
+        return list(head)
+
+    next_n = len(prior_ids) + 1
+    wrap_id = shortuuid()
+    wrap_begin = SpanBeginEvent(
+        id=wrap_id,
+        parent_id=None,
+        type="prior_run",
+        name=f"prior run {next_n}",
+    )
+    wrap_end = SpanEndEvent(id=wrap_id)
+
+    # Reparent any depth-0 span_begin in the tail to the new wrap.
+    # In practice the tail's top-level spans are the prior session's
+    # checkpoint span_begins; their original parent_ids point at spans
+    # from the prior attempt's transcript that don't exist in the new
+    # one.
+    new_tail: list[Event] = []
+    depth = 0
+    for e in tail:
+        if e.event == "span_begin":
+            if depth == 0:
+                e = e.model_copy(update={"parent_id": wrap_id})
+            depth += 1
+        elif e.event == "span_end":
+            depth -= 1
+        new_tail.append(e)
+
+    return list(head) + [wrap_begin, *new_tail, wrap_end]
 
 
 def _validate_resume_state(
@@ -497,13 +575,17 @@ def _validate_resume_state(
     Invariants checked (all raise ``RuntimeError`` on failure):
 
     - ``events.json`` is non-empty and starts with
-      ``span_begin name="checkpoint 1" type="checkpoint"``.
-    - Last event is a ``span_end`` (the most recent fire closed its
-      span at the top of ``_fire`` before writing the snapshot).
+      ``span_begin name="prior run 1" type="prior_run"``
+      (the wrap synthesized at hydrate time).
+    - Last event is a ``span_end`` (either the outermost wrap's end or
+      a checkpoint's end if no wraps were synthesized).
     - Checkpoint span names are sequential (``checkpoint 1``, ``2``,
-      …, ``N``).
-    - Each checkpoint ``span_begin`` is paired with a matching
-      ``span_end`` (by ``id``).
+      …, ``N``) across the whole event list, regardless of nesting
+      depth inside ``prior_run`` wraps.
+    - ``prior_run`` wrap names are sequential
+      (``prior run 1``, ``2``, …, ``M``).
+    - Each ``span_begin`` (checkpoint or wrap) is paired with a
+      matching ``span_end`` (by ``id``).
     - The number of checkpoint spans equals ``latest_committed_id``
       (the highest cleanly-parsing sidecar id — the true commit point).
 
@@ -521,40 +603,60 @@ def _validate_resume_state(
     )
     print(f"[hydrate.validate] events.json event count: {len(events)}")
 
-    # Walk events: collect checkpoint span_begin's and all span_end's
-    # (span_end has no type attr — pair by id).
-    begins: list[tuple[int, str, str]] = []  # (idx, name, id)
+    # Walk events: collect checkpoint + prior_run span_begins
+    # and all span_ends (span_end has no type attr — pair by id).
+    checkpoint_begins: list[tuple[int, str, str]] = []  # (idx, name, id)
+    wrap_begins: list[tuple[int, str, str]] = []  # (idx, name, id)
     end_by_id: dict[str, int] = {}
     for i, e in enumerate(events):
-        if e.event == "span_begin" and getattr(e, "type", None) == "checkpoint":
-            begins.append((i, getattr(e, "name", ""), getattr(e, "id", "")))
+        if e.event == "span_begin":
+            type_ = getattr(e, "type", None)
+            if type_ == "checkpoint":
+                checkpoint_begins.append(
+                    (i, getattr(e, "name", ""), getattr(e, "id", ""))
+                )
+            elif type_ == "prior_run":
+                wrap_begins.append((i, getattr(e, "name", ""), getattr(e, "id", "")))
         elif e.event == "span_end":
             id_ = getattr(e, "id", None)
             if id_ is not None:
                 end_by_id[id_] = i
 
-    print(f"[hydrate.validate] checkpoint span_begin events (n={len(begins)}):")
-    for idx, name, id_ in begins:
+    print(f"[hydrate.validate] prior_run wraps (n={len(wrap_begins)}):")
+    for idx, name, id_ in wrap_begins:
         end_idx = end_by_id.get(id_)
         end_str = f"span_end@{end_idx}" if end_idx is not None else "UNPAIRED"
-        print(f"  [{idx:4d}] name={name!r:18} id={id_:8} -> {end_str}")
+        print(f"  [{idx:4d}] name={name!r:24} id={id_:24} -> {end_str}")
+
+    print(
+        f"[hydrate.validate] checkpoint span_begin events (n={len(checkpoint_begins)}):"
+    )
+    for idx, name, id_ in checkpoint_begins:
+        end_idx = end_by_id.get(id_)
+        end_str = f"span_end@{end_idx}" if end_idx is not None else "UNPAIRED"
+        print(f"  [{idx:4d}] name={name!r:18} id={id_:24} -> {end_str}")
 
     # --- assertions ---
     if not events:
         raise RuntimeError("[hydrate.validate] events.json is empty")
-    if not begins:
+    if not checkpoint_begins:
         raise RuntimeError("[hydrate.validate] no checkpoint span_begin events found")
+    if not wrap_begins:
+        raise RuntimeError(
+            "[hydrate.validate] no prior_run wrap found "
+            "(expected at least one on resume)"
+        )
 
     first = events[0]
     first_name = getattr(first, "name", None)
     first_type = getattr(first, "type", None)
     if not (
         first.event == "span_begin"
-        and first_type == "checkpoint"
-        and first_name == "checkpoint 1"
+        and first_type == "prior_run"
+        and first_name == "prior run 1"
     ):
         raise RuntimeError(
-            f"[hydrate.validate] events[0] not 'span_begin checkpoint 1': "
+            f"[hydrate.validate] events[0] not 'span_begin prior run 1': "
             f"{_event_label(first)}"
         )
 
@@ -564,39 +666,59 @@ def _validate_resume_state(
             f"[hydrate.validate] events[-1] not 'span_end': {_event_label(last)}"
         )
 
-    expected_names = [f"checkpoint {i + 1}" for i in range(len(begins))]
-    actual_names = [name for _, name, _ in begins]
-    if actual_names != expected_names:
+    expected_ckpt_names = [f"checkpoint {i + 1}" for i in range(len(checkpoint_begins))]
+    actual_ckpt_names = [name for _, name, _ in checkpoint_begins]
+    if actual_ckpt_names != expected_ckpt_names:
         raise RuntimeError(
             f"[hydrate.validate] checkpoint span names not sequential. "
-            f"expected {expected_names}, got {actual_names}"
+            f"expected {expected_ckpt_names}, got {actual_ckpt_names}"
         )
 
-    unpaired = [(idx, name, id_) for idx, name, id_ in begins if id_ not in end_by_id]
-    if unpaired:
+    expected_wrap_names = [f"prior run {i + 1}" for i in range(len(wrap_begins))]
+    actual_wrap_names = [name for _, name, _ in wrap_begins]
+    if actual_wrap_names != expected_wrap_names:
         raise RuntimeError(
-            f"[hydrate.validate] {len(unpaired)} unpaired checkpoint "
-            f"span_begin(s): {unpaired}"
+            f"[hydrate.validate] prior_run wrap names not sequential. "
+            f"expected {expected_wrap_names}, got {actual_wrap_names}"
+        )
+
+    unpaired_ckpt = [
+        (idx, name, id_) for idx, name, id_ in checkpoint_begins if id_ not in end_by_id
+    ]
+    if unpaired_ckpt:
+        raise RuntimeError(
+            f"[hydrate.validate] {len(unpaired_ckpt)} unpaired checkpoint "
+            f"span_begin(s): {unpaired_ckpt}"
+        )
+    unpaired_wrap = [
+        (idx, name, id_) for idx, name, id_ in wrap_begins if id_ not in end_by_id
+    ]
+    if unpaired_wrap:
+        raise RuntimeError(
+            f"[hydrate.validate] {len(unpaired_wrap)} unpaired prior_run "
+            f"wrap(s): {unpaired_wrap}"
         )
 
     expected_span_count = latest_committed_id if latest_committed_id is not None else 0
-    if expected_span_count != len(begins):
+    if expected_span_count != len(checkpoint_begins):
         raise RuntimeError(
             f"[hydrate.validate] expected {expected_span_count} checkpoint "
             f"spans (per latest committed id {latest_committed_id}), got "
-            f"{len(begins)}"
+            f"{len(checkpoint_begins)}"
         )
 
-    if len(sidecars) != len(begins):
+    if len(sidecars) != len(checkpoint_begins):
         raise RuntimeError(
             f"[hydrate.validate] sidecar count ({len(sidecars)}) != "
-            f"checkpoint span count ({len(begins)})"
+            f"checkpoint span count ({len(checkpoint_begins)})"
         )
 
     print("[hydrate.validate] ✓ resume sanity checks passed")
     print(
-        f"[hydrate.validate] === ready for checkpoint {len(begins) + 1} "
-        f"(prior: {len(begins)}) ==="
+        f"[hydrate.validate] === ready for checkpoint "
+        f"{len(checkpoint_begins) + 1} "
+        f"(prior checkpoints: {len(checkpoint_begins)}, "
+        f"prior sessions: {len(wrap_begins)}) ==="
     )
 
 
