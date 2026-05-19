@@ -1622,6 +1622,10 @@ def get_model(
     if role is not None:
         model_for_role = model_roles().get(role, None)
         if model_for_role is not None:
+            if config.model_dump(exclude_none=True):
+                model_for_role = copy(model_for_role)
+                model_for_role.config = config.merge(model_for_role.config)
+                model_for_role._set_role(role)
             return model_for_role
 
         # raise if required and not found
