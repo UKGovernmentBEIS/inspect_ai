@@ -386,7 +386,7 @@ class SessionScreen(Screen[None]):
                 composer.placeholder = "sample complete"
                 composer.disabled = True
             elif lifecycle == "scoring":
-                composer.placeholder = "scoring · input disabled"
+                composer.placeholder = "scoring"
                 composer.disabled = True
             elif lifecycle == "approval":
                 # Placeholder isn't visible (Input is hidden) but kept
