@@ -3,6 +3,7 @@
 - AsyncFilesystem: Add `iter_files()` and `iter_dirs()` methods.
 - Scoring: Add `pass_k` reducer for computing the probability that all `k` epoch attempts succeed (τ-bench reliability metric).
 - Model Roles: Preserve overrides of config when calling `get_model()` with `role`.
+- OpenAI: Set `redacted=False` when reasoning content, summary, and encrypted exists.
 - OpenAI Compatible: Add support for `responses_phase` parameter.
 - Docker: Retry docker compose commands on BrokenResourceError.
 - Inspect View: Replaced the aiohttp server with a FastAPI server. `fastapi` and `uvicorn` are now required dependencies.
