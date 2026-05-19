@@ -1,3 +1,7 @@
+## Unreleased
+
+- Scoring: Add `pass_k` reducer for computing the probability that all `k` epoch attempts succeed (τ-bench reliability metric).
+
 ## 0.3.223 (18 May 2026)
 
 - Config: Add `inspect log export-config` command to export a run config from an existing log file.
