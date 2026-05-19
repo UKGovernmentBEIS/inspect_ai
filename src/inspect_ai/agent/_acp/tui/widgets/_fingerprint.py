@@ -50,15 +50,16 @@ def tool_state_fingerprint(state: "ToolCallState") -> tuple[Any, ...]:
     would see changes: status, title, kind, the list of content items
     (with text hashes so same-length replacements register), the
     raw_input shape (plan-style tools render from raw_input not
-    content), AND the approval slot (pending / resolved-decision)
-    — the inline approval section + the footer's decision suffix
-    are user-visible card state, so changes there MUST invalidate
-    the transcript's mounted-snapshot diff or the card never
-    re-renders after a ``consume_approval_request`` /
-    ``resolve_approval`` / ``mark_complete`` transition that didn't
-    also flip ``status`` / ``content``. The transcript layer uses
-    this to gate the auto-scroll decision so live-tail follows
-    in-progress tool output.
+    content), the approval slot (pending / resolved-decision),
+    AND the ``cancel_requested`` flag (drives the footer's
+    ``cancelling…`` marker). Any user-visible field MUST be in this
+    tuple or the transcript's mounted-snapshot diff skips
+    ``update_state`` and the card never re-renders on the
+    state-notification — at best the 0.5s tick re-renders it,
+    losing the immediate-feedback contract the state mutations
+    promise. The transcript layer also uses this to gate the
+    auto-scroll decision so live-tail follows in-progress tool
+    output.
     """
     content_sig = tuple(item_signature(item) for item in (state.content or []))
     # raw_input shape matters for plan-style tools which render their
@@ -85,4 +86,5 @@ def tool_state_fingerprint(state: "ToolCallState") -> tuple[Any, ...]:
         content_sig,
         raw_input_sig,
         approval_sig,
+        state.cancel_requested,
     )

@@ -169,6 +169,7 @@ A summary of what's landed to date. Items below are intentionally compressed —
 - **Plan widget** *(landed off the original schedule)* — collapsed one-line `plan [✓ done/total] current: …` strip pinned above the composer, plus a `^p`-toggled / click-toggled overlay rendering `AgentPlanUpdate` notifications. Opts in via `clientCapabilities._meta["inspect.plan_rendering"]`. Departs from the original spec's "ephemeral notification card" treatment in favour of a persistent strip + on-demand overlay — closer to how operators actually consume plan state at a glance. Footer slot hidden until the first plan arrives. Lives entirely in `src/inspect_ai/agent/_acp/tui/widgets/plan.py`; pilot + state coverage in `tests/agent/test_acp/test_tui/test_plan.py`.
 - **Approval (composer-area bar)** *(Phase 1 — pivoted from modal to inline-on-card + composer-area bar)* — `human_approver` chain's "ask the operator" step now routes through ACP `session/request_permission` and renders as an inline content section on the matching tool-call card (matched by `toolCallId`) plus a composer-area `_ApprovalBar` (`> approve?  [ a ] approve  [ r ] reject  [ e ] escalate  [ t ] terminate  [ m ] modify`). New `approval` value on the lifecycle pill; first option focused on mount so Tab+Enter activates without a click; bare-letter shortcuts gated to `approval` lifecycle. Producer-side bakes bold per-half titles + horizontal-rule separator into the request markdown so non-Inspect ACP clients (Zed et al.) get the same visual structure for free — strict superset, no protocol extension.
 - **Cancel Sample (composer-area bar)** *(Phase 4 — pivoted from modal to bar)* — `^N` brings up a composer-area `_CancelSampleBar` (`> cancel sample?  [ s ] Cancel: Score  [ e ] Cancel: Error  [ esc ] Go Back`) instead of the originally-spec'd modal, for the same reasons as Phase 1's approval pivot. `[e] Cancel: Error` is hidden when `ActiveSample.fails_on_error` is True, mirroring `--display full`'s `cancel_with_error.display = not sample.fails_on_error` rule exactly (fractional / integer-count thresholds that collapse to True hide `[e]` here too). The picker propagates the boolean via the picker `_meta` payload's `failsOnError` field and the binding-confirmation `session/update` `_meta` (so direct-attach via `session/load` picks it up too, not just picker-attach). The bar's `[s] Cancel: Score` and `[e] Cancel: Error` shortcuts share screen-level letter bindings with the approval bar's `s`/`e` via a single `prompt_letter` dispatcher (Textual's binding table is letter-keyed; two bindings on the same letter is last-write-wins, so the dispatcher routes based on which bar owns the row — cancel bar takes precedence when visible). Generic `_PromptOption` widget extracted into `widgets/_prompt.py` and shared with `_ApprovalBar` so both bars share the focusable + clickable + `[ k ] label` rendering. Footer reorganised — `cancel sample | switch sample | quit` cluster sits flush-right via an `AppFooter` subclass that inserts a `1fr` spacer; the three "end or navigate away from this session" actions are grouped together as a visual unit.
+- **Cancel Tool Call (screen-footer `^L` keybind)** *(Phase 2 — pivoted from clickable `×` + card-focus model to a screen-footer keybind only)* — `^L cancel tool` appears in the screen footer (left group, between `^p plan` and the right-cluster `^n cancel sample`) and cancels the *most-recently-started* eligible tool. The targeted tool's card flips its footer to a dim `· cancelling…` marker as feedback that the request landed; the natural failure-status event (server-side `_call_tools.py` synthesises a `ChatMessageTool` with `error.type == "timeout"`) drives the card to terminal a moment later. A second `^L` advances to the next eligible tool (the cancel-requested one is filtered out). No per-card inline affordance — the iteration converged on "the footer hint is the only thing the operator needs," and per-card duplication just adds visual noise. Cards awaiting an operator approval decision are filtered from the eligibility set — the approval bar's `reject` / `terminate` is the right exit there. `mark_cancel_requested` on `SessionState` is the load-bearing idempotence guard (returns False on double-fires); `cancel_tool_call_id` accessor handles the eligibility filter and most-recently-started tiebreaker; `check_action` hides the footer hint entirely when no in-flight tool is cancellable. No new wire shape — fires the already-shipped `inspect/cancel_tool_call({sessionId, toolCallId})` request from `agent-acp.md` Phase 12.
 
 ### Phase 1 — Approval (inline on tool-call card)
 
@@ -199,24 +200,36 @@ Pivot from the original modal design: keeping the approval anchored to the tool-
 
 - **`?` help overlay** — originally bundled into this phase. Deferred — the inline approval feature is self-contained and shipping the help overlay separately keeps the diff focused.
 
-### Phase 2 — Cancel Tool Call
+### Phase 2 — Cancel Tool Call (screen-footer `^L` keybind) ✅
 
-Per-tool-call cancel — kill ONE in-flight tool without unwinding the whole turn. Server-side `inspect/cancel_tool_call` is already implemented (per [`agent-acp.md`](agent-acp.md)); this phase adds the TUI surface so the operator can target a specific runaway tool from a tool-call card.
+Per-tool-call cancel — kill ONE in-flight tool without unwinding the whole turn. Server-side `inspect/cancel_tool_call` was already implemented in `agent-acp.md`'s Phase 12; this phase adds the TUI surface. Distinct from `Esc` (which fires `session/cancel` for the whole turn including ALL in-flight tools): per-tool cancel lets a long-running `bash` get cancelled while the model + sibling tool calls keep going. The sub-agent's loop sees the cancelled tool as a synthesized `ChatMessageTool` with `error.type == "timeout"` and decides what to do next.
 
-Distinct from `Esc` (which fires `session/cancel` and cancels the whole turn including ALL in-flight tools): this lets a long-running `bash` get cancelled while the model + sibling tool calls keep going. The sub-agent's loop sees the cancelled tool as a synthesized `ChatMessageTool` with `error.type == "timeout"` and decides what to do next.
+Two pivots from earlier iterations:
+
+1. **From clickable `×` + card-focus model → screen-footer keybind.** The original spec wanted a per-card affordance reachable via mouse or focused-card keyboard navigation. The card-focus model is a meaningful UI investment that didn't earn its weight here.
+2. **From inline `· cancel tool call` link on every card → no per-card affordance at all.** An intermediate iteration mounted the link on every in-flight card (with the `^L` target getting a `[$accent]^l[/]` accelerator hint). After seeing it live, that visual register was redundant noise — the screen-footer `^L cancel tool` hint already communicates the action; per-card duplication just made each tool row busier without adding capability. Mouse users lose the ability to pick a specific tool by clicking its card; the trade-off is acceptable because `^L`'s "most-recently-started + advance on repeat" rule covers the common case (cancel runaway, then the next runaway) without any operator-side targeting.
 
 **Ships**
 
-- Per-card cancel affordance on running tool-call cards — visible only while the tool's status is `running` / `pending`; disappears once it completes. Mouse: clickable `×` on the card; keyboard: `^E` (or similar) on the focused card. Bare-letter behavior follows the modal vocabulary if a confirmation prompt is wanted, otherwise the click / key fires directly.
-- Wire to `inspect/cancel_tool_call({ sessionId, toolCallId })`. Idempotent — clicking on an already-completing card is a no-op (matches the server's `{cancelled: false}` response for unknown / terminal ids).
-- Visual feedback: the card flips to `cancelled` status with the synthesized `ChatMessageTool` error rendered inline so the operator sees the tool's exit shape.
+- **`ToolCallState.cancel_requested` flag + `SessionState.cancel_tool_call_id` accessor + `mark_cancel_requested(id) → bool`** (`tui/state.py`):
+  - `cancel_requested` is the load-bearing idempotence signal AND the gate the widget reads to flip its footer to `cancelling…`.
+  - `cancel_tool_call_id` returns the `tool_call_id` of the most-recently-started eligible tool (status in {`pending`, `in_progress`}, no `pending_approval`, not yet cancel-requested), or `None`. This is what `^L` resolves against; repeat `^L` picks the next-most-recent because the prior one falls out of the eligibility set.
+  - `mark_cancel_requested(id)` is the single mutation entry point — flips the flag + notifies subscribers + returns `False` on every subsequent call (terminal / already-requested / pending-approval short-circuits). Callers (just `SessionScreen._dispatch_cancel_tool_call` for now) fire-and-forget the JSON-RPC request only when this method returns `True`.
+- **`ToolCallWidget` footer extension** (`widgets/tool_call.py`) — single line added to `_footer_text`: when `cancel_requested and not is_terminal`, append `[dim]· cancelling…[/]` to the existing `{glyph} {duration}` line. No constructor changes — the widget doesn't need to know about its peer cards. Pending-approval state still short-circuits to the dedicated `tool call approval requested` placeholder at the top of the method.
+- **`SessionScreen` wiring** — new `ctrl+l → cancel_tool_call` binding (ordered between `^p plan` and `^n cancel sample` so the footer left-group reads `submit / newline / interrupt / plan / cancel tool` with the right-cluster `cancel sample / switch / quit` flushed right by the `AppFooter` subclass). `check_action` returns `False` when `cancel_tool_call_id is None` to hide the footer hint entirely (no eligible tool). `action_cancel_tool_call` resolves the accessor and routes through `_dispatch_cancel_tool_call(tool_call_id)`, which asks `mark_cancel_requested` to flip the flag (gating on its bool return) and spawns `_fire_cancel_tool_call` in a worker. The fire-and-forget worker mirrors `_CancelSampleBar._fire_cancel` exactly — try/except wrapping `connection.send_request(INSPECT_CANCEL_TOOL_CALL_METHOD, {sessionId, toolCallId})`, failures surface via `app.notify`. The response body (`{cancelled: bool}`) isn't inspected — the natural event-stream failure status drives the card transition.
 
-**Protocol extensions landed**: `inspect/cancel_tool_call` (already implemented server-side; this phase wires the client).
+**Protocol extensions landed**: none. The server side (`inspect/cancel_tool_call` request + the timeout-synthesis failure path in `_call_tools.py`) was already in place from `agent-acp.md` Phase 12.
 
 **Acceptance**
 
-- Manual: start a long-running tool, cancel just that tool via the per-card affordance, confirm sibling tools + the model loop keep going.
-- Automated: pilot test for the card-level cancel sequence; integration test pinning that `inspect/cancel_tool_call` is sent with the matching `toolCallId`.
+- Manual: `inspect eval <task> --acp-server` with a long-running tool (`sleep 30`); attach via `inspect acp`. Confirm `^l cancel tool` appears in the screen footer once the tool is in flight. Hit `^L` — the targeted card's footer flips to `cancelling…`, then ~1s later the card transitions to the standard `✗ Ns` failed treatment.
+- Manual (multi-tool): dispatch two parallel bash sleeps via a tool batch. `^L` cancels the most-recently-started; a second `^L` cancels the other. Both cards transition through `cancelling…` to `✗ Ns`; the agent loop continues with the synthesized timeout results.
+- Manual (approval interaction): configure `human_approver` for the tool. While the approval bar is up, confirm `^l cancel tool` is NOT in the footer (`check_action False` because `cancel_tool_call_id is None` while the only in-flight tool is filtered for pending approval). Approve → the tool enters in-flight state → `^l cancel tool` reappears in the footer.
+- Manual (no-op gating): with no tools in flight, `^l cancel tool` does NOT appear in the footer. Demo eval (`demo_cancel_tool_eval.py`) exercises this and the multi-tool case alongside the plan widget so both `^p plan` and `^l cancel tool` are visible at the same time.
+- Automated:
+  - Pure-function tests for `SessionState.cancel_tool_call_id` (empty / one / two / pending-approval filter / cancel-requested filter) and `mark_cancel_requested` (flips + notifies / idempotent / unknown id / terminal / pending-approval) in `tests/agent/test_acp/test_tui/test_state.py`.
+  - Pure-function tests for `ToolCallWidget._footer_text` composition (in-flight footer is bare glyph + duration, `cancelling…` appears after request, dropped on terminal, pending-approval short-circuit, approval-decision suffix intact) in `tests/agent/test_acp/test_tui/test_tool_call_footer.py`. No Textual app boot — sub-second.
+  - Pilot tests for screen dispatch (single-tool ^L, multi-tool ^L picks newest, ^L advances after first request, no-op when no eligible tool, footer flips to `cancelling…`, double ^L on a single tool fires only once) in `tests/agent/test_acp/test_tui/test_cancel_tool_call.py`.
 
 ### Phase 3 — Queued user messages
 
@@ -271,23 +284,7 @@ The shortcut also changed from `^X` (in the original spec) to `^N` because `^X` 
 - Manual: footer reads `…  ^p plan   ^n cancel sample   ^s switch sample   ^c quit` with the right cluster flushed to the screen edge.
 - Automated: pilot tests for `^N` open/dismiss, bare-letter `s` / `e`, focus-on-mount on the score option, Tab navigation through both two-choice and single-choice bars, composer-Input hidden while bar visible, `^N` no-op when `lifecycle == "complete"`, footer right-cluster layout. Pure-function tests for `SessionRow.fails_on_error` parsing on both wire paths. Server-side `inspect/cancel_sample` handler tests pin the `fails_on_error` polarity check.
 
-### Phase 5 — Terminal states & connection resilience
 
-What the operator sees when things end (well or badly) and when the connection drops. Through Phase 4 the TUI works on the happy path; this phase covers what users actually see when things go wrong.
-
-**Ships**
-
-- Completed banner with score line; Errored banner with inline traceback.
-- Disconnect detection in the client; exponential-backoff reconnect with attempt count + countdown overlay.
-- **Server-side replay buffer** (settles [`agent-acp.md`](agent-acp.md)'s open question #1: pick buffer size + elision rules) plus client-side replay handling on reconnect.
-- Footer next-action shortcuts in terminal states (`^S switch sample`, `^O open log`, `^C copy traceback`, etc.).
-
-**Protocol extensions landed**: terminal sample-completed notification (carries the scorer output), terminal sample-errored notification (carries the traceback frames), and server-side replay buffer + client replay-on-reconnect handling.
-
-**Acceptance**
-
-- Manual: complete-normally → green banner. Force-error → red banner with traceback frames. Kill + restart the server during a stream → client reconnects and missed events replay.
-- Automated: pilot tests for both terminal banners; integration test for the disconnect / replay path using an in-process server fixture.
 
 ### Phase 6 — Scoring lifecycle
 
@@ -324,6 +321,24 @@ Pick one of:
 
 - Manual: eval with a multi-turn scorer; mid-stream scores appear as chips in the TUI; final score appears in the Phase 5 completed banner.
 - Automated: integration test pinning that the connection stays open through scoring; pilot tests for the score chips and the completed banner's score line.
+
+### Phase 6 — Terminal states & connection resilience
+
+What the operator sees when things end (well or badly) and when the connection drops. Through Phase 4 the TUI works on the happy path; this phase covers what users actually see when things go wrong.
+
+**Ships**
+
+- Completed banner with score line; Errored banner with inline traceback.
+- Disconnect detection in the client; exponential-backoff reconnect with attempt count + countdown overlay.
+- **Server-side replay buffer** (settles [`agent-acp.md`](agent-acp.md)'s open question #1: pick buffer size + elision rules) plus client-side replay handling on reconnect.
+- Footer next-action shortcuts in terminal states (`^S switch sample`, `^O open log`, `^C copy traceback`, etc.).
+
+**Protocol extensions landed**: terminal sample-completed notification (carries the scorer output), terminal sample-errored notification (carries the traceback frames), and server-side replay buffer + client replay-on-reconnect handling.
+
+**Acceptance**
+
+- Manual: complete-normally → green banner. Force-error → red banner with traceback frames. Kill + restart the server during a stream → client reconnects and missed events replay.
+- Automated: pilot tests for both terminal banners; integration test for the disconnect / replay path using an in-process server fixture.
 
 ### Phase 7 — Rich event rendering
 

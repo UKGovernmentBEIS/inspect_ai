@@ -560,6 +560,19 @@ class ToolCallWidget(Widget):
             color = _DECISION_COLOR[decision]
             text = _DECISION_TEXT[decision]
             base = f"{base} [{color}]· {text}[/]"
+        # Visual feedback for the screen-level ``^L cancel tool``
+        # action: once the operator has fired the cancel, the footer
+        # flips to a dim ``cancelling…`` marker until the synthesized
+        # failure status lands and the card transitions to terminal
+        # (typically <1s later). The cancel affordance itself lives
+        # in the screen footer (``^l cancel tool``), not on the
+        # card — keeps the per-card visual register minimal and
+        # avoids duplicating the bottom-bar hint. Suppressed during
+        # pending approval (the approval bar's reject / terminate
+        # owns "stop this tool"), but that path returns early at the
+        # top of the method anyway.
+        if not self._state.is_terminal and self._state.cancel_requested:
+            base = f"{base} [dim]· cancelling…[/]"
         return base
 
     def _text_for_inner(self, inner: object) -> str:

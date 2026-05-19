@@ -18,7 +18,7 @@ between notifications.
 from __future__ import annotations
 
 import asyncio
-from typing import Callable
+from typing import Any, Callable
 
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -26,6 +26,8 @@ from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
 from textual.screen import Screen
 from textual.widgets import Input, Static
+
+from inspect_ai.agent._acp.inspect_ext import INSPECT_CANCEL_TOOL_CALL_METHOD
 
 from .client import AttachedSession
 from .state import SessionState
@@ -88,6 +90,23 @@ class SessionScreen(Screen[None]):
             "ctrl+p",
             "toggle_plan",
             "plan",
+            show=True,
+            priority=True,
+        ),
+        # ``^l`` cancels the most-recently-started in-flight tool
+        # (per :attr:`SessionState.cancel_tool_call_id`). Ordered
+        # after ``plan`` and before ``cancel_sample`` so the footer
+        # left-group reads "submit / newline / interrupt / plan /
+        # cancel tool" with the navigation-cluster (cancel sample /
+        # switch / quit) flushed right. Each in-flight tool card also
+        # carries a clickable ``cancel tool call`` link on its footer
+        # row — ``^L`` is the keyboard accelerator for the same
+        # action, targeting the most recent. :meth:`check_action`
+        # hides the hint when no eligible tool is in flight.
+        Binding(
+            "ctrl+l",
+            "cancel_tool_call",
+            "cancel tool",
             show=True,
             priority=True,
         ),
@@ -306,6 +325,15 @@ class SessionScreen(Screen[None]):
             if self._state.lifecycle == "complete":
                 return False
             return not self._cancel_bar_visible()
+        if action == "cancel_tool_call":
+            # Nothing to cancel when no eligible tool is in flight —
+            # hide the footer hint entirely so the operator only sees
+            # actions that currently apply. The ``cancel_tool_call_id``
+            # accessor already filters tools awaiting an approval
+            # decision (the approval bar's reject / terminate is the
+            # right exit there) and tools the operator has already
+            # cancel-requested.
+            return self._state.cancel_tool_call_id is not None
         if action == "prompt_letter":
             if not _parameters:
                 return False
@@ -528,6 +556,82 @@ class SessionScreen(Screen[None]):
             session_id=self._session.session_id,
         )
         self._apply_lifecycle()
+
+    def action_cancel_tool_call(self) -> None:
+        """Cancel the most-recently-started in-flight tool via ``^L``.
+
+        Targets the tool :attr:`SessionState.cancel_tool_call_id`
+        names. The footer hint hides via :meth:`check_action` when
+        no eligible tool is in flight, so a stray ``^L`` press in a
+        resting state is also a no-op here.
+        """
+        tool_call_id = self._state.cancel_tool_call_id
+        if tool_call_id is None:
+            return
+        self._dispatch_cancel_tool_call(tool_call_id)
+
+    def _dispatch_cancel_tool_call(self, tool_call_id: str) -> None:
+        """Flip the card to ``cancelling…`` and fire the JSON-RPC request.
+
+        :meth:`SessionState.mark_cancel_requested` is the load-bearing
+        idempotence guard: any concurrent ^L mash hits its terminal /
+        already-requested / pending-approval short-circuits and
+        returns False, so we never double-fire the request. The
+        natural failure-status event from the server's
+        ``_call_tools.py`` timeout-synthesis path drives the visual
+        transition to terminal; we don't wait for it.
+        """
+        connection = self._session.connection
+        if connection is None:
+            return
+        if not self._state.mark_cancel_requested(tool_call_id):
+            return
+        session_id = self._session.session_id
+        self.run_worker(
+            self._fire_cancel_tool_call(connection, session_id, tool_call_id),
+            name=f"cancel-tool-{tool_call_id}",
+            exclusive=False,
+        )
+
+    async def _fire_cancel_tool_call(
+        self,
+        connection: Any,
+        session_id: str,
+        tool_call_id: str,
+    ) -> None:
+        """Send ``inspect/cancel_tool_call``; clear ``cancel_requested`` on failure.
+
+        Two failure modes both require clearing the local
+        ``cancel_requested`` flag so the footer returns to its normal
+        in-flight rendering and ``^L`` becomes retargetable for the
+        tool (otherwise the accessor's cancel-requested filter
+        permanently hides it):
+
+        - Exception (transport / RPC error) → toast + clear.
+        - ``{cancelled: false}`` response → silent clear. Per the
+          server contract (``connection.py::cancel_tool_call``) this
+          fires when the sample is gone, the tool isn't pending any
+          more, OR the pending tool had no ``_cancel_fn`` bound — in
+          the last case the tool keeps running, so without this
+          clear the footer stays stuck on ``cancelling…`` forever
+          with no retry path.
+
+        Success (``{cancelled: true}``) keeps the flag set: the
+        natural failure-status event will land shortly and drive the
+        card to terminal, at which point the ``cancelling…`` marker
+        drops on its own (the rendering gates on ``not is_terminal``).
+        """
+        try:
+            response = await connection.send_request(
+                INSPECT_CANCEL_TOOL_CALL_METHOD,
+                {"sessionId": session_id, "toolCallId": tool_call_id},
+            )
+        except Exception as exc:
+            self._state.clear_cancel_requested(tool_call_id)
+            self.app.notify(f"cancel tool failed: {exc}", severity="error")
+            return
+        if isinstance(response, dict) and response.get("cancelled") is False:
+            self._state.clear_cancel_requested(tool_call_id)
 
     def action_cancel_decide(self, action: str) -> None:
         """Resolve a visible cancel bar via a bare-letter shortcut.

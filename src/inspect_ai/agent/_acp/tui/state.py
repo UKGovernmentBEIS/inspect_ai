@@ -270,6 +270,18 @@ class ToolCallState:
     ``pending_approval``. Persists for the lifetime of the card so the
     summary stays visible while the tool runs to completion below.
     """
+    cancel_requested: bool = False
+    """True once the operator has clicked the card's cancel-tool-call link.
+
+    Set by :class:`SessionScreen` before it fires the
+    ``inspect/cancel_tool_call`` JSON-RPC request; consumed by the
+    widget to flip the footer link to a dim ``cancelling…`` marker
+    until the natural failure-status event lands and the card
+    transitions to terminal. Doubles as an idempotence guard against
+    double-fires (^L mash + click race) — :class:`SessionState`'s
+    ``cancel_tool_call_id`` accessor filters cards with this flag set
+    so ``^L`` advances to the next eligible tool.
+    """
 
     @property
     def is_terminal(self) -> bool:
@@ -738,6 +750,51 @@ class SessionState:
     # ``resolve_approval`` are the two halves of that handshake on the
     # state side. The asyncio.Event handshake mirrors the in-proc
     # ``human_approval_manager`` pattern (``approval/_human/panel.py``).
+
+    def mark_cancel_requested(self, tool_call_id: str) -> bool:
+        """Flag a tool card as cancel-requested; returns True iff anything changed.
+
+        Sets ``ToolCallState.cancel_requested`` for the named tool and
+        notifies subscribers so the widget's footer flips to
+        ``cancelling…`` immediately. Returns False (no-op, no notify)
+        when the tool is unknown, already terminal, already
+        cancel-requested, or awaiting an operator approval decision
+        (the approval bar's reject / terminate is the right exit
+        there). Idempotence guard against ``^L`` mash + click race —
+        callers can fire-and-forget the JSON-RPC request only when
+        this method returns True.
+        """
+        tc = self._tool_calls_by_id.get(tool_call_id)
+        if tc is None or tc.is_terminal or tc.cancel_requested:
+            return False
+        if tc.pending_approval is not None:
+            return False
+        tc.cancel_requested = True
+        self._notify()
+        return True
+
+    def clear_cancel_requested(self, tool_call_id: str) -> bool:
+        """Undo a prior ``mark_cancel_requested``; returns True iff anything changed.
+
+        Used when the cancel RPC fails (exception) or the server
+        reports ``{cancelled: false}`` — both cases mean the operator's
+        intent didn't take effect, so the footer should return to its
+        normal in-flight rendering and ``^L`` should be retargetable
+        for the tool (the ``cancel_tool_call_id`` accessor filters
+        cancel-requested tools out of the eligibility set, so without
+        this clear the operator has no retry path).
+
+        No-op for unknown tools or tools that aren't flagged —
+        returns False, no notify. Cleaning the flag on a now-terminal
+        tool is harmless but pointless; the accessor filters by
+        ``is_terminal`` independently.
+        """
+        tc = self._tool_calls_by_id.get(tool_call_id)
+        if tc is None or not tc.cancel_requested:
+            return False
+        tc.cancel_requested = False
+        self._notify()
+        return True
 
     def consume_approval_request(self, pending: PendingApproval) -> None:
         """Attach a pre-built ``PendingApproval`` to the matching tool-call card.
@@ -1308,6 +1365,34 @@ class SessionState:
             for tc in self._tool_calls_by_id.values()
             if tc.status == "in_progress" or tc.status == "pending"
         )
+
+    @property
+    def cancel_tool_call_id(self) -> str | None:
+        """``tool_call_id`` of the tool ``^L`` would currently cancel, or None.
+
+        Eligibility: in-flight (``pending`` / ``in_progress``), not
+        awaiting an operator approval decision (the approval bar's
+        ``reject`` / ``terminate`` is the right exit there), and not
+        already cancel-requested (so a second ``^L`` advances to the
+        next eligible tool instead of re-firing on the one we just
+        cancelled). Among eligible tools, the most-recently-started
+        wins — that's the card the operator is most likely watching
+        at the bottom of the transcript.
+
+        Used by :class:`SessionScreen` to resolve the ``^L`` binding
+        and by :class:`ToolCallWidget` to decide which card renders
+        the ``^l`` accelerator hint on its cancel link.
+        """
+        eligible = [
+            tc
+            for tc in self._tool_calls_by_id.values()
+            if tc.status in ("pending", "in_progress")
+            and tc.pending_approval is None
+            and not tc.cancel_requested
+        ]
+        if not eligible:
+            return None
+        return max(eligible, key=lambda tc: tc.start_time).tool_call_id
 
     @property
     def plan_done_count(self) -> int:

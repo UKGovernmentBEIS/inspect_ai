@@ -1876,3 +1876,157 @@ def test_current_pending_approval_returns_first_when_multiple_pending() -> None:
     state.resolve_approval("tc-1", option_id="approve")
     assert state.current_pending_approval() is pending2
     assert state.current_pending_tool_call_id() == "tc-2"
+
+
+# ---------------------------------------------------------------------------
+# Cancel-tool-call accessor (cancel_tool_call_id) + mark_cancel_requested
+# ---------------------------------------------------------------------------
+
+
+def test_cancel_tool_call_id_is_none_when_no_tools_in_flight() -> None:
+    state = SessionState()
+    assert state.cancel_tool_call_id is None
+    state.consume(_tool_start("tc-1"))
+    state.consume(_tool_progress("tc-1", status="completed"))
+    assert state.cancel_tool_call_id is None
+
+
+def test_cancel_tool_call_id_returns_only_in_flight_tool() -> None:
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    assert state.cancel_tool_call_id == "tc-1"
+
+
+def test_cancel_tool_call_id_picks_most_recently_started_when_multiple() -> None:
+    """With two in-flight tools, ^L targets the one started latest.
+
+    ``start_time`` is the tiebreaker — the bottom-most card in the
+    transcript (most likely what the operator is watching) wins.
+    """
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_tool_start("tc-older"))
+    clock.advance(1.0)
+    state.consume(_tool_start("tc-newer"))
+    assert state.cancel_tool_call_id == "tc-newer"
+
+
+def test_cancel_tool_call_id_filters_pending_approval_tools() -> None:
+    """A tool awaiting an operator approval decision is not a ^L target.
+
+    The approval bar's reject / terminate is the right exit there;
+    duplicating cancel via ^L would be ambiguous.
+    """
+    import asyncio
+
+    state = SessionState()
+    req = _permission_request("tc-approval")
+    state.consume_approval_request(_pending(req, asyncio.Event()))
+    # Synthesized card status is "pending", so without the
+    # pending_approval filter the accessor would happily return it.
+    assert state.cancel_tool_call_id is None
+
+
+def test_cancel_tool_call_id_skips_already_cancel_requested_tools() -> None:
+    """After ^L on one tool, the accessor advances to the next eligible.
+
+    Lets a second ^L target the next-most-recent instead of
+    re-firing on the one we just cancelled.
+    """
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_tool_start("tc-older"))
+    clock.advance(1.0)
+    state.consume(_tool_start("tc-newer"))
+    assert state.cancel_tool_call_id == "tc-newer"
+
+    assert state.mark_cancel_requested("tc-newer") is True
+    # ^L now targets the remaining eligible tool.
+    assert state.cancel_tool_call_id == "tc-older"
+
+
+def test_mark_cancel_requested_flips_flag_and_notifies() -> None:
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+
+    observed: list[bool] = []
+    state.subscribe(
+        lambda: observed.append(state._tool_calls_by_id["tc-1"].cancel_requested)
+    )
+
+    assert state.mark_cancel_requested("tc-1") is True
+    assert observed == [True]
+    assert state._tool_calls_by_id["tc-1"].cancel_requested is True
+
+
+def test_mark_cancel_requested_is_idempotent() -> None:
+    """Re-requesting cancel on the same tool is a no-op (no notify, no fire)."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+
+    assert state.mark_cancel_requested("tc-1") is True
+
+    observed: list[None] = []
+    state.subscribe(lambda: observed.append(None))
+
+    # Second call returns False and does not notify.
+    assert state.mark_cancel_requested("tc-1") is False
+    assert observed == []
+
+
+def test_mark_cancel_requested_returns_false_for_unknown_tool() -> None:
+    state = SessionState()
+    assert state.mark_cancel_requested("tc-nonexistent") is False
+
+
+def test_mark_cancel_requested_returns_false_for_terminal_tool() -> None:
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    state.consume(_tool_progress("tc-1", status="completed"))
+    assert state.mark_cancel_requested("tc-1") is False
+
+
+def test_mark_cancel_requested_returns_false_during_pending_approval() -> None:
+    """The approval bar owns the "stop this tool" affordance while pending."""
+    import asyncio
+
+    state = SessionState()
+    req = _permission_request("tc-approval")
+    state.consume_approval_request(_pending(req, asyncio.Event()))
+    assert state.mark_cancel_requested("tc-approval") is False
+    assert state._tool_calls_by_id["tc-approval"].cancel_requested is False
+
+
+def test_clear_cancel_requested_undoes_flag_and_notifies() -> None:
+    """Clearing the flag restores eligibility + fires one notification."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    assert state.mark_cancel_requested("tc-1") is True
+    # Cancel-requested tools fall out of the accessor's eligibility set.
+    assert state.cancel_tool_call_id is None
+
+    observed: list[None] = []
+    state.subscribe(lambda: observed.append(None))
+
+    assert state.clear_cancel_requested("tc-1") is True
+    assert observed == [None]
+    assert state._tool_calls_by_id["tc-1"].cancel_requested is False
+    # Eligibility restored — ^L can target the tool again.
+    assert state.cancel_tool_call_id == "tc-1"
+
+
+def test_clear_cancel_requested_is_noop_when_flag_not_set() -> None:
+    """No notify, no mutation when the tool isn't flagged."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+
+    observed: list[None] = []
+    state.subscribe(lambda: observed.append(None))
+
+    assert state.clear_cancel_requested("tc-1") is False
+    assert observed == []
+
+
+def test_clear_cancel_requested_unknown_tool_is_noop() -> None:
+    state = SessionState()
+    assert state.clear_cancel_requested("tc-nonexistent") is False
