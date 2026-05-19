@@ -118,8 +118,6 @@ def test_eval_log_run_config_round_trip() -> None:
 
         subprocess.run(
             [
-                "uv",
-                "run",
                 "inspect",
                 "eval",
                 "--run-config",
