@@ -53,31 +53,16 @@ def view(
     # acquire the requested port
     view_acquire_port(view_data_dir(), port)
 
-    # run server — fastapi is the default; set INSPECT_VIEW_FASTAPI_SERVER
-    # to "0"/"false"/"no" to fall back to the aiohttp server
-    use_fastapi = _should_use_fastapi()
-    if use_fastapi:
-        from .fastapi_server import view_server as fastapi_view_server
+    from .fastapi_server import view_server
 
-        fastapi_view_server(
-            log_dir=log_dir,
-            recursive=recursive,
-            host=host,
-            port=port,
-            authorization=authorization,
-            fs_options=fs_options,
-        )
-    else:
-        from .server import view_server
-
-        view_server(
-            log_dir=log_dir,
-            recursive=recursive,
-            host=host,
-            port=port,
-            authorization=authorization,
-            fs_options=fs_options,
-        )
+    view_server(
+        log_dir=log_dir,
+        recursive=recursive,
+        host=host,
+        port=port,
+        authorization=authorization,
+        fs_options=fs_options,
+    )
 
 
 def view_port_pid_file(app_dir: Path, port: int) -> Path:
@@ -131,15 +116,3 @@ def view_acquire_port(app_dir: Path, port: int) -> None:
             pass
 
     atexit.register(release_lock_file)
-
-
-def _should_use_fastapi() -> bool:
-    """Decide whether to use the FastAPI server.
-
-    FastAPI is the default. Setting INSPECT_VIEW_FASTAPI_SERVER to
-    "0"/"false"/"no" opts back into the legacy aiohttp server.
-    """
-    env = os.getenv("INSPECT_VIEW_FASTAPI_SERVER")
-    if env is not None:
-        return env.lower() in ("1", "true", "yes")
-    return True

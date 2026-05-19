@@ -1897,7 +1897,6 @@ name = "inspect-ai"
 source = { editable = "." }
 dependencies = [
     { name = "aioboto3" },
-    { name = "aiohttp" },
     { name = "anyio" },
     { name = "beautifulsoup4" },
     { name = "boto3" },
@@ -2020,7 +2019,6 @@ dev = [
 requires-dist = [
     { name = "adlfs", marker = "extra == 'dev'", specifier = ">=2025.8.0" },
     { name = "aioboto3", specifier = ">=13.0.0" },
-    { name = "aiohttp", specifier = ">=3.9.0" },
     { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.96.0" },
     { name = "anyio", specifier = ">=4.8.0" },
     { name = "azure-ai-inference", marker = "extra == 'dev'" },
