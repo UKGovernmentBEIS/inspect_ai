@@ -1,7 +1,7 @@
 import functools
 import json
 import os
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from mistralai.client import Mistral
 from mistralai.client.errors import SDKError
@@ -93,6 +93,12 @@ AZURE_MISTRAL_BASE_URL_VARS = ["AZUREAI_MISTRAL_BASE_URL", "AZURE_MISTRAL_BASE_U
 
 
 class MistralAPI(ModelAPI):
+    API_KEY_VARS: ClassVar[tuple[str, ...]] = (
+        MISTRAL_API_KEY,
+        AZURE_MISTRAL_API_KEY,
+        AZUREAI_MISTRAL_API_KEY,
+    )
+
     def __init__(
         self,
         model_name: str,
@@ -113,11 +119,7 @@ class MistralAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[
-                MISTRAL_API_KEY,
-                AZURE_MISTRAL_API_KEY,
-                AZUREAI_MISTRAL_API_KEY,
-            ],
+            api_key_vars=list(self.API_KEY_VARS),
             config=config,
         )
 

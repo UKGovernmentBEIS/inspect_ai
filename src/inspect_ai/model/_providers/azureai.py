@@ -2,7 +2,7 @@ import functools
 import json
 import os
 from copy import copy
-from typing import Any
+from typing import Any, ClassVar
 
 from azure.ai.inference.aio import ChatCompletionsClient
 from azure.ai.inference.models import (
@@ -86,6 +86,8 @@ AZURE_ENDPOINT_URL = "AZURE_ENDPOINT_URL"
 
 
 class AzureAIAPI(ModelAPI):
+    API_KEY_VARS: ClassVar[tuple[str, ...]] = (AZURE_API_KEY, AZUREAI_ENDPOINT_KEY)
+
     def __init__(
         self,
         model_name: str,
@@ -105,7 +107,7 @@ class AzureAIAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[AZURE_API_KEY, AZUREAI_ENDPOINT_KEY],
+            api_key_vars=list(self.API_KEY_VARS),
             config=config,
         )
 

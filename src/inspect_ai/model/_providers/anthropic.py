@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from logging import getLogger
 from typing import (
     Any,
+    ClassVar,
     Iterable,
     Literal,
     Sequence,
@@ -203,6 +204,12 @@ INTERNAL_COMPUTER_TOOL_NAME = "computer"
 
 
 class AnthropicAPI(ModelAPI):
+    API_KEY_VARS: ClassVar[tuple[str, ...]] = (
+        ANTHROPIC_API_KEY,
+        AZUREAI_ANTHROPIC_API_KEY,
+        AZURE_ANTHROPIC_API_KEY,
+    )
+
     def __init__(
         self,
         model_name: str,
@@ -239,11 +246,7 @@ class AnthropicAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[
-                ANTHROPIC_API_KEY,
-                AZUREAI_ANTHROPIC_API_KEY,
-                AZURE_ANTHROPIC_API_KEY,
-            ],
+            api_key_vars=list(self.API_KEY_VARS),
             config=config,
         )
 

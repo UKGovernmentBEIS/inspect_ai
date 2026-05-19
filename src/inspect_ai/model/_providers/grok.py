@@ -2,7 +2,7 @@ import json
 import os
 import time
 from copy import copy
-from typing import Any, Literal, cast
+from typing import Any, ClassVar, Literal, cast
 
 import grpc
 from google.protobuf.json_format import MessageToDict
@@ -79,6 +79,8 @@ GROK_BASE_URL = "GROK_BASE_URL"
 
 
 class GrokAPI(ModelAPI):
+    API_KEY_VARS: ClassVar[tuple[str, ...]] = (XAI_API_KEY, GROK_API_KEY)
+
     def __init__(
         self,
         model_name: str,
@@ -93,7 +95,7 @@ class GrokAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[XAI_API_KEY, GROK_API_KEY],
+            api_key_vars=list(self.API_KEY_VARS),
             config=config,
         )
 

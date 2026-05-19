@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from logging import getLogger
 from queue import Empty, Queue
 from threading import Thread
-from typing import Any, Literal, Protocol, cast
+from typing import Any, ClassVar, Literal, Protocol, cast
 
 import anyio
 import numpy as np
@@ -60,6 +60,8 @@ HF_TOKEN = "HF_TOKEN"
 
 
 class HuggingFaceAPI(ModelAPI):
+    API_KEY_VARS: ClassVar[tuple[str, ...]] = (HF_TOKEN,)
+
     def __init__(
         self,
         model_name: str,
@@ -72,7 +74,7 @@ class HuggingFaceAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[HF_TOKEN],
+            api_key_vars=list(self.API_KEY_VARS),
             config=config,
         )
 

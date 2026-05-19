@@ -1,6 +1,6 @@
 import os
 from json import dumps
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 import httpx
 from openai import APIStatusError
@@ -194,6 +194,8 @@ TOGETHER_API_KEY = "TOGETHER_API_KEY"
 
 
 class TogetherRESTAPI(ModelAPI):
+    API_KEY_VARS: ClassVar[tuple[str, ...]] = (TOGETHER_API_KEY,)
+
     def __init__(
         self,
         model_name: str,
@@ -212,7 +214,7 @@ class TogetherRESTAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[TOGETHER_API_KEY],
+            api_key_vars=list(self.API_KEY_VARS),
             config=config,
         )
 

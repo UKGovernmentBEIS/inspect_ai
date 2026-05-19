@@ -1,7 +1,7 @@
 import base64
 import re
 from logging import getLogger
-from typing import Any, Literal, Tuple, Union, cast
+from typing import Any, ClassVar, Literal, Tuple, Union, cast
 
 from pydantic import BaseModel, Field
 from typing_extensions import override
@@ -253,6 +253,8 @@ class ConverseClientConverseRequest(BaseModel):
 
 
 class BedrockAPI(ModelAPI):
+    API_KEY_VARS: ClassVar[tuple[str, ...]] = ()
+
     def __init__(
         self,
         model_name: str,
@@ -265,7 +267,7 @@ class BedrockAPI(ModelAPI):
             model_name=model_name,
             base_url=model_base_url(base_url, "BEDROCK_BASE_URL"),
             api_key=api_key,
-            api_key_vars=[],
+            api_key_vars=list(self.API_KEY_VARS),
             config=config,
         )
 

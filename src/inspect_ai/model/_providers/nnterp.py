@@ -1,6 +1,6 @@
 import gc
 import time
-from typing import Any
+from typing import Any, ClassVar
 
 import torch  # type: ignore
 from nnterp import StandardizedTransformer  # type: ignore
@@ -30,6 +30,8 @@ from inspect_ai.tool import (
 
 
 class NNterpAPI(ModelAPI):
+    API_KEY_VARS: ClassVar[tuple[str, ...]] = ("HF_TOKEN",)
+
     def __init__(
         self,
         model_name: str,
@@ -42,7 +44,7 @@ class NNterpAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=["HF_TOKEN"],
+            api_key_vars=list(self.API_KEY_VARS),
             config=config,
         )
 

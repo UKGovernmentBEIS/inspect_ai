@@ -1,7 +1,7 @@
 import json
 import os
 from copy import copy
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, ClassVar, Dict, Iterable, List, Optional
 
 import httpx
 from groq import (
@@ -67,6 +67,8 @@ GROQ_API_KEY = "GROQ_API_KEY"
 
 
 class GroqAPI(ModelAPI):
+    API_KEY_VARS: ClassVar[tuple[str, ...]] = (GROQ_API_KEY,)
+
     def __init__(
         self,
         model_name: str,
@@ -79,7 +81,7 @@ class GroqAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[GROQ_API_KEY],
+            api_key_vars=list(self.API_KEY_VARS),
             config=config,
         )
 
