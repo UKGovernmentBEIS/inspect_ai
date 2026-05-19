@@ -556,14 +556,7 @@ async def test_recompute_metrics_when_task_has_no_scorers():
     assert log.results.scores[0].name == "custom_key"
     assert log.results.scores[0].metrics["mean"].value == 1.0
 
-    edit_score(
-        log,
-        log.samples[0].id,
-        "custom_key",
-        ScoreEdit(value=0.0),
-        recompute_metrics=False,
-    )
-    recompute_metrics(log)
+    edit_score(log, log.samples[0].id, "custom_key", ScoreEdit(value=0.0))
 
     assert log.results.scores[0].name == "custom_key"
     assert log.results.scores[0].metrics["mean"].value == 0.75  # (0 + 1 + 1 + 1) / 4

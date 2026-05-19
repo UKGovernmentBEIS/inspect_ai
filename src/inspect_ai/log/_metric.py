@@ -19,7 +19,7 @@ def recompute_metrics(log: EvalLog) -> None:
     from inspect_ai._eval.score import (
         metrics_from_log_header,
         reducers_from_log_header,
-        resolve_scorers,
+        resolve_scorers_info,
     )
 
     if log.samples is None:
@@ -38,14 +38,14 @@ def recompute_metrics(log: EvalLog) -> None:
 
     reducers = reducers_from_log_header(log)
     metrics = metrics_from_log_header(log)
-    scorers = resolve_scorers(log)
+    scorers_info = resolve_scorers_info(log)
 
     # Recompute
     results, reductions = eval_results(
         samples=len(log.samples),
         scores=scores,
         reducers=reducers,
-        scorers=scorers,
+        scorers=scorers_info,
         metrics=metrics,
         early_stopping=log.results.early_stopping if log.results else None,
     )

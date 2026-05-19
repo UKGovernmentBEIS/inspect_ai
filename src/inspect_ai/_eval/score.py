@@ -67,7 +67,7 @@ from inspect_ai.util._display import (
 from inspect_ai.util._span import span
 from inspect_ai.util._store import init_subtask_store
 
-from .task.results import eval_results
+from .task.results import ScorerInfo, eval_results
 
 ScoreAction = Literal["append", "overwrite"]
 
@@ -496,24 +496,57 @@ def resolve_scorers(
             for score in log.eval.scorers
         ]
 
-    # Otherwise, perhaps we can re-create them from the results. The score names in
-    # log.results.scores may legitimately not be registered scorers (e.g. tasks that
-    # declare metrics but no scorers, where a solver writes Score objects into
-    # state.scores under arbitrary keys). Skip names we can't resolve via the registry;
-    # eval_results will synthesize ScorerInfo for those via ScorerInfo.from_name and
-    # apply log.eval.metrics to them.
-    if log.results is None:
-        return []
-    resolved: list[Scorer] = []
-    for score in log.results.scores:
-        try:
-            resolved.append(
-                scorer_from_spec(
-                    spec=ScorerSpec(scorer=score.name),
-                    task_path=task_path,
-                    **score.params,
-                )
+    # Otherwise, perhaps we can re-create them from the results
+    return (
+        [
+            scorer_from_spec(
+                spec=ScorerSpec(scorer=score.name), task_path=task_path, **score.params
             )
-        except Exception:
-            continue
-    return resolved
+            for score in log.results.scores
+        ]
+        if log.results
+        else []
+    )
+
+
+def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
+    """Build ScorerInfo objects from an evaluation log for metrics recomputation."""
+    if log.eval.scorers is None:
+        return []
+
+    infos: list[ScorerInfo] = []
+    for s in log.eval.scorers:
+        # s.metrics holds EvalMetricDefinition entries (serialized name + options).
+        # ScorerInfo needs callable Metric instances since eval_results invokes them
+        # via call_metric(). Walk the (possibly nested) list/dict structure and run
+        # each leaf through metric_from_log to instantiate it from the registry.
+        metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]
+        if not s.metrics:
+            metrics = []
+        elif isinstance(s.metrics, list):
+            metrics_list: list[Metric | dict[str, list[Metric]]] = []
+            for m in s.metrics:
+                if isinstance(m, dict):
+                    metrics_list.append(
+                        {
+                            key: [metric_from_log(md) for md in mds]
+                            for key, mds in m.items()
+                        }
+                    )
+                else:
+                    metrics_list.append(metric_from_log(m))
+            metrics = metrics_list
+        else:
+            metrics = {
+                key: [metric_from_log(md) for md in mds]
+                for key, mds in s.metrics.items()
+            }
+        infos.append(
+            ScorerInfo(
+                name=s.name,
+                metrics=metrics,
+                params=s.options or {},
+                metadata=s.metadata or {},
+            )
+        )
+    return infos
