@@ -577,6 +577,22 @@ def test_reasoning_from_responses_both_content_and_encrypted() -> None:
     assert result.signature == "rs_123"
 
 
+def test_reasoning_from_responses_empty_content_and_encrypted() -> None:
+    """Present-but-empty content still preserves encrypted reasoning."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_empty",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": ""}],
+        encrypted_content="ENCRYPTED_BLOB",
+        summary=[],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "ENCRYPTED_BLOB"
+    assert result.summary == ""
+    assert result.redacted is True
+    assert result.signature == "rs_empty"
+
+
 def test_reasoning_from_responses_only_encrypted() -> None:
     """When only encrypted_content exists, store it in reasoning as redacted."""
     item = ResponseReasoningItem.model_construct(

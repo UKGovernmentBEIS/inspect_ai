@@ -826,7 +826,11 @@ def reasoning_from_responses_reasoning(
     else:
         summary_text = None
 
-    if readable and item.encrypted_content and summary_text is None:
+    if (
+        readable is not None
+        and item.encrypted_content is not None
+        and summary_text is None
+    ):
         return ContentReasoning(
             reasoning=item.encrypted_content,
             summary=readable,
@@ -838,7 +842,11 @@ def reasoning_from_responses_reasoning(
     # encrypted blob in `internal` so it survives a round-trip back to a
     # ResponseReasoningItem for replay.
     internal: dict[str, JsonValue] | None = None
-    if readable is not None and summary_text is not None and item.encrypted_content:
+    if (
+        readable is not None
+        and summary_text is not None
+        and item.encrypted_content is not None
+    ):
         internal = {REASONING_ENCRYPTED_CONTENT: item.encrypted_content}
     return ContentReasoning(
         reasoning=reasoning,
