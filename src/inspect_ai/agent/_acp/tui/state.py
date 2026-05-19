@@ -271,16 +271,16 @@ class ToolCallState:
     summary stays visible while the tool runs to completion below.
     """
     cancel_requested: bool = False
-    """True once the operator has clicked the card's cancel-tool-call link.
+    """True once the operator has requested per-tool cancellation via ``^L``.
 
     Set by :class:`SessionScreen` before it fires the
     ``inspect/cancel_tool_call`` JSON-RPC request; consumed by the
-    widget to flip the footer link to a dim ``cancelling…`` marker
-    until the natural failure-status event lands and the card
-    transitions to terminal. Doubles as an idempotence guard against
-    double-fires (^L mash + click race) — :class:`SessionState`'s
-    ``cancel_tool_call_id`` accessor filters cards with this flag set
-    so ``^L`` advances to the next eligible tool.
+    widget to append a dim ``cancelling…`` marker until the natural
+    failure-status event lands and the card transitions to terminal.
+    Doubles as an idempotence guard against double-fires —
+    :class:`SessionState`'s ``cancel_tool_call_id`` accessor filters
+    cards with this flag set so ``^L`` advances to the next eligible
+    tool.
     """
 
     @property
@@ -760,7 +760,7 @@ class SessionState:
         when the tool is unknown, already terminal, already
         cancel-requested, or awaiting an operator approval decision
         (the approval bar's reject / terminate is the right exit
-        there). Idempotence guard against ``^L`` mash + click race —
+        there). Idempotence guard against rapid ``^L`` repeats —
         callers can fire-and-forget the JSON-RPC request only when
         this method returns True.
         """
@@ -1380,8 +1380,8 @@ class SessionState:
         at the bottom of the transcript.
 
         Used by :class:`SessionScreen` to resolve the ``^L`` binding
-        and by :class:`ToolCallWidget` to decide which card renders
-        the ``^l`` accelerator hint on its cancel link.
+        and by ``check_action`` to decide whether the screen-footer
+        ``cancel tool`` hint should be visible.
         """
         eligible = [
             tc

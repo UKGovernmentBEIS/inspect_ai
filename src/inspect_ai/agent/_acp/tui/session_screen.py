@@ -98,11 +98,11 @@ class SessionScreen(Screen[None]):
         # after ``plan`` and before ``cancel_sample`` so the footer
         # left-group reads "submit / newline / interrupt / plan /
         # cancel tool" with the navigation-cluster (cancel sample /
-        # switch / quit) flushed right. Each in-flight tool card also
-        # carries a clickable ``cancel tool call`` link on its footer
-        # row — ``^L`` is the keyboard accelerator for the same
-        # action, targeting the most recent. :meth:`check_action`
-        # hides the hint when no eligible tool is in flight.
+        # switch / quit) flushed right. This screen-footer binding is
+        # the only cancel-tool affordance; the targeted card only
+        # reflects the request after dispatch via its ``cancelling…``
+        # footer marker. :meth:`check_action` hides the hint when no
+        # eligible tool is in flight.
         Binding(
             "ctrl+l",
             "cancel_tool_call",
