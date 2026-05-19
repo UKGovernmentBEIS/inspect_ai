@@ -1249,6 +1249,8 @@ Or using the `eval()` function:
 eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(responses_api=True))
 ```
 
+When using the Responses API, `openai-api` also supports the `responses_phase` model arg to synthesize missing assistant message `phase` values when replaying Responses API histories.
+
 ### Tool Emulation {#tool-emulation-openai}
 
 When using OpenAI compatible model providers, tool calling support can be 'emulated' for models that don't yet support it. Use the `emulate_tools` model arg to force tool emulation:
