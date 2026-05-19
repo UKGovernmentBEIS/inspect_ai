@@ -41,7 +41,7 @@ Main screen once attached. Persistent layout across all conversation states.
 
 Regions:
 
-- **Meta row** — `inspect acp · eval <id> · task <name> · sample <n>/epoch <m> · agent <name>` + connection indicator
+- **Meta row** — `inspect acp · eval <id> · task <name> · sample <n>/epoch <m> · agent <name>`
 - **Status row** — status pill (state machine, below) + state-dependent chips (`N tools in flight`, `model <name>`, `retry n/m`, `tokens NNNk`)
 - **Transcript** — scrollable conversation event list
 - **Composer** — multi-line input, focus-aware keymap
@@ -117,8 +117,8 @@ Single-screen overlay listing the full keymap. Bound globally except when the co
 
 | State | Treatment | Mockup |
 |---|---|---|
-| Connected | quiet green dot in meta row; no overlay | all live pages |
-| Reconnecting | amber dot; banner with attempt count + next-retry countdown; transcript dimmed; events replay on reconnect | [06c](images/06c-terminal-disconnected-reconnecting.png) |
+| Connected | no overlay; toasts silent | all live pages |
+| Reconnecting | toasts narrate (`Reconnecting to ACP server (disconnected N minute…)` every 60s after the first minute); transcript stays as-is so the operator can read history; events replay on reconnect | [06c](images/06c-terminal-disconnected-reconnecting.png) |
 | Completed | terminal — `Completed` pill, sample-completed banner, footer: `^S switch sample` / `^R rescan` / `^O open log` / `^C quit` | [06a](images/06a-terminal-completed.png) |
 | Errored | terminal — `Errored` pill, sample-errored banner with inline traceback, footer: `^O open log` / `^C copy traceback` / `^S switch sample` | [06b](images/06b-terminal-errored.png) |
 
@@ -347,23 +347,49 @@ Scoring runs AFTER the agent's `acp_session()` context manager exits, so without
 - **`_AcpDisconnectFilter` is a permanent root-logger filter, not context-managed to the AcpServer's lifetime.** Upstream `acp` library uses `logging.exception(...)` (root logger) directly, so a tighter logger scope isn't available. Context-managed install was considered but adds complexity for marginal benefit; the filter is tightly scoped via exact message-string match AND exception-type filter, so blast radius is already minimal.
 - **No terminal "sample complete / errored" banner yet** — Phase 6 (terminal states) covers the green "Completed" / red "Errored" banner with the score line. Phase 5 ships the in-stream chips that lead up to it.
 
-### Phase 6 — Terminal states & connection resilience
+### Phase 6 — Connection resilience ✅
 
-What the operator sees when things end (well or badly) and when the connection drops. Through Phase 4 the TUI works on the happy path; this phase covers what users actually see when things go wrong.
+Originally bundled terminal banners + reconnect + replay/footer; split for shipping. This phase covers the **connection lifecycle resilience** layer; the Completed banner, the Errored banner + `errored` lifecycle, and `^C copy traceback` move to Phase 7 alongside the score/error rendering they depend on. `^O open log` dropped entirely. `^R rescan` stays Phase 8 (picker work). Replay payload elision rejected — payloads are naturally bounded by model context windows and the 64 MiB stream buffer from Phase 5 handles outliers (closes [`agent-acp.md`](agent-acp.md) open question #1).
+
+Motivating real-world case: remote attach via `--server host:port` — transient Wi-Fi drops, VPN renegotiation, NAT idle-timeout RSTs shouldn't lose the operator's session. Local AF_UNIX deployments rarely need it (the eval process dying takes the socket with it) but get the same passive behaviour for free — the dot stays amber and the operator hits `^S` to return to the picker.
+
+A clean disconnect (`inspect/session_ended` arrived before EOF) is **not** reconnect-eligible — the sample is genuinely over, `mark_complete` fires as today. The reconnect machinery only kicks in for ungraceful transport loss.
 
 **Ships**
 
-- Completed banner with score line; Errored banner with inline traceback.
-- Disconnect detection in the client; exponential-backoff reconnect with attempt count + countdown overlay.
-- **Server-side replay buffer** (settles [`agent-acp.md`](agent-acp.md)'s open question #1: pick buffer size + elision rules) plus client-side replay handling on reconnect.
-- Footer next-action shortcuts in terminal states (`^S switch sample`, `^O open log`, `^C copy traceback`, etc.).
+- **`AttachedSession` reconnect coordinator** (`tui/client.py`). Replaces the prior "set `disconnected` and give up" path. The coordinator runs as a long-lived task spawned post-handshake; it watches the per-connection receive task for exit, distinguishes graceful (session_ended received → don't reconnect) from ungraceful (retry forever) via `SessionState.session_ended_received`, and on ungraceful loss flips `state.mark_disconnected()`, kicks off a toast cadence task, and drives an exponential-backoff retry loop (1s, 2s, 4s, 8s, 16s, then capped at 30s indefinitely). On success it rebuilds the Connection + writer + receive task in place — `self._session.connection` references read through the swap transparently from the screen's POV. On `session/load` returning `invalid_params` (target sample ended during the disconnect window) it calls `mark_complete()` + emits the "Sample ended during disconnect" toast and stops. Forever-retry by design — the operator hits `^S switch sample` (already wired) to bail; there is NO cap that would surprise-give-up.
+- **`_establish_connection`** (private) extracts the socket-open + initialize + session/load handshake from the previous monolithic `attach_session`, so the initial attach AND every reconnect go through one code path (one place to audit for handshake regressions, one place where partial-build teardown lives).
+- **`SessionState._disconnected` + `_session_ended_received` flags** (`tui/state.py`). Orthogonal to the existing `lifecycle` literal — connection state is about **transport** health, lifecycle describes **agent-side** activity; conflating them would lie about either when they diverge (brief socket blip during a "running" agent). `mark_disconnected` / `mark_reconnected` / `mark_session_ended_received` mutate the flags + notify subscribers. The `disconnected` property is gated on NOT `_complete` so terminal sessions always read as connected. Caching the target sessionId on the existing `SessionRow.session_id` was sufficient — no new state needed for the reconnect target.
+- **`session/load` calls `state.mark_session_ended_received()` before `mark_complete()`** (`tui/client.py` `_build_session_router._on_session_ended`). The order is load-bearing: the coordinator's graceful-vs-ungraceful check reads `session_ended_received` when the receive loop subsequently exits; setting it before the lifecycle flip ensures the coordinator sees it whether the receive-loop exit precedes or follows the screen's mark_complete observation.
+- **Toast cadence** (`AttachedSession._toast_cadence`). First "Reconnecting to ACP server (disconnected N minute…)" toast fires at ≥60s after the disconnect — fast glitches (sub-minute recoveries) deliberately don't nag. Subsequent toasts every 60s, with elapsed-time formatting. One "Reconnected to ACP server" toast on success. One "Sample ended during disconnect" toast on `invalid_params`. All emitted via `app.notify` through a thin adapter wired in `app.py:_attach_and_show`. Toasts are the *only* operator-visible disconnect signal in v1 — there is no header indicator (a connection-status dot was prototyped and pulled as visual noise; the toast cadence is sufficient because sub-60s glitches don't need attention and longer disconnects get explicit narration).
+- **Send-while-disconnected guard** (`tui/session_screen.py` `action_submit`). Early-return that toasts "Not connected to ACP server — message not sent" (severity=warning) and preserves the composer draft. Without this guard, sending into a dead writer would either block on the never-resolved response future OR raise mid-await (existing toast catches that, but the draft would already be cleared by then). The draft survives so the operator can re-send once the next reconnect toast confirms transport is back.
+- **Server-stamped replay marker + client chunk replay-reset dedup** (`inspect_ext.py` `REPLAY_META_KEY = "inspect.replay"`, `session_router.py` `_stamp_replay_marker`, `tui/state.py` `_consume_chunk` / `mark_replay_started` / `_replay_reset_message_ids`). On reconnect the server's `session/load` runs the standard replay-on-attach flow (snapshot of last 100 events from `Transcript._events`, mapped + plan-policy-transformed, sent as a `session/update` stream). Without dedup, replayed `agent_message_chunk` / `user_message_chunk` / `system_message_chunk` sequences would double the rendered text since `_append_segment` extends the last segment. A heuristic dedup based on `inspect.model_event_complete` markers + pending-signal restart misses the common cases — normal in-flight assistant content (no completion marker yet), and user/system chunks which never emit the completion marker at all. Fix: the server stamps `REPLAY_META_KEY = True` on the OUTER `SessionNotification.field_meta` for every notification emitted by the replay path; live forwarding never sets it. The client checks the outer meta in `consume`, threads `is_replay` into `_consume_chunk`, and on the first replayed chunk for a given message id (tracked in `_replay_reset_message_ids`, cleared by `mark_replay_started` at the start of each new replay) clears `segments` before applying. Symmetric across all chunk kinds. Tool calls (id-keyed), plan updates (full replacement), usage (snapshot) are already idempotent — no changes needed.
+- **Raw-event replay-dedup** (`tui/state.py` `consume_inspect_event`). Each `inspect/event` payload carries a stable `uuid` from `BaseEvent`. The `_seen_inspect_event_uuids` set early-returns on duplicates so replayed score events don't double-mount score chips and replayed `span_begin` events don't re-mount per-scorer indicators after the real score chip has replaced them.
+- **`_watch_disconnect` semantics updated** (`tui/session_screen.py`). The `session.disconnected` event is now fired ONLY on terminal teardown (close / session_ended after the receive loop drains / session_gone after reconnect rejection). Transient ungraceful disconnects are handled internally by the coordinator and never set `disconnected`. The watch task still calls `mark_complete` as a defensive idempotent backstop.
 
-**Protocol extensions landed**: terminal sample-completed notification (carries the scorer output), terminal sample-errored notification (carries the traceback frames), and server-side replay buffer + client replay-on-reconnect handling.
+**Already shipped (Phase 10 / Phase 5) — documented here for completeness**:
+
+- Server-side replay snapshot + cap (`session_router.py:50` `REPLAY_MAX_EVENTS = 100`; `session_router.py:172` snapshot on bind; `session_router.py:460-575` interleaved semantic + raw replay).
+- `session/load` rebind triggers fresh replay (`connection.py:274-282` calls `_stop_forwarders` → `_start_forwarders` → fresh snapshot + replay). Because `Transcript._events` accumulates regardless of whether a subscriber is bound (`session_live.py:378-383`), the snapshot taken at reconnect-time naturally includes events emitted during the gap (subject to the tail-100 cap).
+- `inspect/session_ended` notification (`inspect_ext.py:119` constant; `session_router.py:357-369` `_send_session_ended` fires after raw drain on clean stream EOF).
+- `^S switch sample` already wired (`session_screen.py:532-535`).
+
+**Protocol extensions landed**: one. `REPLAY_META_KEY = "inspect.replay"` is stamped on the OUTER `SessionNotification.field_meta` for every notification emitted by the server's replay-on-attach path; live forwarding never sets it. The client uses the marker to drive symmetric replay-reset dedup across all chunk kinds (assistant / user / system). The replay machinery itself, `session/load` semantics, and `inspect/session_ended` were already in place from Phase 10 / Phase 5; this phase wires them into the resilience UX.
 
 **Acceptance**
 
-- Manual: complete-normally → green banner. Force-error → red banner with traceback frames. Kill + restart the server during a stream → client reconnects and missed events replay.
-- Automated: pilot tests for both terminal banners; integration test for the disconnect / replay path using an in-process server fixture.
+- Manual (local AF_UNIX): `inspect eval <task> --acp-server` long-running; attach via `inspect acp`; `kill -9 <eval_pid>`. Dot flips amber; after ~60s the "Reconnecting" toast appears; retries continue indefinitely. Operator hits `^S` to return to the picker. No crash, no spurious "Reconnected" against a different eval.
+- Manual (simulated network drop, TCP): `inspect eval <task> --acp-server=12345` + `inspect acp --server 127.0.0.1:12345`; briefly block the port (e.g. `sudo pfctl` rule); dot amber, retry loop runs; remove block; dot green, "Reconnected" toast, replay catches the transcript up.
+- Manual (clean end): start eval, attach, wait for sample to complete normally. `inspect/session_ended` arrives, lifecycle flips to `complete`, NO reconnect attempted, NO disconnect toast.
+- Manual (send-while-disconnected): during a disconnect window, type into the composer and hit Enter; toast appears, draft preserved.
+- Automated: `tests/agent/test_acp/test_tui/test_reconnect.py` (state transitions, backoff schedule, invalid_params → mark_complete, toast cadence, send-while-disconnected pilot, receive-loop finally-closes-connection regression). `tests/agent/test_acp/test_tui/test_replay_dedup.py` (chunk replay reset, raw event uuid dedup, regression coverage for already-idempotent paths). Pre-existing TUI suite green with no regressions.
+
+**Known v1 gaps (intentional)**
+
+- **No reconnect overlay / countdown UI / header indicator.** Toasts are the entire UX. An overlay-with-countdown was considered (per the original spec mockup) and dropped as too aggressive: it would force operator attention even for sub-minute glitches that recover before they're noticed. A persistent header dot was also prototyped and pulled as visual noise — the toast cadence (silent for the first 60s, then once per minute) lands in the right place and doesn't add a permanent chrome element for a transient condition.
+- **No max-attempts cap.** Forever-retry. The operator's `^S switch sample` is the bail-out. A cap would risk surprising the operator with "gave up after N minutes" when they expected the connection to come back.
+- **No special handling for the rare race** where reconnect succeeds but a fresh disconnect happens before the "Reconnected" toast renders. The toast just fires and immediately the dot flips back to amber; harmless cosmetic flicker.
+- **`_watch_disconnect` keeps `mark_complete` as a defensive backstop** even though all current code paths call it explicitly. Cheap idempotent call; protects against future code paths that might set `session.disconnected` without going through one of the established transitions.
 
 ### Phase 7 — Rich event rendering
 

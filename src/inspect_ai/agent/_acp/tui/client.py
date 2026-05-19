@@ -19,12 +19,14 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from collections.abc import Coroutine
+import time
+from collections.abc import Awaitable, Coroutine
 from dataclasses import dataclass, replace
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from acp import PROTOCOL_VERSION
 from acp.connection import Connection
+from acp.exceptions import RequestError
 from acp.router import MessageRouter, Route
 from acp.schema import (
     AllowedOutcome,
@@ -34,6 +36,7 @@ from acp.schema import (
     SessionNotification,
 )
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai.agent._acp._config import ACP_STREAM_BUFFER_LIMIT
 from inspect_ai.agent._acp.discovery import TargetAddress
 from inspect_ai.agent._acp.inspect_ext import (
@@ -43,7 +46,30 @@ from inspect_ai.agent._acp.inspect_ext import (
     PLAN_RENDERING_META_KEY,
     RAW_EVENTS_META_KEY,
 )
-from inspect_ai.agent._acp.tui.state import PendingApproval
+from inspect_ai.agent._acp.tui.state import PendingApproval, SessionState
+
+# JSON-RPC error code for ``invalid_params`` (per JSON-RPC 2.0). The
+# server returns this from ``session/load`` when the requested
+# sessionId is not in the live target list — the reconnect loop
+# treats it as "the sample we were attached to ended during the
+# disconnect window" and stops retrying.
+_JSONRPC_INVALID_PARAMS = -32602
+
+# Notify severity literal — mirrors Textual's ``app.notify`` severities
+# so the screen-side adapter doesn't need to translate.
+NotifySeverity = Literal["information", "warning", "error"]
+
+# Reconnect backoff schedule (seconds). After the last entry the loop
+# stays at the cap (30s) forever. Forever-retry: the operator hits
+# ``^S switch sample`` (already wired) to bail.
+_RECONNECT_BACKOFF: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0, 16.0, 30.0)
+
+# Periodic toast cadence while disconnected. First toast fires this
+# many seconds after the disconnect started, then again every interval.
+# Short reconnects (sub-60s glitches) deliberately don't toast — the
+# header dot is the at-a-glance signal; toasts only kick in once the
+# operator might have stopped watching.
+_DISCONNECT_TOAST_INTERVAL_SECONDS: float = 60.0
 
 CLIENT_INFO = {"name": "inspect-acp-tui", "version": "1"}
 """Sent in ``initialize`` so the server can tailor capability negotiation
@@ -156,9 +182,11 @@ async def enumerate_sessions(
             )
             return None
 
-    results = await asyncio.gather(
-        *(_query(eid, addr) for eid, addr in addresses),
-        return_exceptions=False,
+    results = await tg_collect(
+        [
+            (lambda eid=eid, addr=addr: _query(eid, addr))  # type: ignore[misc]
+            for eid, addr in addresses
+        ]
     )
 
     rows: list[SessionRow] = []
@@ -221,11 +249,26 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
 class AttachedSession:
     """Live ACP connection bound to a single target session.
 
-    Owns the asyncio task running the connection's receive loop. The
-    ``disconnected`` event fires when the peer closes (EOF on the
-    reader), the receive loop raises, or :meth:`close` is called
-    explicitly — so subscribers can ``await disconnected.wait()``
-    instead of polling the writer for a closed state.
+    Owns the asyncio task running the connection's receive loop AND a
+    coordinator task that handles transient transport loss with a
+    forever-retrying reconnect loop. The ``disconnected`` event fires
+    only on TERMINAL teardown:
+
+    - :meth:`close` is called explicitly (user-initiated ^S switch),
+    - the server sent ``inspect/session_ended`` (graceful end),
+    - or the reconnect loop got ``invalid_params`` from
+      ``session/load`` (the bound sample finished during the
+      disconnect window).
+
+    Transient ungraceful disconnects (network glitch, server restart,
+    socket drop) are handled internally by the reconnect coordinator:
+    it flips :attr:`SessionState.disconnected` True, drives an
+    exponential backoff, re-opens the socket, re-runs
+    ``initialize`` + ``session/load``, and on success flips
+    ``disconnected`` False and resumes. The session swap is invisible
+    to the screen — ``self.connection`` / ``self.writer`` are updated
+    in place so callers reading ``self._session.connection`` always
+    see the live connection.
     """
 
     def __init__(
@@ -235,6 +278,13 @@ class AttachedSession:
         writer: asyncio.StreamWriter,
         session_id: str,
         row: SessionRow,
+        state: SessionState,
+        on_session_update: Callable[[SessionNotification], None] | None = None,
+        on_request_permission: Callable[[PendingApproval], None] | None = None,
+        on_inspect_event: Callable[[dict[str, Any]], None] | None = None,
+        notify: Callable[[str, NotifySeverity], None] | None = None,
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.connection = connection
         self.writer = writer
@@ -242,30 +292,59 @@ class AttachedSession:
         self.row = row
         self.disconnected = asyncio.Event()
         self._receive_task: asyncio.Task[None] | None = None
+        self._coordinator_task: asyncio.Task[None] | None = None
         # Idempotence flag for :meth:`close`. Distinct from
         # ``disconnected`` because the receive loop sets disconnected
         # on peer EOF — at which point we still need to tear down the
         # writer + Connection internals on the local side, so close()
         # must NOT short-circuit on ``disconnected``.
         self._closed = False
+        # Reconnect machinery — references stored so the coordinator
+        # can rebuild the router on each reconnect.
+        self._state = state
+        self._on_session_update_cb = on_session_update
+        self._on_request_permission_cb = on_request_permission
+        self._on_inspect_event_cb = on_inspect_event
+        self._notify = notify
+        self._sleep = sleep
+        self._clock = clock
+        # Monotonic timestamp of the most recent transition into
+        # disconnected state. Read by the toast cadence task to format
+        # the "disconnected NNm" message; reset to None on reconnect.
+        self._disconnected_at: float | None = None
 
     @property
     def is_connected(self) -> bool:
         return not self.disconnected.is_set()
 
+    def start_coordinator(self) -> None:
+        """Spawn the reconnect coordinator task. Idempotent.
+
+        Called by :func:`attach_session` after the initial handshake
+        succeeds. Splits out so tests can construct an AttachedSession
+        with a pre-built (mocked) connection and start the coordinator
+        explicitly.
+        """
+        if self._coordinator_task is None or self._coordinator_task.done():
+            self._coordinator_task = asyncio.create_task(
+                self._coordinator(), name="acp-tui-coordinator"
+            )
+
     async def close(self) -> None:
         """Idempotent cleanup; safe to call multiple times.
 
-        Stops the receive task, tears down the ACP Connection (shuts
-        down its Dispatcher / Sender background tasks), and closes
-        the writer. Called on screen unmount AND after a peer-side
-        disconnect — both paths run the same teardown so the asyncio
-        loop doesn't end up with orphaned acp.* tasks.
+        Stops the coordinator + receive task, tears down the ACP
+        Connection (shuts down its Dispatcher / Sender background
+        tasks), and closes the writer. Called on screen unmount AND
+        after a peer-side disconnect — both paths run the same
+        teardown so the asyncio loop doesn't end up with orphaned
+        acp.* tasks.
 
-        Teardown order matters: cancel the receive task first so it
-        doesn't try to publish a late message into the dispatcher
-        queue while ``Connection.close()`` is closing that queue
-        (which raises ``RuntimeError: message queue already closed``).
+        Teardown order matters: cancel the coordinator + receive task
+        first so they don't try to publish a late message into the
+        dispatcher queue while ``Connection.close()`` is closing that
+        queue (which raises ``RuntimeError: message queue already
+        closed``).
         """
         if self._closed:
             return
@@ -273,6 +352,17 @@ class AttachedSession:
         # Flag disconnected first so any blocked subscriber wakes up.
         # Harmless no-op when the receive loop already set it.
         self.disconnected.set()
+        # Stop the coordinator first: if a reconnect attempt is in
+        # flight it owns a half-built transient connection we don't
+        # want to leak. Cancellation propagates into the
+        # ``_establish_connection`` call which tears down any partial
+        # build in its own finally branches.
+        if self._coordinator_task is not None and not self._coordinator_task.done():
+            self._coordinator_task.cancel()
+            try:
+                await self._coordinator_task
+            except (asyncio.CancelledError, Exception):
+                pass
         # Stop the receive task before tearing down the Connection's
         # queue — see method docstring. Task may already be done
         # (peer EOF set disconnected via the loop's finally clause).
@@ -297,13 +387,294 @@ class AttachedSession:
         except Exception:
             pass
 
+    async def _coordinator(self) -> None:
+        """Watch the receive task; reconnect on ungraceful disconnect.
+
+        Runs in a single long-lived task spawned by
+        :meth:`start_coordinator`. Outer loop body runs once per
+        connection cycle:
+
+        1. Wait for the current receive task to end.
+        2. If terminal (closed / session_ended) → return.
+        3. Else: flip ``state.disconnected`` True, kick off a toast
+           cadence task, drive the reconnect retry loop.
+        4. On reconnect success: flip ``state.disconnected`` False,
+           emit "Reconnected" toast, loop body restarts against the
+           new receive task.
+        5. On reconnect getting ``invalid_params`` (target gone):
+           mark complete, emit "Sample ended" toast, set
+           ``self.disconnected`` (terminal), return.
+
+        The screen-side :meth:`SessionScreen._watch_disconnect` is
+        unchanged — it sees ``self.disconnected`` set only on
+        terminal teardown, and transient reconnects are invisible to
+        it.
+        """
+        while True:
+            if self._receive_task is None:
+                # Defensive — should never happen since
+                # _establish_connection always assigns one.
+                return
+            try:
+                await self._receive_task
+            except (asyncio.CancelledError, Exception):
+                pass
+            if self._closed:
+                self.disconnected.set()
+                return
+            if self._state.session_ended_received:
+                # Graceful end — server sent ``inspect/session_ended``
+                # which already called ``mark_complete`` via the
+                # handler. Don't reconnect; just signal terminal.
+                self.disconnected.set()
+                return
+            # Ungraceful disconnect. Drive the reconnect cycle.
+            self._state.mark_disconnected()
+            self._disconnected_at = self._clock()
+            toast_task = asyncio.create_task(
+                self._toast_cadence(), name="acp-tui-disconnect-toast"
+            )
+            try:
+                session_gone = await self._reconnect_until_resolved()
+            except asyncio.CancelledError:
+                await _stop_task(toast_task)
+                self.disconnected.set()
+                raise
+            finally:
+                await _stop_task(toast_task)
+            if session_gone:
+                self._state.mark_complete()
+                self._disconnected_at = None
+                if self._notify is not None:
+                    self._notify("Sample ended during disconnect", "warning")
+                self.disconnected.set()
+                return
+            # Reconnect succeeded. Loop body restarts against the
+            # freshly-spawned receive task.
+            self._state.mark_reconnected()
+            self._disconnected_at = None
+            if self._notify is not None:
+                self._notify("Reconnected to ACP server", "information")
+
+    async def _toast_cadence(self) -> None:
+        """Emit a "still trying" toast every interval while disconnected.
+
+        Cancelled by the coordinator on reconnect / session_gone /
+        close. The first toast fires at
+        ``_DISCONNECT_TOAST_INTERVAL_SECONDS`` (60s) after the
+        disconnect — fast glitches don't nag.
+        """
+        while True:
+            await self._sleep(_DISCONNECT_TOAST_INTERVAL_SECONDS)
+            if self._notify is None or self._disconnected_at is None:
+                continue
+            elapsed_s = int(self._clock() - self._disconnected_at)
+            mins = max(1, elapsed_s // 60)
+            plural = "s" if mins != 1 else ""
+            self._notify(
+                f"Reconnecting to ACP server (disconnected {mins} minute{plural})",
+                "warning",
+            )
+
+    async def _reconnect_until_resolved(self) -> bool:
+        """Retry ``_establish_connection`` forever (until close / gone).
+
+        Returns True iff ``session/load`` returned ``invalid_params``
+        — the bound sample is gone and we should stop. Returns False
+        on successful reconnect; the coordinator loops the body.
+
+        Cancellation (close) propagates out as ``CancelledError``;
+        the coordinator's outer ``except`` handles it.
+        """
+        attempt = 0
+        while not self._closed:
+            backoff = _RECONNECT_BACKOFF[min(attempt, len(_RECONNECT_BACKOFF) - 1)]
+            await self._sleep(backoff)
+            attempt += 1
+            if self._closed:
+                return False
+            try:
+                await self._establish_connection()
+                return False
+            except RequestError as exc:
+                # ``session/load`` rejected our cached target id. The
+                # only reason the server returns invalid_params here
+                # is "unknown session id" → the sample we were bound
+                # to ended during the disconnect window.
+                if exc.code == _JSONRPC_INVALID_PARAMS:
+                    return True
+                # Other JSON-RPC error from initialize / session/load:
+                # rare; keep trying (server may transiently mis-route
+                # during its own restart).
+            except (OSError, ConnectionError):
+                # Socket failed to open — server still down. Keep
+                # retrying; the operator can ^S out if they want.
+                pass
+            except Exception:
+                # Unexpected — don't crash the coordinator, just
+                # back off again. The receive task that the
+                # half-built connection might have started is torn
+                # down inside _establish_connection's own
+                # error-handling.
+                pass
+        return False
+
+    async def _establish_connection(self) -> None:
+        """Open the socket, build a Connection, run the handshake.
+
+        Used by :func:`attach_session` for the initial attach AND by
+        the reconnect loop for every subsequent reattach. On reattach,
+        tears down any existing connection FIRST (cancel old receive
+        task, close old Connection + writer) so the swap is atomic
+        from the caller's POV — ``self.connection`` / ``self.writer``
+        always reference a live pair (or are about to raise).
+
+        Raises whatever the underlying socket / handshake raised —
+        the reconnect loop catches and retries; the initial attach
+        propagates to :func:`attach_session`.
+        """
+        # Tear down any prior connection before opening a new one.
+        # First reattach: prior state exists. Initial attach: no-op.
+        await _stop_task(self._receive_task)
+        self._receive_task = None
+        if self.connection is not None:
+            try:
+                await self.connection.close()
+            except Exception:
+                pass
+        if self.writer is not None:
+            try:
+                self.writer.close()
+                await self.writer.wait_closed()
+            except Exception:
+                pass
+
+        reader, writer = await _open_socket(self.row.target)
+        router = _build_session_router(
+            session_ref=self,
+            on_session_update=self._on_session_update_cb,
+            on_request_permission=self._on_request_permission_cb,
+            on_inspect_event=self._on_inspect_event_cb,
+        )
+        conn = Connection(
+            handler=router,
+            writer=writer,
+            reader=reader,
+            listening=False,
+        )
+        receive_task = asyncio.create_task(
+            _run_receive_loop(conn), name="acp-tui-receive"
+        )
+        try:
+            await conn.send_request(
+                "initialize",
+                {
+                    "protocolVersion": PROTOCOL_VERSION,
+                    "clientInfo": CLIENT_INFO,
+                    "clientCapabilities": CLIENT_CAPABILITIES,
+                },
+            )
+            await conn.send_request(
+                "session/load",
+                {
+                    "sessionId": self.session_id,
+                    "cwd": ".",
+                    "mcpServers": [],
+                },
+            )
+            # Clear the per-replay dedup set AFTER ``session/load``
+            # returns successfully. The server uses
+            # ``_schedule_after_response`` so replay notifications
+            # always land after the response; clearing here (not
+            # before send_request) means a failed handshake
+            # (``invalid_params``, OSError, timeout) leaves
+            # ``_replay_reset_message_ids`` untouched — no
+            # corruption of dedup state across the retry loop.
+            self._state.mark_replay_started()
+        except BaseException:
+            # Tear down what we just built so the failed attempt
+            # doesn't leak. Raise so the caller (initial attach or
+            # reconnect loop) can decide what to do.
+            await _stop_task(receive_task)
+            try:
+                await conn.close()
+            except Exception:
+                pass
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except Exception:
+                pass
+            raise
+
+        # Commit the swap. Order matters: assign writer before
+        # connection so any concurrent reader sees consistent state
+        # (writer.close() works regardless of connection state, but
+        # connection.send_*() expects the writer to be live).
+        self.writer = writer
+        self.connection = conn
+        self._receive_task = receive_task
+
+
+async def _run_receive_loop(conn: Connection) -> None:
+    """Drive a connection's receive loop until it exits.
+
+    On ANY exit (clean peer EOF, ConnectionError, OSError, our own
+    cancellation), close the Connection in a ``finally`` so its
+    outgoing-request futures are rejected with
+    ``ConnectionError("Connection closed")``. Without this the
+    handshake ``await conn.send_request(...)`` in
+    :meth:`AttachedSession._establish_connection` would hang forever
+    on the pathological case where the server accepts the socket and
+    then closes it before answering ``initialize`` or
+    ``session/load`` — ``acp.Connection._receive_loop`` treats clean
+    EOF as a normal return and does NOT itself reject pending
+    futures. Closing here makes the failed handshake observable to
+    the reconnect loop so it can back off and retry.
+
+    ``Connection.close()`` is idempotent via its ``_closed`` flag, so
+    a subsequent close from :meth:`AttachedSession.close` or
+    :meth:`_establish_connection`'s error-path teardown is a no-op.
+    """
+    try:
+        await conn.main_loop()
+    except (asyncio.CancelledError, ConnectionError, OSError):
+        # Cancellation = our own close; ConnectionError/OSError =
+        # peer EOF or socket error. Both are normal exits.
+        pass
+    finally:
+        try:
+            await conn.close()
+        except Exception:
+            pass
+
+
+async def _stop_task(task: asyncio.Task[Any] | None) -> None:
+    """Cancel and await a task; swallow CancelledError + Exception.
+
+    Used at AttachedSession teardown sites (receive task, toast task)
+    where we just want to ensure the task has drained before moving
+    on — failures and our own cancellation are both expected.
+    No-op on ``None`` / already-done.
+    """
+    if task is None:
+        return
+    if not task.done():
+        task.cancel()
+    try:
+        await task
+    except (asyncio.CancelledError, Exception):
+        pass
+
 
 async def attach_session(
     row: SessionRow,
     *,
+    state: SessionState,
     on_session_update: Callable[[SessionNotification], None] | None = None,
     on_request_permission: Callable[[PendingApproval], None] | None = None,
     on_inspect_event: Callable[[dict[str, Any]], None] | None = None,
+    notify: Callable[[str, NotifySeverity], None] | None = None,
 ) -> AttachedSession:
     """Open a fresh connection bound to ``row.session_id``.
 
@@ -323,34 +694,70 @@ async def attach_session(
       render. The payload is a serialized ``inspect_ai.event.Event``;
       consumers route by the ``event`` discriminator.
 
+    ``state`` is the live :class:`SessionState`; the reconnect
+    coordinator calls ``state.mark_disconnected`` / ``mark_reconnected``
+    / ``mark_session_ended_received`` / ``mark_complete`` on lifecycle
+    transitions. ``notify`` (typically wired to Textual's
+    ``app.notify``) emits the "disconnected for Nm" / "Reconnected" /
+    "Sample ended during disconnect" toasts; pass ``None`` to silence.
+
     The Connection is constructed with ``listening=False`` so we own
     the receive task and can fire :attr:`AttachedSession.disconnected`
-    the moment it exits (peer EOF, read error, or explicit close).
+    the moment it terminally exits (peer EOF after the reconnect loop
+    gave up, explicit close, or server-confirmed end). Transient
+    disconnects are handled internally by the coordinator and never
+    fire :attr:`disconnected`.
     """
-    reader, writer = await _open_socket(row.target)
+    session = AttachedSession(
+        # ``connection`` / ``writer`` are placeholders here — the
+        # real values are assigned by ``_establish_connection`` below.
+        # mypy: passing ``None`` would require Optional in the dataclass;
+        # instead we cast and let the assignment populate immediately.
+        connection=None,  # type: ignore[arg-type]
+        writer=None,  # type: ignore[arg-type]
+        session_id=row.session_id,
+        row=row,
+        state=state,
+        on_session_update=on_session_update,
+        on_request_permission=on_request_permission,
+        on_inspect_event=on_inspect_event,
+        notify=notify,
+    )
+    try:
+        await session._establish_connection()
+    except BaseException:
+        await session.close()
+        raise
+    session.start_coordinator()
+    return session
+
+
+def _build_session_router(
+    *,
+    session_ref: "AttachedSession",
+    on_session_update: Callable[[SessionNotification], None] | None,
+    on_request_permission: Callable[[PendingApproval], None] | None,
+    on_inspect_event: Callable[[dict[str, Any]], None] | None,
+) -> MessageRouter:
+    """Build the route table for ONE connection cycle.
+
+    Called on initial attach AND each reconnect — every connection
+    needs its own fresh router (acp.Connection owns its router for
+    the connection's lifetime; reusing across reconnects would attach
+    the old router's task supervisor to the new connection).
+
+    ``session_ref`` is the long-lived :class:`AttachedSession`; the
+    handlers close over it to update ``session_ref.row`` from binding
+    meta and to call ``session_ref._state.mark_session_ended_received``
+    on the ``inspect/session_ended`` notification.
+    """
     router = MessageRouter()
     if on_request_permission is not None:
         _register_permission_route(router, on_request_permission)
-    conn = Connection(
-        handler=router,
-        writer=writer,
-        reader=reader,
-        listening=False,
-    )
-    session = AttachedSession(
-        connection=conn,
-        writer=writer,
-        session_id=row.session_id,
-        row=row,
-    )
 
-    # Define the session/update route AFTER ``session`` is constructed
-    # so the handler closure can refresh ``session.row`` from the
-    # binding-confirmation notification's picker meta — see the
-    # _refresh_row_from_binding_meta call below.
     if on_session_update is not None:
 
-        async def _func(params: Any) -> None:
+        async def _on_session_update(params: Any) -> None:
             # MessageRouter delivers params as a dict; validate to the
             # typed SessionNotification so consumers see ACP objects
             # (mirrors the server-side router convention).
@@ -359,28 +766,21 @@ async def attach_session(
                 if isinstance(params, dict)
                 else params
             )
-            # Direct-attach path (``session/load`` without going through
-            # the picker) starts with whatever defaults the SessionRow
-            # had at construction time — fails_on_error defaults to
-            # False. The server's binding-confirmation notification
-            # carries the authoritative target metadata under the same
-            # PICKER_META_KEY the picker uses, so peek for it here and
-            # refresh the row before the modal could ever read a stale
-            # value. SessionState.consume drops the picker meta entirely
-            # (treating it as cosmetic bind chrome), so this is the only
-            # place the wire data lands on the client.
-            _refresh_row_from_binding_meta(session, notif)
+            # Direct-attach AND reconnect (also via ``session/load``)
+            # both land here. The server's binding-confirmation
+            # notification carries the authoritative target metadata
+            # under PICKER_META_KEY; peek for it and refresh
+            # ``session_ref.row`` before the modal could ever read a
+            # stale value. SessionState.consume drops the picker meta
+            # entirely (treating it as cosmetic bind chrome), so this
+            # is the only place the wire data lands on the client.
+            _refresh_row_from_binding_meta(session_ref, notif)
             on_session_update(notif)
 
         router.add_route(
-            Route(method="session/update", func=_func, kind="notification")
+            Route(method="session/update", func=_on_session_update, kind="notification")
         )
 
-    # Server-side ``inspect/event`` raw firehose. The TUI subscribes to
-    # ``["score"]`` so a scorer firing during the post-agent scoring
-    # phase surfaces as a chip in the transcript. Routed by the
-    # client-supplied callback; the route is always registered so a
-    # late-added subscription has no listener-shape mismatch.
     if on_inspect_event is not None:
 
         async def _on_inspect_event(params: Any) -> None:
@@ -395,21 +795,8 @@ async def attach_session(
             )
         )
 
-    # Server-side ``inspect/session_ended`` notification → flip the
-    # session's ``disconnected`` event. The SessionScreen's watcher
-    # treats that as "this session is done" and flips the lifecycle
-    # pill to ``complete``. This is what gives us a positive
-    # end-of-session signal mid-eval; without it, a client bound to
-    # an early-finishing sample wouldn't see ``complete`` until the
-    # entire eval shut down and the transport closed.
     async def _on_session_ended(params: Any) -> None:
-        ended_id = params.get("sessionId") if isinstance(params, dict) else None
-        # Identity guard so a stray notification meant for a different
-        # bound session (shouldn't happen on a one-connection-per-
-        # session client, but cheap to enforce) doesn't tear ours
-        # down prematurely.
-        if ended_id == session.session_id:
-            session.disconnected.set()
+        await _handle_session_ended(session_ref, params)
 
     router.add_route(
         Route(
@@ -418,50 +805,46 @@ async def attach_session(
             kind="notification",
         )
     )
+    return router
 
-    async def _run_receive_loop() -> None:
-        """Drive the connection's receive loop; flag disconnected on exit."""
-        try:
-            await conn.main_loop()
-        except (asyncio.CancelledError, ConnectionError, OSError):
-            # Cancellation = our own close; ConnectionError/OSError =
-            # peer EOF or socket error. Both mean "disconnected" —
-            # don't propagate.
-            pass
-        finally:
-            session.disconnected.set()
 
-    session._receive_task = asyncio.create_task(
-        _run_receive_loop(), name="acp-tui-receive"
-    )
+async def _handle_session_ended(session_ref: "AttachedSession", params: Any) -> None:
+    """Translate the server's clean-end notification into local state.
 
-    # Handshake — the receive task is already running so responses
-    # can be dispatched. If either request raises (e.g. picker row
-    # went stale between enumeration and attach, server refuses the
-    # session/load), tear down the partially-built session before
-    # surfacing the error to the caller — otherwise the socket +
-    # background ACP tasks leak.
-    try:
-        await conn.send_request(
-            "initialize",
-            {
-                "protocolVersion": PROTOCOL_VERSION,
-                "clientInfo": CLIENT_INFO,
-                "clientCapabilities": CLIENT_CAPABILITIES,
-            },
-        )
-        await conn.send_request(
-            "session/load",
-            {
-                "sessionId": row.session_id,
-                "cwd": ".",
-                "mcpServers": [],
-            },
-        )
-    except BaseException:
-        await session.close()
-        raise
-    return session
+    Three things happen in strict order:
+
+    1. ``mark_session_ended_received()`` — the coordinator's
+       graceful-vs-ungraceful gate reads this flag when the
+       receive loop subsequently exits, so the flag must be set
+       BEFORE anything else that could cause the loop to exit.
+    2. ``mark_complete()`` — flips the lifecycle pill to
+       ``complete``; idempotent.
+    3. ``session_ref.disconnected.set()`` — wakes the screen's
+       ``_watch_disconnect`` to run ``session.close()`` and tear
+       down the ACP Connection + receive task + writer + socket.
+       Critical: the server keeps the transport OPEN after
+       sending ``inspect/session_ended`` (the connection is
+       reusable for picker → another sample), so without this
+       the receive loop never exits, the writer + Dispatcher +
+       Sender background tasks leak, and the socket fd stays
+       open on a completed sample until the user switches
+       samples or the eval ends.
+
+    Identity guard against stray notifications for a different
+    sessionId (shouldn't happen on a one-connection-per-session
+    client, but cheap to enforce).
+
+    Extracted to module scope so tests can drive the handler
+    directly without indexing ``MessageRouter._notifications``
+    (a private dict whose layout the ``acp`` library is free to
+    change).
+    """
+    ended_id = params.get("sessionId") if isinstance(params, dict) else None
+    if ended_id != session_ref.session_id:
+        return
+    session_ref._state.mark_session_ended_received()
+    session_ref._state.mark_complete()
+    session_ref.disconnected.set()
 
 
 async def _open_socket(

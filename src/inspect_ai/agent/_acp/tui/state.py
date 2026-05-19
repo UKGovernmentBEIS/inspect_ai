@@ -54,6 +54,7 @@ from inspect_ai.agent._acp.inspect_ext import (
     MODEL_EVENT_PENDING_META_KEY,
     MODEL_META_KEY,
     PICKER_META_KEY,
+    REPLAY_META_KEY,
     USER_SOURCE_META_KEY,
 )
 from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME
@@ -571,6 +572,50 @@ class SessionState:
         # ``_consume_span_end`` can recognise its own scorer's closing
         # event without a separate tracking field on this state object.
         self._scoring_indicator: ScoreChip | None = None
+        # Transient (non-sticky) flag flipped True by ``mark_disconnected``
+        # and False by ``mark_reconnected``. Orthogonal to ``lifecycle``:
+        # connection state is about *transport* health while lifecycle
+        # describes *agent-side* activity. The header's connection
+        # indicator dot reads this; the composer's send guard reads
+        # this. NOT folded into ``lifecycle`` because the agent may
+        # still be "running" from the operator's POV while we briefly
+        # lose the socket — conflating the two would lie about either
+        # the connection or the agent.
+        self._disconnected: bool = False
+        # Set True by the ``inspect/session_ended`` handler BEFORE it
+        # triggers ``mark_complete``. The reconnect loop reads this to
+        # distinguish "graceful end (don't reconnect)" from "ungraceful
+        # transport loss (do reconnect)". Sticky like ``_complete`` —
+        # the session is genuinely over and any future EOF on this
+        # transport is just plumbing teardown.
+        self._session_ended_received: bool = False
+        # Message ids the server has re-delivered as REPLAY (outer
+        # ``inspect.replay`` marker) and we've already reset segments
+        # for in the current replay pass. On reconnect → ``session/load``
+        # the server replays the snapshot tail; the FIRST chunk arriving
+        # for a given message_id WITH the replay marker clears that
+        # group's segments so the replayed chunks rebuild cleanly
+        # instead of doubling onto already-rendered text. Subsequent
+        # chunks for the same message_id within the same replay just
+        # append normally (id already in the set). Cleared by
+        # :meth:`mark_replay_started` at the start of each new replay
+        # (initial attach AND every reconnect). Works for ALL chunk
+        # types — assistant content, user, system — since the marker
+        # is on the outer notification, not the chunk type. Tool
+        # calls / plan updates / score chips are id-keyed elsewhere
+        # and idempotent — only chunked text needs this fix.
+        self._replay_reset_message_ids: set[str] = set()
+        # Event uuids the raw ``inspect/event`` firehose has already
+        # delivered (score / span_begin / span_end). Replay re-sends
+        # the same raw events, which would otherwise double score
+        # chips and re-mount per-scorer indicators after the real
+        # chip has replaced them. Raw events carry stable per-event
+        # uuids on the wire (BaseEvent.uuid), so uuid-based dedup is
+        # the simplest approach for that stream — distinct from the
+        # message_id-based reset machinery for chunks above.
+        # Bounded by events-per-sample which is small (handfuls per
+        # sample), so we don't cap it.
+        self._seen_inspect_event_uuids: set[str] = set()
         self._subscribers: list[Callable[[], None]] = []
 
     # ------------------------------------------------------------------
@@ -735,7 +780,101 @@ class SessionState:
         # so the postmortem view doesn't show a phantom in-progress
         # scorer.
         self._remove_scoring_indicator()
+        # The session is over for good; the operator can read but not
+        # drive. Implicitly we're no longer "disconnected" — the
+        # disconnect flag is about the *transport* being interruptible,
+        # which no longer applies. Clearing it keeps the header
+        # indicator from showing an amber dot on a terminal session.
+        self._disconnected = False
         self._notify()
+
+    @property
+    def disconnected(self) -> bool:
+        """True while the transport is between live connections.
+
+        Flipped True by :meth:`mark_disconnected` (receive loop saw EOF
+        without a preceding ``inspect/session_ended``) and False by
+        :meth:`mark_reconnected` after the reconnect loop's
+        ``session/load`` succeeds. Also clears on :meth:`mark_complete`
+        — once the session is terminal there's nothing to reconnect to.
+
+        Drives the composer's send-while-disconnected guard. Orthogonal
+        to :attr:`lifecycle`: the agent may still be ``running`` from
+        the operator's POV during a brief transport blip.
+        """
+        return self._disconnected and not self._complete
+
+    @property
+    def session_ended_received(self) -> bool:
+        """True iff we've processed an ``inspect/session_ended`` notification.
+
+        Read by the reconnect loop in ``client.py`` to distinguish a
+        graceful session end (don't reconnect, the sample is genuinely
+        over) from an ungraceful transport loss (do reconnect, the
+        sample may still be running).
+        """
+        return self._session_ended_received
+
+    def mark_session_ended_received(self) -> None:
+        """Note that the server signalled a clean session end.
+
+        Sticky — subsequent calls are no-ops. Does NOT also call
+        :meth:`mark_complete`; the caller handles that explicitly so
+        the flag is set BEFORE the lifecycle flip (the reconnect loop
+        checks the flag on disconnect, which races with the
+        complete-flip-then-EOF sequence).
+        """
+        if not self._session_ended_received:
+            self._session_ended_received = True
+
+    def mark_disconnected(self) -> None:
+        """Flag the transport as down; reconnect loop owns the cycle.
+
+        Idempotent — subsequent calls are no-ops. Notifies subscribers
+        on the first transition so the header dot flips to amber
+        immediately.
+
+        No-op once :attr:`_complete` is set: a terminal session has no
+        transport to lose. Same for sessions that have received the
+        clean-end notification — those are bound for ``mark_complete``
+        via the existing handler and the dot would just flash before
+        the lifecycle flip.
+        """
+        if self._complete or self._session_ended_received:
+            return
+        if self._disconnected:
+            return
+        self._disconnected = True
+        self._notify()
+
+    def mark_reconnected(self) -> None:
+        """Clear the disconnected flag after the reconnect loop succeeds.
+
+        Idempotent — subsequent calls are no-ops. Notifies subscribers
+        on the True → False transition.
+        """
+        if not self._disconnected:
+            return
+        self._disconnected = False
+        self._notify()
+
+    def mark_replay_started(self) -> None:
+        """Clear the per-replay message-reset tracking set.
+
+        Called by the reconnect coordinator after each successful
+        ``session/load`` (initial attach AND every reconnect) — the
+        next batch of chunks arriving with the
+        ``inspect.replay`` outer-meta marker will then reset their
+        target message_id's segments on first sight, so doubled text
+        from previously-rendered chunks is avoided. Also called on
+        the initial attach where the set is already empty (no-op);
+        keeping the call symmetric keeps the calling code simple.
+
+        Synchronous + no notify: the set is internal dedup state, not
+        user-visible UI.
+        """
+        if self._replay_reset_message_ids:
+            self._replay_reset_message_ids.clear()
 
     def enqueue_queued_user_message(self, text: str) -> "_QueuedEnqueueHandle":
         r"""Mount or extend the client-side queued ephemeral.
@@ -1051,6 +1190,16 @@ class SessionState:
         if PICKER_META_KEY in outer_meta:
             return
 
+        # Server stamps :data:`REPLAY_META_KEY` on every notification
+        # emitted by the per-bind replay-on-attach path
+        # (``Forwarders._run_replay``). The chunk handler uses it to
+        # reset segments on the FIRST chunk per message_id within this
+        # replay so re-streamed text doesn't double onto already-
+        # rendered content (typical reconnect path). Live forwarding
+        # never sets this marker. ``mark_replay_started`` clears the
+        # per-replay tracking set so each new replay starts fresh.
+        is_replay = bool(outer_meta.get(REPLAY_META_KEY))
+
         update = notification.update
         # Snapshot BEFORE applying the update so the running-tail
         # stamp also fires on the update that ENDS active work —
@@ -1060,7 +1209,7 @@ class SessionState:
         was_active = self.has_active_work
         changed = False
         if isinstance(update, (UserMessageChunk, AgentMessageChunk, AgentThoughtChunk)):
-            changed = self._consume_chunk(update)
+            changed = self._consume_chunk(update, is_replay=is_replay)
         elif isinstance(update, ToolCallStart):
             changed = self._consume_tool_start(update)
         elif isinstance(update, ToolCallProgress):
@@ -1094,7 +1243,20 @@ class SessionState:
         indicator), and ``"span_end"`` (clear the indicator when its
         scorer returned ``None`` / raised — no ``ScoreEvent`` ever
         fired). Future event types add branches here.
+
+        Replay-dedup: each event carries a stable ``uuid`` from
+        ``BaseEvent``. On reconnect the server replays the snapshot
+        which re-fires the same raw events, which would otherwise
+        double score chips and re-mount per-scorer indicators after
+        the real chip has already replaced them. The first occurrence
+        of a uuid is processed normally and recorded; subsequent
+        deliveries of the same uuid drop silently.
         """
+        uuid = event.get("uuid")
+        if isinstance(uuid, str) and uuid:
+            if uuid in self._seen_inspect_event_uuids:
+                return
+            self._seen_inspect_event_uuids.add(uuid)
         kind = event.get("event")
         if kind == "score":
             self.consume_score_event(event)
@@ -1498,6 +1660,8 @@ class SessionState:
     def _consume_chunk(
         self,
         update: UserMessageChunk | AgentMessageChunk | AgentThoughtChunk,
+        *,
+        is_replay: bool = False,
     ) -> bool:
         # message_id missing: Phase 2 server should always set it (router
         # uses ModelEvent.uuid → UUIDv5 via A1). If absent, treat each
@@ -1520,6 +1684,33 @@ class SessionState:
         meta = getattr(update, "field_meta", None) or {}
         role = self._role_for(update)
         is_pending_signal = bool(meta.get(MODEL_EVENT_PENDING_META_KEY))
+
+        # Replay-reset: when the server is replaying a snapshot
+        # (``inspect.replay`` marker on the outer notification), the
+        # FIRST chunk per message_id within this replay clears the
+        # group's segments so the replayed chunks rebuild from
+        # scratch instead of doubling onto already-rendered text.
+        # Subsequent chunks for the same message_id within the same
+        # replay just append normally (id already in
+        # ``_replay_reset_message_ids``); the set is cleared at the
+        # start of each replay by ``mark_replay_started``.
+        #
+        # Works for ALL chunk types (assistant content + reasoning,
+        # user, system) — the marker is on the outer notification,
+        # not the chunk type. Important: the server doesn't emit a
+        # completion marker for content-producing assistant
+        # messages (those clear pending implicitly on first content
+        # chunk), so a heuristic based on the completion marker
+        # would miss the common case; the explicit replay marker
+        # covers it deterministically.
+        existing = self._messages_by_id.get(message_id)
+        if (
+            is_replay
+            and existing is not None
+            and message_id not in self._replay_reset_message_ids
+        ):
+            existing.segments.clear()
+            self._replay_reset_message_ids.add(message_id)
 
         # Operator-sourced user chunks consume the (single) queued
         # ephemeral before the real group is created — the server has

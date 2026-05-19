@@ -31,6 +31,7 @@ from inspect_ai.agent._acp.tui.client import (
     attach_session,
     enumerate_sessions,
 )
+from inspect_ai.agent._acp.tui.state import SessionState
 
 unix_only = pytest.mark.skipif(sys.platform == "win32", reason="AF_UNIX-only test")
 
@@ -196,7 +197,7 @@ async def test_attach_session_binds_via_session_load(
         target = TargetAddress(socket_path=server.socket_path)
         rows = await enumerate_sessions([("evt-attach", target)])
         assert len(rows) == 1
-        attached = await attach_session(rows[0])
+        attached = await attach_session(rows[0], state=SessionState())
         try:
             assert attached.is_connected
             assert attached.session_id == "uuid-attach"
@@ -308,7 +309,7 @@ async def test_attach_session_initialize_sets_plan_rendering(
         # (second capture). The second one is the bound long-lived
         # connection that actually consumes the plan notifications.
         rows = await enumerate_sessions([("evt-plan-attach", target)])
-        attached = await attach_session(rows[0])
+        attached = await attach_session(rows[0], state=SessionState())
         try:
             assert attached.is_connected
         finally:

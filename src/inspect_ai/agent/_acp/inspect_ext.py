@@ -92,6 +92,18 @@ MODEL_EVENT_UUID_META_KEY = "inspect.model_event_uuid"
 MODEL_EVENT_PENDING_META_KEY = "inspect.model_event_pending"
 MODEL_EVENT_COMPLETE_META_KEY = "inspect.model_event_complete"
 
+# Stamped on the OUTER ``SessionNotification.field_meta`` for every
+# notification emitted by the per-bind replay-on-attach path
+# (:meth:`Forwarders._run_replay`). Tells the client "this is a replay
+# of a snapshot event, not live forwarding" so it can dedup against
+# chunks it has already processed for the same message_id (server
+# always replays the full snapshot tail per the bind contract — on a
+# RECONNECT the client has already rendered most of those chunks).
+# Live forwarding never sets this marker. Clients that don't know
+# the key just process the notification normally (some doubling of
+# already-rendered text on reconnect; harmless on first attach).
+REPLAY_META_KEY = "inspect.replay"
+
 
 # ---------------------------------------------------------------------------
 # inspect/* JSON-RPC methods (non-standard)

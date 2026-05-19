@@ -799,8 +799,24 @@ strings only matter at the picker step.
 
 ## Open questions
 
-1. **Replay on attach** — replay last N messages (configurable), eliding
-   large tool call payloads. Pick the default N and elision threshold.
+1. ~~**Replay on attach**~~ — *resolved during the Phase 6 (TUI
+   connection resilience) work.* `REPLAY_MAX_EVENTS = 100` shipped
+   from Phase 10 stays as the cap (post-filter, applied independently
+   to the semantic and raw streams). **No elision**: event payloads
+   are naturally bounded by model context windows (assistant messages,
+   tool results the model consumes are all capped); Inspect's own
+   `tool_output_max_chars` (default 16 KiB) keeps semantic
+   `tool_call` notifications small in normal use; the 64 MiB stream
+   buffer raised in Phase 5 handles outliers like swe-bench scorer
+   explanations. At LAN/loopback speeds wire transfer of even
+   multi-MB replay payloads is fine. A server-side per-client
+   high-water mark was also explicitly rejected — the server stamps
+   a single `REPLAY_META_KEY = "inspect.replay"` marker on the outer
+   `SessionNotification.field_meta` of replayed notifications, and
+   the client-side chunk-replay-reset + raw-event-uuid dedup in
+   `tui/state.py` (Phase 6) uses that marker to handle
+   duplicate-delivery correctness across all chunk kinds without
+   adding per-connection state on the server.
 
 2. ~~**Driver claim mechanics in multi-attach**~~ — *resolved during the
    Phase 14 single-driver revision.* Implicit (last `session/prompt`

@@ -37,6 +37,7 @@ from acp.helpers import (
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp.inspect_ext import REPLAY_META_KEY
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.session_live import LiveAcpSession
 from inspect_ai.agent._acp.session_router import REPLAY_MAX_EVENTS
@@ -780,6 +781,77 @@ async def test_replay_applies_plan_policy(
             update = notif["params"]["update"]
             assert update["sessionUpdate"] == "plan"
             assert update["entries"][0]["content"] == "replayed step"
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_replay_notifications_carry_replay_meta_marker(
+    short_data_dir: Path, register_target
+) -> None:
+    """Replay-on-attach stamps ``inspect.replay`` on outer ``_meta``.
+
+    The client uses this marker to dedup against chunks it has
+    already rendered (per-message_id reset on first replay chunk).
+    Live forwarding must NOT stamp it — that's the next test.
+    """
+    session, tr = _make_live_session_with_transcript()
+    tr._event(_model_event_with_text("historical-1"))
+    tr._event(_model_event_with_text("historical-2"))
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    async with acp_server(eval_id="evt-replay-marker", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(client)
+            for _ in range(2):
+                notif = await client.next_notification()
+                meta = notif["params"].get("_meta") or {}
+                assert meta.get(REPLAY_META_KEY) is True, (
+                    f"replay notification missing marker: {notif}"
+                )
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_live_forwarding_does_not_stamp_replay_meta(
+    short_data_dir: Path, register_target
+) -> None:
+    """Live notifications must NOT carry the replay marker.
+
+    The client treats marked chunks as replay and resets segments on
+    first sight per message_id — applying that to live forwarding
+    would lose content.
+    """
+    session, _tr = _make_live_session_with_transcript()
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    async with acp_server(eval_id="evt-live-no-marker", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(client)
+            # Empty transcript → no replay → publish a live notification.
+            session.publish(
+                session_notification(
+                    session.session_id, update_agent_message(text_block("live-1"))
+                )
+            )
+            notif = await client.next_notification()
+            meta = notif["params"].get("_meta") or {}
+            assert REPLAY_META_KEY not in meta, (
+                f"live notification unexpectedly carries replay marker: {notif}"
+            )
         finally:
             await client.close()
 

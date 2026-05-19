@@ -184,6 +184,14 @@ class InspectAcpApp(App[None]):
 
     async def _attach_and_show(self, row: SessionRow) -> None:
         state = SessionState()
+
+        def _notify(message: str, severity: str) -> None:
+            # Thin adapter so the client's reconnect coordinator can
+            # call Textual's ``app.notify`` without importing Textual.
+            # The severity strings match Textual's ``SeverityLevel``
+            # ("information" / "warning" / "error") 1:1.
+            self.notify(message, severity=severity)  # type: ignore[arg-type]
+
         try:
             # Pass state.consume directly: the client's notification
             # route fires it from the reader task, which runs on the
@@ -193,11 +201,19 @@ class InspectAcpApp(App[None]):
             # calls ``consume_approval_request`` with a fresh
             # ``PendingApproval``; the screen's button-press handler
             # later calls ``resolve_approval`` to fire the response.
+            #
+            # ``state`` + ``notify`` are needed by the reconnect
+            # coordinator: it flips ``state.disconnected`` /
+            # ``state.complete`` on lifecycle transitions and emits
+            # toasts for the "disconnected Nm" / "Reconnected" /
+            # "Sample ended during disconnect" UX.
             session = await self._client.attach_session(
                 row,
+                state=state,
                 on_session_update=state.consume,
                 on_request_permission=state.consume_approval_request,
                 on_inspect_event=state.consume_inspect_event,
+                notify=_notify,
             )
         except Exception as exc:
             self.notify(f"failed to attach: {exc}", severity="error")

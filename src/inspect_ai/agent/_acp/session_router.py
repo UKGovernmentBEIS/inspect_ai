@@ -31,6 +31,7 @@ from inspect_ai.agent._acp.event_mapping import (
 )
 from inspect_ai.agent._acp.inspect_ext import (
     INSPECT_SESSION_ENDED_METHOD,
+    REPLAY_META_KEY,
     PlanPolicyTransformer,
     RawEventForwarder,
 )
@@ -53,6 +54,28 @@ REPLAY_MAX_EVENTS = 100
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------
+
+
+def _stamp_replay_marker(notification: SessionNotification) -> SessionNotification:
+    """Return a copy of ``notification`` with the replay marker stamped.
+
+    Sets :data:`REPLAY_META_KEY` = ``True`` on the OUTER
+    ``SessionNotification.field_meta`` (preserving any existing keys
+    via merge — picker bind-confirmation notifications carry the
+    picker meta on the same surface). Used by :meth:`Forwarders._run_replay`
+    so the client can dedup against chunks it already rendered for the
+    same message_id (typical on reconnect: server replays the snapshot
+    tail; client has prior state). Live forwarding never stamps this
+    marker.
+
+    Immutable update: ``SessionNotification`` is a Pydantic model;
+    callers must not mutate notifications in place because the
+    underlying transcript event objects can be shared with other
+    consumers (the log writer, in-process TUI, etc.).
+    """
+    existing = getattr(notification, "field_meta", None) or {}
+    merged = {**existing, REPLAY_META_KEY: True}
+    return notification.model_copy(update={"field_meta": merged})
 
 
 def _filter_subagent_events(events: list[Any]) -> Iterator[Any]:
@@ -567,8 +590,9 @@ class Forwarders:
                         transformed = self._plan_policy.transform(notif)
                     if t.failed or transformed is None:
                         continue
+                    marked = _stamp_replay_marker(transformed)
                     with acp_send_guard("ACP semantic replay: send failed") as send:
-                        await self._send_session_update(transformed)
+                        await self._send_session_update(marked)
                     if send.should_exit:
                         return send
 

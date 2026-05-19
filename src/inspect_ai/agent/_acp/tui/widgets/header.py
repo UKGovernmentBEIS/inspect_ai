@@ -98,7 +98,7 @@ class AppHeaderWidget(Widget):
 
 
 class SessionHeaderWidget(Widget):
-    """One-row header — app name + meta identifiers + connection indicator."""
+    """One-row header — app name + meta identifiers + lifecycle pill."""
 
     DEFAULT_CSS = """
     SessionHeaderWidget {

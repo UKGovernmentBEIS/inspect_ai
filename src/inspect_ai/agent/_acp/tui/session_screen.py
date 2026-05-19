@@ -450,21 +450,26 @@ class SessionScreen(Screen[None]):
     # ------------------------------------------------------------------
 
     async def _watch_disconnect(self) -> None:
-        """Flip the lifecycle pill to ``complete`` when the peer goes away.
+        """Tear down the connection on terminal disconnect.
 
-        The client's receive-task sets ``disconnected`` on EOF / read
-        error / explicit close. ACP has no explicit "session
-        complete" notification today, so transport disconnect is the
-        signal we have: the inspect agent loop returned, the server
-        tore the session down, no more updates are coming.
+        The AttachedSession's reconnect coordinator owns the transient
+        disconnect cycle — it flips ``state.disconnected`` (orthogonal
+        to ``lifecycle``) and emits toasts while it retries. The
+        ``session.disconnected`` event fires only on TERMINAL teardown:
 
-        The previous behaviour popped back to the picker, which made
-        the transcript unreadable post-completion. Now we leave the
-        UI in place (so the operator can review the final state)
-        and just mark the session complete in state — the header
-        pill picks that up via the next ``_apply_state`` notify.
+        - user-initiated ``^S switch sample`` (which calls ``close()``
+          itself; this watcher sees the event and returns),
+        - the server's ``inspect/session_ended`` notification (the
+          handler already called ``mark_complete``; this watcher just
+          tears down the dead transport),
+        - the reconnect coordinator got ``invalid_params`` from
+          ``session/load`` (the handler in the coordinator already
+          called ``mark_complete``; this watcher tears down).
 
-        ^S still pops manually via ``action_switch_sample``.
+        In every path ``mark_complete`` is already idempotent by the
+        time we get here, but we call it again as a defensive
+        backstop in case a future code path sets ``disconnected``
+        without going through one of the above.
         """
         try:
             await self._session.disconnected.wait()
@@ -476,6 +481,10 @@ class SessionScreen(Screen[None]):
         # run ``close()`` as the pop tears down the screen).
         if self._user_initiated_close:
             return
+        # Idempotent: the session_ended handler / reconnect coordinator
+        # already called mark_complete on their respective paths.
+        # Defensive backstop in case a future path lands here without
+        # having gone through one of the explicit transitions.
         self._state.mark_complete()
         # Tear down the ACP Connection / Sender / Dispatcher and the
         # writer NOW rather than at unmount — the screen stays
@@ -781,6 +790,19 @@ class SessionScreen(Screen[None]):
             return
         text = composer.value.strip()
         if not text:
+            return
+        # Transport-level guard: the reconnect coordinator may be
+        # actively retrying. Sending into a dead writer would either
+        # raise (caller-visible toast we'd then show) or, worse,
+        # block on ``send_request``'s response future that the dead
+        # receive loop will never resolve. Bail with an honest
+        # message and leave the draft intact so the operator can
+        # re-send the moment the dot flips back to green.
+        if self._state.disconnected:
+            self.app.notify(
+                "Not connected to ACP server — message not sent",
+                severity="warning",
+            )
             return
         connection = self._session.connection
         if connection is None:
