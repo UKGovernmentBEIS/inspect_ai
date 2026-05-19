@@ -1028,13 +1028,17 @@ async def test_action_approval_decide_noop_when_option_not_in_request(
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_check_action_gates_approval_decide_outside_approval(
+async def test_check_action_gates_prompt_letter_outside_approval(
     sample_rows: list[SessionRow],
 ) -> None:
-    """``check_action('approval_decide', ...)`` returns False outside approval mode.
+    """``check_action('prompt_letter', ...)`` returns False outside approval mode.
 
-    Without this gate, typing ``r`` into the composer would fire
-    the reject action instead of inserting the letter.
+    The approval bar's bare-letter shortcuts (``a`` / ``r`` / ``e`` /
+    ``t`` / ``m``) are registered through the shared ``prompt_letter``
+    dispatcher so they share Textual's binding table with the cancel
+    bar's ``s`` / ``e``. Without the gate, typing ``r`` into the
+    composer would fire the reject action instead of inserting the
+    letter.
     """
     client = make_fake_client(sample_rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
@@ -1048,14 +1052,14 @@ async def test_check_action_gates_approval_decide_outside_approval(
         assert isinstance(app.screen, SessionScreen)
 
         # No approval pending → gate must close.
-        assert app.screen.check_action("approval_decide", ("approve",)) is False
+        assert app.screen.check_action("prompt_letter", ("a",)) is False
 
         # Approval pending → gate opens.
         app.screen.state.consume_approval_request(
             _bar_pending(_bar_pending_request("tc-1"))
         )
         await pilot.pause()
-        assert app.screen.check_action("approval_decide", ("approve",)) is True
+        assert app.screen.check_action("prompt_letter", ("a",)) is True
 
 
 @skip_if_trio

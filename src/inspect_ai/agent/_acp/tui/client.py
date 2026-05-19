@@ -20,7 +20,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from collections.abc import Coroutine
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Callable
 
 from acp import PROTOCOL_VERSION
@@ -37,6 +37,7 @@ from acp.schema import (
 from inspect_ai.agent._acp.discovery import TargetAddress
 from inspect_ai.agent._acp.inspect_ext import (
     INSPECT_LIST_SESSIONS_METHOD,
+    PICKER_META_KEY,
     PLAN_RENDERING_META_KEY,
 )
 from inspect_ai.agent._acp.tui.state import PendingApproval
@@ -93,6 +94,16 @@ class SessionRow:
     total_tokens: int = 0
     """Running total tokens for the sample — drives the picker's
     ``tokens`` column. Refreshed on the picker's 10s rescan."""
+
+    fails_on_error: bool = False
+    """Whether the sample is configured to fail immediately on errors
+    (server-side ``ActiveSample.fails_on_error``). Drives the
+    cancel-sample modal's polarity: when ``True``, the operator's
+    ``action="error"`` disposition is hidden (the sample would error
+    on its own; only ``action="score"`` is meaningful). Default
+    ``False`` for back-compat with older servers that don't carry the
+    field on the ``inspect/list_sessions`` response or binding-
+    confirmation ``_meta``."""
 
 
 async def enumerate_sessions(
@@ -182,6 +193,7 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
                 started_at=s.get("startedAt"),
                 target=target,
                 total_tokens=int(s.get("totalTokens") or 0),
+                fails_on_error=bool(s.get("failsOnError", False)),
             )
         )
     return rows
@@ -292,23 +304,6 @@ async def attach_session(
     """
     reader, writer = await _open_socket(row.target)
     router = MessageRouter()
-    if on_session_update is not None:
-
-        async def _func(params: Any) -> None:
-            # MessageRouter delivers params as a dict; validate to the
-            # typed SessionNotification so consumers see ACP objects
-            # (mirrors the server-side router convention).
-            notif = (
-                SessionNotification.model_validate(params)
-                if isinstance(params, dict)
-                else params
-            )
-            on_session_update(notif)
-
-        router.add_route(
-            Route(method="session/update", func=_func, kind="notification")
-        )
-
     if on_request_permission is not None:
         _register_permission_route(router, on_request_permission)
     conn = Connection(
@@ -323,6 +318,38 @@ async def attach_session(
         session_id=row.session_id,
         row=row,
     )
+
+    # Define the session/update route AFTER ``session`` is constructed
+    # so the handler closure can refresh ``session.row`` from the
+    # binding-confirmation notification's picker meta — see the
+    # _refresh_row_from_binding_meta call below.
+    if on_session_update is not None:
+
+        async def _func(params: Any) -> None:
+            # MessageRouter delivers params as a dict; validate to the
+            # typed SessionNotification so consumers see ACP objects
+            # (mirrors the server-side router convention).
+            notif = (
+                SessionNotification.model_validate(params)
+                if isinstance(params, dict)
+                else params
+            )
+            # Direct-attach path (``session/load`` without going through
+            # the picker) starts with whatever defaults the SessionRow
+            # had at construction time — fails_on_error defaults to
+            # False. The server's binding-confirmation notification
+            # carries the authoritative target metadata under the same
+            # PICKER_META_KEY the picker uses, so peek for it here and
+            # refresh the row before the modal could ever read a stale
+            # value. SessionState.consume drops the picker meta entirely
+            # (treating it as cosmetic bind chrome), so this is the only
+            # place the wire data lands on the client.
+            _refresh_row_from_binding_meta(session, notif)
+            on_session_update(notif)
+
+        router.add_route(
+            Route(method="session/update", func=_func, kind="notification")
+        )
 
     # Server-side ``inspect/session_ended`` notification → flip the
     # session's ``disconnected`` event. The SessionScreen's watcher
@@ -471,6 +498,44 @@ def _make_permission_handler(
         return response.model_dump(mode="json", by_alias=True, exclude_none=True)
 
     return _handler
+
+
+def _refresh_row_from_binding_meta(
+    session: AttachedSession, notification: SessionNotification
+) -> None:
+    """Update ``session.row`` from binding-confirmation picker meta.
+
+    The server sends a ``session/update`` on bind whose ``_meta``
+    carries the authoritative target dict (``picker_target_meta_dict``)
+    under :data:`PICKER_META_KEY`. The TUI's :class:`SessionState`
+    drops the whole notification as cosmetic bind chrome, so this
+    runs BEFORE that drop and pulls out the fields that drive
+    operator UI (currently just ``failsOnError`` — the cancel-sample
+    modal needs it to gate the ``[e] error`` action even on the
+    direct-attach path that never enumerated through the picker).
+
+    No-op when the notification carries no picker meta, when no entry
+    matches our session id, or when the entry's ``failsOnError`` is
+    already what the row holds — keeps subscriber spam quiet.
+    """
+    meta = getattr(notification, "field_meta", None) or {}
+    entries = meta.get(PICKER_META_KEY)
+    if not isinstance(entries, list):
+        return
+    # The binding-confirmation carries exactly one entry (the bound
+    # target); the picker notification carries many. Match by
+    # session_id so we update on the right entry in either shape.
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("sessionId") != session.session_id:
+            continue
+        fails_on_error = bool(entry.get("failsOnError", session.row.fails_on_error))
+        if fails_on_error != session.row.fails_on_error:
+            # SessionRow is a frozen dataclass; replace produces a
+            # fresh instance with the updated field.
+            session.row = replace(session.row, fails_on_error=fails_on_error)
+        return
 
 
 def _register_permission_route(

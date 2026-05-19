@@ -73,6 +73,20 @@ class PickerTarget:
     :attr:`inspect_ai.log._samples.ActiveSample.total_tokens`). Drives
     the picker's ``tokens`` column; refreshed on rescan."""
 
+    fails_on_error: bool = False
+    """Mirror of :attr:`ActiveSample.fails_on_error`.
+
+    Drives the cancel-sample bar's ``[e] error`` visibility: hidden
+    when this is ``True`` (operator marking it errored is moot — the
+    sample would error on its own), shown when ``False``. Matches the
+    in-proc ``--display full`` TUI's rule
+    (``cancel_with_error.display = not sample.fails_on_error``) so
+    both display modes stay in lockstep — fractional thresholds and
+    integer counts collapse to ``True`` here just as they do in
+    ``--display full``.
+
+    Snapshot at enumeration; never mutates."""
+
 
 def list_picker_targets() -> list[PickerTarget]:
     """Snapshot active samples that have claimed ACP.
@@ -96,6 +110,11 @@ def list_picker_targets() -> list[PickerTarget]:
                 agent_name=sample.agent_name,
                 started_at=sample.started,
                 total_tokens=sample.total_tokens,
+                # Mirror ActiveSample.fails_on_error verbatim so the
+                # ACP TUI's [e] error visibility matches --display
+                # full's `cancel_with_error.display = not
+                # sample.fails_on_error` rule exactly.
+                fails_on_error=sample.fails_on_error,
             )
         )
     return targets

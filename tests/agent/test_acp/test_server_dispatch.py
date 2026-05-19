@@ -80,6 +80,7 @@ def _make_sample(
     agent_name: str | None = None,
     started: float | None = None,
     total_tokens: int = 0,
+    fails_on_error: bool = True,
 ) -> Any:
     sample = MagicMock()
     sample.id = sample_id
@@ -87,15 +88,20 @@ def _make_sample(
     active.task = task
     active.sample = sample
     active.epoch = epoch
-    # Explicit None on the new fields so MagicMock doesn't auto-wrap
-    # them and break JSON serialization downstream. ``total_tokens`` is
-    # read by ``list_picker_targets`` and serialised over the wire by
-    # both the picker meta and ``inspect/list_sessions`` — must be a
-    # real int, not a MagicMock, or the server crashes silently in a
-    # background task and the request hangs forever.
+    # Explicit values on the fields read by ``list_picker_targets`` so
+    # MagicMock doesn't auto-wrap them and break JSON serialization
+    # downstream. ``total_tokens`` / ``fails_on_error`` are serialised
+    # over the wire by both the picker meta and
+    # ``inspect/list_sessions`` — must be real Python values, not
+    # MagicMocks, or the server crashes silently in a background task
+    # and the request hangs forever. Default ``fails_on_error=True``
+    # mirrors what the eval harness produces from the default
+    # ``EvalConfig.fail_on_error=None`` (None collapses to True in
+    # ``ActiveSample.fails_on_error``).
     active.agent_name = agent_name
     active.started = started
     active.total_tokens = total_tokens
+    active.fails_on_error = fails_on_error
     if session_id is None:
         active.acp_session = None
     else:
@@ -1010,6 +1016,7 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
                         "agentName": None,
                         "startedAt": None,
                         "totalTokens": 0,
+                        "failsOnError": True,
                         "target": "t1/s1/0",
                     },
                     {
@@ -1020,6 +1027,7 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
                         "agentName": None,
                         "startedAt": None,
                         "totalTokens": 0,
+                        "failsOnError": True,
                         "target": "t2/s2/1",
                     },
                 ],

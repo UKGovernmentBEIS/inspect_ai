@@ -36,6 +36,8 @@ from .widgets import (
     TranscriptWidget,
 )
 from .widgets.approval_bar import _ApprovalBar
+from .widgets.cancel_sample import _BUTTON_ID_PREFIX as _CANCEL_BUTTON_ID_PREFIX
+from .widgets.cancel_sample import _CancelSampleBar
 from .widgets.plan import PlanOverlayScreen
 from .widgets.tool_call import _BUTTON_ID_PREFIX, ApprovalDecisionRequested
 
@@ -89,6 +91,19 @@ class SessionScreen(Screen[None]):
             show=True,
             priority=True,
         ),
+        # ``^n`` opens the cancel-sample confirmation modal. Ordered
+        # before ``^s switch sample`` so the footer right-cluster reads
+        # "cancel / switch / quit" — the three commands that end or
+        # navigate away from the current session, grouped together.
+        # :meth:`check_action` hides the hint once the lifecycle is
+        # ``complete`` (no sample to cancel any more).
+        Binding(
+            "ctrl+n",
+            "cancel_sample",
+            "cancel sample",
+            show=True,
+            priority=True,
+        ),
         Binding(
             "ctrl+s",
             "switch_sample",
@@ -96,24 +111,26 @@ class SessionScreen(Screen[None]):
             show=True,
             priority=True,
         ),
-        # Approval bar shortcuts — bare letters matching the
-        # underlined character on each ``_ApprovalBar`` button. Gated
-        # by :meth:`check_action` to fire ONLY while the lifecycle is
-        # ``approval`` so the composer ``Input`` still receives
-        # regular typing the rest of the time. ``show=False`` because
-        # the bar itself renders the keys (``[ a ] approve``, etc.) —
-        # duplicating them in the footer would just add noise.
-        Binding(
-            "a", "approval_decide('approve')", "approve", show=False, priority=True
-        ),
-        Binding("r", "approval_decide('reject')", "reject", show=False, priority=True),
-        Binding(
-            "e", "approval_decide('escalate')", "escalate", show=False, priority=True
-        ),
-        Binding(
-            "t", "approval_decide('terminate')", "terminate", show=False, priority=True
-        ),
-        Binding("m", "approval_decide('modify')", "modify", show=False, priority=True),
+        # Bare-letter shortcuts for the two composer-area prompt bars.
+        # ``show=False`` for all of them because the bar itself renders
+        # the keys inline (``[ a ] approve``, ``[ s ] Cancel: Score``,
+        # …); duplicating them in the footer would just add noise.
+        #
+        # Routing happens through :meth:`action_prompt_letter`, a
+        # single dispatcher that picks approval vs. cancel based on
+        # the currently visible bar. Textual's binding table is
+        # keyed by key — having two bindings on the same letter
+        # (``e`` is used by both the approval-escalate AND the
+        # cancel-error options) leads to last-write-wins, which would
+        # break the approval-bar path entirely. The dispatcher keeps
+        # both interpretations alive while preserving the
+        # mutually-exclusive UX (only one bar is visible at a time).
+        Binding("a", "prompt_letter('a')", show=False, priority=True),
+        Binding("r", "prompt_letter('r')", show=False, priority=True),
+        Binding("e", "prompt_letter('e')", show=False, priority=True),
+        Binding("t", "prompt_letter('t')", show=False, priority=True),
+        Binding("m", "prompt_letter('m')", show=False, priority=True),
+        Binding("s", "prompt_letter('s')", show=False, priority=True),
     ]
 
     DEFAULT_CSS = """
@@ -204,6 +221,12 @@ class SessionScreen(Screen[None]):
                 # also hides the ``#composer`` ``Input`` so the bar
                 # takes the row.
                 yield _ApprovalBar(self._state)
+                # Composer-mode cancel-sample bar — hidden by default.
+                # ``action_cancel_sample`` calls ``.show()`` on ``^N``;
+                # ``_apply_lifecycle`` hides both the composer Input
+                # and the approval bar while the cancel bar is up so
+                # the row has a single owner.
+                yield _CancelSampleBar()
         yield AppFooter()
 
     async def on_mount(self) -> None:
@@ -241,12 +264,11 @@ class SessionScreen(Screen[None]):
             return
         header.set_usage(self._state.usage)
         transcript.refresh_from(self._state)
+        # ``_apply_lifecycle`` calls ``refresh_bindings`` itself so the
+        # ``^p plan`` footer hint flips on the same tick the strip
+        # becomes visible (and so the bare-letter gates re-evaluate
+        # when the cancel bar shows / hides).
         self._apply_lifecycle()
-        # Plan strip self-hides via subscriber callback; the ``^p``
-        # footer hint is gated by :meth:`check_action`, which Textual
-        # only consults on demand. Nudge the bindings view so the
-        # footer flips on the same tick the strip becomes visible.
-        self.refresh_bindings()
 
     def check_action(self, action: str, _parameters: tuple[object, ...]) -> bool | None:
         """Hide the ``^p plan`` footer hint when there's nothing to show.
@@ -264,15 +286,30 @@ class SessionScreen(Screen[None]):
         visible-but-disabled in the footer. We want the slot gone
         entirely while there's no plan to show, so ``False``.
 
-        The same gate disables the bare-letter approval shortcuts
-        (``a`` / ``r`` / ``e`` / ``t`` / ``m``) outside ``approval``
-        lifecycle. Without this gate, typing ``r`` into the composer
-        would fire the reject action instead of inserting the letter.
+        The same gate disables the bare-letter approval / cancel
+        shortcuts so the composer ``Input`` still receives plain
+        typing when neither bar is visible. The dispatcher key
+        (``prompt_letter``) is gated to fire ONLY when either the
+        approval bar or the cancel bar wants the letter — see
+        :meth:`_letter_targets_visible_bar`.
         """
         if action == "toggle_plan":
             return self._state.plan_entries is not None
-        if action == "approval_decide":
-            return self._state.lifecycle == "approval"
+        if action == "cancel_sample":
+            # Nothing to cancel once the sample is terminal — the
+            # footer hint also disappears so the operator sees only
+            # the actions that still apply. Also suppressed while the
+            # cancel bar is already up so a stray ^N doesn't try to
+            # re-show it (the bar's own state would survive but the
+            # focus would jump back to score, which is mildly
+            # confusing — better to make ^N inert in that state).
+            if self._state.lifecycle == "complete":
+                return False
+            return not self._cancel_bar_visible()
+        if action == "prompt_letter":
+            if not _parameters:
+                return False
+            return self._letter_targets_visible_bar(str(_parameters[0]))
         return True
 
     def _apply_lifecycle(self) -> None:
@@ -293,12 +330,17 @@ class SessionScreen(Screen[None]):
         lifecycle = self._state.lifecycle
         header.set_lifecycle(lifecycle)
         composer = self._composer_or_none()
+        cancel_bar_visible = self._cancel_bar_visible()
         if composer is not None:
-            # Approval mode replaces the composer ``Input`` with the
-            # ``_ApprovalBar`` (same row, sibling widget). The bar
-            # self-shows from its state subscription; we just need to
-            # hide the Input so the bar gets the row.
-            if lifecycle == "approval":
+            # The composer row has three possible owners:
+            # 1. The cancel-sample bar (highest precedence — operator
+            #    just hit ^N, the choice must dominate any other UI).
+            # 2. The approval bar (lifecycle == "approval"; the agent
+            #    is parked awaiting permission).
+            # 3. The composer ``Input`` (everything else).
+            # Cases 1 and 2 hide the composer Input so the chosen bar
+            # gets the row.
+            if cancel_bar_visible or lifecycle == "approval":
                 composer.display = False
             else:
                 composer.display = True
@@ -324,20 +366,38 @@ class SessionScreen(Screen[None]):
                     else "type a message"
                 )
                 composer.disabled = False
+        # Approval bar visibility is normally driven by its own state
+        # subscription, but the cancel bar takes precedence: when
+        # ^N is up we hide the approval bar too so the row has a
+        # single owner. The approval bar's subscription will re-show
+        # it as soon as the cancel bar hides (the pending approval is
+        # unchanged in state).
+        approval_bar = self._approval_bar_or_none()
+        if approval_bar is not None:
+            if cancel_bar_visible:
+                approval_bar.add_class("-hidden")
+            elif self._state.current_pending_approval() is not None:
+                approval_bar.remove_class("-hidden")
         # Focus handoff on the approval ↔ non-approval boundary. The
-        # bar's ``_mount_buttons`` focuses its first button when an
+        # bar's ``_mount_options`` focuses its first option when an
         # approval appears, so the enter-approval direction is
         # already covered. The exit direction is the one that needs
         # explicit handling — after a decision the bar hides and any
-        # focused button is now invisible, so we route focus back to
-        # the composer so the operator can type again.
+        # focused option is now invisible, so we route focus back to
+        # the composer so the operator can type again. Skip the
+        # handoff while the cancel bar is up; that bar owns focus.
         if (
             self._last_lifecycle == "approval"
             and lifecycle != "approval"
             and composer is not None
+            and not cancel_bar_visible
         ):
             composer.focus()
         self._last_lifecycle = lifecycle
+        # Bindings depend on cancel-bar visibility (see check_action) —
+        # nudge the bindings view so the footer + key dispatch stay in
+        # sync with the row owner.
+        self.refresh_bindings()
 
     def _tick(self) -> None:
         # In-flight tool durations + the assistant chip spinner have no
@@ -439,6 +499,83 @@ class SessionScreen(Screen[None]):
         self._user_initiated_close = True
         self._on_disconnect()
 
+    def action_cancel_sample(self) -> None:
+        """Show the cancel-sample composer-area bar.
+
+        The bar takes over the composer row (the ``Input`` and any
+        visible approval bar hide) and presents the operator with
+        ``Cancel: Score`` / ``Cancel: Error`` / ``Go Back`` options.
+        The bar fires ``inspect/cancel_sample`` itself when the
+        operator picks a disposition; we just toggle visibility here.
+
+        Gated by :meth:`check_action` against ``lifecycle ==
+        "complete"`` so a stray ^N on a finished sample is a no-op,
+        and against an already-visible bar so a repeat ^N doesn't
+        re-mount and steal focus. The handler itself
+        defence-in-depth re-checks before showing.
+        """
+        if self._state.lifecycle == "complete":
+            return
+        bar = self._cancel_bar_or_none()
+        if bar is None or bar.is_visible:
+            return
+        connection = self._session.connection
+        if connection is None:
+            return
+        bar.show(
+            fails_on_error=self._session.row.fails_on_error,
+            connection=connection,
+            session_id=self._session.session_id,
+        )
+        self._apply_lifecycle()
+
+    def action_cancel_decide(self, action: str) -> None:
+        """Resolve a visible cancel bar via a bare-letter shortcut.
+
+        Dispatched from :meth:`action_prompt_letter` when the cancel
+        bar is up and the operator hits ``s`` or ``e``. The bar's
+        :meth:`_CancelSampleBar.choose` method drives the actual
+        RPC + hide; the screen just routes the key through.
+        """
+        bar = self._cancel_bar_or_none()
+        if bar is None or not bar.is_visible:
+            return
+        if action not in ("score", "error", "back"):
+            return
+        bar.choose(action)  # type: ignore[arg-type]
+        self._apply_lifecycle()
+
+    def action_prompt_letter(self, letter: str) -> None:
+        """Dispatcher for the shared bare-letter shortcuts.
+
+        Both the approval bar and the cancel bar carve letters out of
+        the composer's typing surface (``a`` / ``r`` / ``e`` / ``t``
+        / ``m`` for approval, ``s`` / ``e`` for cancel). Textual's
+        binding table is keyed by letter, so we register each letter
+        once and dispatch here based on which bar is visible.
+
+        Mutual exclusivity: the cancel bar takes precedence when
+        visible (it dominates the row), so ``e`` while the cancel
+        bar is up means "cancel: error", not "approval: escalate".
+        """
+        if self._cancel_bar_visible():
+            cancel_letter_map = {"s": "score", "e": "error"}
+            target = cancel_letter_map.get(letter)
+            if target is not None:
+                self.action_cancel_decide(target)
+            return
+        if self._state.lifecycle == "approval":
+            approval_letter_map = {
+                "a": "approve",
+                "r": "reject",
+                "e": "escalate",
+                "t": "terminate",
+                "m": "modify",
+            }
+            target = approval_letter_map.get(letter)
+            if target is not None:
+                self.action_approval_decide(target)
+
     def action_toggle_plan(self) -> None:
         """Open the plan overlay; no-op when the agent hasn't planned yet.
 
@@ -469,35 +606,43 @@ class SessionScreen(Screen[None]):
         ``priority=True`` so a stray ↵ during a focus-change window
         could still land. Belt + braces.
 
-        Approval-action focus delegation: the ``enter`` binding is
+        Prompt-bar focus delegation: the ``enter`` binding is
         ``priority=True`` (so the composer ``Input`` doesn't eat it
         and fire ``Input.Submitted`` instead). That ALSO eats Enter
-        when an approval-bar action has focus — its own ``enter``
+        when a prompt-bar option has focus — its own ``enter``
         binding never gets a chance to fire. Detect the case and
         programmatically press the focused widget, mirroring what
         Enter would do on an unbound screen. Without this, Tab+Enter
-        through the approval bar would silently submit the
-        composer's draft (or no-op when the composer is empty)
-        instead of approving.
+        through the approval bar (or the cancel-sample bar) would
+        silently submit the composer's draft (or no-op when the
+        composer is empty) instead of activating the option.
 
-        Scoped to widgets whose id starts with ``_BUTTON_ID_PREFIX``
-        (``"approve-opt-"``) so unrelated focusable widgets added
-        later don't get programmatic-pressed by Enter from the
-        composer context. The delegation covers both
-        :class:`_ApprovalAction` (current ``Static``-based bar
-        actions) and any legacy ``Button`` that adopts the same id
-        convention — both expose ``action_press()``.
+        Scoped to widgets whose id starts with one of the bar id
+        prefixes (``"approve-opt-"`` or ``"cancel-sample-opt-"``)
+        so unrelated focusable widgets added later don't get
+        programmatic-pressed by Enter from the composer context.
+        Both :class:`_PromptOption` instances expose
+        :meth:`action_press`.
         """
         focused = self.focused
         if (
             focused is not None
             and focused.id
-            and focused.id.startswith(_BUTTON_ID_PREFIX)
+            and (
+                focused.id.startswith(_BUTTON_ID_PREFIX)
+                or focused.id.startswith(_CANCEL_BUTTON_ID_PREFIX)
+            )
             and hasattr(focused, "action_press")
         ):
             focused.action_press()
             return
         if self._state.lifecycle == "complete":
+            return
+        # Cancel bar takes the row: ↵ that isn't delegated to a
+        # focused option (focus drift, transcript click) is a no-op
+        # so the operator's draft doesn't ship while the cancel
+        # prompt is up.
+        if self._cancel_bar_visible():
             return
         # Approval mode: hidden composer must not be submittable.
         # The Input is ``display: none`` but its ``value`` survives —
@@ -557,25 +702,44 @@ class SessionScreen(Screen[None]):
         """
         if self._state.lifecycle in ("complete", "approval"):
             return
+        if self._cancel_bar_visible():
+            return
         composer = self._composer_or_none()
         if composer is None:
             return
         composer.insert_text_at_cursor("\n")
 
     async def action_interrupt(self) -> None:
-        """Clear the composer draft, or interrupt the running turn.
+        """Dismiss the cancel bar, clear the composer draft, or interrupt the turn.
 
-        Mirrors the design-doc keymap: ``Esc`` clears the draft when
-        one is present (so a typo is easy to undo). With an empty
-        composer, sends ``session/cancel`` ONLY while the agent is
-        actually working — gated on
-        :attr:`SessionState.has_active_work` (pending model events OR
-        in-flight tools) rather than the looser display
-        :attr:`StatusState.GENERATING`, which also fires for the
-        2-second quiescence tail after a normal response. Cancelling
-        during that tail would manufacture a misleading
-        ``between_turns`` ``InterruptEvent`` on the server.
+        Layered escape semantics (in precedence order):
+
+        1. Cancel bar visible → dismiss it (the operator backed out
+           of cancelling). No interrupt, no composer change.
+        2. Composer has a draft → clear it (so a typo is easy to undo).
+        3. Agent is working → send ``session/cancel``.
+
+        The cancel-bar takeover is the highest-priority case because
+        ``esc`` reads as "back out of this prompt" in every modal /
+        bar pattern the TUI uses; firing an unrelated session-cancel
+        from the same key would be jarring.
+
+        Step 3 is gated on :attr:`SessionState.has_active_work`
+        (pending model events OR in-flight tools) rather than the
+        looser display :attr:`StatusState.GENERATING`, which also
+        fires for the 2-second quiescence tail after a normal
+        response. Cancelling during that tail would manufacture a
+        misleading ``between_turns`` ``InterruptEvent`` on the
+        server.
         """
+        bar = self._cancel_bar_or_none()
+        if bar is not None and bar.is_visible:
+            bar.hide()
+            self._apply_lifecycle()
+            composer = self._composer_or_none()
+            if composer is not None:
+                composer.focus()
+            return
         composer = self._composer_or_none()
         if composer is not None and composer.value:
             composer.value = ""
@@ -597,9 +761,66 @@ class SessionScreen(Screen[None]):
         except Exception as exc:
             self.app.notify(f"failed to interrupt: {exc}", severity="error")
 
+    # ------------------------------------------------------------------
+    # Composer-row helpers
+    # ------------------------------------------------------------------
+
     def _composer_or_none(self) -> Input | None:
         """The composer Input, or None if it isn't mounted (defensive)."""
         try:
             return self.query_one("#composer", Input)
         except NoMatches:
             return None
+
+    def _approval_bar_or_none(self) -> _ApprovalBar | None:
+        """The composer-row approval bar, or None if it isn't mounted."""
+        try:
+            return self.query_one(_ApprovalBar)
+        except NoMatches:
+            return None
+
+    def _cancel_bar_or_none(self) -> _CancelSampleBar | None:
+        """The composer-row cancel-sample bar, or None if it isn't mounted."""
+        try:
+            return self.query_one(_CancelSampleBar)
+        except NoMatches:
+            return None
+
+    def _cancel_bar_visible(self) -> bool:
+        """Whether the cancel-sample bar is currently showing."""
+        bar = self._cancel_bar_or_none()
+        return bar is not None and bar.is_visible
+
+    def _letter_targets_visible_bar(self, letter: str) -> bool:
+        """Whether ``letter`` should activate a visible composer-area bar.
+
+        Returns True iff the letter maps to an option on the bar
+        that currently owns the composer row. Used by
+        :meth:`check_action` to gate the bare-letter bindings so
+        the composer ``Input`` still receives plain typing when
+        neither bar is visible.
+
+        Cancel bar takes precedence: ``e`` while the cancel bar is
+        up activates ``Cancel: Error`` (when offered), not the
+        approval ``escalate``.
+        """
+        if self._cancel_bar_visible():
+            if letter == "s":
+                return True
+            if letter == "e":
+                # ``e`` is only live when the cancel bar actually
+                # rendered the error option (depends on the row's
+                # ``fails_on_error`` flag). Probing the DOM keeps the
+                # gate honest without duplicating the policy here.
+                bar = self._cancel_bar_or_none()
+                if bar is None:
+                    return False
+                try:
+                    bar.query_one(f"#{_CANCEL_BUTTON_ID_PREFIX}error")
+                except NoMatches:
+                    return False
+                return True
+            return False
+        if self._state.lifecycle == "approval":
+            return letter in ("a", "r", "e", "t", "m")
+        return False

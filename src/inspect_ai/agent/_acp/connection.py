@@ -466,12 +466,14 @@ class ConnectionHandler:
         ``action`` selects the post-cancel outcome:
 
         - ``"score"`` — run the scorer on whatever work landed.
-        - ``"error"`` — mark the sample errored. Gated to match the
-          TUI's button-visibility: accepted only when the sample is
-          NOT already configured to ``fails_on_error`` (in that case
-          the manual error action is moot — the sample would error
-          on its own; only the score action is meaningful from a
-          client's perspective).
+        - ``"error"`` — mark the sample errored. Gated to mirror the
+          in-proc ``--display full`` TUI's
+          ``cancel_with_error.display = not sample.fails_on_error``
+          rule: rejected whenever ``ActiveSample.fails_on_error`` is
+          ``True`` (which collapses ``True`` / ``None`` /
+          fractional / integer-count configs together — the sample
+          will surface an error of its own accord, so a manual
+          ``error`` action would just race the auto-fail).
 
         Distinct from ``session/cancel``, which interrupts the current
         turn but lets the agent loop recover. This method is terminal:
@@ -491,7 +493,8 @@ class ConnectionHandler:
                 {
                     "reason": (
                         "action='error' not permitted when sample is "
-                        "configured fails_on_error=True (use action='score')"
+                        "configured to fail on errors "
+                        "(fails_on_error=True — use action='score')"
                     )
                 }
             )

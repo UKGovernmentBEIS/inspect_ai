@@ -1813,11 +1813,9 @@ async def test_approval_bar_visible_when_pending_arrives() -> None:
 @skip_if_trio
 @pytest.mark.anyio
 async def test_approval_bar_mounts_action_per_option() -> None:
-    """One ``_ApprovalAction`` per option with the standard ``approve-opt-<id>`` ids."""
-    from inspect_ai.agent._acp.tui.widgets.approval_bar import (
-        _ApprovalAction,
-        _ApprovalBar,
-    )
+    """One ``_PromptOption`` per option with the standard ``approve-opt-<id>`` ids."""
+    from inspect_ai.agent._acp.tui.widgets._prompt import _PromptOption
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
 
     state = SessionState()
     state.consume_approval_request(
@@ -1835,7 +1833,7 @@ async def test_approval_bar_mounts_action_per_option() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         bar = app.query_one(_ApprovalBar)
-        ids = [a.id for a in bar.query(_ApprovalAction)]
+        ids = [a.id for a in bar.query(_PromptOption)]
         assert ids == [
             "approve-opt-approve",
             "approve-opt-reject",
@@ -1847,10 +1845,8 @@ async def test_approval_bar_mounts_action_per_option() -> None:
 @pytest.mark.anyio
 async def test_approval_bar_first_action_is_focused_on_mount() -> None:
     """First action focused so Tab+Enter works without a click."""
-    from inspect_ai.agent._acp.tui.widgets.approval_bar import (
-        _ApprovalAction,
-        _ApprovalBar,
-    )
+    from inspect_ai.agent._acp.tui.widgets._prompt import _PromptOption
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
 
     state = SessionState()
     state.consume_approval_request(_pending_approval(_approval_request()))
@@ -1858,7 +1854,7 @@ async def test_approval_bar_first_action_is_focused_on_mount() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         bar = app.query_one(_ApprovalBar)
-        first = bar.query(_ApprovalAction).first()
+        first = bar.query(_PromptOption).first()
         assert first is not None
         # Textual's focus chain may not have transferred yet under
         # the test event loop — accept either the widget's own focus
@@ -1928,19 +1924,18 @@ async def test_approval_bar_hides_after_resolve() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_approval_action_pressed_carries_mounted_tool_call_id() -> None:
-    """``Pressed`` carries the tool_call_id active at mount time.
+async def test_approval_bar_pins_mounted_request_id() -> None:
+    """The bar pins ``_mounted_request_id`` to the tool_call_id at mount time.
 
     Pinned because the bar previously dispatched via
     ``current_pending_tool_call_id()`` at handler time, which races
     when parallel approvals queue up: a click on the FIRST approval
     could resolve as if it applied to the SECOND if the first cleared
-    between click capture and message dispatch.
+    between click capture and message dispatch. Now the bar carries
+    its own ``_mounted_request_id`` for the same purpose.
     """
-    from inspect_ai.agent._acp.tui.widgets.approval_bar import (
-        _ApprovalAction,
-        _ApprovalBar,
-    )
+    from inspect_ai.agent._acp.tui.widgets._prompt import _PromptOption
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
 
     state = SessionState()
     state.consume_approval_request(_pending_approval(_approval_request("tc-1")))
@@ -1948,37 +1943,36 @@ async def test_approval_action_pressed_carries_mounted_tool_call_id() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         bar = app.query_one(_ApprovalBar)
-        action = bar.query_one("#approve-opt-approve", _ApprovalAction)
-        # The action's bound tool_call_id should match its mount-time
-        # request, not a fresh state lookup.
-        assert action._tool_call_id == "tc-1"
-        # The Pressed message built by action_press carries the same id.
-        msg = _ApprovalAction.Pressed(action._tool_call_id, action._option_id)
-        assert msg.tool_call_id == "tc-1"
-        assert msg.option_id == "approve"
+        # The bar pins the request id it mounted options for; presses
+        # validate against this rather than chasing a live state lookup.
+        assert bar._mounted_request_id == "tc-1"
+        option = bar.query_one("#approve-opt-approve", _PromptOption)
+        # The Pressed message built by action_press carries the option's
+        # action_id (option_id) — the bar combines it with the pinned
+        # tool_call_id when translating to ApprovalDecisionRequested.
+        msg = _PromptOption.Pressed(option.action_id)
+        assert msg.action_id == "approve"
 
 
 @skip_if_trio
 @pytest.mark.anyio
 async def test_approval_bar_drops_stale_press_for_resolved_tool_call() -> None:
-    """The bar's handler must drop a press whose carried id no longer matches.
+    """The bar's handler must drop a press whose mounted id no longer matches.
 
     Pinned because a queued click / Enter that lands after the first
     approval already resolved would otherwise apply to the NEXT
     pending approval (different tool_call_id) — silently approving
     something the operator never clicked on.
 
-    Validation point: ``on_approval_action_pressed`` compares
-    ``event.tool_call_id`` to ``state.current_pending_tool_call_id()``
+    Validation point: ``on_prompt_option_pressed`` compares the bar's
+    ``_mounted_request_id`` to ``state.current_pending_tool_call_id()``
     and short-circuits before posting an
     :class:`ApprovalDecisionRequested`. We exercise that gate by
     spying on ``post_message`` so we don't depend on the message bus
     plumbing for the assertion.
     """
-    from inspect_ai.agent._acp.tui.widgets.approval_bar import (
-        _ApprovalAction,
-        _ApprovalBar,
-    )
+    from inspect_ai.agent._acp.tui.widgets._prompt import _PromptOption
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
     from inspect_ai.agent._acp.tui.widgets.tool_call import ApprovalDecisionRequested
 
     state = SessionState()
@@ -1988,16 +1982,15 @@ async def test_approval_bar_drops_stale_press_for_resolved_tool_call() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         bar = app.query_one(_ApprovalBar)
-        action_tc1 = bar.query_one("#approve-opt-approve", _ApprovalAction)
-        assert action_tc1._tool_call_id == "tc-1"
+        assert bar._mounted_request_id == "tc-1"
 
         # Resolve tc-1 out of band (e.g. a fast keystroke or a second
-        # client's response). The bar will re-render with no pending,
-        # but a press that was already in flight could still land
-        # carrying tc-1's id.
+        # client's response). The bar's refresh will clear
+        # ``_mounted_request_id`` along with the options.
         state.resolve_approval("tc-1", option_id="approve")
         await pilot.pause()
         assert state.current_pending_tool_call_id() is None
+        assert bar._mounted_request_id is None
 
         # Spy on post_message so we can assert the handler does NOT
         # fan out an ApprovalDecisionRequested for the stale press.
@@ -2010,7 +2003,7 @@ async def test_approval_bar_drops_stale_press_for_resolved_tool_call() -> None:
 
         bar.post_message = _spy
 
-        bar.on_approval_action_pressed(_ApprovalAction.Pressed("tc-1", "approve"))
+        bar.on_prompt_option_pressed(_PromptOption.Pressed("approve"))
 
         # The handler must early-return without posting anything.
         decisions = [m for m in posted if isinstance(m, ApprovalDecisionRequested)]

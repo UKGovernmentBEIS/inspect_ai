@@ -32,14 +32,19 @@ def _make_sample(
     session_id: str | None,
     agent_name: str | None = None,
     started: float | None = None,
+    fails_on_error: bool = True,
 ) -> Any:
     """Build a stub ActiveSample-shaped object for the picker.
 
     Bare-minimum attributes the picker reads: ``task``, ``sample.id``,
     ``epoch``, ``acp_session`` (with ``.session_id``), ``agent_name``,
-    ``started``. Using a plain object instead of a real ActiveSample
-    keeps the test independent of the ActiveSample constructor's larger
-    field surface.
+    ``started``, ``fails_on_error`` (collapsed bool). Using a plain
+    object instead of a real ActiveSample keeps the test independent
+    of the ActiveSample constructor's larger field surface.
+
+    Default ``fails_on_error=True`` mirrors what the eval harness
+    produces from the default ``EvalConfig.fail_on_error=None``
+    (which collapses to True in ``ActiveSample.fails_on_error``).
     """
     sample = MagicMock()
     sample.id = sample_id
@@ -50,6 +55,7 @@ def _make_sample(
     active.epoch = epoch
     active.agent_name = agent_name
     active.started = started
+    active.fails_on_error = fails_on_error
     if session_id is None:
         active.acp_session = None
     else:
@@ -176,6 +182,7 @@ def test_build_picker_notification_carries_structured_meta() -> None:
             "agentName": None,
             "startedAt": None,
             "totalTokens": 0,
+            "failsOnError": False,
         },
         {
             "sessionId": "uuid-b",
@@ -185,6 +192,7 @@ def test_build_picker_notification_carries_structured_meta() -> None:
             "agentName": None,
             "startedAt": None,
             "totalTokens": 0,
+            "failsOnError": False,
         },
     ]
 
@@ -225,6 +233,63 @@ def test_list_picker_targets_propagates_agent_name_and_started(monkeypatch) -> N
     targets = list_picker_targets()
     assert targets[0].agent_name == "react"
     assert targets[0].started_at == 1_700_000_000.0
+
+
+def test_picker_fails_on_error_mirrors_active_sample(monkeypatch) -> None:
+    """``PickerTarget.fails_on_error`` mirrors ``ActiveSample.fails_on_error``.
+
+    The picker reads the already-collapsed boolean rather than the
+    raw config value so the ACP TUI's ``[e] error`` visibility lines
+    up exactly with the in-proc ``--display full`` rule
+    (``cancel_with_error.display = not sample.fails_on_error``).
+    Fractional / integer-count configs that collapse to ``True`` in
+    ``ActiveSample.fails_on_error`` will hide ``[e] error`` here too.
+    """
+    samples = [
+        _make_sample(
+            task="t",
+            sample_id="s1",
+            epoch=0,
+            session_id="u1",
+            fails_on_error=True,
+        ),
+        _make_sample(
+            task="t",
+            sample_id="s2",
+            epoch=0,
+            session_id="u2",
+            fails_on_error=False,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    targets = list_picker_targets()
+    assert [t.session_id for t in targets] == ["u1", "u2"]
+    assert targets[0].fails_on_error is True  # hide [e] error
+    assert targets[1].fails_on_error is False  # show [e] error
+
+
+def test_build_picker_notification_meta_includes_fails_on_error() -> None:
+    """``failsOnError`` rides in the structured ``_meta`` payload.
+
+    Drives delivery to the TUI on both attach paths: direct-attach via
+    ``session/load`` reads it from the binding-confirmation; picker-
+    attach reads it from the parallel ``inspect/list_sessions``
+    response (built from the same ``picker_target_meta_dict``).
+    """
+    targets = [
+        PickerTarget(
+            session_id="uuid-x",
+            task="t",
+            sample_id="s",
+            epoch=0,
+            fails_on_error=True,
+        )
+    ]
+    notif = build_picker_notification("control", targets)
+    assert notif.field_meta is not None
+    entry = notif.field_meta[PICKER_META_KEY][0]
+    assert entry["failsOnError"] is True
 
 
 def test_list_picker_targets_propagates_total_tokens(monkeypatch) -> None:
@@ -379,5 +444,6 @@ def test_notification_serializes_meta_under_underscore_meta_alias() -> None:
             "agentName": None,
             "startedAt": None,
             "totalTokens": 0,
+            "failsOnError": False,
         },
     ]

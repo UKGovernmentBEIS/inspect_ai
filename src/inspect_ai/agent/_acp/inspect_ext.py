@@ -574,6 +574,7 @@ def picker_target_meta_dict(target: PickerTarget) -> dict[str, Any]:
         "agentName": target.agent_name,
         "startedAt": target.started_at,
         "totalTokens": target.total_tokens,
+        "failsOnError": target.fails_on_error,
     }
 
 

@@ -94,6 +94,7 @@ def _make_active_sample(*, acp_session: Any) -> Any:
     active.agent_name = None
     active.started = None
     active.total_tokens = 0
+    active.fails_on_error = True
     active.acp_session = acp_session
     return active
 

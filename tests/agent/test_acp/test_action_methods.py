@@ -74,6 +74,15 @@ def _stub_active_sample(
     actually fire — for unit tests we use a MagicMock so ``interrupt``
     just records the call. Integration tests that exercise real
     teardown live in test #17.
+
+    ``fails_on_error`` mirrors :attr:`ActiveSample.fails_on_error` —
+    the already-collapsed boolean the server-side cancel-sample
+    polarity check now reads directly (in lockstep with the in-proc
+    ``--display full`` TUI's
+    ``cancel_with_error.display = not sample.fails_on_error`` rule).
+    Default ``False`` keeps the common path open for tests that don't
+    care about the polarity (they want ``action="error"`` to be
+    accepted).
     """
     sample = MagicMock()
     sample.fails_on_error = fails_on_error
@@ -140,17 +149,23 @@ async def test_cancel_sample_when_sample_gone_returns_internal_error(
     assert exc.value.data["reason"] == "bound sample no longer active"
 
 
-async def test_cancel_sample_error_action_gated_by_fails_on_error(
+async def test_cancel_sample_error_action_gated_when_fails_on_error_true(
     patch_active_samples,
 ) -> None:
-    """action='error' rejected when sample.fails_on_error is True (TUI parity)."""
+    """action='error' rejected when ActiveSample.fails_on_error is True.
+
+    Mirrors --display full's
+    ``cancel_with_error.display = not sample.fails_on_error`` rule —
+    fractional thresholds and integer counts collapse to True in
+    ``ActiveSample.fails_on_error`` too, so they also land here.
+    """
     patch_active_samples(_stub_active_sample(fails_on_error=True))
     h = _handler()
     with pytest.raises(RequestError) as exc:
         await h.cancel_sample(session_id="wire", action="error")
     assert exc.value.code == -32602
     assert exc.value.data is not None
-    assert "fails_on_error=True" in exc.value.data["reason"]
+    assert "fails_on_error" in exc.value.data["reason"]
 
 
 async def test_cancel_sample_score_action_calls_interrupt(
@@ -165,10 +180,10 @@ async def test_cancel_sample_score_action_calls_interrupt(
     sample.interrupt.assert_called_once_with("score")
 
 
-async def test_cancel_sample_error_action_allowed_when_gate_passes(
+async def test_cancel_sample_error_action_allowed_when_fails_on_error_false(
     patch_active_samples,
 ) -> None:
-    """action='error' is accepted when fails_on_error=False; calls interrupt."""
+    """action='error' accepted when fails_on_error=False; calls interrupt."""
     sample = _stub_active_sample(fails_on_error=False)
     patch_active_samples(sample)
     h = _handler()
