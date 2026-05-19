@@ -25,7 +25,10 @@ from acp.meta import CLIENT_METHODS
 from acp.schema import SessionNotification
 
 from inspect_ai.agent._acp._guards import SendStatus, acp_guard, acp_send_guard
-from inspect_ai.agent._acp.event_mapping import SubagentDepthTracker, replay_transcript
+from inspect_ai.agent._acp.event_mapping import (
+    ReplayTranscriptor,
+    SubagentDepthTracker,
+)
 from inspect_ai.agent._acp.inspect_ext import (
     INSPECT_SESSION_ENDED_METHOD,
     PlanPolicyTransformer,
@@ -171,8 +174,11 @@ class Forwarders:
         # ATTACH live subscribers (also sync) — from here on new events
         # go into the live buffers, not the snapshot.
         self._semantic_stream = target.attach()
-        if self._state.raw_events_enabled:
-            self._raw_forwarder = RawEventForwarder(self._connection)
+        subscription = self._state.raw_events_subscription
+        if subscription is not None:
+            self._raw_forwarder = RawEventForwarder(
+                self._connection, subscription=subscription
+            )
             self._raw_forwarder.attach(target)
 
         # Register as an approver client so the configured
@@ -332,6 +338,20 @@ class Forwarders:
         # sample 1 wouldn't know sample 1 had finished until either
         # the entire eval ended (transport disconnect) or the client
         # noticed via some other side-effect.
+        #
+        # Drain the raw-event firehose BEFORE the session_ended
+        # notification. The semantic stream closes when the sample
+        # exits its react() / finalize() — but raw transcript events
+        # from the post-agent scoring phase (``ScoreEvent``,
+        # ``SampleLimitEvent``) ride the raw forwarder, not the
+        # semantic one. Without this barrier the raw forwarder's
+        # task can still have queued items in flight when we send
+        # ``inspect/session_ended``, and the client races the wire:
+        # the lifecycle terminator can arrive BEFORE the trailing
+        # scoring events, dropping them or rendering them after the
+        # pill already flipped to ``complete``.
+        if self._raw_forwarder is not None:
+            await self._raw_forwarder.drain()
         await self._send_session_ended()
 
     async def _send_session_ended(self) -> None:
@@ -440,13 +460,28 @@ class Forwarders:
     async def _run_replay(self, snapshot: list[Any]) -> SendStatus:
         """Emit recent transcript history out to this connection.
 
-        Two sub-passes (raw first if enabled, then semantic) so the
-        client sees the full firehose for catch-up before semantic
-        notifications start. Both passes are capped to
-        :data:`REPLAY_MAX_EVENTS` to bound the payload on late attaches
-        into long-running samples. No transforms beyond plan-policy and
-        sub-agent filtering — replay produces the same wire payloads as
-        live, so a client that handles live also handles replay.
+        Single interleaved pass: walk the snapshot in transcript
+        (source) order and, for each event, dispatch to whichever
+        streams want it — raw firehose if subscribed, semantic
+        firehose if it passes the sub-agent filter. Wire ordering
+        matches the underlying transcript order, so on a late attach
+        score chips appear AFTER the conversation that produced them,
+        plan updates land at their original timestamp relative to
+        message groups, etc.
+
+        Previously the two streams were two separate passes (raw then
+        semantic), which on late attaches made score chips render
+        above the replayed conversation and could let a stale
+        ``AgentPlanUpdate`` from semantic replay arrive after raw
+        replay had already cleared the plan via the scorers boundary.
+        The interleaved walk is the structural fix; the
+        ``_scoring_started`` state-guard in the TUI is a belt-and-
+        braces defense for any straggling ordering bug.
+
+        Both streams are capped to :data:`REPLAY_MAX_EVENTS` (each
+        applied to its respective universe — full snapshot for raw,
+        sub-agent-filtered snapshot for semantic) so a long-running
+        sample doesn't push a multi-MB catch-up payload.
 
         Uses ``self._wire_session_id`` (captured at construction) for
         semantic notification construction — immutable for this
@@ -470,64 +505,72 @@ class Forwarders:
         approver registration) don't leak.
 
         Per-step error boundary:
-        - Raw replay send failure → mirror :class:`SendStatus` and
-          return early; caller (start) skips live forwarders.
-        - Sub-agent filter pre-pass failure → WARNING, return a
-          non-exit status (we just have no events to map; the
-          connection is fine).
-        - Per-notification transform failure → WARNING + skip (next
-          notif might be fine).
+        - Sub-agent filter pre-pass failure → WARNING, fall back to
+          raw-only replay (semantic just has no events to map; the
+          connection is still fine).
+        - Per-notification transform / per-event serialize failure →
+          WARNING + skip (next event might be fine; isolated inside
+          :class:`ReplayTranscriptor.process` / :meth:`replay_event`).
         - Per-notification send failure → mirror :class:`SendStatus`
           and return.
 
         ``CancelledError`` propagates naturally (BaseException, not
         Exception).
         """
-        # RAW replay (opt-in only). Send all transcript events (no
-        # sub-agent filter) capped to the last N. Exit replay entirely
-        # on EITHER disconnect or unexpected send failure — the
-        # underlying ``acp`` library's sender task dies on either kind
-        # of failure, so a subsequent semantic send would enqueue a
-        # future with no sender to complete it.
-        if self._raw_forwarder is not None:
-            with acp_send_guard("ACP raw replay failed") as raw:
-                await self._raw_forwarder.replay(snapshot, REPLAY_MAX_EVENTS)
-            if raw.should_exit:
-                return raw
-
-        # SEMANTIC replay. Apply the same sub-agent filter the live
-        # router uses. Take the last N events post-filter, then map to
-        # SessionNotifications using the captured wire id, then apply
-        # plan policy. Per-event mapping isolation lives inside
-        # ``replay_transcript`` itself — one bad event no longer drops
-        # the rest of the replay.
-        filtered: list[Any] = []
+        # SEMANTIC pre-pass: walk the sub-agent filter once over the
+        # full snapshot so we know which events pass. Cap to the last
+        # N filtered events, identify them by ``id()`` (event objects
+        # are not hashable in general — Pydantic BaseModels are
+        # value-equality, two events with the same fields would
+        # collide in a set keyed on the object itself).
+        semantic_id_set: set[int] = set()
         with acp_guard(
-            "ACP semantic replay: sub-agent filter failed; skipping replay"
+            "ACP semantic replay: sub-agent filter failed; semantic replay skipped"
         ) as f:
-            filtered = list(_filter_subagent_events(snapshot))[-REPLAY_MAX_EVENTS:]
+            filtered_full = list(_filter_subagent_events(snapshot))
+            semantic_id_set = {id(e) for e in filtered_full[-REPLAY_MAX_EVENTS:]}
         if f.failed:
-            # Filter failure doesn't kill the connection; just return a
-            # non-exit status so live forwarders still launch.
-            return SendStatus()
+            semantic_id_set = set()
 
-        for notif in replay_transcript(
-            filtered,
-            self._wire_session_id,
-            filter_subagents=False,  # already pre-filtered
-        ):
-            transformed: SessionNotification | None = None
-            with acp_guard(
-                "ACP semantic replay: plan policy transform failed for "
-                "one notification; skipping"
-            ) as t:
-                transformed = self._plan_policy.transform(notif)
-            if t.failed or transformed is None:
-                continue
-            with acp_send_guard("ACP semantic replay: send failed") as send:
-                await self._send_session_update(transformed)
-            if send.should_exit:
-                return send
+        # Raw cap: last N of the full snapshot.
+        raw_id_set: set[int] = (
+            {id(e) for e in snapshot[-REPLAY_MAX_EVENTS:]}
+            if self._raw_forwarder is not None
+            else set()
+        )
+
+        # Build a stateful semantic mapper. We feed it ONLY the
+        # already-filtered events (in source order) so its
+        # depth-tracker + dedup sets advance exactly the way the
+        # batch :func:`replay_transcript` would — preserving the
+        # same notifications and same per-event ordering. Passing
+        # ``filter_subagents=False`` is safe because we already
+        # filtered above.
+        transcriptor = ReplayTranscriptor(self._wire_session_id, filter_subagents=False)
+
+        # Interleaved dispatch in transcript order.
+        for event in snapshot:
+            is_raw = id(event) in raw_id_set
+            is_semantic = id(event) in semantic_id_set
+            if is_raw and self._raw_forwarder is not None:
+                with acp_send_guard("ACP raw replay failed") as raw:
+                    await self._raw_forwarder.replay_event(event)
+                if raw.should_exit:
+                    return raw
+            if is_semantic:
+                for notif in transcriptor.process(event):
+                    transformed: SessionNotification | None = None
+                    with acp_guard(
+                        "ACP semantic replay: plan policy transform failed for "
+                        "one notification; skipping"
+                    ) as t:
+                        transformed = self._plan_policy.transform(notif)
+                    if t.failed or transformed is None:
+                        continue
+                    with acp_send_guard("ACP semantic replay: send failed") as send:
+                        await self._send_session_update(transformed)
+                    if send.should_exit:
+                        return send
 
         return SendStatus()
 

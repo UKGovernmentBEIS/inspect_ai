@@ -95,6 +95,15 @@ class _CancelSampleBar(Widget):
         self._row_fails_on_error: bool = False
         self._connection: Any = None
         self._session_id: str | None = None
+        # Reference to the session state so the bar can clear local
+        # in-flight signals (spinning assistant chip, running tool-call
+        # timer) the moment the operator picks a disposition. The
+        # server-side cancel propagation takes time to round-trip; the
+        # local update gives instant feedback. Uses the dedicated
+        # ``mark_sample_cancelling`` (not ``mark_interrupted``) so the
+        # lifecycle pill keeps reading ``running`` until session_ended
+        # — the sample isn't done, it's being torn down.
+        self._state: Any = None
         # Idempotence guard — Enter mash on a focused option could
         # otherwise fire the request twice before the hide races.
         self._resolved = False
@@ -121,6 +130,7 @@ class _CancelSampleBar(Widget):
         fails_on_error: bool,
         connection: Any,
         session_id: str,
+        state: Any = None,
     ) -> None:
         """Make the bar visible and mount the options for this session.
 
@@ -129,10 +139,22 @@ class _CancelSampleBar(Widget):
         from a prior show that targeted a different row. The first
         option (``score``) is focused so Enter activates it without
         a Tab.
+
+        ``state`` is the :class:`SessionState` for the bound session —
+        on a chosen disposition the bar calls
+        ``state.mark_sample_cancelling()`` before firing the cancel
+        RPC so the assistant-chip spinner and tool-call timer stop
+        instantly rather than waiting for the server's cancel
+        notification to propagate back through scoring + finalize.
+        The lifecycle pill stays on ``running`` (not ``interrupted``)
+        through that window — the sample is being torn down, not the
+        turn. Optional for back-compat with tests that drive ``show``
+        directly.
         """
         self._row_fails_on_error = fails_on_error
         self._connection = connection
         self._session_id = session_id
+        self._state = state
         self._resolved = False
         self._clear_options()
         self._mount_options(fails_on_error)
@@ -148,6 +170,7 @@ class _CancelSampleBar(Widget):
         self._clear_options()
         self._connection = None
         self._session_id = None
+        self._state = None
 
     def _clear_options(self) -> None:
         for child in list(self.query(_PromptOption)):
@@ -209,17 +232,30 @@ class _CancelSampleBar(Widget):
             # Show was never called or hide already ran — drop silently.
             return
         self._resolved = True
-        # Capture connection + session id BEFORE hiding — ``hide`` clears
-        # both slots, and the worker coroutine runs on a later tick so
-        # it would otherwise observe the cleared state and silently
-        # drop the request.
+        # Capture connection + session id + state BEFORE hiding —
+        # ``hide`` clears those slots, and the worker coroutine runs
+        # on a later tick so it would otherwise observe the cleared
+        # state and silently drop the request.
         connection = self._connection
         session_id = self._session_id
-        # Kick the request off in a worker so the bar can hide
-        # immediately; failures surface via toast and the natural
-        # session_ended flow drives the lifecycle transition.
+        state = self._state
+        # Cleanup ordering: do NOT optimistically pre-update the
+        # session state before the RPC. An earlier iteration flipped
+        # ``_cancelling=True`` + ran the in-flight cleanup
+        # (``_clear_active_work_signals``) immediately for "instant
+        # feedback" on the spinning chip, with a rollback path that
+        # only undid the lifecycle flag. The cleanup side (dropped
+        # pending message groups + tombstoned message ids + failed
+        # tool cards + cancelled approvals) was NOT reverted on
+        # rollback, so a server-rejected or never-landed RPC left
+        # the TUI suppressing real output from a sample that was
+        # still running. Now: ``mark_sample_cancelling()`` runs only
+        # after RPC success (inside ``_fire_cancel``). Failure mode
+        # is now an honest "the cancel didn't take" toast, not silent
+        # suppression. The single-digit-ms RPC round-trip is the
+        # only visual lag introduced.
         self.run_worker(
-            self._fire_cancel(connection, session_id, action),
+            self._fire_cancel(connection, session_id, action, state),
             name="cancel-sample",
             exclusive=True,
         )
@@ -236,18 +272,28 @@ class _CancelSampleBar(Widget):
         connection: Any,
         session_id: str,
         action: Literal["score", "error"],
+        state: Any,
     ) -> None:
-        """Send ``inspect/cancel_sample`` and surface any failure as a toast.
+        """Send ``inspect/cancel_sample``; update state only on success.
 
-        Connection + session id are passed in by :meth:`choose` so the
-        worker doesn't race with :meth:`hide` clearing the slots. On
-        the happy path the server fires ``inspect/session_ended``
-        which the client already wires to ``mark_complete`` (in
-        :func:`attach_session`), flipping the SessionScreen's
-        lifecycle to ``complete``. On error (sample already gone,
-        server rejected the action) we notify and stay hidden — the
-        operator's intent was "I'm done with this sample" and
-        re-presenting the bar would be confusing.
+        Connection + session id + state are captured in :meth:`choose`
+        so the worker doesn't race with :meth:`hide` clearing the
+        slots.
+
+        On success, fire ``state.mark_sample_cancelling()`` so the
+        lifecycle pill holds on ``running`` (not ``interrupted``) and
+        the in-flight chrome (spinning assistant chip, ticking
+        tool-call timer, pending approval buttons) flips to terminal
+        immediately rather than waiting for the server's full
+        scoring + finalize cycle. The natural ``inspect/session_ended``
+        notification then flips the SessionScreen to ``complete``.
+
+        On failure (sample already gone, server rejected the action,
+        connection lost), notify the operator via toast and do
+        nothing to local state. The TUI continues to honestly reflect
+        live activity — better than the previous behaviour of
+        suppressing real output from a sample that didn't actually
+        get cancelled.
         """
         try:
             await connection.send_request(
@@ -256,3 +302,6 @@ class _CancelSampleBar(Widget):
             )
         except Exception as exc:
             self.app.notify(f"cancel failed: {exc}", severity="error")
+            return
+        if state is not None:
+            state.mark_sample_cancelling()

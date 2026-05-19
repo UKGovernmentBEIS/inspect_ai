@@ -29,7 +29,7 @@ from ..client import SessionRow
 from ..state import UsageState
 from ._formatting import format_tokens
 
-Lifecycle = Literal["idle", "running", "interrupted", "approval", "complete"]
+Lifecycle = Literal["idle", "running", "scoring", "interrupted", "approval", "complete"]
 
 _LIFECYCLE_TEXT: dict[Lifecycle, str] = {
     # Glyphs picked so the *shape* alone carries state even before
@@ -41,6 +41,11 @@ _LIFECYCLE_TEXT: dict[Lifecycle, str] = {
     # when nothing is happening.
     "idle": "",
     "running": "● running",
+    # ``scoring`` reads as "still working but in a different phase" —
+    # the agent loop is done and the post-agent scoring pass is the
+    # foreground activity. Same dot glyph as ``running`` so it doesn't
+    # read as a halt; distinct colour signals it as a different phase.
+    "scoring": "● scoring",
     "interrupted": "⊘ interrupted",
     # ``approval`` reads as more urgent than ``running`` (the agent is
     # specifically waiting on the operator) — same warning colour as
@@ -118,6 +123,11 @@ class SessionHeaderWidget(Widget):
     }
     SessionHeaderWidget #lifecycle-indicator { width: auto; }
     SessionHeaderWidget #lifecycle-indicator.running { color: $success; }
+    /* Scoring shares the blue ``$primary`` family with ``complete`` to
+     * signal it as a post-agent phase, but distinct from the green
+     * ``running`` and orange ``warning`` colours so the operator can
+     * tell at a glance "we're past the agent loop now". */
+    SessionHeaderWidget #lifecycle-indicator.scoring { color: $primary; }
     SessionHeaderWidget #lifecycle-indicator.interrupted { color: $warning; }
     /* Approval shares the warning colour with ``interrupted`` — both
      * are "operator attention needed" states and we want one visual
@@ -195,7 +205,14 @@ class SessionHeaderWidget(Widget):
             pill = self.query_one("#lifecycle-indicator", Static)
         except NoMatches:
             return
-        for cls in ("idle", "running", "interrupted", "approval", "complete"):
+        for cls in (
+            "idle",
+            "running",
+            "scoring",
+            "interrupted",
+            "approval",
+            "complete",
+        ):
             pill.remove_class(cls)
         pill.update(_LIFECYCLE_TEXT[state])
         pill.add_class(state)

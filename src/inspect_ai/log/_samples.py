@@ -1,7 +1,16 @@
 import contextlib
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Iterator, Literal
+from logging import getLogger
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Iterator,
+    Literal,
+)
 
 if TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
@@ -22,6 +31,8 @@ from inspect_ai.util._sandbox.context import sandbox_connections
 
 from ..event._model import ModelEvent
 from ._transcript import Transcript
+
+logger = getLogger(__name__)
 
 
 class ActiveSample:
@@ -82,6 +93,26 @@ class ActiveSample:
         # The Inspect TUI reads this to decide whether to render the
         # Interrupt button and to dispatch session/cancel + session/prompt.
         self.acp_session: "AcpSession | None" = None
+        # Lifecycle callbacks owned by whoever bound to this sample
+        # (in practice, the live ACP session). Kept here rather than
+        # in the ACP layer so the eval primitive doesn't have to
+        # import or call into ACP — it just fires the registered hook
+        # if present. `on_complete` runs after scoring + logging
+        # finish; `on_interrupt` runs inside `interrupt()` /
+        # `limit_exceeded()` before the task-group cancel propagates,
+        # giving the binder a chance to clean up in-flight state that
+        # anyio's hard cancel would otherwise bypass (notably the
+        # `pending=True` flag on an in-flight `ModelEvent`).
+        # `on_interrupt` receives a cause discriminator so the binder
+        # records the right provenance — `"user_cancel"` for operator-
+        # driven `interrupt()`, `"limit"` for `limit_exceeded()`,
+        # `"system"` reserved for eval-shutdown paths. The values
+        # mirror :attr:`InterruptEvent.source` so the binder can
+        # forward straight through.
+        self.on_complete: Callable[[], Awaitable[None]] | None = None
+        self.on_interrupt: (
+            Callable[[Literal["user_cancel", "limit", "system"]], None] | None
+        ) = None
 
     def start(self, tg: TaskGroup) -> None:
         self.started = datetime.now(timezone.utc).timestamp()
@@ -108,6 +139,7 @@ class ActiveSample:
             raise RuntimeError(
                 "Attempted to interrupt sample without enclosing task group."
             )
+        self._fire_on_interrupt("user_cancel")
         self.tg.cancel_scope.cancel()
 
     def limit_exceeded(self, error: LimitExceededError) -> None:
@@ -116,7 +148,32 @@ class ActiveSample:
             raise RuntimeError(
                 "Attempted to interrupt sample for limit without enclosing task group."
             )
+        self._fire_on_interrupt("limit")
         self.tg.cancel_scope.cancel()
+
+    def _fire_on_interrupt(
+        self, cause: Literal["user_cancel", "limit", "system"]
+    ) -> None:
+        """Fire the registered ``on_interrupt`` hook, swallowing failures.
+
+        The hook (set by whoever bound to this sample — in practice the
+        live ACP session) cleans up in-flight state that anyio's hard
+        cancel would otherwise bypass. ``cause`` lets the binder
+        record the right provenance (e.g. an `InterruptEvent` with
+        ``source="limit"`` for a token-limit hit, not ``"user_cancel"``).
+        A failure inside the hook must not prevent the task-group
+        cancel from firing, so we log and keep going. Sync because the
+        cancel path is sync.
+        """
+        if self.on_interrupt is None:
+            return
+        try:
+            self.on_interrupt(cause)
+        except Exception:
+            logger.warning(
+                "ActiveSample on_interrupt hook raised; continuing with cancel",
+                exc_info=True,
+            )
 
     @property
     def interrupt_action(self) -> Literal["score", "error"] | None:
@@ -179,6 +236,21 @@ async def active_sample(
     try:
         yield active
     finally:
+        # Single "the sample is fully done" hook for whoever bound to
+        # this sample. By the time we get here scoring + logging have
+        # run and the task runner's ``emit_sample_end`` has fired, so
+        # any registered binder (in practice the live ACP session)
+        # can do its deferred teardown safely. Shielded so a
+        # cancellation during teardown doesn't skip it.
+        if active.on_complete is not None:
+            with anyio.CancelScope(shield=True):
+                try:
+                    await active.on_complete()
+                except Exception:
+                    logger.warning(
+                        "ActiveSample on_complete hook raised",
+                        exc_info=True,
+                    )
         active.complete()
         _active_samples.remove(active)
         _sample_active.set(None)

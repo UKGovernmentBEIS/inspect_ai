@@ -377,9 +377,16 @@ class SessionScreen(Screen[None]):
             # session is gone so a submit would silently round-trip
             # into the void. Better to surface that the session is
             # finished and freeze the input than to let the operator
-            # type into a dead pipe.
+            # type into a dead pipe. ``scoring`` is the same shape —
+            # the agent loop is over, the server now rejects
+            # ``session/prompt`` (see ``connection.py``'s
+            # ``agent_completed`` guard), so a submit during scoring
+            # would just bounce. Disable the input and say so.
             if lifecycle == "complete":
                 composer.placeholder = "sample complete"
+                composer.disabled = True
+            elif lifecycle == "scoring":
+                composer.placeholder = "scoring · input disabled"
                 composer.disabled = True
             elif lifecycle == "approval":
                 # Placeholder isn't visible (Input is hidden) but kept
@@ -554,6 +561,7 @@ class SessionScreen(Screen[None]):
             fails_on_error=self._session.row.fails_on_error,
             connection=connection,
             session_id=self._session.session_id,
+            state=self._state,
         )
         self._apply_lifecycle()
 
@@ -742,6 +750,15 @@ class SessionScreen(Screen[None]):
             return
         if self._state.lifecycle == "complete":
             return
+        # ``scoring`` is the same shape as ``complete`` from the
+        # composer's perspective: the server's prompt handler now
+        # rejects messages once the agent has parked for scoring
+        # (see ``LiveAcpSession.agent_completed`` + ``connection.py``).
+        # Belt-and-braces guard against the priority Enter binding
+        # firing during a focus-change window even though
+        # ``_apply_lifecycle`` has disabled the Input.
+        if self._state.lifecycle == "scoring":
+            return
         # Cancel bar takes the row: ↵ that isn't delegated to a
         # focused option (focus drift, transcript click) is a no-op
         # so the operator's draft doesn't ship while the cancel
@@ -826,7 +843,7 @@ class SessionScreen(Screen[None]):
         draft, which then ships to the agent on the next submit.
         Pairs with the matching guard in :meth:`action_submit`.
         """
-        if self._state.lifecycle in ("complete", "approval"):
+        if self._state.lifecycle in ("complete", "scoring", "approval"):
             return
         if self._cancel_bar_visible():
             return

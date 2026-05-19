@@ -34,7 +34,11 @@ from acp.agent.router import build_agent_router
 from acp.connection import Connection
 from acp.interfaces import Agent
 
-from inspect_ai.agent._acp._guards import NORMAL_DISCONNECT_EXC
+from inspect_ai.agent._acp._config import ACP_STREAM_BUFFER_LIMIT
+from inspect_ai.agent._acp._guards import (
+    NORMAL_DISCONNECT_EXC,
+    install_acp_disconnect_log_filter,
+)
 from inspect_ai.agent._acp.connection import ConnectionHandler
 from inspect_ai.agent._acp.discovery import (
     cleanup_stale_discovery_files,
@@ -132,6 +136,13 @@ class AcpServer:
                 "asyncio) or omit --acp-server."
             )
 
+        # Suppress upstream ``acp`` library tracebacks for routine peer
+        # disconnects (BrokenPipe etc.) — see ``_guards`` for the
+        # filter's rationale. Idempotent + global; installed here
+        # because this is the earliest "we're actually running an ACP
+        # server" entry point.
+        install_acp_disconnect_log_filter()
+
         # Clean up any stale discovery files / orphan sockets from
         # processes that crashed without unregistering.
         cleanup_stale_discovery_files()
@@ -197,9 +208,13 @@ class AcpServer:
                     "is not a socket. Pick a different path or remove it first."
                 )
             path.unlink()
+        # ``limit`` is the StreamReader buffer size for accepted
+        # connections — see ACP_STREAM_BUFFER_LIMIT for why we override
+        # asyncio's 64 KiB default.
         self._server = await asyncio.start_unix_server(
             self._on_connection,
             path=str(path),
+            limit=ACP_STREAM_BUFFER_LIMIT,
         )
         self._socket_path = path
 
@@ -208,6 +223,7 @@ class AcpServer:
             self._on_connection,
             host=host,
             port=port,
+            limit=ACP_STREAM_BUFFER_LIMIT,
         )
         # Resolve the actual bound port (in case the caller passed 0
         # for an ephemeral port).
@@ -341,6 +357,16 @@ class AcpServer:
             await handler.shutdown()
             try:
                 await conn.close()
+            except NORMAL_DISCONNECT_EXC as exc:
+                # The peer already went away (matches the main_loop
+                # NORMAL_DISCONNECT_EXC branch above). ``conn.close()``
+                # tries to flush the sender, which surfaces the same
+                # BrokenPipe a second time. Log at DEBUG so disconnect
+                # produces no ERROR noise on the eval console.
+                logger.debug(
+                    "ACP connection close after disconnect (%s)",
+                    type(exc).__name__,
+                )
             except Exception:
                 logger.exception("Error closing ACP connection after main loop")
             self._connections.pop(conn, None)

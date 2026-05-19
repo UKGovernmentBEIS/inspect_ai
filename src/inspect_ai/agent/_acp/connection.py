@@ -140,7 +140,12 @@ class ConnectionState:
     # decide whether to substitute AgentPlanUpdate for plan-tool
     # notifications and whether to also forward raw transcript events.
     client_renders_plan: bool = False
-    raw_events_enabled: bool = False
+    # Raw-event subscription: ``None`` means the client did not opt in;
+    # otherwise a frozenset of event-type names (possibly including the
+    # ``"*"`` glob via :data:`inspect_ext.RAW_EVENTS_GLOB`) the
+    # forwarder filters against. Decoded by
+    # :func:`inspect_ext.detect_capabilities`.
+    raw_events_subscription: frozenset[str] | None = None
 
     @property
     def wire_session_id(self) -> str | None:
@@ -200,14 +205,14 @@ class ConnectionHandler:
         """Standard ACP handshake. Negotiate protocol version + advertise capabilities.
 
         Also captures client-capability flags (``client_renders_plan``,
-        ``raw_events_enabled``) so the per-connection forwarder can
+        ``raw_events_subscription``) so the per-connection forwarder can
         switch behavior per client.
         """
         # Capture client-capability flags. See ``detect_capabilities``
         # for the allowlist + ``_meta`` opt-in logic.
         (
             self.state.client_renders_plan,
-            self.state.raw_events_enabled,
+            self.state.raw_events_subscription,
         ) = detect_capabilities(client_info, client_capabilities)
 
         return InitializeResponse(
@@ -330,6 +335,21 @@ class ConnectionHandler:
                     raise RequestError.internal_error(
                         {
                             "reason": "bound session no longer active",
+                            "target_session_id": target_id,
+                        }
+                    )
+                if target.agent_completed:
+                    # The session is parked for the scoring window —
+                    # the agent loop has exited and there's no consumer
+                    # to drain ``submit_user_message``. Pre-fix the
+                    # call returned success and the message was silently
+                    # discarded by ``LiveAcpSession.submit_user_message``'s
+                    # post-agent guard. Surface a real error so the
+                    # client (TUI / editor) can show "scoring in progress"
+                    # instead of pretending it landed.
+                    raise RequestError.invalid_request(
+                        {
+                            "reason": "session is scoring",
                             "target_session_id": target_id,
                         }
                     )
@@ -498,6 +518,15 @@ class ConnectionHandler:
                     )
                 }
             )
+        # ``sample.interrupt(action)`` fires the registered
+        # ``on_interrupt`` hook before the task-group cancel — for an
+        # ACP-bound sample that routes to
+        # ``LiveAcpSession.cancel_current_turn``, which clears
+        # in-flight ``ModelEvent.pending=True`` (otherwise anyio's
+        # hard cancel bypasses the normal completion paths and the
+        # TUI's assistant chip spins past the scoring chips). The
+        # coupling lives on ``ActiveSample`` so timeouts and limit
+        # exceededs get the same cleanup, not just ACP cancels.
         sample.interrupt(action)
         return {}
 

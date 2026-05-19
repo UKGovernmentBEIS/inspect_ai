@@ -34,20 +34,27 @@ from acp.schema import (
     SessionNotification,
 )
 
+from inspect_ai.agent._acp._config import ACP_STREAM_BUFFER_LIMIT
 from inspect_ai.agent._acp.discovery import TargetAddress
 from inspect_ai.agent._acp.inspect_ext import (
+    INSPECT_EVENT_METHOD,
     INSPECT_LIST_SESSIONS_METHOD,
     PICKER_META_KEY,
     PLAN_RENDERING_META_KEY,
+    RAW_EVENTS_META_KEY,
 )
 from inspect_ai.agent._acp.tui.state import PendingApproval
 
 CLIENT_INFO = {"name": "inspect-acp-tui", "version": "1"}
 """Sent in ``initialize`` so the server can tailor capability negotiation
-(plan rendering, raw events). The TUI is Inspect-aware; future phases
-may opt into ``inspect.raw_events`` via ``clientCapabilities._meta``."""
+(plan rendering, raw events). The TUI is Inspect-aware."""
 
-CLIENT_CAPABILITIES = {"_meta": {PLAN_RENDERING_META_KEY: True}}
+CLIENT_CAPABILITIES = {
+    "_meta": {
+        PLAN_RENDERING_META_KEY: True,
+        RAW_EVENTS_META_KEY: ["score", "span_begin", "span_end"],
+    }
+}
 """ACP ``clientCapabilities`` advertised in ``initialize``.
 
 The TUI opts in to plan rendering: the server's
@@ -58,6 +65,18 @@ The TUI is not in the server's ``PLAN_RENDERING_CLIENTS`` allowlist
 (which exists for third-party editors we can't ask to opt in
 explicitly — Zed, Toad); ``_meta`` is the right path for first-party
 clients we control.
+
+The TUI also subscribes to ``score``, ``span_begin``, and ``span_end``
+via :data:`RAW_EVENTS_META_KEY`. Score events drive the mid-stream
+score chip. ``span_begin`` is filtered client-side to the per-scorer
+``type="scorer"`` spans so the TUI can mount a ``score · scoring…``
+indicator the moment each scorer begins, giving the operator a
+positive signal that scoring has started rather than the session
+sitting silently in the gap between react-loop exit and the first
+score chip. ``span_end`` clears that indicator when the scorer's span
+closes without a ``ScoreEvent`` (scorer returned ``None`` or raised —
+both legitimate paths that would otherwise leave the indicator pinned
+forever).
 
 ``_meta`` is the JSON wire key; ACP's Pydantic schema serializes it
 from ``ClientCapabilities.field_meta``. We construct the wire shape
@@ -284,6 +303,7 @@ async def attach_session(
     *,
     on_session_update: Callable[[SessionNotification], None] | None = None,
     on_request_permission: Callable[[PendingApproval], None] | None = None,
+    on_inspect_event: Callable[[dict[str, Any]], None] | None = None,
 ) -> AttachedSession:
     """Open a fresh connection bound to ``row.session_id``.
 
@@ -297,6 +317,11 @@ async def attach_session(
       arrange for somebody to call
       :meth:`SessionState.resolve_approval` on the matching tool_call_id
       so this handler can fire its response back over the wire.
+    - ``inspect/event`` (notification, opt-in): ``on_inspect_event``
+      (if given) receives the raw transcript event payload — the TUI
+      subscribes to ``["score"]`` so mid-stream scoring chips can
+      render. The payload is a serialized ``inspect_ai.event.Event``;
+      consumers route by the ``event`` discriminator.
 
     The Connection is constructed with ``listening=False`` so we own
     the receive task and can fire :attr:`AttachedSession.disconnected`
@@ -349,6 +374,25 @@ async def attach_session(
 
         router.add_route(
             Route(method="session/update", func=_func, kind="notification")
+        )
+
+    # Server-side ``inspect/event`` raw firehose. The TUI subscribes to
+    # ``["score"]`` so a scorer firing during the post-agent scoring
+    # phase surfaces as a chip in the transcript. Routed by the
+    # client-supplied callback; the route is always registered so a
+    # late-added subscription has no listener-shape mismatch.
+    if on_inspect_event is not None:
+
+        async def _on_inspect_event(params: Any) -> None:
+            if isinstance(params, dict):
+                on_inspect_event(params)
+
+        router.add_route(
+            Route(
+                method=INSPECT_EVENT_METHOD,
+                func=_on_inspect_event,
+                kind="notification",
+            )
         )
 
     # Server-side ``inspect/session_ended`` notification → flip the
@@ -428,12 +472,18 @@ async def _open_socket(
     Mirrors :func:`inspect_ai.agent._acp.stdio._open_socket` — same
     pattern, separate definition because importing the stdio bridge
     just for one helper would be a cross-module dependency for no
-    architectural reason.
+    architectural reason. Uses the same :data:`ACP_STREAM_BUFFER_LIMIT`
+    so the receive loop survives a multi-hundred-KB ``ScoreEvent`` on
+    swe-bench-style scorers.
     """
     if target.socket_path is not None:
-        return await asyncio.open_unix_connection(str(target.socket_path))
+        return await asyncio.open_unix_connection(
+            str(target.socket_path), limit=ACP_STREAM_BUFFER_LIMIT
+        )
     if target.host is not None and target.port is not None:
-        return await asyncio.open_connection(target.host, target.port)
+        return await asyncio.open_connection(
+            target.host, target.port, limit=ACP_STREAM_BUFFER_LIMIT
+        )
     raise ValueError(f"invalid TargetAddress: {target.describe()}")
 
 

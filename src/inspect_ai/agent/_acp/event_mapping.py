@@ -207,6 +207,74 @@ class _AcpEventRouter:
             self._session.publish(notification)
 
 
+class ReplayTranscriptor:
+    """Stateful per-event mapper: same semantics as :func:`replay_transcript`.
+
+    Holds the depth tracker + dedup id sets so callers can feed events
+    one at a time and still get the same notifications, in the same
+    order, as the batch generator would produce. The point of
+    exposing this per-event entry-point is interleaving: the
+    raw-event firehose and the semantic firehose both replay over the
+    same transcript snapshot, and on a late attach the wire ordering
+    matters (score chips need to appear AFTER the conversation that
+    produced them, not above it). Walking events in source order with
+    both streams dispatching from the same loop preserves that.
+
+    Construct one instance per replay pass — fresh state per call,
+    no shared state with the live router. Mirror the cancellation
+    semantics of :func:`replay_transcript`: per-event ``except
+    Exception`` only, so ``CancelledError`` propagates.
+    """
+
+    def __init__(self, session_id: str, *, filter_subagents: bool = True) -> None:
+        self._session_id = session_id
+        self._filter_subagents = filter_subagents
+        self._tracker = SubagentDepthTracker()
+        self._seen_tool_call_ids: set[str] = set()
+        self._seen_model_event_ids: set[str] = set()
+        self._seen_pending_event_ids: set[str] = set()
+        self._seen_user_message_ids: set[str] = set()
+
+    def process(self, event: Event) -> list[SessionNotification]:
+        """Map one event to its session notifications.
+
+        Returns ``[]`` for events that the depth tracker consumes
+        (span markers) or skips (sub-agent events when filtered).
+        Per-event error boundary mirrors :func:`replay_transcript` —
+        depth-tracker / mapper failures log a warning and yield
+        ``[]`` for that event, keeping the surrounding replay alive.
+        """
+        try:
+            action = self._tracker.process(event)
+        except Exception:
+            logger.warning(
+                "ACP replay: depth tracker failed on one event; skipping",
+                exc_info=True,
+            )
+            return []
+        if action == "consume":
+            return []
+        if action == "skip" and self._filter_subagents:
+            return []
+        try:
+            return list(
+                _map_event(
+                    event,
+                    self._session_id,
+                    self._seen_tool_call_ids,
+                    self._seen_model_event_ids,
+                    self._seen_pending_event_ids,
+                    self._seen_user_message_ids,
+                )
+            )
+        except Exception:
+            logger.warning(
+                "ACP replay: mapping one event failed; skipping",
+                exc_info=True,
+            )
+            return []
+
+
 def replay_transcript(
     events: Sequence[Event],
     session_id: str,
@@ -215,76 +283,19 @@ def replay_transcript(
 ) -> Iterator[SessionNotification]:
     """Map a sequence of past transcript events to session notifications.
 
-    Standalone version of :meth:`_AcpEventRouter._process` for the
-    replay-on-attach path. Each call gets fresh depth-tracking and
-    dedup state — there is no shared state with the live router, so a
-    replay run does not interfere with live event publication.
+    Batch generator wrapper around :class:`ReplayTranscriptor` for the
+    replay-on-attach path. By default applies the same sub-agent depth
+    filter the live router uses; pass ``filter_subagents=False`` to
+    include events emitted inside sub-agent spans (useful for the raw
+    firehose where the caller explicitly opted in).
 
-    By default applies the same sub-agent depth filter the live router
-    uses; pass ``filter_subagents=False`` to include events emitted
-    inside sub-agent spans (useful for the raw-event firehose where
-    callers explicitly opted in for full visibility).
-
-    Per-event isolation: a failure in ``tracker.process`` or in
-    ``_map_event`` for one event logs a warning and is skipped — the
-    iteration continues. This matters because exceptions raised from
-    inside a generator close the generator's frame; without the
-    in-loop catch, one bad event would silently drop every subsequent
-    event for the rest of the replay.
-
-    No explicit cancellation catch: this is a SYNC generator and
-    ``anyio.get_cancelled_exc_class()`` would itself raise
-    ``NoEventLoopError`` if invoked outside an async backend (e.g.
-    from a unit test calling ``list(replay_transcript(...))``).
-    ``asyncio.CancelledError`` / ``trio.Cancelled`` both inherit from
-    ``BaseException`` (not ``Exception``) so ``except Exception`` does
-    not catch them — they propagate through naturally, which is what
-    we want when the consumer IS running under an async backend.
+    Sync generator — ``CancelledError`` propagates naturally
+    (``BaseException`` is not caught by the per-event ``except Exception``
+    inside :class:`ReplayTranscriptor`).
     """
-    tracker = SubagentDepthTracker()
-    seen_tool_call_ids: set[str] = set()
-    seen_model_event_ids: set[str] = set()
-    seen_pending_event_ids: set[str] = set()
-    seen_user_message_ids: set[str] = set()
-
+    transcriptor = ReplayTranscriptor(session_id, filter_subagents=filter_subagents)
     for event in events:
-        try:
-            action = tracker.process(event)
-        except Exception:
-            logger.warning(
-                "ACP replay: depth tracker failed on one event; skipping",
-                exc_info=True,
-            )
-            continue
-        if action == "consume":
-            continue
-        if action == "skip" and filter_subagents:
-            continue
-
-        # Materialize the per-event notifications inside the try so an
-        # exception from the inner ``_map_event`` generator (e.g. a
-        # mapper failure on a malformed event) doesn't propagate out
-        # and close THIS generator. Without ``list(...)``, ``yield
-        # from`` would forward the exception unwrapped.
-        try:
-            notifications = list(
-                _map_event(
-                    event,
-                    session_id,
-                    seen_tool_call_ids,
-                    seen_model_event_ids,
-                    seen_pending_event_ids,
-                    seen_user_message_ids,
-                )
-            )
-        except Exception:
-            logger.warning(
-                "ACP replay: mapping one event failed; skipping",
-                exc_info=True,
-            )
-            continue
-
-        yield from notifications
+        yield from transcriptor.process(event)
 
 
 def _map_event(

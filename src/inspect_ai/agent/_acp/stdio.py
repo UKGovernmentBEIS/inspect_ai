@@ -43,6 +43,7 @@ from logging import getLogger
 
 import anyio
 
+from inspect_ai.agent._acp._config import ACP_STREAM_BUFFER_LIMIT
 from inspect_ai.agent._acp.discovery import TargetAddress
 
 logger = getLogger(__name__)
@@ -57,11 +58,19 @@ async def _open_socket(
     TCP via :func:`asyncio.open_connection`. The caller is responsible
     for translating ``ConnectionRefusedError`` / ``FileNotFoundError``
     into a user-friendly diagnostic.
+
+    ``limit`` overrides asyncio's 64 KiB StreamReader buffer default;
+    see :data:`ACP_STREAM_BUFFER_LIMIT` for why a single JSON-RPC line
+    can easily exceed that on the Inspect transcript firehose.
     """
     if target.socket_path is not None:
-        return await asyncio.open_unix_connection(str(target.socket_path))
+        return await asyncio.open_unix_connection(
+            str(target.socket_path), limit=ACP_STREAM_BUFFER_LIMIT
+        )
     if target.host is not None and target.port is not None:
-        return await asyncio.open_connection(target.host, target.port)
+        return await asyncio.open_connection(
+            target.host, target.port, limit=ACP_STREAM_BUFFER_LIMIT
+        )
     raise ValueError(f"TargetAddress has no connectable address: {target!r}")
 
 

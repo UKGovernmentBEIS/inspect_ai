@@ -197,6 +197,7 @@ class InspectAcpApp(App[None]):
                 row,
                 on_session_update=state.consume,
                 on_request_permission=state.consume_approval_request,
+                on_inspect_event=state.consume_inspect_event,
             )
         except Exception as exc:
             self.notify(f"failed to attach: {exc}", severity="error")

@@ -56,6 +56,7 @@ from inspect_ai.agent._acp.inspect_ext import (
     PICKER_META_KEY,
     USER_SOURCE_META_KEY,
 )
+from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME
 
 # The Generating pill stays visible for this many seconds after the most
 # recent chunk before falling back to Awaiting input. Picked to feel
@@ -346,7 +347,41 @@ class ToolCallState:
         return self.end_time - self.start_time
 
 
-TranscriptItem = Union[MessageGroup, ToolCallState]
+@dataclass
+class ScoreChip:
+    """An inline transcript chip for an emitted ``ScoreEvent``.
+
+    Mid-stream rendering of scoring outcomes (mockup 02e). Mounted at
+    the current end-of-transcript position when an ``inspect/event``
+    notification for a ``ScoreEvent`` arrives, alongside message groups
+    and tool calls. Retention follows the existing turn-cap: chips
+    anchored before the surviving message-group window are evicted in
+    the same sweep as their surrounding turns (see
+    :meth:`SessionState._enforce_turn_cap`).
+    """
+
+    scorer: str | None
+    value: str
+    passed: bool | None
+    """``True`` for the canonical "correct" CORRECT score (``"C"``);
+    ``False`` for ``"I"`` (incorrect); ``None`` for numeric / other
+    non-binary scores where pass/fail isn't meaningful."""
+
+    reason: str | None
+    chip_id: str
+    """Locally-minted unique id so the transcript widget keys its
+    mounted entry without colliding with message_id or
+    tool_call_id."""
+
+    span_id: str | None = None
+    """Transcript span id of the scorer that produced (or is producing)
+    this chip. Set on the per-scorer ``scoring · X…`` indicator chips
+    mounted off ``span_begin(type="scorer")`` so the matching
+    ``span_end`` can identify and remove its indicator without needing
+    a separate tracking field on the surrounding state."""
+
+
+TranscriptItem = Union[MessageGroup, ToolCallState, ScoreChip]
 
 
 _APPROVE_OPTION_IDS = frozenset({"approve", "modify"})
@@ -375,6 +410,22 @@ def _decision_label(
     if option_id in _APPROVE_OPTION_IDS:
         return "approved"
     return "denied"
+
+
+def _format_score_value(value: Any) -> str:
+    """Render a score's ``value`` field as a compact display string.
+
+    Mirrors :meth:`Score.as_str` for scalars; falls back to ``repr``
+    for non-scalar shapes (list / dict) so the chip still has a useful
+    label without truncating wide structures inline.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float, str)):
+        return str(value)
+    return repr(value)
 
 
 class StatusState(str, Enum):
@@ -452,6 +503,29 @@ class SessionState:
         # regardless of in-flight residue — the session is gone and
         # the UI is just a read-only postmortem from that point on.
         self._complete: bool = False
+        # Sticky flag flipped True the first time we see the outer
+        # ``span(name="scorers")`` boundary. Suppresses any later
+        # ``AgentPlanUpdate`` (typically a stale one from semantic
+        # replay during late-attach: raw replay clears the plan via
+        # the scorers boundary, then semantic replay would re-mount
+        # the historical plan that was active mid-agent and the
+        # operator would see the plan resurrect after scoring had
+        # already finished). One-way: a fresh sample on a fresh
+        # session gets a fresh ``SessionState``.
+        self._scoring_started: bool = False
+        # Sticky flag flipped True by ``mark_sample_cancelling`` after
+        # the operator picks a disposition on the ^N cancel-sample bar.
+        # Holds the lifecycle pill on ``running`` between the
+        # operator's choice and the server's ``inspect/session_ended``
+        # notification (which flips ``_complete`` to True). Without it
+        # the optimistic in-flight cleanup would drop the lifecycle to
+        # ``idle`` (or briefly ``interrupted``) even though the sample
+        # is still being torn down server-side — scoring / finalize
+        # are still running and the operator's choice was "wind this
+        # down", not "interrupt this turn". ``_complete`` wins in the
+        # lifecycle resolution so this flag doesn't need explicit
+        # clearing on session end.
+        self._cancelling: bool = False
         # Wall-clock of the most recent moment ``has_active_work`` was
         # True. Used to keep the lifecycle pill on ``running`` through
         # the sub-second micro-gaps between model events and tool
@@ -478,6 +552,25 @@ class SessionState:
         # See :attr:`MessageGroup.is_queued` for the queued ephemeral
         # lifecycle.
         self._queued_counter: int = 0
+        # Monotonic counter for locally-minted score-chip ids. Score
+        # events don't carry stable client-side identity (each chip is
+        # one in-place rendering of a server-emitted ``ScoreEvent``), so
+        # we mint a fresh id per chip — used by the transcript widget
+        # to key its mounted entry.
+        self._score_chip_counter: int = 0
+        # Currently-mounted ``scoring · X…`` indicator chip, if any.
+        # Per-scorer: each ``span_begin(type=SCORER_SPAN_TYPE)`` mounts
+        # a fresh indicator naming the scorer; whichever of the next
+        # ``ScoreEvent`` OR matching ``span_end`` arrives first removes
+        # it. At most one indicator is live at a time — scorers run
+        # sequentially in the task runner's loop, so a fresh begin
+        # always lands after the previous one resolved. Tracked by
+        # reference so the removal path is O(items) but bounded by the
+        # indicator's own lifetime. The originating span id is carried
+        # on the chip itself (``ScoreChip.span_id``) so
+        # ``_consume_span_end`` can recognise its own scorer's closing
+        # event without a separate tracking field on this state object.
+        self._scoring_indicator: ScoreChip | None = None
         self._subscribers: list[Callable[[], None]] = []
 
     # ------------------------------------------------------------------
@@ -511,10 +604,10 @@ class SessionState:
     @property
     def lifecycle(
         self,
-    ) -> Literal["idle", "running", "interrupted", "approval", "complete"]:
+    ) -> Literal["idle", "running", "scoring", "interrupted", "approval", "complete"]:
         """Coarse-grained turn lifecycle for the header pill.
 
-        Five states, in priority order so a true terminal signal
+        Six states, in priority order so a true terminal signal
         always wins over transient turn state, and an operator-blocking
         approval beats general in-flight activity:
 
@@ -525,12 +618,23 @@ class SessionState:
           above ``running`` because the agent is genuinely blocked on
           us — the operator needs to know they're the holdup, not just
           that "something is happening".
+        - ``scoring``: the agent loop has finished and the post-agent
+          scoring phase is running server-side. Latched on the outer
+          ``span(name="scorers")`` boundary; only cleared by
+          ``_complete`` winning above. Ranks above ``running`` and
+          ``_cancelling`` because once we're scoring the user can no
+          longer submit prompts (the server rejects them) and any
+          in-flight residue is incidental to the scoring phase, not
+          the foreground activity.
         - ``running``: at least one model event or tool call is
-          currently in flight (``has_active_work``), OR the last
-          activity was within ``_RUNNING_QUIESCENCE_SECONDS`` (covers
-          the sub-second gap between, e.g., a model event completing
-          and the next tool call starting — without the tail the
-          pill strobed on every micro-gap).
+          currently in flight (``has_active_work``), OR a sample
+          cancel is being torn down server-side (``_cancelling`` —
+          set by the ^N bar; cleared implicitly when ``_complete``
+          arrives and wins above), OR the last activity was within
+          ``_RUNNING_QUIESCENCE_SECONDS`` (covers the sub-second gap
+          between, e.g., a model event completing and the next tool
+          call starting — without the tail the pill strobed on every
+          micro-gap).
         - ``interrupted``: the operator hit Esc during a turn and
           no fresh content has arrived since. Checked *before* the
           quiescence tail so an Esc immediately reads as interrupted
@@ -544,7 +648,11 @@ class SessionState:
             return "complete"
         if self._has_pending_approval():
             return "approval"
+        if self._scoring_started:
+            return "scoring"
         if self.has_active_work:
+            return "running"
+        if self._cancelling:
             return "running"
         if self._interrupted:
             return "interrupted"
@@ -617,6 +725,16 @@ class SessionState:
         # post-clear / pre-complete state would imply.
         self._clear_pending_approvals()
         self._drop_queued_user_messages()
+        # Drop any still-mounted ``scoring · X…`` indicator. The
+        # indicator's normal lifecycle is begin → mount → ScoreEvent
+        # replaces → unmount. If the connection drops mid-scorer (or
+        # the server's ScoreEvent never reaches us for any reason),
+        # the indicator gets stranded and the operator sees "scoring
+        # · X…" pinned forever, even though the session pill has
+        # flipped to ``complete``. Clear it on the terminal transition
+        # so the postmortem view doesn't show a phantom in-progress
+        # scorer.
+        self._remove_scoring_indicator()
         self._notify()
 
     def enqueue_queued_user_message(self, text: str) -> "_QueuedEnqueueHandle":
@@ -748,7 +866,7 @@ class SessionState:
         actually produces content before the cancel lands, the next
         chunk just re-establishes pending state honestly.
 
-        Five things change:
+        Six things change:
         - pending message groups with no content yet are *dropped*
           entirely (the empty "assistant is thinking" bubble is just
           chrome once we know the turn was cancelled before any text
@@ -758,9 +876,6 @@ class SessionState:
           :attr:`StatusState.GENERATING`).
         - in-flight tool calls are marked ``failed`` with ``end_time``
           stamped so the card stops spinning.
-        - the inter-chunk quiescence timer is reset so the
-          quiescence-based ``GENERATING`` branch doesn't keep firing
-          until the timer expires on its own.
         - any pending approvals are resolved with
           ``cancelled=True``. Without this, an Esc during a
           pending approval would leave the client-side JSON-RPC
@@ -769,6 +884,74 @@ class SessionState:
           inline section's action buttons visible on a card the
           operator just told us to abandon. Esc means "stop
           what's happening" — that includes the approval.
+        - the inter-chunk quiescence timer is reset so the
+          quiescence-based ``GENERATING`` branch doesn't keep firing
+          until the timer expires on its own.
+        - ``_interrupted`` flips to True so the lifecycle pill reads
+          ``interrupted`` (instead of falling back to ``idle`` once
+          ``has_active_work`` is False).
+        """
+        changed = self._clear_active_work_signals()
+        if self._last_chunk_at is not None:
+            self._last_chunk_at = None
+            changed = True
+        # Reset the running-quiescence stamp too: without this, after
+        # ``_interrupted`` clears (on the next real chunk), a stale
+        # stamp from before the Esc would briefly extend the
+        # ``running`` tail past a genuinely-idle gap.
+        if self._last_running_at is not None:
+            self._last_running_at = None
+            changed = True
+        # ``_interrupted`` flips to True regardless of ``changed`` so
+        # the lifecycle indicator reflects the Esc even if no in-flight
+        # work was actually torn down (operator pressed Esc twice, or
+        # a quiescence-tail Esc that was previously gated out).
+        if not self._interrupted:
+            self._interrupted = True
+            changed = True
+        if changed:
+            self._notify()
+
+    def mark_sample_cancelling(self) -> None:
+        """Optimistically clear in-flight signals after a ^N cancel-sample choice.
+
+        Sibling to :meth:`mark_interrupted` but with two key
+        differences for the cancel-sample (not cancel-turn) flow:
+
+        - ``_interrupted`` is **not** flipped. The operator's choice
+          was "wind this sample down", not "interrupt this turn" —
+          flagging the lifecycle as ``interrupted`` would mis-name a
+          shutdown in progress.
+        - ``_cancelling`` is flipped instead, so the lifecycle pill
+          keeps reading ``running`` until the server's
+          ``inspect/session_ended`` arrives and flips ``_complete``
+          (which wins in lifecycle resolution). Scoring and finalize
+          are still running server-side during this window, so
+          ``running`` is the honest description.
+
+        Otherwise identical to :meth:`mark_interrupted`'s cleanup —
+        empty pending groups are dropped, in-flight tool calls are
+        stamped failed, pending approvals resolve as cancelled — so
+        the visible chrome (spinning chip, ticking timers, lingering
+        approve buttons) stops instantly rather than hanging until
+        the cancel propagates back through the wire.
+        """
+        changed = self._clear_active_work_signals()
+        if not self._cancelling:
+            self._cancelling = True
+            changed = True
+        if changed:
+            self._notify()
+
+    def _clear_active_work_signals(self) -> bool:
+        """Drop in-flight signals — shared core of the two cancel paths.
+
+        Returns whether anything actually changed. Does NOT touch
+        ``_interrupted`` / ``_cancelling`` / ``_last_running_at`` /
+        ``_last_chunk_at`` — those are owned by the public callers
+        (:meth:`mark_interrupted` and :meth:`mark_sample_cancelling`)
+        because the two paths want different lifecycle dispositions
+        after the cleanup.
         """
         changed = False
         empty_pending_ids: list[str] = []
@@ -793,16 +976,6 @@ class SessionState:
         if self._pending_message_ids:
             self._pending_message_ids.clear()
             changed = True
-        if self._last_chunk_at is not None:
-            self._last_chunk_at = None
-            changed = True
-        # Reset the running-quiescence stamp too: without this, after
-        # ``_interrupted`` clears (on the next real chunk), a stale
-        # stamp from before the Esc would briefly extend the
-        # ``running`` tail past a genuinely-idle gap.
-        if self._last_running_at is not None:
-            self._last_running_at = None
-            changed = True
         now = self._now()
         for tc in self._tool_calls_by_id.values():
             if tc.status in ("pending", "in_progress"):
@@ -812,21 +985,13 @@ class SessionState:
                 changed = True
         # Resolve any in-flight approvals as cancelled — same
         # rationale as ``mark_complete``. Goes through the no-notify
-        # batch helper so we can flip ``_interrupted`` below in the
+        # batch helper so callers can flip their lifecycle bit in the
         # SAME tick; otherwise the per-approval notify would expose
         # a transient ``lifecycle == 'idle'`` to subscribers (pending
-        # cleared, ``_interrupted`` not yet True).
+        # cleared, lifecycle bit not yet set).
         if self._clear_pending_approvals():
             changed = True
-        # ``_interrupted`` flips to True regardless of ``changed`` so
-        # the lifecycle indicator reflects the Esc even if no in-flight
-        # work was actually torn down (operator pressed Esc twice, or
-        # a quiescence-tail Esc that was previously gated out).
-        if not self._interrupted:
-            self._interrupted = True
-            changed = True
-        if changed:
-            self._notify()
+        return changed
 
     def _drop_message_groups(self, message_ids: list[str]) -> set[str]:
         """Remove the named groups from ``items`` and the lookup indexes.
@@ -918,6 +1083,188 @@ class SessionState:
             if was_active or self.has_active_work:
                 self._last_running_at = self._now()
             self._notify()
+
+    def consume_inspect_event(self, event: dict[str, Any]) -> None:
+        """Route an ``inspect/event`` raw transcript payload.
+
+        Called from the client-side ``inspect/event`` JSON-RPC route
+        handler in :func:`attach_session`. Branches on the standard
+        ``event`` discriminator. Currently routes ``"score"`` (score
+        chip), ``"span_begin"`` (scoring-phase boundary + per-scorer
+        indicator), and ``"span_end"`` (clear the indicator when its
+        scorer returned ``None`` / raised — no ``ScoreEvent`` ever
+        fired). Future event types add branches here.
+        """
+        kind = event.get("event")
+        if kind == "score":
+            self.consume_score_event(event)
+        elif kind == "span_begin":
+            self._consume_span_begin(event)
+        elif kind == "span_end":
+            self._consume_span_end(event)
+
+    def _consume_span_begin(self, event: dict[str, Any]) -> None:
+        """Filter ``span_begin`` events to scoring-phase boundaries.
+
+        Two scoring spans matter to the operator:
+
+        1. The outer ``span(name="scorers")`` — opens once when the
+           scoring phase begins. We use it to clear the plan strip:
+           the agent loop has finished, so a still-mounted plan would
+           mislead the operator into thinking work was still in
+           progress. Clearing on the scoring boundary keeps the plan
+           visible right up until scoring starts.
+        2. The inner ``span(name=<scorer>, type="scorer")`` — opens
+           per scorer in turn. We use it to mount a ``scoring · X…``
+           indicator chip; the next ``ScoreEvent`` replaces it. If
+           scoring errors before a score lands, the indicator persists
+           as the last-recorded "what was running" signal — exactly
+           what the operator needs.
+
+        Disambiguation: ``span(name="scorers")`` is opened without a
+        ``type`` argument, but :func:`util._span.span` defaults
+        ``type`` to ``name`` when omitted — so the wire payload
+        carries ``type="scorers"`` (not ``None``). The inner spans
+        carry ``type="scorer"`` (singular). The check uses the
+        singular/plural distinction to tell them apart.
+
+        The wire firehose forwards every span begin (agent / tool /
+        sub-agent / framework / etc.); everything outside the two
+        cases above is silently dropped.
+        """
+        name = event.get("name")
+        span_type = event.get("type")
+        # Outer scoring boundary — agent loop is done. Drop the plan
+        # strip; leaving it up reads as "still working on it" even
+        # though we've moved on to the post-agent scoring phase.
+        # ``_scoring_started`` latches so any later replayed
+        # ``AgentPlanUpdate`` (semantic replay can arrive AFTER raw
+        # replay on late-attach) is suppressed by
+        # ``_consume_plan_update`` rather than resurrecting the plan.
+        if name == SCORERS_SPAN_NAME and span_type == SCORERS_SPAN_NAME:
+            changed = not self._scoring_started
+            self._scoring_started = True
+            if self.plan_entries is not None:
+                self.plan_entries = None
+                changed = True
+            if changed:
+                self._notify()
+            return
+        # Per-scorer indicator.
+        if span_type != SCORER_SPAN_TYPE:
+            return
+        if not isinstance(name, str) or not name:
+            return
+        # Defensive — drop any prior indicator that the previous
+        # ScoreEvent / span_end didn't clear. The new scorer's
+        # indicator takes its place.
+        self._remove_scoring_indicator()
+        self._score_chip_counter += 1
+        span_id = event.get("id")
+        chip = ScoreChip(
+            scorer=None,
+            value="",
+            passed=None,
+            reason=f"scoring · {name}…",
+            chip_id=f"score-{self._score_chip_counter}",
+            span_id=span_id if isinstance(span_id, str) else None,
+        )
+        self.items.append(chip)
+        self._scoring_indicator = chip
+        self._notify()
+
+    def _consume_span_end(self, event: dict[str, Any]) -> None:
+        """Clear the per-scorer indicator when its span closes.
+
+        Covers the cases where the scorer span ended without firing a
+        ``ScoreEvent`` — most commonly because the scorer returned
+        ``None`` (legitimate; some scorers opt out per-sample) or
+        raised. Without this, the indicator would persist past the
+        scorer's actual lifetime, telling the operator "scoring · X…"
+        is still running when X has already moved on. Only the
+        matching span id clears — unrelated span_ends (agent / tool /
+        outer scorers boundary) are ignored.
+        """
+        if self._scoring_indicator is None:
+            return
+        if event.get("id") != self._scoring_indicator.span_id:
+            return
+        self._remove_scoring_indicator()
+        self._notify()
+
+    def _remove_scoring_indicator(self) -> None:
+        """Drop the currently-mounted ``scoring · X…`` indicator, if any.
+
+        Identified by tracked reference so we never miss-remove a
+        sibling chip with a similar reason. No-op when no indicator is
+        live (the normal "between samples" / "no scoring yet" state).
+        Caller is responsible for the surrounding ``_notify()`` —
+        :meth:`consume_score_event` batches removal + mount into one
+        update.
+        """
+        if self._scoring_indicator is None:
+            return
+        try:
+            self.items.remove(self._scoring_indicator)
+        except ValueError:
+            # Already evicted by the turn-cap, or never made it into
+            # items for some reason. Either way the slot is gone.
+            pass
+        self._scoring_indicator = None
+
+    def consume_score_event(self, event: dict[str, Any]) -> None:
+        """Mount an inline ScoreChip from a serialized ``ScoreEvent``.
+
+        Inserts a new chip at the current end of :attr:`items`. No
+        separate accumulator: chips rotate with the existing
+        ``_MAX_ASSISTANT_TURNS`` conversation window (chips anchored
+        before the surviving message-group window are evicted in the
+        same sweep — see :meth:`_enforce_turn_cap`).
+
+        Score payload shape mirrors ``inspect_ai.event.ScoreEvent``
+        serialized to JSON via Pydantic: ``score.value`` is a scalar or
+        list/dict; ``scorer`` is the scorer name; ``score.explanation``
+        carries the reason. The chip extracts a display-friendly
+        triple ``(scorer, value, passed, reason)`` — pass/fail is
+        derived from the canonical ``"C"`` / ``"I"`` CORRECT score
+        values, ``None`` for anything else.
+
+        If a ``scoring…`` indicator chip is currently mounted (from a
+        prior ``span_begin(name="scorers")``), it's removed in the
+        same tick — the real score chip supersedes the placeholder so
+        a fast scorer doesn't leave a redundant breadcrumb above its
+        own result. The indicator only persists during the gap
+        between scoring-phase-begin and the first actual score.
+        """
+        score = event.get("score") or {}
+        raw_value = score.get("value")
+        value_str = _format_score_value(raw_value)
+        passed: bool | None
+        if isinstance(raw_value, str) and raw_value in ("C", "I"):
+            passed = raw_value == "C"
+        else:
+            passed = None
+        scorer = event.get("scorer")
+        if not isinstance(scorer, str) or not scorer:
+            scorer = None
+        reason = score.get("explanation")
+        if not isinstance(reason, str) or not reason:
+            reason = None
+        # Replace the live "scoring · <scorer>…" indicator (if any) —
+        # the real score chip is the better signal now that it's
+        # arrived. The next per-scorer ``span_begin`` will mount a
+        # fresh indicator for the next scorer.
+        self._remove_scoring_indicator()
+        self._score_chip_counter += 1
+        chip = ScoreChip(
+            scorer=scorer,
+            value=value_str,
+            passed=passed,
+            reason=reason,
+            chip_id=f"score-{self._score_chip_counter}",
+        )
+        self.items.append(chip)
+        self._notify()
 
     # ------------------------------------------------------------------
     # Approval handshake
@@ -1534,6 +1881,8 @@ class SessionState:
                 dropped_message_ids.add(item.message_id)
             elif isinstance(item, ToolCallState):
                 self._tool_calls_by_id.pop(item.tool_call_id, None)
+            # ScoreChips have no side-state to clean up beyond removal
+            # from ``items`` — they live only here.
         # Strip retry-collapse aliases that point at dropped groups —
         # leaving them would silently route future (rare, late)
         # chunks for those ids back into thin air.
@@ -1558,6 +1907,17 @@ class SessionState:
         return True
 
     def _consume_plan_update(self, update: AgentPlanUpdate) -> bool:
+        # Suppress plan updates that arrive AFTER the scoring boundary
+        # has fired. Concretely this is the late-attach replay race:
+        # the raw-event firehose replays its events first (clearing
+        # the plan via ``span_begin(name="scorers")``) and the
+        # semantic firehose replays after that (which would otherwise
+        # re-mount the historical AgentPlanUpdate that was live
+        # mid-agent — the operator would see the plan resurrect after
+        # scoring had already finished). Once scoring has started,
+        # any plan update is stale.
+        if self._scoring_started:
+            return False
         # Full replacement (ACP plan updates are not deltas). Copy the
         # list so the caller's PlanEntry instances are decoupled from
         # ours — guards against later mutation by the schema layer or

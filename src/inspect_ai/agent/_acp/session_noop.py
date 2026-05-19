@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import contextlib
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Callable, Iterator, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Iterator, Literal, Sequence
 
 import anyio
 from anyio.streams.memory import MemoryObjectReceiveStream
@@ -96,11 +96,15 @@ class NoOpAcpSession:
         """No-op submit — message is discarded."""
         return None
 
-    def cancel_current_turn(self) -> None:
+    def cancel_current_turn(
+        self,
+        cause: Literal["user_cancel", "limit", "system"] = "user_cancel",
+    ) -> None:
         """No-op cancel.
 
         Does not call ``record_interrupt_event`` — sub-agents must not
-        emit cancel events into the top-level transcript.
+        emit cancel events into the top-level transcript. ``cause`` is
+        accepted to match :class:`LiveAcpSession` but is discarded.
         """
         return None
 
@@ -137,6 +141,11 @@ class NoOpAcpSession:
     @property
     def interrupt_pending(self) -> bool:
         """No-op session never has a pending interrupt."""
+        return False
+
+    @property
+    def agent_completed(self) -> bool:
+        """No-op session has no lifecycle to complete."""
         return False
 
     def subscribe_interrupted(self, callback: Callable[[], None]) -> Callable[[], None]:

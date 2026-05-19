@@ -412,7 +412,7 @@ async def test_session_cancel_notification_forwards_to_cancel_current_turn(
     """A bound `session/cancel` notification calls cancel_current_turn."""
     session, _tr = _make_live_session_with_transcript()
     cancel_calls: list[None] = []
-    session.cancel_current_turn = lambda: cancel_calls.append(None)  # type: ignore[method-assign]
+    session.cancel_current_turn = lambda cause="user_cancel": cancel_calls.append(None)  # type: ignore[method-assign]
 
     register_target(
         _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
@@ -1245,6 +1245,62 @@ async def test_session_ended_notification_fires_when_live_session_exits(
             # guard can match.
             assert isinstance(notif["params"]["sessionId"], str)
             assert notif["params"]["sessionId"]
+        finally:
+            await client.close()
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: score events forwarded post-agent reach a subscribed client
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@unix_only
+async def test_score_event_post_agent_reaches_subscribed_client(
+    short_data_dir: Path, register_target
+) -> None:
+    """End-to-end: a client subscribed to ``["score"]`` sees ``inspect/event``.
+
+    Pinned because this is the load-bearing combination of Phase 5's
+    server-side split-phase teardown (router + pubsub stay alive
+    past the agent's exit) and the subscription filter — without both,
+    the score event would either never be emitted (router torn down
+    too early) or would be filtered out (no opt-in subscription).
+    Here we just emit a score event live on the bound session's
+    transcript and assert it arrives.
+    """
+    from inspect_ai.event._score import ScoreEvent
+    from inspect_ai.scorer._metric import Score
+
+    session, tr = _make_live_session_with_transcript()
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    async with acp_server(eval_id="evt-score-e2e", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client, meta={"inspect.raw_events": ["score"]})
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(client)
+
+            tr._event(
+                ScoreEvent(
+                    score=Score(value="C", explanation="exact match"),
+                    scorer="exact-match",
+                )
+            )
+
+            # Drain notifications until we find the inspect/event.
+            for _ in range(5):
+                notif = await client.next_notification(timeout=2.0)
+                if notif["method"] == "inspect/event":
+                    assert notif["params"]["event"] == "score"
+                    assert notif["params"]["scorer"] == "exact-match"
+                    assert notif["params"]["score"]["value"] == "C"
+                    break
+            else:
+                raise AssertionError("no inspect/event notification arrived")
         finally:
             await client.close()
 

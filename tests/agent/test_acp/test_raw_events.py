@@ -2,9 +2,9 @@
 
 Tests the per-connection raw forwarder that subscribes to the bound
 target's transcript and pushes each transcript event out as an
-``inspect/event`` JSON-RPC notification when the client signals
-``clientCapabilities._meta["inspect.raw_events"]: true`` at
-initialize.
+``inspect/event`` JSON-RPC notification when the client signals a
+non-empty ``clientCapabilities._meta["inspect.raw_events"]`` event-type
+subscription list at initialize.
 
 Key contracts under test:
 - opt-in detection
@@ -193,14 +193,26 @@ def _make_live_session() -> tuple[LiveAcpSession, Transcript]:
 
 
 async def _initialize(
-    client: _RpcClient, *, raw_events: bool = False, client_name: str = "test"
+    client: _RpcClient,
+    *,
+    raw_events: bool | list[str] = False,
+    client_name: str = "test",
 ) -> None:
+    """Send the ACP initialize handshake.
+
+    ``raw_events`` is either ``False`` (no opt-in), ``True`` (glob —
+    the test asks for all events), or a list of event-type names to
+    subscribe to. The legacy bool form is kept here as test-side
+    convenience — it's mapped to the list shape on the way out.
+    """
     params: dict[str, Any] = {
         "protocolVersion": 1,
         "clientInfo": {"name": client_name, "version": "0.0"},
     }
-    if raw_events:
-        params["clientCapabilities"] = {"_meta": {"inspect.raw_events": True}}
+    if raw_events is True:
+        params["clientCapabilities"] = {"_meta": {"inspect.raw_events": ["*"]}}
+    elif isinstance(raw_events, list):
+        params["clientCapabilities"] = {"_meta": {"inspect.raw_events": raw_events}}
     await client.request("initialize", params)
 
 
@@ -515,5 +527,271 @@ async def test_raw_forwarder_surfaces_compaction_event(
 
             # Prior ModelEvent is unchanged (still has "original-text").
             assert pre.output.choices[0].message.text == "original-text"
+        finally:
+            await client.close()
+
+
+# ---------------------------------------------------------------------------
+# Subscription shape (list[str]): glob, named types, empty, malformed
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@unix_only
+async def test_raw_events_subscription_filters_named_types(
+    short_data_dir: Path, register_target
+) -> None:
+    """``["score"]`` subscription forwards only score events.
+
+    Events of other types are silently dropped at the forwarder
+    (no ``inspect/event`` notification arrives for them). This is the
+    Phase 5 mid-stream score-chip wiring.
+    """
+    from inspect_ai.event._score import ScoreEvent
+    from inspect_ai.scorer._metric import Score
+
+    session, tr = _make_live_session()
+    register_target(_make_active_sample(acp_session=session))
+    async with acp_server(eval_id="evt-raw-sub-score", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client, raw_events=["score"])
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await client.next_notification()  # bind confirmation
+
+            # An info event is OUT of the subscription — no notification.
+            tr._event(InfoEvent(source="filtered-out", data={"x": 1}))
+            # A score event is in — should surface.
+            tr._event(
+                ScoreEvent(
+                    score=Score(value="C", explanation="passed test"),
+                    scorer="exact-match",
+                )
+            )
+            notif = await _drain_until(client, "inspect/event")
+            assert notif is not None
+            assert notif["params"]["event"] == "score"
+            assert notif["params"]["scorer"] == "exact-match"
+            # No follow-on inspect/event (the info one should have been
+            # filtered).
+            extra = await _drain_until(client, "inspect/event", timeout=0.3)
+            assert extra is None
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_raw_events_subscription_multiple_named_types(
+    short_data_dir: Path, register_target
+) -> None:
+    """``["score", "interrupt"]`` forwards both — order preserved."""
+    from inspect_ai.event._score import ScoreEvent
+    from inspect_ai.scorer._metric import Score
+
+    session, tr = _make_live_session()
+    register_target(_make_active_sample(acp_session=session))
+    async with acp_server(eval_id="evt-raw-sub-multi", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client, raw_events=["score", "interrupt"])
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await client.next_notification()  # bind confirmation
+
+            tr._event(InfoEvent(source="filtered", data={"x": 1}))
+            tr._event(InterruptEvent(source="user_cancel", interrupted="between_turns"))
+            tr._event(
+                ScoreEvent(
+                    score=Score(value=0.5),
+                    scorer="numeric-scorer",
+                )
+            )
+            seen: list[str] = []
+            for _ in range(2):
+                notif = await _drain_until(client, "inspect/event", timeout=2.0)
+                assert notif is not None
+                seen.append(notif["params"]["event"])
+            assert sorted(seen) == ["interrupt", "score"]
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_raw_events_subscription_empty_list_is_no_subscription(
+    short_data_dir: Path, register_target
+) -> None:
+    """An explicit empty list is treated as no subscription.
+
+    Mirrors missing — the forwarder isn't even constructed, so no
+    transcript subscriber is registered.
+    """
+    session, tr = _make_live_session()
+    register_target(_make_active_sample(acp_session=session))
+    initial_subs = len(tr._additional_subscribers)
+    async with acp_server(eval_id="evt-raw-sub-empty", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client, raw_events=[])
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await client.next_notification()  # bind confirmation
+            # No subscriber registered.
+            assert len(tr._additional_subscribers) == initial_subs
+            tr._event(InfoEvent(source="ignored", data={"x": 1}))
+            extra = await _drain_until(client, "inspect/event", timeout=0.3)
+            assert extra is None
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+async def test_raw_forwarder_drain_blocks_until_pending_items_sent() -> None:
+    """``RawEventForwarder.drain()`` blocks until all buffered items have been sent.
+
+    Pins the EOF ordering guarantee from
+    ``Forwarders._run_semantic_forwarder``: late raw events (notably
+    ``ScoreEvent`` / ``SampleLimitEvent`` from the post-agent scoring
+    phase) MUST reach the wire before the ``inspect/session_ended``
+    notification flips the client's lifecycle pill to ``complete``.
+
+    Setup: a ``RawEventForwarder`` whose ``send_notification`` is
+    gated by an anyio.Event so we can observe drain blocking. Enqueue
+    a payload, start the drain, confirm it's pending, release the
+    gate, confirm drain returns and the payload was sent.
+    """
+    import anyio
+
+    from inspect_ai.agent._acp.inspect_ext import (
+        INSPECT_EVENT_METHOD,
+        RAW_EVENTS_GLOB,
+        RawEventForwarder,
+    )
+
+    release = anyio.Event()
+    sent: list[tuple[str, dict[str, Any]]] = []
+
+    class _GatedConn:
+        async def send_notification(self, method: str, payload: dict[str, Any]) -> None:
+            sent.append((method, payload))
+            await release.wait()
+
+    forwarder = RawEventForwarder(
+        _GatedConn(),  # type: ignore[arg-type]
+        subscription=frozenset({RAW_EVENTS_GLOB}),
+    )
+    # Bypass attach() — we hand the bridge stream in directly so we
+    # can push payloads without standing up a full LiveAcpSession.
+    import math
+
+    send, recv = anyio.create_memory_object_stream[Any](max_buffer_size=math.inf)
+    forwarder._send = send
+    forwarder._recv = recv
+    forwarder.start("target-x")
+    try:
+        # Push a payload; the forwarder picks it up and parks inside
+        # the gated send.
+        send.send_nowait({"event": "score", "value": "C"})
+        deadline = asyncio.get_event_loop().time() + 1.0
+        while not sent:
+            if asyncio.get_event_loop().time() > deadline:
+                raise AssertionError("raw forwarder did not start processing within 1s")
+            await asyncio.sleep(0)
+
+        drain_task = asyncio.create_task(forwarder.drain())
+        await asyncio.sleep(0)
+        assert not drain_task.done(), (
+            "drain() returned while the raw forwarder was parked mid-send"
+        )
+
+        release.set()
+        await asyncio.wait_for(drain_task, timeout=1.0)
+        assert sent == [(INSPECT_EVENT_METHOD, {"event": "score", "value": "C"})]
+    finally:
+        if not release.is_set():
+            release.set()
+        await forwarder.stop()
+
+
+@skip_if_trio
+async def test_raw_forwarder_drain_noop_when_buffer_empty() -> None:
+    """``drain()`` returns immediately when nothing is in flight."""
+    import math
+
+    import anyio
+
+    from inspect_ai.agent._acp.inspect_ext import RAW_EVENTS_GLOB, RawEventForwarder
+
+    class _NoopConn:
+        async def send_notification(self, method: str, payload: dict[str, Any]) -> None:
+            return None
+
+    forwarder = RawEventForwarder(
+        _NoopConn(),  # type: ignore[arg-type]
+        subscription=frozenset({RAW_EVENTS_GLOB}),
+    )
+    send, recv = anyio.create_memory_object_stream[Any](max_buffer_size=math.inf)
+    forwarder._send = send
+    forwarder._recv = recv
+    forwarder.start("target-x")
+    try:
+        # No payloads pushed → drain is a no-op.
+        await asyncio.wait_for(forwarder.drain(), timeout=1.0)
+    finally:
+        await forwarder.stop()
+
+
+@skip_if_trio
+async def test_raw_forwarder_drain_noop_when_not_started() -> None:
+    """``drain()`` is safe to call on a forwarder that never started."""
+    from inspect_ai.agent._acp.inspect_ext import RAW_EVENTS_GLOB, RawEventForwarder
+
+    class _NoopConn:
+        async def send_notification(self, method: str, payload: dict[str, Any]) -> None:
+            return None
+
+    forwarder = RawEventForwarder(
+        _NoopConn(),  # type: ignore[arg-type]
+        subscription=frozenset({RAW_EVENTS_GLOB}),
+    )
+    # No attach(), no start() — drain should still return immediately.
+    await asyncio.wait_for(forwarder.drain(), timeout=1.0)
+
+
+@skip_if_trio
+@unix_only
+async def test_raw_events_legacy_bool_is_malformed(
+    short_data_dir: Path, register_target
+) -> None:
+    """The legacy ``true`` form is treated as malformed: no subscription.
+
+    Older clients that send ``inspect.raw_events: true`` (the
+    pre-Phase 5 shape) now get nothing — the server treats the bool
+    as malformed and logs a warning. Pinned so we can spot any
+    regression where the legacy shape silently still works.
+    """
+    session, tr = _make_live_session()
+    register_target(_make_active_sample(acp_session=session))
+    initial_subs = len(tr._additional_subscribers)
+    async with acp_server(eval_id="evt-raw-sub-legacy", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            # Hand-craft an initialize payload carrying the legacy bool
+            # — the helper now wraps lists, so go through the raw shape.
+            params: dict[str, Any] = {
+                "protocolVersion": 1,
+                "clientInfo": {"name": "legacy", "version": "0.0"},
+                "clientCapabilities": {"_meta": {"inspect.raw_events": True}},
+            }
+            await client.request("initialize", params)
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await client.next_notification()  # bind confirmation
+            assert len(tr._additional_subscribers) == initial_subs
+            tr._event(InfoEvent(source="ignored", data={"x": 1}))
+            extra = await _drain_until(client, "inspect/event", timeout=0.3)
+            assert extra is None
         finally:
             await client.close()

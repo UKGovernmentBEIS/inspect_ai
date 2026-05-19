@@ -312,8 +312,8 @@ async def test_generic_acp_client_full_picker_flow(
     cancel_calls_b: list[None] = []
     live_a.submit_user_message = lambda msg: submit_calls_a.append(msg)  # type: ignore[method-assign]
     live_b.submit_user_message = lambda msg: submit_calls_b.append(msg)  # type: ignore[method-assign]
-    live_a.cancel_current_turn = lambda: cancel_calls_a.append(None)  # type: ignore[method-assign]
-    live_b.cancel_current_turn = lambda: cancel_calls_b.append(None)  # type: ignore[method-assign]
+    live_a.cancel_current_turn = lambda cause="user_cancel": cancel_calls_a.append(None)  # type: ignore[method-assign]
+    live_b.cancel_current_turn = lambda cause="user_cancel": cancel_calls_b.append(None)  # type: ignore[method-assign]
 
     sample_a = _make_active_sample(
         task="task_alpha", sample_id="s1", epoch=0, acp_session=live_a

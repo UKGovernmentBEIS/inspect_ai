@@ -1781,6 +1781,101 @@ def test_lifecycle_complete_beats_approval() -> None:
     assert state.lifecycle == "complete"
 
 
+def test_lifecycle_scoring_after_outer_scoring_boundary() -> None:
+    """The outer ``scorers`` span boundary flips lifecycle to ``scoring``.
+
+    Once the agent loop has finished and the scoring phase begins, the
+    pill should read ``scoring`` so the operator sees a distinct phase
+    instead of an idle / quiescent-running state. The server-side prompt
+    handler rejects further messages once the agent has parked, so the
+    pill needs to reflect that input is no longer live.
+    """
+    state = SessionState()
+    state.consume_inspect_event(
+        {
+            "event": "span_begin",
+            "id": "span-outer",
+            "name": "scorers",
+            "type": "scorers",
+        }
+    )
+    assert state.lifecycle == "scoring"
+
+
+def test_lifecycle_complete_beats_scoring() -> None:
+    """A terminated session wins over the scoring latch.
+
+    Scoring is a transient post-agent phase; ``complete`` is the
+    terminal lifecycle. The session_ended notification flips
+    ``_complete`` and the pill should immediately read ``complete``
+    even though ``_scoring_started`` is still latched True.
+    """
+    state = SessionState()
+    state.consume_inspect_event(
+        {
+            "event": "span_begin",
+            "id": "span-outer",
+            "name": "scorers",
+            "type": "scorers",
+        }
+    )
+    state.mark_complete()
+    assert state.lifecycle == "complete"
+
+
+def test_lifecycle_approval_beats_scoring() -> None:
+    """Approval blocks even mid-scoring: the operator is the holdup.
+
+    Scoring's per-sample scorers can themselves issue
+    ``request_permission`` calls (e.g. a model-graded scorer that
+    needs operator sign-off on a tool action). When that happens the
+    pill should pivot to ``approval`` so the operator knows the
+    scoring phase is paused waiting on them, not just chugging along.
+    """
+    state = SessionState()
+    state.consume_inspect_event(
+        {
+            "event": "span_begin",
+            "id": "span-outer",
+            "name": "scorers",
+            "type": "scorers",
+        }
+    )
+    req = _permission_request("tc-1")
+    state.consume_approval_request(_pending(req))
+    assert state.lifecycle == "approval"
+
+
+def test_lifecycle_scoring_beats_running_quiescence_tail() -> None:
+    """Scoring wins over the ``running`` quiescence tail.
+
+    Without explicit priority, the post-agent state (no active work,
+    fresh ``_last_running_at`` from the last in-flight signal) could
+    have fallen back into the quiescence-tail ``running`` branch and
+    masked the scoring phase. Scoring is a distinct, more informative
+    phase than warm-running, and the pill should surface it.
+    """
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_pending_signal("m1"))
+    state.consume(_agent_chunk("done", message_id="m1"))
+    # Still within the quiescence tail. Capture into a local each
+    # time so mypy doesn't narrow ``state.lifecycle`` based on the
+    # prior assert.
+    lc1: str = state.lifecycle
+    assert lc1 == "running"
+    state.consume_inspect_event(
+        {
+            "event": "span_begin",
+            "id": "span-outer",
+            "name": "scorers",
+            "type": "scorers",
+        }
+    )
+    lc2: str = state.lifecycle
+    assert lc2 == "scoring"
+
+
 def test_consume_approval_request_notifies_subscribers() -> None:
     """State change fires the subscriber so the screen can re-render."""
     state = SessionState()

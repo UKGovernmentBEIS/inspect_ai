@@ -210,14 +210,19 @@ async def test_attach_session_binds_via_session_load(
 # ---------------------------------------------------------------------------
 
 
-def test_client_capabilities_advertises_plan_rendering() -> None:
-    """Unit check: the constant ships ``inspect.plan_rendering = True``.
+def test_client_capabilities_advertises_plan_rendering_and_score_subscription() -> None:
+    """Unit check: the constant ships ``inspect.plan_rendering`` + score subscription.
 
     Both ``_list_for_target`` and ``attach_session`` send this dict
     verbatim in their ``initialize`` request, so a single
     structure-level assertion covers both code paths.
     """
-    assert CLIENT_CAPABILITIES == {"_meta": {"inspect.plan_rendering": True}}
+    assert CLIENT_CAPABILITIES == {
+        "_meta": {
+            "inspect.plan_rendering": True,
+            "inspect.raw_events": ["score", "span_begin", "span_end"],
+        }
+    }
 
 
 @skip_if_trio
@@ -236,7 +241,9 @@ async def test_enumerate_session_initialize_sets_plan_rendering(
     import inspect_ai.agent._acp.connection as connection_mod
     from inspect_ai.agent._acp.inspect_ext import detect_capabilities
 
-    def _spy(client_info: Any, client_capabilities: Any) -> tuple[bool, bool]:
+    def _spy(
+        client_info: Any, client_capabilities: Any
+    ) -> tuple[bool, frozenset[str] | None]:
         captured.append((client_info, client_capabilities))
         return detect_capabilities(client_info, client_capabilities)
 
@@ -257,7 +264,10 @@ async def test_enumerate_session_initialize_sets_plan_rendering(
     assert client_info is not None
     assert client_info.name == "inspect-acp-tui"
     assert client_capabilities is not None
-    assert client_capabilities.field_meta == {"inspect.plan_rendering": True}
+    assert client_capabilities.field_meta == {
+        "inspect.plan_rendering": True,
+        "inspect.raw_events": ["score", "span_begin", "span_end"],
+    }
 
 
 @skip_if_trio
@@ -276,7 +286,9 @@ async def test_attach_session_initialize_sets_plan_rendering(
     import inspect_ai.agent._acp.connection as connection_mod
     from inspect_ai.agent._acp.inspect_ext import detect_capabilities
 
-    def _spy(client_info: Any, client_capabilities: Any) -> tuple[bool, bool]:
+    def _spy(
+        client_info: Any, client_capabilities: Any
+    ) -> tuple[bool, frozenset[str] | None]:
         captured.append((client_info, client_capabilities))
         return detect_capabilities(client_info, client_capabilities)
 
@@ -307,7 +319,10 @@ async def test_attach_session_initialize_sets_plan_rendering(
     assert len(captured) == 2, captured
     for client_info, client_capabilities in captured:
         assert client_info.name == "inspect-acp-tui"
-        assert client_capabilities.field_meta == {"inspect.plan_rendering": True}
+        assert client_capabilities.field_meta == {
+            "inspect.plan_rendering": True,
+            "inspect.raw_events": ["score", "span_begin", "span_end"],
+        }
 
 
 # ---------------------------------------------------------------------------

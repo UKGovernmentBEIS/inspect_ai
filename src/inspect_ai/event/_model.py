@@ -29,6 +29,27 @@ the JSON eval log; downstream tooling can detect operator cancels
 without depending on the agent/ACP layer.
 """
 
+LIMIT_CANCEL_ERROR = "Cancelled by limit"
+"""Sentinel for cancels triggered by a sample-level limit (tokens,
+time, cost, messages). Sibling of :data:`OPERATOR_CANCEL_ERROR` —
+same sticky-stamp + display-suppress contract, but provenance is
+clearly a limit trip rather than an operator action. Pairs with
+``InterruptEvent.source="limit"``."""
+
+SYSTEM_CANCEL_ERROR = "Cancelled by system"
+"""Sentinel for cancels triggered by the eval system (shutdown,
+external orchestration). Sibling of :data:`OPERATOR_CANCEL_ERROR` —
+same sticky-stamp + display-suppress contract, but provenance is
+the eval host rather than the operator. Pairs with
+``InterruptEvent.source="system"``."""
+
+CANCEL_ERRORS: frozenset[str] = frozenset(
+    {OPERATOR_CANCEL_ERROR, LIMIT_CANCEL_ERROR, SYSTEM_CANCEL_ERROR}
+)
+"""All cancel sentinels. Use ``event.error in CANCEL_ERRORS`` in
+renderers / consumers that should treat every cancel cause the same
+way (e.g. suppressing display of an interrupted generation)."""
+
 
 class ModelEvent(BaseEvent):
     """Call to a language model."""

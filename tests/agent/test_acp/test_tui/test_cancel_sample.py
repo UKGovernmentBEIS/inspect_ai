@@ -372,6 +372,148 @@ async def test_bare_letter_s_fires_score_request() -> None:
 @skip_if_trio
 @pytest.mark.slow
 @pytest.mark.anyio
+async def test_cancel_choice_updates_local_state_only_after_rpc_success() -> None:
+    """``mark_sample_cancelling()`` runs in ``_fire_cancel`` AFTER RPC success.
+
+    An earlier iteration optimistically updated local state before
+    the RPC for instant feedback (spinner stops, tool-card timer
+    flips terminal). That was wrong: if the RPC failed or never
+    landed, the rollback path only undid the lifecycle flag, NOT
+    the in-flight cleanup (dropped pending message groups, tombstoned
+    message ids, failed tool cards, cancelled approvals). The sample
+    kept running server-side while the TUI suppressed its real
+    output. Now: the state update runs ONLY on RPC success — failure
+    leaves the TUI honestly reflecting live activity.
+    """
+    from acp.schema import (
+        ToolCallStart as _ToolCallStart,
+    )
+
+    rows = [_row()]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        screen = await _open_session_screen(pilot, rows)
+        state = screen._state
+        # Seed an in-flight assistant message + an in-progress tool call
+        # so we have something to verify the cleanup against.
+        state.consume(
+            SessionNotification(
+                session_id="sid-x",
+                update=AgentMessageChunk(
+                    session_update="agent_message_chunk",
+                    content=TextContentBlock(type="text", text=""),
+                    message_id="m1",
+                    field_meta={
+                        "inspect.model": "mockllm/model",
+                        "inspect.model_event_pending": True,
+                    },
+                ),
+            )
+        )
+        state.consume(
+            SessionNotification(
+                session_id="sid-x",
+                update=_ToolCallStart(
+                    session_update="tool_call",
+                    tool_call_id="tc1",
+                    title="bash",
+                    status="in_progress",
+                ),
+            )
+        )
+        assert state.has_active_work is True
+        # Fire the cancel via the visible bar — same path the operator
+        # walks. The ``s`` shortcut → bar.choose("score") → worker
+        # sends inspect/cancel_sample → on success calls
+        # mark_sample_cancelling.
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await pilot.press("s")
+        # Pump pilot ticks until the worker completes the RPC and
+        # the state update lands. The fake client's send_request
+        # returns immediately so a few ticks suffice.
+        for _ in range(10):
+            await pilot.pause()
+            if state._cancelling:
+                break
+        # RPC succeeded → cleanup ran via mark_sample_cancelling.
+        assert state.has_active_work is False
+        tc = state._tool_calls_by_id["tc1"]
+        assert tc.status == "failed"
+        assert tc.end_time is not None
+        # Lifecycle stays on ``running`` (not ``interrupted``) — scoring
+        # / finalize are still running server-side; the natural
+        # ``session_ended`` will flip it to ``complete``.
+        assert state.lifecycle == "running"
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_cancel_rpc_failure_leaves_local_state_untouched() -> None:
+    """RPC failure: no local state change — TUI keeps reflecting live activity.
+
+    Pre-fix, ``mark_sample_cancelling`` ran optimistically before the
+    RPC and a rollback path tried to undo the lifecycle flag — but
+    not the in-flight cleanup (dropped pending groups, tombstoned
+    message ids, failed tool cards). On RPC failure that left the
+    TUI suppressing real output from a sample that didn't actually
+    get cancelled. The fix is "don't update state until RPC succeeds";
+    this test pins that contract by simulating an RPC failure and
+    asserting the in-flight state is unchanged.
+    """
+    from acp.schema import (
+        ToolCallStart as _ToolCallStart,
+    )
+
+    rows = [_row()]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        screen = await _open_session_screen(pilot, rows)
+        state = screen._state
+        # Seed a live tool call to verify it stays in-flight after
+        # the failed cancel.
+        state.consume(
+            SessionNotification(
+                session_id="sid-x",
+                update=_ToolCallStart(
+                    session_update="tool_call",
+                    tool_call_id="tc1",
+                    title="bash",
+                    status="in_progress",
+                ),
+            )
+        )
+        assert state.has_active_work is True
+
+        async def _raising_send_request(method: str, params: dict[Any, Any]) -> None:
+            raise RuntimeError("simulated transport failure")
+
+        # Patch on the bound session's fake connection so the cancel
+        # bar's worker observes the failure when it fires.
+        screen._session.connection.send_request = _raising_send_request  # type: ignore[assignment,method-assign]
+
+        await pilot.press("ctrl+n")
+        await pilot.pause()
+        await pilot.press("s")
+        # Worker fires + raises; no state change should follow.
+        for _ in range(10):
+            await pilot.pause()
+        # In-flight state is preserved — the cancel didn't take, so
+        # the tool stays in_progress and lifecycle keeps reading
+        # ``running`` from the live work signal.
+        assert state._cancelling is False
+        tc = state._tool_calls_by_id["tc1"]
+        assert tc.status == "in_progress"
+        assert tc.end_time is None
+        assert state.has_active_work is True
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
 async def test_bare_letter_e_fires_error_request_when_allowed() -> None:
     """``fails_on_error=False`` → pressing ``e`` sends ``action="error"``."""
     rows = [_row(fails_on_error=False)]

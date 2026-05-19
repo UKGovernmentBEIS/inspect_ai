@@ -27,6 +27,7 @@ from typing import (
     Any,
     AsyncIterator,
     Callable,
+    Literal,
     Protocol,
     Sequence,
     runtime_checkable,
@@ -245,13 +246,25 @@ class AcpSession(Protocol):
         """
         ...
 
-    def cancel_current_turn(self) -> None:
+    def cancel_current_turn(
+        self,
+        cause: Literal["user_cancel", "limit", "system"] = "user_cancel",
+    ) -> None:
         """Cancel the current turn and record an :class:`InterruptEvent`.
 
         Snapshots :data:`_active_model_event` and the current
         in-flight tool calls (via :meth:`track_tool_call`) to populate
         the event's ``interrupted`` / id fields. Fire-and-forget — never
         raises on the caller's side.
+
+        ``cause`` populates :attr:`InterruptEvent.source` AND the
+        per-event cancel sentinel (``ModelEvent.error`` /
+        ``ToolCallError.message``) so provenance is consistent across
+        the sample-level interrupt record and the in-flight events it
+        terminates. Default ``"user_cancel"`` covers wire
+        ``session/cancel`` and TUI Esc; ``"limit"`` is the sample-level
+        limit path (token / time / cost / messages); ``"system"`` is
+        reserved for eval-shutdown paths.
         """
         ...
 
@@ -294,6 +307,21 @@ class AcpSession(Protocol):
         :meth:`submit_user_message`. Modal-prompt clients observe
         this via :meth:`subscribe_interrupted` /
         :meth:`subscribe_prompt_resolved`.
+        """
+        ...
+
+    @property
+    def agent_completed(self) -> bool:
+        """True after the agent's react loop has exited (split-phase park).
+
+        ``LiveAcpSession.__aexit__`` parks the session for the scoring
+        window when bound to an ``ActiveSample`` — the router + pubsub
+        stay attached so scoring events still reach clients, but the
+        agent loop is gone. Connection handlers read this to reject
+        late ``session/prompt`` requests (no consumer to drain the
+        queue) and the TUI uses it to disable the composer during
+        scoring. False for unbound sessions; the NoOp session is
+        always False since it has no lifecycle.
         """
         ...
 

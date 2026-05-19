@@ -36,7 +36,7 @@ from __future__ import annotations
 import asyncio
 import math
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Final, Literal
 
 import anyio
 from acp.exceptions import RequestError
@@ -66,6 +66,12 @@ logger = getLogger(__name__)
 # who don't recognize the keys ignore them).
 PLAN_RENDERING_META_KEY = "inspect.plan_rendering"
 RAW_EVENTS_META_KEY = "inspect.raw_events"
+
+# Sentinel value inside a ``RAW_EVENTS_META_KEY`` subscription list
+# meaning "forward every event type" (the all-events glob). Kept as a
+# uniform list-of-strings shape so the forwarder's membership check
+# never needs to special-case a different type.
+RAW_EVENTS_GLOB: Final = "*"
 
 # Picker payload. Carried on the ``session/update`` notification that
 # pushes the multi-target picker; clients with first-class picker UI
@@ -281,21 +287,33 @@ def register_inspect_routes(router: MessageRouter, handler: ConnectionHandler) -
 def detect_capabilities(
     client_info: Any,
     client_capabilities: Any,
-) -> tuple[bool, bool]:
+) -> tuple[bool, frozenset[str] | None]:
     """Decide whether this client opts into Inspect extensions.
 
-    Returns ``(client_renders_plan, raw_events_enabled)``. Two sources
-    are consulted for each flag:
+    Returns ``(client_renders_plan, raw_events_subscription)``.
 
-    - ``client_info.name`` (case-insensitive) against the
-      :data:`PLAN_RENDERING_CLIENTS` allowlist — known editors with
-      first-class Plan UI.
-    - ``client_capabilities._meta`` for the explicit opt-in keys
-      :data:`PLAN_RENDERING_META_KEY` / :data:`RAW_EVENTS_META_KEY`.
+    - ``client_renders_plan``: Two sources are consulted —
+      ``client_info.name`` (case-insensitive) against the
+      :data:`PLAN_RENDERING_CLIENTS` allowlist (known editors with
+      first-class Plan UI), and ``client_capabilities._meta`` for the
+      explicit opt-in key :data:`PLAN_RENDERING_META_KEY`. Either
+      source flips it on.
+    - ``raw_events_subscription``: ``frozenset[str] | None`` decoded
+      from ``_meta[RAW_EVENTS_META_KEY]``:
 
-    Either source flips the flag on; both default off. Called by
-    :meth:`ConnectionHandler.initialize` and the result is frozen on
-    :class:`ConnectionState` for the connection lifetime.
+      - Missing / empty list ``[]`` → ``None`` (no subscription).
+      - List containing :data:`RAW_EVENTS_GLOB` (``"*"``) → glob; all
+        events forwarded (yields a frozenset containing the glob
+        sentinel — the forwarder's membership check treats it
+        uniformly).
+      - List of named event types (``["score"]``, ``["score", "error"]``)
+        → frozenset of those names.
+      - Anything else (legacy bool, malformed shapes) → ``None`` + a
+        one-shot warning, matching the existing pattern for malformed
+        ``_meta``.
+
+    Called by :meth:`ConnectionHandler.initialize` and the result is
+    frozen on :class:`ConnectionState` for the connection lifetime.
     """
     name = client_info.name.lower() if client_info is not None else ""
     meta: dict[str, Any] = {}
@@ -304,8 +322,41 @@ def detect_capabilities(
     client_renders_plan = name in PLAN_RENDERING_CLIENTS or bool(
         meta.get(PLAN_RENDERING_META_KEY)
     )
-    raw_events_enabled = bool(meta.get(RAW_EVENTS_META_KEY))
-    return client_renders_plan, raw_events_enabled
+    raw_events_subscription = _decode_raw_events_subscription(
+        meta.get(RAW_EVENTS_META_KEY, None)
+    )
+    return client_renders_plan, raw_events_subscription
+
+
+def _decode_raw_events_subscription(
+    raw: Any,
+) -> frozenset[str] | None:
+    """Decode a ``RAW_EVENTS_META_KEY`` value into a subscription set.
+
+    Returns ``None`` when there's no subscription. Returns a non-empty
+    ``frozenset[str]`` containing event-type names (and possibly
+    :data:`RAW_EVENTS_GLOB`) otherwise.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, list):
+        if not raw:
+            return None
+        if all(isinstance(item, str) for item in raw):
+            return frozenset(raw)
+        logger.warning(
+            "ACP initialize: malformed %s (expected list[str]); "
+            "no raw events will be forwarded",
+            RAW_EVENTS_META_KEY,
+        )
+        return None
+    logger.warning(
+        "ACP initialize: %s must be a list of event-type strings "
+        "(got %s); no raw events will be forwarded",
+        RAW_EVENTS_META_KEY,
+        type(raw).__name__,
+    )
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -422,12 +473,41 @@ class RawEventForwarder:
     pre-condensation state.
     """
 
-    def __init__(self, connection: Connection) -> None:
+    def __init__(
+        self,
+        connection: Connection,
+        *,
+        subscription: frozenset[str],
+    ) -> None:
         self._connection = connection
+        # Subscription is always non-empty by the time the forwarder is
+        # constructed — empty / ``None`` upstream skips construction
+        # entirely. Membership check accepts the ``"*"`` glob sentinel
+        # as "all events" so callers don't need a separate flag.
+        self._subscription = subscription
         self._send: Any = None
         self._recv: Any = None
         self._task: asyncio.Task[None] | None = None
         self._unsubscribe: Callable[[], None] | None = None
+        # Drain-barrier accounting — mirrors the semantic forwarder's
+        # pattern in ``Forwarders._run_semantic_forwarder``. Needed so
+        # the semantic forwarder's EOF path can await
+        # ``raw_forwarder.drain()`` BEFORE sending ``inspect/session_ended``,
+        # ensuring late raw events (notably ``ScoreEvent`` /
+        # ``SampleLimitEvent`` emitted during the post-agent scoring
+        # phase) reach the wire before the lifecycle terminator. Without
+        # this barrier the raw firehose can race the session_ended
+        # notification and the client may flip the lifecycle pill to
+        # ``complete`` before consuming the trailing scoring events,
+        # which then appear retroactively (or get dropped, depending on
+        # the consumer's post-complete policy).
+        self._notifications_sent: int = 0
+        self._sent_event: anyio.Event = anyio.Event()
+        self._processing_item: bool = False
+
+    def _matches(self, event_type: str) -> bool:
+        """True iff the forwarder should forward an event of ``event_type``."""
+        return RAW_EVENTS_GLOB in self._subscription or event_type in self._subscription
 
     def attach(self, target: AcpSession) -> None:
         """Create the bridge stream + subscribe to the target's transcript."""
@@ -459,15 +539,33 @@ class RawEventForwarder:
         """
         events = snapshot[-max_events:]
         for event in events:
-            payload: Any = None
-            with acp_guard("ACP raw replay: event failed to serialize; skipping") as g:
-                payload = event.model_dump(
-                    mode="json", by_alias=True, exclude_none=True
-                )
-            if g.failed:
-                continue
-            # Send failures escape to the caller's outer ``acp_send_guard``.
-            await self._connection.send_notification(INSPECT_EVENT_METHOD, payload)
+            await self.replay_event(event)
+
+    async def replay_event(self, event: Any) -> None:
+        """Serialize + send one event as ``inspect/event``. No-op if filtered.
+
+        Per-event entry point for the interleaved replay path in
+        :meth:`Forwarders._run_replay`, where raw and semantic events
+        are dispatched in source-transcript order rather than as two
+        separate passes — keeping score chips, tool cards, and
+        message groups in the same chronological order on the wire
+        they had in the underlying transcript. Calling this from a
+        per-event walk preserves wire ordering across the two streams.
+
+        Same per-event error boundary as :meth:`replay`: serialization
+        failures log + skip; send failures propagate to the caller's
+        ``acp_send_guard``.
+        """
+        event_type = getattr(event, "event", None)
+        if not isinstance(event_type, str) or not self._matches(event_type):
+            return
+        payload: Any = None
+        with acp_guard("ACP raw replay: event failed to serialize; skipping") as g:
+            payload = event.model_dump(mode="json", by_alias=True, exclude_none=True)
+        if g.failed:
+            return
+        # Send failures escape to the caller's outer ``acp_send_guard``.
+        await self._connection.send_notification(INSPECT_EVENT_METHOD, payload)
 
     def start(self, target_session_id: str) -> None:
         """Launch the background drain task. Call after :meth:`replay`."""
@@ -512,8 +610,15 @@ class RawEventForwarder:
         than in the task body. Non-blocking via ``send_nowait``; a dead
         send half is dropped silently (the cleanup runs first on
         disconnect, so a closed stream here is an expected race).
+
+        Filter BEFORE serialization: the pre-condensation guarantee
+        doesn't need to pay the model_dump cost for events the client
+        isn't subscribed to.
         """
         if self._send is None:
+            return
+        event_type = getattr(event, "event", None)
+        if not isinstance(event_type, str) or not self._matches(event_type):
             return
         try:
             payload = event.model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -544,14 +649,65 @@ class RawEventForwarder:
         """
         with acp_send_guard("ACP raw forwarder: stream iteration failed") as outer:
             async for payload in recv_stream:
-                with acp_send_guard("ACP raw forwarder: send failed") as inner:
-                    await self._connection.send_notification(
-                        INSPECT_EVENT_METHOD, payload
-                    )
-                if inner.should_exit:
-                    return
+                # Mark the in-flight window so ``drain`` accounts for
+                # this item even though it's no longer in the stream's
+                # ``current_buffer_used`` (we've already pulled it).
+                # Cleared in the same try/finally that bumps the
+                # counter.
+                self._processing_item = True
+                try:
+                    with acp_send_guard("ACP raw forwarder: send failed") as inner:
+                        await self._connection.send_notification(
+                            INSPECT_EVENT_METHOD, payload
+                        )
+                    if inner.should_exit:
+                        return
+                finally:
+                    # Bump whether or not the send succeeded — draining
+                    # is "this buffered item has been processed", not
+                    # "the wire accepted it". A failed send means we're
+                    # about to exit anyway; waiters bail via the
+                    # ``_task.done()`` guard in :meth:`drain`.
+                    self._notifications_sent += 1
+                    self._processing_item = False
+                    self._sent_event.set()
+                    self._sent_event = anyio.Event()
         if outer.should_exit:
             return
+
+    async def drain(self) -> None:
+        """Block until the forwarder has processed all currently-buffered items.
+
+        Called by the semantic forwarder's EOF path before sending
+        ``inspect/session_ended`` so late raw events (notably
+        ``ScoreEvent`` and ``SampleLimitEvent`` emitted during the
+        post-agent scoring phase, which arrive on the raw firehose
+        but have no semantic counterpart) reach the wire before the
+        lifecycle terminator.
+
+        Semantics: yield until every item sitting in the bridge
+        stream's buffer AT CALL TIME has been processed. Items
+        published AFTER this call need not be ordered before the
+        caller's next send. Safe no-op when the forwarder isn't
+        running (pre-start, post-stop, or task already exited).
+        """
+        if self._recv is None or self._task is None or self._task.done():
+            return
+        try:
+            buffered = self._recv.statistics().current_buffer_used
+        except Exception:
+            # If statistics() ever changes shape under us, fail open —
+            # better to skip the barrier than to hang teardown.
+            return
+        in_flight = 1 if self._processing_item else 0
+        pending_to_process = buffered + in_flight
+        if pending_to_process == 0:
+            return
+        target = self._notifications_sent + pending_to_process
+        while self._notifications_sent < target:
+            if self._task.done():
+                return
+            await self._sent_event.wait()
 
 
 # ---------------------------------------------------------------------------

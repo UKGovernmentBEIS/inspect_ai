@@ -192,6 +192,15 @@ async def test_cancel_sample_error_action_allowed_when_fails_on_error_false(
     sample.interrupt.assert_called_once_with("error")
 
 
+# Note: the prior ``test_cancel_sample_also_cancels_current_turn`` was
+# removed. The in-flight ``ModelEvent.pending=True`` cleanup is now
+# driven via ``ActiveSample.on_interrupt`` (registered by the live
+# session in ``__aenter__``) rather than an explicit lookup in the
+# cancel_sample handler — so the contract lives on
+# ``ActiveSample.interrupt()`` and is pinned by the hook-firing tests
+# in ``test_active_sample_link.py``.
+
+
 # ---------------------------------------------------------------------------
 # Unit tests — cancel_tool_call handler logic
 # ---------------------------------------------------------------------------

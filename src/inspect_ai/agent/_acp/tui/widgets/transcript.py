@@ -14,9 +14,10 @@ from textual.containers import VerticalScroll
 from textual.timer import Timer
 from textual.widget import Widget
 
-from ..state import MessageGroup, SessionState, ToolCallState
+from ..state import MessageGroup, ScoreChip, SessionState, ToolCallState
 from ._fingerprint import tool_state_fingerprint
 from .message import MessageWidget
+from .score import ScoreChipWidget
 from .tool_call import ToolCallWidget
 
 _SCROLL_DEBOUNCE_SECONDS = 0.08
@@ -251,9 +252,13 @@ class TranscriptWidget(VerticalScroll):
         self._start_animated_scroll()
 
     @staticmethod
-    def _fingerprint(item: MessageGroup | ToolCallState) -> object:
+    def _fingerprint(item: MessageGroup | ToolCallState | ScoreChip) -> object:
         if isinstance(item, MessageGroup):
             return _message_fingerprint(item)
+        if isinstance(item, ScoreChip):
+            # Score chips are immutable once mounted — the fingerprint
+            # only needs to identify the chip, not detect changes.
+            return item.chip_id
         # Use the comprehensive tool-call fingerprint (status + title
         # + kind + content + raw_input) — not just status — so the
         # auto-scroll decision tracks live-tail tool output. Streaming
@@ -262,16 +267,20 @@ class TranscriptWidget(VerticalScroll):
         return tool_state_fingerprint(item)
 
     def _build_widget(
-        self, item: MessageGroup | ToolCallState, state: SessionState
+        self, item: MessageGroup | ToolCallState | ScoreChip, state: SessionState
     ) -> Widget:
         if isinstance(item, MessageGroup):
             return MessageWidget(item, current_model=state.current_model)
+        if isinstance(item, ScoreChip):
+            return ScoreChipWidget(item)
         return ToolCallWidget(item)
 
     @staticmethod
-    def _key_for(item: MessageGroup | ToolCallState) -> str:
+    def _key_for(item: MessageGroup | ToolCallState | ScoreChip) -> str:
         if isinstance(item, MessageGroup):
             return f"msg:{item.message_id}"
+        if isinstance(item, ScoreChip):
+            return f"score:{item.chip_id}"
         return f"tool:{item.tool_call_id}"
 
     def _is_at_bottom(self) -> bool:
