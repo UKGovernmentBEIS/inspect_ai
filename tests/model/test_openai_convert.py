@@ -623,8 +623,11 @@ def test_reasoning_from_responses_encrypted_with_api_summary() -> None:
 
 
 def test_reasoning_from_responses_content_encrypted_and_summary() -> None:
-    """When content, encrypted_content, and API summary all exist (visible-CoT models),
-    readable raw CoT goes to reasoning and API summary goes to summary (not redacted)."""
+    """All three present: readable -> reasoning, API summary -> summary, encrypted -> internal.
+
+    For visible-CoT models, redacted is False and the encrypted blob is
+    stashed in `internal` so it can be restored on replay.
+    """
     item = ResponseReasoningItem.model_construct(
         id="rs_all",
         type="reasoning",
@@ -637,6 +640,7 @@ def test_reasoning_from_responses_content_encrypted_and_summary() -> None:
     assert result.summary == "API summary"
     assert result.redacted is False
     assert result.signature == "rs_all"
+    assert result.internal == {"reasoning_encrypted_content": "ENCRYPTED_BLOB"}
 
 
 # --- Tests for responses_reasoning_from_reasoning (replay) ---
@@ -707,3 +711,29 @@ def test_reasoning_round_trip_preserves_encrypted() -> None:
     assert list(replayed["content"]) == []
     assert list(replayed["summary"]) == []
     assert replayed["id"] == "rs_rt"
+
+
+def test_reasoning_round_trip_content_encrypted_and_summary() -> None:
+    """When content, encrypted_content, and summary all exist, replay restores all three."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_rt_all",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": "raw cot thinking"}],
+        encrypted_content="ENCRYPTED_BLOB",
+        summary=[{"type": "summary_text", "text": "API summary"}],
+    )
+    content = reasoning_from_responses_reasoning(item)
+    assert content.reasoning == "raw cot thinking"
+    assert content.summary == "API summary"
+    assert content.redacted is False
+    assert content.internal == {"reasoning_encrypted_content": "ENCRYPTED_BLOB"}
+
+    replayed = responses_reasoning_from_reasoning(content)
+    assert replayed["encrypted_content"] == "ENCRYPTED_BLOB"
+    replayed_content = list(replayed["content"])
+    assert len(replayed_content) == 1
+    assert replayed_content[0]["text"] == "raw cot thinking"
+    replayed_summary = list(replayed["summary"])
+    assert len(replayed_summary) == 1
+    assert replayed_summary[0]["text"] == "API summary"
+    assert replayed["id"] == "rs_rt_all"

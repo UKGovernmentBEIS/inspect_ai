@@ -173,6 +173,7 @@ from ._providers._openai_web_search import maybe_web_search_tool
 
 MESSAGE_ID = "message_id"
 MESSAGE_PHASE = "message_phase"
+REASONING_ENCRYPTED_CONTENT = "reasoning_encrypted_content"
 
 
 class ResponsesModelInfo(Protocol):
@@ -833,11 +834,18 @@ def reasoning_from_responses_reasoning(
             redacted=True,
         )
     reasoning = readable if readable is not None else (item.encrypted_content or "")
+    # When content, encrypted_content, and summary all exist, stash the
+    # encrypted blob in `internal` so it survives a round-trip back to a
+    # ResponseReasoningItem for replay.
+    internal: dict[str, JsonValue] | None = None
+    if readable is not None and summary_text is not None and item.encrypted_content:
+        internal = {REASONING_ENCRYPTED_CONTENT: item.encrypted_content}
     return ContentReasoning(
         reasoning=reasoning,
         summary=summary_text,
         signature=item.id,
         redacted=readable is None and item.encrypted_content is not None,
+        internal=internal,
     )
 
 
@@ -861,6 +869,13 @@ def responses_reasoning_from_reasoning(
     content: ContentReasoning,
 ) -> ResponseReasoningItemParam:
     encrypted_content: str | None = content.reasoning if content.redacted else None
+
+    # If non-redacted, look for an encrypted blob stashed in `internal`
+    # (set when OpenAI returned content + encrypted_content + summary together).
+    if not content.redacted and isinstance(content.internal, dict):
+        stashed = content.internal.get(REASONING_ENCRYPTED_CONTENT)
+        if isinstance(stashed, str):
+            encrypted_content = stashed
 
     content_params: list[ContentParam] = []
     if not content.redacted and content.reasoning:
