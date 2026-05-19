@@ -181,6 +181,36 @@ class MessageGroup:
     triggered the next assistant turn.
     """
 
+    is_queued: bool = False
+    """True for client-side ephemeral echoes of a not-yet-drained queued send.
+
+    When the operator types into the composer and hits Enter while the
+    agent is busy (``lifecycle != "idle"``), the message rides
+    ``session/prompt`` into the server's ``submit_user_message`` queue
+    and drains at the next ``before_turn``. Between those two moments
+    the operator would otherwise see nothing — composer cleared, no
+    transcript activity. The TUI mounts a queued ``MessageGroup`` in
+    ``SessionState.items`` immediately on send so the operator sees
+    their text echoed in place.
+
+    Single-bucket semantics: at most ONE queued group exists at any
+    time. Subsequent sends-while-busy APPEND to the existing group's
+    text (with a ``\\n\\n`` paragraph separator) rather than stacking
+    a new row. This mirrors the server-side
+    ``_coalesce_operator_messages`` behavior — N queued sends drain
+    as a single merged ``ChatMessageUser`` — so the visible ephemeral
+    reflects exactly what the model will see. When the server's eventual
+    ``UserMessageChunk(source="operator")`` arrives, the queued group
+    is popped and the real merged group renders in its place.
+
+    The chip reads ``user · queued`` and the body renders dim while
+    this is True (see ``MessageWidget``). These groups are NOT
+    registered in ``_messages_by_id`` / ``_pending_message_ids`` —
+    they live solely in ``items`` and are managed by
+    :meth:`SessionState.enqueue_queued_user_message` /
+    :meth:`SessionState.undo_queued_enqueue`.
+    """
+
     @property
     def text(self) -> str:
         """Concatenated TEXT segments (excludes reasoning).
@@ -199,6 +229,27 @@ class MessageGroup:
         the text response.
         """
         return "".join(s.text for s in self.segments if s.kind == "reasoning")
+
+
+@dataclass(frozen=True)
+class _QueuedEnqueueHandle:
+    """Undo token returned from :meth:`SessionState.enqueue_queued_user_message`.
+
+    Records the pre-enqueue state so :meth:`SessionState.undo_queued_enqueue`
+    can roll back precisely:
+
+    - ``prior_text=None`` ⇒ the enqueue created the ephemeral fresh;
+      undo removes the whole group from :attr:`SessionState.items`.
+    - ``prior_text=<str>`` ⇒ the enqueue appended to an existing
+      ephemeral; undo restores ``group.segments[0].text`` to the
+      snapshot.
+
+    Frozen so callers can't accidentally mutate the snapshot before
+    handing it back to undo.
+    """
+
+    group: MessageGroup
+    prior_text: str | None
 
 
 ToolCallStatus = Literal["pending", "in_progress", "completed", "failed"]
@@ -421,6 +472,12 @@ class SessionState:
         # cleared its plan (not produced by either Inspect planning tool
         # today, but reserved for forward-compat).
         self.plan_entries: list[PlanEntry] | None = None
+        # Monotonic counter for locally-minted message ids on queued
+        # ephemerals. Prefix ``queued-`` ensures the id never collides
+        # with a server-minted one (UUIDv5 from a ModelEvent uuid).
+        # See :attr:`MessageGroup.is_queued` for the queued ephemeral
+        # lifecycle.
+        self._queued_counter: int = 0
         self._subscribers: list[Callable[[], None]] = []
 
     # ------------------------------------------------------------------
@@ -545,6 +602,11 @@ class SessionState:
         the matching ``ToolCallState.pending_approval`` slot must be
         cleared so the lifecycle pill leaves ``approval`` and the
         inline section collapses to the ``⊘ cancelled`` summary line.
+
+        Also drops any client-side queued ephemerals — the server
+        won't drain them now, so leaving them mounted as dim ghost
+        rows in the post-completion read-only view would mislead the
+        operator into thinking those messages were delivered.
         """
         if self._complete:
             return
@@ -554,7 +616,126 @@ class SessionState:
         # ``complete``), not a flicker through whatever the
         # post-clear / pre-complete state would imply.
         self._clear_pending_approvals()
+        self._drop_queued_user_messages()
         self._notify()
+
+    def enqueue_queued_user_message(self, text: str) -> "_QueuedEnqueueHandle":
+        r"""Mount or extend the client-side queued ephemeral.
+
+        Called by :meth:`SessionScreen.action_submit` the moment the
+        operator hits Enter while ``lifecycle != "idle"`` — the send
+        will land in the server's ``submit_user_message`` queue and not
+        surface back until the next ``before_turn`` drain. Without the
+        echo the composer would clear silently and the operator would
+        have no visible signal that their message registered.
+
+        Single-bucket semantics: at most one queued group exists at any
+        time. If one already exists, this APPENDS to its text with a
+        ``\\n\\n`` paragraph separator (mirrors the server-side
+        ``_coalesce_operator_messages`` merge — N queued sends drain
+        as ONE merged ``ChatMessageUser``, so the visible row reflects
+        exactly what the model will see). Otherwise creates a fresh
+        queued group.
+
+        Returns a :class:`_QueuedEnqueueHandle` that
+        :meth:`undo_queued_enqueue` consumes on send failure — restores
+        the prior text on the append path or removes the whole group on
+        the fresh-creation path.
+
+        Locally-minted ids (``queued-N``) never collide with the
+        server's UUIDv5 ids; the group is NOT registered in
+        ``_messages_by_id`` (so retry-collapse / drop-tombstone /
+        turn-cap logic ignores it) — it lives only in :attr:`items`
+        and is popped by an arriving operator chunk
+        (:meth:`_consume_chunk`), :meth:`undo_queued_enqueue`, or
+        :meth:`mark_complete`.
+        """
+        existing = self._current_queued_user_group()
+        if existing is not None:
+            # Append-on-existing — single segment, extend with paragraph
+            # separator. Snapshot the prior text for undo.
+            prior_text = existing.segments[0].text
+            existing.segments[0].text = f"{prior_text}\n\n{text}"
+            self._notify()
+            return _QueuedEnqueueHandle(group=existing, prior_text=prior_text)
+        # Fresh creation — no prior queued group.
+        self._queued_counter += 1
+        group = MessageGroup(
+            message_id=f"queued-{self._queued_counter}",
+            role="user",
+            segments=[Segment(kind="text", text=text)],
+            user_source="operator",
+            is_queued=True,
+        )
+        self.items.append(group)
+        self._notify()
+        return _QueuedEnqueueHandle(group=group, prior_text=None)
+
+    def undo_queued_enqueue(self, handle: "_QueuedEnqueueHandle") -> None:
+        """Restore the queued ephemeral to its pre-enqueue state.
+
+        Used by :meth:`SessionScreen.action_submit` when the
+        ``session/prompt`` await raises — the server never accepted the
+        message, so the optimistic append (or fresh creation) must come
+        back out. Idempotent: replaying the same undo, or undoing a
+        group that's since been popped by an arriving chunk, is a
+        silent no-op.
+
+        On a fresh-creation handle (``prior_text is None``), removes
+        the whole group from :attr:`items`. On an append-on-existing
+        handle, restores ``segments[0].text`` to the pre-append
+        snapshot — preserving any earlier queued sends.
+        """
+        if handle.group not in self.items:
+            return
+        if handle.prior_text is None:
+            # Fresh creation — drop the group entirely.
+            self.items.remove(handle.group)
+            self._notify()
+        else:
+            # Append-on-existing — restore prior text.
+            handle.group.segments[0].text = handle.prior_text
+            self._notify()
+
+    def _current_queued_user_group(self) -> MessageGroup | None:
+        """Return the in-flight queued ephemeral, or ``None``.
+
+        Single-bucket invariant: at most one queued group at any time
+        (subsequent ``enqueue`` calls append to the existing one). This
+        accessor scans :attr:`items` linearly — typical sample length
+        is tens of items so the cost is negligible.
+        """
+        for item in self.items:
+            if isinstance(item, MessageGroup) and item.is_queued:
+                return item
+        return None
+
+    def _pop_queued_user_group(self) -> bool:
+        """Pop THE queued ephemeral from :attr:`items` (single-bucket).
+
+        Called inside :meth:`_consume_chunk` when an operator-sourced
+        ``UserMessageChunk`` arrives: the server has drained our (single)
+        coalesced queued message, so the client-side echo is replaced by
+        the real group that the chunk will create immediately after.
+
+        Returns True iff a queued entry was popped. No notify here —
+        the caller (``_consume_chunk``) batches the pop with the
+        regular chunk-consumption notify so subscribers see one
+        coherent update.
+        """
+        for idx, item in enumerate(self.items):
+            if isinstance(item, MessageGroup) and item.is_queued:
+                del self.items[idx]
+                return True
+        return False
+
+    def _drop_queued_user_messages(self) -> None:
+        """Remove every queued ephemeral. No notify — caller batches."""
+        self.items = [
+            item
+            for item in self.items
+            if not (isinstance(item, MessageGroup) and item.is_queued)
+        ]
 
     def mark_interrupted(self) -> None:
         """Optimistically clear in-flight signals after the operator hits Esc.
@@ -993,6 +1174,17 @@ class SessionState:
         role = self._role_for(update)
         is_pending_signal = bool(meta.get(MODEL_EVENT_PENDING_META_KEY))
 
+        # Operator-sourced user chunks consume the (single) queued
+        # ephemeral before the real group is created — the server has
+        # drained our queued send (coalesced server-side into one
+        # ``ChatMessageUser``) and this chunk IS its server echo. The
+        # pop and the real group's append happen in the same
+        # ``consume()`` tick so subscribers see a single swap, not a
+        # transient "ephemeral disappeared, real not yet present" frame.
+        # See :attr:`MessageGroup.is_queued` for the lifecycle.
+        if role == "user" and meta.get(USER_SOURCE_META_KEY) == "operator":
+            self._pop_queued_user_group()
+
         group = self._resolve_or_create_group(
             message_id, role, meta, is_pending_signal, update.message_id
         )
@@ -1029,7 +1221,7 @@ class SessionState:
 
         Three paths:
         - existing group by id → return it.
-        - retry-collapse hit (see :meth:`_should_retry_collapse`) →
+        - retry-collapse hit (see :meth:`_find_retry_collapse_target`) →
           reuse the prior empty assistant bubble, bump ``retries``,
           alias the new id, drop the stale pending tracking.
         - otherwise → create a fresh group, register it, enforce the
@@ -1038,11 +1230,8 @@ class SessionState:
         existing = self._messages_by_id.get(message_id)
         if existing is not None:
             return existing
-        if self._should_retry_collapse(role, meta, is_pending_signal):
-            # Predicate guarantees self.items[-1] is an empty assistant
-            # MessageGroup — narrow once for mypy.
-            prior = self.items[-1]
-            assert isinstance(prior, MessageGroup)
+        prior = self._find_retry_collapse_target(role, meta, is_pending_signal)
+        if prior is not None:
             prior.retries += 1
             # Aliasing: any further chunks bearing the retry's
             # message_id (completion marker, late content) need to
@@ -1066,30 +1255,52 @@ class SessionState:
             self._enforce_turn_cap()
         return group
 
-    def _should_retry_collapse(
+    def _find_retry_collapse_target(
         self,
         role: MessageRole,
         meta: dict[str, Any],
         is_pending_signal: bool,
-    ) -> bool:
-        """Predicate: should this pending signal collapse onto the prior group?
+    ) -> MessageGroup | None:
+        """Locate the empty assistant bubble this pending signal should collapse onto.
 
-        Returns True when the most recent item is an empty assistant
-        bubble for the same model — that's the signature of a retry
-        cycle (prior attempt errored after its pending signal but
-        before producing content). Caller reuses that group and
-        increments its ``retries`` counter so the user sees one bubble
-        across all attempts rather than a wall of empties.
+        Returns the prior :class:`MessageGroup` when the most recent
+        non-queued item is an empty assistant bubble for the same model
+        — that's the signature of a retry cycle (prior attempt errored
+        after its pending signal but before producing content). Caller
+        reuses that group, increments ``retries``, aliases the new id,
+        and drops the stale pending tracking. Returns ``None`` in any
+        other shape (no pending signal, no assistant, no items, the
+        prior non-queued item already has content, or the model
+        attribution doesn't match).
+
+        **Queued ephemerals are transparent.** A client-side queued
+        ``MessageGroup(is_queued=True)`` may sit at ``items[-1]`` between
+        the prior empty assistant bubble and the retry's pending signal
+        (the operator typed a message while the first attempt was in
+        flight). Walking backward and skipping queued entries finds the
+        real retry-collapse target; without the skip, the prior pending
+        id would never get its completion marker and the lifecycle pill
+        would stay on ``running`` forever after the retry succeeded.
         """
         if not (is_pending_signal and role == "assistant" and self.items):
-            return False
-        last = self.items[-1]
-        if not isinstance(last, MessageGroup):
-            return False
-        if last.role != "assistant" or last.segments:
-            return False
-        model_hint = meta.get(MODEL_META_KEY)
-        return not isinstance(model_hint, str) or last.model in (None, model_hint)
+            return None
+        for item in reversed(self.items):
+            # Queued ephemerals are client-side display state, not
+            # model output — invisible to the retry-collapse decision.
+            if isinstance(item, MessageGroup) and item.is_queued:
+                continue
+            # Apply the original retry-collapse criteria to the first
+            # non-queued item: must be an empty assistant bubble of
+            # the same model.
+            if not isinstance(item, MessageGroup):
+                return None
+            if item.role != "assistant" or item.segments:
+                return None
+            model_hint = meta.get(MODEL_META_KEY)
+            if isinstance(model_hint, str) and item.model not in (None, model_hint):
+                return None
+            return item
+        return None
 
     def _apply_pending_lifecycle(
         self,

@@ -33,6 +33,7 @@ from anyio.streams.memory import (
 )
 from shortuuid import uuid
 
+from inspect_ai._util.content import Content, ContentText
 from inspect_ai.agent._acp._guards import acp_guard
 from inspect_ai.agent._acp.session import (
     _SUBSCRIBER_BUFFER_SIZE,
@@ -128,6 +129,67 @@ class _PubSubBus:
         for send, _ in self._subscribers:
             send.close()
         self._subscribers.clear()
+
+
+_COALESCED_OPERATOR_SEPARATOR = "\n\n"
+"""Separator joining text content across coalesced operator messages.
+
+Paragraph break ⇒ markdown-friendly and unambiguous to every model
+(reads as "two distinct paragraphs from the same speaker" rather than
+running the sentences together). See :func:`_coalesce_operator_messages`.
+"""
+
+
+def _coalesce_operator_messages(
+    messages: list[ChatMessageUser],
+) -> list[ChatMessageUser]:
+    r"""Merge consecutive operator-source messages into a single message.
+
+    When the operator queues N sends while the agent is busy, the
+    drained list would otherwise produce N consecutive
+    :class:`ChatMessageUser` turns in ``state.messages``. The model
+    then sees a degenerate conversation shape — multiple user turns
+    before its next assistant turn — that providers handle
+    inconsistently. Coalescing into one merged user message restores
+    standard alternating user/assistant flow.
+
+    Returns the input unchanged in the trivial cases (single message,
+    or any non-operator source mixed in — defensive guard, all callers
+    flow through :meth:`LiveAcpSession.submit_user_message` which
+    normalizes ``source="operator"``).
+
+    Text-only fast path: when every message has ``content: str``, join
+    them with ``\\n\\n``.
+
+    Mixed-modal path: when any message has ``content: list[Content]``,
+    flatten into one content list — string contents become a leading
+    :class:`ContentText` block, list contents contribute their items
+    in arrival order. Preserves all data (no silent drop of images /
+    other non-text blocks).
+
+    Per-message ``.id`` and ``.metadata`` are intentionally lost
+    (replaced by one fresh id + None metadata on the merged message).
+    The downstream :func:`event_mapping._map_input_messages` dedup
+    keys on message id, so one merged message ⇒ one
+    :class:`UserMessageChunk` emitted to clients — exactly what the
+    TUI's single-growing-ephemeral display expects.
+    """
+    if len(messages) <= 1:
+        return messages
+    if not all(m.source == "operator" for m in messages):
+        return messages
+    if all(isinstance(m.content, str) for m in messages):
+        merged_text = _COALESCED_OPERATOR_SEPARATOR.join(
+            m.content for m in messages if isinstance(m.content, str)
+        )
+        return [ChatMessageUser(content=merged_text, source="operator")]
+    blocks: list[Content] = []
+    for m in messages:
+        if isinstance(m.content, str):
+            blocks.append(ContentText(text=m.content))
+        else:
+            blocks.extend(m.content)
+    return [ChatMessageUser(content=blocks, source="operator")]
 
 
 class _UserMessageQueue:
@@ -940,7 +1002,8 @@ class LiveAcpSession:
         :func:`acp_guard`'s BaseException semantics.
         """
         with acp_guard("ACP before_turn raised; returning no operator messages"):
-            return await self._user_messages.drain_initial(messages)
+            drained = await self._user_messages.drain_initial(messages)
+            return _coalesce_operator_messages(drained)
         return []
 
     async def after_cancel(
@@ -1023,7 +1086,7 @@ class LiveAcpSession:
             "messages without operator input"
         ):
             drained = await self._user_messages.drain_blocking()
-            results.extend(drained)
+            results.extend(_coalesce_operator_messages(drained))
 
         # The agent has now consumed the resumption text, so the
         # interrupt is logically resolved — clear the pending flag

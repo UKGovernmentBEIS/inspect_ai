@@ -378,7 +378,17 @@ async def test_track_model_event_save_restore_handles_nesting() -> None:
 
 
 async def test_submit_user_message_normalizes_source_to_operator() -> None:
-    """``submit_user_message`` enforces operator provenance on every msg."""
+    """``submit_user_message`` enforces operator provenance on every msg.
+
+    Three submits with different source values (None / "operator" /
+    "input") all normalize to ``source="operator"`` at queue time.
+    ``before_turn`` then coalesces them into a single merged
+    :class:`ChatMessageUser` (see ``_coalesce_operator_messages``):
+    one message whose source is ``"operator"`` and whose text joins
+    the three contents with paragraph separators. The merge proves
+    every input passed the normalization gate — a non-operator source
+    on any input would skip the coalesce and yield 3 messages instead.
+    """
     async with acp_session() as acp:
         # Source unset → normalized to "operator".
         acp.submit_user_message(ChatMessageUser(content="no source"))
@@ -389,8 +399,10 @@ async def test_submit_user_message_normalizes_source_to_operator() -> None:
         acp.submit_user_message(ChatMessageUser(content="was input", source="input"))
 
         messages = await acp.before_turn(_state_with_user().messages)
-        assert [m.source for m in messages] == ["operator", "operator", "operator"]
-        assert [m.content for m in messages] == ["no source", "explicit", "was input"]
+        # Coalesced into one operator message — paragraph-joined.
+        assert len(messages) == 1
+        assert messages[0].source == "operator"
+        assert messages[0].content == "no source\n\nexplicit\n\nwas input"
 
 
 async def test_submit_user_message_does_not_mutate_caller_instance() -> None:

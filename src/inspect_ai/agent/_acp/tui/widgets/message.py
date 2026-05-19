@@ -164,6 +164,14 @@ class MessageWidget(Widget):
         padding-left: 2;
     }
     MessageWidget .segment-text { height: auto; }
+    /* Queued ephemerals (client-side echo of a not-yet-drained send):
+     * render the body in the muted token so the row reads as "not yet
+     * real" at a glance. Pairs with the ``user · queued`` chip
+     * suffix. See :attr:`state.MessageGroup.is_queued`. */
+    MessageWidget .queued-body {
+        color: $text-muted;
+        height: auto;
+    }
     """
 
     def __init__(
@@ -215,10 +223,19 @@ class MessageWidget(Widget):
         if self._group.role == "system":
             return f"[{fg}]•[/] [bold {fg}]system[/]"
         if self._group.role == "user":
-            source = self._group.user_source
             base = f"[bold {fg}]user[/]"
-            if source:
-                base = f"{base} [dim]· {source}[/dim]"
+            # Queued ephemerals get a dedicated ``queued`` suffix in
+            # lieu of the normal ``· operator`` provenance — the chip
+            # is the only place the "not yet drained" status surfaces
+            # on the chip row itself (the dim body carries the rest of
+            # the signal). On the real chunk's arrival the ephemeral
+            # is replaced by a fresh widget rendering the canonical
+            # ``user · operator``, so this branch never re-runs for
+            # the same group.
+            if self._group.is_queued:
+                base = f"{base} [dim]· queued[/dim]"
+            elif self._group.user_source:
+                base = f"{base} [dim]· {self._group.user_source}[/dim]"
             return f"[{fg}]•[/] {base}"
         # Assistant: prefer the group's own model attribution; fall back
         # to the session's current model when the chunk had no
@@ -352,7 +369,20 @@ class MessageWidget(Widget):
         if not children:
             return
         last_widget = children[-1]
-        if seg.kind == "text" and isinstance(last_widget, CollapsibleContent):
+        if (
+            seg.kind == "text"
+            and self._group.is_queued
+            and isinstance(last_widget, Static)
+        ):
+            # Queued ephemerals render as a plain dim ``Static`` (not
+            # ``CollapsibleContent`` — see ``_compose_segment``); the
+            # ``isinstance(CollapsibleContent)`` branch below would miss
+            # them and leave the visible text frozen at the first send
+            # even though state has grown via subsequent append-on-
+            # existing enqueues. Update the Static in place so the dim
+            # row mirrors the merged text the model will receive.
+            last_widget.update(seg.text)
+        elif seg.kind == "text" and isinstance(last_widget, CollapsibleContent):
             # Streaming chunks land here — replace_text re-runs the
             # truncate-or-expand decision in place so a growing
             # response gains its "… N more lines" affordance the
@@ -378,6 +408,17 @@ class MessageWidget(Widget):
     def _compose_segment(self, seg: Segment) -> ComposeResult:
         if seg.kind == "reasoning":
             yield _ReasoningBlock(seg.text)
+            return
+        # Queued ephemerals bypass the Markdown / CollapsibleContent
+        # pipeline: operator composer text is single-line, plain, and
+        # short (no fences / lists / long bodies to expand), and a
+        # plain dim Static reliably honours the muted token where
+        # Markdown's own styles would otherwise override the cascade.
+        # The widget is unmounted whole when the real chunk arrives
+        # (different message_id ⇒ different TranscriptWidget key), so
+        # this rendering only ever applies to the ephemeral lifetime.
+        if self._group.is_queued:
+            yield Static(seg.text, classes="queued-body", markup=False)
             return
         # Text via CollapsibleContent so long responses get the
         # ``… N more lines`` expander instead of pushing the

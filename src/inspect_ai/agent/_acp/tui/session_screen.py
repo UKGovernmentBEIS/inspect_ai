@@ -30,7 +30,7 @@ from textual.widgets import Input, Static
 from inspect_ai.agent._acp.inspect_ext import INSPECT_CANCEL_TOOL_CALL_METHOD
 
 from .client import AttachedSession
-from .state import SessionState
+from .state import SessionState, _QueuedEnqueueHandle
 from .widgets import (
     AppFooter,
     PlanStripWidget,
@@ -769,6 +769,22 @@ class SessionScreen(Screen[None]):
         if connection is None:
             self.app.notify("not connected", severity="warning")
             return
+        # Optimistic in-transcript echo for sends that will hit the
+        # server's ``submit_user_message`` queue rather than draining
+        # immediately. Without this the operator sees nothing between
+        # Enter and the next ``before_turn`` (potentially many seconds
+        # for a long tool run) and worries the message was lost. The
+        # ephemeral renders dim with a ``user · queued`` chip and is
+        # popped when the server echoes the real chunk back. Subsequent
+        # sends-while-busy APPEND to the existing ephemeral (single
+        # bucket) so the row matches the server-side coalesced merge
+        # — the user sees exactly what the model will see. Skip while
+        # ``idle``: the agent is parked in ``before_turn`` and the
+        # chunk arrives within ms, so an ephemeral would just flash.
+        # See :attr:`state.MessageGroup.is_queued` for the lifecycle.
+        handle: _QueuedEnqueueHandle | None = None
+        if self._state.lifecycle != "idle":
+            handle = self._state.enqueue_queued_user_message(text)
         try:
             await connection.send_request(
                 "session/prompt",
@@ -778,6 +794,12 @@ class SessionScreen(Screen[None]):
                 },
             )
         except Exception as exc:
+            # Roll back the optimistic echo — the server never accepted
+            # the message, so leaving the appended text mounted would
+            # lie about its state. Restores the prior text on the
+            # append path or removes the whole group on fresh creation.
+            if handle is not None:
+                self._state.undo_queued_enqueue(handle)
             self.app.notify(f"failed to send: {exc}", severity="error")
             return
         composer.value = ""
