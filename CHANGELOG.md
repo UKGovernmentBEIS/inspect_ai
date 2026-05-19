@@ -2,6 +2,7 @@
 
 - Scoring: Add `pass_k` reducer for computing the probability that all `k` epoch attempts succeed (τ-bench reliability metric).
 - Model Roles: Preserve overrides of config when calling `get_model()` with `role`.
+- OpenAI Compatible: Add support for `responses_phase` parameter.
 
 ## 0.3.223 (18 May 2026)
 
