@@ -163,6 +163,46 @@ def pass_at(
     return reduce
 
 
+@score_reducer
+def pass_k(
+    k: int, value: float = 1.0, value_to_float: ValueToFloat = value_to_float()
+) -> ScoreReducer:
+    r"""Probability that all `k` epoch attempts succeed (<https://arxiv.org/pdf/2406.12045>).
+
+    Computed as the draw-without-replacement estimator
+    `C(correct, k) / C(total, k)`, dual to `pass_at`'s Chen 2021 estimator.
+
+    Args:
+       k: Epochs to compute probability for.
+       value: Score value threshold.
+       value_to_float: Function to convert score values to float.
+    """
+
+    def reduce(scores: list[Score]) -> Score:
+        def pass_k_k(values: list[float]) -> float:
+            total = len(values)
+            if total < k:
+                # NaN-filtering left fewer than k scored epochs, so the
+                # pass^k estimator is undefined; surface the unscored
+                # sentinel.
+                return float("nan")
+            correct = sum(1 for v in values if v >= value)
+            return math.comb(correct, k) / math.comb(total, k)
+
+        representative = _first_scored(scores)
+        if representative is None:
+            return _nan_score(scores)
+        if isinstance(representative.value, dict):
+            return _compute_dict_stat(scores, value_to_float, pass_k_k)
+        elif isinstance(representative.value, list):
+            return _compute_list_stat(scores, value_to_float, pass_k_k)
+        else:
+            return _compute_scalar_stat(scores, value_to_float, pass_k_k)
+
+    setattr(reduce, REDUCER_NAME, f"pass_k_{k}")
+    return reduce
+
+
 @score_reducer(name="max")
 def max_score(value_to_float: ValueToFloat = value_to_float()) -> ScoreReducer:
     r"""Take the maximum value from a list of scores.

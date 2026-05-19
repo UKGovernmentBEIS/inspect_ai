@@ -117,7 +117,8 @@ The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](
 
 | Variable | Description |
 |---------------------------|---------------------------------------------|
-| `AZUREAI_OPENAI_API_KEY` | API key credentials (optional). |
+| `AZUREAI_OPENAI_API_KEY` | API key credentials (optional, preferred name). |
+| `AZURE_OPENAI_API_KEY` | API key credentials (optional, used as a fallback if `AZUREAI_OPENAI_API_KEY` is unset). |
 | `AZUREAI_OPENAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
@@ -209,8 +210,11 @@ Authentication is doing using the standard Google Cloud CLI (i.e. if you have au
 
 The `anthropic` provider supports Anthropic models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use Anthropic models on Azure AI, specify the following environment variables:
 
--   `AZUREAI_ANTHROPIC_API_KEY`
--   `AZUREAI_ANTHROPIC_BASE_URL`
+| Variable | Description |
+|---------------------------|---------------------------------------------|
+| `AZUREAI_ANTHROPIC_API_KEY` | API key credentials (optional, preferred name). |
+| `AZURE_ANTHROPIC_API_KEY` | API key credentials (optional, used as a fallback if `AZUREAI_ANTHROPIC_API_KEY` is unset). |
+| `AZUREAI_ANTHROPIC_BASE_URL` | Base URL for requests (required). |
 
 You can then use the normal `anthropic` provider with the `azure` qualifier and the name of your model deployment (e.g. `Claude-4-0-Sonnet-2411`). For example:
 
@@ -262,7 +266,7 @@ Authentication is done using the standard Google Cloud CLI. For example:
 gcloud auth application-default login
 ```
 
-If you have authorised the CLI then no additional auth is needed for the model API.
+If you have authorised the CLI then no additional auth is needed for the model API. Alternatively, if you are running in [Vertex Express Mode](https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview), set `VERTEX_API_KEY` to authenticate with an Express Mode API key.
 
 You can optionally specify a custom `GOOGLE_VERTEX_BASE_URL` to override the default base URL for Vertex.
 
@@ -381,11 +385,12 @@ export XAI_API_KEY=your-grok-api-key
 inspect eval arc.py --model grok/grok-3-mini
 ```
 
-The following environment variables are supported by the Grok provider
+The following environment variables are supported by the Grok provider. The provider reads its API key from `XAI_API_KEY` if set, otherwise from `GROK_API_KEY`; one of them must be defined.
 
 | Variable | Description |
 |----------------------------|--------------------------------------------|
-| `XAI_API_KEY` | API key credentials (required). |
+| `XAI_API_KEY` | API key credentials (preferred). |
+| `GROK_API_KEY` | API key credentials (fallback if `XAI_API_KEY` is unset). |
 | `XAI_BASE_URL` | Base URL for requests (optional, defaults to `api.x.ai`, note no "https://" prefix is used for the base url). |
 
 ### Model Args
@@ -570,7 +575,8 @@ The following environment variables are supported by the Azure AI provider
 
 | Variable | Description |
 |---------------------------|---------------------------------------------|
-| `AZUREAI_API_KEY` | API key credentials (optional). |
+| `AZURE_API_KEY` | API key credentials (optional, preferred name). |
+| `AZUREAI_API_KEY` | API key credentials (optional, used as a fallback if `AZURE_API_KEY` is unset). |
 | `AZUREAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
@@ -649,7 +655,7 @@ To use the [SambaNova](https://sambanova.ai/) provider, install the `openai` pac
 
 ``` bash
 pip install openai
-export SAMABANOVA_API_KEY=your-sambanova-api-key
+export SAMBANOVA_API_KEY=your-sambanova-api-key
 inspect eval arc.py --model sambanova/DeepSeek-V1-0324
 ```
 
