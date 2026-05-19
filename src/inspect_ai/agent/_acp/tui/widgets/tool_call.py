@@ -202,9 +202,11 @@ class ToolCallWidget(Widget):
 
         Called by the SessionScreen's periodic tick — terminal states
         already show the final glyph + duration so we skip them and
-        avoid needless DOM churn.
+        avoid needless DOM churn. Pending-approval states also skip:
+        the footer is the static "approval requested" marker (no
+        spinner, no duration) so the tick has nothing to advance.
         """
-        if self._state.is_terminal:
+        if self._state.is_terminal or self._state.pending_approval is not None:
             return
         self._spinner_frame += 1
         try:
@@ -521,6 +523,14 @@ class ToolCallWidget(Widget):
         return f"[{fg}]•[/] [bold]{name}[/bold]"
 
     def _footer_text(self) -> str:
+        # Pending approval blocks the agent on operator input, so the
+        # elapsed counter wouldn't reflect tool work — it'd just be a
+        # clock for how long the operator's been thinking. Drop the
+        # spinner + duration entirely while pending; the bare
+        # "approval requested" marker carries the meaning on its own
+        # (the spinner resumes as soon as the operator decides).
+        if self._state.pending_approval is not None:
+            return "tool call approval requested"
         # Status reads as a single glyph: animated spinner while in
         # flight, ✓ on success, ✗ on failure. Border colour already
         # carries the redundant status signal so the glyph + duration
@@ -541,23 +551,15 @@ class ToolCallWidget(Widget):
         else:
             duration = format_duration(time.monotonic() - self._state.start_time)
         base = f"{glyph} {duration}"
-        # Append, on the same line, either:
-        # - The pending-approval marker (while a permission request
-        #   is in flight) — no explicit colour markup; inherits the
-        #   footer's ``$text-muted`` so it reads at the same muted
-        #   intensity as the duration on its left.
-        # - The post-resolution decision (once the operator decides)
-        #   — coloured per outcome (success / error / warning).
-        # Both share the same footer-row slot — saves a separate
-        # row and groups the whole tool-call outcome in one anchor.
-        if self._state.pending_approval is not None:
-            base = f"{base} · tool call approval requested"
-        else:
-            decision = self._state.last_approval_decision
-            if decision is not None:
-                color = _DECISION_COLOR[decision]
-                text = _DECISION_TEXT[decision]
-                base = f"{base} [{color}]· {text}[/]"
+        # Append the post-resolution approval decision (once the
+        # operator decides) on the same line — coloured per outcome
+        # (success / error / warning). Saves a separate row and groups
+        # the whole tool-call outcome in one anchor.
+        decision = self._state.last_approval_decision
+        if decision is not None:
+            color = _DECISION_COLOR[decision]
+            text = _DECISION_TEXT[decision]
+            base = f"{base} [{color}]· {text}[/]"
         return base
 
     def _text_for_inner(self, inner: object) -> str:
