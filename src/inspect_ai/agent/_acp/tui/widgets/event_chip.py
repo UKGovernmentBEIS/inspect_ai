@@ -126,6 +126,9 @@ class EventChipWidget(Widget):
         height: auto;
         padding-left: 2;
     }
+    EventChipWidget .event-body-plain {
+        height: auto;
+    }
     /* Per-kind background tint. Subtle full-card band so the chip
      * reads as a meta event (system signal) rather than as
      * conversation content — message and tool cards have no tint.
@@ -168,6 +171,16 @@ class EventChipWidget(Widget):
                     # the markdown body path, and toggles two-way like
                     # ``_TracebackBlock`` does.
                     yield _CollapsibleJSON(body, max_lines=_EVENT_BODY_MAX_LINES)
+                elif self._chip.body_format == "plain":
+                    # Plain text — used for error messages. Skip
+                    # ``CollapsibleContent`` / ``StyledMarkdown`` so
+                    # the body sits flush against the chip header
+                    # (Rich Markdown's block-spacing model introduces
+                    # a leading blank row that reads as wrong inside
+                    # a one-line chip). Error messages are typically
+                    # short; if they grow long, the traceback block
+                    # below carries the deep-dive content.
+                    yield Static(body, classes="event-body-plain", markup=False)
                 else:
                     yield CollapsibleContent(body, max_lines=_EVENT_BODY_MAX_LINES)
             if has_traceback:

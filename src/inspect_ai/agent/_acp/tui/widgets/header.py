@@ -146,8 +146,13 @@ class SessionHeaderWidget(Widget):
         text-style: bold;
         padding-right: 3;
     }
+    /* Hover treatment mirrors ``FooterKey:hover`` — the footer
+     * commands shift their background on hover to telegraph
+     * clickability; the title gets the same affordance for
+     * consistency. ``$block-hover-background`` is the same token
+     * Textual's ``FooterKey`` uses. */
     SessionHeaderWidget .app-title:hover {
-        text-style: bold underline;
+        background: $block-hover-background;
     }
     SessionHeaderWidget .meta {
         width: 1fr;

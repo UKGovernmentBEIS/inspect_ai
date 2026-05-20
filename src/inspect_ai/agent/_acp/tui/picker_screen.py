@@ -31,6 +31,25 @@ from .client import SessionRow
 from .widgets import AppFooter
 from .widgets._formatting import format_running, format_tokens
 
+
+class _NavDataTable(DataTable[str | Text]):
+    """DataTable that surfaces ``↑↓ navigate`` in the footer.
+
+    The base ``DataTable`` declares its ``up``/``down`` bindings with
+    ``show=False``. Because Textual's binding resolution walks from the
+    focused widget outward, the Screen-level binding we used to declare
+    with ``show=True`` lost the footer slot whenever the DataTable had
+    focus (i.e. whenever the picker actually had rows). Subclassing and
+    re-declaring the same actions with ``show=True`` keeps the footer
+    hint visible without changing navigation behaviour.
+    """
+
+    BINDINGS = [
+        Binding("up", "cursor_up", "navigate", show=True, key_display="↑↓"),
+        Binding("down", "cursor_down", "navigate", show=False),
+    ]
+
+
 # Column keys — module constants so add_column, update_cell, and per-tick
 # refreshes all reference the same string. A typo at one site silently
 # breaks update_cell (CellDoesNotExist) without a column-set assertion.
@@ -197,22 +216,9 @@ class PickerScreen(Screen[None]):
     # type ``/`` into the filter).
     BINDINGS = [
         Binding("enter", "attach", "attach", show=True, key_display="↵", priority=True),
-        Binding(
-            "up,down",
-            "noop",
-            "navigate",
-            show=True,
-            key_display="↑↓",
-        ),
         Binding("slash", "filter", "filter", show=True, key_display="/", priority=True),
         Binding("escape", "cancel_filter", show=False),
     ]
-
-    def action_noop(self) -> None:
-        # Cosmetic-only handler — the bound keys are caught by the
-        # DataTable first; this is here so Textual doesn't complain
-        # about a missing action.
-        pass
 
     def action_attach(self) -> None:
         """Activate the highlighted row (or commit the filter)."""
@@ -488,7 +494,9 @@ class PickerScreen(Screen[None]):
         # the eval id lives in the SessionScreen meta row once
         # attached. The count summary above already tells the user
         # how many evals are in play.
-        table: DataTable[str | Text] = DataTable(cursor_type="row", zebra_stripes=True)
+        table: DataTable[str | Text] = _NavDataTable(
+            cursor_type="row", zebra_stripes=True
+        )
         # The ▸ cursor glyph is embedded into the sample cell itself
         # (rather than living in its own gutter column) so we get a
         # single space between glyph and sample text. A separate

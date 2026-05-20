@@ -107,6 +107,7 @@ async def test_event_chip_renders_error_header_and_traceback_block() -> None:
         header_summary="error · ValueError: bad input",
         body_text="ValueError: bad input",
         traceback="Traceback (most recent call last):\n  File a.py, line 1",
+        body_format="plain",
     )
     app = _harness(lambda: EventChipWidget(chip))
     async with app.run_test() as pilot:
@@ -117,9 +118,12 @@ async def test_event_chip_renders_error_header_and_traceback_block() -> None:
         assert "✗" in rendered
         assert "error" in rendered
         assert "ValueError" in rendered
-        # Body mounted with the message text.
-        ccs = list(widget.query(CollapsibleContent))
-        assert any("ValueError" in cc._full_text for cc in ccs)
+        # Plain-format body skips ``CollapsibleContent`` so the body
+        # sits flush against the chip header — Rich Markdown's
+        # paragraph spacing would otherwise insert a blank row.
+        assert list(widget.query(CollapsibleContent)) == []
+        plain_body = widget.query_one(".event-body-plain", Static)
+        assert "ValueError: bad input" in str(plain_body.content)
         # Traceback affordance mounted; starts collapsed.
         tb = widget.query_one(_TracebackBlock)
         assert tb.has_class("collapsed")

@@ -455,7 +455,7 @@ class EventChip:
     (``EvalError.traceback``), not the ANSI variant; ANSI parsing in
     the TUI is a bigger lift than this phase warrants."""
 
-    body_format: Literal["markdown", "json"] = "markdown"
+    body_format: Literal["markdown", "json", "plain"] = "markdown"
     """How the widget should render ``body_text``.
 
     - ``"markdown"`` (default) — pipe through :class:`StyledMarkdown`
@@ -467,6 +467,11 @@ class EventChip:
       is structured (dict / list) so the JSON inherits the chip's
       manila card band instead of stamping its own dark code-block
       rectangle on top.
+    - ``"plain"`` — render the raw text as-is in a simple ``Static``
+      with no Markdown pipeline. Used by :class:`ErrorEvent` bodies
+      (exception messages), which are not authored Markdown and
+      where the Markdown layer's paragraph spacing introduced a
+      visual gap between the chip header and the message text.
     """
 
 
@@ -981,7 +986,15 @@ class SessionState:
         # flip so subscribers only see ONE notification (lifecycle
         # ``complete``), not a flicker through whatever the
         # post-clear / pre-complete state would imply.
-        self._clear_pending_approvals()
+        #
+        # ``_clear_active_work_signals`` finalises any in-flight
+        # assistant message group (drops the spinner / dim chrome
+        # without erasing content) and marks any in-flight tool
+        # call as ``failed`` with an end_time so the postmortem
+        # view doesn't keep showing them as still-running. Errors
+        # that complete the sample without a server-side cleanup
+        # would otherwise leave the spinner pinned forever.
+        self._clear_active_work_signals()
         self._drop_queued_user_messages()
         # Drop any still-mounted ``scoring · X…`` indicator. The
         # indicator's normal lifecycle is begin → mount → ScoreEvent
@@ -1736,7 +1749,11 @@ class SessionState:
         else:
             traceback = None
         self._append_event_chip(
-            kind="error", header="error", body=body, traceback=traceback
+            kind="error",
+            header="error",
+            body=body,
+            traceback=traceback,
+            body_format="plain",
         )
 
     def consume_compaction_event(self, event: dict[str, Any]) -> None:
@@ -1795,7 +1812,7 @@ class SessionState:
         header: str,
         body: str | None,
         traceback: str | None = None,
-        body_format: Literal["markdown", "json"] = "markdown",
+        body_format: Literal["markdown", "json", "plain"] = "markdown",
     ) -> None:
         """Mint an :class:`EventChip`, append to items, and notify subscribers."""
         self._event_chip_counter += 1

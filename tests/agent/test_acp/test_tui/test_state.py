@@ -1614,6 +1614,58 @@ def test_mark_complete_resolves_pending_approvals_as_cancelled() -> None:
     assert lc_after == "complete"
 
 
+def test_mark_complete_marks_in_flight_tools_failed() -> None:
+    """A sample that completes (e.g. via an error) must stop showing tool spinners.
+
+    Regression: when an ErrorEvent terminated the sample without a
+    server-side cleanup, any in-flight ToolCallStart left the card
+    spinning forever in the postmortem view.
+    """
+    clock = _FakeClock(start=2000.0)
+    state = SessionState(now=clock)
+    state.consume(_tool_start("tc-live"))
+    assert state.tools_in_flight == 1
+
+    clock.t = 2010.0
+    state.mark_complete()
+
+    assert state.tools_in_flight == 0
+    tc = state._tool_calls_by_id["tc-live"]
+    assert tc.status == "failed"
+    assert tc.end_time == 2010.0
+    assert state.lifecycle == "complete"
+
+
+def test_mark_complete_drops_empty_pending_message_group() -> None:
+    """An empty in-flight assistant group must vanish when the sample completes.
+
+    Regression: a model-event-pending marker that opened a placeholder
+    group before any content arrived kept the streaming spinner mounted
+    in the postmortem view when the sample ended (e.g. via an error
+    during generation).
+    """
+    from inspect_ai.agent._acp.inspect_ext import MODEL_EVENT_PENDING_META_KEY
+
+    state = SessionState()
+    # Pending marker with no content opens an empty placeholder group.
+    chunk = AgentMessageChunk(
+        session_update="agent_message_chunk",
+        content=TextContentBlock(type="text", text=""),
+        message_id="m-1",
+        field_meta={MODEL_EVENT_PENDING_META_KEY: True},
+    )
+    state.consume(SessionNotification(session_id="sid", update=chunk))
+    assert "m-1" in state._pending_message_ids
+    assert state._messages_by_id["m-1"].pending is True
+
+    state.mark_complete()
+
+    # Empty pending groups are dropped (they were placeholders).
+    assert "m-1" not in state._messages_by_id
+    assert "m-1" not in state._pending_message_ids
+    assert state.lifecycle == "complete"
+
+
 def test_mark_complete_with_no_pending_approvals_still_notifies() -> None:
     """Sticky-complete transition fires the subscriber even with nothing to clear."""
     state = SessionState()

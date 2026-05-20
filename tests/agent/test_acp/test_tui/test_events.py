@@ -197,6 +197,9 @@ def test_consume_error_event_mounts_chip_with_message_and_traceback() -> None:
     # Bare header — message text is in the body, not inlined here.
     assert chip.header_summary == "error"
     assert chip.body_text == "ValueError: bad input"
+    # Plain — exception text isn't authored Markdown, and rendering
+    # it through ``StyledMarkdown`` inserted a leading blank row.
+    assert chip.body_format == "plain"
     assert chip.traceback is not None
     assert "ValueError" in chip.traceback
 

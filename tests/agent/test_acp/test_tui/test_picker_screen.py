@@ -1450,6 +1450,35 @@ async def test_app_title_includes_server_address() -> None:
 @skip_if_trio
 @pytest.mark.slow
 @pytest.mark.anyio
+async def test_picker_footer_shows_navigate_hint_when_table_focused() -> None:
+    """``↑↓ navigate`` must surface in the footer when the DataTable has focus.
+
+    Regression: the previous screen-level ``Binding("up,down", "noop",
+    "navigate", show=True)`` was overshadowed by ``DataTable``'s own
+    hidden ``up``/``down`` bindings whenever the table had focus —
+    which is exactly the case the operator sees when there are rows to
+    navigate. The picker now uses ``_NavDataTable`` so the hint stays
+    visible.
+    """
+    rows = [_row(session_id="u1")]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # The DataTable should be focused once rows are populated.
+        assert app.focused is not None
+        assert type(app.focused).__name__ == "_NavDataTable"
+        descriptions = [
+            getattr(child, "description", None)
+            for child in app.screen.walk_children()
+            if type(child).__name__ == "FooterKey"
+        ]
+        assert "navigate" in descriptions
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
 async def test_picker_header_shows_local_target() -> None:
     """In-TUI picker header reads ``inspect acp · local`` when no --server."""
     from inspect_ai.agent._acp.tui.widgets import AppHeaderWidget
