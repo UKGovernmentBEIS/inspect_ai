@@ -989,10 +989,7 @@ class AnthropicAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        # Anthropic rate-limits per (org, model) on TPM/RPM, so each model
-        # gets its own adaptive controller — otherwise a tight-quota model
-        # (e.g. sonnet under heavy TPM) throttles loose-quota models (opus)
-        # sharing the same key.
+        """Anthropic rate-limits per model, so each model gets its own adaptive controller rather than one shared per key."""
         return f"{self.api_key}:{self.service_model_name()}"
 
     def service_model_name(self) -> str:

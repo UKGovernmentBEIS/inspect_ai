@@ -488,11 +488,7 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        """Scope for enforcing max_connections.
-
-        OpenAI rate-limits per model (RPM/TPM), so each model gets its own
-        adaptive controller rather than one shared per key.
-        """
+        """OpenAI rate-limits per model, so each model gets its own adaptive controller rather than one shared per key."""
         return f"{self.api_key}:{self.model_name}"
 
     @override
