@@ -439,6 +439,42 @@ def test_api_log_delete(view_client: ViewTestClient) -> None:
     assert not Path(full_path).exists()
 
 
+def test_api_log_edit_metadata_null_value_persists(
+    view_client: ViewTestClient,
+) -> None:
+    # End-to-end regression for the "null keys are not being saved"
+    # bug. Posts a MetadataEdit with a `null` value through the live
+    # log-edit endpoint, then re-reads the eval file from disk and
+    # checks the key landed with value None.
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request(
+        "POST",
+        view_client.log_url("log-edit", fname),
+        json={
+            "edits": [
+                {
+                    "type": "metadata",
+                    "metadata_set": {"null_key": None, "ok_key": "v"},
+                }
+            ],
+            "provenance": {"author": "alice"},
+        },
+    )
+    resp.raise_for_status()
+    body = resp.json()
+    assert "null_key" in body["metadata"]
+    assert body["metadata"]["null_key"] is None
+    assert body["metadata"]["ok_key"] == "v"
+
+    # Verify on disk too.
+    persisted = inspect_ai.log.read_eval_log(full_path, header_only=True)
+    assert persisted.metadata is not None
+    assert "null_key" in persisted.metadata
+    assert persisted.metadata["null_key"] is None
+    assert persisted.metadata["ok_key"] == "v"
+
+
 def test_api_log_edit_tags_roundtrip(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
@@ -545,6 +581,19 @@ def test_api_log_edit_append_preserves_prior_updates(
     assert persisted.tags == ["two"]
     assert persisted.log_updates is not None
     assert len(persisted.log_updates) == 2
+
+
+def test_api_user_info(view_client: ViewTestClient) -> None:
+    resp = view_client.request("GET", "/user-info")
+    resp.raise_for_status()
+    body = resp.json()
+    # The endpoint is best-effort: in CI without git or a configured user,
+    # both fields may be omitted. Just assert it's a well-shaped JSON object
+    # with no surprise keys, and that any populated fields are strings.
+    assert isinstance(body, dict)
+    assert set(body.keys()).issubset({"name", "email"})
+    for value in body.values():
+        assert isinstance(value, str)
 
 
 def test_api_log_bytes(view_client: ViewTestClient) -> None:

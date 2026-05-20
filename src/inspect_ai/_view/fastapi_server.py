@@ -31,6 +31,7 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai._view import notify
 from inspect_ai._view._dist import resolve_dist_directory
+from inspect_ai._view.user_info import UserInfo, user_info
 from inspect_ai._view.common import (
     LogDirResponse,
     LogFilesResponse,
@@ -399,6 +400,10 @@ def view_server_app(
                 tg.start_soon(_validate_and_map, i, f)
 
         return await read_eval_log_headers_async(mapped_files)
+
+    @app.get("/user-info", response_model_exclude_none=True)
+    async def api_user_info() -> UserInfo:
+        return user_info()
 
     @app.get("/events")
     async def api_events(

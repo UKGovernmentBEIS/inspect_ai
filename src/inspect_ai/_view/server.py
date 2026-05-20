@@ -50,6 +50,7 @@ from .common import (
     stream_log_bytes,
 )
 from .notify import view_last_eval_time
+from .user_info import user_info
 
 logger = getLogger(__name__)
 
@@ -330,6 +331,10 @@ def view_server_app(
         files = [normalize_uri(file) for file in files]
         map(validate_log_file_request, files)
         return await log_headers_response(files)
+
+    @routes.get("/api/user-info")
+    async def api_user_info(request: web.Request) -> web.Response:
+        return web.json_response(user_info().model_dump(exclude_none=True))
 
     @routes.get("/api/events")
     async def api_events(request: web.Request) -> web.Response:

@@ -16155,40 +16155,46 @@ li > ul {
     inset 0 2px 4px rgba(0, 0, 0, 0.15),
     inset 0 1px 2px rgba(0, 0, 0, 0.1);
 }
-._headerContainer_gh2j2_1 {
-  display: grid;
-  grid-template-columns: max-content auto;
-  column-gap: 0rem;
+._headerContainer_19525_1 {
+  /* Flex (not grid) so an optional `children` action node sits inline
+     beside the label rather than wrapping onto a new row. The previous
+     2-column grid (`max-content auto`) treated icon / label-text /
+     children as three grid items in two columns, forcing the third
+     onto its own row. With flex, icon + label sit at the start and
+     any actions trailing in `children` flow inline (and can push
+     themselves to the far edge with `margin-left: auto`). */
+  display: flex;
+  align-items: center;
   padding: 0.5rem 0.5rem 0.5rem 0.5rem;
   font-size: var(--inspect-font-size-small);
   font-weight: 600;
   border-bottom: solid 1px var(--bs-light-border-subtle);
 }
 
-._headerContainer_gh2j2_1._headerModern_gh2j2_11 {
+._headerContainer_19525_1._headerModern_19525_17 {
   color: var(--bs-secondary);
   padding: 0.25rem 0.5rem 0rem 0.5rem;
   border-bottom: none;
   background-color: var(--bs-body-bg);
 }
 
-._headerIcon_gh2j2_18:not(._headerIconEmpty_gh2j2_18) {
+._headerIcon_19525_24:not(._headerIconEmpty_19525_24) {
   padding-right: 0.2rem;
 }
 
-._body_gh2j2_22 {
+._body_19525_28 {
   background-color: var(--bs-body-bg);
   padding: 0.5rem !important;
 }
 
-._card_gh2j2_27 {
+._card_19525_33 {
   background-color: var(--bs-body-bg);
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
   overflow: hidden;
 }
 
-._body_gh2j2_22._noPadding_gh2j2_34 {
+._body_19525_28._noPadding_19525_40 {
   padding: 0;
 }
 ._copyButton_1goi8_1 {
@@ -17678,34 +17684,171 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 ._value_kmi4b_20 {
   font-weight: 600;
 }
-._grid_1bdxe_1 {
+/* MetadataGrid — Section Cards
+   Compact density, mono labels, striped rows, rule-style section headers.
+   Colors mapped to existing theme variables for light/dark support. */
+
+._grid_1qisc_5 {
+  font-family: var(--bs-body-font-family);
+  font-size: var(--inspect-font-size-small);
+  color: var(--bs-body-color);
+  line-height: 1.5;
+}
+
+/* ── Rows ─────────────────────────────────────────────────────── */
+
+._rows_1qisc_14 {
   display: grid;
   grid-template-columns: auto 1fr;
-  column-gap: 0.5em;
-  row-gap: 0.2em;
+  column-gap: 1em;
 }
 
-._cell_1bdxe_8 {
-  font-weight: 400;
-}
-
-._value_1bdxe_12 {
-  overflow-wrap: anywhere;
-}
-
-._toggleContainer_1bdxe_16 {
+._row_1qisc_14 {
+  display: grid;
+  grid-template-columns: subgrid;
   grid-column: 1 / -1;
+  padding-block: 3px;
+  border-bottom: 1px dotted var(--bs-light-border-subtle);
+  align-items: baseline;
+}
+
+._rows_1qisc_14 > ._row_1qisc_14:last-child {
+  border-bottom: none;
+}
+
+/* ── Striped variant (opt-in via striped prop) ───────────────── */
+
+._striped_1qisc_35 ._row_1qisc_14 {
+  padding-inline: 0.5rem;
+}
+
+._striped_1qisc_35 ._rows_1qisc_14 > ._row_1qisc_14:nth-child(even) {
+  background: var(--bs-light-bg-subtle);
+}
+
+._key_1qisc_43 {
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smallest);
+  color: var(--bs-secondary);
+  font-feature-settings: "calt" 0;
+  letter-spacing: 0;
+  word-break: break-all;
+}
+
+._val_1qisc_52 {
+  color: var(--bs-body-color);
+  overflow-wrap: anywhere;
+  font-feature-settings: "tnum";
+}
+
+._val_1qisc_52 pre {
+  margin: 0;
+  padding: 0;
+}
+
+._empty_1qisc_63 {
+  color: var(--bs-secondary);
+  font-style: italic;
+  font-size: var(--inspect-font-size-smallest);
+}
+
+._numVal_1qisc_69 {
+  color: var(--bs-code-color);
+}
+
+._boolVal_1qisc_73 {
+  color: var(--bs-success-text-emphasis, #198754);
+}
+
+/* ── Sections (nested objects promoted to titled groups) ──────── */
+
+._group_1qisc_79 {
+  margin-top: 14px;
+}
+
+._rows_1qisc_14 + ._group_1qisc_79 {
+  margin-top: 14px;
+}
+
+._group_1qisc_79 + ._group_1qisc_79 {
+  margin-top: 12px;
+}
+
+._groupHeader_1qisc_91 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  padding-bottom: 2px;
+}
+
+._groupKey_1qisc_99 {
+  font-family: var(--bs-font-monospace);
+  font-size: var(--inspect-font-size-smallest);
+  font-weight: 500;
+  color: var(--bs-body-color);
+  letter-spacing: 0;
+}
+
+._groupRule_1qisc_107 {
+  flex: 1;
+  height: 1px;
+  background: var(--bs-light-border-subtle);
+}
+
+/* ── Depth 1 — tighter, lighter ──────────────────────────────── */
+
+._depth1_1qisc_115 {
+  font-size: calc(var(--inspect-font-size-small) - 0.05rem);
+}
+
+._depth1_1qisc_115 ._row_1qisc_14 {
+  padding-block: 2px;
+}
+
+._depth1_1qisc_115 ._key_1qisc_43 {
+  color: var(--bs-tertiary-color);
+  font-size: var(--inspect-font-size-smallestest);
+}
+
+._depth1Group_1qisc_128 {
+  margin-top: 10px;
+}
+
+._depth1Group_1qisc_128 ._groupHeader_1qisc_91 {
+  margin-bottom: 2px;
+}
+
+._depth1Group_1qisc_128 ._groupKey_1qisc_99 {
+  color: var(--bs-secondary);
+  font-size: var(--inspect-font-size-smallestest);
+}
+
+/* ── Depth 2+ — yet tighter ──────────────────────────────────── */
+
+._depth2_1qisc_143 {
+  font-size: calc(var(--inspect-font-size-small) - 0.1rem);
+}
+
+._depth2_1qisc_143 ._row_1qisc_14 {
+  padding-block: 2px;
+}
+
+/* ── Toggle (maxRows collapse) ───────────────────────────────── */
+
+._toggleContainer_1qisc_153 {
   display: flex;
   height: 20px;
-  margin-top: 0.2em;
+  margin-top: 8px;
+  margin-left: 0.5rem;
   background-color: var(--bs-body-bg);
   border-radius: 5px;
   border: solid var(--bs-light-border-subtle) 1px;
   width: fit-content;
 }
 
-._toggleButton_1bdxe_27 {
-  font-size: var(--inspect-font-size-smaller);
+._toggleButton_1qisc_164 {
+  font-size: var(--inspect-font-size-smallest);
   border: none;
   padding: 0 0.5rem;
   background-color: transparent;
@@ -22311,6 +22454,296 @@ pre._value_8citi_25 {
 .message-band-btn.warning {
   color: var(--bs-warning-text-emphasis);
 }
+._button_xbrei_1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: transparent;
+  border: none;
+  color: var(--bs-link-color);
+  cursor: pointer;
+  padding: 0.125rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 500;
+  text-decoration: none;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1;
+  /* In the PrimaryBar tag strip the button sits directly inside the
+     bodyContainer flex row. Without this it could shrink and clip the
+     "Edit" label or the pencil icon when the row is tight. */
+  flex-shrink: 0;
+}
+
+._button_xbrei_1:hover {
+  background: var(--bs-secondary-bg);
+  color: var(--bs-link-hover-color);
+  text-decoration: none;
+}
+
+._button_xbrei_1:focus-visible {
+  outline: 2px solid var(--bs-link-color);
+  outline-offset: 1px;
+}
+._modal_154pu_1 {
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  max-width: 90vw;
+  margin-top: 3rem;
+  border-radius: var(--bs-border-radius);
+  position: relative;
+  z-index: 1050;
+}
+
+._header_154pu_14 {
+  height: 2em;
+}
+
+._modalTitle_154pu_18 {
+  font-weight: 600;
+}
+
+._btnClose_154pu_22 {
+  height: 0.8em;
+  width: 0.8em;
+}
+
+/* Backdrop styling for the glass effect */
+._backdrop_154pu_28 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--inspect-glass-color);
+  opacity: var(--inspect-glass-opacity);
+
+  z-index: 1040;
+}
+
+._overflowVisible_154pu_40 {
+  overflow: visible;
+}
+
+._overflowHidden_154pu_44 {
+  overflow: hidden;
+}
+
+._overflowScroll_154pu_48 {
+  overflow: scroll;
+}
+
+._overflowAuto_154pu_52 {
+  overflow: auto;
+}
+
+._noPadding_154pu_56 {
+  padding: 0;
+}
+
+/* Used when a custom footer node is supplied via the `footer` prop —
+   matches the design's lighter footer rail and lets the consumer
+   provide its own buttons. */
+._footerSlot_154pu_63 {
+  background: var(--bs-tertiary-bg);
+  padding: 0.75rem 1.125rem;
+}
+._textarea_1i52c_1 {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  padding: 0.4rem 0.625rem;
+  border-radius: 5px;
+  resize: none;
+  /* No inner scrollbar — the surrounding container (e.g. the metadata
+     table scroll wrapper) handles overflow. The height is matched to
+     scrollHeight, so a scrollbar would only appear from a transient
+     measurement glitch. */
+  overflow: hidden;
+  background: var(--bs-body-bg);
+}
+._container_1y8hh_1 {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--bs-secondary-color);
+  font-style: italic;
+}
+
+._label_1y8hh_10 {
+  font-weight: 600;
+  font-style: normal;
+}
+
+._items_1y8hh_15 {
+  color: var(--bs-secondary-color);
+}
+
+._accentAdding_1y8hh_19 {
+  color: var(--bs-success-text-emphasis);
+}
+
+._accentEditing_1y8hh_23 {
+  color: var(--bs-warning-text-emphasis);
+}
+
+._accentRemoving_1y8hh_27 {
+  color: var(--bs-danger);
+}
+/* Shared chrome for EditTagsDialog and EditMetadataDialog. */
+
+._body_1stg5_3 {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+._section_1stg5_9 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+._labelRow_1stg5_15 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+._label_1stg5_15 {
+  font-weight: 600;
+  color: var(--bs-body-color);
+  margin: 0;
+}
+
+._hint_1stg5_27 {
+  color: var(--bs-secondary-color);
+  font-weight: 400;
+}
+
+._required_1stg5_32 {
+  color: var(--bs-danger);
+  margin-left: 0.15rem;
+}
+
+._divider_1stg5_37 {
+  border: none;
+  border-top: 1px solid var(--bs-border-color);
+  margin: 0.15rem 0;
+}
+
+._provenance_1stg5_43 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+._error_1stg5_49 {
+  padding: 0.4rem 0.6rem;
+  background: var(--bs-danger-bg-subtle);
+  color: var(--bs-danger-text-emphasis);
+  border: 1px solid var(--bs-danger-border-subtle);
+  border-radius: var(--bs-border-radius);
+}
+
+._footer_1stg5_57 {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+/* The scroll wrapper bounds the table's vertical reach so the add-key
+   row, provenance fields, and footer stay on-screen no matter how many
+   keys the user has. The chrome (border, rounded corners) moves to
+   this element since the inner table now overflows scrollwise. */
+._tableScroll_1g33t_5 {
+  max-height: 40vh;
+  overflow-y: auto;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 6px;
+  background: var(--bs-body-bg);
+}
+
+._table_1g33t_5 {
+  /* chrome handled by .tableScroll above */
+}
+
+._empty_1g33t_17 {
+  padding: 0.75rem 0.875rem;
+  color: var(--bs-secondary-color);
+}
+
+._row_1g33t_22 {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr auto;
+  gap: 0.625rem;
+  align-items: flex-start;
+  padding: 0.625rem 0.75rem;
+}
+
+._rowDivider_1g33t_30 {
+  border-top: 1px solid var(--bs-border-color);
+}
+
+._rowNew_1g33t_34 {
+  background: var(--bs-success-bg-subtle);
+}
+
+._key_1g33t_38 {
+  font-family: var(--bs-font-monospace);
+  color: var(--bs-body-color);
+  padding-top: 0.4rem;
+  word-break: break-all;
+}
+
+._value_1g33t_45 {
+  min-width: 0;
+}
+
+._remove_1g33t_49 {
+  background: transparent;
+  border: none;
+  padding: 0.25rem 0.4rem;
+  margin-top: 0.25rem;
+  color: var(--bs-secondary-color);
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+._remove_1g33t_49:hover {
+  color: var(--bs-danger);
+  background: var(--bs-tertiary-bg);
+}
+
+._remove_1g33t_49:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+._addRow_1g33t_70 {
+  margin-top: 0.625rem;
+  display: grid;
+  grid-template-columns: 1fr 7.5rem auto;
+  gap: 0.5rem;
+}
+
+._addKeyInput_1g33t_77 {
+  min-width: 0;
+}
+
+._typeSelect_1g33t_81 {
+  font-family: var(--bs-font-monospace);
+}
+
+._addButton_1g33t_85 {
+  white-space: nowrap;
+}
 ._item_1uzhd_1 {
   margin-bottom: 0em;
 }
@@ -22394,6 +22827,20 @@ pre._value_8citi_25 {
   margin-right: 0.3em;
   margin-top: 0;
   margin-bottom: -0.1em;
+}
+._headerActions_1fn25_1 {
+  /* CardHeader is a flex row (icon → label → children); pushing this
+     wrapper with margin-left:auto sends the Edit affordance to the
+     right edge of the header. */
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+._emptyMetadata_1fn25_10 {
+  color: var(--bs-secondary-color);
+  font-style: italic;
+  padding: 0.25rem 0.5rem;
 }
 .download-button {
   margin-top: 3em;
@@ -22721,195 +23168,96 @@ pre._value_8citi_25 {
 ._text_1yknn_20 {
   margin-top: -2px;
 }
-._modal_1tj8p_1 {
-  margin-left: auto;
-  margin-right: auto;
-  display: flex;
-  flex: 1 1 auto;
-  justify-content: center;
-  max-width: 90vw;
-  margin-top: 3rem;
-  border-radius: var(--bs-border-radius);
-  position: relative;
-  z-index: 1050;
-}
-
-._header_1tj8p_14 {
-  height: 2em;
-}
-
-._modalTitle_1tj8p_18 {
-  font-weight: 600;
-}
-
-._btnClose_1tj8p_22 {
-  height: 0.8em;
-  width: 0.8em;
-}
-
-/* Backdrop styling for the glass effect */
-._backdrop_1tj8p_28 {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: var(--inspect-glass-color);
-  opacity: var(--inspect-glass-opacity);
-
-  z-index: 1040;
-}
-
-._overflowVisible_1tj8p_40 {
-  overflow: visible;
-}
-
-._overflowHidden_1tj8p_44 {
-  overflow: hidden;
-}
-
-._overflowScroll_1tj8p_48 {
-  overflow: scroll;
-}
-
-._overflowAuto_1tj8p_52 {
-  overflow: auto;
-}
-
-._noPadding_1tj8p_56 {
-  padding: 0;
-}
-._body_160of_1 {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  min-width: 28rem;
-}
-
-._section_160of_8 {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-._label_160of_14 {
-  font-weight: 600;
-  color: var(--bs-body-color);
-}
-
-._required_160of_19 {
-  color: var(--bs-danger);
-}
-
-._tagsRow_160of_23 {
+._chipBox_yxwie_1 {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  min-height: 1.75rem;
-  padding: 0.25rem;
+  gap: 0.375rem;
+  min-height: 2.25rem;
+  padding: 0.375rem;
   border: 1px solid var(--bs-border-color);
   border-radius: var(--bs-border-radius);
   background: var(--bs-body-bg);
 }
 
-._empty_160of_34 {
+._empty_yxwie_12 {
   color: var(--bs-secondary-color);
-  padding: 0.15rem 0.25rem;
+  padding: 0.2rem 0.25rem;
 }
 
-._chip_160of_39 {
+._addRow_yxwie_17 {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+._input_yxwie_23 {
+  flex: 1;
+}
+
+._addButton_yxwie_27 {
+  white-space: nowrap;
+}
+._chip_35bbk_1 {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.1rem 0.4rem;
+  padding: 0.125rem 0.5rem;
+  height: 1.375rem;
+  /* Cap chip width so one giant tag can't push the inline Edit button
+     off the right edge of the header. The label inside ellipsizes. */
+  max-width: 18rem;
+  min-width: 0;
   background: var(--bs-secondary-bg);
+  color: var(--bs-body-color);
   border-radius: 999px;
-  border: 1px solid var(--bs-border-color);
+  border: 1px solid transparent;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  line-height: 1;
 }
 
-._chipNew_160of_49 {
+._chipLabel_35bbk_21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+._chipNew_35bbk_28 {
   background: var(--bs-success-bg-subtle);
   border-color: var(--bs-success-border-subtle);
 }
 
-._chipRemove_160of_54 {
+._chipRemove_35bbk_33 {
   background: none;
   border: none;
   padding: 0;
-  margin-left: 0.1rem;
+  margin-left: 0.125rem;
   cursor: pointer;
   color: inherit;
+  opacity: 0.7;
   display: inline-flex;
   align-items: center;
   line-height: 1;
 }
 
-._chipRemove_160of_54:hover {
+._chipRemove_35bbk_33:hover {
+  opacity: 1;
   color: var(--bs-danger);
 }
-
-._addRow_160of_70 {
-  display: flex;
-  gap: 0.4rem;
-}
-
-._input_160of_75 {
-  flex: 1;
-}
-
-._removedNote_160of_79 {
-  color: var(--bs-secondary-color);
-  font-style: italic;
-}
-
-._error_160of_84 {
-  padding: 0.4rem 0.6rem;
-  background: var(--bs-danger-bg-subtle);
-  color: var(--bs-danger-text-emphasis);
-  border: 1px solid var(--bs-danger-border-subtle);
-  border-radius: var(--bs-border-radius);
-}
-
-._actions_160of_92 {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.25rem;
-}
-._grid_ilp8u_1 {
+._grid_1xxot_1 {
   display: grid;
   grid-template-columns: fit-content(50%) fit-content(50%);
   column-gap: 3em;
   align-items: flex-start;
 }
 
-._tagsRow_ilp8u_8 {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
+._tagPillRow_1xxot_8 {
+  display: inline-flex;
   flex-wrap: wrap;
-}
-
-._tagsLabel_ilp8u_16 {
-  font-weight: 600;
-  min-width: 5rem;
-}
-
-._tagsValue_ilp8u_21 {
-  flex: 1;
-  min-width: 0;
-}
-
-._tagsEmpty_ilp8u_26 {
-  color: var(--bs-secondary-color);
-  font-style: italic;
-}
-
-._editButton_ilp8u_31 {
-  padding: 0;
-  margin-left: 0.25rem;
-  white-space: nowrap;
+  gap: 0.375rem;
+  align-items: center;
 }
 ._button_12472_1 {
   display: flex;
@@ -23223,55 +23571,103 @@ thead th {
   gap: 0.1em;
   padding-right: 1em;
 }
-._container_17txe_1 {
+._container_ctxmw_1 {
   display: flex;
   padding-top: 0;
   margin-left: 0.5rem;
   min-width: 250px;
 }
 
-._wrapper_17txe_8 {
+/* Body column expands to fill whatever space the right-hand results
+   panel doesn't claim. Previously the right column was a fixed `1fr`
+   share, so even on wide windows the title block was capped at ~half
+   the wrapper — which forced the inline tag strip to wrap chips long
+   before there was any real space pressure (large empty gap between
+   the Edit button and the right column). With `auto` the results
+   panel takes its natural width and the body absorbs the rest. */
+._wrapper_ctxmw_15 {
   display: grid;
-  grid-template-columns: minmax(auto, 1fr) 1fr;
+  grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
 }
 
-._toggle_17txe_14 {
+._toggle_ctxmw_21 {
   margin-top: 0.3em;
   font-size: 1em;
   padding: 0rem 0.1rem 0.1rem 0rem;
   display: flex;
 }
 
-._body_17txe_21 {
+._body_ctxmw_28 {
   display: flex;
   flex-direction: column;
   margin-left: 0.2rem;
 }
 
-._bodyContainer_17txe_27 {
+/* Single-line flex row: title + model + tag chips share one baseline. The
+   title is the only shrinkable item (via min-width:0 + text-truncate); the
+   model and tag row stay at their natural width so chips sit inline after
+   the model. If chips themselves exceed the remaining space, the inner
+   `tagRow` (flex-wrap: wrap) lets them flow onto extra lines within the
+   tag block without breaking off from the model name. */
+._bodyContainer_ctxmw_40 {
   margin-top: 0.1rem;
-  display: grid;
-  grid-template-columns: minmax(30px, max-content) minmax(100px, max-content);
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  column-gap: 0.5rem;
+  min-width: 0;
 }
 
-._taskTitle_17txe_33 {
+._tagRow_ctxmw_49 {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+  /* Allow shrinking (so chip wrap can engage when content truly exceeds
+     the available width), but pair this with a high flex-shrink on the
+     title (below) so the title absorbs the entire deficit first. Without
+     that bias, the flex algorithm splits the deficit proportional to
+     content size — and the chip strip's content is usually wider than
+     the title's, so it ends up absorbing most of the shrink and wrapping
+     prematurely while the title still shows its full text. */
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+._tagSeparator_ctxmw_65 {
+  display: inline-block;
+  width: 1px;
+  height: 0.875rem;
+  background: var(--bs-border-color);
+  margin: 0 0.125rem;
+}
+
+._taskTitle_ctxmw_73 {
   font-weight: 600;
-  margin-right: 0.3rem;
+  /* `text-truncate` (overflow:hidden + ellipsis + nowrap) plus min-width:0
+     lets the title shrink below its intrinsic width and ellipsize.
+     The high flex-shrink biases the flex algorithm so the title absorbs
+     essentially all of the deficit before the tag row gives up any of
+     its width — keeping chips inline beside the model until the title
+     has been fully ellipsized to its minimum. */
+  min-width: 0;
+  flex-shrink: 100;
 }
 
-._taskModel_17txe_38 {
+._taskModel_ctxmw_85 {
   padding-top: 0.4rem;
+  flex-shrink: 0;
 }
 
-._taskStatus_17txe_42 {
+._taskStatus_ctxmw_90 {
   display: flex;
   justify-content: end;
   margin-right: 1em;
   margin-bottom: 0;
 }
 
-._secondaryContainer_17txe_49 {
+._secondaryContainer_ctxmw_97 {
   opacity: 0.7;
   margin-top: -0.1rem;
   padding-bottom: 0;
@@ -23280,7 +23676,7 @@ thead th {
   gap: 0.5rem;
 }
 
-._buttonGroup_17txe_58 {
+._buttonGroup_ctxmw_106 {
   display: flex;
   gap: 0.15rem;
   align-items: center;
