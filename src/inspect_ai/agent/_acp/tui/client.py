@@ -464,10 +464,13 @@ class AttachedSession:
             if self._closed:
                 self.disconnected.set()
                 return
-            if self._state.session_ended_received:
-                # Graceful end — server sent ``inspect/session_ended``
-                # which already called ``mark_complete`` via the
-                # handler. Don't reconnect; just signal terminal.
+            if self._state.session_ended_received or self._state._complete:
+                # Terminal — either server sent ``inspect/session_ended``
+                # (graceful end) or the session has otherwise been marked
+                # complete. In both cases the sample is over from the
+                # operator's POV; reconnecting would just produce
+                # noise toasts on a session they're no longer
+                # interacting with.
                 self.disconnected.set()
                 return
             # Ungraceful disconnect. Drive the reconnect cycle.
@@ -510,6 +513,10 @@ class AttachedSession:
             await self._sleep(_DISCONNECT_TOAST_INTERVAL_SECONDS)
             if self._notify is None or self._disconnected_at is None:
                 continue
+            if self._state._complete:
+                # Sample is complete — don't nag about a transport
+                # the operator is no longer relying on.
+                return
             elapsed_s = int(self._clock() - self._disconnected_at)
             mins = max(1, elapsed_s // 60)
             plural = "s" if mins != 1 else ""
@@ -529,11 +536,11 @@ class AttachedSession:
         the coordinator's outer ``except`` handles it.
         """
         attempt = 0
-        while not self._closed:
+        while not self._closed and not self._state._complete:
             backoff = _RECONNECT_BACKOFF[min(attempt, len(_RECONNECT_BACKOFF) - 1)]
             await self._sleep(backoff)
             attempt += 1
-            if self._closed:
+            if self._closed or self._state._complete:
                 return False
             try:
                 await self._establish_connection()

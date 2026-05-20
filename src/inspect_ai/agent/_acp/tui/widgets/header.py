@@ -22,6 +22,8 @@ from typing import Literal
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.css.query import NoMatches
+from textual.events import Click
+from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Static
 
@@ -112,13 +114,19 @@ class AppHeaderWidget(Widget):
     def compose(self) -> ComposeResult:
         with Horizontal():
             yield Static("inspect acp", classes="app-title", markup=False)
-            yield Static(
-                f"· {self._server or 'local'}", classes="target", markup=False
-            )
+            yield Static(f"· {self._server or 'local'}", classes="target", markup=False)
 
 
 class SessionHeaderWidget(Widget):
     """One-row header — app name + meta identifiers + lifecycle pill."""
+
+    class BackToPicker(Message):
+        """Posted when the operator clicks the ``inspect acp`` title.
+
+        Handled by :class:`SessionScreen` as a synonym for ``^S switch
+        sample`` — returns the operator to the picker without
+        requiring them to remember the keybinding.
+        """
 
     DEFAULT_CSS = """
     SessionHeaderWidget {
@@ -137,6 +145,9 @@ class SessionHeaderWidget(Widget):
         color: $accent;
         text-style: bold;
         padding-right: 3;
+    }
+    SessionHeaderWidget .app-title:hover {
+        text-style: bold underline;
     }
     SessionHeaderWidget .meta {
         width: 1fr;
@@ -168,7 +179,12 @@ class SessionHeaderWidget(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal():
-            yield Static("inspect acp", classes="app-title", markup=False)
+            yield Static(
+                "inspect acp",
+                classes="app-title",
+                id="app-title",
+                markup=False,
+            )
             yield Static(
                 self._meta_markup(), classes="meta", id="meta-text", markup=True
             )
@@ -213,6 +229,18 @@ class SessionHeaderWidget(Widget):
         if u is None:
             return ""
         return f"[dim]tokens[/dim] {format_tokens(u.used)}"
+
+    def on_click(self, event: Click) -> None:
+        """Treat a click on the ``inspect acp`` title as ^S switch sample.
+
+        The header sits in the click path for the title Static; we
+        match on the control's id so a click on the meta row or the
+        lifecycle pill is left untouched.
+        """
+        if event.control is None or event.control.id != "app-title":
+            return
+        event.stop()
+        self.post_message(self.BackToPicker())
 
     def set_lifecycle(self, state: Lifecycle) -> None:
         """Reflect the latest turn lifecycle on the upper-right pill.

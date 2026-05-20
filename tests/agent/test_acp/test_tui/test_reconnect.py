@@ -497,9 +497,90 @@ async def test_toast_cadence_does_not_fire_when_no_disconnected_at() -> None:
     assert notifications == []
 
 
-# ---------------------------------------------------------------------------
-# Pilot tests — send-while-disconnected guard
-# ---------------------------------------------------------------------------
+@skip_if_trio
+async def test_toast_cadence_returns_when_state_is_complete() -> None:
+    """A sample marked complete must stop the reconnect-toast cadence.
+
+    Regression: when the eval process exits behind a completed
+    sample, the receive loop sees EOF and the coordinator starts a
+    reconnect cycle. The operator is no longer interacting with the
+    sample, so the periodic "Reconnecting…" toast is just noise.
+    """
+    state = SessionState()
+    clock = _FakeClock(start=0.0)
+    notifications: list[tuple[str, str]] = []
+
+    def _notify(msg: str, severity: str) -> None:
+        notifications.append((msg, severity))
+
+    async def _sleep(delay: float) -> None:
+        clock.advance(delay)
+        await asyncio.sleep(0)
+
+    session = _make_session(
+        state=state,
+        notify=_notify,
+        sleep=_sleep,
+        clock=clock,
+    )
+    session._disconnected_at = clock()
+    state.mark_complete()
+
+    task = asyncio.create_task(session._toast_cadence())
+    # Yield enough to let the inner loop hit the _complete check.
+    for _ in range(20):
+        await asyncio.sleep(0)
+        if task.done():
+            break
+    # Task should have returned on its own (no cancellation needed).
+    assert task.done()
+    assert notifications == []
+
+
+@skip_if_trio
+async def test_reconnect_loop_short_circuits_when_state_is_complete() -> None:
+    """The reconnect retry loop must bail if the session becomes complete.
+
+    Companion to the toast-cadence gate: once the operator's sample
+    is over, the loop should stop retrying instead of spinning at
+    the 30s cap forever.
+    """
+    state = SessionState()
+    state.mark_complete()
+    sleep = _FakeSleep()
+    session = _make_session(state=state, sleep=sleep)
+
+    async def _never_called() -> None:
+        raise AssertionError("_establish_connection should not run")
+
+    session._establish_connection = _never_called  # type: ignore[method-assign]
+    result = await session._reconnect_until_resolved()
+    assert result is False
+    assert sleep.calls == []
+
+
+@skip_if_trio
+async def test_coordinator_terminal_gate_treats_complete_as_session_ended() -> None:
+    """The coordinator must short-circuit when ``_complete`` is set.
+
+    Without this, a sample whose process exits AFTER it's marked
+    complete (but without an ``inspect/session_ended`` notification
+    landing — e.g. the agent loop quietly resolved and the host
+    process is now shutting down) would enter the reconnect cycle
+    and toast every 60s.
+    """
+    state = SessionState()
+    state.mark_complete()
+    session = _make_session(state=state)
+
+    # Simulate a finished receive task; the coordinator awaits it,
+    # then runs the terminal gate.
+    async def _noop() -> None:
+        return
+
+    session._receive_task = asyncio.create_task(_noop())
+    await session._coordinator()
+    assert session.disconnected.is_set() is True
 
 
 class TestPilotReconnectUI:

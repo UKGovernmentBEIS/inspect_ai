@@ -794,6 +794,92 @@ async def test_session_header_strips_first_path_segment_from_task() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
+async def test_session_header_title_click_posts_back_to_picker() -> None:
+    """Clicking ``inspect acp`` on the session header posts BackToPicker.
+
+    Handled by ``SessionScreen.on_session_header_widget_back_to_picker``
+    as a synonym for ``^S switch sample`` — the operator gets a
+    discoverable way back to the picker without remembering the
+    keybinding.
+    """
+    from pathlib import Path
+
+    from inspect_ai.agent._acp.discovery import TargetAddress
+    from inspect_ai.agent._acp.tui.client import SessionRow
+    from inspect_ai.agent._acp.tui.widgets.header import SessionHeaderWidget
+
+    row = SessionRow(
+        eval_id="e1",
+        session_id="sess-1",
+        task="suite/task",
+        sample_id="s1",
+        epoch=1,
+        agent_name="react",
+        started_at=0.0,
+        target=TargetAddress(socket_path=Path("/tmp/test.sock")),
+    )
+
+    received: list[SessionHeaderWidget.BackToPicker] = []
+
+    class _CapturingApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield SessionHeaderWidget(row)
+
+        def on_session_header_widget_back_to_picker(
+            self, event: SessionHeaderWidget.BackToPicker
+        ) -> None:
+            received.append(event)
+
+    app = _CapturingApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.click("#app-title")
+        await pilot.pause()
+    assert len(received) == 1
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_session_header_meta_click_does_not_post_back_to_picker() -> None:
+    """Only the ``inspect acp`` title triggers BackToPicker — not the meta row."""
+    from pathlib import Path
+
+    from inspect_ai.agent._acp.discovery import TargetAddress
+    from inspect_ai.agent._acp.tui.client import SessionRow
+    from inspect_ai.agent._acp.tui.widgets.header import SessionHeaderWidget
+
+    row = SessionRow(
+        eval_id="e1",
+        session_id="sess-1",
+        task="suite/task",
+        sample_id="s1",
+        epoch=1,
+        agent_name="react",
+        started_at=0.0,
+        target=TargetAddress(socket_path=Path("/tmp/test.sock")),
+    )
+
+    received: list[SessionHeaderWidget.BackToPicker] = []
+
+    class _CapturingApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield SessionHeaderWidget(row)
+
+        def on_session_header_widget_back_to_picker(
+            self, event: SessionHeaderWidget.BackToPicker
+        ) -> None:
+            received.append(event)
+
+    app = _CapturingApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.click("#meta-text")
+        await pilot.pause()
+    assert received == []
+
+
+@skip_if_trio
+@pytest.mark.anyio
 async def test_session_header_tokens_chip_updates_via_set_usage() -> None:
     """``set_usage`` re-renders the meta row with a tokens chip.
 

@@ -592,6 +592,13 @@ class SessionScreen(Screen[None]):
         self._user_initiated_close = True
         self._on_disconnect()
 
+    def on_session_header_widget_back_to_picker(
+        self, event: SessionHeaderWidget.BackToPicker
+    ) -> None:
+        """Treat a click on the ``inspect acp`` title as ^S switch sample."""
+        event.stop()
+        self.action_switch_sample()
+
     def action_cancel_sample(self) -> None:
         """Show the cancel-sample composer-area bar.
 
