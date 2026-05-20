@@ -188,6 +188,92 @@ def test_anthropic_should_retry():
     assert not model.api.should_retry(ex)
 
 
+def test_anthropic_handle_bad_request_content_filter_apistatuserror() -> None:
+    """Mid-stream content-filter errors arrive as a plain APIStatusError.
+
+    The Anthropic SDK raises errors that occur after streaming has begun via
+    `_make_status_error`; because the HTTP response was already 200, the SDK
+    can't infer the 400 subclass, so the exception is the base APIStatusError
+    rather than BadRequestError. handle_bad_request() must still convert
+    "content filtering" messages into a content_filter refusal.
+    """
+    import httpx
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
+    ex = APIStatusError(
+        "Output blocked by content filtering policy",
+        response=httpx.Response(
+            status_code=200,
+            request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+        ),
+        body={
+            "type": "error",
+            "error": {
+                "type": "invalid_request_error",
+                "message": "Output blocked by content filtering policy",
+            },
+        },
+    )
+
+    result = api.handle_bad_request(ex)
+    assert isinstance(result, ModelOutput)
+    assert result.stop_reason == "content_filter"
+
+
+@pytest.mark.anyio
+async def test_anthropic_generate_handles_midstream_content_filter() -> None:
+    """generate() must convert a mid-stream APIStatusError into a content_filter refusal.
+
+    Regression: the outer `except APIStatusError` block previously only handled
+    status_code == 413 and re-raised everything else, so content-filter errors
+    that surfaced mid-stream killed the eval instead of becoming a refusal.
+    """
+    import httpx
+    from anthropic import APIStatusError
+
+    from inspect_ai.model._model_output import ModelOutput
+
+    api = AnthropicAPI(model_name="claude-opus-4-6", api_key="test-key")
+
+    async def fake_perform(
+        request: dict[str, Any],
+        streaming: bool,
+        tools: list[Any],
+        config: GenerateConfig,
+        pending_tool_uses: Any = None,
+        pending_mcp_tool_uses: Any = None,
+    ) -> tuple[dict[str, Any], ModelOutput]:
+        raise APIStatusError(
+            "Output blocked by content filtering policy",
+            response=httpx.Response(
+                status_code=200,
+                request=httpx.Request("POST", "https://api.anthropic.com/v1/messages"),
+            ),
+            body={
+                "type": "error",
+                "error": {
+                    "type": "invalid_request_error",
+                    "message": "Output blocked by content filtering policy",
+                },
+            },
+        )
+
+    api._perform_request_and_continuations = fake_perform  # type: ignore[method-assign]
+
+    output, _model_call = await api.generate(
+        input=[ChatMessageUser(content="hello")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(max_tokens=64),
+    )
+
+    assert isinstance(output, ModelOutput)
+    assert output.stop_reason == "content_filter"
+
+
 @skip_if_no_anthropic
 async def test_anthropic_count_tokens_single_tool_call() -> None:
     """Test counting tokens for a single assistant message with one tool call."""

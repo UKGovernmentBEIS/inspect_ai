@@ -560,17 +560,18 @@ def eval_set(
                 failed_tasks = as_previous_tasks(
                     failed_resolved_tasks, failed_logs, eval_set_args
                 )
-            tasks_to_run = (
-                pending_tasks
-                + failed_tasks
-                + _resume_scan_tasks(
+            combined_tasks: list[ResolvedTask | PreviousTask] = [
+                *pending_tasks,
+                *failed_tasks,
+                *_resume_scan_tasks(
                     scanner,
                     success_logs,
                     resolved_tasks,
                     eval_set_args,
                     prior_scan_clean,
-                )
-            )
+                ),
+            ]
+            tasks_to_run = combined_tasks
 
             if not tasks_to_run:
                 return [log.header for log in success_logs]
