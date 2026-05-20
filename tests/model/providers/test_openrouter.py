@@ -291,3 +291,64 @@ def test_apply_cache_creation_usage_noop_when_no_call() -> None:
     assert output.usage is not None
     assert output.usage.input_tokens_cache_write is None
     assert output.usage.input_tokens == 500
+
+
+@pytest.mark.anyio
+async def test_messages_to_openai_strips_reasoning_details_for_gemini() -> None:
+    """Gemini-family models must not get reasoning_details replayed.
+
+    OpenRouter's openai-compat translation of Gemini sequential function-call
+    thoughtSignatures produces reasoning_details whose ``id`` is missing or
+    stale vs the new tool_calls[].id, causing HTTP 200 + body
+    ``{code:400, message:"Provider returned error"}`` (upstream Gemini
+    rejects with "function call ... missing a thought_signature"). The
+    provider should fall through to the ``<think>`` tag path for Gemini.
+    """
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._providers.openrouter import (
+        OPENROUTER_REASONING_DETAILS_SIGNATURE,
+    )
+
+    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + (
+        '[{"type": "reasoning.encrypted", "data": "ENCRYPTED", "id": "tool_X"}]'
+    )
+    msg = ChatMessageAssistant(
+        content=[ContentReasoning(reasoning="thinking...", signature=signature)],
+    )
+
+    api = _make_api("google/gemini-3-pro-preview")
+    converted = await api.messages_to_openai([msg])
+
+    # No reasoning_details echoed; content carries <think> tag instead.
+    payload = converted[0]
+    assert "reasoning_details" not in payload
+    content = payload.get("content")
+    if isinstance(content, list):
+        text = "".join(b.get("text", "") for b in content if isinstance(b, dict))
+    else:
+        text = content or ""
+    assert "<think" in text and "thinking..." in text and "</think>" in text
+
+
+@pytest.mark.anyio
+async def test_messages_to_openai_preserves_reasoning_details_for_non_gemini() -> None:
+    """Anthropic/Grok/OpenAI reasoning replay must be left intact."""
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._providers.openrouter import (
+        OPENROUTER_REASONING_DETAILS_SIGNATURE,
+    )
+
+    signature = OPENROUTER_REASONING_DETAILS_SIGNATURE + (
+        '[{"type": "reasoning.text", "text": "considered options", "id": "r1"}]'
+    )
+    msg = ChatMessageAssistant(
+        content=[ContentReasoning(reasoning="considered options", signature=signature)],
+    )
+
+    api = _make_api("anthropic/claude-sonnet-4-5")
+    converted = await api.messages_to_openai([msg])
+
+    payload = converted[0]
+    assert "reasoning_details" in payload
