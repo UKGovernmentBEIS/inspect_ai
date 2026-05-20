@@ -31,6 +31,7 @@ inspect eval-retry [OPTIONS] LOG_FILES...
 | `--log-shared` | text | Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). If enabled will sync every 10 seconds (or pass a value to sync every `n` seconds). | None |
 | `--no-score` | boolean | Do not score model output (use the inspect score command to score output later) | `False` |
 | `--no-score-display` | boolean | Do not display scoring metrics in realtime. | `False` |
+| `--acp-server` | text | Override the original eval’s Agent Client Protocol server. Bare flag enables a default AF_UNIX socket; pass an integer to bind a TCP loopback port; pass `host:port` to bind on a specific interface (e.g. `0.0.0.0:4444`); pass a filesystem path for a custom UNIX socket; pass `false` to disable. Omit to replay whatever transport the original log used. | None |
 | `--max-connections` | integer | Maximum number of concurrent connections to Model API (defaults to 10) | None |
 | `--adaptive-connections` | text | Adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback (default: enabled, with min=4, start=20, max=100). Pass `false` to opt out, an integer N for a custom max (e.g. `200`), or bounds as `min-max` (e.g. `4-80`) or `min-start-max` (e.g. `4-20-80`). Explicit `--max-connections` and `--batch` take precedence. | None |
 | `--max-retries` | integer | Maximum number of times to retry model API requests (defaults to unlimited) | None |

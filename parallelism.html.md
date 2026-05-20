@@ -288,6 +288,8 @@ Note that there are some features of Inspect that do not yet work when using Tri
 
 3.  The [Bedrock](./providers.html.md#aws-bedrock) and [Grok](./providers.html.md#grok) providers depend on asyncio so cannot be used with the Trio backend.
 
+4.  The `--acp-server` option (which exposes a running eval over the Agent Client Protocol so external editors can attach) depends on the asyncio-only `acp` library. Inspect raises a clear startup error if `--acp-server` is specified while the Trio backend is configured. Evals that don’t use `--acp-server` are unaffected and run normally under Trio.
+
 ### Portable Async
 
 If you are writing async code in your Inspect solvers, tools, scorers, or extensions, you should whenever possible use the [AnyIO](https://anyio.readthedocs.io/en/stable/) library rather than asyncio. If you do this, your Inspect code will work correctly no matter what async backend is in use.

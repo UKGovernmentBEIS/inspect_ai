@@ -10,11 +10,13 @@ Agents combine planning, memory, and tool usage to pursue more complex, tasks (e
 
 3.  Using software engineering agents like Claude Code and Codex CLI via the [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/) package.
 
-4.  Implementing a fully [Custom Agent](./agent-custom.html.md), potentially composing agents into [Multi Agent](./multi-agent.html.md) architectures.
+4.  Intervene in agent execution (interrupt, send messages, etc.) as required using [Agent Client Protocol](./intervention.html.md).
 
-5.  Integrating external agent frameworks via the [Agent Bridge](./agent-bridge.html.md).
+5.  Implementing a fully [Custom Agent](./agent-custom.html.md), potentially composing agents into [Multi Agent](./multi-agent.html.md) architectures.
 
-6.  Using the [Human Agent](./human-agent.html.md) for human baselining of computing tasks.
+6.  Integrating external agent frameworks via the [Agent Bridge](./agent-bridge.html.md).
+
+7.  Using the [Human Agent](./human-agent.html.md) for human baselining of computing tasks.
 
 Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct Agent, Deep Agent, custom agents, and multi-agent systems.
 

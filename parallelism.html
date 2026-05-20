@@ -380,6 +380,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./intervention.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Intervention</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./multi-agent.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Multi Agent</span></a>
   </div>
@@ -823,6 +829,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>Full screen task display uses the <a href="https://textual.textualize.io/">textual</a> framework, which currently works only with asyncio. Inspect will automatically switch to “rich” task display (which is less interactive) when using Trio.</p></li>
 <li><p>Interaction with AWS S3 (e.g.&nbsp;for log storage) uses the <a href="https://s3fs.readthedocs.io/en/latest/">s3fs</a> package, which currently works only with asyncio.</p></li>
 <li><p>The <a href="./providers.html#aws-bedrock">Bedrock</a> and <a href="./providers.html#grok">Grok</a> providers depend on asyncio so cannot be used with the Trio backend.</p></li>
+<li><p>The <code>--acp-server</code> option (which exposes a running eval over the Agent Client Protocol so external editors can attach) depends on the asyncio-only <code>acp</code> library. Inspect raises a clear startup error if <code>--acp-server</code> is specified while the Trio backend is configured. Evals that don’t use <code>--acp-server</code> are unaffected and run normally under Trio.</p></li>
 </ol>
 </section>
 <section id="portable-async" class="level3">

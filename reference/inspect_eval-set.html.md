@@ -54,6 +54,7 @@ inspect eval-set [OPTIONS] [TASKS]...
 | `--sandbox` | text | Sandbox environment type (with optional config file). e.g. ‘docker’ or ‘docker:compose.yml’ | None |
 | `--no-sandbox-cleanup` | boolean | Do not cleanup sandbox environments after task completes | `False` |
 | `--checkpoint` | text | Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify –checkpoint for default (every 5 turns), –checkpoint=<turn:N> / time:Ns/m/h/d / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig. | None |
+| `--acp-server` | text | Expose this eval via an Agent Client Protocol server for various clients (e.g. the `inspect acp` command). Bare flag enables a default AF_UNIX socket; pass an integer to bind a TCP loopback port (e.g. `--acp-server=4444`); pass `host:port` to bind on a specific interface (e.g. `--acp-server=0.0.0.0:4444`); pass a filesystem path for a custom UNIX socket. | None |
 | `--limit` | text | Limit samples to evaluate e.g. 10 or 10-20 | None |
 | `--sample-id` | text | Evaluate specific sample(s) (comma separated list of ids) | None |
 | `--sample-shuffle` | text | Shuffle order of samples (pass a seed to make the order deterministic) | None |

@@ -6,7 +6,7 @@
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/eval.py#L90)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/eval.py#L91)
 
 ``` python
 def eval(
@@ -19,6 +19,7 @@ def eval(
     sandbox: SandboxEnvironmentType | None = ...,
     sandbox_cleanup: bool | None = ...,
     checkpoint: CheckpointConfig | None = ...,
+    acp_server: bool | int | str | None = ...,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = ...,
     scanner: Scanners | None = ...,
     tags: list[str] | None = ...,
@@ -130,6 +131,9 @@ Cleanup sandbox environments after task completes (defaults to True)
 
 `checkpoint` CheckpointConfig \| None  
 Checkpoint configuration for this eval. Overrides any task- or sample-level `checkpoint` when set.
+
+`acp_server` bool \| int \| str \| None  
+Expose this eval over an Agent Client Protocol server. `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`; an integer binds a TCP loopback port; a string is taken as a custom UNIX socket path; `None` (default) does not start an ACP server.
 
 `solver` [Solver](../reference/inspect_ai.solver.html.md#solver) \| [SolverSpec](../reference/inspect_ai.solver.html.md#solverspec) \| [Agent](../reference/inspect_ai.agent.html.md#agent) \| list\[[Solver](../reference/inspect_ai.solver.html.md#solver)\] \| None  
 Alternative solver for task(s). Optional (uses task solver by default).
@@ -378,7 +382,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Retry a previously failed evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/eval.py#L901)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/eval.py#L925)
 
 ``` python
 def eval_retry(
@@ -408,6 +412,7 @@ def eval_retry(
     log_shared: bool | int | None = None,
     score: bool = True,
     score_display: bool | None = None,
+    acp_server: bool | int | str | None = None,
     scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
@@ -495,6 +500,9 @@ Score output (defaults to True)
 `score_display` bool \| None  
 Show scoring metrics in realtime (defaults to True)
 
+`acp_server` bool \| int \| str \| None  
+Override the original eval’s ACP server transport on retry. `True` enables a default AF_UNIX socket; an integer binds a TCP loopback port; a string is taken as a custom UNIX socket path; `None` (default) replays whatever transport (or no transport) was persisted in the original log’s `EvalConfig.acp_server`.
+
 `scanner` [Scanners](../reference/inspect_ai.html.md#scanners) \| None  
 Scanner(s) to apply to each sample’s transcript after the sample completes. When provided, the existing scan dir from the original eval (keyed by its `eval_set_id` or `run_id`) is reused — same resume contract as `eval_set`: matching scanner config attaches, divergent config raises `PrerequisiteError`.
 
@@ -517,7 +525,7 @@ Adaptive concurrency for Model API connections. Defaults to enabled (resolves to
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/evalset.py#L103)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/evalset.py#L103)
 
 ``` python
 def eval_set(
@@ -536,6 +544,7 @@ def eval_set(
     sandbox: SandboxEnvironmentType | None = ...,
     sandbox_cleanup: bool | None = ...,
     checkpoint: CheckpointConfig | None = ...,
+    acp_server: bool | int | str | None = ...,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = ...,
     scanner: Scanners | None = ...,
     tags: list[str] | None = ...,
@@ -664,6 +673,9 @@ Cleanup sandbox environments after task completes (defaults to True)
 
 `checkpoint` CheckpointConfig \| None  
 Checkpoint configuration for this eval set. Overrides any task- or sample-level `checkpoint` when set.
+
+`acp_server` bool \| int \| str \| None  
+Override the original eval’s ACP server transport on retry. `True` enables a default AF_UNIX socket; an integer binds a TCP loopback port; a string is taken as a custom UNIX socket path; `None` (default) replays whatever transport (or no transport) was persisted in the original log’s `EvalConfig.acp_server`.
 
 `solver` [Solver](../reference/inspect_ai.solver.html.md#solver) \| [SolverSpec](../reference/inspect_ai.solver.html.md#solverspec) \| [Agent](../reference/inspect_ai.agent.html.md#agent) \| list\[[Solver](../reference/inspect_ai.solver.html.md#solver)\] \| None  
 Alternative solver(s) for evaluating task(s). Optional (uses task solver by default).
@@ -909,7 +921,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/score.py#L75)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/score.py#L75)
 
 ``` python
 def score(
@@ -954,7 +966,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/task/task.py#L61)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/task/task.py#L61)
 
 ``` python
 class Task
@@ -965,7 +977,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/task/task.py#L67)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/task/task.py#L67)
 
 ``` python
 def __init__(
@@ -1104,7 +1116,7 @@ Task adapted with alternate values for one or more options.
 
 This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using [task_with()](../reference/inspect_ai.html.md#task_with) you should create the underlying task multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/task/task.py#L242)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/task/task.py#L242)
 
 ``` python
 def task_with(
@@ -1237,7 +1249,7 @@ Task epochs.
 
 Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -1253,7 +1265,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -1269,7 +1281,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/task/task.py#L400)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/task/task.py#L400)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -1292,7 +1304,7 @@ One or more tasks.
 
 Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/task/tasks.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/task/tasks.py#L6)
 
 ``` python
 Tasks: TypeAlias = (
@@ -1321,7 +1333,7 @@ Tasks: TypeAlias = (
 
 Argument shape accepted by `eval_set(scanner=...)`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/task/scan.py#L152)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/task/scan.py#L152)
 
 ``` python
     Scanners: TypeAlias = (
@@ -1337,7 +1349,7 @@ Configure scanners attached to an `eval_set` run.
 
 A subset of scout’s `ScanJob` / `ScanJobConfig` schema, narrowed to the fields that make sense when `eval_set` is generating the transcripts.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/task/scan.py#L29)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/task/scan.py#L29)
 
 ``` python
 class ScannerConfig(BaseModel)
@@ -1387,7 +1399,7 @@ Load a [ScannerConfig](../reference/inspect_ai.html.md#scannerconfig) from a YAM
 
 Scanner entries in the file are written as `ScannerSpec` references (a registry `name` plus optional `params` and `file`). They are resolved to live `Scanner` objects via scout’s registry, loading any referenced `file` modules. `model_args` may also be a path to a separate YAML/JSON file, which is read and inlined.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/task/scan.py#L91)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/task/scan.py#L91)
 
 ``` python
 @classmethod
@@ -1403,7 +1415,7 @@ Path or URL (e.g. `s3://...`) to a YAML or JSON file.
 
 Run the Inspect View server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_view/view.py#L23)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_view/view.py#L23)
 
 ``` python
 def view(
@@ -1444,7 +1456,7 @@ Additional arguments to pass through to the filesystem provider (e.g. `S3FileSy
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6619c31d3942c0dc4bd2862f428f623fc3a8dece/src/inspect_ai/_eval/registry.py#L97)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/_eval/registry.py#L97)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any

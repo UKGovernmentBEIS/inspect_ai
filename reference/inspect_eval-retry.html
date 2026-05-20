@@ -313,6 +313,24 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.agent.html#acp_session" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">acp_session</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.agent.html#acpsession" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">AcpSession</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.agent.html#turncancelled" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">TurnCancelled</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.agent.html#agent" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Agent</span></a>
   </div>
@@ -941,6 +959,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.event.html#scoreeditevent" class="sidebar-item-text sidebar-link">
  <span class="menu-text">ScoreEditEvent</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.event.html#interruptevent" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InterruptEvent</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -3261,168 +3285,174 @@ ul.task-list li input[type="checkbox"] {
 <td><code>False</code></td>
 </tr>
 <tr class="even">
+<td><code>--acp-server</code></td>
+<td>text</td>
+<td>Override the original eval’s Agent Client Protocol server. Bare flag enables a default AF_UNIX socket; pass an integer to bind a TCP loopback port; pass <code>host:port</code> to bind on a specific interface (e.g.&nbsp;<code>0.0.0.0:4444</code>); pass a filesystem path for a custom UNIX socket; pass <code>false</code> to disable. Omit to replay whatever transport the original log used.</td>
+<td>None</td>
+</tr>
+<tr class="odd">
 <td><code>--max-connections</code></td>
 <td>integer</td>
 <td>Maximum number of concurrent connections to Model API (defaults to 10)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--adaptive-connections</code></td>
 <td>text</td>
 <td>Adaptive concurrency for Model API connections, automatically scaling between bounds based on rate-limit feedback (default: enabled, with min=4, start=20, max=100). Pass <code>false</code> to opt out, an integer N for a custom max (e.g.&nbsp;<code>200</code>), or bounds as <code>min-max</code> (e.g.&nbsp;<code>4-80</code>) or <code>min-start-max</code> (e.g.&nbsp;<code>4-20-80</code>). Explicit <code>--max-connections</code> and <code>--batch</code> take precedence.</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--max-retries</code></td>
 <td>integer</td>
 <td>Maximum number of times to retry model API requests (defaults to unlimited)</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--timeout</code></td>
 <td>integer</td>
 <td>Model API request timeout in seconds (defaults to no timeout)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--attempt-timeout</code></td>
 <td>integer</td>
 <td>Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-level-transcript</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code> | <code>notset</code>)</td>
 <td>Set the log level of the transcript (defaults to ‘info’)</td>
 <td><code>info</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scanner</code></td>
 <td>text</td>
 <td>Scanner(s) to apply after each sample. Pass a YAML/JSON config file (ScannerConfig schema), a Python file with <span class="citation" data-cites="scanner">@scanner</span> functions (use <a href="mailto:file.py@func" class="email">file.py@func</a> to pick one), or a registry reference (pkg/name).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scanner-arg</code></td>
 <td>text</td>
 <td>One or more scanner arguments (e.g.&nbsp;–scanner-arg key=value).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scans</code></td>
 <td>text</td>
 <td>Location to write scan results to (defaults to <log-dir>/scans/).</log-dir></td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scan-name</code></td>
 <td>text</td>
 <td>Scan name written to _scan.json (defaults to “eval_set”).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scan-tags</code></td>
 <td>text</td>
 <td>Comma-separated tags written to the scan spec.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scan-metadata</code></td>
 <td>text</td>
 <td>Metadata written to the scan spec (e.g.&nbsp;–scan-metadata key=value).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>-F</code>, <code>--scan-filter</code></td>
 <td>text</td>
 <td>SQL WHERE clause(s) applied per-sample to skip transcripts that don’t match (e.g.&nbsp;-F “error = ’’”).</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scan-model</code></td>
 <td>text</td>
 <td>Model used by scanners’ get_model() (overrides the eval model).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scan-model-base-url</code></td>
 <td>text</td>
 <td>Base URL for the scanner-side model API.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scan-model-arg</code></td>
 <td>text</td>
 <td>One or more scanner-side model arguments (e.g.&nbsp;–scan-model-arg key=value).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scan-model-config</code></td>
 <td>text</td>
 <td>YAML or JSON config file with scanner-side model arguments.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--scan-model-role</code></td>
 <td>text</td>
 <td>Named scanner-side model role with model name or YAML/JSON config (e.g.&nbsp;–scan-model-role grader=mockllm/model).</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--scan-generate-config</code></td>
 <td>text</td>
 <td>YAML or JSON config file with GenerateConfig for scanner model calls.</td>
 <td>None</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--log-level</code></td>
 <td>choice (<code>debug</code> | <code>trace</code> | <code>http</code> | <code>info</code> | <code>warning</code> | <code>error</code> | <code>critical</code> | <code>notset</code>)</td>
 <td>Set the log level (defaults to ‘warning’)</td>
 <td><code>warning</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--log-dir</code></td>
 <td>text</td>
 <td>Directory for log files.</td>
 <td><code>./logs</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--display</code></td>
 <td>choice (<code>full</code> | <code>conversation</code> | <code>rich</code> | <code>plain</code> | <code>log</code> | <code>none</code>)</td>
 <td>Set the display type (defaults to ‘full’)</td>
 <td><code>full</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--traceback-locals</code></td>
 <td>boolean</td>
 <td>Include values of local variables in tracebacks (note that this can leak private data e.g.&nbsp;API keys so should typically only be enabled for targeted debugging).</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--env</code></td>
 <td>text</td>
 <td>Define an environment variable e.g.&nbsp;–env NAME=value (–env can be specified multiple times)</td>
 <td>None</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug</code></td>
 <td>boolean</td>
 <td>Wait to attach debugger</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--debug-port</code></td>
 <td>integer</td>
 <td>Port number for debugger</td>
 <td><code>5678</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>--debug-errors</code></td>
 <td>boolean</td>
 <td>Raise task errors (rather than logging them) so they can be debugged.</td>
 <td><code>False</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>--help</code></td>
 <td>boolean</td>
 <td>Show this message and exit.</td>

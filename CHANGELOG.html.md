@@ -1,5 +1,9 @@
 # changelog – Inspect
 
+## Unreleased
+
+- [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
+
 ## 0.3.224 (20 May 2026)
 
 - AsyncFilesystem: Add `iter_files()` and `iter_dirs()` methods.
