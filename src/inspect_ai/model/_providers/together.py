@@ -298,10 +298,10 @@ class TogetherRESTAPI(ModelAPI):
             return ex.response.status_code == 401
         return False
 
-    # cloudflare enforces rate limits by model for each account
     @override
     def connection_key(self) -> str:
-        return f"{self.api_key}"
+        """Together rate-limits per model, so each model gets its own adaptive controller rather than one shared per key."""
+        return f"{self.api_key}:{self.model_name}"
 
     # Together uses a default of 512 so we bump it up
     @override

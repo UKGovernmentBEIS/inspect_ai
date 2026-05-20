@@ -304,12 +304,8 @@ class GrokAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        """Scope max_connections per API key.
-
-        Without this override Grok would inherit the default `"default"` and
-        every Grok request would globally share one concurrency slot.
-        """
-        return str(self.api_key)
+        """Scope per (key, model) since xAI rate-limits per model, not per key."""
+        return f"{self.api_key}:{self.model_name}"
 
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, grpc.RpcError):

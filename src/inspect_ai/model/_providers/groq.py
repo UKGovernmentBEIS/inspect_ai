@@ -257,7 +257,8 @@ class GroqAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        return str(self.api_key)
+        """Groq rate-limits per model, so each model gets its own adaptive controller rather than one shared per key."""
+        return f"{self.api_key}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:

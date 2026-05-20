@@ -711,8 +711,8 @@ class GoogleGenAIAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        """Scope for enforcing max_connections."""
-        return str(self.api_key)
+        """Google rate-limits per model, so each model gets its own adaptive controller rather than one shared per key."""
+        return f"{self.api_key}:{self.model_name}"
 
     @override
     def tool_result_images(self) -> bool:

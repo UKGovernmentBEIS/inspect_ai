@@ -995,7 +995,8 @@ class AnthropicAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        return str(self.api_key)
+        """Anthropic rate-limits per model, so each model gets its own adaptive controller rather than one shared per key."""
+        return f"{self.api_key}:{self.service_model_name()}"
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
