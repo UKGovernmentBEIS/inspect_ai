@@ -1,6 +1,9 @@
-## 0.3.224 (20 May 2026)
+## Unreleased
 
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
+
+## 0.3.224 (20 May 2026)
+
 - AsyncFilesystem: Add `iter_files()` and `iter_dirs()` methods.
 - Scoring: Add `pass_k` reducer for computing the probability that all `k` epoch attempts succeed (τ-bench reliability metric).
 - Model Roles: Preserve overrides of config when calling `get_model()` with `role`.
