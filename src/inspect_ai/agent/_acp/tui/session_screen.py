@@ -6,8 +6,8 @@ Layout:
     identifiers (task / sample / epoch / agent / tokens) + connection
     indicator.
   - :class:`TranscriptWidget` — scrollable conversation pane.
-  - Composer ``Input`` — user types prompts; ``↵`` sends, ``Esc``
-    interrupts (or clears the draft when one is present).
+  - Composer ``TextArea`` — user types prompts; ``↵`` sends, ``⇧↵`` inserts a
+    newline, and ``Esc`` interrupts (or clears the draft when one is present).
   - Textual ``Footer`` for keymap hints.
 
 A periodic ``set_interval`` timer calls ``_tick`` so in-flight tool
@@ -20,12 +20,14 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Callable
 
+from textual import events
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.css.query import NoMatches
+from textual.message import Message
 from textual.screen import Screen
-from textual.widgets import Input, Static
+from textual.widgets import Static, TextArea
 
 from inspect_ai.agent._acp.inspect_ext import INSPECT_CANCEL_TOOL_CALL_METHOD
 
@@ -53,23 +55,59 @@ fast that idle CPU is wasted.
 """
 
 
+class ComposerTextArea(TextArea):
+    r"""TextArea where Enter submits and Ctrl+J inserts a newline.
+
+    This mirrors the native full-display composer: Enter is handled
+    inside the focused TextArea instead of through a priority screen
+    binding, so terminal-specific Shift+Enter encodings can be
+    interpreted before the screen decides to submit.
+    """
+
+    class Submitted(Message):
+        """Posted when the user presses Enter to submit the message."""
+
+    async def _on_key(self, event: events.Key) -> None:
+        if event.key == "enter":
+            event.prevent_default()
+            event.stop()
+            # Heuristic for terminals (e.g. macOS Terminal.app) that
+            # emit Shift+Enter as two events: a backslash key followed
+            # by a plain Enter. By the time we see Enter the backslash
+            # is already in the buffer. If the text ends with a single
+            # backslash, treat the sequence as Shift+Enter: strip the
+            # backslash and insert a newline instead of submitting.
+            # Side-effect: messages that intentionally end with a
+            # single ``\`` can't be submitted with Enter — add another
+            # character first.
+            if self.text.endswith("\\"):
+                self.action_delete_left()
+                self.insert("\n")
+                return
+            self.post_message(self.Submitted())
+            return
+        if event.key == "ctrl+j":
+            event.prevent_default()
+            event.stop()
+            self.insert("\n")
+            return
+        await super()._on_key(event)
+
+
 class SessionScreen(Screen[None]):
     """Phase 2 attached-session view."""
 
-    # ``priority=True`` on every binding so they fire regardless of
-    # focused widget — the composer ``Input`` would otherwise eat
-    # ``enter`` (firing its own ``Input.Submitted``) and the screen
-    # action never runs. Same reasoning for ``escape``; same for ^S so
-    # the user can always leave the session.
+    # Enter is deliberately not priority-bound: the focused composer
+    # TextArea handles Enter itself so it can apply the same
+    # terminal-specific Shift+Enter heuristic as the native full UI.
+    # Escape and navigation bindings stay priority-bound so the user
+    # can always interrupt or leave the session.
     BINDINGS = [
-        Binding("enter", "submit", "submit", show=True, key_display="↵", priority=True),
-        # ``shift+enter`` inserts a literal ``\n`` into the composer
-        # value. The current single-line ``Input`` doesn't render the
-        # newline locally — it survives in ``Input.value`` and ships
-        # to the server on submit, but the composer column shows the
-        # text as one line until we swap the composer for ``TextArea``.
-        # Advertising the shortcut now so muscle memory matches the
-        # eventual visible behaviour.
+        Binding("enter", "submit", "submit", show=True, key_display="↵"),
+        # ``shift+enter`` inserts a literal ``\n`` into the composer.
+        # TextArea's default Enter behavior is also newline, so this
+        # priority binding keeps the chat-input convention intact:
+        # Enter submits, Shift+Enter creates another line.
         Binding(
             "shift+enter",
             "newline",
@@ -78,6 +116,10 @@ class SessionScreen(Screen[None]):
             key_display="⇧↵",
             priority=True,
         ),
+        # Hidden fallback for terminals that don't reliably report
+        # Shift+Enter distinctly. Ctrl+J sends LF and is broadly
+        # distinguishable at the terminal-input layer.
+        Binding("ctrl+j", "newline", show=False, priority=True),
         Binding("escape", "interrupt", "interrupt", show=True, priority=True),
         # ``^p`` opens the plan overlay; pressing it again (the overlay's
         # own binding takes over there with ``priority=True``) closes it.
@@ -161,7 +203,8 @@ class SessionScreen(Screen[None]):
      * same family as the ``inspect acp`` caption without competing
      * with transcript content for attention. */
     #composer-row {
-        height: 3;
+        height: auto;
+        min-height: 3;
         margin: 1 2 1 2;
         border: tall $accent 55%;
     }
@@ -174,15 +217,18 @@ class SessionScreen(Screen[None]):
         color: $accent 55%;
         padding: 0 0 0 1;
     }
-    /* Drop Input's own border + tint so it sits inside the wrapper
+    /* Drop TextArea's own border + tint so it sits inside the wrapper
      * border as a single composer affordance instead of two stacked
      * boxes. */
     #composer {
-        height: 1;
+        height: auto;
+        min-height: 1;
+        max-height: 8;
         width: 1fr;
         border: none;
         background: transparent;
         padding: 0;
+        scrollbar-size-vertical: 1;
     }
     """
 
@@ -228,21 +274,24 @@ class SessionScreen(Screen[None]):
             yield PlanStripWidget(self._state)
             with Horizontal(id="composer-row"):
                 yield Static("> ", id="composer-prompt", markup=False)
-                yield Input(
+                yield ComposerTextArea(
                     # Resting-state placeholder. ``_apply_state``
                     # appends "· esc to interrupt" while the
                     # lifecycle is ``running``.
                     placeholder="type a message",
                     id="composer",
+                    soft_wrap=True,
+                    show_line_numbers=False,
+                    highlight_cursor_line=False,
                 )
                 # Composer-mode approval bar — hides itself when no
                 # approval is pending. When visible, ``_apply_lifecycle``
-                # also hides the ``#composer`` ``Input`` so the bar
+                # also hides the ``#composer`` ``TextArea`` so the bar
                 # takes the row.
                 yield _ApprovalBar(self._state)
                 # Composer-mode cancel-sample bar — hidden by default.
                 # ``action_cancel_sample`` calls ``.show()`` on ``^N``;
-                # ``_apply_lifecycle`` hides both the composer Input
+                # ``_apply_lifecycle`` hides both the composer TextArea
                 # and the approval bar while the cancel bar is up so
                 # the row has a single owner.
                 yield _CancelSampleBar()
@@ -306,7 +355,7 @@ class SessionScreen(Screen[None]):
         entirely while there's no plan to show, so ``False``.
 
         The same gate disables the bare-letter approval / cancel
-        shortcuts so the composer ``Input`` still receives plain
+        shortcuts so the composer ``TextArea`` still receives plain
         typing when neither bar is visible. The dispatcher key
         (``prompt_letter``) is gated to fire ONLY when either the
         approval bar or the cancel bar wants the letter — see
@@ -365,14 +414,14 @@ class SessionScreen(Screen[None]):
             #    just hit ^N, the choice must dominate any other UI).
             # 2. The approval bar (lifecycle == "approval"; the agent
             #    is parked awaiting permission).
-            # 3. The composer ``Input`` (everything else).
-            # Cases 1 and 2 hide the composer Input so the chosen bar
+            # 3. The composer ``TextArea`` (everything else).
+            # Cases 1 and 2 hide the composer TextArea so the chosen bar
             # gets the row.
             if cancel_bar_visible or lifecycle == "approval":
                 composer.display = False
             else:
                 composer.display = True
-            # Three placeholder states for the visible-Input cases.
+            # Three placeholder states for the visible-TextArea cases.
             # The composer goes read-only on ``complete``: the ACP
             # session is gone so a submit would silently round-trip
             # into the void. Better to surface that the session is
@@ -389,7 +438,7 @@ class SessionScreen(Screen[None]):
                 composer.placeholder = "scoring"
                 composer.disabled = True
             elif lifecycle == "approval":
-                # Placeholder isn't visible (Input is hidden) but kept
+                # Placeholder isn't visible (TextArea is hidden) but kept
                 # accurate in case Textual flashes it during a focus /
                 # display transition.
                 composer.placeholder = "awaiting your approval"
@@ -546,7 +595,7 @@ class SessionScreen(Screen[None]):
     def action_cancel_sample(self) -> None:
         """Show the cancel-sample composer-area bar.
 
-        The bar takes over the composer row (the ``Input`` and any
+        The bar takes over the composer row (the ``TextArea`` and any
         visible approval bar hide) and presents the operator with
         ``Cancel: Score`` / ``Cancel: Error`` / ``Go Back`` options.
         The bar fires ``inspect/cancel_sample`` itself when the
@@ -714,6 +763,13 @@ class SessionScreen(Screen[None]):
             return
         self.app.push_screen(PlanOverlayScreen(self._state))
 
+    async def on_composer_text_area_submitted(
+        self, event: ComposerTextArea.Submitted
+    ) -> None:
+        """Submit the composer draft posted by ``ComposerTextArea``."""
+        event.stop()
+        await self.action_submit()
+
     async def action_submit(self) -> None:
         """Send the composer's text to the agent as a ``session/prompt``.
 
@@ -723,20 +779,14 @@ class SessionScreen(Screen[None]):
         text, since we only clear after the request returns.
 
         Also a no-op once the session is complete — the composer is
-        already disabled in that state, but the binding is
-        ``priority=True`` so a stray ↵ during a focus-change window
-        could still land. Belt + braces.
+        already disabled in that state, but the screen binding can
+        still land if focus has moved elsewhere. Belt + braces.
 
-        Prompt-bar focus delegation: the ``enter`` binding is
-        ``priority=True`` (so the composer ``Input`` doesn't eat it
-        and fire ``Input.Submitted`` instead). That ALSO eats Enter
-        when a prompt-bar option has focus — its own ``enter``
-        binding never gets a chance to fire. Detect the case and
-        programmatically press the focused widget, mirroring what
-        Enter would do on an unbound screen. Without this, Tab+Enter
-        through the approval bar (or the cancel-sample bar) would
-        silently submit the composer's draft (or no-op when the
-        composer is empty) instead of activating the option.
+        Prompt-bar focus delegation: Enter should activate a focused
+        approval or cancel option, not submit the hidden composer
+        draft. The prompt options normally handle Enter themselves,
+        but this fallback keeps the screen binding harmless if it
+        lands after focus drift.
 
         Scoped to widgets whose id starts with one of the bar id
         prefixes (``"approve-opt-"`` or ``"cancel-sample-opt-"``)
@@ -763,9 +813,9 @@ class SessionScreen(Screen[None]):
         # composer's perspective: the server's prompt handler now
         # rejects messages once the agent has parked for scoring
         # (see ``LiveAcpSession.agent_completed`` + ``connection.py``).
-        # Belt-and-braces guard against the priority Enter binding
-        # firing during a focus-change window even though
-        # ``_apply_lifecycle`` has disabled the Input.
+        # Belt-and-braces guard against the Enter binding firing
+        # during a focus-change window even though ``_apply_lifecycle``
+        # has disabled the TextArea.
         if self._state.lifecycle == "scoring":
             return
         # Cancel bar takes the row: ↵ that isn't delegated to a
@@ -775,7 +825,7 @@ class SessionScreen(Screen[None]):
         if self._cancel_bar_visible():
             return
         # Approval mode: hidden composer must not be submittable.
-        # The Input is ``display: none`` but its ``value`` survives —
+        # The TextArea is ``display: none`` but its ``text`` survives —
         # if focus is stranded on the transcript, a tool card, or any
         # non-approval widget AND the operator hits ↵, the
         # ``priority=True`` Enter binding would otherwise drop into
@@ -788,7 +838,7 @@ class SessionScreen(Screen[None]):
         composer = self._composer_or_none()
         if composer is None:
             return
-        text = composer.value.strip()
+        text = composer.text.strip()
         if not text:
             return
         # Transport-level guard: the reconnect coordinator may be
@@ -841,16 +891,15 @@ class SessionScreen(Screen[None]):
                 self._state.undo_queued_enqueue(handle)
             self.app.notify(f"failed to send: {exc}", severity="error")
             return
-        composer.value = ""
+        composer.clear()
 
     def action_newline(self) -> None:
         r"""Insert a literal newline at the composer cursor.
 
-        Hint-only for now: the single-line :class:`Input` doesn't
-        render the newline locally, but the character lives in
-        ``Input.value`` and ships to the server on submit. When the
-        composer migrates to ``TextArea`` the binding's UX will
-        match the footer hint without a key-rebind.
+        Inserts a visible line break into the composer. TextArea's
+        default Enter behavior is newline, but the composer intercepts
+        Enter for submit, so newlines go through this explicit
+        Shift+Enter / Ctrl+J action.
 
         No-op once the session is complete — same belt-and-braces
         reasoning as ``action_submit``: the composer is disabled in
@@ -859,8 +908,8 @@ class SessionScreen(Screen[None]):
         Without this guard a "read-only" completed transcript could
         still accumulate locally-inserted newlines.
 
-        Also a no-op during ``approval`` lifecycle: the Input is
-        hidden but its ``value`` is intact, so a stray ⇧↵ would
+        Also a no-op during ``approval`` lifecycle: the TextArea is
+        hidden but its ``text`` is intact, so a stray ⇧↵ would
         otherwise smuggle a literal ``\\n`` into the invisible
         draft, which then ships to the agent on the next submit.
         Pairs with the matching guard in :meth:`action_submit`.
@@ -872,7 +921,7 @@ class SessionScreen(Screen[None]):
         composer = self._composer_or_none()
         if composer is None:
             return
-        composer.insert_text_at_cursor("\n")
+        composer.insert("\n")
 
     async def action_interrupt(self) -> None:
         """Dismiss the cancel bar, clear the composer draft, or interrupt the turn.
@@ -906,8 +955,8 @@ class SessionScreen(Screen[None]):
                 composer.focus()
             return
         composer = self._composer_or_none()
-        if composer is not None and composer.value:
-            composer.value = ""
+        if composer is not None and composer.text:
+            composer.clear()
             return
         if not self._state.has_active_work:
             return
@@ -930,10 +979,10 @@ class SessionScreen(Screen[None]):
     # Composer-row helpers
     # ------------------------------------------------------------------
 
-    def _composer_or_none(self) -> Input | None:
-        """The composer Input, or None if it isn't mounted (defensive)."""
+    def _composer_or_none(self) -> ComposerTextArea | None:
+        """The composer TextArea, or None if it isn't mounted (defensive)."""
         try:
-            return self.query_one("#composer", Input)
+            return self.query_one("#composer", ComposerTextArea)
         except NoMatches:
             return None
 
@@ -962,7 +1011,7 @@ class SessionScreen(Screen[None]):
         Returns True iff the letter maps to an option on the bar
         that currently owns the composer row. Used by
         :meth:`check_action` to gate the bare-letter bindings so
-        the composer ``Input`` still receives plain typing when
+        the composer ``TextArea`` still receives plain typing when
         neither bar is visible.
 
         Cancel bar takes precedence: ``e`` while the cancel bar is

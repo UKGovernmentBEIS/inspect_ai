@@ -656,16 +656,16 @@ async def test_back_option_dismisses_without_request() -> None:
 @skip_if_trio
 @pytest.mark.slow
 @pytest.mark.anyio
-async def test_composer_input_hidden_while_cancel_bar_visible() -> None:
-    """Cancel bar takes the row: the composer ``Input`` hides while it's up."""
-    from textual.widgets import Input
+async def test_composer_text_area_hidden_while_cancel_bar_visible() -> None:
+    """Cancel bar takes the row: the composer ``TextArea`` hides while it's up."""
+    from textual.widgets import TextArea
 
     rows = [_row()]
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
         screen = await _open_session_screen(pilot, rows)
-        composer = screen.query_one("#composer", Input)
+        composer = screen.query_one("#composer", TextArea)
         assert composer.display
         await pilot.press("ctrl+n")
         await pilot.pause()

@@ -20,7 +20,7 @@ from acp.schema import (
     UserMessageChunk,
 )
 from test_helpers.utils import skip_if_trio
-from textual.widgets import Input, Static
+from textual.widgets import Static, TextArea
 
 from inspect_ai.agent._acp.tui.app import InspectAcpApp
 from inspect_ai.agent._acp.tui.client import SessionRow
@@ -119,13 +119,13 @@ async def test_send_during_running_appends_queued_ephemeral_and_clears_composer(
         await pilot.pause()
         assert screen.state.lifecycle == "running"
 
-        composer = screen.query_one("#composer", Input)
-        composer.value = "please check /var/log"
+        composer = screen.query_one("#composer", TextArea)
+        composer.text = "please check /var/log"
         await screen.action_submit()
         await pilot.pause()
 
         # Composer was cleared on successful send.
-        assert composer.value == ""
+        assert composer.text == ""
         # The request was forwarded to the server.
         conn = cast(Any, screen._session.connection)
         assert conn.requests == [
@@ -162,13 +162,13 @@ async def test_send_during_idle_does_not_create_ephemeral(
         screen = await _open_session_screen(app, pilot, sample_rows)
         assert screen.state.lifecycle == "idle"
 
-        composer = screen.query_one("#composer", Input)
-        composer.value = "kick off"
+        composer = screen.query_one("#composer", TextArea)
+        composer.text = "kick off"
         await screen.action_submit()
         await pilot.pause()
 
         # Request was sent, composer cleared, NO ephemeral mounted.
-        assert composer.value == ""
+        assert composer.text == ""
         conn = cast(Any, screen._session.connection)
         assert len(conn.requests) == 1
         assert _queued(screen) == []
@@ -193,8 +193,8 @@ async def test_arriving_operator_chunk_swaps_ephemeral_for_real_group(
         screen.state.consume(_tool_start())
         await pilot.pause()
 
-        composer = screen.query_one("#composer", Input)
-        composer.value = "please continue"
+        composer = screen.query_one("#composer", TextArea)
+        composer.text = "please continue"
         await screen.action_submit()
         await pilot.pause()
         assert len(_queued(screen)) == 1
@@ -242,15 +242,15 @@ async def test_send_failure_rolls_back_the_ephemeral(
 
         screen._session.connection.send_request = _boom  # type: ignore[method-assign, assignment]
 
-        composer = screen.query_one("#composer", Input)
-        composer.value = "doomed message"
+        composer = screen.query_one("#composer", TextArea)
+        composer.text = "doomed message"
         await screen.action_submit()
         await pilot.pause()
 
         # Ephemeral was rolled back; composer text preserved so the
         # operator can edit and retry.
         assert _queued(screen) == []
-        assert composer.value == "doomed message"
+        assert composer.text == "doomed message"
 
 
 @skip_if_trio
@@ -273,9 +273,9 @@ async def test_multiple_sends_grow_a_single_ephemeral_and_drain_as_one(
         screen.state.consume(_tool_start())
         await pilot.pause()
 
-        composer = screen.query_one("#composer", Input)
+        composer = screen.query_one("#composer", TextArea)
         for text in ("first", "second", "third"):
-            composer.value = text
+            composer.text = text
             await screen.action_submit()
             await pilot.pause()
         # Single bucket — one queued row with paragraph-joined text.
@@ -323,14 +323,14 @@ async def test_appending_to_queued_ephemeral_updates_mounted_widget_text(
         screen.state.consume(_tool_start())
         await pilot.pause()
 
-        composer = screen.query_one("#composer", Input)
-        composer.value = "first"
+        composer = screen.query_one("#composer", TextArea)
+        composer.text = "first"
         await screen.action_submit()
         await pilot.pause()
-        composer.value = "second"
+        composer.text = "second"
         await screen.action_submit()
         await pilot.pause()
-        composer.value = "third"
+        composer.text = "third"
         await screen.action_submit()
         await pilot.pause()
 
