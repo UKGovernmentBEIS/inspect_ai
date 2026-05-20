@@ -14,21 +14,12 @@ import sys
 from pathlib import Path
 
 import yaml
-
-from sync import CATEGORY_VOCAB, load_evals
+from sync import CATEGORY_ORDER, CATEGORY_VOCAB, load_evals
 from sync_harbor import load_harbor
 
 HERE = Path(__file__).parent
 OUTPUT_FILE = HERE / "evals.json"
 MODEL_CARDS_FILE = HERE / "model_cards.yml"
-
-CATEGORY_ORDER = [
-    "Coding", "Assistants", "Reasoning", "Knowledge",
-    "Cybersecurity", "Safeguards",
-    "Science", "Mathematics", "Biology", "Chemistry", "Physics",
-    "Professional", "Finance", "Medicine", "Law",
-    "Behavior", "Multimodal", "Scheming",
-]
 
 
 def _category_index(cat: str) -> int:

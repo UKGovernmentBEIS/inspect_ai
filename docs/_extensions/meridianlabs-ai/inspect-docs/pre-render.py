@@ -77,18 +77,19 @@ def main() -> None:
     user_website: YamlDict = config.get("website") or {}
     user_navbar: YamlDict = user_website.get("navbar") or {}
 
-    # create default .gitignore if none exists
-    write_if_changed(
-        Path(".gitignore"),
-        "/.quarto/\n"
-        "/_site/\n"
-        "/_include.yml\n"
-        "/reference/refs*.json\n"
-        "**/*.quarto_ipynb*\n"
-        "**/*.excalidraw.svg\n"
-        "/.venv/\n"
-        "**/__pycache__"
-    )
+    # create default .gitignore if none exists; never overwrite existing one
+    gitignore = Path(".gitignore")
+    if not gitignore.exists():
+        gitignore.write_text(
+            "/.quarto/\n"
+            "/_site/\n"
+            "/_include.yml\n"
+            "/reference/refs*.json\n"
+            "**/*.quarto_ipynb*\n"
+            "**/*.excalidraw.svg\n"
+            "/.venv/\n"
+            "**/__pycache__\n"
+        )
 
     # symlink CHANGELOG.md from repo root if it exists
     changelog_src = Path("../CHANGELOG.md")

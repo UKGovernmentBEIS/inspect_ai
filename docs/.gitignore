@@ -2,6 +2,9 @@
 /_site/
 /_include.yml
 /reference/refs*.json
+/extensions/_extensions_content.md
+/evals/_evals_content.md
+**/*.quarto_ipynb
 **/*.quarto_ipynb*
 **/*.excalidraw.svg
 /.venv/

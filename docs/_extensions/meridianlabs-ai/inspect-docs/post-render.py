@@ -2,7 +2,7 @@
 
 Generates per-page Markdown (.html.md) files and structured llms.txt output:
 1. Converts rendered HTML pages to Markdown via pandoc
-2. Generates a structured llms.txt using navigation config and page descriptions
+2. Generates a structured llms.txt using navigation + navbar and page descriptions
 3. Generates llms-full.txt and llms-guide.txt concatenated docs
 """
 
@@ -44,8 +44,9 @@ def main() -> None:
         with open("_quarto.yml", "r") as f:
             config: YamlDict = yaml.safe_load(f)
         opts: YamlDict = config.get("inspect-docs", {})
-        generate_llms_txt(output_dir, opts)
-        generate_llms_full_and_guide(output_dir, opts)
+        navbar: YamlDict = (config.get("website") or {}).get("navbar") or {}
+        generate_llms_txt(output_dir, opts, navbar)
+        generate_llms_full_and_guide(output_dir, opts, navbar)
 
 
 def generate_html_md_files(output_dir: Path, output_files: list[Path] | None) -> None:
@@ -167,7 +168,7 @@ def extract_html_title(html: str) -> str | None:
     return None
 
 
-def generate_llms_txt(output_dir: Path, opts: YamlDict) -> None:
+def generate_llms_txt(output_dir: Path, opts: YamlDict, navbar: YamlDict) -> None:
     """Generate a structured llms.txt from inspect-docs navigation config."""
     title: str = opts.get("title", "") or extract_h1(Path("index.qmd")) or ""
     description: str = opts.get("description", "")
@@ -190,6 +191,10 @@ def generate_llms_txt(output_dir: Path, opts: YamlDict) -> None:
     # reference section (auto-discovered)
     if module_name:
         lines.extend(format_reference_section(module_name, base_url))
+
+    # navbar sections (top-level pages not under navigation or reference)
+    covered_hrefs = {str(p) for p in _collect_nav_qmd_paths(navigation)}
+    lines.extend(format_navbar_sections(navbar, base_url, covered_hrefs))
 
     (output_dir / "llms.txt").write_text("\n".join(lines))
 
@@ -253,6 +258,33 @@ def format_nav_entry(href: str, text: str, base_url: str) -> str | None:
     return f"- [{text}]({url})"
 
 
+def format_navbar_sections(
+    navbar: YamlDict, base_url: str, covered_hrefs: set[str]
+) -> list[str]:
+    """Format `website.navbar` items as llms.txt sections.
+
+    Picks up top-level pages reachable from the navbar but not already covered
+    by `inspect-docs.navigation` or `reference/`.
+    """
+    lines: list[str] = []
+    for section_text, qmd_path in _collect_navbar_qmd_paths(navbar):
+        href = str(qmd_path)
+        if href in covered_hrefs:
+            continue
+        if qmd_path.parts and qmd_path.parts[0] == "reference":
+            continue
+        entry = format_nav_entry(href, "", base_url)
+        if not entry:
+            continue
+        covered_hrefs.add(href)
+        if section_text:
+            lines.append(f"## {section_text}")
+            lines.append("")
+        lines.append(entry)
+        lines.append("")
+    return lines
+
+
 def format_reference_section(module_name: str, base_url: str) -> list[str]:
     """Format reference docs into an llms.txt section."""
     ref_dir = Path("reference")
@@ -286,7 +318,9 @@ def format_reference_section(module_name: str, base_url: str) -> list[str]:
     return ["## Reference", "", *entries, ""]
 
 
-def generate_llms_full_and_guide(output_dir: Path, opts: YamlDict) -> None:
+def generate_llms_full_and_guide(
+    output_dir: Path, opts: YamlDict, navbar: YamlDict
+) -> None:
     """Generate `llms-full.txt` and `llms-guide.txt` at the site root.
 
     Both files are a concatenation of every page's rendered Markdown
@@ -295,6 +329,9 @@ def generate_llms_full_and_guide(output_dir: Path, opts: YamlDict) -> None:
 
     - `llms-full.txt`  -- every page, including reference docs.
     - `llms-guide.txt` -- every page except anything under `reference/`.
+
+    Navbar pages (`website.navbar`) that aren't already covered by
+    `inspect-docs.navigation` or `reference/` are appended last.
     """
     title: str = opts.get("title", "")
     description: str = opts.get("description", "")
@@ -302,6 +339,17 @@ def generate_llms_full_and_guide(output_dir: Path, opts: YamlDict) -> None:
 
     nav_paths = _collect_nav_qmd_paths(navigation)
     ref_paths = _collect_reference_qmd_paths()
+
+    nav_set = {str(p) for p in nav_paths}
+    ref_set = {str(p) for p in ref_paths}
+    navbar_extra: list[Path] = []
+    for _section, qmd_path in _collect_navbar_qmd_paths(navbar):
+        key = str(qmd_path)
+        if key in nav_set or key in ref_set:
+            continue
+        if qmd_path.parts and qmd_path.parts[0] == "reference":
+            continue
+        navbar_extra.append(qmd_path)
 
     header: list[str] = []
     if title:
@@ -318,10 +366,10 @@ def generate_llms_full_and_guide(output_dir: Path, opts: YamlDict) -> None:
         html_md = output_dir / rel
         return html_md.read_text() if html_md.exists() else ""
 
-    # llms-guide.txt: navigation pages only, excluding reference/
+    # llms-guide.txt: navigation + navbar pages, excluding reference/
     guide_parts: list[str] = [header_text] if header_text else []
     seen: set[str] = set()
-    for qmd in nav_paths:
+    for qmd in list(nav_paths) + list(navbar_extra):
         if qmd.parts and qmd.parts[0] == "reference":
             continue
         key = str(qmd)
@@ -333,10 +381,10 @@ def generate_llms_full_and_guide(output_dir: Path, opts: YamlDict) -> None:
             guide_parts.append(body)
     (output_dir / "llms-guide.txt").write_text("\n\n".join(guide_parts))
 
-    # llms-full.txt: navigation pages + all reference pages
+    # llms-full.txt: navigation + all reference + navbar pages
     full_parts: list[str] = [header_text] if header_text else []
     seen = set()
-    for qmd in list(nav_paths) + list(ref_paths):
+    for qmd in list(nav_paths) + list(ref_paths) + list(navbar_extra):
         key = str(qmd)
         if key in seen:
             continue
@@ -362,6 +410,27 @@ def _collect_nav_qmd_paths(navigation: list[YamlDict]) -> list[Path]:
 
     walk(navigation)
     return paths
+
+
+def _collect_navbar_qmd_paths(navbar: YamlDict) -> list[tuple[str, Path]]:
+    """Walk `website.navbar` and return `(section_text, qmd_path)` pairs."""
+    out: list[tuple[str, Path]] = []
+
+    def walk(items: list[YamlDict], inherited_section: str = "") -> None:
+        for item in items:
+            text = item.get("text", "") or inherited_section
+            href = item.get("href")
+            if isinstance(href, str) and href.endswith(".qmd"):
+                out.append((text, Path(href)))
+            children = item.get("menu") or item.get("contents")
+            if isinstance(children, list):
+                walk(children, inherited_section=text)
+
+    for side in ("left", "right"):
+        items = navbar.get(side) or []
+        if isinstance(items, list):
+            walk(items)
+    return out
 
 
 def _collect_reference_qmd_paths() -> list[Path]:

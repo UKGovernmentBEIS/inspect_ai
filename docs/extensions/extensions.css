@@ -1,1 +1,7 @@
 /* Extension-specific overrides (shared styles in ../listing/listing.css) */
+
+/* Hidden static markdown listing — kept in the DOM so the page is LLM-readable
+   (pandoc converts it into the .html.md companion). End users see the SPA. */
+.llm-fallback {
+  display: none;
+}

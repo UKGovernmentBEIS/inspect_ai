@@ -15,16 +15,12 @@ include-after-body:
       <script type="module" src="./extensions-app.js"></script>
 aliases:
   - /integrations/index.html
-execute:
-  enabled: true
 ---
-
-```{python}
-#| echo: false
-#| output: false
-exec(open("generate.py").read())
-```
 
 ::: {.content-visible when-format="html"}
 <div id="extensions-app" class="listing-app" data-src="./extensions.json"></div>
+:::
+
+::: {.llm-fallback}
+{{< include _extensions_content.md >}}
 :::

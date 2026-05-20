@@ -21,3 +21,7 @@ aliases:
 ::: {.content-visible when-format="html"}
 <div id="evals-app" class="listing-app" data-src="./evals.json"></div>
 :::
+
+::: {.llm-fallback}
+{{< include _evals_content.md >}}
+:::

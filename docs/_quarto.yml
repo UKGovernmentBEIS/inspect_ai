@@ -3,6 +3,9 @@ project:
   resources:
     - CNAME
     - listing/
+  pre-render:
+    - extensions/generate.py
+    - evals/generate.py
 
 website:
   navbar:
