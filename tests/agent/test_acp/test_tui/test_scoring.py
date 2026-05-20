@@ -95,13 +95,19 @@ def test_consume_score_event_mounts_chip_at_end_of_items() -> None:
     assert chip.reason == "exact match"
 
 
-def test_consume_score_event_marks_incorrect_score_as_failed() -> None:
-    """``"I"`` value resolves to ``passed=False``."""
+def test_consume_score_event_marks_incorrect_score_as_neutral() -> None:
+    """``"I"`` value resolves to ``passed=None`` (not ``False``).
+
+    The classifier only flags an unambiguous pass (``value_to_float``
+    == 1.0); ``INCORRECT`` collapses to ``None`` so the chip renders
+    a neutral marker rather than asserting a failure verdict — same
+    visual treatment as partial credit, zero, or a non-scalar value.
+    """
     state = SessionState()
     state.consume_score_event(_score_payload(value="I", explanation="wrong"))
     chip = state.items[-1]
     assert isinstance(chip, ScoreChip)
-    assert chip.passed is False
+    assert chip.passed is None
     assert chip.value == "I"
 
 

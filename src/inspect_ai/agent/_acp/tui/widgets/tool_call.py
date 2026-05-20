@@ -8,11 +8,11 @@ visually distinct card):
 - Body: indented under the tool name (``padding-left: 2``). Per
   content variant — text content blocks, native
   :class:`FileEditToolCallContent` diff, terminal placeholder.
-- Footer: status glyph (✓/✗/spinner) + client-derived duration, also
-  indented under the tool name.
-
-Status is carried by the footer glyph alone — no border colour — to
-match the calmer, flush layout the message widget uses.
+No footer row. The status glyph (✓/✗/spinner) lives in the header's
+bullet position and the elapsed timer rides as a dim ``· Ns`` suffix
+on the same line, so the whole tool-call outcome groups in one anchor.
+Status is carried by the glyph alone — no border colour — to match
+the calmer, flush layout the message widget uses.
 """
 
 from __future__ import annotations
@@ -45,56 +45,60 @@ trailing ``[+N more lines]`` indicator tells the operator something
 was elided.
 """
 
-_COMPLETED_GLYPH = "✓"
+# Completed tool calls get a gear (``⚙``) rather than the generic
+# ``✓``. The gear reads as "this row is a tool" semantically — the
+# message bullets are circular (``•``), the score chip uses ``★``,
+# the event chips use kind-specific glyphs (``⚠`` / ``↺`` / ``ⓘ``);
+# the gear keeps tool calls visually distinct from those families.
+# ``✗`` on failure still pops red so error rows are easy to scan.
+_COMPLETED_GLYPH = "⚙"
 _FAILED_GLYPH = "✗"
 
-# Bullet colour for the tool-call header — single static colour so the
-# tool-call header reads as a "row in the conversation" (parallel to
-# the role bullets on MessageWidget). Status info is carried by the
-# footer glyph (✓/✗/spinner) instead of the bullet, the same way
-# MessageWidget keeps its role colour static and lets the chip's
-# spinner reflect pending state. Hex chosen as a Tokyo-Night-ish cyan
-# so tools read distinctly from the system / assistant blue.
-_TOOL_BULLET_COLOR = "#7dcfff"
+# Tool-call header glyphs render in the default text colour (no
+# explicit wrap) so the row reads as plain conversation content
+# rather than a coloured-accent chip. We previously used a Tokyo-
+# Night cyan here, but that drew the eye to the glyph more than the
+# tool name itself — and the tool name is what the operator actually
+# wants to scan. The failed ✗ keeps a red wrap (via ``$error``) so
+# errors still pop against the body text.
+_FAILED_GLYPH_COLOR = "$error"
 
 
 class ToolCallWidget(Widget):
     """Bullet-prefixed tool-call row, matched to :class:`MessageWidget`.
 
-    No border: the colour-coded bullet (cyan) plus body indentation
-    are the only structural cues. Status info lives in the footer
-    glyph (✓/✗/spinner), not in chrome around the card.
+    No border: the colour-coded glyph (cyan) plus body indentation are
+    the only structural cues. Status info lives in the leading glyph
+    (✓ / ✗ / spinner) and the duration rides as a dim ``· Ns`` suffix
+    on the same header row — no separate footer.
     """
 
     DEFAULT_CSS = """
     ToolCallWidget {
         height: auto;
-        /* padding-bottom: 1 (not margin-bottom) is the *only* source
-         * of trailing space below the footer:
-         *   - It replaces the row the old card border occupied, so
-         *     content doesn't look truncated.
-         *   - Being internal, it never gets clipped by VerticalScroll
-         *     when the tool call is the last transcript item.
-         *   - And because there's no margin-bottom on top of it, the
-         *     gap to the next message / tool / composer comes from
-         *     one source instead of two stacking to a 2-row gap.
-         * (MessageWidget achieves the same single-row gap via its
-         * margin-bottom — but messages aren't followed by a chrome
-         * element like a footer, so the clipping risk doesn't bite.) */
+        /* padding-bottom: 1 gives a row of trailing space below the
+         * body so the next transcript item doesn't run flush against
+         * the tool card's last content row. Internal padding (not
+         * margin-bottom) so it never gets clipped by VerticalScroll
+         * when the tool call is the last transcript item. */
         padding: 0 2 1 2;
     }
     /* padding-bottom: 1 gives the title row a blank line below it
      * before the first body item (code block / output / plan), so
      * the header reads as a heading instead of running into the
-     * body content. */
+     * body content. When the card has no body content yet (in-flight,
+     * pre-result, no pending approval), the ``.empty-body`` override
+     * below zeros the padding so it doesn't stack with the widget's
+     * own ``padding-bottom: 1`` and produce an extra blank row above
+     * the next transcript item. */
     ToolCallWidget .header {
         height: auto;
         padding-bottom: 1;
     }
-    /* Body + footer share the role-word indent so everything below
-     * the bullet visually lines up under the *tool name* rather than
-     * the bullet itself — parallel to MessageWidget's `.body`
-     * padding-left. */
+    ToolCallWidget.empty-body .header { padding-bottom: 0; }
+    /* Body shares the tool-name indent so everything below the bullet
+     * visually lines up under the *tool name* rather than the bullet
+     * itself — parallel to MessageWidget's `.body` padding-left. */
     ToolCallWidget .body {
         height: auto;
         padding-left: 2;
@@ -110,10 +114,16 @@ class ToolCallWidget(Widget):
         height: auto;
         margin-bottom: 1;
     }
-    ToolCallWidget .footer {
-        color: $text-muted;
-        height: auto;
-        padding-left: 2;
+    /* The last item's margin-bottom stacks with the widget's
+     * ``padding: 0 2 1 2`` (padding-bottom: 1) to give 2 rows of
+     * trailing space below the tool card — visible as an extra blank
+     * row between the tool body and the next transcript item. Zero
+     * the margin on the last item so the trailing space comes from
+     * the widget padding alone (1 row, matching other transcript
+     * items). Used to be absorbed by the footer row; that row is
+     * gone now, exposing the double-source. */
+    ToolCallWidget .content-item:last-child {
+        margin-bottom: 0;
     }
     /* Truncation-note styling is on CollapsibleContent itself —
      * portable across tool cards + message bubbles. */
@@ -126,12 +136,11 @@ class ToolCallWidget(Widget):
     ToolCallWidget .body-content { height: auto; }
     ToolCallWidget .plan-entry { height: auto; }
     ToolCallWidget .plan-spacer { height: 1; }
-    /* Approval area sizes to its content (the inline approval
-     * section while pending, empty otherwise — the post-resolution
-     * decision text lives on the footer row, see
-     * ``_footer_text``). Without an explicit ``height: auto`` the
-     * Vertical inherits its ``1fr`` default and eats the remaining
-     * vertical space in the card. */
+    /* Approval area sizes to its content (the inline approval section
+     * while pending, empty otherwise — the post-resolution decision
+     * text lives inline on the header row). Without an explicit
+     * ``height: auto`` the Vertical inherits its ``1fr`` default and
+     * eats the remaining vertical space in the card. */
     ToolCallWidget #approval-area { height: auto; }
     """
 
@@ -147,7 +156,6 @@ class ToolCallWidget(Widget):
         # place inside SessionState._merge_tool_fields) so we can
         # detect what actually changed and apply minimal DOM updates.
         self._mounted_header = self._header_text()
-        self._mounted_footer = self._footer_text()
         self._mounted_status = self._state.status
         self._mounted_kind: str = "plan" if self._is_plan_state() else "content"
         self._mounted_item_sigs: list[tuple[Any, ...]] = self._compute_item_sigs()
@@ -171,9 +179,6 @@ class ToolCallWidget(Widget):
             yield from self._compose_approval_area()
         with Vertical(classes="body"):
             yield from self._compose_body()
-        # ``markup=True`` so ``_footer_text`` can colour the
-        # post-resolution approval-decision suffix.
-        yield Static(self._footer_text(), classes="footer", markup=True)
 
     def _refresh_status_class(self) -> None:
         for cls in ("in-flight", "completed", "failed"):
@@ -187,30 +192,59 @@ class ToolCallWidget(Widget):
         # ``.approval`` is orthogonal to the status class — layered on
         # top so the approval section's visual hooks can apply without
         # affecting the existing in-flight / completed / failed
-        # styling that drives the footer glyph.
+        # styling.
         if self._state.pending_approval is not None:
             self.add_class("approval")
         else:
             self.remove_class("approval")
+        # ``.empty-body`` toggles the header's bottom padding — when
+        # the card has no body content yet (in-flight, pre-result) and
+        # no pending-approval section to mount, the padding stacks
+        # with the widget's own ``padding-bottom: 1`` and shows as an
+        # extra blank row between the tool header and whatever follows
+        # in the transcript.
+        if self._has_visible_body():
+            self.remove_class("empty-body")
+        else:
+            self.add_class("empty-body")
+
+    def _has_visible_body(self) -> bool:
+        """Whether the card will actually render content below the header.
+
+        True when there's body content (regular items, plan entries)
+        OR a pending approval section. False on a freshly-mounted in-
+        flight card that hasn't produced any output yet — that's the
+        case where the header's ``padding-bottom: 1`` stacks with the
+        widget's own bottom padding for a 2-row trailing gap.
+        """
+        if self._state.pending_approval is not None:
+            return True
+        if self._state.content:
+            return True
+        if self._is_plan_state():
+            return True
+        return False
 
     # ------------------------------------------------------------------
     # Periodic tick — keeps in-flight spinner + elapsed advancing
     # ------------------------------------------------------------------
 
     def tick_duration(self) -> None:
-        """Refresh just the footer so the in-flight elapsed + spinner advance.
+        """Refresh the header so the in-flight spinner + elapsed advance.
 
-        Called by the SessionScreen's periodic tick — terminal states
+        Called by the SessionScreen's periodic tick. Terminal states
         already show the final glyph + duration so we skip them and
         avoid needless DOM churn. Pending-approval states also skip:
-        the footer is the static "approval requested" marker (no
+        the header shows the static ``approval requested`` marker (no
         spinner, no duration) so the tick has nothing to advance.
         """
         if self._state.is_terminal or self._state.pending_approval is not None:
             return
         self._spinner_frame += 1
         try:
-            self.query_one(".footer", Static).update(self._footer_text())
+            new_header = self._header_text()
+            self.query_one(".header", Static).update(new_header)
+            self._mounted_header = new_header
         except NoMatches:
             pass
 
@@ -228,8 +262,8 @@ class ToolCallWidget(Widget):
 
         Update strategy, applied top-to-bottom:
 
-        - Header / footer / status border — cheap re-render only when
-          their text changed.
+        - Header / status border — cheap re-render only when the
+          header text changed.
         - Body items — gated on a fingerprint diff. When the body must
           change, pick exactly one of: wholesale rebuild, extend last
           item in place, or append-only mount. Fall back to wholesale
@@ -239,7 +273,6 @@ class ToolCallWidget(Widget):
 
         self._update_status_class_if_changed()
         self._update_header_if_changed()
-        self._update_footer_if_changed()
         self._update_approval_area_if_changed()
 
         if not self._body_changed():
@@ -286,16 +319,6 @@ class ToolCallWidget(Widget):
             pass
         self._mounted_header = new_header
 
-    def _update_footer_if_changed(self) -> None:
-        new_footer = self._footer_text()
-        if new_footer == self._mounted_footer:
-            return
-        try:
-            self.query_one(".footer", Static).update(new_footer)
-        except NoMatches:
-            pass
-        self._mounted_footer = new_footer
-
     def _update_approval_area_if_changed(self) -> None:
         """Mount / unmount the approval section to match ``pending_approval``.
 
@@ -304,7 +327,7 @@ class ToolCallWidget(Widget):
           the section.
         - ``True → False``: operator (or Esc / session completion)
           resolved. Unmount the section; the decision text appears
-          inline on the footer row (see ``_footer_text``).
+          inline on the header row (see ``_header_text``).
         Idle states (``False → False``, ``True → True``) are no-ops.
 
         Also refreshes the ``.approval`` CSS class on the card — it
@@ -331,7 +354,7 @@ class ToolCallWidget(Widget):
     def _compose_approval_area(self) -> ComposeResult:
         """Yield the approval section (or nothing).
 
-        Post-resolution the decision lives on the footer row, not
+        Post-resolution the decision lives on the header row, not
         here, so the area stays empty after the operator decides.
         """
         if self._state.pending_approval is not None:
@@ -451,9 +474,9 @@ class ToolCallWidget(Widget):
             return
 
         items = self._state.content or []
-        # No items yet → empty body. The header + footer (spinner +
-        # elapsed) already convey "in flight, no output yet" without
-        # a dedicated placeholder row.
+        # No items yet → empty body. The header (spinner glyph +
+        # elapsed timer) already conveys "in flight, no output yet"
+        # without a dedicated placeholder row.
         # Each content item lives in its own ``.content-item`` wrapper
         # so update_state can identify "the widget for item N" and
         # append-only mount new wrappers without disturbing existing
@@ -486,9 +509,10 @@ class ToolCallWidget(Widget):
             # colouring made finished plans read as a wall of green;
             # plain is calmer and more legible.
             yield Static(f"  {glyph} {text}", classes="plan-entry", markup=False)
-        # Trailing blank row so the footer doesn't press against the
-        # last plan entry — CollapsibleContent does this via its own
-        # margin-bottom, but the plan path bypasses that widget.
+        # Trailing blank row so the next transcript item doesn't press
+        # against the last plan entry — CollapsibleContent does this
+        # via its own margin-bottom, but the plan path bypasses that
+        # widget.
         yield Static("", classes="plan-spacer", markup=False)
 
     # ------------------------------------------------------------------
@@ -496,12 +520,16 @@ class ToolCallWidget(Widget):
     # ------------------------------------------------------------------
 
     def _header_text(self) -> str:
-        """Header: coloured bullet + bold tool name + dim args.
+        """Header: status glyph + bold tool name + dim args · duration · …
 
-        Mirrors :meth:`MessageWidget._chip_text` — coloured bullet on
+        Mirrors :meth:`MessageWidget._chip_text` — coloured glyph on
         the left so the eye reads tool calls as another row in the
-        conversation, with the body indented under the *tool name*
-        rather than the bullet.
+        conversation, with the body indented under the *tool name*.
+        The glyph rotates between a braille spinner (in-flight), ✓
+        (completed), and ✗ (failed); the elapsed timer rides as a
+        dim ``· Ns`` suffix on the same line so the whole tool-call
+        outcome (status, duration, approval decision, cancelling
+        marker) groups in one anchor — no separate footer row.
 
         The router formats ``title`` via
         :func:`inspect_ai.agent._acp.tool_content.descriptive_title` —
@@ -512,65 +540,61 @@ class ToolCallWidget(Widget):
         on the wire, not the raw ``(fn, arguments)`` pair the function
         needs.
         """
-        fg = _TOOL_BULLET_COLOR
-        title = self._state.title or self._state.tool_call_id
-        name, _, args = title.partition(" ")
-        # Escape brackets in args so any ``[…]`` inside a path or URL
-        # isn't interpreted as Rich markup.
-        if args:
-            args_escaped = args.replace("[", r"\[").replace("]", r"\]")
-            return f"[{fg}]•[/] [bold]{name}[/bold] [dim]{args_escaped}[/dim]"
-        return f"[{fg}]•[/] [bold]{name}[/bold]"
-
-    def _footer_text(self) -> str:
-        # Pending approval blocks the agent on operator input, so the
-        # elapsed counter wouldn't reflect tool work — it'd just be a
-        # clock for how long the operator's been thinking. Drop the
-        # spinner + duration entirely while pending; the bare
-        # "approval requested" marker carries the meaning on its own
-        # (the spinner resumes as soon as the operator decides).
-        if self._state.pending_approval is not None:
-            return "tool call approval requested"
-        # Status reads as a single glyph: animated spinner while in
-        # flight, ✓ on success, ✗ on failure. Border colour already
-        # carries the redundant status signal so the glyph + duration
-        # is enough text to scan.
+        # Status glyph in the bullet position: spinner while in
+        # flight, ⚙ on success (renders in default text colour so the
+        # row reads as plain conversation, not a coloured-accent
+        # chip), ✗ on failure (red so errors pop). The colour split
+        # mirrors how the assistant chip handles its own
+        # spinner-vs-bullet transition: chrome stays quiet, only the
+        # error state shouts.
         if self._state.status == "completed":
             glyph = _COMPLETED_GLYPH
+            glyph_markup = glyph
         elif self._state.status == "failed":
             glyph = _FAILED_GLYPH
+            glyph_markup = f"[{_FAILED_GLYPH_COLOR}]{glyph}[/]"
         else:
             glyph = SPINNER_FRAMES[self._spinner_frame % len(SPINNER_FRAMES)]
-        # In-flight: derive elapsed from start_time so the card surfaces
-        # progress without waiting for a terminal status. The
-        # "esc to interrupt" affordance lives in the composer
-        # placeholder while ``lifecycle == "running"`` (single source
-        # of truth) — repeating it on every tool card was noise.
+            glyph_markup = glyph
+
+        title = self._state.title or self._state.tool_call_id
+        name, _, args = title.partition(" ")
+        if args:
+            args_escaped = args.replace("[", r"\[").replace("]", r"\]")
+            base = f"{glyph_markup} [bold]{name}[/bold] [dim]{args_escaped}[/dim]"
+        else:
+            base = f"{glyph_markup} [bold]{name}[/bold]"
+
+        # Pending approval: drop the timer (it'd be measuring operator
+        # think-time, not tool work) and just signal the wait. The
+        # spinner resumes ticking as soon as the operator decides.
+        if self._state.pending_approval is not None:
+            return f"{base} [dim]· approval requested[/]"
+
+        # Duration in the header (dim, dot-separated). In-flight: derive
+        # from start_time so the card surfaces progress without waiting
+        # for a terminal status. Terminal: use the captured
+        # ``duration_seconds`` so a finished card stops drifting.
         if self._state.is_terminal:
             duration = format_duration(self._state.duration_seconds)
         else:
             duration = format_duration(time.monotonic() - self._state.start_time)
-        base = f"{glyph} {duration}"
-        # Append the post-resolution approval decision (once the
-        # operator decides) on the same line — coloured per outcome
-        # (success / error / warning). Saves a separate row and groups
-        # the whole tool-call outcome in one anchor.
+        base = f"{base} [dim]· {duration}[/]"
+
+        # Post-resolution approval decision rides as a coloured
+        # ·-separated suffix — saves a separate row and keeps the whole
+        # tool-call outcome in one scan line.
         decision = self._state.last_approval_decision
         if decision is not None:
             color = _DECISION_COLOR[decision]
             text = _DECISION_TEXT[decision]
             base = f"{base} [{color}]· {text}[/]"
         # Visual feedback for the screen-level ``^L cancel tool``
-        # action: once the operator has fired the cancel, the footer
-        # flips to a dim ``cancelling…`` marker until the synthesized
-        # failure status lands and the card transitions to terminal
-        # (typically <1s later). The cancel affordance itself lives
-        # in the screen footer (``^l cancel tool``), not on the
-        # card — keeps the per-card visual register minimal and
-        # avoids duplicating the bottom-bar hint. Suppressed during
-        # pending approval (the approval bar's reject / terminate
-        # owns "stop this tool"), but that path returns early at the
-        # top of the method anyway.
+        # action: once the operator has fired the cancel, a dim
+        # ``cancelling…`` marker appears until the synthesized failure
+        # status lands. Suppressed during pending approval (the
+        # approval bar owns "stop this tool"), but that path returned
+        # early above.
         if not self._state.is_terminal and self._state.cancel_requested:
             base = f"{base} [dim]· cancelling…[/]"
         return base
@@ -877,7 +901,7 @@ class _ApprovalContent(Vertical):
 
 
 # Post-resolution approval text + colour, appended to the tool's
-# footer row (see ``ToolCallWidget._footer_text``). Keeping the
+# header row (see ``ToolCallWidget._header_text``). Keeping the
 # decision inline on the same line as the duration / status glyph
 # is more compact than a separate summary widget AND groups the
 # whole tool-call outcome (it ran AND the operator approved it) in

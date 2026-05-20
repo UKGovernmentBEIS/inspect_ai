@@ -34,6 +34,7 @@ from textual.widgets import Static
 from ..state import MessageGroup, Segment
 from ._collapsible import CollapsibleContent
 from ._formatting import SPINNER_FRAMES, format_duration
+from ._scroll import schedule_scroll_to_end_if_at_bottom
 from .markdown import StyledMarkdown
 
 _MESSAGE_TEXT_MAX_LINES = 12
@@ -129,6 +130,10 @@ class _ReasoningBlock(Widget):
         # rather than something you copy out, so making the operator
         # rescroll to hide them again would be friction.
         self.toggle_class("collapsed")
+        # Auto-scroll if the operator was at the bottom — reasoning
+        # bodies can be many rows; without this an expand near the
+        # bottom would leave the new content below the fold.
+        schedule_scroll_to_end_if_at_bottom(self)
 
     def set_text(self, text: str) -> None:
         """Replace the reasoning body text in place.

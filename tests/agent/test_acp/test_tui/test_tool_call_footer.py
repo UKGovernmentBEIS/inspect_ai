@@ -1,10 +1,10 @@
-"""Fast pure-function tests for ``ToolCallWidget._footer_text`` composition.
+"""Fast pure-function tests for ``ToolCallWidget._header_text`` composition.
 
-The footer string is composed deterministically from the bound
-``ToolCallState``. Both the spinner-tick path and the post-mutation
-re-render path call ``_footer_text()`` to derive the new
-Rich-markup string; testing the function directly avoids paying the
-Textual app-bootstrap cost on every footer-composition assertion.
+The header now carries the status glyph, duration, approval decision,
+and ``cancelling…`` marker (all on one line) — these used to live in a
+separate footer row that's since been removed. Testing the function
+directly avoids paying the Textual app-bootstrap cost on every
+composition assertion.
 
 The cancel-tool-call affordance itself lives in the screen footer
 (``^L cancel tool`` keybind), NOT on individual cards — the only
@@ -23,18 +23,18 @@ def _widget(state: ToolCallState) -> ToolCallWidget:
     """Construct a ToolCallWidget without mounting it.
 
     ``ToolCallWidget.__init__`` doesn't touch any Textual app state —
-    it just snapshots header / footer / item signatures for later
-    diffing. Safe to instantiate directly for pure-function tests.
+    it just snapshots header / item signatures for later diffing.
+    Safe to instantiate directly for pure-function tests.
     """
     return ToolCallWidget(state)
 
 
 # ---------------------------------------------------------------------------
-# In-flight footer is bare glyph + duration (no inline affordance)
+# In-flight header is bullet glyph + name + duration (no inline affordance)
 # ---------------------------------------------------------------------------
 
 
-def test_in_flight_footer_is_just_glyph_and_duration() -> None:
+def test_in_flight_header_is_bullet_name_and_duration() -> None:
     """In-flight cards show no per-card cancel affordance.
 
     The cancel surface is the screen-level ``^L cancel tool`` footer
@@ -44,13 +44,13 @@ def test_in_flight_footer_is_just_glyph_and_duration() -> None:
     tc = ToolCallState(tool_call_id="tc-1", title="bash", status="in_progress")
     widget = _widget(tc)
 
-    footer = widget._footer_text()  # noqa: SLF001 — test access
+    header = widget._header_text()  # noqa: SLF001 — test access
 
-    assert "cancel tool call" not in footer
-    assert "^l" not in footer
-    assert "cancelling" not in footer
-    # Sanity: still carries SOMETHING — the spinner glyph.
-    assert footer  # non-empty
+    assert "cancel tool call" not in header
+    assert "^l" not in header
+    assert "cancelling" not in header
+    # Sanity: still carries the duration suffix (dim · Ns format).
+    assert "· 0" in header  # the dot-separator + elapsed timer
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ def test_in_flight_footer_is_just_glyph_and_duration() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_footer_shows_cancelling_marker_after_request() -> None:
+def test_header_shows_cancelling_marker_after_request() -> None:
     """``cancel_requested=True`` adds a dim ``cancelling…`` suffix.
 
     Only visual feedback that the operator's ``^L`` registered; the
@@ -69,9 +69,9 @@ def test_footer_shows_cancelling_marker_after_request() -> None:
     tc.cancel_requested = True
     widget = _widget(tc)
 
-    footer = widget._footer_text()  # noqa: SLF001
+    header = widget._header_text()  # noqa: SLF001
 
-    assert "cancelling" in footer
+    assert "cancelling" in header
 
 
 def test_terminal_card_omits_cancelling_marker() -> None:
@@ -87,10 +87,10 @@ def test_terminal_card_omits_cancelling_marker() -> None:
     tc.cancel_requested = True  # was true mid-flight; now terminal
     widget = _widget(tc)
 
-    footer = widget._footer_text()  # noqa: SLF001
+    header = widget._header_text()  # noqa: SLF001
 
-    assert "cancelling" not in footer
-    assert "✗" in footer
+    assert "cancelling" not in header
+    assert "✗" in header
 
 
 # ---------------------------------------------------------------------------
@@ -98,8 +98,8 @@ def test_terminal_card_omits_cancelling_marker() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_pending_approval_footer_short_circuits() -> None:
-    """Pending approval renders the dedicated placeholder, no other footer text."""
+def test_pending_approval_header_short_circuits() -> None:
+    """Pending approval suffixes ``· approval requested`` and drops the timer."""
     import asyncio
 
     from acp.schema import (
@@ -121,9 +121,16 @@ def test_pending_approval_footer_short_circuits() -> None:
     tc.pending_approval = PendingApproval(request=request, event=asyncio.Event())
     widget = _widget(tc)
 
-    footer = widget._footer_text()  # noqa: SLF001
+    header = widget._header_text()  # noqa: SLF001
 
-    assert footer == "tool call approval requested"
+    # Header still shows the tool name + spinner, plus a static
+    # "approval requested" suffix instead of the elapsed timer (the
+    # timer would just be measuring operator think-time).
+    assert "approval requested" in header
+    assert "bash" in header
+    # No elapsed timer while pending approval — the dot-separated
+    # ``· Ns`` suffix is suppressed.
+    assert "· 0" not in header
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +147,9 @@ def test_completed_card_with_approval_decision_keeps_suffix() -> None:
     tc.last_approval_decision = "approved"
     widget = _widget(tc)
 
-    footer = widget._footer_text()  # noqa: SLF001
+    header = widget._header_text()  # noqa: SLF001
 
-    assert "approved by you" in footer
-    assert "✓" in footer
+    assert "approved by you" in header
+    # Completed tool calls render the gear glyph; ``✓`` is reserved
+    # for score chips and other "verdict" surfaces.
+    assert "⚙" in header

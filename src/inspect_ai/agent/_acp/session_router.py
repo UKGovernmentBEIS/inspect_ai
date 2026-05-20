@@ -50,6 +50,19 @@ _SESSION_UPDATE_METHOD = CLIENT_METHODS["session_update"]
 # new connection.
 REPLAY_MAX_EVENTS = 100
 
+# How long :meth:`Forwarders.stop` waits for the semantic task to
+# finish its EOF cleanup naturally before falling through to cancel.
+# On the standard end-of-sample path :meth:`LiveAcpSession.finalize`
+# has already closed pubsub by the time ``stop()`` is called, so the
+# task is racing to drain the raw forwarder and send
+# ``inspect/session_ended`` — both finish within microseconds. The
+# cap protects the disconnect path where the task may be parked on
+# a receive that won't deliver (sample cut short) or a send that
+# won't return (peer gone but the socket hasn't surfaced the EOF
+# yet). 1.5s is plenty of headroom for the cleanup branch without
+# noticeably slowing eval shutdown if the task is genuinely stuck.
+_GRACEFUL_STOP_TIMEOUT_SECONDS = 1.5
+
 
 # ---------------------------------------------------------------------------
 # Module-level helpers
@@ -237,8 +250,31 @@ class Forwarders:
         if self._raw_forwarder is not None:
             self._raw_forwarder.start(self._target_session_id)
 
-    async def stop(self) -> None:
-        """Cancel forwarder tasks + detach subscribers. Idempotent."""
+    async def stop(self, *, graceful: bool = False) -> None:
+        """Cancel forwarder tasks + detach subscribers. Idempotent.
+
+        ``graceful=True`` (used by :meth:`AcpServer.stop` during the
+        end-of-eval teardown) gives the semantic task a brief grace
+        window to finish its EOF cleanup naturally before falling
+        through to ``cancel``. The cleanup branch drains the raw
+        forwarder and sends ``inspect/session_ended``; on the
+        standard end-of-sample path ``finalize()`` has already closed
+        pubsub by this point, so the task is racing to complete that
+        branch and finishes within microseconds. The
+        :data:`_GRACEFUL_STOP_TIMEOUT_SECONDS` cap bounds the wait
+        for the corner case where the task is parked on a send that
+        won't return (peer gone but the socket hasn't surfaced the
+        EOF yet). Without this window the client never sees
+        ``inspect/session_ended`` on eval completion — the cancel
+        beats the send to the wire.
+
+        ``graceful=False`` (default — used by the connection-disconnect
+        path) cancels immediately. The peer is gone, so there's no
+        point waiting for a send that has nowhere to go; pubsub is
+        still open (the session outlives the disconnected
+        connection), so the task is parked in its main loop and
+        would otherwise hit the full timeout for no benefit.
+        """
         # Deregister as an approver client so a pending or
         # post-disconnect approval prompt doesn't try to send through
         # a closed connection.
@@ -248,18 +284,41 @@ class Forwarders:
             except Exception:
                 logger.exception("Error detaching ACP approver client")
             self._approver_unsub = None
-        # Raw forwarder owns its own lifecycle teardown — unsubscribe,
-        # close streams, cancel task.
+        if self._semantic_task is not None and not self._semantic_task.done():
+            if graceful:
+                try:
+                    # ``asyncio.shield`` so the outer ``wait_for``
+                    # timeout doesn't cascade-cancel the task itself
+                    # — we want the timeout to fall through to the
+                    # explicit ``cancel()`` below, not to leave the
+                    # task in a half-cancelled state mid-send.
+                    await asyncio.wait_for(
+                        asyncio.shield(self._semantic_task),
+                        timeout=_GRACEFUL_STOP_TIMEOUT_SECONDS,
+                    )
+                except asyncio.TimeoutError:
+                    pass
+                except (anyio.get_cancelled_exc_class(), Exception):
+                    # Task exited with an exception during the grace
+                    # window — that's fine, we were waiting for it to
+                    # finish either way. ``cancel()`` below is a
+                    # no-op on a done task.
+                    pass
+            if not self._semantic_task.done():
+                self._semantic_task.cancel()
+                try:
+                    await self._semantic_task
+                except (anyio.get_cancelled_exc_class(), Exception):
+                    pass
+        self._semantic_task = None
+        # Raw forwarder shutdown runs AFTER the semantic grace window:
+        # the semantic task's EOF branch awaits ``raw_forwarder.drain()``
+        # before sending session_ended, so the raw forwarder must be
+        # alive while that's happening. Stopping it first would race
+        # the drain barrier.
         if self._raw_forwarder is not None:
             await self._raw_forwarder.stop()
             self._raw_forwarder = None
-        if self._semantic_task is not None and not self._semantic_task.done():
-            self._semantic_task.cancel()
-            try:
-                await self._semantic_task
-            except (anyio.get_cancelled_exc_class(), Exception):
-                pass
-        self._semantic_task = None
         if self._target is not None and self._semantic_stream is not None:
             try:
                 self._target.detach(self._semantic_stream)

@@ -513,7 +513,7 @@ class TestPilotReconnectUI:
         self, sample_rows: Any
     ) -> None:
         """Composer text survives a send attempt while transport is down."""
-        from textual.widgets import Input
+        from textual.widgets import TextArea
 
         from inspect_ai.agent._acp.tui.app import InspectAcpApp
         from inspect_ai.agent._acp.tui.session_screen import SessionScreen
@@ -532,14 +532,18 @@ class TestPilotReconnectUI:
             assert isinstance(app.screen, SessionScreen)
             screen = app.screen
             # Type into the composer; mark state disconnected; submit.
-            composer = screen.query_one("#composer", Input)
-            composer.value = "hello"
+            # The composer is a ``ComposerTextArea`` (TextArea subclass)
+            # — matches the sibling pilots in
+            # ``test_queued_messages_pilot.py``. ``.text`` is the
+            # TextArea analogue of Input's ``.value``.
+            composer = screen.query_one("#composer", TextArea)
+            composer.text = "hello"
             screen._state.mark_disconnected()
             await pilot.pause()
             await screen.action_submit()
             await pilot.pause()
             # Draft preserved.
-            assert composer.value == "hello"
+            assert composer.text == "hello"
             # No request reached the fake connection. The fake's
             # _FakeConnection exposes ``requests``; the real
             # ``acp.Connection`` doesn't.

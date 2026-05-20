@@ -14,8 +14,9 @@ from textual.containers import VerticalScroll
 from textual.timer import Timer
 from textual.widget import Widget
 
-from ..state import MessageGroup, ScoreChip, SessionState, ToolCallState
+from ..state import EventChip, MessageGroup, ScoreChip, SessionState, ToolCallState
 from ._fingerprint import tool_state_fingerprint
+from .event_chip import EventChipWidget
 from .message import MessageWidget
 from .score import ScoreChipWidget
 from .tool_call import ToolCallWidget
@@ -252,12 +253,19 @@ class TranscriptWidget(VerticalScroll):
         self._start_animated_scroll()
 
     @staticmethod
-    def _fingerprint(item: MessageGroup | ToolCallState | ScoreChip) -> object:
+    def _fingerprint(
+        item: MessageGroup | ToolCallState | ScoreChip | EventChip,
+    ) -> object:
         if isinstance(item, MessageGroup):
             return _message_fingerprint(item)
         if isinstance(item, ScoreChip):
             # Score chips are immutable once mounted — the fingerprint
             # only needs to identify the chip, not detect changes.
+            return item.chip_id
+        if isinstance(item, EventChip):
+            # Event chips are likewise immutable once mounted (no
+            # streaming update path for SampleLimit/Error/Compaction/
+            # Info events — each fires once and terminates).
             return item.chip_id
         # Use the comprehensive tool-call fingerprint (status + title
         # + kind + content + raw_input) — not just status — so the
@@ -267,20 +275,26 @@ class TranscriptWidget(VerticalScroll):
         return tool_state_fingerprint(item)
 
     def _build_widget(
-        self, item: MessageGroup | ToolCallState | ScoreChip, state: SessionState
+        self,
+        item: MessageGroup | ToolCallState | ScoreChip | EventChip,
+        state: SessionState,
     ) -> Widget:
         if isinstance(item, MessageGroup):
             return MessageWidget(item, current_model=state.current_model)
         if isinstance(item, ScoreChip):
             return ScoreChipWidget(item)
+        if isinstance(item, EventChip):
+            return EventChipWidget(item)
         return ToolCallWidget(item)
 
     @staticmethod
-    def _key_for(item: MessageGroup | ToolCallState | ScoreChip) -> str:
+    def _key_for(item: MessageGroup | ToolCallState | ScoreChip | EventChip) -> str:
         if isinstance(item, MessageGroup):
             return f"msg:{item.message_id}"
         if isinstance(item, ScoreChip):
             return f"score:{item.chip_id}"
+        if isinstance(item, EventChip):
+            return f"event:{item.chip_id}"
         return f"tool:{item.tool_call_id}"
 
     def _is_at_bottom(self) -> bool:
@@ -312,4 +326,6 @@ class TranscriptWidget(VerticalScroll):
             if isinstance(widget, ToolCallWidget):
                 widget.tick_duration()
             elif isinstance(widget, MessageWidget):
+                widget.tick_spinner()
+            elif isinstance(widget, ScoreChipWidget):
                 widget.tick_spinner()

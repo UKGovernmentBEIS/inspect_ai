@@ -222,11 +222,11 @@ async def test_ctrl_l_is_noop_when_no_tools_in_flight() -> None:
 @skip_if_trio
 @pytest.mark.slow
 @pytest.mark.anyio
-async def test_card_footer_flips_to_cancelling_after_dispatch() -> None:
-    """Post-dispatch, the rendered footer Static shows the dim ``cancelling…`` marker.
+async def test_card_header_flips_to_cancelling_after_dispatch() -> None:
+    """Post-dispatch, the rendered header Static shows the dim ``cancelling…`` marker.
 
-    Reads the mounted ``.footer`` Static rather than calling
-    ``_footer_text()`` directly — verifies the
+    Reads the mounted ``.header`` Static rather than calling
+    ``_header_text()`` directly — verifies the
     ``mark_cancel_requested`` notification chains through the
     transcript fingerprint diff into ``update_state`` so the
     rendered text actually updates (not just the in-memory state).
@@ -252,7 +252,7 @@ async def test_card_footer_flips_to_cancelling_after_dispatch() -> None:
         widget = screen.query_one(ToolCallWidget)
         # Read the rendered Static, not the helper — checks the full
         # state-notify → fingerprint-diff → update_state chain.
-        rendered = str(widget.query_one(".footer", Static).content)
+        rendered = str(widget.query_one(".header", Static).content)
         assert "cancelling" in rendered
 
 

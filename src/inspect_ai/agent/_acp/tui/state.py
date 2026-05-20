@@ -57,6 +57,7 @@ from inspect_ai.agent._acp.inspect_ext import (
     REPLAY_META_KEY,
     USER_SOURCE_META_KEY,
 )
+from inspect_ai.scorer._metric import CORRECT, INCORRECT, NOANSWER, PARTIAL
 from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME
 
 # The Generating pill stays visible for this many seconds after the most
@@ -374,6 +375,12 @@ class ScoreChip:
     mounted entry without colliding with message_id or
     tool_call_id."""
 
+    answer: str | None = None
+    """The model's answer for this score (``Score.answer``), shown as
+    an ``answer: <answer>`` line above the explanation when non-empty.
+    Indicator chips and chips whose underlying score didn't carry an
+    answer leave this ``None``."""
+
     span_id: str | None = None
     """Transcript span id of the scorer that produced (or is producing)
     this chip. Set on the per-scorer ``scoring · X…`` indicator chips
@@ -381,8 +388,89 @@ class ScoreChip:
     ``span_end`` can identify and remove its indicator without needing
     a separate tracking field on the surrounding state."""
 
+    started_at: float | None = None
+    """``time.monotonic()`` reading captured when an indicator chip was
+    first mounted. Drives the live ``Ns`` elapsed timer the widget
+    renders alongside the in-flight spinner — same pattern the
+    assistant chip uses for its pending-generation timer. Only set on
+    indicator chips; real score chips leave this ``None`` because
+    they're terminal and have nothing to tick."""
 
-TranscriptItem = Union[MessageGroup, ToolCallState, ScoreChip]
+    scorer_name: str | None = None
+    """Human-readable scorer name on indicator chips (e.g.
+    ``"includes"``). The indicator's ``reason`` field still carries
+    the ``"scoring · <name>…"`` text for back-compat / fallback
+    rendering, but the widget prefers this field so the per-tick
+    re-render can format ``score · <name> · 12s`` without re-parsing
+    the reason string each frame."""
+
+
+EventChipKind = Literal["sample_limit", "error", "compaction", "info"]
+"""Inspect-native transcript events the TUI renders as inline event chips.
+
+Score events have their own dedicated :class:`ScoreChip` because of
+the per-scorer indicator flow; the four kinds here all share the same
+"colored glyph + header + optional body" treatment so a single
+dataclass + widget pair covers them."""
+
+
+@dataclass
+class EventChip:
+    """An inline transcript chip for an Inspect-native transcript event.
+
+    Mounted at the current end-of-transcript position when an
+    ``inspect/event`` notification for one of :data:`EventChipKind`
+    arrives. Pre-formatted header + body keeps the widget dumb
+    (renders, doesn't decide what to show); per-event extraction lives
+    in :class:`SessionState`'s ``consume_*_event`` builders where it's
+    testable as pure functions.
+    """
+
+    kind: EventChipKind
+    """Which Inspect event family this chip represents. Drives the
+    widget's per-kind glyph + colour + background tint."""
+
+    header_summary: str
+    """The full chip header text after the leading glyph — e.g.
+    ``"limit · token"`` or ``"compaction · summary · tokens 12k → 4k"``.
+    Built by the per-event builder so the widget doesn't need
+    per-kind formatting logic."""
+
+    body_text: str | None
+    """Optional body to render under the header. ``None`` skips the
+    body block entirely (the chip renders as header-only).
+    :class:`ErrorEvent` puts ``error.message`` here; the traceback
+    rides ``traceback`` separately so the widget can give it its own
+    click-to-expand affordance."""
+
+    chip_id: str
+    """Locally-minted unique id so the transcript widget keys its
+    mounted entry without colliding with message_id, tool_call_id, or
+    score chip ids."""
+
+    traceback: str | None = None
+    """Only populated for ``kind == "error"``. Rendered behind a
+    click-to-expand ``traceback`` link below the body text — the same
+    UX :class:`_ReasoningBlock` uses for reasoning content. Plain text
+    (``EvalError.traceback``), not the ANSI variant; ANSI parsing in
+    the TUI is a bigger lift than this phase warrants."""
+
+    body_format: Literal["markdown", "json"] = "markdown"
+    """How the widget should render ``body_text``.
+
+    - ``"markdown"`` (default) — pipe through :class:`StyledMarkdown`
+      via :class:`CollapsibleContent`. Markdown formatting (``**``,
+      lists, fenced code blocks) renders inline.
+    - ``"json"`` — pipe through :class:`rich.json.JSON` for syntax-
+      highlighted JSON *without* the markdown code-block background
+      tint. Used by :class:`InfoEvent` bodies whose ``data`` payload
+      is structured (dict / list) so the JSON inherits the chip's
+      manila card band instead of stamping its own dark code-block
+      rectangle on top.
+    """
+
+
+TranscriptItem = Union[MessageGroup, ToolCallState, ScoreChip, EventChip]
 
 
 _APPROVE_OPTION_IDS = frozenset({"approve", "modify"})
@@ -427,6 +515,123 @@ def _format_score_value(value: Any) -> str:
     if isinstance(value, (int, float, str)):
         return str(value)
     return repr(value)
+
+
+def _value_to_float(value: Any) -> float | None:
+    """Emulate :func:`inspect_ai.scorer.value_to_float`'s scalar mapping.
+
+    Returns ``None`` for inputs the upstream function would log-and-
+    default to ``0.0`` (unrecognised strings, lists, dicts, ``None``).
+    The chip surfaces those as "no float available" so the widget can
+    render a neutral marker instead of misclaiming a definitive zero.
+
+    Always uses the canonical sentinels (``"C"`` / ``"I"`` / ``"P"`` /
+    ``"N"``); custom-sentinel scorers are rare and the chip's visual
+    treatment doesn't benefit from per-call configuration.
+    """
+    if isinstance(value, bool):
+        return float(value)
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        if value == CORRECT:
+            return 1.0
+        if value == PARTIAL:
+            return 0.5
+        if value == INCORRECT or value == NOANSWER:
+            return 0.0
+        lowered = value.lower()
+        if lowered in ("yes", "true"):
+            return 1.0
+        if lowered in ("no", "false"):
+            return 0.0
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _classify_score_value(value: Any) -> bool | None:
+    """Return ``True`` only when the score is an unambiguous pass.
+
+    "Unambiguous pass" = :func:`_value_to_float` returns exactly
+    ``1.0``. Everything else — partial credit, explicit zero, numeric
+    values between 0 and 1, lists, dicts, unparseable strings —
+    returns ``None`` and renders as a neutral chip. We deliberately
+    don't emit ``False``: a partial score isn't a failure, and a
+    plain ``0`` could mean different things in different rubrics, so
+    the chip refrains from claiming a failure verdict it can't prove.
+    Matches how the react agent reports scoring outcomes — a clean
+    pass is celebrated, anything else is just "score landed".
+    """
+    float_val = _value_to_float(value)
+    if float_val is None:
+        return None
+    return True if float_val == 1.0 else None
+
+
+def _format_token_count(count: int) -> str:
+    """Compact ``12345`` → ``12.3k`` rendering for token deltas.
+
+    Used in the :class:`CompactionEvent` chip header so the operator
+    can read "tokens 12.3k → 4.1k" without parsing seven-digit
+    numbers in a one-line chip. Below 1k we render the raw count;
+    above we collapse to one decimal of thousands.
+    """
+    if count < 1000:
+        return str(count)
+    return f"{count / 1000:.1f}k"
+
+
+def _format_limit_value(limit_type: Any, value: float) -> str:
+    """Render the numeric ``SampleLimitEvent.limit`` for the chip header.
+
+    Type-specific so the unit reads correctly at a glance:
+
+    - ``token``: thousands-compact (``100.0k``), shared with
+      :func:`_format_token_count`.
+    - ``time`` / ``working``: seconds (``60s``).
+    - ``cost``: dollars to two decimals (``$5.50``).
+    - everything else (``message`` / ``operator`` / ``custom``):
+      integer when whole, otherwise two decimals.
+    """
+    if limit_type == "token":
+        return _format_token_count(int(value))
+    if limit_type in ("time", "working"):
+        return f"{int(value)}s" if value.is_integer() else f"{value:.1f}s"
+    if limit_type == "cost":
+        return f"${value:.2f}"
+    return f"{int(value)}" if value.is_integer() else f"{value:.2f}"
+
+
+def _format_info_data(data: Any) -> tuple[str | None, Literal["markdown", "json"]]:
+    """Render an :class:`InfoEvent` ``data`` payload for the chip body.
+
+    Returns ``(body_text, body_format)`` so the widget knows which
+    renderer to use:
+
+    - Strings → markdown (assumed safe by the source).
+    - Other JSON shapes (dicts, lists, scalars) → JSON. Returned as
+      raw indented JSON text (no markdown fencing) so the widget can
+      pipe it through :class:`rich.json.JSON` for syntax-highlighted
+      rendering on the chip's own background, rather than markdown's
+      fenced code block which stamps its own dark rectangle.
+    - ``None`` / missing data → ``(None, "markdown")``; the chip
+      renders header-only.
+    """
+    if data is None:
+        return None, "markdown"
+    if isinstance(data, str):
+        text = data.strip()
+        return (text if text else None), "markdown"
+    try:
+        import json
+
+        rendered = json.dumps(data, indent=2, default=str)
+    except (TypeError, ValueError):
+        rendered = repr(data)
+    return rendered, "json"
 
 
 class StatusState(str, Enum):
@@ -559,6 +764,14 @@ class SessionState:
         # we mint a fresh id per chip — used by the transcript widget
         # to key its mounted entry.
         self._score_chip_counter: int = 0
+        # Monotonic counter for locally-minted event-chip ids (used by
+        # the four :class:`EventChipKind` variants). Same rationale as
+        # ``_score_chip_counter`` — the server-side events don't carry
+        # an identifier we can reuse for the transcript widget key
+        # (the ``uuid`` on ``BaseEvent`` is consumed by the dedup set
+        # above, but the widget key wants a slug we mint locally so
+        # the keying scheme is uniform across all chip types).
+        self._event_chip_counter: int = 0
         # Currently-mounted ``scoring · X…`` indicator chip, if any.
         # Per-scorer: each ``span_begin(type=SCORER_SPAN_TYPE)`` mounts
         # a fresh indicator naming the scorer; whichever of the next
@@ -1238,18 +1451,18 @@ class SessionState:
 
         Called from the client-side ``inspect/event`` JSON-RPC route
         handler in :func:`attach_session`. Branches on the standard
-        ``event`` discriminator. Currently routes ``"score"`` (score
-        chip), ``"span_begin"`` (scoring-phase boundary + per-scorer
-        indicator), and ``"span_end"`` (clear the indicator when its
-        scorer returned ``None`` / raised — no ``ScoreEvent`` ever
-        fired). Future event types add branches here.
+        ``event`` discriminator. Routes ``"score"`` (score chip),
+        ``"sample_limit"`` / ``"error"`` / ``"compaction"`` / ``"info"``
+        (Inspect-native event chips), and ``"span_begin"`` /
+        ``"span_end"`` (scoring-phase boundary + per-scorer indicator
+        lifecycle).
 
         Replay-dedup: each event carries a stable ``uuid`` from
         ``BaseEvent``. On reconnect the server replays the snapshot
         which re-fires the same raw events, which would otherwise
-        double score chips and re-mount per-scorer indicators after
-        the real chip has already replaced them. The first occurrence
-        of a uuid is processed normally and recorded; subsequent
+        double chips and re-mount per-scorer indicators after the
+        real chip has already replaced them. The first occurrence of
+        a uuid is processed normally and recorded; subsequent
         deliveries of the same uuid drop silently.
         """
         uuid = event.get("uuid")
@@ -1260,6 +1473,14 @@ class SessionState:
         kind = event.get("event")
         if kind == "score":
             self.consume_score_event(event)
+        elif kind == "sample_limit":
+            self.consume_sample_limit_event(event)
+        elif kind == "error":
+            self.consume_error_event(event)
+        elif kind == "compaction":
+            self.consume_compaction_event(event)
+        elif kind == "info":
+            self.consume_info_event(event)
         elif kind == "span_begin":
             self._consume_span_begin(event)
         elif kind == "span_end":
@@ -1330,6 +1551,8 @@ class SessionState:
             reason=f"scoring · {name}…",
             chip_id=f"score-{self._score_chip_counter}",
             span_id=span_id if isinstance(span_id, str) else None,
+            started_at=self._now(),
+            scorer_name=name,
         )
         self.items.append(chip)
         self._scoring_indicator = chip
@@ -1387,9 +1610,11 @@ class SessionState:
         serialized to JSON via Pydantic: ``score.value`` is a scalar or
         list/dict; ``scorer`` is the scorer name; ``score.explanation``
         carries the reason. The chip extracts a display-friendly
-        triple ``(scorer, value, passed, reason)`` — pass/fail is
-        derived from the canonical ``"C"`` / ``"I"`` CORRECT score
-        values, ``None`` for anything else.
+        triple ``(scorer, value, passed, reason)`` — ``passed`` is
+        ``True`` only when :func:`_classify_score_value` decides the
+        score is an unambiguous pass (``value_to_float`` == 1.0);
+        partial credit, explicit zero, and non-scalar shapes all
+        render as a neutral chip rather than a failure verdict.
 
         If a ``scoring…`` indicator chip is currently mounted (from a
         prior ``span_begin(name="scorers")``), it's removed in the
@@ -1401,17 +1626,21 @@ class SessionState:
         score = event.get("score") or {}
         raw_value = score.get("value")
         value_str = _format_score_value(raw_value)
-        passed: bool | None
-        if isinstance(raw_value, str) and raw_value in ("C", "I"):
-            passed = raw_value == "C"
-        else:
-            passed = None
+        # ``_classify_score_value`` flags only unambiguous passes
+        # (``value_to_float`` == 1.0). Anything else — partial credit,
+        # explicit zero, non-binary shapes — collapses to ``None`` so
+        # the widget renders a neutral chip rather than asserting a
+        # failure verdict the score's value doesn't actually prove.
+        passed = _classify_score_value(raw_value)
         scorer = event.get("scorer")
         if not isinstance(scorer, str) or not scorer:
             scorer = None
         reason = score.get("explanation")
         if not isinstance(reason, str) or not reason:
             reason = None
+        answer = score.get("answer")
+        if not isinstance(answer, str) or not answer.strip():
+            answer = None
         # Replace the live "scoring · <scorer>…" indicator (if any) —
         # the real score chip is the better signal now that it's
         # arrived. The next per-scorer ``span_begin`` will mount a
@@ -1424,6 +1653,159 @@ class SessionState:
             passed=passed,
             reason=reason,
             chip_id=f"score-{self._score_chip_counter}",
+            answer=answer,
+        )
+        self.items.append(chip)
+        self._notify()
+
+    # ------------------------------------------------------------------
+    # Inspect-native event chips (sample_limit / error / compaction / info)
+    # ------------------------------------------------------------------
+
+    def consume_sample_limit_event(self, event: dict[str, Any]) -> None:
+        """Mount an inline event chip for a serialized ``SampleLimitEvent``.
+
+        Wire shape mirrors :class:`inspect_ai.event.SampleLimitEvent`:
+        a ``type`` discriminator (``message`` / ``time`` / ``working``
+        / ``token`` / ``cost`` / ``operator`` / ``custom``) plus a
+        human-readable ``message`` and an optional numeric ``limit``.
+
+        The chip surfaces all three: the type and the numeric limit
+        in the header (``limit · token · 100.0k``), and the message
+        in the body. Sample-limit events are terminal — the message
+        is the operator's only inline explanation of why the run
+        stopped, so dropping it would force a transcript dive for
+        what's a one-line answer.
+        """
+        limit_type = event.get("type")
+        limit_value = event.get("limit")
+        header_parts = ["limit"]
+        if isinstance(limit_type, str) and limit_type:
+            header_parts.append(limit_type)
+        if isinstance(limit_value, (int, float)):
+            header_parts.append(_format_limit_value(limit_type, float(limit_value)))
+        header = " · ".join(header_parts)
+        message = event.get("message")
+        body: str | None = None
+        if isinstance(message, str):
+            stripped = message.strip()
+            body = stripped if stripped else None
+        self._append_event_chip(kind="sample_limit", header=header, body=body)
+
+    def consume_error_event(self, event: dict[str, Any]) -> None:
+        """Mount an inline event chip for a serialized ``ErrorEvent``.
+
+        Wire shape mirrors :class:`inspect_ai.event.ErrorEvent`: an
+        ``error`` payload (``EvalError``) carrying ``message`` and
+        ``traceback`` fields. The chip header stays bare (``error``);
+        the message renders on the body row below so the operator can
+        scan it without it being truncated by the chip-row width and
+        without losing the full multi-line message. Traceback rides
+        :attr:`EventChip.traceback` so the widget can give it a
+        click-to-expand affordance modelled on ``_ReasoningBlock``.
+        """
+        error = event.get("error") or {}
+        message = error.get("message") if isinstance(error, dict) else None
+        if not isinstance(message, str):
+            message = None
+        # Header is just ``error`` — the message is wider than the
+        # chip row in practice (exception class + tail), and inlining
+        # the first line meant the operator either lost the rest mid-
+        # truncation or had to expand the body to see what mattered.
+        # Promoting the full message to the body row keeps the chip
+        # scannable and the message readable.
+        body = message if message and message.strip() else None
+        # Prefer ``traceback_ansi`` (the Rich-rendered ``Traceback``
+        # exported to ANSI escape codes by ``format_traceback`` →
+        # ``rich_traceback``) over the plain ``traceback`` field —
+        # the ANSI version carries frame summaries, source-line
+        # context, and syntax colouring already laid out, so the
+        # widget can render it via ``Text.from_ansi`` and inherit
+        # the chip's tinted background. Fall back to the plain
+        # field when ANSI is missing or empty (truncated tracebacks
+        # also populate ANSI with the plain text upstream, so the
+        # fallback is rare in practice).
+        traceback_ansi = (
+            error.get("traceback_ansi") if isinstance(error, dict) else None
+        )
+        traceback_plain = error.get("traceback") if isinstance(error, dict) else None
+        if isinstance(traceback_ansi, str) and traceback_ansi.strip():
+            traceback = traceback_ansi
+        elif isinstance(traceback_plain, str) and traceback_plain.strip():
+            traceback = traceback_plain
+        else:
+            traceback = None
+        self._append_event_chip(
+            kind="error", header="error", body=body, traceback=traceback
+        )
+
+    def consume_compaction_event(self, event: dict[str, Any]) -> None:
+        """Mount an inline event chip for a serialized ``CompactionEvent``.
+
+        Wire shape mirrors :class:`inspect_ai.event.CompactionEvent`:
+        a ``type`` discriminator (``summary`` / ``edit`` / ``trim``),
+        optional ``tokens_before`` / ``tokens_after`` counts, and an
+        optional ``source``. The chip renders as a single line — the
+        strategy + the token delta — with no body row; the ``source``
+        field is metadata about *who* ran the compaction, which the
+        operator rarely needs at a glance, and a multi-row body for
+        a transient compaction chip was more visual weight than the
+        event warranted.
+        """
+        compaction_type = event.get("type")
+        parts: list[str] = ["compaction"]
+        if isinstance(compaction_type, str) and compaction_type:
+            parts.append(compaction_type)
+        before = event.get("tokens_before")
+        after = event.get("tokens_after")
+        if isinstance(before, int) and isinstance(after, int):
+            parts.append(
+                f"tokens {_format_token_count(before)} → {_format_token_count(after)}"
+            )
+        header = " · ".join(parts)
+        self._append_event_chip(kind="compaction", header=header, body=None)
+
+    def consume_info_event(self, event: dict[str, Any]) -> None:
+        """Mount an inline event chip for a serialized ``InfoEvent``.
+
+        Wire shape mirrors :class:`inspect_ai.event.InfoEvent`: an
+        optional ``source`` plus a ``data`` payload that can be any
+        JSON value. Header surfaces ``source`` when present (subsystem
+        diagnostics typically tag themselves). Body renders as
+        markdown when ``data`` is a string, or as syntax-highlighted
+        JSON (via :class:`rich.json.JSON`) when it's a structured
+        shape — the JSON path skips the markdown fenced-code-block
+        background so structured payloads sit on the chip's own
+        manila card band.
+        """
+        source = event.get("source")
+        header = "info"
+        if isinstance(source, str) and source.strip():
+            header = f"info · {source.strip()}"
+        data = event.get("data")
+        body, body_format = _format_info_data(data)
+        self._append_event_chip(
+            kind="info", header=header, body=body, body_format=body_format
+        )
+
+    def _append_event_chip(
+        self,
+        *,
+        kind: EventChipKind,
+        header: str,
+        body: str | None,
+        traceback: str | None = None,
+        body_format: Literal["markdown", "json"] = "markdown",
+    ) -> None:
+        """Mint an :class:`EventChip`, append to items, and notify subscribers."""
+        self._event_chip_counter += 1
+        chip = EventChip(
+            kind=kind,
+            header_summary=header,
+            body_text=body,
+            chip_id=f"event-{self._event_chip_counter}",
+            traceback=traceback,
+            body_format=body_format,
         )
         self.items.append(chip)
         self._notify()
@@ -2072,8 +2454,9 @@ class SessionState:
                 dropped_message_ids.add(item.message_id)
             elif isinstance(item, ToolCallState):
                 self._tool_calls_by_id.pop(item.tool_call_id, None)
-            # ScoreChips have no side-state to clean up beyond removal
-            # from ``items`` — they live only here.
+            # ScoreChip / EventChip have no side-state to clean up
+            # beyond removal from ``items`` — they live only here
+            # (no ``_*_by_id`` index, no pending sets to discard).
         # Strip retry-collapse aliases that point at dropped groups —
         # leaving them would silently route future (rare, late)
         # chunks for those ids back into thin air.

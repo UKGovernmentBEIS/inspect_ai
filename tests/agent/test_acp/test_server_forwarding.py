@@ -652,6 +652,164 @@ async def test_forwarder_detaches_subscriber_on_disconnect(
         assert len(session._subscribers) == 0
 
 
+@skip_if_trio
+@unix_only
+async def test_server_stop_lets_in_flight_session_ended_reach_client(
+    short_data_dir: Path, register_target
+) -> None:
+    """Regression: ``inspect/session_ended`` must reach the client on eval end.
+
+    Previously :meth:`AcpServer.stop` called ``conn.close()`` before
+    the per-connection forwarders had a chance to finish their EOF
+    cleanup. The semantic forwarder's last act — sending
+    ``inspect/session_ended`` after ``LiveAcpSession.finalize`` closes
+    pubsub — would then hit ``ConnectionError("Connection closed")``
+    and the client would never see the lifecycle pill flip to
+    ``complete``.
+
+    The fix has two halves: :meth:`AcpServer.stop` now calls
+    ``handler.shutdown(graceful=True)`` BEFORE ``conn.close()``, and
+    ``Forwarders.stop(graceful=True)`` gives the semantic task a
+    brief grace window to finish its cleanup branch naturally before
+    falling through to ``cancel``. This test simulates the exact
+    eval-end scenario and asserts the client received the
+    notification end-to-end.
+    """
+    session, _tr = _make_live_session_with_transcript()
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    notifications: list[dict[str, Any]] = []
+    async with acp_server(eval_id="evt-end", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(client)
+
+            # Collect any notifications the forwarder sends while the
+            # connection is still open. We exit ``acp_server`` below
+            # which calls ``AcpServer.stop()``; the bug would be that
+            # ``inspect/session_ended`` never lands here.
+            async def _collect() -> None:
+                try:
+                    while True:
+                        notifications.append(
+                            await client.next_notification(timeout=2.0)
+                        )
+                except (asyncio.TimeoutError, Exception):
+                    return
+
+            collector = asyncio.create_task(_collect())
+            # Simulate ``LiveAcpSession.finalize()`` closing pubsub
+            # — the trigger for the forwarder's EOF cleanup branch.
+            # NO sleep here: we want to exercise the exact race the
+            # production fix targets. Closing pubsub then immediately
+            # falling out of the ``async with acp_server`` mirrors
+            # the eval-end sequence: ``active_sample.__aexit__``
+            # finalizes the session, control unwinds to the eval
+            # body's return, which exits ``acp_server`` and triggers
+            # ``AcpServer.stop()``. The forwarder is still mid-cleanup
+            # when ``stop()`` runs — without the graceful handler
+            # shutdown the ``inspect/session_ended`` send hits
+            # ``ConnectionError("Connection closed")``.
+            session._pubsub.close_all()
+        finally:
+            # Don't close the client yet — we want the server-side
+            # shutdown to drive the lifecycle, exactly as it does on
+            # eval completion.
+            pass
+    # ``acp_server`` context exited → ``AcpServer.stop()`` ran.
+    # Stop the collector and confirm session_ended landed.
+    collector.cancel()
+    try:
+        await collector
+    except (asyncio.CancelledError, Exception):
+        pass
+    try:
+        await client.close()
+    except Exception:
+        pass
+    methods = [n.get("method") for n in notifications]
+    assert "inspect/session_ended" in methods, (
+        f"client never received inspect/session_ended; got methods={methods}"
+    )
+
+
+@skip_if_trio
+@unix_only
+async def test_server_stop_with_open_client_logs_no_handler_shutdown_errors(
+    short_data_dir: Path, register_target, monkeypatch
+) -> None:
+    """Regression: concurrent ``handler.shutdown`` calls don't crash on race.
+
+    ``AcpServer.stop`` calls ``handler.shutdown(graceful=True)`` while
+    the per-connection ``_on_connection`` finally is racing to call
+    ``handler.shutdown()`` from the disconnect path (close-on-stop
+    triggers the main_loop exit before the graceful shutdown's
+    forwarder-drain await completes). Without the reentrancy guard
+    in ``ConnectionHandler._stop_forwarders`` both paths enter
+    ``Forwarders.stop`` on the same instance: one suspends after the
+    initial ``self._semantic_task is not None`` guard, the other
+    nulls ``self._semantic_task`` mid-await, and the first wakes up
+    to ``AttributeError: 'NoneType' object has no attribute 'done'``.
+    The error is caught by the per-handler ``except Exception`` in
+    ``AcpServer.stop`` but logged at ERROR — silent enough to slip
+    past tests-passing but loud enough to spam every eval shutdown.
+
+    Asserts the "Error during graceful ACP handler shutdown"
+    log line is never emitted.
+    """
+    from inspect_ai.agent._acp import server as server_module
+
+    errors: list[tuple[str, tuple[Any, ...]]] = []
+
+    def capture(msg: str, *args: Any, **kwargs: Any) -> None:
+        errors.append((msg, args))
+
+    monkeypatch.setattr(server_module.logger, "exception", capture)
+
+    session, _tr = _make_live_session_with_transcript()
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    # Multiple bound connections widen the race window. The
+    # close-then-immediately-exit pattern mirrors how production tests
+    # tear down (no asyncio.sleep between ``client.close()`` and the
+    # ``async with acp_server`` exit), which is exactly when the
+    # server-side ``_on_connection`` finally is still in flight when
+    # ``AcpServer.stop`` starts its graceful loop.
+    async with acp_server(eval_id="evt-race", transport=True) as server:
+        assert server is not None
+        clients = [await _connect(server) for _ in range(4)]
+        for c in clients:
+            await _initialize(c)
+            await c.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(c)
+        # Close all clients FIRST so each connection's ``_on_connection``
+        # finally fires; do NOT sleep before exiting the context so the
+        # server-side cleanup is mid-flight when ``AcpServer.stop`` runs.
+        for c in clients:
+            try:
+                await c.close()
+            except Exception:
+                pass
+    # ``async with`` exited → ``AcpServer.stop`` ran concurrently with
+    # the lingering ``_on_connection`` cleanups. Without the
+    # reentrancy guard in ``ConnectionHandler._stop_forwarders`` this
+    # produces "Error during graceful ACP handler shutdown" from the
+    # ``AttributeError: 'NoneType' object has no attribute 'done'``
+    # raised inside ``Forwarders.stop``.
+    handler_shutdown_errors = [
+        msg for msg, _ in errors if "graceful ACP handler shutdown" in msg
+    ]
+    assert not handler_shutdown_errors, (
+        f"unexpected handler-shutdown errors during server stop: "
+        f"{handler_shutdown_errors}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Replay-on-attach
 # ---------------------------------------------------------------------------

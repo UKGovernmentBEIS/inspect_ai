@@ -78,7 +78,15 @@ CLIENT_INFO = {"name": "inspect-acp-tui", "version": "1"}
 CLIENT_CAPABILITIES = {
     "_meta": {
         PLAN_RENDERING_META_KEY: True,
-        RAW_EVENTS_META_KEY: ["score", "span_begin", "span_end"],
+        RAW_EVENTS_META_KEY: [
+            "score",
+            "sample_limit",
+            "error",
+            "compaction",
+            "info",
+            "span_begin",
+            "span_end",
+        ],
     }
 }
 """ACP ``clientCapabilities`` advertised in ``initialize``.
@@ -92,16 +100,21 @@ The TUI is not in the server's ``PLAN_RENDERING_CLIENTS`` allowlist
 explicitly — Zed, Toad); ``_meta`` is the right path for first-party
 clients we control.
 
-The TUI also subscribes to ``score``, ``span_begin``, and ``span_end``
-via :data:`RAW_EVENTS_META_KEY`. Score events drive the mid-stream
-score chip. ``span_begin`` is filtered client-side to the per-scorer
-``type="scorer"`` spans so the TUI can mount a ``score · scoring…``
-indicator the moment each scorer begins, giving the operator a
-positive signal that scoring has started rather than the session
-sitting silently in the gap between react-loop exit and the first
-score chip. ``span_end`` clears that indicator when the scorer's span
-closes without a ``ScoreEvent`` (scorer returned ``None`` or raised —
-both legitimate paths that would otherwise leave the indicator pinned
+The TUI also subscribes to several raw transcript event types via
+:data:`RAW_EVENTS_META_KEY`. Inspect-native events (``score``,
+``sample_limit``, ``error``, ``compaction``, ``info``) render as
+inline event chips in the transcript — the operator's window into
+"the agent stopped because X" without having to crack the log file.
+``span_begin`` / ``span_end`` are filtered client-side to the
+scoring boundaries: the outer ``span(name="scorers")`` clears the
+plan strip when the agent loop exits, and per-scorer
+``type="scorer"`` spans mount a ``score · scoring…`` indicator the
+moment each scorer begins (giving the operator a positive signal
+that scoring has started rather than the session sitting silently in
+the gap between react-loop exit and the first score chip);
+``span_end`` clears that indicator when the scorer's span closes
+without a ``ScoreEvent`` (scorer returned ``None`` or raised — both
+legitimate paths that would otherwise leave the indicator pinned
 forever).
 
 ``_meta`` is the JSON wire key; ACP's Pydantic schema serializes it

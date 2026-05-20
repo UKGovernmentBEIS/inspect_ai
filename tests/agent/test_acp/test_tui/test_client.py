@@ -211,8 +211,26 @@ async def test_attach_session_binds_via_session_load(
 # ---------------------------------------------------------------------------
 
 
-def test_client_capabilities_advertises_plan_rendering_and_score_subscription() -> None:
-    """Unit check: the constant ships ``inspect.plan_rendering`` + score subscription.
+_EXPECTED_RAW_EVENTS = [
+    "score",
+    "sample_limit",
+    "error",
+    "compaction",
+    "info",
+    "span_begin",
+    "span_end",
+]
+"""Expected raw-event subscription list the TUI advertises at initialize.
+
+Score events drive the mid-stream score chip; sample_limit / error /
+compaction / info drive the Inspect-native event chips; span_begin /
+span_end drive the scoring-phase boundary detection. Kept as a
+single constant so the three tests below (and any future addition)
+expand from one source rather than re-typing the list."""
+
+
+def test_client_capabilities_advertises_plan_rendering_and_event_subscription() -> None:
+    """Unit check: the constant ships ``inspect.plan_rendering`` + raw-event subscription.
 
     Both ``_list_for_target`` and ``attach_session`` send this dict
     verbatim in their ``initialize`` request, so a single
@@ -221,7 +239,7 @@ def test_client_capabilities_advertises_plan_rendering_and_score_subscription() 
     assert CLIENT_CAPABILITIES == {
         "_meta": {
             "inspect.plan_rendering": True,
-            "inspect.raw_events": ["score", "span_begin", "span_end"],
+            "inspect.raw_events": _EXPECTED_RAW_EVENTS,
         }
     }
 
@@ -267,7 +285,7 @@ async def test_enumerate_session_initialize_sets_plan_rendering(
     assert client_capabilities is not None
     assert client_capabilities.field_meta == {
         "inspect.plan_rendering": True,
-        "inspect.raw_events": ["score", "span_begin", "span_end"],
+        "inspect.raw_events": _EXPECTED_RAW_EVENTS,
     }
 
 
@@ -322,7 +340,7 @@ async def test_attach_session_initialize_sets_plan_rendering(
         assert client_info.name == "inspect-acp-tui"
         assert client_capabilities.field_meta == {
             "inspect.plan_rendering": True,
-            "inspect.raw_events": ["score", "span_begin", "span_end"],
+            "inspect.raw_events": _EXPECTED_RAW_EVENTS,
         }
 
 

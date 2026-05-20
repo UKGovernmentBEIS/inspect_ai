@@ -475,7 +475,8 @@ async def test_message_widget_has_bottom_margin_between_items() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_renders_bullet_and_title() -> None:
+async def test_tool_call_renders_spinner_and_title_and_duration() -> None:
+    """Header layout: <glyph> <name> <args> · <duration>."""
     state = ToolCallState(
         tool_call_id="tc-1",
         title="read /etc/hosts",
@@ -487,12 +488,12 @@ async def test_tool_call_renders_bullet_and_title() -> None:
         await pilot.pause()
         w = app.query_one(ToolCallWidget)
         header = w.query_one(".header", Static)
-        # Header is markup-rendered: coloured bullet, tool name bold,
-        # args dim. Render to plain text so we can assert on what the
-        # user actually sees.
+        # Header is markup-rendered: spinner glyph in cyan, tool name
+        # bold, args dim, duration as `· Ns` dim suffix.
         rendered = header.render_str(str(header.content)).plain
-        assert rendered.startswith("• ")
         assert "read /etc/hosts" in rendered
+        # Trailing duration suffix (dim, dot-separated).
+        assert "· 0" in rendered
         # And the raw markup distinguishes name from args.
         raw = str(header.content)
         assert "[bold]read[/bold]" in raw
@@ -501,7 +502,8 @@ async def test_tool_call_renders_bullet_and_title() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_header_omits_dim_when_no_args() -> None:
+async def test_tool_call_header_omits_dim_args_when_no_args() -> None:
+    """No args → no dim ``[dim]<args>[/]`` segment, but timer dim still present."""
     state = ToolCallState(
         tool_call_id="tc-1",
         title="update_plan",
@@ -514,7 +516,9 @@ async def test_tool_call_header_omits_dim_when_no_args() -> None:
         w = app.query_one(ToolCallWidget)
         raw = str(w.query_one(".header", Static).content)
         assert "[bold]update_plan[/bold]" in raw
-        assert "[dim]" not in raw
+        # The dim duration suffix still mounts — no args, but the
+        # ``· Ns`` timer is always present on in-flight chips.
+        assert "[dim]· 0" in raw
 
 
 @skip_if_trio
@@ -650,31 +654,32 @@ async def test_tool_call_tick_advances_in_flight_duration() -> None:
     """Reviewer P3: in-flight tools must visibly tick without a state mutation.
 
     SessionScreen's periodic timer calls ``tick_duration`` on each
-    in-flight card so the elapsed value advances; once terminal, the
-    method short-circuits to avoid DOM churn.
+    in-flight card so the spinner + elapsed value in the header
+    advance; once terminal, the method short-circuits to avoid DOM
+    churn.
     """
     state = ToolCallState(tool_call_id="tc-1", title="bash", status="in_progress")
     app = _harness(lambda: ToolCallWidget(state))
     async with app.run_test() as pilot:
         await pilot.pause()
         w = app.query_one(ToolCallWidget)
-        first_footer = str(w.query_one(".footer", Static).content)
+        first_header = str(w.query_one(".header", Static).content)
         # Force the elapsed value forward by rewinding start_time.
         state.start_time -= 5.0
         w.tick_duration()
         await pilot.pause()
-        second_footer = str(w.query_one(".footer", Static).content)
-        assert first_footer != second_footer
+        second_header = str(w.query_one(".header", Static).content)
+        assert first_header != second_header
         # Once terminal, tick_duration is a no-op (final duration stays).
         state.status = "completed"
         state.end_time = state.start_time + 5.0
         w.update_state(state)
         await pilot.pause()
-        terminal_footer = str(w.query_one(".footer", Static).content)
+        terminal_header = str(w.query_one(".header", Static).content)
         state.end_time = state.start_time + 999.0  # would change duration
         w.tick_duration()
         await pilot.pause()
-        assert str(w.query_one(".footer", Static).content) == terminal_footer
+        assert str(w.query_one(".header", Static).content) == terminal_header
 
 
 @skip_if_trio
@@ -1248,24 +1253,66 @@ async def test_message_widget_does_not_mount_segment_spacers() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_header_has_blank_row_below_title() -> None:
+async def test_tool_call_header_has_blank_row_below_title_when_body_has_content() -> (
+    None
+):
     """Header reserves a 1-row gap before the first body item.
 
     Without it the code block / plan / output sits flush against the
     title, which reads as one continuous block rather than "title,
-    then body".
+    then body". The padding is conditional on the body actually
+    having content — empty bodies (in-flight, pre-result) get the
+    ``.empty-body`` class which zeros this padding so it doesn't
+    stack with the widget's own ``padding-bottom: 1`` and produce an
+    extra blank row above the next transcript item.
     """
+    from acp.schema import ContentToolCallContent, TextContentBlock
+
     state = ToolCallState(
         tool_call_id="tc-1",
         title="read /etc/hosts",
         kind="read",
         status="in_progress",
+        content=[
+            ContentToolCallContent(
+                type="content",
+                content=TextContentBlock(type="text", text="file contents go here"),
+            )
+        ],
     )
     app = _harness(lambda: ToolCallWidget(state))
     async with app.run_test() as pilot:
         await pilot.pause()
-        header = app.query_one(ToolCallWidget).query_one(".header", Static)
+        widget = app.query_one(ToolCallWidget)
+        assert not widget.has_class("empty-body")
+        header = widget.query_one(".header", Static)
         assert header.styles.padding.bottom == 1
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_header_drops_bottom_padding_when_body_empty() -> None:
+    """In-flight card with no body / no approval zeros the header padding.
+
+    The header's ``padding-bottom: 1`` and the widget's own
+    ``padding-bottom: 1`` would otherwise stack into a 2-row trailing
+    gap above the next transcript item — visible as an extra blank
+    row between the tool card and whatever follows while the tool is
+    still running.
+    """
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash sleep 5",
+        kind="execute",
+        status="in_progress",
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        widget = app.query_one(ToolCallWidget)
+        assert widget.has_class("empty-body")
+        header = widget.query_one(".header", Static)
+        assert header.styles.padding.bottom == 0
 
 
 @skip_if_trio
@@ -1293,8 +1340,8 @@ async def test_tool_call_body_is_indented_under_tool_name() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_footer_is_indented_under_tool_name() -> None:
-    """Footer also indents under the tool name so the whole row reads as one column."""
+async def test_tool_call_has_no_footer_row() -> None:
+    """No ``.footer`` Static — status + duration moved to the header."""
     state = ToolCallState(
         tool_call_id="tc-1",
         title="bash ls",
@@ -1304,14 +1351,13 @@ async def test_tool_call_footer_is_indented_under_tool_name() -> None:
     app = _harness(lambda: ToolCallWidget(state))
     async with app.run_test() as pilot:
         await pilot.pause()
-        footer = app.query_one(ToolCallWidget).query_one(".footer", Static)
-        assert footer.styles.padding.left == 2
+        assert not list(app.query_one(ToolCallWidget).query(".footer"))
 
 
 @skip_if_trio
 @pytest.mark.anyio
 async def test_tool_call_has_no_border() -> None:
-    """No card border — status is carried by the footer glyph alone.
+    """No card border — status is carried by the header glyph alone.
 
     Pins the visual decision that tool calls share the message
     widget's flush layout rather than being chrome-wrapped cards.
@@ -1337,13 +1383,15 @@ async def test_tool_call_has_no_border() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_header_uses_tool_bullet_color() -> None:
-    """Bullet in the header carries ``_TOOL_BULLET_COLOR`` markup.
+async def test_tool_call_in_flight_glyph_renders_uncoloured() -> None:
+    """In-flight spinner renders in the default text colour, not a coloured wrap.
 
-    Pins the palette decision so a future tweak is intentional.
+    Quiet chrome: only the failure state gets a coloured wrap (red ✗)
+    so errors pop against the rest of the transcript. The in-flight
+    spinner and the completed ⚙ ride in the default text colour to
+    keep the row reading as plain conversation rather than as a
+    coloured-accent chip.
     """
-    from inspect_ai.agent._acp.tui.widgets.tool_call import _TOOL_BULLET_COLOR
-
     state = ToolCallState(
         tool_call_id="tc-1",
         title="bash ls",
@@ -1354,12 +1402,35 @@ async def test_tool_call_header_uses_tool_bullet_color() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         raw = str(app.query_one(ToolCallWidget).query_one(".header", Static).content)
-        assert f"[{_TOOL_BULLET_COLOR}]•[/]" in raw
+        # No colour wrap around the spinner — the only coloured spans
+        # in the header are ``[bold]`` (tool name) and ``[dim]`` (args
+        # + duration suffix).
+        assert "[#" not in raw
+        assert "[$error]" not in raw
 
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_footer_does_not_repeat_esc_to_interrupt_hint() -> None:
+async def test_tool_call_failed_glyph_uses_error_colour() -> None:
+    """Failed ✗ renders with the ``$error`` token wrap so errors stand out."""
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash false",
+        kind="execute",
+        status="failed",
+        end_time=10.0,
+    )
+    state.start_time = 5.0
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        raw = str(app.query_one(ToolCallWidget).query_one(".header", Static).content)
+        assert "[$error]✗[/]" in raw
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_header_does_not_repeat_esc_to_interrupt_hint() -> None:
     """The cancel hint lives in the composer placeholder, not per-tool.
 
     Pins the single-source-of-truth decision: while
@@ -1376,8 +1447,8 @@ async def test_tool_call_footer_does_not_repeat_esc_to_interrupt_hint() -> None:
     app = _harness(lambda: ToolCallWidget(state))
     async with app.run_test() as pilot:
         await pilot.pause()
-        footer = app.query_one(ToolCallWidget).query_one(".footer", Static)
-        assert "esc to interrupt" not in str(footer.content)
+        header = app.query_one(ToolCallWidget).query_one(".header", Static)
+        assert "esc to interrupt" not in str(header.content)
 
 
 @skip_if_trio
@@ -1538,8 +1609,8 @@ async def test_approval_content_renders_terminal_content_variant() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_decision_appears_on_footer_after_resolve() -> None:
-    """After resolve_approval, the content section unmounts and the decision suffixes the footer.
+async def test_decision_appears_on_header_after_resolve() -> None:
+    """After resolve_approval, the content section unmounts and the decision suffixes the header.
 
     Compact layout: the post-resolution decision (``approved by
     you`` / ``denied by you`` / ``cancelled``) appears inline on
@@ -1559,10 +1630,10 @@ async def test_decision_appears_on_footer_after_resolve() -> None:
         widget = app.query_one(ToolCallWidget)
         # Content section mounted while pending.
         assert len(widget.query(_ApprovalContent)) == 1
-        # Footer has NO decision suffix yet.
-        footer_before = str(widget.query_one(".footer", Static).content)
-        assert "approved by you" not in footer_before
-        assert "denied" not in footer_before
+        # Header has NO decision suffix yet.
+        header_before = str(widget.query_one(".header", Static).content)
+        assert "approved by you" not in header_before
+        assert "denied" not in header_before
 
         # Mutate state and re-apply (mirrors what SessionScreen does
         # after state.resolve_approval).
@@ -1573,12 +1644,12 @@ async def test_decision_appears_on_footer_after_resolve() -> None:
 
         # Content section gone.
         assert len(widget.query(_ApprovalContent)) == 0
-        # No separate summary widget either — decision lives on
-        # the footer now.
+        # No separate summary widget either — decision lives on the
+        # header now.
         assert len(widget.query(".decision-summary")) == 0
-        # Decision suffix renders on the footer row.
-        footer_after = str(widget.query_one(".footer", Static).content)
-        assert "approved by you" in footer_after
+        # Decision suffix renders on the header row.
+        header_after = str(widget.query_one(".header", Static).content)
+        assert "approved by you" in header_after
 
 
 def test_fingerprint_changes_when_pending_approval_is_set() -> None:

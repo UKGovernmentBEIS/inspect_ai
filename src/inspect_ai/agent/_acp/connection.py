@@ -990,11 +990,35 @@ class ConnectionHandler:
         )
         await self._forwarders.start(target)
 
-    async def _stop_forwarders(self) -> None:
-        """Tear down the current bind's forwarders, if any. Idempotent."""
-        if self._forwarders is not None:
-            await self._forwarders.stop()
-            self._forwarders = None
+    async def _stop_forwarders(self, *, graceful: bool = False) -> None:
+        """Tear down the current bind's forwarders, if any. Idempotent.
+
+        ``graceful=True`` is passed through to :meth:`Forwarders.stop`
+        from :meth:`shutdown` when the server is winding down — gives
+        the semantic forwarder a chance to send
+        ``inspect/session_ended`` before the connection is closed.
+        All other callers (rebind, picker re-entry, post-prompt
+        cleanup) pass ``False`` so the teardown is immediate.
+
+        **Reentrancy guard**: take the local reference and clear
+        ``self._forwarders`` BEFORE awaiting ``forwarders.stop`` so
+        concurrent callers (e.g. ``AcpServer.stop`` racing the
+        per-connection ``_on_connection`` finally block when the
+        peer also closed) see ``None`` and no-op rather than
+        re-entering ``Forwarders.stop`` on the same instance.
+        Without this, the second caller would proceed past the
+        ``self._semantic_task is not None`` guard inside
+        ``Forwarders.stop``, suspend on its own await, and the first
+        caller's completion would nullify ``self._semantic_task`` —
+        producing ``AttributeError: 'NoneType' object has no
+        attribute 'done'`` when the second caller resumed past its
+        await and checked the task again.
+        """
+        forwarders = self._forwarders
+        if forwarders is None:
+            return
+        self._forwarders = None
+        await forwarders.stop(graceful=graceful)
 
     async def _post_bind_setup(self, target: PickerTarget, gen: int) -> None:
         """Deferred post-response binding work: acquires lock, checks generation.
@@ -1117,20 +1141,33 @@ class ConnectionHandler:
         if exc is not None:
             logger.exception("Deferred post-response send failed", exc_info=exc)
 
-    async def shutdown(self) -> None:
+    async def shutdown(self, *, graceful: bool = False) -> None:
         """Connection-close cleanup: cancel deferred sends, stop forwarders.
 
-        Called from the server's ``_on_connection`` finally block after
-        ``conn.main_loop`` returns. Deferred post-response sends are
-        cancelled (the writer is about to close, so any pending write
-        would either fail or race the close); forwarders are then
-        torn down via the existing per-bind shutdown path.
+        Called from two paths:
+
+        - The server's ``_on_connection`` finally block (after
+          ``conn.main_loop`` returns on peer disconnect) — uses the
+          default ``graceful=False``. The peer is gone; there's
+          nothing to send to.
+        - :meth:`AcpServer.stop` (end-of-eval teardown) — passes
+          ``graceful=True`` so the semantic forwarder can finish
+          sending ``inspect/session_ended`` while the connection is
+          still alive. Without this the client never sees the
+          lifecycle pill flip to ``complete`` on eval end (the
+          forwarder's send hits ``ConnectionError("Connection
+          closed")`` because :meth:`AcpServer.stop` previously called
+          ``conn.close()`` before this path got a chance to run).
+
+        Deferred post-response sends are always cancelled — the
+        writer is about to close, so any pending write would either
+        fail or race the close.
         """
         for task in list(self._pending_after_response):
             task.cancel()
         if self._pending_after_response:
             await asyncio.gather(*self._pending_after_response, return_exceptions=True)
-        await self._stop_forwarders()
+        await self._stop_forwarders(graceful=graceful)
 
 
 # ---------------------------------------------------------------------------
