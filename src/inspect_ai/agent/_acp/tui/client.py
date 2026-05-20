@@ -155,6 +155,9 @@ async def enumerate_sessions(
     addresses: list[tuple[str, TargetAddress]],
     *,
     eval_id_filter: str | None = None,
+    task_filter: str | None = None,
+    sample_id_filter: str | None = None,
+    epoch_filter: int | None = None,
 ) -> list[SessionRow]:
     """Query each address concurrently for its picker targets.
 
@@ -165,8 +168,14 @@ async def enumerate_sessions(
 
     Per-address failures are logged to stderr and dropped — the picker
     still shows surviving rows so a single misbehaving eval doesn't
-    blank the whole list. Pass ``eval_id_filter`` to narrow rows after
-    aggregation (``--eval-id`` on the CLI).
+    blank the whole list.
+
+    Filters are conjunctive — each non-None one narrows the result.
+    ``eval_id_filter`` (``--eval-id`` on the CLI) keeps rows whose
+    discovery-side eval id matches exactly; ``task_filter`` /
+    ``sample_id_filter`` / ``epoch_filter`` (``--task-id`` / ``--sample-id``
+    / ``--epoch``) match the per-session triple components for direct-
+    attach via the picker.
     """
     if not addresses:
         return []
@@ -196,6 +205,12 @@ async def enumerate_sessions(
 
     if eval_id_filter is not None:
         rows = [r for r in rows if r.eval_id == eval_id_filter]
+    if task_filter is not None:
+        rows = [r for r in rows if r.task == task_filter]
+    if sample_id_filter is not None:
+        rows = [r for r in rows if r.sample_id == sample_id_filter]
+    if epoch_filter is not None:
+        rows = [r for r in rows if r.epoch == epoch_filter]
 
     return rows
 

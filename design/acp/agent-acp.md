@@ -1525,7 +1525,7 @@ The server runs a generic ACP client (e.g. Zed) end-to-end via standard methods 
 | Extension | Standard alternative | Non-Inspect client UX |
 |---|---|---|
 | `inspect/list_sessions` request | `session/new` → in-channel picker `session/update` carrying targets in the text body | Picker works fully; targets parsed from text instead of structured `_meta` |
-| `inspect/new_session` request (direct-bind by `task/sample_id/epoch`) | `session/load(<known sessionId>)` after a prior enumeration | Standard clients use `session/new` + picker selection; direct-bind is a TUI shortcut |
+| `inspect/attach` request (direct-bind by `task/sample_id/epoch`) | `session/load(<known sessionId>)` after a prior enumeration | Standard clients use `session/new` + picker selection; direct-bind is a TUI shortcut |
 | `inspect/cancel_sample` (terminal kill with score/error disposition) | None — ACP has no terminal sample-cancel | Standard clients can `session/cancel` the current turn, but cannot terminally kill a sample |
 | `inspect/cancel_tool_call` (per-tool-call scope cancel) | None — ACP `session/cancel` is per-turn only | Standard clients can only cancel the whole turn |
 | `inspect/event` notification (raw transcript firehose) | None — opt-in via `clientCapabilities._meta["inspect.raw_events"]` | Off by default; non-opted clients see the standard semantic `session/update` stream only |

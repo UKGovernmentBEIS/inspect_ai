@@ -118,7 +118,7 @@ INSPECT_EVENT_METHOD = "inspect/event"
 # Clients that don't know about them simply don't call them.
 INSPECT_CANCEL_SAMPLE_METHOD = "inspect/cancel_sample"
 INSPECT_CANCEL_TOOL_CALL_METHOD = "inspect/cancel_tool_call"
-INSPECT_NEW_SESSION_METHOD = "inspect/new_session"
+INSPECT_ATTACH_METHOD = "inspect/attach"
 INSPECT_LIST_SESSIONS_METHOD = "inspect/list_sessions"
 
 # Server → client notification: the bound LiveAcpSession has exited
@@ -180,7 +180,7 @@ class CancelToolCallParams(BaseModel):
 
 
 class NewSessionParams(BaseModel):
-    """Pydantic param model for :data:`INSPECT_NEW_SESSION_METHOD`.
+    """Pydantic param model for :data:`INSPECT_ATTACH_METHOD`.
 
     Inspect-aware clients (the TUI, editors that already know which
     sample to attach to) pass the ``task/sample_id/epoch`` triple
@@ -277,8 +277,8 @@ def register_inspect_routes(router: MessageRouter, handler: ConnectionHandler) -
     )
     router.add_route(
         Route(
-            method=INSPECT_NEW_SESSION_METHOD,
-            func=wrap_action_handler(handler.inspect_new_session, NewSessionParams),
+            method=INSPECT_ATTACH_METHOD,
+            func=wrap_action_handler(handler.inspect_attach, NewSessionParams),
             kind="request",
         )
     )

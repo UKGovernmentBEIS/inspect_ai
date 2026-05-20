@@ -301,6 +301,7 @@ class PickerScreen(Screen[None]):
         server_override: str | None,
         on_select: Callable[[SessionRow], None],
         rescan: Callable[[], Awaitable[list[SessionRow]]] | None = None,
+        empty_notice: str | None = None,
     ) -> None:
         super().__init__()
         # Source-of-truth row list (everything enumeration returned),
@@ -314,6 +315,11 @@ class PickerScreen(Screen[None]):
         self._server_override = server_override
         self._on_select = on_select
         self._rescan = rescan
+        # When the caller seeded a triple-filter (--task-id / --sample-id /
+        # --epoch) that narrowed the list to zero, replace the default
+        # empty-state body with a notice naming what didn't match so the
+        # user understands why nothing's listed.
+        self._empty_notice = empty_notice
         # Current filter query — kept as state on the screen so a
         # rescan that arrives while filtering can reapply it instead
         # of dropping back to the unfiltered view.
@@ -337,6 +343,19 @@ class PickerScreen(Screen[None]):
         yield AppFooter()
 
     def _compose_empty(self) -> ComposeResult:
+        # Triple-filter miss takes precedence over the other empty cases:
+        # the user explicitly asked for one session and it isn't here, so
+        # the standard "start an eval" or "connected to remote" copy would
+        # be misleading.
+        if self._empty_notice is not None:
+            with Container(id="empty-state"):
+                yield Static(self._empty_notice, classes="heading")
+                yield Markdown(
+                    "Re-run `inspect acp` without the filter arguments (or with a "
+                    "different combination) to see the available sessions.",
+                    classes="hint",
+                )
+            return
         # Differentiate the two empty cases: "no local discovery" vs
         # "explicit --server reachable but no sessions". The hint
         # command only applies to the former.

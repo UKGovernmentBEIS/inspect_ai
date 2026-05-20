@@ -71,12 +71,22 @@ def make_fake_client(
         addresses: list[tuple[str, TargetAddress]],
         *,
         eval_id_filter: str | None = None,
+        task_filter: str | None = None,
+        sample_id_filter: str | None = None,
+        epoch_filter: int | None = None,
     ) -> list[SessionRow]:
         if enumerate_raises is not None:
             raise enumerate_raises
+        filtered = list(rows)
         if eval_id_filter is not None:
-            return [r for r in rows if r.eval_id == eval_id_filter]
-        return list(rows)
+            filtered = [r for r in filtered if r.eval_id == eval_id_filter]
+        if task_filter is not None:
+            filtered = [r for r in filtered if r.task == task_filter]
+        if sample_id_filter is not None:
+            filtered = [r for r in filtered if r.sample_id == sample_id_filter]
+        if epoch_filter is not None:
+            filtered = [r for r in filtered if r.epoch == epoch_filter]
+        return filtered
 
     async def _attach(row: SessionRow, **kwargs: object) -> "object":
         # Accept (and ignore) keyword args like ``on_session_update`` so

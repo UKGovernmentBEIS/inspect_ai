@@ -949,3 +949,92 @@ async def test_picker_filter_typing_slash_appends_to_input(
         picker.action_filter()
         assert inp.value == "ab/"
         assert inp.cursor_position == 3
+
+
+# ---------------------------------------------------------------------------
+# Triple-filter flags (--task-id / --sample-id / --epoch) on the TUI side
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_triple_filter_single_match_auto_attaches(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Full triple narrows to exactly one row → skip picker, attach directly."""
+    # sample_rows[0]: task=my_task, sample_id=0, epoch=1 (one unique match)
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(
+        eval_id=None,
+        server=None,
+        task_id="my_task",
+        sample_id="0",
+        epoch=1,
+        client=client,
+    )
+    async with app.run_test() as pilot:
+        # Wait for the auto-attach worker to swap screens.
+        for _ in range(20):
+            await pilot.pause()
+            from inspect_ai.agent._acp.tui.session_screen import SessionScreen
+
+            if isinstance(app.screen, SessionScreen):
+                break
+        from inspect_ai.agent._acp.tui.session_screen import SessionScreen
+
+        assert isinstance(app.screen, SessionScreen)
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_triple_filter_multi_match_shows_filtered_picker(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Partial triple matching multiple rows → picker with the filtered subset.
+
+    Only ``task=my_task`` (no sample/epoch) → both rows on eval-aaa match,
+    the third row on eval-bbb does not. Picker shows two rows.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(
+        eval_id=None,
+        server=None,
+        task_id="my_task",
+        client=client,
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert isinstance(app.screen, PickerScreen)
+        table = app.screen.query_one(DataTable)
+        assert table.row_count == 2
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_triple_filter_no_match_shows_empty_state_with_notice(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Triple matching zero rows → empty picker with a notice naming the filter."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(
+        eval_id=None,
+        server=None,
+        task_id="ghost_task",
+        sample_id="99",
+        epoch=7,
+        client=client,
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, PickerScreen)
+        # Empty-state branch — no DataTable mounted.
+        with pytest.raises(Exception):
+            screen.query_one(DataTable)
+        heading_text = str(screen.query_one(".heading", Static).content)
+        assert "ghost_task" in heading_text
+        assert "sample=99" in heading_text
+        assert "epoch=7" in heading_text

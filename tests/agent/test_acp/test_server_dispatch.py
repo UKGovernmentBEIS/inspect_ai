@@ -1137,7 +1137,7 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
             sessions = resp["result"]["sessions"]
             assert len(sessions) == 2
             # Per-entry shape matches the existing PICKER_META_KEY entries
-            # plus a convenience 'target' field for inspect/new_session.
+            # plus a convenience 'target' field for inspect/attach.
             for sess, expected in zip(
                 sessions,
                 [
@@ -1243,8 +1243,8 @@ async def test_inspect_list_sessions_accepts_null_params(
 
 
 # ---------------------------------------------------------------------------
-# inspect/new_session — direct bind via task/sample_id/epoch tuple,
-# skipping the picker. Inspect-aware clients (Phase 15 TUI, editors
+# inspect/attach — direct bind via task/sample_id/epoch tuple,
+# skipping the picker. Inspect-aware clients (the TUI, editors
 # that already know which sample to attach to) use this to avoid the
 # "browse and pick" round-trip when they have the identifier from a
 # prior session.
@@ -1253,7 +1253,7 @@ async def test_inspect_list_sessions_accepts_null_params(
 
 @skip_if_trio
 @unix_only
-async def test_inspect_new_session_direct_target_auto_binds(
+async def test_inspect_attach_direct_target_auto_binds(
     short_data_dir: Path, stub_targets
 ) -> None:
     """target=task/sample/epoch matches an active sample → immediate bind."""
@@ -1268,7 +1268,7 @@ async def test_inspect_new_session_direct_target_auto_binds(
         client = await _connect(server)
         try:
             resp = await client.request(
-                "inspect/new_session",
+                "inspect/attach",
                 {"cwd": "/tmp", "mcpServers": [], "target": "t2/s2/1"},
             )
             assert "result" in resp, resp
@@ -1286,7 +1286,7 @@ async def test_inspect_new_session_direct_target_auto_binds(
 
 @skip_if_trio
 @unix_only
-async def test_inspect_new_session_target_with_no_match_errors(
+async def test_inspect_attach_target_with_no_match_errors(
     short_data_dir: Path, stub_targets
 ) -> None:
     """Unknown target → invalid_params with the available list.
@@ -1304,7 +1304,7 @@ async def test_inspect_new_session_target_with_no_match_errors(
         client = await _connect(server)
         try:
             resp = await client.request(
-                "inspect/new_session",
+                "inspect/attach",
                 {"cwd": "/tmp", "mcpServers": [], "target": "ghost/sX/9"},
             )
             assert "error" in resp, resp
@@ -1321,7 +1321,7 @@ async def test_inspect_new_session_target_with_no_match_errors(
 
 @skip_if_trio
 @unix_only
-async def test_inspect_new_session_malformed_target_errors(
+async def test_inspect_attach_malformed_target_errors(
     short_data_dir: Path, stub_targets
 ) -> None:
     """Target without 3 slash-separated parts → invalid_params at parse time.
@@ -1337,7 +1337,7 @@ async def test_inspect_new_session_malformed_target_errors(
         try:
             for bad in ("noslashes", "only/one", "epoch/not/integer"):
                 resp = await client.request(
-                    "inspect/new_session",
+                    "inspect/attach",
                     {"cwd": "/tmp", "mcpServers": [], "target": bad},
                 )
                 assert "error" in resp, (bad, resp)
@@ -1348,7 +1348,7 @@ async def test_inspect_new_session_malformed_target_errors(
 
 @skip_if_trio
 @unix_only
-async def test_inspect_new_session_target_with_empty_sample_id(
+async def test_inspect_attach_target_with_empty_sample_id(
     short_data_dir: Path, stub_targets
 ) -> None:
     """Sample with no explicit id (``sample.id is None``) stringifies to ``""``.
@@ -1365,7 +1365,7 @@ async def test_inspect_new_session_target_with_empty_sample_id(
         client = await _connect(server)
         try:
             resp = await client.request(
-                "inspect/new_session",
+                "inspect/attach",
                 {"cwd": "/tmp", "mcpServers": [], "target": "t//0"},
             )
             assert "result" in resp, resp

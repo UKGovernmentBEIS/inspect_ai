@@ -406,7 +406,7 @@ class ConnectionHandler:
         Returns the same per-target shape that ``session/new``'s picker
         notification carries under ``_meta[PICKER_META_KEY]``, plus a
         convenience ``target`` field with the slash-delimited spec that
-        :meth:`inspect_new_session` accepts. Clients that already know
+        :meth:`inspect_attach` accepts. Clients that already know
         the protocol can use this to skip the round-trip through
         ``session/new`` + picker notification + ``_meta`` parsing.
 
@@ -425,7 +425,7 @@ class ConnectionHandler:
             ]
         }
 
-    async def inspect_new_session(
+    async def inspect_attach(
         self,
         cwd: str,  # unused but kept for shape parity with session/new
         target: str,
