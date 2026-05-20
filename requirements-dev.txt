@@ -13,7 +13,7 @@ markdown
 mcp>=1.10.0
 mistralai>=2.4.5,
 moto[server]>=5.1.5
-mypy>=1.17.0
+mypy>=2.0
 nbformat
 openai>=2.26.0
 pandas>=2.0.0
