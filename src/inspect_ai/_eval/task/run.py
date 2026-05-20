@@ -460,7 +460,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                             progress(SAMPLE_TOTAL_PROGRESS_UNITS)
                             if logger and log_samples:
                                 await logger.complete_sample(
-                                    previous_sample, flush=False
+                                    condense_sample(previous_sample, log_images),
+                                    flush=False,
                                 )
                             sample_scores = (
                                 {
