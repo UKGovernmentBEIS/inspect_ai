@@ -1727,18 +1727,11 @@ def test_eval_set_retry_immediate(retry_immediate: bool | None) -> None:
 
 
 def test_carried_forward_samples_remain_condensed() -> None:
-    """eval_set retry must re-condense samples it carries forward.
+    """Regression: eval_set retry must re-condense carried-forward samples.
 
-    Regression for the bug where retried eval_set runs wrote
-    previously-completed samples back into the new .eval in their
-    decondensed form (events_data dropped, ModelEvent.input inlined),
-    causing ~5x-15x per-sample bloat. The carry-forward path must
-    invoke condense_sample() like the normal write path does.
+    Sample 1 fails on attempt 1 (re-run on attempt 2); sample 2 succeeds
+    on attempt 1 and is carried forward.
     """
-    # Sample 1 fails on the first attempt and succeeds on the second.
-    # Sample 2 succeeds on the first attempt and is therefore carried
-    # forward (as a reused previous_sample) into the retry .eval.
-    # We use a seen-set to distinguish first vs. second visit to sample 1.
     seen: set[int] = set()
 
     @solver
@@ -1752,7 +1745,7 @@ def test_carried_forward_samples_remain_condensed() -> None:
         return solve
 
     with tempfile.TemporaryDirectory() as log_dir:
-        success, logs = eval_set(
+        success, _ = eval_set(
             tasks=Task(
                 dataset=[
                     Sample(id=1, input="Say hello", target="hello"),
@@ -1767,34 +1760,22 @@ def test_carried_forward_samples_remain_condensed() -> None:
             retry_immediate=True,
             model="mockllm/model",
         )
-        assert success, "eval_set should have succeeded after one retry"
+        assert success
 
-        # With retry_immediate=True the retry writes into the same log file, so
-        # there is exactly one .eval in the directory. That log contains both the
-        # freshly-run sample (id=1, re-run on retry) and the carried-forward
-        # sample (id=2, succeeded on attempt 1, copied in from the old log).
         all_logs = list_eval_logs(log_dir)
-        assert len(all_logs) == 1, f"expected 1 eval log, got {len(all_logs)}"
+        assert len(all_logs) == 1
         latest = all_logs[0]
 
-        # list_eval_logs returns file:// URIs; convert to a plain path so
-        # zipfile.ZipFile can open it.
-        eval_path = local_path(latest.name)
-
-        # Read each sample's raw JSON directly from the zip so we observe
-        # the on-disk condensed/decondensed state. read_eval_log_sample()
-        # would call _resolve_sample_for_read and decondense, hiding the bug.
-        with zipfile.ZipFile(eval_path) as zf:
+        # Read raw JSON from the zip — read_eval_log_sample would
+        # decondense on read and hide the bug.
+        with zipfile.ZipFile(local_path(latest.name)) as zf:
             sample_members = [n for n in zf.namelist() if n.startswith("samples/")]
-            assert sample_members, "no sample files in retry .eval"
+            assert "samples/2_epoch_1.json" in sample_members, (
+                f"sample 2 was not carried forward; found {sample_members}"
+            )
             for member in sample_members:
                 data = json.loads(zf.read(member))
-                # condense_sample always populates events_data (even with
-                # empty pools), so its absence is a reliable signal that
-                # the sample was written without going through condensing.
                 assert data.get("events_data") is not None, (
-                    f"sample {member} in {latest.name} was written in "
-                    f"decondensed form (events_data missing). The "
-                    f"carry-forward path must wrap previous_sample in "
-                    f"condense_sample() before logger.complete_sample()."
+                    f"{member} in {latest.name} was written decondensed; "
+                    f"carry-forward path must run condense_sample()"
                 )
