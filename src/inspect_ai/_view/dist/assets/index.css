@@ -22454,35 +22454,63 @@ pre._value_8citi_25 {
 .message-band-btn.warning {
   color: var(--bs-warning-text-emphasis);
 }
-._button_xbrei_1 {
+/* Shared chrome — variant-specific look in `.link` and `.pill` below. */
+._button_1cp00_2 {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   background: transparent;
-  border: none;
-  color: var(--bs-link-color);
   cursor: pointer;
-  padding: 0.125rem 0.4rem;
-  border-radius: 4px;
-  font-weight: 500;
   text-decoration: none;
   text-transform: none;
-  letter-spacing: 0;
   line-height: 1;
-  /* In the PrimaryBar tag strip the button sits directly inside the
-     bodyContainer flex row. Without this it could shrink and clip the
-     "Edit" label or the pencil icon when the row is tight. */
+  /* When the button sits in a flex row (the PrimaryBar tag strip),
+     prevent it from being shrunk past its content width. */
   flex-shrink: 0;
 }
 
-._button_xbrei_1:hover {
-  background: var(--bs-secondary-bg);
-  color: var(--bs-link-hover-color);
-  text-decoration: none;
+/* Link variant — used in card headers (e.g. the Metadata card header)
+   where the action belongs next to the section title. Body-color text
+   so it reads as part of the header rather than a link, with a hover
+   tint to convey clickability. */
+._link_1cp00_1 {
+  border: none;
+  color: var(--bs-body-color);
+  padding: 0.125rem 0.4rem;
+  border-radius: 4px;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
-._button_xbrei_1:focus-visible {
-  outline: 2px solid var(--bs-link-color);
+._link_1cp00_1:hover {
+  background: var(--bs-secondary-bg);
+}
+
+._link_1cp00_1:focus-visible {
+  outline: 2px solid var(--bs-border-color);
+  outline-offset: 1px;
+}
+
+/* Pill variant — matches TagChip's outline-only style so the Edit
+   button can sit at the end of a chip strip without competing for
+   attention. Values here mirror TagChip.module.css `.chip`; keep
+   them in sync if either changes. */
+._pill_1cp00_1 {
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  padding: 0.125rem 0.5rem;
+  height: 1.375rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+._pill_1cp00_1:hover {
+  background: var(--bs-secondary-bg);
+}
+
+._pill_1cp00_1:focus-visible {
+  outline: 2px solid var(--bs-border-color);
   outline-offset: 1px;
 }
 ._modal_154pu_1 {
@@ -23197,7 +23225,7 @@ pre._value_8citi_25 {
 ._addButton_yxwie_27 {
   white-space: nowrap;
 }
-._chip_35bbk_1 {
+._chip_300at_1 {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -23207,29 +23235,32 @@ pre._value_8citi_25 {
      off the right edge of the header. The label inside ellipsizes. */
   max-width: 18rem;
   min-width: 0;
-  background: var(--bs-secondary-bg);
+  /* Outline-only look — transparent fill, body weight text. Keeps
+     the chips from competing with the task title for visual weight. */
+  background: transparent;
   color: var(--bs-body-color);
   border-radius: 999px;
-  border: 1px solid transparent;
-  font-weight: 500;
+  border: 1px solid var(--bs-border-color);
   letter-spacing: 0.01em;
   white-space: nowrap;
   line-height: 1;
 }
 
-._chipLabel_35bbk_21 {
+._chipLabel_300at_22 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
 }
 
-._chipNew_35bbk_28 {
-  background: var(--bs-success-bg-subtle);
+/* Pending-add variant inside the editor: keep the green outline so it
+   still reads as "new", but no fill (matches the saved-chip style). */
+._chipNew_300at_31 {
   border-color: var(--bs-success-border-subtle);
+  color: var(--bs-success-text-emphasis);
 }
 
-._chipRemove_35bbk_33 {
+._chipRemove_300at_36 {
   background: none;
   border: none;
   padding: 0;
@@ -23242,7 +23273,7 @@ pre._value_8citi_25 {
   line-height: 1;
 }
 
-._chipRemove_35bbk_33:hover {
+._chipRemove_300at_36:hover {
   opacity: 1;
   color: var(--bs-danger);
 }

@@ -13,10 +13,10 @@ Scope is everything in the inspect API whose edit payload carries
 | Python API | Wrapped server endpoint (planned) | Phase |
 |------------|-----------------------------------|-------|
 | `edit_eval_log` (`TagsEdit`)      | `POST /api/log-edit/{log}` | 1 (this change) |
-| `edit_eval_log` (`MetadataEdit`)  | `POST /api/log-edit/{log}` | 2 |
-| `invalidate_samples`              | `POST /api/log-invalidate-samples/{log}` | 3 |
-| `uninvalidate_samples`            | `POST /api/log-uninvalidate-samples/{log}` | 3 |
-| `edit_score`                      | `POST /api/log-edit-score/{log}` | 4 |
+| `edit_eval_log` (`MetadataEdit`)  | `POST /api/log-edit/{log}` | 1 (this change) |
+| `invalidate_samples`              | `POST /api/log-invalidate-samples/{log}` | 2 |
+| `uninvalidate_samples`            | `POST /api/log-uninvalidate-samples/{log}` | 2 |
+| `edit_score`                      | `POST /api/log-edit-score/{log}` | 3 |
 
 `uninvalidate_samples` does not take `ProvenanceData` but pairs with
 `invalidate_samples` and belongs alongside it. `edit_score` takes a
@@ -49,7 +49,7 @@ inspect-flow) inherit the new endpoints for free.
   single-user `inspect view` case is the dominant local one and last-writer-wins
   is acceptable there.
 
-## Phase 1 — Tag edits (this change)
+## Phase 1 — Tag + metadata edits (this change)
 
 ### Endpoint
 
@@ -59,7 +59,8 @@ Content-Type: application/json
 
 {
   "edits": [
-    { "type": "tags", "tags_add": ["qa_passed"], "tags_remove": ["needs_qa"] }
+    { "type": "tags",     "tags_add": ["qa_passed"], "tags_remove": ["needs_qa"] },
+    { "type": "metadata", "metadata_set": {"reviewer": "alice"}, "metadata_remove": ["draft_notes"] }
   ],
   "provenance": { "author": "alice", "reason": "QA complete" }
 }
@@ -67,10 +68,9 @@ Content-Type: application/json
 
 The request body matches the existing `LogUpdate` pydantic model
 (`inspect_ai.log._edit.LogUpdate`): a discriminated union of `TagsEdit` /
-`MetadataEdit` plus a `ProvenanceData`. Phase 1 only exercises the `TagsEdit`
-branch on the server but the schema accepts both because they share an
-implementation; the metadata variant is unblocked in Phase 2 with no server
-changes if we choose to ship it that way.
+`MetadataEdit` plus a `ProvenanceData`. Both branches share a single endpoint
+because they share an implementation — `edit_eval_log` applies each edit in
+order, accumulating into the same `LogUpdate` entry on `log.log_updates`.
 
 Response: the updated `EvalLog` header (same shape as `GET /api/logs/{log}?header-only=0`).
 This gives the client the recomputed `tags` / `metadata` and the new
@@ -131,18 +131,35 @@ per-path lock would close the race window for a single-process viewer, but
 the single-user case doesn't warrant the complexity yet. Listed as a
 follow-up below.
 
+### Metadata-specific behavior
+
+`MetadataEdit` accepts two operations per edit:
+
+- `metadata_set: dict[str, Any]` — keys to add or replace. Values may be any
+  JSON value (including `null` — see edge case below).
+- `metadata_remove: list[str]` — keys to delete.
+
+The viewer's edit dialog serializes UI rows into a single `MetadataEdit`:
+new + edited rows go into `metadata_set`, deleted rows go into
+`metadata_remove`. Type intent for new rows is honored — picking `string`
+saves `"43"` as the string `"43"`, picking `object` requires well-formed
+JSON. Structural text (leading `{`, `[`, `"`) is always validated as JSON
+regardless of the dropdown so a stray `{a: 1}` surfaces an error instead of
+silently saving as a string.
+
+One server-side gotcha that needed fixing: the no-op filter inside
+`edit_eval_log` previously used `current_metadata.get(k) != v`, which
+mis-classified "adding a new key whose value is `None`" as a no-op (because
+`dict.get` returns `None` for absent keys). The filter now tests key
+presence separately so null-valued additions land in `log.metadata`.
+
 ### Out of scope for Phase 1
 
 - Local-file ETag synthesis.
-- Surfacing edit history in the viewer UI (Phase 4).
+- Surfacing edit history (the `log_updates` audit trail) in the viewer UI —
+  appears in the JSON tab but no dedicated card yet.
 
-## Phase 2 — Metadata edits
-
-If we keep one unified `/api/log-edit` endpoint, this is purely a viewer/UI
-exercise: surface a metadata editor that POSTs `MetadataEdit` payloads to the
-same route. Server-side test coverage gets extended to the metadata branch.
-
-## Phase 3 — Sample invalidation
+## Phase 2 — Sample invalidation
 
 Two endpoints, each wrapping the matching Python function:
 
@@ -166,7 +183,7 @@ required. We need to think about:
   partial mutation) — open question.
 - Whether the response should be the new header or the modified samples.
 
-## Phase 4 — Score editing
+## Phase 3 — Score editing
 
 Wraps `edit_score` from `inspect_ai.log._score`:
 
@@ -196,7 +213,7 @@ Notes specific to this phase:
 - `edit_score` mutates in-place: it appends a `ScoreEditEvent` to the
   sample's event tree and pushes the prior `ScoreEdit` onto `score.history`.
   That means **full read + full write** — not header-only. Same memory
-  implications as Phase 3.
+  implications as Phase 2.
 - `recompute_metrics=True` (the Python default) re-aggregates the log's
   metrics so `EvalResults.scores` stays consistent with the edited sample
   scores. The server should preserve that default; a client that wants to
@@ -205,19 +222,21 @@ Notes specific to this phase:
   sample-id without epoch, creating a new score without a `value`).
 - Auth: gated by `can_write` like the other edit endpoints.
 
-## Phase 5 — View UI
+## Phase 4 — View UI
 
-Out of scope for this design doc; deferred until the server endpoints land and
-stabilize. Initial sketch:
+Phase 1 already ships the basic UI affordances: the **PrimaryBar** header
+renders tags as inline outline pills with an Edit affordance; the
+**Task** tab repeats the chip row; the **Info** tab's metadata card has its
+own Edit affordance opening a structured metadata editor (typed key
+add/remove, autogrowing value textareas, change summary, provenance
+fields). Remaining UI work:
 
-- Display effective `tags` / `metadata` on the log header (Phase 1/2).
-- Inline tag chip editor that POSTs a `TagsEdit`.
-- Expandable edit history with provenance (like the existing invalidation
-  card).
+- Expandable edit history card surfacing `log_updates` with provenance
+  (analogous to the existing invalidation card).
 - Tag filter on the log list view.
-- Sample-level "invalidate" / "uninvalidate" affordances (Phase 3).
+- Sample-level "invalidate" / "uninvalidate" affordances (Phase 2).
 - Inline score editor on the sample view with score history + provenance
-  surfaced from `score.history` (Phase 4).
+  surfaced from `score.history` (Phase 3).
 
 A follow-up doc will cover the UI design once the server side is stable.
 
@@ -228,7 +247,7 @@ A follow-up doc will cover the UI design once the server side is stable.
   authors, we need a real auth story — out of scope here.
 - Editing in-progress logs: edits against a still-running eval would race
   the recorder. Phase 1 simply doesn't gate this; the recorder will overwrite.
-  Worth deciding before Phase 3/4 (sample invalidation and score editing can
+  Worth deciding before Phase 2/3 (sample invalidation and score editing can
   plausibly target a running eval).
 - Eval-format vs JSON-format logs: `header_only` write is implemented per
   recorder. Verify both recorders honor `header_only=True` semantics — Phase 1
@@ -237,9 +256,34 @@ A follow-up doc will cover the UI design once the server side is stable.
 
 ## Files touched (Phase 1)
 
+Server / API:
+
 | File | Change |
 |------|--------|
-| `src/inspect_ai/_view/common.py` | (optional) helper for editing if shared between servers |
-| `src/inspect_ai/_view/server.py` | aiohttp: `POST /api/log-edit/{log}` |
+| `src/inspect_ai/_view/common.py` | shared `apply_log_edits` (read → `edit_eval_log` → write), ETag plumbing |
+| `src/inspect_ai/_view/server.py` | aiohttp: `POST /api/log-edit/{log}`, `If-Match` → `WriteConflictError` → 412 |
 | `src/inspect_ai/_view/fastapi_server.py` | FastAPI: `POST /log-edit/{log:path}`, `AccessPolicy.can_write`, `OnlyDirAccessPolicy.can_write` |
-| `tests/_view/test_view_server.py` | parameterized roundtrip + validation tests |
+| `src/inspect_ai/_view/user_info.py` | new — `GET /api/user-info` returning the git alias (email local-part → user.name → OS login) so the viewer can prefill `provenance.author` |
+| `src/inspect_ai/log/_edit.py` | fix: no-op filter for `MetadataEdit` tests key presence separately so null-valued additions aren't dropped |
+| `tests/_view/test_view_server.py` | parameterized roundtrip + validation tests (tags + metadata, S3 ETag, null-value persistence) |
+| `tests/log/test_edit.py` | `MetadataEdit` unit + write-then-read roundtrip tests |
+| `tests/_view/test_user_info.py` | git-alias resolution order |
+
+Viewer UI (Phase 1 client surface):
+
+| File | Change |
+|------|--------|
+| `apps/inspect/src/client/api/view-server/api-view-server.ts` | `edit_log` POST + ETag capture; `get_user_info` |
+| `apps/inspect/src/client/api/client-api.ts` | wraps `edit_log` (invalidates JSON + .eval read caches) and `get_user_info` |
+| `apps/inspect/src/app/log-view/title-view/TagChip.tsx` + CSS | outline-only chip with truncation + `title` hover |
+| `apps/inspect/src/app/log-view/title-view/TagStrip.tsx` | extracted chip strip; Edit pill flows as a sibling in the header so it stays beside wrapped chips |
+| `apps/inspect/src/app/log-view/title-view/EditButton.tsx` + CSS | `link` / `pill` variants; both use body color |
+| `apps/inspect/src/app/log-view/title-view/EditTagsDialog.tsx` | restyled shell; multi-line change summary; pre-fills `Author` from `get_user_info` |
+| `apps/inspect/src/app/log-view/title-view/EditMetadataDialog.tsx` + CSS | new dialog: typed add-key, autogrowing textareas, change summary, JSON-syntax validation, scroll-to-new-row |
+| `apps/inspect/src/app/log-view/title-view/AutogrowText.tsx` | ResizeObserver-driven height matching |
+| `apps/inspect/src/app/log-view/title-view/{ChangeSummary,ProvenanceFields}.tsx` | shared dialog chrome |
+| `apps/inspect/src/app/log-view/title-view/PrimaryBar.{tsx,module.css}` | tag rail in header; wrapper grid + shrink-priority rules |
+| `apps/inspect/src/app/log-view/tabs/TaskTab.tsx` | tags chip row + inline Edit pill mirrors the header |
+| `apps/inspect/src/app/plan/PlanCard.tsx` + CSS | Metadata card Edit affordance |
+| `packages/inspect-components/src/content/MetaDataGrid.tsx` | fix: route `{_html: <jsx>}` values through `RenderedContent` (they were being dumped as nested rows) |
+| `packages/react/src/components/{Card,Modal}` | CardHeader switched grid → flex so optional `children` (e.g. Edit) sit inline; Modal gained `footer` + `width` props |
