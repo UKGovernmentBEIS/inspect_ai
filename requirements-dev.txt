@@ -13,7 +13,7 @@ markdown
 mcp>=1.10.0
 mistralai>=2.4.5,
 moto[server]>=5.1.5
-mypy>=2.0
+mypy>=1.17.0
 nbformat
 openai>=2.26.0
 pandas>=2.0.0
@@ -31,7 +31,7 @@ pytest-textual-snapshot
 pytest-watcher
 pytest-xdist
 # match ruff version specified in .pre-commit-config.yaml
-ruff>=0.13.0
+ruff==0.9.6
 textual-dev>=0.86.2
 together>=2.0.0
 trio
