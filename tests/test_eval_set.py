@@ -1789,21 +1789,12 @@ def test_carried_forward_samples_remain_condensed() -> None:
             assert sample_members, "no sample files in retry .eval"
             for member in sample_members:
                 data = json.loads(zf.read(member))
-                # Condensed samples either have events_data populated, OR
-                # have at least one ModelEvent with input_refs set and an
-                # empty input list. The bug produces samples with neither.
-                events_data_present = data.get("events_data") is not None
-                model_events = [
-                    e for e in data.get("events", []) if e.get("event") == "model"
-                ]
-                any_input_refs = any(
-                    e.get("input_refs") is not None and not e.get("input")
-                    for e in model_events
-                )
-                assert events_data_present or any_input_refs, (
+                # condense_sample always populates events_data (even with
+                # empty pools), so its absence is a reliable signal that
+                # the sample was written without going through condensing.
+                assert data.get("events_data") is not None, (
                     f"sample {member} in {latest.name} was written in "
-                    f"decondensed form (events_data missing AND no "
-                    f"ModelEvent has input_refs). "
-                    f"events_data={data.get('events_data')!r}, "
-                    f"model_event_count={len(model_events)}"
+                    f"decondensed form (events_data missing). The "
+                    f"carry-forward path must wrap previous_sample in "
+                    f"condense_sample() before logger.complete_sample()."
                 )
