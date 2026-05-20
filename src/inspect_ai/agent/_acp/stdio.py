@@ -142,6 +142,7 @@ async def preflight_resolve_triple(target: TargetAddress, triple: str) -> None:
         }
         writer.write((json.dumps(payload) + "\n").encode("utf-8"))
         await writer.drain()
+        line = b""
         try:
             line = await asyncio.wait_for(reader.readline(), timeout=5.0)
         except asyncio.TimeoutError as exc:
@@ -154,6 +155,7 @@ async def preflight_resolve_triple(target: TargetAddress, triple: str) -> None:
                 f"preflight: ACP server at {target.describe()} closed the "
                 "connection before responding to inspect/list_sessions"
             )
+        msg: Any = None
         try:
             msg = json.loads(line)
         except json.JSONDecodeError as exc:

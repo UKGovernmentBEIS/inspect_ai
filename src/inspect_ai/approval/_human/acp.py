@@ -502,8 +502,9 @@ async def _request_from_driver_with_fallback(
                             exc,
                         )
                         continue
-                    # Successful dispatch — finally below unsubscribes.
-                    return _approval_from_response(response, choices)
+                    else:
+                        # Successful dispatch — finally below unsubscribes.
+                        return _approval_from_response(response, choices)
             # Either empty-but-ever-attached, or every client raised.
             # Park until a fresh attach lands (or returns immediately
             # if an attach raced us between subscribe and now).
