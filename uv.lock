@@ -1973,6 +1973,7 @@ dev = [
     { name = "pytest-cov" },
     { name = "pytest-dotenv" },
     { name = "pytest-mock" },
+    { name = "pytest-textual-snapshot" },
     { name = "pytest-watcher" },
     { name = "pytest-xdist" },
     { name = "ruff" },
@@ -2019,7 +2020,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "adlfs", marker = "extra == 'dev'", specifier = ">=2025.8.0" },
-    { name = "agent-client-protocol", specifier = ">=0.9.0,<10.0" },
+    { name = "agent-client-protocol", specifier = ">=0.9.0" },
     { name = "aioboto3", specifier = ">=13.0.0" },
     { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.96.0" },
     { name = "anyio", specifier = ">=4.8.0" },
@@ -2078,6 +2079,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'dev'" },
     { name = "pytest-dotenv", marker = "extra == 'dev'" },
     { name = "pytest-mock", marker = "extra == 'dev'" },
+    { name = "pytest-textual-snapshot", marker = "extra == 'dev'" },
     { name = "pytest-watcher", marker = "extra == 'dev'" },
     { name = "pytest-xdist", marker = "extra == 'dev'" },
     { name = "python-dotenv", specifier = ">=0.16.0" },
@@ -2091,7 +2093,7 @@ requires-dist = [
     { name = "shortuuid" },
     { name = "sniffio" },
     { name = "tenacity" },
-    { name = "textual", specifier = ">=3.2.0" },
+    { name = "textual", specifier = ">=6.2.0" },
     { name = "textual-dev", marker = "extra == 'dev'", specifier = ">=0.86.2" },
     { name = "tiktoken", specifier = ">=0.12.0" },
     { name = "together", marker = "extra == 'dev'", specifier = ">=2.0.0" },
@@ -5063,6 +5065,22 @@ wheels = [
 ]
 
 [[package]]
+name = "pytest-textual-snapshot"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jinja2" },
+    { name = "pytest" },
+    { name = "rich" },
+    { name = "syrupy" },
+    { name = "textual" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8b/75/2ef17ae52fa5bc848ff2d1d7bc317a702cbd6d7ad733ca991b9f899dbbae/pytest_textual_snapshot-1.0.0.tar.gz", hash = "sha256:065217055ed833b8a16f2320a0613f39a0154e8d9fee63535f29f32c6414b9d7", size = 11071, upload-time = "2024-07-22T15:17:44.629Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/70/2e/4bf16ed78b382b3d7c1e545475ec8cf04346870be662815540faf8f16e8c/pytest_textual_snapshot-1.0.0-py3-none-any.whl", hash = "sha256:dd3a421491a6b1987ee7b4336d7f65299524924d2b0a297e69733b73b01570e1", size = 11171, upload-time = "2024-07-22T15:17:43.167Z" },
+]
+
+[[package]]
 name = "pytest-watcher"
 version = "0.6.3"
 source = { registry = "https://pypi.org/simple" }
@@ -5933,6 +5951,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/83/d3/803453b36afefb7c2bb238361cd4ae6125a569b4db67cd9e79846ba2d68c/sympy-1.14.0.tar.gz", hash = "sha256:d3d3fe8df1e5a0b42f0e7bdf50541697dbe7d23746e894990c030e2b05e72517", size = 7793921, upload-time = "2025-04-27T18:05:01.611Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl", hash = "sha256:e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5", size = 6299353, upload-time = "2025-04-27T18:04:59.103Z" },
+]
+
+[[package]]
+name = "syrupy"
+version = "5.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/33/7e/a4793801683d32132d9683be8364e93f6bca2f277bfbe81647eba46b8cfd/syrupy-5.2.0.tar.gz", hash = "sha256:0e6b7abf1e04f060f6c797bed8bca96f2468954168328041e02634a68fc11ff0", size = 50223, upload-time = "2026-05-16T21:11:37.367Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4e/18/dc99a152bea18a898a8ac387bfeb9ec0829e0f5bed11cfec2e2ca189c5a2/syrupy-5.2.0-py3-none-any.whl", hash = "sha256:798cb493a6e20f4839e58ea8f10eb1b0d85684c676442f79786e219bf32618e6", size = 51828, upload-time = "2026-05-16T21:11:34.984Z" },
 ]
 
 [[package]]
