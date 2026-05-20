@@ -5,6 +5,7 @@
 - Model Roles: Preserve overrides of config when calling `get_model()` with `role`.
 - OpenAI: Set `redacted=False` when reasoning content, summary, and encrypted exists.
 - OpenAI Compatible: Add support for `responses_phase` parameter.
+- Anthropic: Convert mid-stream content_filter APIStatusError to refusal.
 - Google: Add a default 1 hour SDK transport timeout for GenAI requests.
 - OpenRouter: Strip reasoning_details replay for Gemini models (they currently cause a runtime error due to OpenRouter not handling the `id` properly).
 - Agent Bridge: Preserve wrapped OpenAI reasoning payloads.
