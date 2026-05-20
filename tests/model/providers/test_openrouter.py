@@ -327,7 +327,7 @@ async def test_messages_to_openai_strips_reasoning_details_for_gemini() -> None:
     if isinstance(content, list):
         text = "".join(b.get("text", "") for b in content if isinstance(b, dict))
     else:
-        text = content or ""
+        text = content if isinstance(content, str) else ""
     assert "<think" in text and "thinking..." in text and "</think>" in text
 
 
