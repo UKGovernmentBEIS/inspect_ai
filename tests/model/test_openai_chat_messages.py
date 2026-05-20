@@ -65,6 +65,34 @@ async def test_assistant_message_with_smuggled_tags():
             assert "<think" not in c.text
 
 
+async def test_assistant_tool_call_with_smuggled_reasoning_only():
+    messages = [
+        DummyMessage(
+            "assistant",
+            content='<think signature="sig" redacted="true">encrypted</think>',
+        ),
+    ]
+    messages[0]["tool_calls"] = [
+        {
+            "id": "call_123",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": "{}"},
+        }
+    ]
+
+    chat_msgs = await messages_from_openai(messages)
+
+    assert len(chat_msgs) == 1
+    msg = chat_msgs[0]
+    assert msg.tool_calls is not None
+    assert msg.tool_calls[0].function == "lookup"
+    assert isinstance(msg.content, list)
+    assert [type(c) for c in msg.content] == [ContentReasoning]
+    assert msg.content[0].reasoning == "encrypted"
+    assert msg.content[0].signature == "sig"
+    assert msg.content[0].redacted is True
+
+
 async def test_assistant_message_with_openrouter_reasoning_details():
     messages = [
         DummyMessage("assistant", content="assistant output"),

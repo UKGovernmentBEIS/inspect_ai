@@ -509,6 +509,7 @@ async def messages_from_openai(
         elif message["role"] == "assistant":
             # resolve content
             refusal: Literal[True] | None = None
+            smuggled_reasoning = None
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
                 asst_content, smuggled_reasoning = parse_content_with_reasoning(
@@ -525,8 +526,11 @@ async def messages_from_openai(
                             redacted=smuggled_reasoning.redacted,
                             summary=smuggled_reasoning.summary,
                         ),
-                        ContentText(text=asst_content, internal=content_internal),
                     ]
+                    if asst_content:
+                        content.append(
+                            ContentText(text=asst_content, internal=content_internal)
+                        )
                 else:
                     content = asst_content
             elif asst_content is None:
@@ -542,7 +546,9 @@ async def messages_from_openai(
             # interfaces e.g. DeepSeek do include this field so we pluck it out)
             # note that we already handled <think> tags so we only care about the
             # other sources
-            parse_result = parse_reasoning_content(message)
+            parse_result = parse_reasoning_content(
+                message, parse_think=smuggled_reasoning is None
+            )
             if parse_result is not None:
                 reasoning: ContentReasoning | None = (
                     content_reasoning_from_openai_reasoning(parse_result[0])
@@ -773,6 +779,7 @@ def chat_message_assistant_from_openai(
 
 def parse_reasoning_content(
     message: ChatCompletionMessage | ChatCompletionAssistantMessageParam,
+    parse_think: bool = True,
 ) -> tuple[CompletionsReasoningContent, str | None] | None:
     # look in various fields where reasoning lives
     for source in cast(
@@ -790,6 +797,9 @@ def parse_reasoning_content(
                 ),
                 None,
             )
+
+    if not parse_think:
+        return None
 
     # not found, look for <think> tag
     content = (
