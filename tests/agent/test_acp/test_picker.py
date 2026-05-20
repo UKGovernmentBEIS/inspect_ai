@@ -12,9 +12,12 @@ from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.inspect_ext import (
     PICKER_META_KEY,
     build_picker_notification,
+    sample_listing_meta_dict,
 )
 from inspect_ai.agent._acp.picker import (
     PickerTarget,
+    SampleListing,
+    list_all_samples,
     list_picker_targets,
     resolve_selection,
 )
@@ -417,6 +420,168 @@ def test_resolve_selection_malformed_input_returns_none(garbage: str) -> None:
 # ---------------------------------------------------------------------------
 # Notification roundtrips through Pydantic serialization
 # ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# list_all_samples — superset enumeration for the Inspect TUI
+# ---------------------------------------------------------------------------
+
+
+def test_list_all_samples_includes_non_acp_samples(monkeypatch) -> None:
+    """ACP-claimed AND non-claimed samples both appear; sessionId reflects status."""
+    samples = [
+        _make_sample(task="t1", sample_id="s1", epoch=0, session_id="uuid-a"),
+        _make_sample(task="t2", sample_id="s2", epoch=0, session_id=None),
+        _make_sample(task="t3", sample_id="s3", epoch=0, session_id="uuid-c"),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listings = list_all_samples()
+    assert [(listing.sample_id, listing.session_id) for listing in listings] == [
+        ("s1", "uuid-a"),
+        ("s2", None),
+        ("s3", "uuid-c"),
+    ]
+
+
+def test_list_all_samples_treats_noop_session_as_non_acp(monkeypatch) -> None:
+    """The ``noop`` sentinel surfaces as ``session_id=None`` (pre-claim placeholder)."""
+    samples = [
+        _make_sample(task="t1", sample_id="s1", epoch=0, session_id="noop"),
+        _make_sample(task="t2", sample_id="s2", epoch=0, session_id="uuid-real"),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listings = list_all_samples()
+    assert listings[0].session_id is None
+    assert listings[1].session_id == "uuid-real"
+
+
+def test_list_all_samples_stringifies_sample_id(monkeypatch) -> None:
+    """Sample.id may be int or None — mirror ``list_picker_targets`` exactly."""
+    samples = [
+        _make_sample(task="t", sample_id=42, epoch=0, session_id="uuid"),
+        _make_sample(task="t", sample_id=None, epoch=0, session_id=None),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listings = list_all_samples()
+    assert listings[0].sample_id == "42"
+    assert listings[1].sample_id == ""
+
+
+def test_list_all_samples_propagates_fields(monkeypatch) -> None:
+    """Field mapping mirrors ``list_picker_targets`` for the shared fields."""
+    sample = _make_sample(
+        task="t",
+        sample_id="s",
+        epoch=2,
+        session_id="uuid-x",
+        agent_name="react",
+        started=1_700_000_000.0,
+        fails_on_error=True,
+    )
+    sample.total_tokens = 99_999
+    monkeypatch.setattr(picker, "active_samples", lambda: [sample])
+
+    listing = list_all_samples()[0]
+    assert listing.task == "t"
+    assert listing.epoch == 2
+    assert listing.session_id == "uuid-x"
+    assert listing.agent_name == "react"
+    assert listing.started_at == 1_700_000_000.0
+    assert listing.fails_on_error is True
+    assert listing.total_tokens == 99_999
+
+
+def test_list_all_samples_strips_agent_name_for_non_acp(monkeypatch) -> None:
+    """Non-ACP samples surface as ``agent_name=None`` regardless of the solver name.
+
+    The column header reads ``acp agent``; surfacing a solver name on
+    a non-ACP row would be misleading (there's no attachable ACP
+    agent behind that name). Keeps the wire payload consistent with
+    the TUI's display, which always shows ``—`` for non-ACP rows.
+    """
+    samples = [
+        # Non-ACP sample with a solver name — name must be stripped.
+        _make_sample(
+            task="t1",
+            sample_id="s1",
+            epoch=0,
+            session_id=None,
+            agent_name="some_solver",
+        ),
+        # Noop sentinel counts as non-ACP — also stripped.
+        _make_sample(
+            task="t2",
+            sample_id="s2",
+            epoch=0,
+            session_id="noop",
+            agent_name="react",
+        ),
+        # ACP-claimed sample keeps its name.
+        _make_sample(
+            task="t3",
+            sample_id="s3",
+            epoch=0,
+            session_id="uuid-real",
+            agent_name="react",
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listings = list_all_samples()
+    assert [(listing.session_id, listing.agent_name) for listing in listings] == [
+        (None, None),
+        (None, None),
+        ("uuid-real", "react"),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# sample_listing_meta_dict — wire shape
+# ---------------------------------------------------------------------------
+
+
+def test_sample_listing_meta_dict_emits_camelcase_with_session_id() -> None:
+    """ACP-claimed listing carries ``sessionId`` (uuid)."""
+    listing = SampleListing(
+        session_id="uuid-x",
+        task="t",
+        sample_id="s",
+        epoch=0,
+        agent_name="react",
+        started_at=1_700_000_000.0,
+        total_tokens=12_345,
+        fails_on_error=True,
+    )
+    assert sample_listing_meta_dict(listing) == {
+        "sessionId": "uuid-x",
+        "task": "t",
+        "sampleId": "s",
+        "epoch": 0,
+        "agentName": "react",
+        "startedAt": 1_700_000_000.0,
+        "totalTokens": 12_345,
+        "failsOnError": True,
+    }
+
+
+def test_sample_listing_meta_dict_session_id_null_for_non_acp() -> None:
+    """Non-claimed listing emits ``sessionId: None`` — the discriminator the TUI keys on."""
+    listing = SampleListing(
+        session_id=None,
+        task="t",
+        sample_id="s",
+        epoch=0,
+    )
+    payload = sample_listing_meta_dict(listing)
+    assert payload["sessionId"] is None
+    # Other fields still present with defaults — keeps the wire shape stable.
+    assert payload["agentName"] is None
+    assert payload["startedAt"] is None
+    assert payload["totalTokens"] == 0
+    assert payload["failsOnError"] is False
 
 
 def test_notification_serializes_meta_under_underscore_meta_alias() -> None:

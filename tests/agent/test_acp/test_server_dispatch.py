@@ -1243,6 +1243,100 @@ async def test_inspect_list_sessions_accepts_null_params(
 
 
 # ---------------------------------------------------------------------------
+# inspect/list_samples — superset enumeration (includes non-ACP samples)
+# consumed by the Inspect TUI to surface samples whose agent hasn't
+# claimed ACP. Standard ACP clients (Zed) continue to use list_sessions.
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_samples_returns_acp_and_non_acp(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Both ACP-claimed and non-claimed samples appear; ``sessionId`` discriminates."""
+    stub_targets(
+        [
+            _make_sample(task="t1", sample_id="s1", epoch=0, session_id="uuid-a"),
+            _make_sample(task="t2", sample_id="s2", epoch=0, session_id=None),
+            _make_sample(task="t3", sample_id="s3", epoch=1, session_id="noop"),
+        ]
+    )
+    async with acp_server(eval_id="evt-samp", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request("inspect/list_samples", {})
+            assert "result" in resp, resp
+            samples = resp["result"]["samples"]
+            assert len(samples) == 3
+            # ACP-claimed: uuid present.
+            assert samples[0]["sessionId"] == "uuid-a"
+            assert samples[0]["sampleId"] == "s1"
+            # Non-claimed: sessionId is None.
+            assert samples[1]["sessionId"] is None
+            assert samples[1]["sampleId"] == "s2"
+            # Noop sentinel collapses to non-claimed (pre-claim placeholder).
+            assert samples[2]["sessionId"] is None
+            assert samples[2]["sampleId"] == "s3"
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_samples_empty_when_no_samples(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Zero active samples → empty list (not an error)."""
+    stub_targets([])
+    async with acp_server(eval_id="evt-samp-empty", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request("inspect/list_samples", {})
+            assert resp["result"] == {"samples": []}
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_samples_does_not_require_binding(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Method works on a fresh connection — discovery doesn't require a prior bind."""
+    stub_targets([_make_sample(task="t", sample_id="s", epoch=0, session_id=None)])
+    async with acp_server(eval_id="evt-samp-fresh", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request("inspect/list_samples", {})
+            assert "result" in resp, resp
+            assert len(resp["result"]["samples"]) == 1
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_samples_accepts_null_params(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """``params: null`` is treated as ``{}`` (mirrors list_sessions)."""
+    stub_targets([_make_sample(task="t", sample_id="s", epoch=0, session_id="uuid")])
+    async with acp_server(eval_id="evt-samp-noparams", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request("inspect/list_samples", None)
+            assert "result" in resp, resp
+            assert len(resp["result"]["samples"]) == 1
+        finally:
+            await client.close()
+
+
+# ---------------------------------------------------------------------------
 # inspect/attach — direct bind via task/sample_id/epoch tuple,
 # skipping the picker. Inspect-aware clients (the TUI, editors
 # that already know which sample to attach to) use this to avoid the

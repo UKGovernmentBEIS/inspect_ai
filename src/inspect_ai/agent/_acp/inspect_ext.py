@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from acp.schema import SessionNotification
 
     from inspect_ai.agent._acp.connection import ConnectionHandler, ConnectionState
-    from inspect_ai.agent._acp.picker import PickerTarget
+    from inspect_ai.agent._acp.picker import PickerTarget, SampleListing
     from inspect_ai.agent._acp.session import AcpSession
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.model._chat_message import ChatMessageSystem, ChatMessageUser
@@ -120,6 +120,13 @@ INSPECT_CANCEL_SAMPLE_METHOD = "inspect/cancel_sample"
 INSPECT_CANCEL_TOOL_CALL_METHOD = "inspect/cancel_tool_call"
 INSPECT_ATTACH_METHOD = "inspect/attach"
 INSPECT_LIST_SESSIONS_METHOD = "inspect/list_sessions"
+# Enumerates ALL active samples (ACP-claimed and not). ACP-claimed
+# entries carry the live ``sessionId``; non-ACP entries omit it. The
+# Inspect TUI uses this to surface non-ACP samples in the picker
+# (dimmed + unselectable-on-attach) so operators can see when an eval
+# is running but its agent isn't ACP-aware. ``inspect/list_sessions``
+# remains the ACP-only enumeration for standard ACP clients.
+INSPECT_LIST_SAMPLES_METHOD = "inspect/list_samples"
 
 # Server → client notification: the bound LiveAcpSession has exited
 # on the server side (sample's react loop returned). Fired by the
@@ -200,6 +207,10 @@ class NewSessionParams(BaseModel):
 
 class ListSessionsParams(BaseModel):
     """Pydantic param model for :data:`INSPECT_LIST_SESSIONS_METHOD` (no params)."""
+
+
+class ListSamplesParams(BaseModel):
+    """Pydantic param model for :data:`INSPECT_LIST_SAMPLES_METHOD` (no params)."""
 
 
 def wrap_action_handler(func: Any, model: type[BaseModel]) -> Any:
@@ -286,6 +297,13 @@ def register_inspect_routes(router: MessageRouter, handler: ConnectionHandler) -
         Route(
             method=INSPECT_LIST_SESSIONS_METHOD,
             func=wrap_action_handler(handler.inspect_list_sessions, ListSessionsParams),
+            kind="request",
+        )
+    )
+    router.add_route(
+        Route(
+            method=INSPECT_LIST_SAMPLES_METHOD,
+            func=wrap_action_handler(handler.inspect_list_samples, ListSamplesParams),
             kind="request",
         )
     )
@@ -743,6 +761,26 @@ def picker_target_meta_dict(target: PickerTarget) -> dict[str, Any]:
         "startedAt": target.started_at,
         "totalTokens": target.total_tokens,
         "failsOnError": target.fails_on_error,
+    }
+
+
+def sample_listing_meta_dict(listing: SampleListing) -> dict[str, Any]:
+    """Canonical camelCase wire shape for an :data:`INSPECT_LIST_SAMPLES_METHOD` entry.
+
+    ``sessionId`` is set only when the sample's agent has claimed an
+    ACP session (called ``before_turn`` at least once). Non-ACP samples
+    emit ``sessionId: null`` — the discriminator the Inspect TUI uses
+    to render those rows as dimmed + unselectable-on-attach.
+    """
+    return {
+        "sessionId": listing.session_id,
+        "task": listing.task,
+        "sampleId": listing.sample_id,
+        "epoch": listing.epoch,
+        "agentName": listing.agent_name,
+        "startedAt": listing.started_at,
+        "totalTokens": listing.total_tokens,
+        "failsOnError": listing.fails_on_error,
     }
 
 

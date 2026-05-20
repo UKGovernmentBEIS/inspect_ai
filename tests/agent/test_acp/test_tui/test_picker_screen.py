@@ -134,11 +134,15 @@ async def test_picker_populated_renders_all_rows(
         # produce a double-space gap. eval column is intentionally
         # absent — eval id lives on the SessionScreen meta row.
         columns = [str(c.label) for c in table.columns.values()]
+        # ``agent`` column header reads ``acp agent`` so the ``—``
+        # placeholders in non-ACP rows are self-explanatory; the
+        # underlying column KEY stays ``"agent"`` so update_cell
+        # references need no audit.
         assert columns == [
             "sample",
             "epoch",
             "task",
-            "agent",
+            "acp agent",
             "tokens",
             "running",
         ]
@@ -517,9 +521,12 @@ async def test_picker_rescan_updates_tokens_in_steady_state(
         table = picker.query_one(DataTable)
         # Tokens column is index 4 (sample=0, epoch=1, task=2,
         # agent=3, tokens=4, running=5) — gutter column was dropped.
-        # Initial fixture rows have total_tokens=0 → cell renders "0".
+        # Initial fixture rows have total_tokens=0 → cell renders
+        # ``—`` (em-dash). The empty-state token cell is intentionally
+        # distinct from a small-but-nonzero value so the eye can scan
+        # the column for "actual usage" at a glance.
         before = [str(c) for c in table.get_column_at(4)]
-        assert all(c == "0" for c in before)
+        assert all(c == "—" for c in before)
 
         # Rebind the client with the SAME session ids but bumped
         # token totals — exercises the "steady state" branch of
@@ -1038,3 +1045,439 @@ async def test_picker_triple_filter_no_match_shows_empty_state_with_notice(
         assert "ghost_task" in heading_text
         assert "sample=99" in heading_text
         assert "epoch=7" in heading_text
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_triple_filter_single_non_acp_match_does_not_auto_attach() -> None:
+    """A single non-ACP triple match falls through to the picker, not auto-attach.
+
+    Auto-attaching would call ``attach_session`` with no live
+    session_id, which raises by precondition; the operator would see
+    a generic failure toast instead of the dimmed row + intervention
+    guidance the picker provides. Show the picker so the activation
+    toast can do its job.
+    """
+    from pathlib import Path
+
+    from inspect_ai.agent._acp.discovery import TargetAddress
+
+    rows = [
+        SessionRow(
+            eval_id="eval-only",
+            session_id=None,
+            task="ghost_task",
+            sample_id="0",
+            epoch=1,
+            agent_name=None,
+            started_at=1_700_000_000.0,
+            target=TargetAddress(socket_path=Path("/tmp/x.sock")),
+        ),
+    ]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(
+        eval_id=None,
+        server=None,
+        task_id="ghost_task",
+        sample_id="0",
+        epoch=1,
+        client=client,
+    )
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        # Did NOT auto-attach — picker stays mounted with the one
+        # filtered row visible (dimmed, non-attachable).
+        screen = app.screen
+        assert isinstance(screen, PickerScreen)
+        table = screen.query_one(DataTable)
+        assert table.row_count == 1
+
+
+# ---------------------------------------------------------------------------
+# Non-ACP samples — surfacing, dimming, activation guard, status hints
+# ---------------------------------------------------------------------------
+
+
+def _row(
+    *,
+    session_id: str | None,
+    eval_id: str = "eval-x",
+    task: str = "t",
+    sample_id: str = "s",
+    epoch: int = 0,
+    agent_name: str | None = None,
+    started_at: float | None = 1_700_000_000.0,
+    total_tokens: int = 0,
+) -> SessionRow:
+    """Compact SessionRow constructor for the non-ACP UX tests."""
+    from pathlib import Path
+
+    from inspect_ai.agent._acp.discovery import TargetAddress
+
+    return SessionRow(
+        eval_id=eval_id,
+        session_id=session_id,
+        task=task,
+        sample_id=sample_id,
+        epoch=epoch,
+        agent_name=agent_name,
+        started_at=started_at,
+        target=TargetAddress(socket_path=Path("/tmp/x.sock")),
+        total_tokens=total_tokens,
+    )
+
+
+def test_sort_rows_puts_non_acp_after_acp() -> None:
+    """Non-ACP rows (session_id is None) sort after every ACP row.
+
+    Within each group the existing longest-running-first /
+    deterministic-tiebreak rules apply unchanged.
+    """
+    acp_old = _row(session_id="u1", started_at=1.0, sample_id="a")
+    acp_new = _row(session_id="u2", started_at=10.0, sample_id="b")
+    non_acp = _row(session_id=None, started_at=5.0, sample_id="c")
+    sorted_rows = _sort_rows([acp_new, non_acp, acp_old])
+    # ACP first (oldest first within group), then non-ACP.
+    assert [r.session_id for r in sorted_rows] == ["u1", "u2", None]
+
+
+def test_sort_rows_orders_non_acp_within_group() -> None:
+    """Within the non-ACP group, longest-running-first still applies."""
+    non_a = _row(session_id=None, eval_id="e1", sample_id="0", started_at=10.0)
+    non_b = _row(session_id=None, eval_id="e2", sample_id="0", started_at=1.0)
+    sorted_rows = _sort_rows([non_a, non_b])
+    # Oldest started_at (non_b) lands at row 0 within the non-ACP group.
+    assert [r.eval_id for r in sorted_rows] == ["e2", "e1"]
+
+
+def test_row_key_includes_task_for_non_acp_collisions() -> None:
+    """Two non-ACP samples sharing eval/sample/epoch but different tasks get distinct keys.
+
+    Multi-task eval suites routinely run different tasks with the same
+    ``sample_id`` / ``epoch``; collapsing those rows under one
+    DataTable key would lose the second row silently on ``add_row``.
+    """
+    from inspect_ai.agent._acp.tui.picker_screen import _row_key
+
+    a = _row(session_id=None, eval_id="e1", task="task_a", sample_id="0", epoch=1)
+    b = _row(session_id=None, eval_id="e1", task="task_b", sample_id="0", epoch=1)
+    assert _row_key(a) != _row_key(b)
+    # ACP rows still key on session_id alone (task irrelevant).
+    c = _row(session_id="u1", task="task_a")
+    d = _row(session_id="u1", task="task_b")
+    assert _row_key(c) == _row_key(d) == "u1"
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_renders_both_rows_for_non_acp_task_collision() -> None:
+    """End-to-end: two non-ACP samples differing only by task both render in the table."""
+    rows = [
+        _row(
+            session_id=None,
+            eval_id="e1",
+            task="task_a",
+            sample_id="0",
+            epoch=1,
+        ),
+        _row(
+            session_id=None,
+            eval_id="e1",
+            task="task_b",
+            sample_id="0",
+            epoch=1,
+        ),
+    ]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        # Both rows mounted — collision regression: pre-fix only one
+        # would land because the synthesized key omitted task.
+        assert table.row_count == 2
+
+
+def test_format_tokens_zero_renders_dash() -> None:
+    """``format_tokens(0)`` returns ``—`` (em-dash); non-zero values unchanged."""
+    from inspect_ai.agent._acp.tui.widgets._formatting import format_tokens
+
+    assert format_tokens(0) == "—"
+    # Spot-check the K/M paths still work — regression guard for the
+    # early-return placement.
+    assert format_tokens(1) == "1"
+    assert format_tokens(999) == "999"
+    assert format_tokens(1_200) == "1.2K"
+    assert format_tokens(2_500_000) == "2.5M"
+
+
+def test_running_cell_is_right_justified() -> None:
+    """``_running_cell`` wraps the value in a right-justified Rich Text."""
+    from inspect_ai.agent._acp.tui.picker_screen import _running_cell
+
+    cell = _running_cell(1000.0, now=1012.0)
+    assert isinstance(cell, Text)
+    assert cell.justify == "right"
+    # Content matches ``format_running`` (12s elapsed).
+    assert str(cell) == "12s"
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_running_column_header_is_right_justified() -> None:
+    """Running column header renders right-justified (parity with tokens column)."""
+    rows = [_row(session_id="u1")]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        running_col = list(table.columns.values())[5]
+        assert isinstance(running_col.label, Text)
+        assert running_col.label.justify == "right"
+        running_cells = list(table.get_column_at(5))
+        assert all(isinstance(c, Text) for c in running_cells)
+        assert all(c.justify == "right" for c in running_cells)
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_non_acp_row_renders_em_dash_and_dim() -> None:
+    """Non-ACP rows show ``—`` in the agent column and carry the dim style."""
+    rows = [
+        _row(session_id="u1", agent_name="react", sample_id="a"),
+        _row(session_id=None, agent_name=None, sample_id="b"),
+    ]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        # Sorted: ACP first (row 0), non-ACP second (row 1).
+        agent_cells = list(table.get_column_at(3))
+        assert str(agent_cells[0]) == "react"
+        assert str(agent_cells[1]) == "—"
+        # Non-ACP agent cell carries the dim style.
+        non_acp_agent = agent_cells[1]
+        assert isinstance(non_acp_agent, Text)
+        assert "dim" in str(non_acp_agent.style).lower()
+        # Sample cell on the non-ACP row also carries the dim style on
+        # its trailing identifier text (the leading "  " gutter prefix
+        # is appended with the dim style too).
+        non_acp_sample = list(table.get_column_at(0))[1]
+        assert isinstance(non_acp_sample, Text)
+        # The Text contains a styled span for the sample id; check it
+        # was constructed with style="dim" by rendering and looking for
+        # the dim ANSI marker is fragile, so just assert the cell
+        # constructor path went through _sample_cell with dim=True by
+        # checking the Text's style or span styles.
+        styles = [str(s.style).lower() for s in non_acp_sample.spans] + [
+            str(non_acp_sample.style).lower()
+        ]
+        assert any("dim" in s for s in styles)
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_non_acp_row_activation_toasts() -> None:
+    """Activating a non-ACP row surfaces a brief warning toast (no attach, no link).
+
+    The user-supplied ``on_select`` callback MUST NOT be invoked —
+    non-ACP rows have no live session_id to bind to. The intervention
+    URL stays in the always-visible status row + empty-state copy
+    rather than being embedded in the toast (Textual notifications
+    intercept clicks for dismissal, so an inline link would be a
+    promise we can't keep).
+    """
+    captured: list[SessionRow] = []
+    rows = [_row(session_id=None, sample_id="b")]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        picker._on_select = captured.append
+        # Drive activation directly (Enter via Pilot is racy across
+        # Textual versions; the contract we care about is the action).
+        picker.action_attach()
+        await pilot.pause()
+        # on_select was NOT called — the toast path took over.
+        assert captured == []
+        notifications = list(app._notifications)
+        assert len(notifications) == 1
+        msg = notifications[0].message
+        assert "No ACP-compatible agent" in msg
+        # URL is deliberately NOT in the toast — it's in the status
+        # row / empty-state copy where OSC 8 click can reach it.
+        assert "intervention" not in msg
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_acp_row_activation_invokes_callback() -> None:
+    """ACP rows go straight through to the on_select callback (no toast)."""
+    captured: list[SessionRow] = []
+    rows = [_row(session_id="u1", sample_id="a")]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        picker._on_select = captured.append
+        picker.action_attach()
+        await pilot.pause()
+        assert len(captured) == 1
+        assert captured[0].session_id == "u1"
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_status_row_links_when_no_acp_rows() -> None:
+    """Status row hints at the intervention docs when zero ACP rows are visible."""
+    rows = [
+        _row(session_id=None, sample_id="a"),
+        _row(session_id=None, sample_id="b"),
+    ]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        status = picker.query_one("#picker-status", Static)
+        text = str(status.content)
+        assert "No ACP-compatible agents" in text
+        assert "intervention.html" in text
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_status_row_keeps_default_with_mixed_rows() -> None:
+    """When at least one ACP row is visible, the status row is the default summary."""
+    rows = [
+        _row(session_id="u1", sample_id="a"),
+        _row(session_id=None, sample_id="b"),
+    ]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        status = picker.query_one("#picker-status", Static)
+        text = str(status.content)
+        # Default header — no intervention link mixed in (row dimming
+        # already telegraphs the split).
+        assert "Choose a running sample" in text
+        assert "intervention.html" not in text
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_empty_state_includes_intervention_link_local() -> None:
+    """Bootstrap empty state (no --server) surfaces the intervention link."""
+    client = make_fake_client([])
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, PickerScreen)
+        hint_md = screen.query_one(Markdown)._markdown
+        assert "intervention.html" in hint_md
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_empty_state_includes_intervention_link_remote() -> None:
+    """Remote empty state (--server set) surfaces the intervention link too."""
+    client = make_fake_client([])
+    app = InspectAcpApp(eval_id=None, server="/tmp/x.sock", client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        screen = app.screen
+        assert isinstance(screen, PickerScreen)
+        hint_md = screen.query_one(Markdown)._markdown
+        assert "intervention.html" in hint_md
+
+
+# ---------------------------------------------------------------------------
+# App title: always includes "local" or the remote address
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_app_title_local_when_no_server_flag() -> None:
+    """``inspect acp`` (no --server) titles the app ``inspect acp · local``."""
+    client = make_fake_client([])
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.title == "inspect acp · local"
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_app_title_includes_server_address() -> None:
+    """``--server`` flag value is echoed in the title bar."""
+    client = make_fake_client([])
+    app = InspectAcpApp(eval_id=None, server="127.0.0.1:4545", client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert app.title == "inspect acp · 127.0.0.1:4545"
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_header_shows_local_target() -> None:
+    """In-TUI picker header reads ``inspect acp · local`` when no --server."""
+    from inspect_ai.agent._acp.tui.widgets import AppHeaderWidget
+
+    client = make_fake_client([])
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        header = app.screen.query_one(AppHeaderWidget)
+        # The Horizontal contains two Statics: app-title + target.
+        statics = list(header.query(Static))
+        labels = [str(s.content) for s in statics]
+        assert "inspect acp" in labels
+        assert any("local" in lbl for lbl in labels)
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_header_shows_remote_target() -> None:
+    """In-TUI picker header echoes the ``--server`` address."""
+    from inspect_ai.agent._acp.tui.widgets import AppHeaderWidget
+
+    client = make_fake_client([])
+    app = InspectAcpApp(eval_id=None, server="127.0.0.1:4545", client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        header = app.screen.query_one(AppHeaderWidget)
+        statics = list(header.query(Static))
+        labels = [str(s.content) for s in statics]
+        assert any("127.0.0.1:4545" in lbl for lbl in labels)

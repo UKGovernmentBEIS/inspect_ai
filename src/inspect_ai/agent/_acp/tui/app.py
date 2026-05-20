@@ -98,12 +98,11 @@ class InspectAcpApp(App[None]):
         self._epoch = epoch
         self._client: Any = client if client is not None else _client
         self._attached: AttachedSession | None = None
-        # When the user passed ``--server <addr>``, surface the address
-        # in the title bar so it's obvious which remote the TUI is
-        # pointed at. The default ``inspect acp`` covers the local-
-        # discovery case where there's nothing useful to add.
-        if server is not None:
-            self.title = f"inspect acp · {server}"
+        # Title bar always names the transport. ``local`` covers the
+        # auto-discovery case (any number of running evals on this
+        # machine); ``<server>`` echoes the explicit ``--server``
+        # address so it's obvious which remote the TUI is pointed at.
+        self.title = f"inspect acp · {server or 'local'}"
 
     async def on_mount(self) -> None:
         try:
@@ -119,10 +118,19 @@ class InspectAcpApp(App[None]):
         rows = await self._enumerate()
         # Triple-filter auto-attach: if the user provided any combination
         # of --task-id / --sample-id / --epoch AND the filter narrowed to
-        # exactly one row, skip the picker entirely. Zero matches falls
-        # through to the picker with an empty-state notice; multiple
-        # matches falls through to a filtered picker the user can pick from.
-        if self._triple_filter_active() and len(rows) == 1:
+        # exactly one ATTACHABLE row, skip the picker entirely. Zero
+        # matches falls through to the picker with an empty-state notice;
+        # multiple matches falls through to a filtered picker the user
+        # can pick from. A single non-ACP match (``session_id is None``)
+        # ALSO falls through to the picker — auto-attaching would call
+        # ``attach_session`` with no live session_id, which raises; the
+        # picker shows the dimmed row + the intervention toast on
+        # activation, which is the actionable surface for that case.
+        if (
+            self._triple_filter_active()
+            and len(rows) == 1
+            and rows[0].session_id is not None
+        ):
             self._on_picker_select(rows[0])
             return
         self._push_picker(rows)

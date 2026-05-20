@@ -34,12 +34,21 @@ from .widgets._formatting import format_running, format_tokens
 # Column keys — module constants so add_column, update_cell, and per-tick
 # refreshes all reference the same string. A typo at one site silently
 # breaks update_cell (CellDoesNotExist) without a column-set assertion.
+# Keys stay stable (``"agent"``) even though the visible header is
+# ``"acp agent"`` — letting the header drift from the key would mean
+# every update_cell site needs auditing.
 _COL_SAMPLE = "sample"
 _COL_TASK = "task"
 _COL_EPOCH = "epoch"
 _COL_AGENT = "agent"
+_COL_AGENT_HEADER = "acp agent"
 _COL_TOKENS = "tokens"
 _COL_RUNNING = "running"
+
+# Intervention docs URL. Surfaced in the empty-state, in the status row
+# when no ACP-compatible agents are present, and in the toast that
+# fires when the operator tries to attach to a non-ACP row.
+_INTERVENTION_URL = "https://inspect.aisi.org.uk/intervention.html"
 
 
 def _display_task(task: str) -> str:
@@ -60,17 +69,20 @@ def _display_task(task: str) -> str:
 
 
 def _sort_rows(rows: list[SessionRow]) -> list[SessionRow]:
-    """Order: longest running first; pre-start rows at the bottom.
+    """Order: ACP-attachable first; within each group, longest running first.
 
-    ``None`` ``started_at`` (no claim yet) sorts after every
-    timestamped row; ties break on ``(eval_id, sample_id, epoch)`` so
-    the order is fully deterministic and stable across rescans —
-    new samples join at the bottom, finished samples drop out,
-    existing samples don't reorder.
+    Primary key: ``session_id is None`` (False sorts first, so ACP rows
+    precede non-ACP rows). Within each group: ``None`` ``started_at``
+    (no claim yet) sorts after every timestamped row; ties break on
+    ``(eval_id, sample_id, epoch)`` so the order is fully
+    deterministic and stable across rescans — new samples join at the
+    bottom of their group, finished samples drop out, existing samples
+    don't reorder.
     """
     return sorted(
         rows,
         key=lambda r: (
+            r.session_id is None,
             r.started_at is None,
             r.started_at if r.started_at is not None else 0.0,
             r.eval_id,
@@ -80,17 +92,60 @@ def _sort_rows(rows: list[SessionRow]) -> list[SessionRow]:
     )
 
 
-def _tokens_cell(n: int) -> Text:
+def _is_acp(row: SessionRow) -> bool:
+    """True when the row's sample has an attachable ACP session."""
+    return row.session_id is not None
+
+
+def _row_key(row: SessionRow) -> str:
+    """Stable DataTable row key.
+
+    ACP rows use their live ``session_id``. Non-ACP rows synthesize a
+    key from ``(eval_id, task, sample_id, epoch)`` so every row in
+    the table still has a unique, string-typed key (DataTable doesn't
+    accept ``None`` as a key, and we need consistent keys across
+    rescans so the cursor restoration in ``_populate_table`` can land
+    back on the prior row).
+
+    ``task`` is part of the synthesized key because multi-task eval
+    suites routinely run different tasks with the same ``sample_id`` /
+    ``epoch`` — collapsing them under one key would collide in
+    ``DataTable.add_row`` and lose the second row silently.
+    """
+    if row.session_id is not None:
+        return row.session_id
+    return f"non-acp:{row.eval_id}:{row.task}:{row.sample_id}:{row.epoch}"
+
+
+def _tokens_cell(n: int, *, dim: bool = False) -> Text:
     """Right-justified Rich Text for the tokens column.
 
     Centralised so add_row + update_cell (per-tick refresh) agree on
     the alignment shape — a Text wrapped on one side and a bare str
     on the other would lose the right-justify on the next tick.
+
+    ``dim=True`` paints the cell with the muted style used for
+    non-ACP rows.
     """
-    return Text(format_tokens(n), justify="right")
+    style = "dim" if dim else ""
+    return Text(format_tokens(n), justify="right", style=style)
 
 
-def _sample_cell(sample_id: str, *, is_cursor: bool) -> Text:
+def _running_cell(
+    started_at: float | None, now: float | None = None, *, dim: bool = False
+) -> Text:
+    """Right-justified Rich Text for the running column.
+
+    Mirrors :func:`_tokens_cell`'s alignment contract — both
+    ``add_row`` and the per-tick ``update_cell`` go through this
+    helper so the column stays right-aligned across ticks. Bare
+    strings would lose the justify on the next refresh.
+    """
+    style = "dim" if dim else ""
+    return Text(format_running(started_at, now), justify="right", style=style)
+
+
+def _sample_cell(sample_id: str, *, is_cursor: bool, dim: bool = False) -> Text:
     """Sample-column cell value with an embedded cursor prefix.
 
     The leading ``▸ `` / ``  `` (always 2 chars) keeps every row's
@@ -104,9 +159,9 @@ def _sample_cell(sample_id: str, *, is_cursor: bool) -> Text:
         # plan-overlay running-row highlight, sharing one selection
         # vocabulary across the picker and the in-session plan view.
         cell = Text("▸ ", style="bold $warning")
-        cell.append(sample_id)
+        cell.append(sample_id, style="dim" if dim else "")
         return cell
-    return Text(f"  {sample_id}")
+    return Text(f"  {sample_id}", style="dim" if dim else "")
 
 
 def _row_matches(row: SessionRow, query: str) -> bool:
@@ -175,7 +230,29 @@ class PickerScreen(Screen[None]):
         cursor_row = table.cursor_row
         if cursor_row < 0 or cursor_row >= len(self._visible_rows):
             return
-        self._on_select(self._visible_rows[cursor_row])
+        self._activate(self._visible_rows[cursor_row])
+
+    def _activate(self, row: SessionRow) -> None:
+        """Gate attach attempts: non-ACP rows toast instead of attaching.
+
+        ACP-claimed rows (``row.session_id is not None``) flow through
+        to the app's ``on_select`` callback to open a session screen.
+        Non-ACP rows have no live session_id to bind to — surface a
+        brief warning toast so the operator knows the keystroke
+        registered but won't attach. The intervention docs URL is
+        intentionally NOT inlined in the toast: Textual notifications
+        intercept clicks for dismissal, so an embedded link can't be
+        opened anyway. The URL is always present in the status row
+        (when no ACP rows are visible) and the empty-state copy —
+        both Static surfaces where terminal OSC 8 click can reach it.
+        """
+        if row.session_id is None:
+            self.app.notify(
+                "No ACP-compatible agent for this sample.",
+                severity="warning",
+            )
+            return
+        self._on_select(row)
 
     def action_filter(self) -> None:
         """Open the filter Input — or, if it's already focused, insert ``/``."""
@@ -335,7 +412,7 @@ class PickerScreen(Screen[None]):
         # defers it until after this module is fully initialized.
         from .widgets import AppHeaderWidget
 
-        yield AppHeaderWidget()
+        yield AppHeaderWidget(server=self._server_override)
         if not self._rows:
             yield from self._compose_empty()
         else:
@@ -380,13 +457,17 @@ class PickerScreen(Screen[None]):
                 # address.
                 "inspect acp --server 198.51.100.0:4545\n"
                 "```\n"
+                f"\nLearn how to enable ACP in your agent: <{_INTERVENTION_URL}>\n"
             )
         else:
             heading = (
                 f"Connected to {self._server_override}, but no sessions "
                 "have claimed ACP yet."
             )
-            hint_md = "Sessions appear once an agent's first turn begins."
+            hint_md = (
+                "Sessions appear once an agent's first turn begins.\n\n"
+                f"Learn how to enable ACP in your agent: <{_INTERVENTION_URL}>\n"
+            )
         with Container(id="empty-state"):
             yield Static(heading, classes="heading")
             yield Markdown(hint_md, classes="hint")
@@ -422,15 +503,21 @@ class PickerScreen(Screen[None]):
         # Order: ``epoch`` sits adjacent to ``sample`` so the two
         # identifying numbers read together; ``task`` follows since
         # it's the dim narrative column the eye skims past.
-        table.add_columns(_COL_EPOCH, _COL_TASK, _COL_AGENT)
+        table.add_columns(_COL_EPOCH, _COL_TASK)
         # Use literal string keys (NOT ``str(ColumnKey)`` — that
         # returns the object's repr, which doesn't match anything on
         # lookup). update_cell calls in _tick_column reference the
         # same constants.
-        # Tokens header is right-justified to match the cell values
-        # (cells get the same Text wrap via ``_tokens_cell``).
+        # Visible header reads ``acp agent`` so operators glance at
+        # the column and immediately understand that the ``—`` cells
+        # below are non-ACP samples (no attachable agent). Key stays
+        # ``"agent"`` so update_cell sites need no audit.
+        table.add_column(_COL_AGENT_HEADER, key=_COL_AGENT)
+        # Tokens + running headers are right-justified to match their
+        # cell values (cells get the same Text wrap via the
+        # ``_tokens_cell`` / ``_running_cell`` helpers).
         table.add_column(Text(_COL_TOKENS, justify="right"), key=_COL_TOKENS)
-        table.add_column(_COL_RUNNING, key=_COL_RUNNING)
+        table.add_column(Text(_COL_RUNNING, justify="right"), key=_COL_RUNNING)
         self._populate_table(table)
         with Vertical():
             yield table
@@ -450,6 +537,25 @@ class PickerScreen(Screen[None]):
             )
         else:
             count_chunk = f"{n_samples} {sample_word} · {n_evals} {eval_word}"
+        # When the visible rows include zero ACP-attachable samples,
+        # tack on a hint pointing at the intervention docs — operators
+        # who see only dimmed rows otherwise have nothing to act on.
+        # Triggers in both the all-non-ACP case AND when a filter
+        # narrows the visible set to non-ACP rows only; mixed views
+        # leave the existing summary intact since the row dimming
+        # already telegraphs the split.
+        if n_samples > 0 and not any(_is_acp(r) for r in self._visible_rows):
+            # ``[link="URL"]…[/link]`` becomes an OSC 8 hyperlink in
+            # supporting terminals. The URL MUST be quoted — Textual's
+            # markup parser (which renders Static content too) treats
+            # ``://`` in a bare value as malformed and raises
+            # ``MarkupError``; quoting tells the parser "everything
+            # inside the quotes is the value".
+            return (
+                "No ACP-compatible agents — see "
+                f'[link="{_INTERVENTION_URL}"]{_INTERVENTION_URL}[/link]'
+                f"   [dim]{count_chunk}[/dim]"
+            )
         return f"Choose a running sample to connect to   [dim]{count_chunk}[/dim]"
 
     def _populate_table(self, table: DataTable[str | Text] | None = None) -> None:
@@ -471,49 +577,58 @@ class PickerScreen(Screen[None]):
             table = self._table_or_none()
             if table is None:
                 return
-        # Snapshot the highlighted session_id (if any) so we can land
+        # Snapshot the highlighted row key (if any) so we can land
         # the cursor back on the same row after the rebuild.
-        prior_cursor_session_id: str | None = None
+        prior_cursor_key: str | None = None
         if table.row_count > 0 and 0 <= table.cursor_row < len(self._visible_rows):
-            prior_cursor_session_id = self._visible_rows[table.cursor_row].session_id
+            prior_cursor_key = _row_key(self._visible_rows[table.cursor_row])
         # ``clear()`` drops rows but keeps the column layout, which is
         # what we want when narrowing/widening the visible set.
         table.clear()
         now = time.time()
         for idx, row in enumerate(self._visible_rows):
+            is_acp = _is_acp(row)
             # ▸ glyph embedded as a 2-char prefix in the sample cell
             # (▸ + space + sample_id, or 2 leading spaces for
             # non-cursor rows). on_data_table_row_highlighted swaps
-            # the prefix as the cursor moves.
-            table.add_row(
-                _sample_cell(row.sample_id, is_cursor=(idx == 0)),
-                str(row.epoch),
-                # Dim the task column — the mockup keeps it muted so
-                # the eye lands on sample id / agent / time. Display
-                # form strips any ``namespace/`` prefix; the underlying
-                # ``row.task`` stays untouched for log paths etc.
-                Text(_display_task(row.task), style="dim"),
-                row.agent_name or "—",
-                _tokens_cell(row.total_tokens),
-                format_running(row.started_at, now),
-                key=row.session_id,
+            # the prefix as the cursor moves. Non-ACP rows pass
+            # ``dim=True`` to every cell helper so the whole row
+            # reads as muted at a glance.
+            agent_cell: Text = (
+                Text("—", style="dim") if not is_acp else Text(row.agent_name or "—")
             )
-        # Restore cursor: prefer the previously-highlighted
-        # session_id if it's still visible, else clamp to row 0. The
-        # ▸ glyph is on row 0 (from add_row's ``is_cursor=(idx == 0)``)
-        # so seed ``_gutter_row_key`` to row 0's id and let
+            task_text = _display_task(row.task)
+            task_cell = Text(task_text, style="dim")
+            epoch_cell = Text(str(row.epoch), style="dim" if not is_acp else "")
+            table.add_row(
+                _sample_cell(row.sample_id, is_cursor=(idx == 0), dim=not is_acp),
+                epoch_cell,
+                # Task column is already dim for every row (the mockup
+                # keeps it muted so the eye lands on sample id /
+                # agent / time). Non-ACP rows get the same dim style;
+                # no extra branch needed here.
+                task_cell,
+                agent_cell,
+                _tokens_cell(row.total_tokens, dim=not is_acp),
+                _running_cell(row.started_at, now, dim=not is_acp),
+                key=_row_key(row),
+            )
+        # Restore cursor: prefer the previously-highlighted row key
+        # if it's still visible, else clamp to row 0. The ▸ glyph is
+        # on row 0 (from add_row's ``is_cursor=(idx == 0)``) so seed
+        # ``_gutter_row_key`` to row 0's key and let
         # ``on_data_table_row_highlighted`` swap the glyph when the
         # cursor move fires the highlight event.
         if not self._visible_rows:
             self._gutter_row_key = None
             return
         new_index = 0
-        if prior_cursor_session_id is not None:
+        if prior_cursor_key is not None:
             for idx, row in enumerate(self._visible_rows):
-                if row.session_id == prior_cursor_session_id:
+                if _row_key(row) == prior_cursor_key:
                     new_index = idx
                     break
-        self._gutter_row_key = self._visible_rows[0].session_id
+        self._gutter_row_key = _row_key(self._visible_rows[0])
         if new_index != 0:
             table.move_cursor(row=new_index, animate=False)
 
@@ -549,7 +664,7 @@ class PickerScreen(Screen[None]):
             return
         # Look up sample_id for each affected row so we can rebuild
         # the cell value with the cursor prefix swapped.
-        rows_by_key = {r.session_id: r for r in self._visible_rows}
+        rows_by_key = {_row_key(r): r for r in self._visible_rows}
         if self._gutter_row_key is not None:
             prev = rows_by_key.get(self._gutter_row_key)
             if prev is not None:
@@ -557,7 +672,9 @@ class PickerScreen(Screen[None]):
                     table.update_cell(
                         self._gutter_row_key,
                         _COL_SAMPLE,
-                        _sample_cell(prev.sample_id, is_cursor=False),
+                        _sample_cell(
+                            prev.sample_id, is_cursor=False, dim=not _is_acp(prev)
+                        ),
                     )
                 except CellDoesNotExist:
                     pass
@@ -568,7 +685,9 @@ class PickerScreen(Screen[None]):
             table.update_cell(
                 new_key,
                 _COL_SAMPLE,
-                _sample_cell(new_row.sample_id, is_cursor=True),
+                _sample_cell(
+                    new_row.sample_id, is_cursor=True, dim=not _is_acp(new_row)
+                ),
             )
         except CellDoesNotExist:
             return
@@ -655,7 +774,7 @@ class PickerScreen(Screen[None]):
         self._apply_filter()
 
     def _row_ids_changed(self, new_rows: list[SessionRow]) -> bool:
-        return [r.session_id for r in new_rows] != [r.session_id for r in self._rows]
+        return [_row_key(r) for r in new_rows] != [_row_key(r) for r in self._rows]
 
     def _needs_recompose(self, new_rows: list[SessionRow]) -> bool:
         """True when we must swap structural branches (empty ↔ populated).
@@ -671,9 +790,17 @@ class PickerScreen(Screen[None]):
         return self._table_or_none() is None
 
     def _tick_running(self) -> None:
-        """Per-second refresh of the ``running`` column — drives the live timer."""
+        """Per-second refresh of the ``running`` column — drives the live timer.
+
+        Wraps via ``_running_cell`` so the right-justify alignment
+        survives every cell update (a bare string would drop back
+        to the column's default left alignment on each tick).
+        """
         now = time.time()
-        self._tick_column(_COL_RUNNING, lambda row: format_running(row.started_at, now))
+        self._tick_column(
+            _COL_RUNNING,
+            lambda row: _running_cell(row.started_at, now, dim=not _is_acp(row)),
+        )
 
     def _tick_tokens(self) -> None:
         """Refresh the ``tokens`` column after a rescan pulls fresh data.
@@ -684,7 +811,10 @@ class PickerScreen(Screen[None]):
         per-second tick. Wraps via ``_tokens_cell`` so the
         right-justify alignment survives every cell update.
         """
-        self._tick_column(_COL_TOKENS, lambda row: _tokens_cell(row.total_tokens))
+        self._tick_column(
+            _COL_TOKENS,
+            lambda row: _tokens_cell(row.total_tokens, dim=not _is_acp(row)),
+        )
 
     def _tick_column(
         self,
@@ -706,7 +836,7 @@ class PickerScreen(Screen[None]):
             return
         for row in self._visible_rows:
             try:
-                table.update_cell(row.session_id, col_key, value_fn(row))
+                table.update_cell(_row_key(row), col_key, value_fn(row))
             except CellDoesNotExist:
                 continue
 
@@ -723,8 +853,9 @@ class PickerScreen(Screen[None]):
         # This handler still fires for explicit row selection events
         # (e.g. tests dispatching RowSelected directly) and for
         # alternate activation paths that DataTable might emit.
-        session_id = event.row_key.value
+        row_key = event.row_key.value
         for row in self._visible_rows:
-            if row.session_id == session_id:
-                self._on_select(row)
+            if _row_key(row) == row_key:
+                self._activate(row)
+                return
                 return

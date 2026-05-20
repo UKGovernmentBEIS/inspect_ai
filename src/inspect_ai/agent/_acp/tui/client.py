@@ -41,7 +41,7 @@ from inspect_ai.agent._acp._config import ACP_STREAM_BUFFER_LIMIT
 from inspect_ai.agent._acp.discovery import TargetAddress
 from inspect_ai.agent._acp.inspect_ext import (
     INSPECT_EVENT_METHOD,
-    INSPECT_LIST_SESSIONS_METHOD,
+    INSPECT_LIST_SAMPLES_METHOD,
     PICKER_META_KEY,
     PLAN_RENDERING_META_KEY,
     RAW_EVENTS_META_KEY,
@@ -135,8 +135,14 @@ class SessionRow:
     eval_id: str
     """Owning eval id (matches the discovery file)."""
 
-    session_id: str
-    """ACP session uuid; passed to ``session/load`` on attach."""
+    session_id: str | None
+    """ACP session uuid; passed to ``session/load`` on attach.
+
+    ``None`` when the sample's agent has not claimed ACP (no
+    ``before_turn`` call yet, or no ACP-aware scaffold). Such rows
+    appear in the picker dimmed + non-attachable; activation surfaces
+    a toast pointing at the intervention docs instead of opening a
+    session screen."""
 
     task: str
     sample_id: str
@@ -229,7 +235,12 @@ async def enumerate_sessions(
 
 
 async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionRow]:
-    """One enumeration round-trip: initialize → list → close."""
+    """One enumeration round-trip: initialize → list → close.
+
+    Uses ``inspect/list_samples`` (the Inspect-specific superset of
+    ``inspect/list_sessions``) so non-ACP samples appear in the
+    picker as non-attachable rows alongside the attachable ones.
+    """
     reader, writer = await _open_socket(target)
     conn = Connection(
         handler=MessageRouter(),
@@ -246,7 +257,7 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
                 "clientCapabilities": CLIENT_CAPABILITIES,
             },
         )
-        response: Any = await conn.send_request(INSPECT_LIST_SESSIONS_METHOD, {})
+        response: Any = await conn.send_request(INSPECT_LIST_SAMPLES_METHOD, {})
     finally:
         writer.close()
         try:
@@ -254,13 +265,16 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
         except Exception:
             pass
 
-    sessions = response.get("sessions", []) if isinstance(response, dict) else []
+    samples = response.get("samples", []) if isinstance(response, dict) else []
     rows: list[SessionRow] = []
-    for s in sessions:
+    for s in samples:
+        # ``sessionId`` is ``None`` for samples whose agent has not
+        # claimed ACP. Preserve the None — the picker treats such
+        # rows as dimmed + unselectable-on-attach.
         rows.append(
             SessionRow(
                 eval_id=eval_id,
-                session_id=s["sessionId"],
+                session_id=s.get("sessionId"),
                 task=s["task"],
                 sample_id=s["sampleId"],
                 epoch=int(s["epoch"]),
@@ -735,7 +749,18 @@ async def attach_session(
     gave up, explicit close, or server-confirmed end). Transient
     disconnects are handled internally by the coordinator and never
     fire :attr:`disconnected`.
+
+    Precondition: ``row.session_id is not None``. Non-ACP rows (where
+    the sample's agent hasn't claimed ACP) are filtered out by the
+    picker's activation guard before this is reached — those rows
+    surface a toast pointing at the intervention docs instead.
     """
+    if row.session_id is None:
+        raise ValueError(
+            "attach_session called with a non-ACP row "
+            "(row.session_id is None); pick a row whose agent has "
+            "claimed ACP, or surface the intervention-docs toast."
+        )
     session = AttachedSession(
         # ``connection`` / ``writer`` are placeholders here — the
         # real values are assigned by ``_establish_connection`` below.

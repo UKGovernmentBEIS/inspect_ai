@@ -33,7 +33,9 @@ from inspect_ai.log._samples import active_samples
 
 __all__ = [
     "PickerTarget",
+    "SampleListing",
     "list_picker_targets",
+    "list_all_samples",
     "resolve_selection",
 ]
 
@@ -118,6 +120,74 @@ def list_picker_targets() -> list[PickerTarget]:
             )
         )
     return targets
+
+
+@dataclass(frozen=True)
+class SampleListing:
+    """One entry in the ``inspect/list_samples`` enumeration.
+
+    Same field set as :class:`PickerTarget` but ``session_id`` is
+    optional — ``None`` when the sample's agent has not claimed ACP
+    (no call to ``before_turn`` yet, or no ACP-aware scaffold at all).
+    The Inspect TUI consumes this enumeration to surface non-ACP
+    samples in the picker so operators can see "the eval is running
+    but I can't drive it from here" instead of an empty list.
+    """
+
+    session_id: str | None
+    """Live ``LiveAcpSession.session_id`` (uuid) for ACP-claimed
+    samples; ``None`` when the sample has no ACP session or only the
+    pre-claim noop placeholder."""
+
+    task: str
+    sample_id: str
+    epoch: int
+    agent_name: str | None = None
+    started_at: float | None = None
+    total_tokens: int = 0
+    fails_on_error: bool = False
+
+
+def list_all_samples() -> list[SampleListing]:
+    """Snapshot ALL active samples — ACP-claimed and not.
+
+    Walks :func:`inspect_ai.log._samples.active_samples` unfiltered.
+    ACP-claimed entries (agent has called ``before_turn`` at least
+    once) carry the live ``session_id``; non-claimed entries — those
+    with no ``acp_session`` or only the noop sentinel — surface as
+    ``session_id=None`` so the TUI can render them as non-attachable.
+
+    ``agent_name`` is omitted (``None``) for non-ACP entries — the
+    column reads ``acp agent`` and a non-ACP sample by definition has
+    no attachable ACP agent, so surfacing its solver name there
+    would be misleading. The TUI's display layer already shows ``—``
+    for non-ACP rows; this keeps the wire payload consistent with
+    that intent.
+
+    Sample-id stringification mirrors :func:`list_picker_targets`.
+    """
+    listings: list[SampleListing] = []
+    for sample in active_samples():
+        session = sample.acp_session
+        if session is None or session.session_id == "noop":
+            session_id: str | None = None
+            agent_name: str | None = None
+        else:
+            session_id = session.session_id
+            agent_name = sample.agent_name
+        listings.append(
+            SampleListing(
+                session_id=session_id,
+                task=sample.task,
+                sample_id=str(sample.sample.id) if sample.sample.id is not None else "",
+                epoch=sample.epoch,
+                agent_name=agent_name,
+                started_at=sample.started,
+                total_tokens=sample.total_tokens,
+                fails_on_error=sample.fails_on_error,
+            )
+        )
+    return listings
 
 
 def resolve_selection(

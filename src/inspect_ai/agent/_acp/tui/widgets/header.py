@@ -71,12 +71,18 @@ def _short_task_name(name: str) -> str:
 
 
 class AppHeaderWidget(Widget):
-    """Slim tinted header — ``inspect acp`` only.
+    """Slim tinted header — ``inspect acp`` + transport target.
 
     Used by the picker (no session-specific meta to show yet) so the
     chrome reads as part of the same family as the session screen's
     header. Shares the visual treatment with :class:`SessionHeaderWidget`
     via duplicated CSS — kept small + standalone for clarity.
+
+    ``server`` is the ``--server`` CLI flag value (host:port or unix
+    path) or ``None`` for local auto-discovery. Rendered as a dim
+    suffix after the title so the operator can tell at a glance which
+    transport they're attached to (``inspect acp · local`` vs
+    ``inspect acp · 127.0.0.1:4545``).
     """
 
     DEFAULT_CSS = """
@@ -86,15 +92,29 @@ class AppHeaderWidget(Widget):
         background: $foreground 5%;
         margin-bottom: 1;
     }
+    AppHeaderWidget Horizontal { height: 1; }
     AppHeaderWidget .app-title {
         width: auto;
         color: $accent;
         text-style: bold;
+        padding-right: 1;
+    }
+    AppHeaderWidget .target {
+        width: auto;
+        color: $text-muted;
     }
     """
 
+    def __init__(self, *, server: str | None = None) -> None:
+        super().__init__()
+        self._server = server
+
     def compose(self) -> ComposeResult:
-        yield Static("inspect acp", classes="app-title", markup=False)
+        with Horizontal():
+            yield Static("inspect acp", classes="app-title", markup=False)
+            yield Static(
+                f"· {self._server or 'local'}", classes="target", markup=False
+            )
 
 
 class SessionHeaderWidget(Widget):

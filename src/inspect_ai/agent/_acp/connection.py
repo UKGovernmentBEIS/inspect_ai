@@ -48,9 +48,11 @@ from inspect_ai.agent._acp.inspect_ext import (
     build_picker_notification,
     detect_capabilities,
     picker_target_meta_dict,
+    sample_listing_meta_dict,
 )
 from inspect_ai.agent._acp.picker import (
     PickerTarget,
+    list_all_samples,
     list_picker_targets,
     resolve_selection,
 )
@@ -424,6 +426,25 @@ class ConnectionHandler:
                 for t in targets
             ]
         }
+
+    async def inspect_list_samples(self) -> dict[str, Any]:
+        """Enumerate ALL active samples — ACP-claimed and not.
+
+        Superset of :meth:`inspect_list_sessions`: includes samples
+        whose agent has not claimed ACP (no ``before_turn`` call yet,
+        or no ACP-aware scaffold). ACP-claimed entries carry the live
+        ``sessionId``; non-claimed entries set ``sessionId`` to
+        ``None``. The Inspect TUI consumes this so non-ACP samples
+        appear in the picker as dimmed + unselectable-on-attach rows
+        — the operator sees "the eval is running but I can't drive it"
+        rather than an empty picker.
+
+        Standard ACP clients (Zed et al.) continue to use
+        ``inspect/list_sessions`` (or the in-channel picker via
+        ``session/new``) which stays filtered to attachable targets.
+        """
+        listings = list_all_samples()
+        return {"samples": [sample_listing_meta_dict(listing) for listing in listings]}
 
     async def inspect_attach(
         self,

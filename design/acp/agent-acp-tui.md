@@ -423,24 +423,43 @@ Pivots from the original spec: the items it listed under "Ships" had largely lan
   - `tests/agent/test_acp/test_tui/test_events.py` — pure-function tests for the four `consume_*_event` builders, edge cases (missing fields, multi-line messages, blank bodies, non-JSON `data`), uuid-keyed dedup across all four event kinds, `ScoreChip.answer` extraction, chip-id uniqueness + ordering, formatter helpers.
   - `tests/agent/test_acp/test_tui/test_event_chip_widget.py` — pilot tests for each event kind's widget rendering (glyph, event word, per-kind CSS class), body-less / traceback-less variants compose cleanly, `_TracebackBlock` toggle, `_CollapsibleJSON` cap + two-way toggle + body-fits-no-note case, `ScoreChipWidget`'s migrated visual (leading ★ + purple `neutral` class, indicator-mode live spinner + timer, answer-row + explanation-block ordering, multi-line answer spacer).
 
-### Phase 8 — Picker theming / appearance / functionality
+### Phase 8 — Picker information density (non-ACP visibility + chrome polish) ✅
 
-Improvements to the attach picker — both visual polish and live-multi-sample ergonomics. The shipped picker is functional but minimal; this phase makes it pleasant to live with as evals proliferate and incorporates the original "multi-sample navigation" goal as one piece of the broader picker rework.
+Picker UX pass focused on making "what's actually running" obvious — including the case where an eval is up but none of its agents have claimed ACP. Pre-Phase-8 the picker was filtered server-side to ACP-attachable sessions only; a user running a non-ACP-aware scaffold saw an empty list and had no actionable signal. This phase surfaces every active sample with a clear visual + interaction distinction between attachable and not, and pairs it with a few small chrome fixes that landed in the same iteration.
+
+**Pivot from the original spec.** The original Phase 8 brief was visual polish + multi-sample navigation. The multi-sample swap (`^S reopens the picker in place`) was already shipped in the earlier transport+picker work and stayed unchanged; the visual-polish bullet folded into the broader information-density rework below. Empty-state typography refresh, hover / focus states, `^R` rescan, and additional filtering / sorting UI defer to a future polish pass — they didn't earn their own phase ahead of the non-ACP visibility gap, which was the active source of operator confusion.
 
 **Ships**
 
-- Visual refresh: typography pass, column tuning, hover / focus states matching the rest of the TUI chrome.
-- **Multi-sample navigation** — `^S` reopens the picker in place without exiting the App; drain the current session cleanly and attach to the selected one without a process restart.
-- Picker shows live status + running time across concurrent samples (exercises the `started_at` / running-secs field on the `inspect/list_sessions` response in the multi-sample case).
-- Refresh ergonomics — explicit `^R` rescan in addition to the existing periodic poll.
-- Filtering / sorting in-app (complements the existing `--eval-id` startup flag).
+- **`inspect/list_samples` enumeration** (`src/inspect_ai/agent/_acp/inspect_ext.py`, `src/inspect_ai/agent/_acp/picker.py`, `src/inspect_ai/agent/_acp/connection.py`) — new JSON-RPC method that returns ALL active samples (ACP-claimed and not). ACP-claimed entries carry the live `sessionId`; non-claimed entries set `sessionId: null` — the wire-level discriminator the TUI keys on. Sibling to `inspect/list_sessions` (which stays filtered to attachable targets for Zed / standard ACP clients). New `SampleListing` dataclass + `list_all_samples()` helper in `picker.py` mirror `PickerTarget` / `list_picker_targets()` exactly — same field set, same stringify rule for `sample.id`, same `noop`-session-counts-as-non-ACP treatment. The TUI's `_list_for_target` (`tui/client.py`) switches to `list_samples` and widens `SessionRow.session_id` to `str | None`; `attach_session` adds a precondition assert that the activation guard in the picker is supposed to satisfy.
+- **Non-ACP rows in the picker** (`src/inspect_ai/agent/_acp/tui/picker_screen.py`). The picker now shows every row `list_samples` returns, with the visual + interaction model differentiated:
+  - **Sort** (`_sort_rows`): primary key flips to `r.session_id is None` so ACP rows precede non-ACP rows; within each group the existing longest-running-first + deterministic-tiebreak rules apply unchanged.
+  - **Dimming** (`_sample_cell`, `_tokens_cell`, `_running_cell` grow a `dim: bool` param; `_populate_table` branches on `_is_acp(row)`): every cell on a non-ACP row carries `style="dim"` so the whole row reads as muted at a glance. The agent column shows `Text("—", style="dim")` instead of `row.agent_name`.
+  - **Row key** (`_row_key(row)`): DataTable doesn't accept `None` keys, so non-ACP rows synthesize a stable key from `(eval_id, sample_id, epoch)`. All `update_cell` / cursor-restore / row-highlight sites switched from raw `row.session_id` to `_row_key(row)`.
+  - **Activation guard** (`_activate(row)`, called from `action_attach` + `on_data_table_row_selected`): non-ACP rows toast `"No ACP-compatible agent for this sample — see https://inspect.aisi.org.uk/intervention.html"` (warning severity) instead of invoking the app's `on_select` callback. Cursor stays on the row; nothing else changes. The toast tells the operator both why the click did nothing AND how to make the sample attachable.
+- **Column header rename** (`_COL_AGENT_HEADER = "acp agent"`). The visible header makes the `—` placeholders self-explanatory. The column KEY stays `"agent"` so every `update_cell(_COL_AGENT, …)` site needs no audit.
+- **Status row hint** (`_status_markup`). When the visible rows include zero ACP-attachable samples, the heading flips to `"No ACP-compatible agents — see https://inspect.aisi.org.uk/intervention.html   N samples · M evals"`. Mixed views (at least one ACP row) keep the default `"Choose a running sample to connect to"` since the row dimming already telegraphs the split.
+- **Empty-state intervention link** (`_compose_empty`). Both branches (no-local-discovery and connected-to-remote-no-sessions) gain `Learn how to enable ACP in your agent: <https://inspect.aisi.org.uk/intervention.html>` at the end. The triple-filter-miss branch keeps its dedicated message unchanged.
+- **Title bar always names the transport** (`tui/app.py`). `inspect acp` (no `--server`) titles the app `"inspect acp · local"`; `inspect acp --server <addr>` echoes the address. The prior asymmetric form (no suffix when local) made it unclear at a glance which mode you were in.
+- **Right-aligned running column** (`_running_cell` helper, parallel to `_tokens_cell`). Both `_populate_table` and `_tick_running` route through the helper so the right-justify alignment survives every per-tick `update_cell` (a bare string would drop back to the column's default left alignment, same gotcha `_tokens_cell` already documents).
+- **`format_tokens(0)` → `—`** (`tui/widgets/_formatting.py`). Zero collapses to em-dash so the picker doesn't show a bare `0` for samples that haven't generated any model output yet — visually distinguishes "no data" from "small but non-zero". Non-zero values are unchanged.
 
-**Protocol extensions landed**: (none new — relies on the already-landed `inspect/list_sessions` payload).
+**Protocol extensions landed**: one. `inspect/list_samples` — listed in the Standard ACP compatibility table in [`agent-acp.md`](agent-acp.md). Non-Inspect clients continue to use `inspect/list_sessions` for the attachable subset; the new method exists purely for the Inspect TUI's information-density goal.
 
 **Acceptance**
 
-- Manual: multi-sample eval; navigate between two samples; transcripts switch cleanly; original session's notifications drained. Picker stays readable as evals come and go.
-- Automated: pilot test for the swap sequence; snapshot tests for picker visual states (empty / one eval / many evals / one sample greying out mid-display).
+- Manual (mixed): start two evals — one with `react()` (ACP-aware), one with a custom solver that doesn't open `acp_session()`. Run `inspect acp` in a third terminal. Picker shows both rows; ACP row first (normal styling), non-ACP row at the bottom dimmed with `—` in the `acp agent` column. Enter on the non-ACP row surfaces the toast with the intervention.html link; cursor stays put. Enter on the ACP row attaches normally.
+- Manual (title): `inspect acp` shows `inspect acp · local` in the title bar; `inspect acp --server 127.0.0.1:4545` shows `inspect acp · 127.0.0.1:4545`.
+- Manual (chrome): running column right-aligned (visual check against tokens); a completed sample with 0 tokens shows `—`.
+- Manual (empty + all-non-ACP): start only a non-ACP eval. Picker shows the dimmed row plus the status-row hint with the intervention link. Stop the eval; picker empties; empty state shows the bootstrap message AND the intervention link.
+- Automated: pure-function tests for `list_all_samples` / `sample_listing_meta_dict` / `_sort_rows`'s ACP-first key / `format_tokens(0)` / `_running_cell` alignment in `tests/agent/test_acp/test_picker.py` + `tests/agent/test_acp/test_tui/test_picker_screen.py`. Pilot tests for non-ACP row activation toast, non-ACP row dim rendering, status-row hint when zero ACP rows, empty-state link surfacing, title with/without `--server`. Socket integration tests in `tests/agent/test_acp/test_server_dispatch.py` cover the `inspect/list_samples` round trip: ACP + non-ACP + noop coverage, empty list, no-binding-required, null params.
+
+**Known v1 gaps (intentional)**
+
+- **No multi-sample navigation rework.** `^S reopens the picker in place` already shipped in the earlier transport+picker work; the original Phase 8 brief listed it as in-scope but there was nothing left to do.
+- **No additional in-app filtering / sorting controls** beyond the existing `/` filter. The non-ACP visibility work covered the main "I can't see what's happening" gap; richer sort/filter affordances defer to a future polish pass.
+- **No explicit `^R` rescan binding.** The 3-second periodic rescan already covers the live-update case; an explicit key is small but didn't earn its weight in this iteration.
+- **No typography refresh / hover / focus-state pass on the picker chrome.** Same reasoning — the information-density gap was load-bearing; aesthetic polish slips to a follow-up.
 
 ### Cross-cutting
 
