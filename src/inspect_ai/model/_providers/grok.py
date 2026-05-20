@@ -304,7 +304,7 @@ class GrokAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        """xAI rate-limits per model, so each model gets its own adaptive controller rather than one shared per key."""
+        """Scope per (key, model) since xAI rate-limits per model, not per key."""
         return f"{self.api_key}:{self.model_name}"
 
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
