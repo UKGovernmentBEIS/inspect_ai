@@ -5,6 +5,11 @@ from asyncio.subprocess import Process as AsyncIOProcess
 from typing import Literal, NamedTuple
 
 from inspect_sandbox_tools._util.common_types import ToolException
+from inspect_sandbox_tools._util.user_switch import (
+    get_home_dir,
+    is_current_user,
+    make_preexec,
+)
 
 from ._acked_chunk_buffer import AckedChunkBuffer
 from ._output_buffer import BoundedByteBuffer, DecodingBuffer
@@ -21,21 +26,6 @@ class OutputChunk(NamedTuple):
 
 _BACKPRESSURE_BUFFER_SIZE = 100 * 1024 * 1024  # 100 MiB
 _MAX_POLL_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MiB per poll response
-
-
-def _set_oom_score_adj() -> None:
-    """Set oom_score_adj in the child process before exec.
-
-    Called via preexec_fn so it runs after fork() but before exec(),
-    ensuring the shell and all its descendants inherit the adjusted score.
-    This makes child processes the preferred OOM-kill target, protecting the
-    sandbox tools server from the OOM killer.
-    """
-    try:
-        with open("/proc/self/oom_score_adj", "w") as f:
-            f.write("1000")
-    except OSError:
-        pass
 
 
 class Job:
@@ -55,6 +45,8 @@ class Job:
         stdin_open: bool = False,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
+        user: str | None = None,
+        can_switch_user: bool = False,
     ) -> "Job":
         """Create and start a new Job for the given command.
 
@@ -69,12 +61,27 @@ class Job:
                 for later write_stdin()/close_stdin() calls.
             env: Additional environment variables (merged with current env).
             cwd: Working directory for command execution.
+            user: User to run the command as (requires can_switch_user=True).
+            can_switch_user: Whether the server can switch users (running as root).
         """
+        # If the requested user matches the current process user, no setuid needed
+        if user is not None and is_current_user(user):
+            user = None
+        if user is not None and not can_switch_user:
+            raise ToolException(
+                f"Cannot switch to user {user!r}: server is not running as root"
+            )
+
         # Use stdin=PIPE if we have input to send or if stdin should stay open
         stdin = asyncio.subprocess.PIPE if (input is not None or stdin_open) else None
 
-        # Merge additional env vars with current environment if provided
-        subprocess_env = {**os.environ, **env} if env else None
+        # Merge additional env vars with current environment if provided.
+        # When switching user, set HOME from /etc/passwd to match docker exec --user.
+        subprocess_env: dict[str, str] | None = {**os.environ, **env} if env else None
+        if user is not None:
+            if subprocess_env is None:
+                subprocess_env = {**os.environ}
+            subprocess_env["HOME"] = get_home_dir(user)
 
         process = await asyncio.create_subprocess_shell(
             command,
@@ -84,7 +91,7 @@ class Job:
             start_new_session=True,
             env=subprocess_env,
             cwd=cwd,
-            preexec_fn=_set_oom_score_adj,
+            preexec_fn=make_preexec(user),
         )
 
         job = cls(process)

@@ -120,12 +120,24 @@ async def check_thinking_compaction(
     # Set the model so CompactionEdit can check compact_reasoning_history()
     compacted_messages, _ = await strategy.compact(model, messages, [])
 
-    # Verify thinking was removed (only if provider supports it)
+    # Verify visible reasoning was removed (only if provider supports it).
+    # Provider-specific replay anchors (e.g. Google's redacted ContentReasoning
+    # blocks carrying internal["gemini_function_call_id"]) survive compaction
+    # because they hold the thought_signature bytes the verifier requires on
+    # the next turn — they are not "thinking text" in the user-visible sense
+    # and should not count toward this assertion.
     thinking_turns = 0
     if model.api.compact_reasoning_history():
         for msg in compacted_messages:
             if isinstance(msg, ChatMessageAssistant) and isinstance(msg.content, list):
-                if any([isinstance(c, ContentReasoning) for c in msg.content]):
+                if any(
+                    isinstance(c, ContentReasoning)
+                    and not (
+                        isinstance(c.internal, dict)
+                        and "gemini_function_call_id" in c.internal
+                    )
+                    for c in msg.content
+                ):
                     thinking_turns += 1
     assert thinking_turns == 1, "Thinking blocks should have been removed"
 

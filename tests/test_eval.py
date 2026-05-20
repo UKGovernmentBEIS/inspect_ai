@@ -2,6 +2,7 @@ import functools
 from copy import deepcopy
 
 import pytest
+from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Epochs, Task, eval, eval_async
 from inspect_ai._util._async import tg_collect
@@ -78,6 +79,7 @@ def test_eval_approval_override():
     assert log.eval.config.approval == eval_approval
 
 
+@skip_if_no_docker
 def test_eval_sandbox_init_when_first_task_has_no_sandbox():
     """Check that Sandbox initialization runs when ANY task has a sandbox, not just the first."""
     results = eval(

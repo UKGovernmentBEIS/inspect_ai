@@ -1,14 +1,13 @@
 import fnmatch
 import inspect
 import logging
+import math
 import re
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Tuple, TypeGuard, cast, get_args, get_origin, get_type_hints
-
-import numpy as np
 
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.registry import (
@@ -295,7 +294,7 @@ def scorer_for_metrics(
     ## unscored_samples to note the number of samples that were not scored
     sample_scores_with_values = []
     for sample_score in sample_scores:
-        if not isinstance(sample_score.score.value, float) or not np.isnan(
+        if not isinstance(sample_score.score.value, float) or not math.isnan(
             sample_score.score.value
         ):
             sample_scores_with_values.append(sample_score)
@@ -379,10 +378,16 @@ def scorers_from_metric_dict(
 ) -> list[EvalScore]:
     results: list[EvalScore] = []
 
-    # Expand any metric keys
+    # Expand any metric keys. Use the first sample with a dict-valued score as
+    # the base for key globbing; samples with NaN-at-root (unscored sentinels)
+    # are skipped here and counted toward unscored_samples below.
+    base_score = next(
+        (s.score for s in sample_scores if isinstance(s.score.value, dict)),
+        None,
+    )
     resolved_metrics = (
-        resolve_glob_metric_keys(metrics, sample_scores[0].score)
-        if len(sample_scores) > 0
+        resolve_glob_metric_keys(metrics, base_score)
+        if base_score is not None
         else metrics
     )
 
@@ -396,14 +401,18 @@ def scorers_from_metric_dict(
         scored_samples = 0
 
         for sample_score in sample_scores:
-            if isinstance(sample_score.score.value, dict):
-                if metric_key in sample_score.score.value:
+            value = sample_score.score.value
+            # NaN-at-root is the unscored sentinel: count toward unscored_samples
+            # and skip without requiring the value to be a dict.
+            if isinstance(value, float) and math.isnan(value):
+                unscored_samples += 1
+                continue
+            if isinstance(value, dict):
+                if metric_key in value:
                     # Convert the score into a simple scalar value to apply metrics
                     metric_score = deepcopy(sample_score)
-                    metric_score.score.value = cast(
-                        float, sample_score.score.value[metric_key]
-                    )
-                    if isinstance(metric_score.score.value, float) and np.isnan(
+                    metric_score.score.value = cast(float, value[metric_key])
+                    if isinstance(metric_score.score.value, float) and math.isnan(
                         metric_score.score.value
                     ):
                         unscored_samples += 1

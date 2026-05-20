@@ -1,6 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: pip
+    versioning-strategy: lockfile-only
     directory: "/"
     schedule:
       interval: daily

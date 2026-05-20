@@ -2,6 +2,7 @@ import re
 import string
 from typing import Callable, List
 
+from inspect_ai._util.text import is_finite_number
 from inspect_ai.solver._task_state import TaskState
 
 from ._metric import CORRECT, INCORRECT, Score
@@ -63,7 +64,7 @@ def max_f1_score(
     # Find the maximum F1 score for this answer
     max_f1 = 0.0
     for target in targets:
-        if target[0].strip():
+        if target.strip():
             f1_score = compute_f1(answer, target, stop_words)
             max_f1 = max(max_f1, f1_score)
     return round(max_f1, 2)
@@ -74,7 +75,7 @@ def max_exact_score(answer: str, targets: List[str]) -> float:
     max_exact = 0.0
     answer_words = _to_words(answer)
     for target in targets:
-        if target[0].strip():
+        if target.strip():
             target_words = _to_words(target)
             exact_score = 1.0 if target_words == answer_words else 0.0
             max_exact = max(max_exact, exact_score)
@@ -113,14 +114,6 @@ def _f1(answer_words: set[str], target_words: set[str]) -> float:
     return f1
 
 
-def _is_number(text: str) -> bool:
-    try:
-        float(text)
-        return True
-    except ValueError:
-        return False
-
-
 def _remove_articles(text: str) -> str:
     _ARTICLES = re.compile(r"\b(a|an|the)\b", re.UNICODE)
     return _ARTICLES.sub(" ", text)
@@ -128,8 +121,7 @@ def _remove_articles(text: str) -> str:
 
 def _remove_punc(text: str) -> str:
     exclude = set(string.punctuation)
-    is_number = _is_number(text)
-    if not is_number:
+    if not is_finite_number(text):
         return "".join(ch for ch in text if ch not in exclude)
     else:
         return text
@@ -140,8 +132,7 @@ def _normalize_whitespace(text: str) -> str:
 
 
 def _normalize_number(text: str) -> str:
-    is_number = _is_number(text)
-    if is_number:
+    if is_finite_number(text):
         return str(float(text))
     else:
         return text

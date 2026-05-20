@@ -6,6 +6,7 @@ Generates per-page Markdown (.html.md) files and structured llms.txt output:
 3. Generates llms-full.txt and llms-guide.txt concatenated docs
 """
 
+import hashlib
 import os
 import re
 import subprocess
@@ -47,9 +48,7 @@ def main() -> None:
         generate_llms_full_and_guide(output_dir, opts)
 
 
-def generate_html_md_files(
-    output_dir: Path, output_files: list[Path] | None
-) -> None:
+def generate_html_md_files(output_dir: Path, output_files: list[Path] | None) -> None:
     """Convert rendered HTML pages to Markdown using pandoc."""
     if output_files is not None:
         # incremental: only process rendered HTML files
@@ -69,14 +68,17 @@ def generate_html_md_files(
         if str(rel).startswith("site_libs"):
             continue
 
-        md_path = html_path.with_name(
-            html_path.name.removesuffix(".html") + ".html.md"
-        )
+        md_path = html_path.with_name(html_path.name.removesuffix(".html") + ".html.md")
         convert_html_to_md(html_path, md_path)
 
 
 def convert_html_to_md(html_path: Path, md_path: Path) -> None:
-    """Run pandoc to convert an HTML file to GFM Markdown."""
+    """Run pandoc to convert an HTML file to GFM Markdown.
+
+    Cached: skips the pandoc subprocess when the inputs that drive it
+    (extracted main content, title, llms.lua mtime) are unchanged from
+    the previous run, recorded in a sidecar `<md_path>.sha` file.
+    """
     # Extract just the <main class="content"> section to avoid
     # converting navigation chrome that the Lua filter would need to strip.
     html_content = html_path.read_text(encoding="utf-8")
@@ -84,6 +86,24 @@ def convert_html_to_md(html_path: Path, md_path: Path) -> None:
 
     # Extract the title from the HTML
     title = extract_html_title(html_content)
+
+    # Cache key: hash the inputs the pandoc subprocess depends on.
+    # Including llms.lua's mtime invalidates the cache when the filter changes.
+    digest = hashlib.sha256()
+    digest.update(main_content.encode("utf-8"))
+    digest.update(b"|")
+    digest.update((title or "").encode("utf-8"))
+    digest.update(b"|")
+    digest.update(str(_LLMS_LUA.stat().st_mtime_ns).encode("ascii"))
+    sha = digest.hexdigest()
+
+    sha_path = md_path.with_suffix(md_path.suffix + ".sha")
+    if md_path.exists() and sha_path.exists():
+        try:
+            if sha_path.read_text().strip() == sha:
+                return  # cache hit -- skip pandoc
+        except OSError:
+            pass
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".html", delete=False, encoding="utf-8"
@@ -114,6 +134,7 @@ def convert_html_to_md(html_path: Path, md_path: Path) -> None:
             if title:
                 md_text = f"# {title}\n\n{md_text}"
             md_path.write_text(md_text, encoding="utf-8")
+            sha_path.write_text(sha)
     finally:
         os.unlink(tmp_path)
 

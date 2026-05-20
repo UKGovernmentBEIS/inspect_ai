@@ -1,3 +1,4 @@
+import re
 from collections.abc import Iterable
 
 from openai.types.responses import (
@@ -66,14 +67,35 @@ def tool_call_from_openai_computer_tool_call(
     )
 
 
+_GPT_VERSION_RE = re.compile(r"^gpt-(\d+)(?:\.(\d+))?")
+
+# GPT-family variants that don't advertise native computer-use support and
+# must fall back to the generic vision + function-tool path. See issue #3844
+# for the nano case; `instant` and `chat` variants are excluded for the same
+# reason.
+_COMPUTER_USE_EXCLUDED_VARIANTS = ("nano", "instant", "chat")
+
+
 def maybe_computer_use_tool(
     model_name: str, tool: ToolInfo
 ) -> ComputerToolParam | None:
-    return (
-        ComputerToolParam(type="computer")
-        if "gpt-5.4" in model_name and is_computer_tool_info(tool)
-        else None
-    )
+    if not is_computer_tool_info(tool):
+        return None
+    if not _supports_native_computer_use(model_name):
+        return None
+    return ComputerToolParam(type="computer")
+
+
+def _supports_native_computer_use(model_name: str) -> bool:
+    name = model_name.lower()
+    if any(variant in name for variant in _COMPUTER_USE_EXCLUDED_VARIANTS):
+        return False
+    match = _GPT_VERSION_RE.match(name)
+    if not match:
+        return False
+    major = int(match.group(1))
+    minor = int(match.group(2)) if match.group(2) else 0
+    return (major, minor) >= (5, 4)
 
 
 def computer_call_output(

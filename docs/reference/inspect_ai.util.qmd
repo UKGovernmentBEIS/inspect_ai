@@ -24,12 +24,14 @@ description: Miscellaneous utility functions.
 ### SampleLimits
 ### Limit
 ### LimitExceededError
+### suspend_token_limit
 
 ## Concurrency
 
 ### concurrency
 ### subprocess
 ### ExecResult
+### AdaptiveConcurrency
 
 ## Display
 
@@ -42,13 +44,16 @@ description: Miscellaneous utility functions.
 
 ### span
 ### current_span_id
+### span_id_provider
 ### collect
-### resource
 ### throttle
 ### background
 ### trace_action
 ### trace_message
-
+### media_resolver
+### resource
+### download
+### gdrive_download
 
 ## Sandbox
 

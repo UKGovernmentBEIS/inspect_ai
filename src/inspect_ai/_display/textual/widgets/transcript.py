@@ -3,7 +3,6 @@ from typing import Any, Callable, NamedTuple, Sequence, Type
 from pydantic import JsonValue
 from pydantic_core import to_json
 from rich.console import Group, RenderableType
-from rich.markdown import Markdown
 from rich.table import Table
 from rich.text import Text
 from textual.containers import ScrollableContainer
@@ -107,6 +106,8 @@ class TranscriptView(ScrollableContainer):
     def _widgets_for_events(
         self, events: Sequence[Event], limit: int = 15
     ) -> list[Widget]:
+        from rich.markdown import Markdown
+
         widgets: list[Widget] = []
 
         # function to append content
@@ -264,6 +265,8 @@ def render_model_event(event: ModelEvent) -> EventDisplay:
 
 
 def render_sub_events(events: list[Event]) -> list[RenderableType]:
+    from rich.markdown import Markdown
+
     content: list[RenderableType] = []
     for e in events:
         event_displays = render_event(e) or []
@@ -330,10 +333,8 @@ def render_info_event(event: InfoEvent) -> EventDisplay:
 
 def render_branch_event(event: BranchEvent) -> EventDisplay:
     branch: dict[str, JsonValue] = {}
-    if event.from_span is not None:
-        branch["from_span"] = event.from_span
-    if event.from_message is not None:
-        branch["from_message"] = event.from_message
+    if event.from_anchor:
+        branch["from_anchor"] = event.from_anchor
     if event.metadata:
         branch["metadata"] = event.metadata
 

@@ -2,7 +2,7 @@ import pytest
 from test_helpers.utils import simple_task_state
 
 from inspect_ai.scorer import Target
-from inspect_ai.scorer._classification import exact, f1
+from inspect_ai.scorer._classification import exact, f1, max_exact_score, max_f1_score
 from inspect_ai.scorer._metric import CORRECT, INCORRECT
 
 
@@ -85,3 +85,17 @@ async def test_stop_words2():
     result = await scorer(state, Target(["Paris, Texas"]))
 
     assert result.text == "1.0"
+
+
+def test_max_score_target_leading_whitespace():
+    # Targets with leading whitespace must not be silently skipped — the
+    # whole target string is checked, not just its first character.
+    assert max_f1_score("hello", [" hello"]) == 1.0
+    assert max_exact_score("hello", [" hello"]) == 1.0
+
+
+def test_max_score_empty_target_no_index_error():
+    # An empty target string should be skipped, not raise IndexError.
+    assert max_f1_score("hello", [""]) == 0.0
+    assert max_exact_score("hello", [""]) == 0.0
+    assert max_f1_score("hello", ["", "hello"]) == 1.0

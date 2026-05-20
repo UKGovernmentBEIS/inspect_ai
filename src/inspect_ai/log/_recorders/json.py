@@ -30,7 +30,7 @@ from .._log import (
     EvalStatus,
     sort_samples,
 )
-from .._pool import resolve_sample_events_data
+from .._pool import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3_conditional
 from .file import FileRecorder
 
@@ -142,7 +142,10 @@ class JSONRecorder(FileRecorder):
         # resolve condensed events data (input_refs/call_refs -> input/call)
         # so callers see fully populated ModelEvent.input fields
         if log.data.samples:
-            log.data.samples = [resolve_sample_events_data(s) for s in log.data.samples]
+            log.data.samples = [
+                rebind_sample_timelines(resolve_sample_events_data(s))
+                for s in log.data.samples
+            ]
 
         # return the log
         return log.data
@@ -348,7 +351,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
             elif k == "eval":
                 eval = EvalSpec.model_validate(v, context=get_deserializing_context())
             elif k == "plan":
-                plan = EvalPlan.model_validate(v)
+                plan = EvalPlan.model_validate(v, context=get_deserializing_context())
             elif k == "results":
                 results = EvalResults.model_validate(v)
             elif k == "stats":

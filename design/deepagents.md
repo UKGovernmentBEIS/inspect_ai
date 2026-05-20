@@ -270,7 +270,7 @@ The reference frameworks implement a mix of context-management strategies to kee
 
 4. **Mid-turn compaction.** Codex CLI supports compaction during a streaming model response — injecting a summary mid-turn when the context limit is hit during generation.
 
-**Inspect status:** Inspect already bounds tool output via `max_tool_output` (default 16 KiB), which prevents runaway tool results from saturating context. `deepagent()` v1 should lean into this existing behavior: read-only filesystem tools should support explicit ranges/limits, `grep()` should be bounded, and truncation messages should make it clear how to retrieve narrower context. Inspect also has compaction infrastructure (`CompactionEdit`, `CompactionTrim`, `CompactionSummary`, native provider compaction) wired through `react()`, and `deepagent()` exposes compaction configuration via the existing `compaction=` parameter. Durable large-output eviction can be considered later if capped outputs prove too lossy, but it is not a v1 requirement.
+**Inspect status:** Inspect already bounds tool output via `max_tool_output` (default 16 KiB), which prevents runaway tool results from saturating context. `deepagent()` v1 should lean into this existing behavior: read-only filesystem tools should support explicit ranges/limits, `grep()` should be bounded, and truncation messages should make it clear how to retrieve narrower context. Inspect also has compaction infrastructure (`CompactionEdit`, `CompactionTrim`, `CompactionSummary`, native provider compaction) wired through `react()`. `deepagent()` defaults to `CompactionAuto` (native-first with summary fallback), so compaction is active out of the box. Users can override with a specific strategy or pass `compaction=None` to disable. Durable large-output eviction can be considered later if capped outputs prove too lossy, but it is not a v1 requirement.
 
 #### Parallel subagent execution
 
@@ -460,7 +460,7 @@ def deepagent(
     skills: list[Skill] | None = None,
     instructions: str | None = None,
     prompt: str | None = None,                      # full replacement with placeholders
-    compaction: CompactionStrategy | None = None,
+    compaction: CompactionStrategy | Literal["auto"] | None = "auto",  # CompactionAuto by default
     max_depth: int = 1,                             # max subagent recursion depth
     model: str | Model | None = None,
     submit: AgentSubmit | bool | None = None,

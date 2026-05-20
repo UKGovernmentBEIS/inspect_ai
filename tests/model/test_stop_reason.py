@@ -67,4 +67,4 @@ async def test_grok_stop_reason() -> None:
 @skip_if_no_together
 @skip_if_trio
 async def test_together_stop_reason() -> None:
-    await check_stop_reason("together/MiniMaxAI/MiniMax-M2.5")
+    await check_stop_reason("together/MiniMaxAI/MiniMax-M2.7")

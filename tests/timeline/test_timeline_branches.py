@@ -89,15 +89,14 @@ def _span_end(
 
 
 def _branch_event(
-    *, uuid: str, span_id: str, ts: float, from_span: str, from_message: str
+    *, uuid: str, span_id: str, ts: float, from_anchor: str
 ) -> BranchEvent:
     return BranchEvent(
         uuid=uuid,
         span_id=span_id,
         timestamp=_ts(ts),
         working_start=ts,
-        from_span=from_span,
-        from_message=from_message,
+        from_anchor=from_anchor,
     )
 
 
@@ -131,13 +130,7 @@ def test_branch_with_branch_event_creates_branch_span() -> None:
             name="branch",
             span_type="branch",
         ),
-        _branch_event(
-            uuid="be1",
-            span_id="branch-1",
-            ts=3.1,
-            from_span="agent",
-            from_message="msg-1",
-        ),
+        _branch_event(uuid="be1", span_id="branch-1", ts=3.1, from_anchor="msg-1"),
         _model_event(uuid="m3", span_id="branch-1", ts=4, output_message_id="msg-3"),
         _span_end(uuid="se2", id="branch-1", parent_id="agent", ts=5),
         _span_end(uuid="se1", id="agent", ts=6),
@@ -184,63 +177,6 @@ def test_branch_without_branch_event_becomes_content() -> None:
     assert len(model_events) == 2
 
 
-def test_nested_branch_relocated_to_parent_branch() -> None:
-    """Branch 2 forking from branch 1 is nested inside branch 1."""
-    events: list[Event] = [
-        _span_begin(uuid="sb1", id="agent", ts=0, name="main", span_type="agent"),
-        _model_event(uuid="m1", span_id="agent", ts=1, output_message_id="msg-1"),
-        _span_begin(
-            uuid="sb2",
-            id="branch-1",
-            parent_id="agent",
-            ts=2,
-            name="branch",
-            span_type="branch",
-        ),
-        _branch_event(
-            uuid="be1",
-            span_id="branch-1",
-            ts=2.1,
-            from_span="agent",
-            from_message="msg-1",
-        ),
-        _model_event(uuid="m2", span_id="branch-1", ts=3, output_message_id="msg-2"),
-        _span_end(uuid="se2", id="branch-1", parent_id="agent", ts=4),
-        _span_begin(
-            uuid="sb3",
-            id="branch-2",
-            parent_id="agent",
-            ts=5,
-            name="branch",
-            span_type="branch",
-        ),
-        _branch_event(
-            uuid="be2",
-            span_id="branch-2",
-            ts=5.1,
-            from_span="branch-1",
-            from_message="msg-2",
-        ),
-        _model_event(uuid="m3", span_id="branch-2", ts=6, output_message_id="msg-3"),
-        _span_end(uuid="se3", id="branch-2", parent_id="agent", ts=7),
-        _span_end(uuid="se1", id="agent", ts=8),
-    ]
-
-    timeline = timeline_build(events)
-    agent = _find_span(timeline.root, "agent")
-    assert agent is not None
-
-    # Agent should have 1 branch (branch 1); branch 2 was relocated
-    assert len(agent.branches) == 1
-    branch1 = agent.branches[0]
-    assert branch1.branched_from == "msg-1"
-
-    # Branch 1 should have 1 nested branch (branch 2)
-    assert len(branch1.branches) == 1
-    branch2 = branch1.branches[0]
-    assert branch2.branched_from == "msg-2"
-
-
 def test_branched_from_stores_message_id() -> None:
     """branched_from stores the message_id directly from BranchEvent."""
     events: list[Event] = [
@@ -256,13 +192,7 @@ def test_branched_from_stores_message_id() -> None:
             name="branch",
             span_type="branch",
         ),
-        _branch_event(
-            uuid="be1",
-            span_id="branch-1",
-            ts=4.1,
-            from_span="agent",
-            from_message="msg-B",
-        ),
+        _branch_event(uuid="be1", span_id="branch-1", ts=4.1, from_anchor="msg-B"),
         _model_event(uuid="m4", span_id="branch-1", ts=5, output_message_id="msg-D"),
         _span_end(uuid="se2", id="branch-1", parent_id="agent", ts=6),
         _span_end(uuid="se1", id="agent", ts=7),

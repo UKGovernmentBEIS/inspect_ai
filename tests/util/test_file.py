@@ -115,7 +115,7 @@ def test_to_uri_idempotent() -> None:
 
 async def test_cleanup_s3_sessions_no_instances() -> None:
     """cleanup_s3_sessions is a no-op when there are no cached instances."""
-    with patch("inspect_ai._util.file.S3FileSystem") as mock_s3fs:
+    with patch("s3fs.S3FileSystem") as mock_s3fs:
         mock_s3fs._cache = {}
         await cleanup_s3_sessions()
         mock_s3fs.clear_instance_cache.assert_not_called()
@@ -127,7 +127,7 @@ async def test_cleanup_s3_sessions_closes_creator() -> None:
     mock_instance = MagicMock()
     mock_instance._s3creator = mock_creator
 
-    with patch("inspect_ai._util.file.S3FileSystem") as mock_s3fs:
+    with patch("s3fs.S3FileSystem") as mock_s3fs:
         mock_s3fs._cache = {"key": mock_instance}
         await cleanup_s3_sessions()
 
@@ -146,7 +146,7 @@ async def test_cleanup_s3_sessions_handles_errors() -> None:
     mock_instance2 = MagicMock()
     mock_instance2._s3creator = mock_creator2
 
-    with patch("inspect_ai._util.file.S3FileSystem") as mock_s3fs:
+    with patch("s3fs.S3FileSystem") as mock_s3fs:
         mock_s3fs._cache = {"k1": mock_instance, "k2": mock_instance2}
         await cleanup_s3_sessions()
 
@@ -158,7 +158,7 @@ async def test_cleanup_s3_sessions_no_s3creator() -> None:
     """cleanup_s3_sessions skips instances without _s3creator."""
     mock_instance = MagicMock(spec=[])
 
-    with patch("inspect_ai._util.file.S3FileSystem") as mock_s3fs:
+    with patch("s3fs.S3FileSystem") as mock_s3fs:
         mock_s3fs._cache = {"key": mock_instance}
         await cleanup_s3_sessions()
 

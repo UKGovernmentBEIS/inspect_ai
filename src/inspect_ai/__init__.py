@@ -8,6 +8,7 @@ from inspect_ai._eval.list import list_tasks
 from inspect_ai._eval.registry import task
 from inspect_ai._eval.score import score, score_async
 from inspect_ai._eval.task import Epochs, Task, TaskInfo, task_with
+from inspect_ai._eval.task.scan import ScannerConfig, Scanners
 from inspect_ai._eval.task.tasks import Tasks
 from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._view.view import view
@@ -32,6 +33,8 @@ __all__ = [
     "edit_score",
     "recompute_metrics",
     "Epochs",
+    "Scanners",
+    "ScannerConfig",
     "Task",
     "Tasks",
     "TaskInfo",

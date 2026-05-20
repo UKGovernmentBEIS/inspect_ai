@@ -27,6 +27,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_tag,
 )
+from inspect_ai._util.text import is_finite_number
 from inspect_ai.log._edit import ProvenanceData
 
 logger = getLogger(__name__)
@@ -95,6 +96,28 @@ class Score(BaseModel):
 
     history: list[ScoreEdit] = Field(default_factory=list)
     """Edit history - users can access intermediate states."""
+
+    @classmethod
+    def unscored(
+        cls,
+        *,
+        answer: str | None = None,
+        explanation: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> "Score":
+        """Construct a Score that is preserved but excluded from metrics and reducers.
+
+        Use this when a scorer cannot produce a value for a sample but you
+        still want to record context (answer, explanation, metadata). Sets
+        `value` to NaN, which is the canonical sentinel that aggregate
+        metrics and reducers skip.
+        """
+        return cls(
+            value=float("nan"),
+            answer=answer,
+            explanation=explanation,
+            metadata=metadata,
+        )
 
     @property
     def text(self) -> str:
@@ -216,7 +239,7 @@ def value_to_float(
                 return 1.0
             elif value in ["no", "false"]:
                 return 0.0
-            elif is_number(value):
+            elif is_finite_number(value):
                 return float(value)
 
         # couldn't extract a value
@@ -224,14 +247,6 @@ def value_to_float(
         return 0.0
 
     return to_float
-
-
-def is_number(s: str) -> bool:
-    try:
-        float(s)
-        return True
-    except ValueError:
-        return False
 
 
 @runtime_checkable

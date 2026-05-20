@@ -1,6 +1,138 @@
 {
   "components": {
     "schemas": {
+      "AdaptiveConcurrency": {
+        "description": "Bounds and tuning for an adaptive concurrency controller.\n\nBasic fields (`min`, `start`, `max`) bound the range the controller will\nscale within. Advanced fields (`cooldown_seconds`, `decrease_factor`,\n`scale_up_percent`) tune the response curve and have sensible defaults\nfor typical evaluation workloads \u2014 see the parallelism docs for guidance.\nAccepts a string shorthand (\"min-max\" or \"min-start-max\") for use in CLI\nflags and config files; advanced fields are Python-only.",
+        "properties": {
+          "cooldown_seconds": {
+            "default": 15.0,
+            "title": "Cooldown Seconds",
+            "type": "number"
+          },
+          "decrease_factor": {
+            "default": 0.8,
+            "title": "Decrease Factor",
+            "type": "number"
+          },
+          "max": {
+            "default": 100,
+            "title": "Max",
+            "type": "integer"
+          },
+          "min": {
+            "default": 4,
+            "title": "Min",
+            "type": "integer"
+          },
+          "scale_up_percent": {
+            "default": 0.05,
+            "title": "Scale Up Percent",
+            "type": "number"
+          },
+          "start": {
+            "default": 20,
+            "title": "Start",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "max",
+          "start",
+          "cooldown_seconds",
+          "decrease_factor",
+          "scale_up_percent"
+        ],
+        "title": "AdaptiveConcurrency",
+        "type": "object"
+      },
+      "AnchorEvent": {
+        "description": "Marks a rollback-able point in a replayable trajectory.\n\nEmitted by an orchestrator immediately after a step it can later roll\nback to (a staged message, a model generate, etc.). Carries no content;\n``anchor_id`` is the addressable identifier that ``TimelineSpan.branched_from``\nreferences. Hidden from the viewer transcript by default.",
+        "properties": {
+          "anchor_id": {
+            "title": "Anchor Id",
+            "type": "string"
+          },
+          "event": {
+            "const": "anchor",
+            "default": "anchor",
+            "title": "Event",
+            "type": "string"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "anchor_id"
+        ],
+        "title": "AnchorEvent",
+        "type": "object"
+      },
       "ApprovalEvent": {
         "description": "Tool approval.",
         "properties": {
@@ -288,7 +420,7 @@
         "type": "object"
       },
       "BranchEvent": {
-        "description": "Branch in conversation history.",
+        "description": "Marks where a branched trajectory's unique content begins.\n\nEmitted at the point where a branch transitions from replaying its\nparent's prefix to live execution. Events before this in the trajectory's\nspan are replay-phase re-execution; events after are the branch's\ngenuine new content.",
         "properties": {
           "event": {
             "const": "branch",
@@ -296,12 +428,9 @@
             "title": "Event",
             "type": "string"
           },
-          "from_message": {
-            "title": "From Message",
-            "type": "string"
-          },
-          "from_span": {
-            "title": "From Span",
+          "from_anchor": {
+            "default": "",
+            "title": "From Anchor",
             "type": "string"
           },
           "metadata": {
@@ -362,10 +491,34 @@
           "timestamp",
           "working_start",
           "event",
-          "from_span",
-          "from_message"
+          "from_anchor"
         ],
         "title": "BranchEvent",
+        "type": "object"
+      },
+      "BudgetPercent": {
+        "description": "Fire at percentage milestones of a named budget. Not yet implemented (Phase 5).\n\nExample: ``BudgetPercent(budget=\"cost\", percent=10)`` fires at 10%, 20%, \u2026\nof the ``cost_limit`` configured on the task or sample.",
+        "properties": {
+          "budget": {
+            "enum": [
+              "token",
+              "cost",
+              "time",
+              "working"
+            ],
+            "title": "Budget",
+            "type": "string"
+          },
+          "percent": {
+            "title": "Percent",
+            "type": "number"
+          }
+        },
+        "required": [
+          "budget",
+          "percent"
+        ],
+        "title": "BudgetPercent",
         "type": "object"
       },
       "CachePolicy": {
@@ -947,6 +1100,68 @@
         "title": "ChatMessageUser",
         "type": "object"
       },
+      "CheckpointSampleConfig": {
+        "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_dir`` and\n``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.\n\nSee ``design/plans/checkpointing-working.md`` \u00a72.",
+        "properties": {
+          "max_consecutive_failures": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Consecutive Failures"
+          },
+          "sandbox_paths": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sandbox Paths"
+          },
+          "trigger": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeInterval"
+              },
+              {
+                "$ref": "#/components/schemas/TurnInterval"
+              },
+              {
+                "$ref": "#/components/schemas/TokenInterval"
+              },
+              {
+                "$ref": "#/components/schemas/CostInterval"
+              },
+              {
+                "$ref": "#/components/schemas/BudgetPercent"
+              },
+              {
+                "const": "manual",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger"
+          }
+        },
+        "title": "CheckpointSampleConfig",
+        "type": "object"
+      },
       "Citation": {
         "discriminator": {
           "mapping": {
@@ -1082,6 +1297,45 @@
           "type"
         ],
         "title": "CompactionEvent",
+        "type": "object"
+      },
+      "ConnectionLimitChange": {
+        "description": "Record of an adaptive-connections controller scale change.",
+        "properties": {
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "new_limit": {
+            "title": "New Limit",
+            "type": "integer"
+          },
+          "old_limit": {
+            "title": "Old Limit",
+            "type": "integer"
+          },
+          "reason": {
+            "enum": [
+              "slow_start",
+              "steady_state_up",
+              "rate_limit"
+            ],
+            "title": "Reason",
+            "type": "string"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "model",
+          "old_limit",
+          "new_limit",
+          "reason"
+        ],
+        "title": "ConnectionLimitChange",
         "type": "object"
       },
       "Content": {
@@ -1581,6 +1835,20 @@
           "format"
         ],
         "title": "ContentVideo",
+        "type": "object"
+      },
+      "CostInterval": {
+        "description": "Fire every $N spent. Not yet implemented (Phase 5).",
+        "properties": {
+          "every": {
+            "title": "Every",
+            "type": "number"
+          }
+        },
+        "required": [
+          "every"
+        ],
+        "title": "CostInterval",
         "type": "object"
       },
       "DocumentCitation": {
@@ -2154,6 +2422,17 @@
             ],
             "title": "Score Display"
           },
+          "score_on_error": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score On Error"
+          },
           "time_limit": {
             "anyOf": [
               {
@@ -2636,6 +2915,9 @@
                       "$ref": "#/components/schemas/ToolEvent"
                     },
                     {
+                      "$ref": "#/components/schemas/AnchorEvent"
+                    },
+                    {
                       "$ref": "#/components/schemas/ApprovalEvent"
                     },
                     {
@@ -2827,6 +3109,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/ToolEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/AnchorEvent"
                 },
                 {
                   "$ref": "#/components/schemas/ApprovalEvent"
@@ -4100,6 +4385,13 @@
             ],
             "title": "Completed At"
           },
+          "connection_limit_history": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectionLimitChange"
+            },
+            "title": "Connection Limit History",
+            "type": "array"
+          },
           "model_usage": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ModelUsage"
@@ -4131,7 +4423,8 @@
           "started_at",
           "completed_at",
           "model_usage",
-          "role_usage"
+          "role_usage",
+          "connection_limit_history"
         ],
         "title": "EvalStats",
         "type": "object"
@@ -4158,6 +4451,9 @@
           },
           {
             "$ref": "#/components/schemas/ToolEvent"
+          },
+          {
+            "$ref": "#/components/schemas/AnchorEvent"
           },
           {
             "$ref": "#/components/schemas/ApprovalEvent"
@@ -4278,6 +4574,23 @@
       "GenerateConfig": {
         "description": "Model generation options.",
         "properties": {
+          "adaptive_connections": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "$ref": "#/components/schemas/AdaptiveConcurrency"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adaptive Connections"
+          },
           "attempt_timeout": {
             "anyOf": [
               {
@@ -4731,6 +5044,156 @@
           }
         },
         "title": "GenerateConfig",
+        "type": "object"
+      },
+      "GrepSearchInput": {
+        "additionalProperties": false,
+        "description": "A persisted grep search input.",
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "ignore_case": {
+            "title": "Ignore Case",
+            "type": "boolean"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "regex": {
+            "title": "Regex",
+            "type": "boolean"
+          },
+          "search_id": {
+            "title": "Search Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "grep",
+            "default": "grep",
+            "title": "Type",
+            "type": "string"
+          },
+          "word_boundary": {
+            "title": "Word Boundary",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "search_id",
+          "query",
+          "created_at",
+          "type",
+          "regex",
+          "ignore_case",
+          "word_boundary"
+        ],
+        "title": "GrepSearchInput",
+        "type": "object"
+      },
+      "GrepSearchRequest": {
+        "additionalProperties": false,
+        "description": "Request body for grep transcript searches.",
+        "properties": {
+          "events": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "model",
+                        "tool",
+                        "compaction",
+                        "branch",
+                        "approval",
+                        "sandbox",
+                        "info",
+                        "store",
+                        "logger",
+                        "error",
+                        "span_begin",
+                        "span_end"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Events"
+          },
+          "ignore_case": {
+            "default": true,
+            "title": "Ignore Case",
+            "type": "boolean"
+          },
+          "messages": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "enum": [
+                    "system",
+                    "user",
+                    "assistant",
+                    "tool"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Messages"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "regex": {
+            "default": false,
+            "title": "Regex",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "grep",
+            "default": "grep",
+            "title": "Type",
+            "type": "string"
+          },
+          "word_boundary": {
+            "default": false,
+            "title": "Word Boundary",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query",
+          "type",
+          "regex",
+          "ignore_case",
+          "word_boundary"
+        ],
+        "title": "GrepSearchRequest",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -5206,6 +5669,145 @@
         "type": "object"
       },
       "JsonValue": {},
+      "LlmSearchInput": {
+        "additionalProperties": false,
+        "description": "A persisted LLM search input.",
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "search_id": {
+            "title": "Search Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "llm",
+            "default": "llm",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "search_id",
+          "query",
+          "created_at",
+          "type"
+        ],
+        "title": "LlmSearchInput",
+        "type": "object"
+      },
+      "LlmSearchRequest": {
+        "additionalProperties": false,
+        "description": "Request body for LLM transcript searches.",
+        "properties": {
+          "events": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "model",
+                        "tool",
+                        "compaction",
+                        "branch",
+                        "approval",
+                        "sandbox",
+                        "info",
+                        "store",
+                        "logger",
+                        "error",
+                        "span_begin",
+                        "span_end"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Events"
+          },
+          "messages": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "enum": [
+                    "system",
+                    "user",
+                    "assistant",
+                    "tool"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Messages"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "type": {
+            "const": "llm",
+            "default": "llm",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "type"
+        ],
+        "title": "LlmSearchRequest",
+        "type": "object"
+      },
       "LogDirResponse": {
         "properties": {
           "log_dir": {
@@ -6235,6 +6837,33 @@
         "title": "OutlineNode",
         "type": "object"
       },
+      "PendingSampleUrls": {
+        "properties": {
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "has_more": {
+            "default": false,
+            "title": "Has More",
+            "type": "boolean"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentRef"
+            },
+            "title": "Segments",
+            "type": "array"
+          }
+        },
+        "required": [
+          "segments",
+          "complete",
+          "has_more"
+        ],
+        "title": "PendingSampleUrls",
+        "type": "object"
+      },
       "ProvenanceData": {
         "description": "Metadata about who made an edit and why.",
         "properties": {
@@ -6270,6 +6899,40 @@
           "metadata"
         ],
         "title": "ProvenanceData",
+        "type": "object"
+      },
+      "Reference": {
+        "description": "Reference to scanned content.",
+        "properties": {
+          "cite": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cite"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "message",
+              "event"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "Reference",
         "type": "object"
       },
       "ResponseSchema": {
@@ -6312,9 +6975,107 @@
         "title": "ResponseSchema",
         "type": "object"
       },
+      "Result": {
+        "description": "Scan result.",
+        "properties": {
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonValue"
+          }
+        },
+        "required": [
+          "value",
+          "references"
+        ],
+        "title": "Result",
+        "type": "object"
+      },
       "Sample": {
         "description": "Sample for an evaluation task.",
         "properties": {
+          "checkpoint": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CheckpointSampleConfig"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "choices": {
             "anyOf": [
               {
@@ -6661,6 +7422,72 @@
         "title": "SampleLimitEvent",
         "type": "object"
       },
+      "SampleScoreView": {
+        "description": "How the sample-header score panel should render when there are 3 or more scores.",
+        "properties": {
+          "sort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SampleScoreViewSort"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "view": {
+            "anyOf": [
+              {
+                "enum": [
+                  "chips",
+                  "grid"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "View"
+          }
+        },
+        "title": "SampleScoreView",
+        "type": "object"
+      },
+      "SampleScoreViewSort": {
+        "description": "Default sort applied to the sample-header score panel.",
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "enum": [
+                  "name",
+                  "value"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Column"
+          },
+          "dir": {
+            "default": "asc",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dir"
+        ],
+        "title": "SampleScoreViewSort",
+        "type": "object"
+      },
       "Samples": {
         "properties": {
           "etag": {
@@ -6693,6 +7520,190 @@
           "etag"
         ],
         "title": "Samples",
+        "type": "object"
+      },
+      "SamplesColumn": {
+        "description": "A column entry in the task's Sample List view.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "visible": {
+            "default": true,
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "visible"
+        ],
+        "title": "SamplesColumn",
+        "type": "object"
+      },
+      "SamplesSort": {
+        "description": "A single sort entry for the task's Sample List grid.",
+        "properties": {
+          "column": {
+            "title": "Column",
+            "type": "string"
+          },
+          "dir": {
+            "default": "asc",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "column",
+          "dir"
+        ],
+        "title": "SamplesSort",
+        "type": "object"
+      },
+      "SamplesView": {
+        "description": "Default configuration for the task's Sample List grid.\n\nConfigures the list of samples shown in a task's eval-log view \u2014\ndistinct from `sample_score_view`, which configures the score panel\nwithin an individual sample's detail view.\n\nThe viewer applies `SamplesView` only when the user has not\nexplicitly overridden the view in their browser. User overrides\nshadow the eval-author default; the resolution priority is\n`user > eval default > built-in`.",
+        "properties": {
+          "color_scales_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Scales Enabled"
+          },
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SamplesColumn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Columns"
+          },
+          "compact_scores": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compact Scores"
+          },
+          "filter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filter"
+          },
+          "multiline": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multiline"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "score_color_scales": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "good-high",
+                        "good-low",
+                        "neutral",
+                        "diverging"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ScoreColorScale"
+                    },
+                    {
+                      "additionalProperties": {
+                        "enum": [
+                          "good",
+                          "bad",
+                          "warn",
+                          "info",
+                          "muted"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Color Scales"
+          },
+          "score_labels": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Labels"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SamplesSort"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "SamplesView",
         "type": "object"
       },
       "SandboxEnvironmentSpec": {
@@ -6921,7 +7932,7 @@
         "type": "object"
       },
       "ScannerResultView": {
-        "description": "How the scann results should render the results.",
+        "description": "Customizes the rendering of scanner results.",
         "properties": {
           "exclude_fields": {
             "items": {
@@ -7079,6 +8090,48 @@
           "history"
         ],
         "title": "Score",
+        "type": "object"
+      },
+      "ScoreColorScale": {
+        "description": "A numeric `score_color_scales` entry with an explicit value range.\n\nBy default the viewer anchors a named palette at the descriptor's\nauto-detected min/max, which is the *observed* range across the\nlog's samples. When the score has a known *conceptual* range \u2014\ne.g. an alignment-judge dimension that's always graded 1..10 \u2014\npin it via `min`/`max` so middling values don't get paint-clamped\nto the extremes when the observed data happens to cluster at one\nend. Either bound can be omitted to fall back to the descriptor's\ndetection for that side.",
+        "properties": {
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "palette": {
+            "enum": [
+              "good-high",
+              "good-low",
+              "neutral",
+              "diverging"
+            ],
+            "title": "Palette",
+            "type": "string"
+          }
+        },
+        "required": [
+          "palette"
+        ],
+        "title": "ScoreColorScale",
         "type": "object"
       },
       "ScoreEdit": {
@@ -7359,6 +8412,29 @@
           "score": {
             "$ref": "#/components/schemas/Score"
           },
+          "scorer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorer"
+          },
+          "scorer_args": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scorer Args"
+          },
           "span_id": {
             "anyOf": [
               {
@@ -7415,6 +8491,87 @@
           "intermediate"
         ],
         "title": "ScoreEvent",
+        "type": "object"
+      },
+      "SearchInput": {
+        "discriminator": {
+          "mapping": {
+            "grep": "#/components/schemas/GrepSearchInput",
+            "llm": "#/components/schemas/LlmSearchInput"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/GrepSearchInput"
+          },
+          {
+            "$ref": "#/components/schemas/LlmSearchInput"
+          }
+        ]
+      },
+      "SearchInputListResponse": {
+        "description": "Response from the list search inputs endpoint.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SearchInput"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "SearchInputListResponse",
+        "type": "object"
+      },
+      "SearchResponse": {
+        "description": "Response from running a transcript search.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/components/schemas/Result"
+          }
+        },
+        "required": [
+          "id",
+          "result"
+        ],
+        "title": "SearchResponse",
+        "type": "object"
+      },
+      "SegmentRef": {
+        "properties": {
+          "direct_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direct Url"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "member_name": {
+            "title": "Member Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "member_name"
+        ],
+        "title": "SegmentRef",
         "type": "object"
       },
       "SpanBeginEvent": {
@@ -8062,6 +9219,21 @@
         "title": "TaskDisplayMetric",
         "type": "object"
       },
+      "TimeInterval": {
+        "description": "Fire every N of wall-clock time.",
+        "properties": {
+          "every": {
+            "format": "duration",
+            "title": "Every",
+            "type": "string"
+          }
+        },
+        "required": [
+          "every"
+        ],
+        "title": "TimeInterval",
+        "type": "object"
+      },
       "Timeline": {
         "description": "A named timeline view over a transcript.\n\nMultiple timelines allow different interpretations of the same event\nstream \u2014 e.g. a default agent-centric view alongside an alternative\ngrouping or filtered view.",
         "properties": {
@@ -8219,6 +9391,20 @@
           "tool_invoked"
         ],
         "title": "TimelineSpan",
+        "type": "object"
+      },
+      "TokenInterval": {
+        "description": "Fire every N tokens generated. Not yet implemented (Phase 5).",
+        "properties": {
+          "every": {
+            "title": "Every",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "every"
+        ],
+        "title": "TokenInterval",
         "type": "object"
       },
       "ToolCall": {
@@ -8777,6 +9963,20 @@
         "title": "TopLogprob",
         "type": "object"
       },
+      "TurnInterval": {
+        "description": "Fire every N agent turns.",
+        "properties": {
+          "every": {
+            "title": "Every",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "every"
+        ],
+        "title": "TurnInterval",
+        "type": "object"
+      },
       "UrlCitation": {
         "description": "A citation that refers to a URL.",
         "properties": {
@@ -8885,6 +10085,16 @@
       "ViewerConfig": {
         "description": "Top-level viewer configuration.\n\n`scanner_result_view` keys are fnmatch-style glob patterns (`\"*\"`,\n``\"audit_*\"``, exact names). Pass a ScannerResultView to apply a single\nconfiguration to every scanner.",
         "properties": {
+          "sample_score_view": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SampleScoreView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "scanner_result_view": {
             "anyOf": [
               {
@@ -8898,6 +10108,23 @@
               }
             ],
             "title": "Scanner Result View"
+          },
+          "task_samples_view": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SamplesView"
+              },
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SamplesView"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Samples View"
           }
         },
         "required": [
@@ -9606,6 +10833,143 @@
         "summary": "Api Sample Events"
       }
     },
+    "/pending-sample-data-urls": {
+      "get": {
+        "operationId": "api_pending_sample_data_urls_pending_sample_data_urls_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "epoch",
+            "required": true,
+            "schema": {
+              "title": "Epoch",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "last-event-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-attachment-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Attachment-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-message-pool-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Message-Pool-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after-call-pool-id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "After-Call-Pool-Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max-segments",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Max-Segments"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tail",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Tail",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingSampleUrls"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Pending Sample Data Urls"
+      }
+    },
     "/pending-samples": {
       "get": {
         "operationId": "api_pending_samples_pending_samples_get",
@@ -9633,6 +10997,223 @@
           }
         },
         "summary": "Api Pending Samples"
+      }
+    },
+    "/scout/searches": {
+      "get": {
+        "description": "List recent global search inputs, newest first.",
+        "operationId": "list_search_inputs_scout_searches_get",
+        "parameters": [
+          {
+            "description": "Search input type to list",
+            "in": "query",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "description": "Search input type to list",
+              "enum": [
+                "grep",
+                "llm"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of recent search inputs to return",
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of recent search inputs to return",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Count",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchInputListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List recent search inputs",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/scout/transcripts/{dir}/{id}/search": {
+      "post": {
+        "description": "Search a transcript using grep or LLM-based search.\n\nReturns cached results if the same search was run before.",
+        "operationId": "search_scout_transcripts__dir___id__search_post",
+        "parameters": [
+          {
+            "description": "Transcripts directory (base64url-encoded)",
+            "in": "path",
+            "name": "dir",
+            "required": true,
+            "schema": {
+              "description": "Transcripts directory (base64url-encoded)",
+              "title": "Dir",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Transcript ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Transcript ID",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "grep": "#/components/schemas/GrepSearchRequest",
+                    "llm": "#/components/schemas/LlmSearchRequest"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/GrepSearchRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/LlmSearchRequest"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Search a transcript",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/scout/transcripts/{dir}/{id}/searches/{search_id}": {
+      "get": {
+        "description": "Get a cached search result by search input ID and transcript scope.",
+        "operationId": "get_search_scout_transcripts__dir___id__searches__search_id__get",
+        "parameters": [
+          {
+            "description": "Transcripts directory (base64url-encoded)",
+            "in": "path",
+            "name": "dir",
+            "required": true,
+            "schema": {
+              "description": "Transcripts directory (base64url-encoded)",
+              "title": "Dir",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Transcript ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Transcript ID",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search ID",
+            "in": "path",
+            "name": "search_id",
+            "required": true,
+            "schema": {
+              "description": "Search ID",
+              "title": "Search Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Message filter used for the cached search result",
+            "in": "query",
+            "name": "messages",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Message filter used for the cached search result",
+              "title": "Messages"
+            }
+          },
+          {
+            "description": "Event filter used for the cached search result",
+            "in": "query",
+            "name": "events",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Event filter used for the cached search result",
+              "title": "Events"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get a saved search result",
+        "tags": [
+          "search"
+        ]
       }
     },
     "/tool-choice": {

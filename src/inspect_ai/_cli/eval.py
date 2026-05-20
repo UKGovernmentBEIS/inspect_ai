@@ -1,10 +1,18 @@
 import functools
 import json
-from typing import Any, Callable, Literal, cast
+from collections.abc import Callable
+from typing import Any, Literal, cast
 
 import click
 import yaml
-from pydantic import TypeAdapter
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+)
 from typing_extensions import Unpack
 
 from inspect_ai import Epochs, eval, eval_retry
@@ -24,7 +32,8 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.samples import parse_sample_id, parse_samples_limit
 from inspect_ai.log._file import log_file_info
-from inspect_ai.model import GenerateConfigArgs
+from inspect_ai.log._log import EvalConfig
+from inspect_ai.model import GenerateConfig, GenerateConfigArgs, get_model
 from inspect_ai.model._cache import CachePolicy
 from inspect_ai.model._generate_config import (  # noqa: F811
     BatchConfig,
@@ -32,9 +41,13 @@ from inspect_ai.model._generate_config import (  # noqa: F811
     OutputModality,
     ResponseSchema,
 )
+from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer._reducer import create_reducers
 from inspect_ai.solver._solver import SolverSpec
+from inspect_ai.util import AdaptiveConcurrency
+from inspect_ai.util._checkpoint.parse_cli import parse_checkpoint
 from inspect_ai.util._resource import resource
+from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 
 from .common import (
     CommonOptions,
@@ -42,6 +55,7 @@ from .common import (
     process_common_options,
 )
 from .util import (
+    SectionedCommand,
     int_bool_or_str_flag_callback,
     int_or_bool_flag_callback,
     parse_cli_args,
@@ -50,8 +64,31 @@ from .util import (
     parse_sandbox,
 )
 
+_SCANNER_OPTION_NAMES = {
+    "scanner",
+    "scanner_arg",
+    "scans",
+    "scan_name",
+    "scan_tags",
+    "scan_metadata",
+    "scan_filter",
+    "scan_model",
+    "scan_model_base_url",
+    "scan_model_arg",
+    "scan_model_config",
+    "scan_model_role",
+    "scan_generate_config",
+}
+
+
+class EvalCommand(SectionedCommand):
+    """`inspect eval` / `inspect eval-set` command with grouped help output."""
+
+    SECTIONS = {"Scanner Options": _SCANNER_OPTION_NAMES}
+
+
 MAX_SAMPLES_HELP = "Maximum number of samples to run in parallel (default is running all samples in parallel)"
-MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 4 for eval-set)"
+MAX_TASKS_HELP = "Maximum number of tasks to run in parallel (default is 1 for eval and 10 for eval-set)"
 MAX_SUBPROCESSES_HELP = (
     "Maximum number of subprocesses to run in parallel (default is os.cpu_count())"
 )
@@ -65,6 +102,7 @@ NO_LOG_REALTIME_HELP = (
 NO_FAIL_ON_ERROR_HELP = "Do not fail the eval if errors occur within samples (instead, continue running other samples)"
 CONTINUE_ON_FAIL_HELP = "Do not immediately fail the eval if the error threshold is exceeded (instead, continue running other samples until the eval completes, and then possibly fail the eval)."
 RETRY_ON_ERROR_HELP = "Retry samples if they encounter errors (by default, no retries occur). Specify --retry-on-error to retry a single time, or specify e.g. `--retry-on-error=3` to retry multiple times."
+SCORE_ON_ERROR_HELP = "Score samples that error rather than failing the eval mid-run. Errors still count toward the --fail-on-error threshold for marking the log as 'error'. Only fires after retries (if any) are exhausted."
 LOG_IMAGES_HELP = (
     "Include base64 encoded versions of filename or URL based images in the log file."
 )
@@ -77,6 +115,14 @@ NO_SCORE_HELP = (
 )
 NO_SCORE_DISPLAY = "Do not display scoring metrics in realtime."
 MAX_CONNECTIONS_HELP = f"Maximum number of concurrent connections to Model API (defaults to {DEFAULT_MAX_CONNECTIONS})"
+ADAPTIVE_CONNECTIONS_HELP = (
+    "Adaptive concurrency for Model API connections, automatically scaling "
+    "between bounds based on rate-limit feedback (default: enabled, with "
+    "min=4, start=20, max=100). Pass `false` to opt out, an integer N for "
+    "a custom max (e.g. `200`), or bounds as `min-max` (e.g. `4-80`) or "
+    "`min-start-max` (e.g. `4-20-80`). Explicit `--max-connections` and "
+    "`--batch` take precedence."
+)
 MAX_RETRIES_HELP = (
     "Maximum number of times to retry model API requests (defaults to unlimited)"
 )
@@ -84,6 +130,114 @@ TIMEOUT_HELP = "Model API request timeout in seconds (defaults to no timeout)"
 ATTEMPT_TIMEOUT_HELP = "Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries)."
 CACHE_HELP = "Policy for caching of model generations. Specify --cache to cache with 7 day expiration (7D). Specify an explicit duration (e.g. (e.g. 1h, 3d, 6M) to set the expiration explicitly (durations can be expressed as s, m, h, D, W, M, or Y). Alternatively, pass the file path to a YAML or JSON config file with a full `CachePolicy` configuration."
 BATCH_HELP = "Batch requests together to reduce API calls when using a model that supports batching (by default, no batching). Specify --batch to batch with default configuration,  specify a batch size e.g. `--batch=1000` to configure batches of 1000 requests, or pass the file path to a YAML or JSON config file with batch configuration."
+CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for default (every 5 turns), --checkpoint=turn:N / time:Ns/m/h/d / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
+
+
+def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
+    """Click decorator: scanner CLI options shared by `eval` / `eval-set` / `eval-retry`."""
+
+    @click.option(
+        "--scanner",
+        type=str,
+        envvar="INSPECT_EVAL_SCANNER",
+        help=(
+            "Scanner(s) to apply after each sample. Pass a YAML/JSON "
+            "config file (ScannerConfig schema), a Python file "
+            "with @scanner functions (use file.py@func to pick one), "
+            "or a registry reference (pkg/name)."
+        ),
+    )
+    @click.option(
+        "--scanner-arg",
+        "scanner_arg",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SCANNER_ARGS",
+        help="One or more scanner arguments (e.g. --scanner-arg key=value).",
+    )
+    @click.option(
+        "--scans",
+        type=str,
+        envvar="INSPECT_EVAL_SCANS",
+        help="Location to write scan results to (defaults to <log-dir>/scans/).",
+    )
+    @click.option(
+        "--scan-name",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_NAME",
+        help='Scan name written to _scan.json (defaults to "eval_set").',
+    )
+    @click.option(
+        "--scan-tags",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_TAGS",
+        help="Comma-separated tags written to the scan spec.",
+    )
+    @click.option(
+        "--scan-metadata",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_METADATA",
+        help="Metadata written to the scan spec (e.g. --scan-metadata key=value).",
+    )
+    @click.option(
+        "-F",
+        "--scan-filter",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_FILTER",
+        help=(
+            "SQL WHERE clause(s) applied per-sample to skip transcripts that "
+            "don't match (e.g. -F \"error = ''\")."
+        ),
+    )
+    @click.option(
+        "--scan-model",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_MODEL",
+        help="Model used by scanners' get_model() (overrides the eval model).",
+    )
+    @click.option(
+        "--scan-model-base-url",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_MODEL_BASE_URL",
+        help="Base URL for the scanner-side model API.",
+    )
+    @click.option(
+        "--scan-model-arg",
+        "scan_model_arg",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_MODEL_ARGS",
+        help="One or more scanner-side model arguments (e.g. --scan-model-arg key=value).",
+    )
+    @click.option(
+        "--scan-model-config",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_MODEL_CONFIG",
+        help="YAML or JSON config file with scanner-side model arguments.",
+    )
+    @click.option(
+        "--scan-model-role",
+        multiple=True,
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_MODEL_ROLE",
+        help=(
+            "Named scanner-side model role with model name or YAML/JSON config "
+            "(e.g. --scan-model-role grader=mockllm/model)."
+        ),
+    )
+    @click.option(
+        "--scan-generate-config",
+        type=str,
+        envvar="INSPECT_EVAL_SCAN_GENERATE_CONFIG",
+        help="YAML or JSON config file with GenerateConfig for scanner model calls.",
+    )
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> click.Context:
+        return cast(click.Context, func(*args, **kwargs))
+
+    return wrapper
 
 
 def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
@@ -110,6 +264,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=str,
         envvar="INSPECT_EVAL_MODEL_CONFIG",
         help="YAML or JSON config file with model arguments.",
+    )
+    @click.option(
+        "--run-config",
+        type=str,
+        envvar="INSPECT_EVAL_RUN_CONFIG",
+        help="YAML or JSON file with full run configuration (task, model, model roles, generate config, solver, eval config). CLI flags override values from this file. Cannot be combined with --generate-config, --task-config, or --solver-config.",
     )
     @click.option(
         "--model-role",
@@ -150,6 +310,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_SOLVER_CONFIG",
         help="YAML or JSON config file with solver arguments.",
     )
+    @scanner_options
     @click.option(
         "--tags",
         type=str,
@@ -189,6 +350,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         is_flag=True,
         help=NO_SANDBOX_CLEANUP_HELP,
         envvar="INSPECT_EVAL_NO_SANDBOX_CLEANUP",
+    )
+    @click.option(
+        "--checkpoint",
+        is_flag=False,
+        flag_value="turn:5",
+        default=None,
+        help=CHECKPOINT_HELP,
+        envvar="INSPECT_EVAL_CHECKPOINT",
     )
     @click.option(
         "--limit",
@@ -237,6 +406,13 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         type=int,
         help=MAX_CONNECTIONS_HELP,
         envvar="INSPECT_EVAL_MAX_CONNECTIONS",
+    )
+    @click.option(
+        "--adaptive-connections",
+        type=str,
+        default=None,
+        help=ADAPTIVE_CONNECTIONS_HELP,
+        envvar="INSPECT_EVAL_ADAPTIVE_CONNECTIONS",
     )
     @click.option(
         "--max-retries",
@@ -348,6 +524,14 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         callback=int_or_bool_flag_callback(DEFAULT_RETRY_ON_ERROR),
         help=RETRY_ON_ERROR_HELP,
         envvar="INSPECT_EVAL_RETRY_ON_ERROR",
+    )
+    @click.option(
+        "--score-on-error",
+        type=bool,
+        is_flag=True,
+        default=False,
+        help=SCORE_ON_ERROR_HELP,
+        envvar="INSPECT_EVAL_SCORE_ON_ERROR",
     )
     @click.option(
         "--no-log-samples",
@@ -627,27 +811,84 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     return wrapper
 
 
-@click.command("eval")
+@click.command("eval", cls=EvalCommand)
 @click.argument("tasks", nargs=-1)
 @eval_options
-def eval_command(
+@click.pass_context
+def eval_command(ctx: click.Context, /, **params: Any) -> None:
+    """Evaluate tasks."""
+    # When --run-config is used, env-sourced CLI values (INSPECT_EVAL_*) defer
+    # to the run config _for fields the run config actually provides_. Env
+    # values still apply to fields the run config leaves unset. Common-options
+    # env vars (INSPECT_LOG_LEVEL, INSPECT_LOG_DIR, ...) are never cleared —
+    # they describe how the run is logged/displayed, not what is run.
+    if params.get("run_config"):
+        from click.core import ParameterSource
+
+        run_params = parse_run_config(params["run_config"])
+
+        # Map Click parameter name -> the cli_params key it ultimately produces
+        # in eval_exec. Most are identity; these are the exceptions.
+        click_to_cli_key = {
+            "m": "model_args",
+            "t": "task_args",
+            "model_role": "model_roles",
+            "no_sandbox_cleanup": "sandbox_cleanup",
+            "s": "solver",
+            "solver_config": "solver",
+        }
+
+        for param in ctx.command.params:
+            name = param.name
+            if name is None or name == "run_config":
+                continue
+            envvar = getattr(param, "envvar", None)
+            if not (isinstance(envvar, str) and envvar.startswith("INSPECT_EVAL_")):
+                continue
+            if ctx.get_parameter_source(name) != ParameterSource.ENVIRONMENT:
+                continue
+            cli_key = click_to_cli_key.get(name, name)
+            if cli_key not in run_params:
+                continue
+            value = params.get(name)
+            params[name] = () if isinstance(value, tuple) else None
+
+    _eval_command_impl(**params)
+
+
+def _eval_command_impl(
     tasks: tuple[str, ...] | None,
     solver: str | None,
     model: str | None,
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
     s: tuple[str, ...] | None,
     solver_config: str | None,
+    scanner: str | None,
+    scanner_arg: tuple[str, ...] | None,
+    scans: str | None,
+    scan_name: str | None,
+    scan_tags: str | None,
+    scan_metadata: tuple[str, ...] | None,
+    scan_filter: tuple[str, ...] | None,
+    scan_model: str | None,
+    scan_model_base_url: str | None,
+    scan_model_arg: tuple[str, ...] | None,
+    scan_model_config: str | None,
+    scan_model_role: tuple[str, ...] | None,
+    scan_generate_config: str | None,
     tags: str | None,
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    checkpoint: str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -659,6 +900,7 @@ def eval_command(
     timeout: int | None,
     attempt_timeout: int | None,
     max_connections: int | None,
+    adaptive_connections: str | None,
     max_tokens: int | None,
     system_message: str | None,
     best_of: int | None,
@@ -703,6 +945,7 @@ def eval_command(
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
     retry_on_error: int | None,
+    score_on_error: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
@@ -716,7 +959,6 @@ def eval_command(
     log_level_transcript: str,
     **common: Unpack[CommonOptions],
 ) -> None:
-    """Evaluate tasks."""
     # read config
     config = config_from_locals(dict(locals()))
 
@@ -735,17 +977,32 @@ def eval_command(
         model_base_url=model_base_url,
         m=m,
         model_config=model_config,
+        run_config=run_config,
         model_role=model_role,
         t=t,
         task_config=task_config,
         s=s,
         solver_config=solver_config,
+        scanner=scanner,
+        scanner_arg=scanner_arg,
+        scans=scans,
+        scan_name=scan_name,
+        scan_tags=scan_tags,
+        scan_metadata=scan_metadata,
+        scan_filter=scan_filter,
+        scan_model=scan_model,
+        scan_model_base_url=scan_model_base_url,
+        scan_model_arg=scan_model_arg,
+        scan_model_config=scan_model_config,
+        scan_model_role=scan_model_role,
+        scan_generate_config=scan_generate_config,
         tags=tags,
         metadata=metadata,
         trace=trace,
         approval=approval,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
+        checkpoint=checkpoint,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
         no_epochs_reducer=no_epochs_reducer,
@@ -767,6 +1024,7 @@ def eval_command(
         no_fail_on_error=no_fail_on_error,
         continue_on_fail=continue_on_fail,
         retry_on_error=retry_on_error,
+        score_on_error=score_on_error,
         debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
         no_log_realtime=no_log_realtime,
@@ -782,7 +1040,7 @@ def eval_command(
     )
 
 
-@click.command("eval-set")
+@click.command("eval-set", cls=EvalCommand)
 @click.argument("tasks", nargs=-1)
 @click.option(
     "--retry-attempts",
@@ -791,11 +1049,10 @@ def eval_command(
     envvar="INSPECT_EVAL_RETRY_ATTEMPS",
 )
 @click.option(
-    "--retry-immediate",
+    "--retry-immediate/--no-retry-immediate",
     type=bool,
-    is_flag=True,
-    default=False,
-    help="Immediately retry tasks as they fail without waiting for all tasks to complete. When specified, `--retry-wait` and `--retry-connections` are ignored.",
+    default=None,
+    help="Immediately retry tasks as they fail without waiting for all tasks to complete (the default). Pass --no-retry-immediate for the legacy behavior of waiting for all tasks to complete before retrying. When --retry-immediate is in effect, --retry-wait and --retry-connections are ignored.",
     envvar="INSPECT_EVAL_RETRY_IMMEDIATE",
 )
 @click.option(
@@ -803,13 +1060,14 @@ def eval_command(
     type=int,
     help="Time in seconds wait between attempts, increased exponentially. "
     + "(defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time "
-    + "per-retry will in no case by longer than 1 hour.",
+    + "per-retry will in no case by longer than 1 hour. "
+    + "Only applies when --no-retry-immediate is set; otherwise ignored.",
     envvar="INSPECT_EVAL_RETRY_WAIT",
 )
 @click.option(
     "--retry-connections",
     type=float,
-    help="Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction).",
+    help="Reduce max_connections at this rate with each retry (defaults to 1.0, which results in no reduction). Only applies when --no-retry-immediate is set; otherwise ignored.",
     envvar="INSPECT_EVAL_RETRY_CONNECTIONS",
 )
 @click.option(
@@ -866,15 +1124,30 @@ def eval_set_command(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
     s: tuple[str, ...] | None,
     solver_config: str | None,
+    scanner: str | None,
+    scanner_arg: tuple[str, ...] | None,
+    scans: str | None,
+    scan_name: str | None,
+    scan_tags: str | None,
+    scan_metadata: tuple[str, ...] | None,
+    scan_filter: tuple[str, ...] | None,
+    scan_model: str | None,
+    scan_model_base_url: str | None,
+    scan_model_arg: tuple[str, ...] | None,
+    scan_model_config: str | None,
+    scan_model_role: tuple[str, ...] | None,
+    scan_generate_config: str | None,
     tags: str | None,
     metadata: tuple[str, ...] | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    checkpoint: str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -886,6 +1159,7 @@ def eval_set_command(
     timeout: int | None,
     attempt_timeout: int | None,
     max_connections: int | None,
+    adaptive_connections: str | None,
     max_tokens: int | None,
     system_message: str | None,
     best_of: int | None,
@@ -930,6 +1204,7 @@ def eval_set_command(
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
     retry_on_error: int | None,
+    score_on_error: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
@@ -970,17 +1245,32 @@ def eval_set_command(
         model_base_url=model_base_url,
         m=m,
         model_config=model_config,
+        run_config=run_config,
         model_role=model_role,
         t=t,
         task_config=task_config,
         s=s,
         solver_config=solver_config,
+        scanner=scanner,
+        scanner_arg=scanner_arg,
+        scans=scans,
+        scan_name=scan_name,
+        scan_tags=scan_tags,
+        scan_metadata=scan_metadata,
+        scan_filter=scan_filter,
+        scan_model=scan_model,
+        scan_model_base_url=scan_model_base_url,
+        scan_model_arg=scan_model_arg,
+        scan_model_config=scan_model_config,
+        scan_model_role=scan_model_role,
+        scan_generate_config=scan_generate_config,
         tags=tags,
         metadata=metadata,
         trace=trace,
         approval=approval,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
+        checkpoint=checkpoint,
         epochs=epochs,
         epochs_reducer=epochs_reducer,
         no_epochs_reducer=no_epochs_reducer,
@@ -1002,6 +1292,7 @@ def eval_set_command(
         no_fail_on_error=no_fail_on_error,
         continue_on_fail=continue_on_fail,
         retry_on_error=retry_on_error,
+        score_on_error=score_on_error,
         debug_errors=common["debug_errors"],
         no_log_samples=no_log_samples,
         no_log_realtime=no_log_realtime,
@@ -1030,6 +1321,161 @@ def eval_set_command(
     ctx.exit(0 if success else 1)
 
 
+class TaskInput(BaseModel):
+    task: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class SolverInput(BaseModel):
+    solver: str
+    args: dict[str, Any] = Field(default_factory=dict)
+
+
+class RunConfigInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task: str | TaskInput | None = None
+    model: str | ModelConfig | None = None
+    model_roles: dict[str, ModelConfig] = Field(default_factory=dict)
+    generate_config: GenerateConfig = Field(default_factory=GenerateConfig)
+    eval_config: EvalConfig = Field(default_factory=EvalConfig)
+    solver: str | SolverInput | None = None
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    sandbox: str | SandboxEnvironmentSpec | None = None
+
+    @field_validator("generate_config", mode="before")
+    @classmethod
+    def check_generate_config_fields(cls, v: Any) -> Any:
+        if isinstance(v, dict):
+            unknown = set(v.keys()) - set(GenerateConfig.model_fields.keys())
+            if unknown:
+                raise ValueError(f"Unknown generate_config fields: {unknown}")
+        return v
+
+    @field_validator("eval_config", mode="before")
+    @classmethod
+    def check_eval_config_fields(cls, v: Any) -> Any:
+        if isinstance(v, dict):
+            unknown = set(v.keys()) - set(EvalConfig.model_fields.keys())
+            if unknown:
+                raise ValueError(f"Unknown eval_config fields: {unknown}")
+        return v
+
+    def to_params(self) -> dict[str, Any]:
+        params: dict[str, Any] = {}
+
+        # Task
+        if self.task is not None:
+            if isinstance(self.task, str):
+                params["tasks"] = self.task
+            else:
+                params["tasks"] = self.task.task
+                if self.task.args:
+                    params["task_args"] = self.task.args
+
+        # Model
+        if self.model is not None:
+            if isinstance(self.model, str):
+                params["model"] = self.model
+            else:
+                params["model"] = self.model.model
+                if self.model.base_url is not None:
+                    params["model_base_url"] = self.model.base_url
+                if self.model.args:
+                    params["model_args"] = self.model.args
+                model_gc = self.model.config.model_dump(exclude_none=True)
+                if model_gc:
+                    params.update(model_gc)
+
+        # Top-level generate_config overrides any model-level config
+        top_gc = self.generate_config.model_dump(exclude_none=True)
+        if top_gc:
+            params.update(top_gc)
+
+        # Model roles
+        if self.model_roles:
+            params["model_roles"] = {
+                role: get_model(
+                    mc.model, config=mc.config, base_url=mc.base_url, **mc.args
+                )
+                for role, mc in self.model_roles.items()
+            }
+
+        # Solver
+        if self.solver is not None:
+            if isinstance(self.solver, str):
+                params["solver"] = SolverSpec(self.solver, {}, {})
+            else:
+                params["solver"] = SolverSpec(
+                    self.solver.solver, self.solver.args, self.solver.args
+                )
+
+        # Eval config — combine epochs + epochs_reducer into Epochs
+        ec = self.eval_config.model_dump(exclude_none=True)
+        epochs = ec.pop("epochs", None)
+        epochs_reducer = ec.pop("epochs_reducer", None)
+        if epochs is not None:
+            ec["epochs"] = Epochs(epochs, create_reducers(epochs_reducer))
+        params.update(ec)
+
+        # Tags and metadata
+        if self.tags:
+            params["tags"] = self.tags
+        if self.metadata:
+            params["metadata"] = self.metadata
+
+        # Sandbox
+        if self.sandbox is not None:
+            if isinstance(self.sandbox, str):
+                params["sandbox"] = parse_sandbox(self.sandbox)
+            else:
+                params["sandbox"] = self.sandbox
+
+        return params
+
+
+def parse_run_config(config: str) -> dict[str, Any]:
+    from jsonschema import Draft7Validator
+
+    config_dict = resolve_args(config)
+    try:
+        run_config = RunConfigInput.model_validate(config_dict)
+    except ValidationError as ex:
+        # Surface a more readable error via Draft7Validator. Fall back to
+        # pydantic's message when the JSON schema doesn't capture the
+        # failure (e.g. custom field_validators on generate_config/eval_config).
+        schema = RunConfigInput.model_json_schema()
+        errors = list(Draft7Validator(schema).iter_errors(config_dict))
+        if errors:
+            message = "\n".join(
+                [f"Invalid run config '{config}':"]
+                + [f" - {error.message}" for error in errors]
+            )
+        else:
+            message = f"Invalid run config '{config}': {ex}"
+        raise PrerequisiteError(message)
+    return run_config.to_params()
+
+
+def merge_run_config_params(
+    run_params: dict[str, Any], cli_params: dict[str, Any]
+) -> dict[str, Any]:
+    params = dict(run_params)
+    for key, value in cli_params.items():
+        if value is None or value == {}:
+            continue
+        if key == "score" and value is True:
+            continue
+        if key in ("task_args", "model_args") and key in params:
+            params[key] = params[key] | value
+        elif key == "model_roles" and key in params:
+            params[key] = params[key] | value
+        else:
+            params[key] = value
+    return params
+
+
 def eval_exec(
     tasks: tuple[str, ...] | None,
     solver: str | None,
@@ -1041,17 +1487,32 @@ def eval_exec(
     model_base_url: str | None,
     m: tuple[str, ...] | None,
     model_config: str | None,
+    run_config: str | None,
     model_role: tuple[str, ...] | None,
     t: tuple[str, ...] | None,
     task_config: str | None,
     s: tuple[str, ...] | None,
     solver_config: str | None,
+    scanner: str | None,
+    scanner_arg: tuple[str, ...] | None,
+    scans: str | None,
+    scan_name: str | None,
+    scan_tags: str | None,
+    scan_metadata: tuple[str, ...] | None,
+    scan_filter: tuple[str, ...] | None,
+    scan_model: str | None,
+    scan_model_base_url: str | None,
+    scan_model_arg: tuple[str, ...] | None,
+    scan_model_config: str | None,
+    scan_model_role: tuple[str, ...] | None,
+    scan_generate_config: str | None,
     tags: str | None,
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
+    checkpoint: str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1073,6 +1534,7 @@ def eval_exec(
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
     retry_on_error: int | None,
+    score_on_error: bool | None,
     debug_errors: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
@@ -1096,10 +1558,61 @@ def eval_exec(
     eval_set_id: str | None = None,
     **kwargs: Unpack[GenerateConfigArgs],
 ) -> bool:
+    if run_config and is_eval_set:
+        raise PrerequisiteError("--run-config is only supported by inspect eval.")
+    if run_config and task_config:
+        raise PrerequisiteError("--run-config cannot be used with --task-config.")
+    if run_config and solver_config:
+        raise PrerequisiteError("--run-config cannot be used with --solver-config.")
+
+    run_params = parse_run_config(run_config) if run_config else {}
+
     # parse task, solver, and model args
     task_args = parse_cli_config(t, task_config)
     solver_args = parse_cli_config(s, solver_config)
     model_args = parse_cli_config(m, model_config)
+
+    # resolve scanner spec
+    from inspect_ai._display.core.results import set_retry_args_suffix
+
+    from ._scanner import resolve_cli_scanner, serialize_scanner_cli_args
+
+    eval_scanner = resolve_cli_scanner(
+        scanner,
+        scanner_arg,
+        scans=scans,
+        scan_name=scan_name,
+        scan_tags=scan_tags,
+        scan_metadata=scan_metadata,
+        scan_filter=scan_filter,
+        scan_model=scan_model,
+        scan_model_base_url=scan_model_base_url,
+        scan_model_arg=scan_model_arg,
+        scan_model_config=scan_model_config,
+        scan_model_role=scan_model_role,
+        scan_generate_config=scan_generate_config,
+    )
+
+    # preserve scanner flags on the suggested `eval-retry` command shown
+    # if a task interrupts — so a copy-paste resumes against the same
+    # scan dir with the same scanner config
+    set_retry_args_suffix(
+        serialize_scanner_cli_args(
+            scanner,
+            scanner_arg,
+            scans=scans,
+            scan_name=scan_name,
+            scan_tags=scan_tags,
+            scan_metadata=scan_metadata,
+            scan_filter=scan_filter,
+            scan_model=scan_model,
+            scan_model_base_url=scan_model_base_url,
+            scan_model_arg=scan_model_arg,
+            scan_model_config=scan_model_config,
+            scan_model_role=scan_model_role,
+            scan_generate_config=scan_generate_config,
+        )
+    )
 
     # parse model roles
     eval_model_roles = parse_model_role_cli_args(model_role)
@@ -1154,7 +1667,7 @@ def eval_exec(
     score_display = False if no_score_display else None
 
     # build params
-    params: dict[str, Any] = (
+    cli_params: dict[str, Any] = (
         dict(
             tasks=list(tasks) if tasks else None,
             model=model,
@@ -1163,12 +1676,14 @@ def eval_exec(
             model_roles=eval_model_roles,
             task_args=task_args,
             solver=SolverSpec(solver, solver_args, solver_args) if solver else None,
+            scanner=eval_scanner,
             tags=eval_tags,
             metadata=eval_metadata,
             trace=trace,
             approval=approval,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
+            checkpoint=parse_checkpoint(checkpoint),
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
@@ -1180,6 +1695,7 @@ def eval_exec(
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
+            score_on_error=score_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
@@ -1204,6 +1720,9 @@ def eval_exec(
         )
         | kwargs
     )
+    params = (
+        merge_run_config_params(run_params, cli_params) if run_params else cli_params
+    )
 
     # evaluate
     if is_eval_set:
@@ -1225,10 +1744,49 @@ def eval_exec(
         return True
 
 
+def _parse_adaptive_connections_cli(
+    value: str | None,
+) -> bool | int | AdaptiveConcurrency | None:
+    """Parse a CLI string into an adaptive_connections value.
+
+    Accepts: None (passthrough), bool keywords ("true"/"yes" / "false"/"no",
+    case-insensitive), a bare integer N (shorthand for
+    `AdaptiveConcurrency(max=N)`), or a min-max / min-start-max shorthand
+    like "4-80" / "4-20-80" delegated to AdaptiveConcurrency's parser.
+    Raises `click.BadParameter` on invalid input so the CLI surfaces a
+    clean usage message instead of a raw pydantic ValidationError.
+
+    Note: `"1"`/`"0"` are treated as the integer-max shorthand, not as
+    bool aliases. Users who want explicit on/off should pass `true`/`false`.
+    """
+    if value is None:
+        return None
+    v = value.strip().lower()
+    if v in ("true", "yes"):
+        return True
+    if v in ("false", "no"):
+        return False
+    # Bare integer → max shorthand.
+    if v.isdigit():
+        return int(v)
+    try:
+        return AdaptiveConcurrency.model_validate(value)
+    except Exception as ex:
+        raise click.BadParameter(
+            f"{value!r} is not a valid value. Expected `true`, `false`, an "
+            f"integer max (e.g. `200`), or bounds shorthand like `4-80` "
+            f"or `4-20-80`.",
+            param_hint="--adaptive-connections",
+        ) from ex
+
+
 def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
     # start with config file if specified
     adapter = TypeAdapter(GenerateConfigArgs)
+    run_config_file = locals.get("run_config")
     generate_config_file = locals.pop("generate_config", None)
+    if run_config_file and generate_config_file:
+        raise PrerequisiteError("--run-config cannot be used with --generate-config.")
     if generate_config_file:
         # read file
         generate_config = resolve_args(generate_config_file)
@@ -1286,6 +1844,9 @@ def config_from_locals(locals: dict[str, Any]) -> GenerateConfigArgs:
                     case str():
                         value = BatchConfig.model_validate(resolve_args(value))
 
+            if key == "adaptive_connections" and isinstance(value, str):
+                value = _parse_adaptive_connections_cli(value)
+
             if key == "modalities":
                 value = parse_modalities(value)
 
@@ -1340,7 +1901,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
         return None
 
 
-@click.command("eval-retry")
+@click.command("eval-retry", cls=EvalCommand)
 @click.argument("log_files", nargs=-1, required=True)
 @click.option(
     "--max-samples", type=int, help=MAX_SAMPLES_HELP, envvar="INSPECT_EVAL_MAX_SAMPLES"
@@ -1406,6 +1967,14 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     callback=int_or_bool_flag_callback(DEFAULT_RETRY_ON_ERROR),
     help=RETRY_ON_ERROR_HELP,
     envvar="INSPECT_EVAL_RETRY_ON_ERROR",
+)
+@click.option(
+    "--score-on-error",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help=SCORE_ON_ERROR_HELP,
+    envvar="INSPECT_EVAL_SCORE_ON_ERROR",
 )
 @click.option(
     "--no-log-samples",
@@ -1478,6 +2047,13 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_MAX_CONNECTIONS",
 )
 @click.option(
+    "--adaptive-connections",
+    type=str,
+    default=None,
+    help=ADAPTIVE_CONNECTIONS_HELP,
+    envvar="INSPECT_EVAL_ADAPTIVE_CONNECTIONS",
+)
+@click.option(
     "--max-retries", type=int, help=MAX_RETRIES_HELP, envvar="INSPECT_EVAL_MAX_RETRIES"
 )
 @click.option("--timeout", type=int, help=TIMEOUT_HELP, envvar="INSPECT_EVAL_TIMEOUT")
@@ -1497,6 +2073,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_LOG_LEVEL_TRANSCRIPT",
     help=f"Set the log level of the transcript (defaults to '{DEFAULT_LOG_LEVEL_TRANSCRIPT}')",
 )
+@scanner_options
 @common_options
 def eval_retry_command(
     log_files: tuple[str, ...],
@@ -1510,6 +2087,7 @@ def eval_retry_command(
     no_fail_on_error: bool | None,
     continue_on_fail: bool | None,
     retry_on_error: int | None,
+    score_on_error: bool | None,
     no_log_samples: bool | None,
     no_log_realtime: bool | None,
     log_images: bool | None,
@@ -1520,10 +2098,24 @@ def eval_retry_command(
     no_score: bool | None,
     no_score_display: bool | None,
     max_connections: int | None,
+    adaptive_connections: str | None,
     max_retries: int | None,
     timeout: int | None,
     attempt_timeout: int | None,
     log_level_transcript: str,
+    scanner: str | None,
+    scanner_arg: tuple[str, ...] | None,
+    scans: str | None,
+    scan_name: str | None,
+    scan_tags: str | None,
+    scan_metadata: tuple[str, ...] | None,
+    scan_filter: tuple[str, ...] | None,
+    scan_model: str | None,
+    scan_model_base_url: str | None,
+    scan_model_arg: tuple[str, ...] | None,
+    scan_model_config: str | None,
+    scan_model_role: tuple[str, ...] | None,
+    scan_generate_config: str | None,
     **common: Unpack[CommonOptions],
 ) -> None:
     """Retry failed evaluation(s)"""
@@ -1554,6 +2146,50 @@ def eval_retry_command(
         log_file_info(filesystem(log_file).info(log_file)) for log_file in log_files
     ]
 
+    # parse adaptive_connections (str → bool | AdaptiveConcurrency)
+    adaptive_connections_value = _parse_adaptive_connections_cli(adaptive_connections)
+
+    # resolve scanner spec (None unless --scanner was provided)
+    from inspect_ai._display.core.results import set_retry_args_suffix
+
+    from ._scanner import resolve_cli_scanner, serialize_scanner_cli_args
+
+    eval_scanner = resolve_cli_scanner(
+        scanner,
+        scanner_arg,
+        scans=scans,
+        scan_name=scan_name,
+        scan_tags=scan_tags,
+        scan_metadata=scan_metadata,
+        scan_filter=scan_filter,
+        scan_model=scan_model,
+        scan_model_base_url=scan_model_base_url,
+        scan_model_arg=scan_model_arg,
+        scan_model_config=scan_model_config,
+        scan_model_role=scan_model_role,
+        scan_generate_config=scan_generate_config,
+    )
+
+    # preserve scanner flags on any further `eval-retry` suggestion shown
+    # if this retry itself interrupts
+    set_retry_args_suffix(
+        serialize_scanner_cli_args(
+            scanner,
+            scanner_arg,
+            scans=scans,
+            scan_name=scan_name,
+            scan_tags=scan_tags,
+            scan_metadata=scan_metadata,
+            scan_filter=scan_filter,
+            scan_model=scan_model,
+            scan_model_base_url=scan_model_base_url,
+            scan_model_arg=scan_model_arg,
+            scan_model_config=scan_model_config,
+            scan_model_role=scan_model_role,
+            scan_generate_config=scan_generate_config,
+        )
+    )
+
     # retry
     eval_retry(
         retry_log_files,
@@ -1569,6 +2205,7 @@ def eval_retry_command(
         fail_on_error=fail_on_error,
         continue_on_fail=continue_on_fail,
         retry_on_error=retry_on_error,
+        score_on_error=score_on_error,
         debug_errors=common["debug_errors"],
         log_samples=log_samples,
         log_realtime=log_realtime,
@@ -1579,8 +2216,10 @@ def eval_retry_command(
         log_shared=log_shared,
         score=score,
         score_display=score_display,
+        scanner=eval_scanner,
         max_retries=max_retries,
         timeout=timeout,
         attempt_timeout=attempt_timeout,
         max_connections=max_connections,
+        adaptive_connections=adaptive_connections_value,
     )

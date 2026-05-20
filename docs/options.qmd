@@ -56,6 +56,12 @@ Below are sections for the various categories of options supported by `inspect e
 
 For more detail on the different methods of configuration, see [Task Configuration](task-configuration.qmd).
 
+## Run Configuration
+
+|  |  |
+|--|--|
+| `--run-config` | YAML or JSON file with the complete run configuration — task, model, model roles, generate config, solver, and eval config — in one place. Explicit CLI flags override values from this file. Cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. See [Run Config File](task-configuration.qmd#run-config). |
+
 ## Model Provider
 
 |                    |                                              |
@@ -118,7 +124,7 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 | `--limit` | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`) |
 | `--sample-id` | Evaluate a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
 | `--epochs` | Number of times to repeat each sample (defaults to 1) |
-| `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, and `pass_at_{k}`. |
+| `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, `pass_at_{k}`, and `pass_k_{k}`. |
 | `--no-epochs-reducer` | Do not reduce epochs across samples (compute metrics across all samples and epochs together). |
 
 ## Parallelism
@@ -138,6 +144,8 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 |--------------------------|----------------------------------------------|
 | `--fail-on-error` | Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. |
 | `--no-fail-on-error` | Do not fail the eval if errors occur within samples (instead, continue running other samples) |
+| `--retry-on-error` | Retry samples if they encounter errors (no retries by default). Specify `--retry-on-error` to retry once, or `--retry-on-error=N` to retry N times. |
+| `--score-on-error` | Score samples that error rather than failing the eval mid-run. Errors still count toward the `--fail-on-error` threshold for marking the log as 'error'. Only fires after retries (if any) are exhausted. |
 | `--message-limit` | Limit on total messages used for each sample. |
 | `--token-limit` | Limit on total tokens used for each sample. |
 | `--time-limit` | Limit on total running time for each sample. |

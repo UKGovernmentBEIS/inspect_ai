@@ -182,6 +182,15 @@ table {
     order: 2;
 }
 
+// Same treatment for frontmatter `categories:` pills: keep them on a
+// row below the title rather than packed onto the flex row with the
+// title text.
+.quarto-title > .quarto-categories {
+    flex-basis: 100%;
+    order: 3;
+    margin-top: 0.25rem;
+}
+
 #copy-page-btn {
     flex-shrink: 0;
     margin-left: auto;

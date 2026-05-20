@@ -1,5 +1,8 @@
 import atexit
+import json
 import os
+import sys
+from datetime import datetime, timezone
 from logging import (
     INFO,
     NOTSET,
@@ -13,6 +16,7 @@ from logging import (
     getLogger,
 )
 from pathlib import Path
+from typing import IO, Literal, TypeAlias, cast
 
 import rich
 from rich.console import ConsoleRenderable
@@ -31,6 +35,7 @@ from .constants import (
     TRACE_LOG_LEVEL,
 )
 from .error import PrerequisiteError
+from .log_context import install_sample_context_filter
 from .trace import (
     TraceFormatter,
     compress_trace_log,
@@ -39,6 +44,7 @@ from .trace import (
 )
 
 TRACE_FILE_NAME = "trace.log"
+LoggerFormat: TypeAlias = Literal["rich", "plain", "json"]
 
 
 # log handler that filters messages to stderr and the log file
@@ -50,10 +56,17 @@ class LogHandler(RichHandler):
         transcript_levelno: int,
         env_prefix: str = "INSPECT",
         trace_dir: Path | None = None,
+        logger_format: LoggerFormat | None = None,
+        display_stream: IO[str] | None = None,
     ) -> None:
         super().__init__(capture_levelno, console=rich.get_console())
         self.transcript_levelno = transcript_levelno
         self.display_level = display_levelno
+        self.logger_format = logger_format or logger_display_format(env_prefix)
+        self.display_stream = display_stream or sys.stderr
+        self.plain_formatter = Formatter(
+            "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
+        )
         # log into an external file if requested via env var
         file_logger = os.environ.get(f"{env_prefix}_PY_LOGGER_FILE", None)
         self.file_logger = FileHandler(file_logger) if file_logger else None
@@ -87,7 +100,7 @@ class LogHandler(RichHandler):
     def emit(self, record: LogRecord) -> None:
         # write to stderr if we are at or above the threshold
         if record.levelno >= self.display_level and self.display_level != NOTSET:
-            super().emit(record)
+            self.emit_display(record)
 
         # write to file if the log file level matches. if the
         # user hasn't explicitly specified a level then we
@@ -104,6 +117,17 @@ class LogHandler(RichHandler):
         # eval log gets transcript level or higher
         if record.levelno >= self.transcript_levelno:
             log_to_transcript(record)
+
+    def emit_display(self, record: LogRecord) -> None:
+        if self.logger_format == "rich":
+            super().emit(record)
+        elif self.logger_format == "plain":
+            formatted = self.plain_formatter.format(record).replace("\n", "\\n")
+            self.display_stream.write(f"{formatted}\n")
+            self.display_stream.flush()
+        elif self.logger_format == "json":
+            self.display_stream.write(f"{json.dumps(json_log_record(record))}\n")
+            self.display_stream.flush()
 
     @override
     def render_message(self, record: LogRecord, message: str) -> ConsoleRenderable:
@@ -181,6 +205,7 @@ def init_logger(
             env_prefix=env_prefix,
             trace_dir=trace_dir,
         )
+        install_sample_context_filter(log_handler)
         log_handler_var["handler"] = log_handler
 
         if log_level != "NOTSET":
@@ -206,6 +231,33 @@ def init_logger(
 
 
 _logHandler: LogHandlerVar = {"handler": None}
+
+
+def logger_display_format(env_prefix: str = "INSPECT") -> LoggerFormat:
+    logger_format = os.environ.get(f"{env_prefix}_PY_LOGGER_FORMAT", "rich")
+    logger_format = logger_format.lower().strip()
+    if logger_format not in ["rich", "plain", "json"]:
+        raise PrerequisiteError(
+            f"Invalid {env_prefix}_PY_LOGGER_FORMAT '{logger_format}'. "
+            "Logger format must be one of rich, plain, json"
+        )
+    return cast(LoggerFormat, logger_format)
+
+
+def json_log_record(record: LogRecord) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "ts": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
+        "level": record.levelname,
+        "logger": record.name,
+        "msg": record.getMessage(),
+        "module": os.path.basename(record.pathname),
+        "line": record.lineno,
+    }
+    if record.exc_info:
+        payload["exc_info"] = Formatter().formatException(record.exc_info)
+    if record.stack_info:
+        payload["stack_info"] = record.stack_info
+    return payload
 
 
 def log_to_transcript(record: LogRecord) -> None:

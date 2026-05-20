@@ -29,7 +29,10 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_TOKENS,
 )
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.log._samples import set_active_model_event_call
@@ -46,7 +49,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
@@ -240,13 +243,17 @@ class GroqAPI(ModelAPI):
         ]
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
-            return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, APITimeoutError):
-            return True
-        else:
-            return False
+            if not is_retryable_http_status(ex.status_code):
+                return RetryDecision.no()
+            retry_after = parse_retry_after_from_exception(ex)
+            if ex.status_code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+        if isinstance(ex, APITimeoutError):
+            return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def connection_key(self) -> str:

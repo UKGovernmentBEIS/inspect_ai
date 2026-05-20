@@ -1,3 +1,4 @@
+import math
 import random
 import re
 import string
@@ -12,6 +13,20 @@ def truncate_text(text: str, max_length: int) -> str:
     if len(text) <= max_length:
         return text
     return textwrap.shorten(text, width=max_length, placeholder="...")
+
+
+def is_finite_number(s: str) -> bool:
+    """Does `s` parse as a finite float?
+
+    Recognises ordinary float syntax (including signs, decimals, and
+    exponents, e.g. ``-5``, ``3.14``, ``1e3``). ``nan`` and ``inf`` are
+    rejected so callers can safely pass the result to ``float`` and use
+    it in arithmetic.
+    """
+    try:
+        return math.isfinite(float(s))
+    except ValueError:
+        return False
 
 
 def strip_punctuation(s: str) -> str:

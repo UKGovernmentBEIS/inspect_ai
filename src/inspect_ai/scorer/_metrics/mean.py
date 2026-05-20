@@ -1,5 +1,3 @@
-import numpy as np
-
 from .._metric import Metric, SampleScore, metric
 
 
@@ -12,6 +10,8 @@ def mean() -> Metric:
     """
 
     def metric(scores: list[SampleScore]) -> float:
+        import numpy as np
+
         return np.mean([score.score.as_float() for score in scores]).item()
 
     return metric

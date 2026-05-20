@@ -30,10 +30,12 @@ class Decompressor(Protocol):
 
 
 class ZstdDecompressor(Decompressor):
-    """Decompressor for zstd compressed data."""
+    """Decompressor for zstd compressed data, supporting multi-frame streams."""
 
     def __init__(self) -> None:
-        self._decompressor: zstandard.ZstdDecompressionObj | None = None
+        self._dctx: zstandard.ZstdDecompressor | None = None
+        self._obj: zstandard.ZstdDecompressionObj | None = None
+        self._pending: bytes = b""
         self._exhausted = False
 
     @property
@@ -42,27 +44,38 @@ class ZstdDecompressor(Decompressor):
 
     async def decompress_next(self, stream_iterator: AsyncIterator[bytes]) -> bytes:
         """Read compressed chunks until decompressed output is available."""
-        if self._decompressor is None:
-            self._decompressor = zstandard.ZstdDecompressor().decompressobj()
+        if self._exhausted:
+            raise StopAsyncIteration
+        if self._dctx is None:
+            self._dctx = zstandard.ZstdDecompressor()
+            self._obj = self._dctx.decompressobj()
+        assert self._obj is not None and self._dctx is not None
         while True:
-            try:
-                chunk = await stream_iterator.__anext__()
-                decompressed = self._decompressor.decompress(chunk)
-                if decompressed:
-                    return decompressed
-            except StopAsyncIteration:
-                # Note: Unlike zlib, zstandard's decompressobj doesn't have
-                # a flush() method. Passing empty bytes can trigger output
-                # of any remaining buffered data in some edge cases.
+            if self._pending:
+                data, self._pending = self._pending, b""
+            else:
                 try:
-                    final = self._decompressor.decompress(b"")
-                except zstandard.ZstdError:
-                    final = b""
-                self._decompressor = None
-                self._exhausted = True
-                if final:
-                    return final
-                raise
+                    data = await stream_iterator.__anext__()
+                except StopAsyncIteration:
+                    # Note: Unlike zlib, zstandard's decompressobj doesn't have
+                    # a flush() method. Passing empty bytes can trigger output
+                    # of any remaining buffered data in some edge cases.
+                    try:
+                        final = self._obj.decompress(b"")
+                    except zstandard.ZstdError:
+                        final = b""
+                    self._obj = None
+                    self._dctx = None
+                    self._exhausted = True
+                    if final:
+                        return final
+                    raise
+            decompressed = self._obj.decompress(data)
+            if self._obj.eof:
+                self._pending = self._obj.unused_data
+                self._obj = self._dctx.decompressobj()
+            if decompressed:
+                return decompressed
 
 
 class DeflateDecompressor(Decompressor):

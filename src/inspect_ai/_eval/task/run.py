@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import PurePath
-from typing import Awaitable, Callable, Literal
+from typing import Any, Awaitable, Callable, Literal
 
 import anyio
 from anyio.abc import TaskGroup
@@ -22,6 +22,7 @@ from inspect_ai._display import (
     display,
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
+from inspect_ai._eval.task.scan import Scanners
 from inspect_ai._util._async import tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
@@ -36,8 +37,10 @@ from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
+    has_registry_params,
     is_registry_object,
     registry_log_name,
+    registry_params,
     registry_unqualified_name,
 )
 from inspect_ai._util.working import (
@@ -88,11 +91,14 @@ from inspect_ai.model import (
     ModelName,
 )
 from inspect_ai.model._model import (
+    init_model_usage,
+    init_role_usage,
     init_sample_model_usage,
     init_sample_role_usage,
     sample_model_usage,
     sample_role_usage,
 )
+from inspect_ai.model._model_output import ModelUsage
 from inspect_ai.scorer import Scorer, Target
 from inspect_ai.scorer._metric import Metric, SampleScore
 from inspect_ai.scorer._reducer.types import ScoreReducer
@@ -104,6 +110,10 @@ from inspect_ai.solver._fork import set_task_generate
 from inspect_ai.solver._solver import Solver
 from inspect_ai.solver._task_state import sample_state, set_sample_state, state_jsonable
 from inspect_ai.util._anyio import inner_exception
+from inspect_ai.util._checkpoint.config import (
+    CheckpointConfig,
+    merge_checkpoint_configs,
+)
 from inspect_ai.util._early_stopping import (
     EarlyStop,
     EarlyStopping,
@@ -136,6 +146,11 @@ from .images import (
 from .log import TaskLogger, collect_eval_data, log_start
 from .results import eval_results
 from .sandbox import sandboxenv_context
+from .scan import (
+    resume_scan_previous_sample,
+    scan_eval_sample,
+    scanned_transcripts_for_resume,
+)
 from .store import DiskSampleStore, maybe_page_to_disk
 from .util import sample_messages, slice_dataset
 
@@ -157,10 +172,16 @@ class TaskRunOptions:
     model: Model
     model_roles: dict[str, Model] | None
     sandbox: SandboxEnvironmentSpec | None
+    checkpoint: CheckpointConfig | None
+    """Task-level checkpoint config (raw `task.checkpoint`)."""
+    eval_checkpoint: CheckpointConfig | None
+    """Eval/CLI-level checkpoint config (overrides task/sample)."""
     logger: TaskLogger
     eval_wd: str
     config: EvalConfig = field(default_factory=EvalConfig)
     solver: Solver | None = field(default=None)
+    scanner: "Scanners | None" = field(default=None)
+    scan_id: str | None = field(default=None)
     tags: list[str] | None = field(default=None)
     run_samples: bool | None = field(default=True)
     score: bool = field(default=True)
@@ -168,6 +189,8 @@ class TaskRunOptions:
     sample_source: EvalSampleSource | None = field(default=None)
     display_name: str | None = field(default=None)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
+    initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
+    initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
 
 
 def resolve_plan(task: Task, solver: Solver | None) -> Plan:
@@ -199,10 +222,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     model = options.model
     model_roles = options.model_roles
     sandbox = options.sandbox
+    checkpoint = options.checkpoint
+    eval_checkpoint = options.eval_checkpoint
     logger = options.logger
     eval_wd = options.eval_wd
     config = options.config
     solver = options.solver
+    scanner = options.scanner
+    scan_id = options.scan_id
     tags = options.tags
     score = options.score
     sample_source = options.sample_source
@@ -210,6 +237,15 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
     # resolve default generate_config for task
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
+
+    # seed model/role usage from a prior log when this task is a retry
+    # (the deepcopy guards against shared dict mutation across attempts).
+    # init_task_context's no-arg init_model_usage/init_role_usage will leave
+    # these seeded values in place.
+    if options.initial_model_usage:
+        init_model_usage(deepcopy(options.initial_model_usage))
+    if options.initial_role_usage:
+        init_role_usage(deepcopy(options.initial_role_usage))
 
     # init task context
     init_task_context(
@@ -222,14 +258,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # track stats, results, and log
     results: EvalResults | None = None
     reductions: list[EvalSampleReductions] | None = None
+    progress_results: list[dict[str, SampleScore]] = []
     eval_log: EvalLog | None = None
     stats = EvalStats(started_at=iso_now())
-
-    # handle sample errors (raise as required)
-    sample_error_handler = SampleErrorHandler(
-        config.fail_on_error if config.continue_on_fail is not True else False,
-        len(task.dataset),
-    )
 
     # resolve some config
     model_name = ModelName(model)
@@ -244,6 +275,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # O(concurrent_samples) instead of O(total_samples * epochs))
     dataset = slice_dataset(task.dataset, config.limit, config.sample_id)
     total_samples = len(dataset) * epochs
+
+    # handle sample errors (raise as required). use total_samples (sliced
+    # dataset * epochs) as the denominator for fractional fail_on_error so
+    # the mid-run abort threshold matches the end-of-run check below.
+    sample_error_handler = SampleErrorHandler(
+        config.fail_on_error if config.continue_on_fail is not True else False,
+        total_samples,
+    )
 
     # optionally page dataset to disk if it exceeds the memory budget
     sample_store = maybe_page_to_disk(dataset, config.max_dataset_memory)
@@ -354,8 +393,9 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                     config, generate_config, model.api
                 )
 
-                # track when samples complete and update progress as we go
-                progress_results: list[dict[str, SampleScore]] = []
+                scanned_per_scanner = scanned_transcripts_for_resume(
+                    scanner, scan_id, profile.log_location
+                )
 
                 def update_metrics(metrics: list[TaskDisplayMetric]) -> None:
                     td.update_metrics(metrics)
@@ -428,11 +468,23 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                         score=score,
                                         sample_id=previous_sample.id,
                                         sample_metadata=previous_sample.metadata,
+                                        scorer=key,
                                     )
                                     for key, score in previous_sample.scores.items()
                                 }
                                 if previous_sample.scores
                                 else {}
+                            )
+                            await resume_scan_previous_sample(
+                                previous_sample,
+                                scanner,
+                                scanned_per_scanner,
+                                sample_semaphore,
+                                scan_id=scan_id,
+                                eval_id=logger.eval.eval_id,
+                                log_location=profile.log_location,
+                                model=str(model),
+                                eval_spec=logger.eval,
                             )
                             await sample_complete(sample_id, epoch, sample_scores)
                             return sample_scores
@@ -469,11 +521,14 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         log_location=profile.log_location,
                         create_sample_state=create_sample_state,
                         sandbox=sandbox,
+                        checkpoint=checkpoint,
+                        eval_checkpoint=eval_checkpoint,
                         max_sandboxes=config.max_sandboxes,
                         sandbox_cleanup=sandbox_cleanup,
                         plan=plan,
                         scorers=scorers,
                         scorer_names=scorer_names,
+                        scanner=scanner,
                         cleanup=task.cleanup,
                         generate=generate,
                         progress=progress,
@@ -486,8 +541,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         fails_on_error=(
                             config.fail_on_error is not False
                             and config.continue_on_fail is not True
+                            and config.score_on_error is not True
                         ),
                         retry_on_error=config.retry_on_error or 0,
+                        score_on_error=config.score_on_error or False,
                         error_retries=[],
                         time_limit=config.time_limit,
                         working_limit=config.working_limit,
@@ -495,6 +552,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                         eval_set_id=logger.eval.eval_set_id,
                         run_id=logger.eval.run_id,
                         task_id=logger.eval.eval_id,
+                        scan_id=options.scan_id,
                     )
 
                 sample_results = await tg_collect(
@@ -542,7 +600,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # collect eval data
             collect_eval_data(stats)
 
-            sample_error_count = sum(result is None for result in sample_results)
+            # use the SampleErrorHandler's authoritative count (incremented in
+            # handle_error() exactly once per sample after retries are
+            # exhausted). With score_on_error, errored samples now return a
+            # populated score dict instead of None, so counting via
+            # `result is None` would miss them.
+            sample_error_count = sample_error_handler.error_count
             mark_log_as_error = _should_eval_fail(
                 sample_error_count, profile.samples, config.fail_on_error
             )
@@ -567,6 +630,17 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             with anyio.CancelScope(shield=True):
                 # collect eval data
                 collect_eval_data(stats)
+
+                # compute partial results from samples that completed
+                if len(progress_results) > 0:
+                    results, reductions = eval_results(
+                        samples=profile.samples,
+                        scores=progress_results,
+                        reducers=task.epochs_reducer,
+                        scorers=scorers,
+                        metrics=task.metrics,
+                        scorer_names=scorer_names,
+                    )
 
                 if task_cancel and task_cancel.cancel_type is not None:
                     # User-initiated cancel (abort/retry) — log as error so
@@ -721,11 +795,14 @@ async def task_run_sample(
     log_location: str,
     create_sample_state: Callable[[str | None], Awaitable[tuple[Sample, TaskState]]],
     sandbox: SandboxEnvironmentSpec | None,
+    checkpoint: CheckpointConfig | None,
+    eval_checkpoint: CheckpointConfig | None,
     max_sandboxes: int | None,
     sandbox_cleanup: bool,
     plan: Plan,
     scorers: list[Scorer] | None,
     scorer_names: list[str] | None,
+    scanner: "Scanners | None",
     cleanup: Callable[[TaskState], Awaitable[None]] | None,
     generate: Generate,
     progress: Callable[[int], None],
@@ -739,13 +816,15 @@ async def task_run_sample(
     fails_on_error: bool,
     early_stopping: EarlyStopping | None,
     retry_on_error: int,
+    score_on_error: bool,
     error_retries: list[EvalRetryError],
     time_limit: int | None,
     working_limit: int | None,
-    semaphore: anyio.Semaphore,
+    semaphore: contextlib.AbstractAsyncContextManager[Any],
     eval_set_id: str | None,
     run_id: str,
     task_id: str,
+    scan_id: str | None = None,
     sample_uuid: str | None = None,
 ) -> dict[str, SampleScore] | EarlyStop | None:
     from inspect_ai.event import Event
@@ -803,6 +882,13 @@ async def task_run_sample(
             else contextlib.nullcontext()
         )
 
+        # resolve checkpoint config across all three levels with
+        # precedence eval > sample > task (per-field merge — see
+        # `merge_checkpoint_configs`).
+        resolved_checkpoint = merge_checkpoint_configs(
+            checkpoint, sample.checkpoint, eval_checkpoint
+        )
+
         # helper to handle exceptions (will throw if we've exceeded the limit)
         def handle_error(ex: BaseException) -> tuple[EvalError, BaseException | None]:
             # helper to log sample error
@@ -810,6 +896,8 @@ async def task_run_sample(
                 msg = f"Sample error (id: {sample.id}, epoch: {state.epoch}): {exception_message(ex)})"
                 if retry_on_error > 0:
                     msg = f"{msg}. Sample will be retried."
+                elif score_on_error:
+                    msg = f"{msg}. Sample will be scored."
                 py_logger.warning(msg)
 
             # if we have retries left then return EvalError
@@ -818,6 +906,14 @@ async def task_run_sample(
                 return eval_error(ex, type(ex), ex, ex.__traceback__), None
             else:
                 err = sample_error(ex)
+                # with score_on_error, suppress the raise so we can score the
+                # sample; error_count was still incremented on sample_error()
+                # above, so the eval-level fail_on_error threshold continues
+                # to apply.
+                if score_on_error:
+                    log_sample_error()
+                    transcript()._event(ErrorEvent(error=err[0]))
+                    return err[0], None
                 # if we aren't raising the error then print a warning
                 if err[1] is None:
                     log_sample_error()
@@ -837,6 +933,7 @@ async def task_run_sample(
             working_limit=working_limit,
             fails_on_error=fails_on_error or (retry_on_error > 0),
             transcript=sample_transcript,
+            checkpoint=resolved_checkpoint,
             eval_set_id=eval_set_id,
             run_id=run_id,
             eval_id=task_id,
@@ -894,6 +991,7 @@ async def task_run_sample(
                 sample_summary = EvalSampleSummary(
                     id=sample_id,
                     epoch=state.epoch,
+                    uuid=state.uuid,
                     input=sample.input,
                     choices=sample.choices,
                     target=sample.target,
@@ -1110,7 +1208,13 @@ async def task_run_sample(
                         try:
                             # timeout during scoring will result in an ordinary sample error
                             with create_time_limit(scoring_time_limit):
-                                if error is None:
+                                # score on success, or when score_on_error is on
+                                # for the final attempt (no retries left, not cancelled)
+                                if error is None or (
+                                    score_on_error
+                                    and retry_on_error == 0
+                                    and cancelled_error is None
+                                ):
                                     async with span(name="scorers"):
                                         for scorer_idx, scorer in enumerate(
                                             scorers or []
@@ -1146,6 +1250,14 @@ async def task_run_sample(
                                                         ScoreEvent(
                                                             score=score_result,
                                                             target=sample.target,
+                                                            scorer=scorer_name,
+                                                            scorer_args=registry_params(
+                                                                scorer
+                                                            )
+                                                            if has_registry_params(
+                                                                scorer
+                                                            )
+                                                            else None,
                                                             model_usage=sample_model_usage()
                                                             or None,
                                                             role_usage=sample_role_usage()
@@ -1168,6 +1280,7 @@ async def task_run_sample(
                                         ScoreEvent(
                                             score=score,
                                             target=sample.target,
+                                            scorer=name,
                                             model_usage=sample_model_usage() or None,
                                             role_usage=sample_role_usage() or None,
                                         )
@@ -1194,8 +1307,16 @@ async def task_run_sample(
                                 transcript()._event(ErrorEvent(error=error))
 
                         except Exception as ex:
-                            # handle error
-                            error, raise_error = handle_error(ex)
+                            if active.interrupt_action is not None:
+                                # Operator-interrupted: log to transcript but
+                                # don't propagate to error/retry. The operator
+                                # EvalSampleLimit is set in the run() handler.
+                                scorer_error = eval_error(
+                                    ex, type(ex), ex, ex.__traceback__
+                                )
+                                transcript()._event(ErrorEvent(error=scorer_error))
+                            else:
+                                error, raise_error = handle_error(ex)
                         finally:
                             # run task cleanup if required (inside sandbox context)
                             if cleanup is not None:
@@ -1250,6 +1371,15 @@ async def task_run_sample(
                             logger=logger,
                             log_images=log_images,
                         )
+                    await scan_eval_sample(
+                        eval_sample,
+                        scanner,
+                        scan_id=scan_id,
+                        eval_id=task_id,
+                        log_location=log_location,
+                        model=str(state.model),
+                        eval_spec=logger.eval if logger else None,
+                    )
                     await emit_attempt_end(will_retry=False)
                     await emit_sample_end(
                         eval_set_id, run_id, task_id, state.uuid, eval_sample
@@ -1258,7 +1388,12 @@ async def task_run_sample(
     # error that should be retried (we do this outside of the above scope so that we can
     # retry outside of the original semaphore -- our retry will therefore go to the back
     # of the sample queue)
-    if error and retry_on_error > 0 and cancelled_error is None:
+    if (
+        error
+        and retry_on_error > 0
+        and cancelled_error is None
+        and active.interrupt_action is None
+    ):
         await emit_attempt_end(will_retry=True)
 
         # remove any buffered sample events
@@ -1271,11 +1406,14 @@ async def task_run_sample(
             log_location=log_location,
             create_sample_state=create_sample_state,
             sandbox=sandbox,
+            checkpoint=checkpoint,
+            eval_checkpoint=eval_checkpoint,
             max_sandboxes=max_sandboxes,
             sandbox_cleanup=sandbox_cleanup,
             plan=plan,
             scorers=scorers,
             scorer_names=scorer_names,
+            scanner=scanner,
             cleanup=cleanup,
             generate=generate,
             progress=progress,
@@ -1288,6 +1426,7 @@ async def task_run_sample(
             fails_on_error=fails_on_error,
             # tick retry count down
             retry_on_error=retry_on_error - 1,
+            score_on_error=score_on_error,
             # forward on error that caused retry
             error_retries=copy(error_retries) + [_eval_retry_error(error)],
             time_limit=time_limit,
@@ -1296,6 +1435,7 @@ async def task_run_sample(
             eval_set_id=eval_set_id,
             run_id=run_id,
             task_id=task_id,
+            scan_id=scan_id,
             sample_uuid=state.uuid,
         )
 
@@ -1460,28 +1600,55 @@ def create_sample_semaphore(
     config: EvalConfig,
     generate_config: GenerateConfig,
     modelapi: ModelAPI | None = None,
-) -> anyio.Semaphore:
-    # if the user set max_samples then use that
-    if config.max_samples is not None:
-        return anyio.Semaphore(config.max_samples)
-
-    # use max_connections
-    max_samples = (
-        generate_config.max_connections
-        if generate_config.max_connections is not None
-        else DEFAULT_MAX_CONNECTIONS_BATCH
-        if generate_config.batch
-        else modelapi.max_connections()
-        if modelapi
-        else DEFAULT_MAX_CONNECTIONS
+) -> contextlib.AbstractAsyncContextManager[Any]:
+    from inspect_ai.util._concurrency import (
+        DynamicSampleLimiter,
+        adaptive_active,
+        resolve_adaptive,
     )
 
-    # return the semaphore
-    return anyio.Semaphore(max_samples)
+    if config.max_samples is not None:
+        # explicit max_samples wins silently — under default-on
+        # adaptive_connections, warning when max_samples < adaptive.max
+        # would fire for nearly every deliberate max_samples setting
+        return anyio.Semaphore(config.max_samples)
+    elif adaptive_active(
+        generate_config.adaptive_connections,
+        generate_config.max_connections,
+        generate_config.batch,
+    ):
+        # adaptive: dynamic limiter that tracks the controller(s) — sample
+        # concurrency grows with the controller's current limit so setup work
+        # (sandboxes etc.) stays proportional to actual model concurrency.
+        # Both explicit max_connections and batch mode silently override
+        # adaptive (matches the precedence in Model._connection_concurrency).
+        return DynamicSampleLimiter(
+            resolve_adaptive(generate_config.adaptive_connections)
+        )
+    else:
+        # static path (existing behavior, unchanged)
+        max_samples = (
+            generate_config.max_connections
+            if generate_config.max_connections is not None
+            else DEFAULT_MAX_CONNECTIONS_BATCH
+            if generate_config.batch
+            else modelapi.max_connections()
+            if modelapi
+            else DEFAULT_MAX_CONNECTIONS
+        )
+        return anyio.Semaphore(max_samples)
+
+
+# `importlib.util.find_spec` walks importer paths (~3 ms per call). Cache
+# at module load — package installation can't change during a process
+# lifetime, so the result is invariant. Without this, `init_sample_assistant_internal`
+# (called once per sample) was costing ~3 s per 500 samples in profiling.
+_HAS_OPENAI: bool = importlib.util.find_spec("openai") is not None
+_HAS_ANTHROPIC: bool = importlib.util.find_spec("anthropic") is not None
 
 
 def init_sample_assistant_internal() -> None:
-    if importlib.util.find_spec("openai"):
+    if _HAS_OPENAI:
         try:
             from inspect_ai.model._openai_responses import (
                 init_sample_openai_assistant_internal,
@@ -1491,7 +1658,7 @@ def init_sample_assistant_internal() -> None:
         except ImportError:
             pass
 
-    if importlib.util.find_spec("anthropic"):
+    if _HAS_ANTHROPIC:
         try:
             from inspect_ai.model._providers.anthropic import (
                 init_sample_anthropic_assistant_internal,

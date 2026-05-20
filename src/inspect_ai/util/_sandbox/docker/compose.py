@@ -6,6 +6,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, cast
 
+import anyio
 import yaml
 from pydantic import BaseModel
 
@@ -181,6 +182,15 @@ async def compose_pull(
     )
 
 
+async def docker_image_exists_locally(image: str) -> bool:
+    """Check whether a docker image is already present in the local daemon."""
+    result = await subprocess(
+        ["docker", "image", "inspect", image],
+        capture_output=True,
+    )
+    return result.success
+
+
 async def compose_exec(
     command: list[str],
     *,
@@ -341,7 +351,12 @@ async def compose_command(
     # these same commands succeed if you just retry them. therefore, we add some
     # extra resiliance by retrying commands with a timeout once. we were observing
     # commands hanging at a rate of ~ 1/1000, so we retry up to twice (tweaking the
-    # retry time down) to make the odds of hanging vanishingly small
+    # retry time down) to make the odds of hanging vanishingly small.
+    # under the same conditions we have also seen the compose CLI process exit
+    # immediately when dockerd fails the exec attach ("error attaching stdout
+    # stream: write unix /run/docker.sock->@: broken pipe"); the subsequent
+    # write of `input` to the dead subprocess's stdin then raises
+    # anyio.BrokenResourceError. retry that too.
 
     if timeout is not None:
         MAX_RETRIES = 2
@@ -352,16 +367,19 @@ async def compose_command(
                     timeout if retries == 0 else (min(timeout, 60) // retries), 1
                 )
                 return await run_command(command_timeout)
-            except TimeoutError as e:
+            except (TimeoutError, anyio.BrokenResourceError) as e:
                 retries += 1
                 if timeout_retry and (retries <= MAX_RETRIES):
                     logger.info(
-                        f"Retrying docker compose command: {shlex.join(compose_command)}"
+                        f"Retrying docker compose command after "
+                        f"{type(e).__name__}: {shlex.join(compose_command)}"
                     )
-                else:
+                elif isinstance(e, TimeoutError):
                     raise TimeoutError(
                         f"Docker compose command '{command}' timed out after {timeout} seconds"
                     ) from e
+                else:
+                    raise
 
     else:
         return await run_command(timeout)

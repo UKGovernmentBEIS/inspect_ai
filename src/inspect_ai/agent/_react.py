@@ -26,6 +26,7 @@ from inspect_ai.tool._mcp.connection import mcp_connection
 from inspect_ai.tool._tool import Tool, ToolResult, ToolSource, tool
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
+from inspect_ai.util._checkpoint import checkpointer
 
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._filter import MessageFilter
@@ -186,10 +187,15 @@ def react(
         )
 
     async def execute(state: AgentState) -> AgentState:
-        async with mcp_connection(tools):
+        async with checkpointer() as cp, mcp_connection(tools):
             # prepend system message if we have one
             if system_message:
                 state.messages.insert(0, system_message)
+
+            # track conversation messages (restored to prior value on resume)
+            state.messages = cp.track(
+                "messages", lambda: state.messages, state.messages
+            )
 
             # resolve overflow handling
             overflow = _resolve_overflow(truncation)
@@ -197,8 +203,8 @@ def react(
             # create compact function
             compact = _agent_compact(compaction, state.messages, tools, model)
 
-            # track attempts
-            attempt_count = 0
+            # track attempts (recovered from checkpoint state on resume)
+            attempt_count = cp.track("attempt_count", lambda: attempt_count, 0)
 
             # track consecutive content_filter responses
             consecutive_content_filter = 0
@@ -206,6 +212,9 @@ def react(
             # main loop = will terminate after submit (subject to max_attempts)
             # or if a message or token limit is hit
             while True:
+                # checkpoint at turn boundary (no-op when policy says so)
+                await cp.tick()
+
                 # generate output and append assistant message
                 state = await _agent_generate(
                     model, state, tools, retry_refusals, compact
@@ -213,7 +222,7 @@ def react(
 
                 # check for context window overflow
                 if state.output.stop_reason == "model_length":
-                    state, handled = await _handle_overflow(state, overflow)
+                    state, handled = await _handle_overflow(state, overflow, compact)
                     if handled:
                         continue
                     else:
@@ -297,8 +306,8 @@ def react(
                         if not state.output.message.tool_calls:
                             state.messages.append(
                                 ChatMessageUser(
-                                    content=DEFAULT_CONTINUE_PROMPT.format(
-                                        submit=submit_tool.name
+                                    content=DEFAULT_CONTINUE_PROMPT.replace(
+                                        "{submit}", submit_tool.name
                                     )
                                 )
                             )
@@ -306,7 +315,9 @@ def react(
                         # send back the user message
                         state.messages.append(
                             ChatMessageUser(
-                                content=do_continue.format(submit=submit_tool.name)
+                                content=do_continue.replace(
+                                    "{submit}", submit_tool.name
+                                )
                             )
                         )
                     elif isinstance(do_continue, AgentState):
@@ -324,7 +335,7 @@ def react(
                     )
                     state.messages.append(
                         ChatMessageUser(
-                            content=continue_msg.format(submit=submit_tool.name)
+                            content=continue_msg.replace("{submit}", submit_tool.name)
                         )
                     )
 
@@ -358,10 +369,15 @@ def react_no_submit(
     system_message = _prompt_to_system_message(prompt, tools, None)
 
     async def execute(state: AgentState) -> AgentState:
-        async with mcp_connection(tools):
+        async with checkpointer() as cp, mcp_connection(tools):
             # prepend system message if we have one
             if system_message:
                 state.messages.insert(0, system_message)
+
+            # track conversation messages (restored to prior value on resume)
+            state.messages = cp.track(
+                "messages", lambda: state.messages, state.messages
+            )
 
             # resolve overflow handling
             overflow = _resolve_overflow(truncation)
@@ -374,6 +390,9 @@ def react_no_submit(
 
             # main loop
             while True:
+                # checkpoint at turn boundary (no-op when policy says so)
+                await cp.tick()
+
                 # generate output and append assistant message
                 state = await _agent_generate(
                     model, state, tools, retry_refusals, compact
@@ -381,7 +400,7 @@ def react_no_submit(
 
                 # check for context window overflow
                 if state.output.stop_reason == "model_length":
-                    state, handled = await _handle_overflow(state, overflow)
+                    state, handled = await _handle_overflow(state, overflow, compact)
                     if handled:
                         continue
                     else:
@@ -449,10 +468,13 @@ def _prompt_to_system_message(
                 and ("{submit}" not in prompt.assistant_prompt)
                 and prompt.submit_prompt
             ):
-                assistant_prompt = f"{prompt.assistant_prompt}\n{prompt.submit_prompt.format(submit=submit_tool)}"
+                assistant_prompt = (
+                    f"{prompt.assistant_prompt}\n"
+                    f"{prompt.submit_prompt.replace('{submit}', submit_tool)}"
+                )
             else:
-                assistant_prompt = prompt.assistant_prompt.format(
-                    submit=submit_tool or "submit"
+                assistant_prompt = prompt.assistant_prompt.replace(
+                    "{submit}", submit_tool or "submit"
                 )
             prompt_lines.append(assistant_prompt)
         prompt_content = "\n\n".join(prompt_lines)
@@ -476,12 +498,46 @@ def _resolve_overflow(
 
 
 async def _handle_overflow(
-    state: AgentState, overflow: MessageFilter | None
+    state: AgentState,
+    overflow: MessageFilter | None,
+    compact: Compact | None = None,
 ) -> tuple[AgentState, bool]:
     from inspect_ai.log._transcript import transcript
 
+    # Drop the failed assistant turn appended by _model_generate; it has no
+    # usable content and the next iteration will generate a fresh one.
+    previous_messages = state.messages[:-1]
+
+    # Try forced compaction first: preserves intent via the same strategy
+    # used for predictive compaction; the overflow filter only truncates.
+    # The success path emits a CompactionEvent (with metadata.trigger='forced')
+    # via compact_fn — no extra transcript().info() needed here.
+    if compact is not None:
+        try:
+            compacted, c_message = await compact.compact_input(
+                previous_messages, force=True
+            )
+            # A successful return means _perform_compaction validated
+            # total_compacted <= threshold, so don't gate on length
+            # (CompactionEdit reduces content, not count).
+            state.messages = compacted
+            # CompactionSummary returns its summary as compacted[-1] AND
+            # as c_message (same object); Trim/Edit/Native return None.
+            # Append only for custom strategies that return a distinct one.
+            if c_message is not None and (
+                not compacted or compacted[-1] is not c_message
+            ):
+                state.messages.append(c_message)
+            return state, True
+        except Exception as ex:
+            # Falling back from configured compaction to the lossy overflow
+            # filter is a real degradation — surface to operator stderr.
+            logger.warning(
+                f"Forced compaction failed during overflow recovery: {ex}; "
+                "falling back to overflow filter."
+            )
+
     if overflow is not None:
-        previous_messages = state.messages[:-1]
         state.messages = await overflow(previous_messages)
         if len(state.messages) < len(previous_messages):
             transcript().info(
@@ -582,7 +638,10 @@ def _model_generate(
             # update the compaction baseline with the actual input token
             # count from the generate call (most accurate source of truth)
             if compact is not None:
-                compact.record_output(output)
+                # On stop_reason='model_length' the recorded baseline may
+                # exceed the context window; _handle_overflow's forced
+                # compaction (if any) resets it during housekeeping.
+                await compact.record_output(input_messages, output)
 
             break
         return state

@@ -35,7 +35,6 @@ if TYPE_CHECKING:
 import anyio
 import yaml
 from anyio.streams.memory import MemoryObjectSendStream
-from jsonschema import Draft7Validator
 from pydantic import BaseModel
 from typing_extensions import is_typeddict
 
@@ -65,7 +64,7 @@ from inspect_ai.tool._tool import (
     tool_result_content,
 )
 from inspect_ai.tool._tool_call import ToolCallContent, ToolCallError
-from inspect_ai.tool._tool_def import ToolDef, tool_defs
+from inspect_ai.tool._tool_def import ToolDef, tool_def_fields, tool_defs
 from inspect_ai.tool._tool_info import parse_docstring
 from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
@@ -178,18 +177,30 @@ async def _execute_tools_impl(
                     "unicode_decode",
                     f"Error decoding bytes to {ex.encoding}: {ex.reason}",
                 )
+            except ValueError as ex:
+                # CPython's subprocess module raises ValueError("embedded null byte")
+                # when a command or argument string contains '\x00'. Surface it as
+                # a tool error so the model can recover instead of crashing the sample.
+                if "embedded null byte" in str(ex):
+                    tool_error = ToolCallError(
+                        "parsing",
+                        f"An argument to tool '{call.function}' contained an embedded null byte.",
+                    )
+                else:
+                    raise
             except PermissionError as ex:
-                err = f"{ex.strerror}."
+                err = f"{ex.strerror or str(ex)}."
                 if isinstance(ex.filename, str):
                     err = f"{err} Filename '{ex.filename}'."
                 tool_error = ToolCallError("permission", err)
             except FileNotFoundError as ex:
-                tool_error = ToolCallError(
-                    "file_not_found",
-                    f"File '{ex.filename}' was not found.",
-                )
+                if isinstance(ex.filename, str):
+                    err = f"File '{ex.filename}' was not found."
+                else:
+                    err = ex.strerror or str(ex)
+                tool_error = ToolCallError("file_not_found", err)
             except IsADirectoryError as ex:
-                err = f"{ex.strerror}."
+                err = f"{ex.strerror or str(ex)}."
                 if isinstance(ex.filename, str):
                     err = f"{err} Filename '{ex.filename}'."
                 tool_error = ToolCallError("is_a_directory", err)
@@ -234,16 +245,16 @@ async def _execute_tools_impl(
                         | ContentDocument
                     ]
                 ) = [result]
-            elif isinstance(result, list) and (
-                len(result) == 0
-                or isinstance(
-                    result[0],
+            elif isinstance(result, list) and all(
+                isinstance(
+                    r,
                     ContentText
                     | ContentImage
                     | ContentAudio
                     | ContentVideo
                     | ContentDocument,
                 )
+                for r in result
             ):
                 content = result
             else:
@@ -328,6 +339,10 @@ async def _execute_tools_impl(
                         result_exception,
                     ) = await receive_stream.receive()
 
+            # track where this call's result message(s) start so that we
+            # can associate the event with its own ChatMessageTool (rather
+            # than always pointing at the first tool call's message)
+            result_start = len(result_messages)
             if event.cancelled:
                 tool_message = ChatMessageTool(
                     content="",
@@ -364,7 +379,9 @@ async def _execute_tools_impl(
                 waiting_time=waiting_time_end - waiting_time_start,
                 agent=result_event.agent,
                 failed=True if result_exception else None,
-                message_id=result_messages[0].id if len(result_messages) > 0 else None,
+                message_id=result_messages[result_start].id
+                if len(result_messages) > result_start
+                else None,
                 agent_span_id=result_event.agent_span_id,
             )
             transcript()._event_updated(event)
@@ -536,8 +553,10 @@ async def agent_handoff(
     # inject curried args
     arguments = {**call.arguments, **agent_tool.kwargs}
 
-    # parse arguments
-    arguments = tool_params(arguments, agent_tool.agent)
+    # parse arguments (inject a `state` placeholder so tool_params doesn't
+    # treat the agent's required `state` parameter as missing — the handoff
+    # harness injects the real AgentState below)
+    arguments = tool_params({**arguments, "state": None}, agent_tool.agent)
     del arguments["state"]
 
     # run the agent with limits
@@ -638,6 +657,90 @@ async def resolve_tools(
     return resolved_tools
 
 
+class PreparedTools(NamedTuple):
+    tdefs: list[ToolDef]
+    base_tools: list[ToolInfo]
+
+
+def _tool_info_from_tdef(tdef: ToolDef, *, own_parameters: bool) -> ToolInfo:
+    parameters = (
+        tdef.parameters.model_copy(deep=True) if own_parameters else tdef.parameters
+    )
+    return ToolInfo(
+        name=tdef.name,
+        description=tdef.description,
+        parameters=parameters,
+        options=tdef.options,
+    )
+
+
+async def prepare_tools(
+    tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
+) -> PreparedTools:
+    resolved_tools = await resolve_tools(tools)
+    tdefs: list[ToolDef] = []
+    base_tools: list[ToolInfo] = []
+
+    for tool in resolved_tools:
+        if isinstance(tool, ToolInfo):
+            base_tools.append(tool.model_copy(deep=True))
+        elif isinstance(tool, ToolDef):
+            tdefs.append(tool)
+            base_tools.append(_tool_info_from_tdef(tool, own_parameters=True))
+        else:
+            fields = tool_def_fields(tool)
+            tdef = ToolDef(
+                tool,
+                name=fields.name,
+                description=fields.description,
+                parameters=fields.parameters,
+                parallel=fields.parallel,
+                viewer=fields.viewer,
+                model_input=fields.model_input,
+                options=fields.options,
+            )
+            tdefs.append(tdef)
+            base_tools.append(
+                ToolInfo(
+                    name=fields.name,
+                    description=fields.description,
+                    parameters=fields.parameters,
+                    options=fields.options,
+                )
+            )
+
+    return PreparedTools(tdefs=tdefs, base_tools=base_tools)
+
+
+def copy_tools_info(tools: Sequence[ToolInfo]) -> list[ToolInfo]:
+    return [tool.model_copy(deep=True) for tool in tools]
+
+
+def snapshot_tools_for_event(
+    call_tools: Sequence[ToolInfo], base_tools: Sequence[ToolInfo]
+) -> list[ToolInfo]:
+    base_tools_by_name = {tool.name: tool for tool in base_tools}
+    snapshots: list[ToolInfo] = []
+    for call_tool in call_tools:
+        base_tool = base_tools_by_name.get(call_tool.name)
+        parameters = (
+            base_tool.parameters
+            if base_tool and call_tool.parameters == base_tool.parameters
+            else call_tool.parameters.model_copy(deep=True)
+        )
+        snapshot = call_tool.model_copy(deep=False)
+        snapshot.parameters = parameters
+        snapshot.options = deepcopy(call_tool.options)
+        snapshots.append(snapshot)
+    return snapshots
+
+
+def tools_info_equal(left: Sequence[ToolInfo], right: Sequence[ToolInfo]) -> bool:
+    if len(left) != len(right):
+        return False
+    return all(left_tool == right_tool for left_tool, right_tool in zip(left, right))
+
+
 def get_tools_info(
     tools: Sequence[Tool | ToolDef | ToolInfo],
 ) -> list[ToolInfo]:
@@ -715,8 +818,10 @@ def tool_params(input: dict[str, Any], func: Callable[..., Any]) -> dict[str, An
         # yield parameter (fail if not passed and there is no default)
         if param_name in input:
             params[param_name] = tool_param(type_hint, input.get(param_name))
-        elif param.default is not None or type_hint_includes_none(type_hint):
+        elif param.default is not inspect.Parameter.empty:
             params[param_name] = param.default
+        elif type_hint_includes_none(type_hint):
+            params[param_name] = None
         else:
             raise ToolParsingError(
                 f"Required parameter {param_name} not provided to tool call."
@@ -798,12 +903,22 @@ def tool_param(type_hint: Type[Any], input: Any) -> Any:
 def tool_call_view(call: ToolCall, tdefs: list[ToolDef]) -> ToolCallContent | None:
     tool_def = next((tool for tool in tdefs if tool.name == call.function), None)
     if tool_def and tool_def.viewer:
-        return tool_def.viewer(call).call
+        try:
+            return tool_def.viewer(call).call
+        except Exception as ex:
+            warn_once(
+                logger,
+                f"Error in viewer for tool '{call.function}': {ex}. "
+                "Falling back to default rendering.",
+            )
+            return None
     else:
         return None
 
 
 def validate_tool_input(input: dict[str, Any], parameters: ToolParams) -> str | None:
+    from jsonschema import Draft7Validator
+
     schema = parameters.model_dump(exclude_none=True)
     validator = Draft7Validator(schema)
     errors = list(validator.iter_errors(input))

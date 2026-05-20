@@ -1,5 +1,6 @@
 import ast
 import contextlib
+import copy
 import inspect
 import os
 from dataclasses import replace
@@ -89,10 +90,16 @@ def resolve_tasks(
                 model=task.model or model,
                 model_roles=_merge_model_roles(task.model_roles, model_roles),
                 sandbox=resolve_task_sandbox(task, sandbox),
+                checkpoint=task.checkpoint,
                 sequence=sequence,
             )
             for sequence, task in enumerate(tasks)
         ]
+
+    # an empty list is equivalent to None (load tasks from cwd) — but it
+    # must short-circuit before any tasks[0] access below
+    if isinstance(tasks, list) and len(tasks) == 0:
+        return as_resolved_tasks(load_tasks(None, task_args))
 
     # reflect resolved tasks right back
     if isinstance(tasks, ResolvedTask):
@@ -107,10 +114,6 @@ def resolve_tasks(
         return resolve_previous_tasks(
             tasks, sample_shuffle=sample_shuffle, model=model, model_roles=model_roles
         )
-
-    # take empty lists out of play
-    if isinstance(tasks, list) and len(tasks) == 0:
-        return as_resolved_tasks(load_tasks(None, task_args))
 
     # simple cases of passing us Task objects
     if isinstance(tasks, Task):
@@ -186,6 +189,16 @@ def resolve_previous_task(
     previous_task: PreviousTask,
     sequence: int,
 ) -> ResolvedTask:
+    # carry token usage forward from the prior log so cumulative totals stay
+    # accurate across retries. Deep-copy so the prior log is never mutated.
+    prior_stats = previous_task.log.stats
+    initial_model_usage = (
+        copy.deepcopy(prior_stats.model_usage) if prior_stats.model_usage else None
+    )
+    initial_role_usage = (
+        copy.deepcopy(prior_stats.role_usage) if prior_stats.role_usage else None
+    )
+
     return ResolvedTask(
         task=loaded_task,
         task_args=loaded_task_args,
@@ -197,11 +210,14 @@ def resolve_previous_task(
         sandbox=resolve_task_file_sandbox(
             previous_task.log.eval.task_file, previous_task.log.eval.sandbox
         ),
+        checkpoint=loaded_task.checkpoint,
         sequence=sequence,
         id=previous_task.id,
         sample_source=eval_log_sample_source(
             previous_task.log, previous_task.log_info, loaded_task.dataset
         ),
+        initial_model_usage=initial_model_usage,
+        initial_role_usage=initial_role_usage,
     )
 
 

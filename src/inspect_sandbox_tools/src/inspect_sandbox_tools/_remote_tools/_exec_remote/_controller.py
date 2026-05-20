@@ -21,6 +21,8 @@ class Controller:
         stdin_open: bool = False,
         env: dict[str, str] | None = None,
         cwd: str | None = None,
+        user: str | None = None,
+        can_switch_user: bool = False,
     ) -> int:
         """Create a new job and return its PID.
 
@@ -30,9 +32,17 @@ class Controller:
             stdin_open: If True, keep stdin open for later writes.
             env: Additional environment variables (merged with current env).
             cwd: Working directory for command execution.
+            user: User to run the command as (requires can_switch_user=True).
+            can_switch_user: Whether the server can switch users (running as root).
         """
         job = await Job.create(
-            command, input=input, stdin_open=stdin_open, env=env, cwd=cwd
+            command,
+            input=input,
+            stdin_open=stdin_open,
+            env=env,
+            cwd=cwd,
+            user=user,
+            can_switch_user=can_switch_user,
         )
         self._jobs[job.pid] = job
         return job.pid

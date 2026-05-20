@@ -8,6 +8,8 @@ from pydantic import BaseModel
 from typing_extensions import TypedDict
 
 from inspect_ai._util.content import ContentDocument, ContentText
+from inspect_ai.event._tool import ToolEvent
+from inspect_ai.log._transcript import Transcript, init_transcript
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
@@ -283,3 +285,147 @@ async def test_mixed_tool_result_preserved_as_structured_content():
         ContentText(text="Attached report"),
         ContentDocument(document="/path/to/report.pdf"),
     ]
+
+
+@tool
+def search_with_default_none():
+    async def search(query: str, filters: dict = None) -> str:  # type: ignore[assignment]
+        """Search with optional filters.
+
+        Args:
+            query: the query string.
+            filters: optional filters dict.
+        """
+        return f"q={query} filters={filters}"
+
+    return search
+
+
+async def test_default_none_param_not_required():
+    """Param with default=None (non-Optional annotation) is not required."""
+    tool_def = ToolDef(search_with_default_none())
+
+    # schema generation already treats `filters` as optional
+    assert "filters" not in tool_def.parameters.required
+
+    # model omits `filters` -- should succeed, not raise ToolParsingError
+    call = make_call("search_with_default_none", {"query": "cats"})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None, f"unexpected tool error: {messages[-1].error}"
+    assert messages[-1].content == "q=cats filters=None"
+
+
+@tool
+def perm_error_tool():
+    async def execute() -> str:
+        """Raise PermissionError with a custom message (no errno/filename)."""
+        raise PermissionError("Sandbox policy: write to /etc denied")
+
+    return execute
+
+
+@tool
+def fnf_error_tool():
+    async def execute() -> str:
+        """Raise FileNotFoundError with a custom message (no filename)."""
+        raise FileNotFoundError("Workspace file 'config.yaml' missing")
+
+    return execute
+
+
+async def test_oserror_custom_message_preserved():
+    """OSError subclasses raised with a bare message surface that message.
+
+    PermissionError/FileNotFoundError constructed with a single string arg
+    have .strerror/.filename == None; the model must still see the message,
+    not the literal 'None'.
+    """
+    # PermissionError
+    tool_def = ToolDef(perm_error_tool())
+    call = make_call("perm_error_tool", {})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "permission"
+    assert "None" not in messages[-1].error.message
+    assert "Sandbox policy: write to /etc denied" in messages[-1].error.message
+
+    # FileNotFoundError
+    tool_def = ToolDef(fnf_error_tool())
+    call = make_call("fnf_error_tool", {})
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "file_not_found"
+    assert "None" not in messages[-1].error.message
+    assert "Workspace file 'config.yaml' missing" in messages[-1].error.message
+
+
+@tool
+def mixed_content_and_str_tool():
+    async def execute() -> list:
+        """Return a list mixing Content and a raw str."""
+        return [ContentText(text="header"), "RAW STRING"]
+
+    return execute
+
+
+async def test_mixed_content_and_str_list_does_not_crash():
+    """Mixed Content/non-Content list result falls back to str coercion.
+
+    Only homogeneous Content lists are passed through as structured content;
+    a heterogeneous list must not crash the sample with a ValidationError.
+    """
+    tool_def = ToolDef(mixed_content_and_str_tool())
+    call = make_call("mixed_content_and_str_tool", {})
+
+    # previously this raised an unhandled pydantic ValidationError when
+    # building the ToolEvent (outside the tool-error try/except)
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].error is None
+    # mixed list falls through to str() coercion rather than being treated
+    # as list[Content]
+    assert isinstance(messages[-1].content, str)
+    assert "RAW STRING" in messages[-1].content
+
+
+async def test_tool_event_message_id_for_multiple_calls():
+    """Each ToolEvent.message_id references its own ChatMessageTool."""
+    transcript = Transcript()
+    init_transcript(transcript)
+
+    tool_def = ToolDef(incr())
+    calls = [
+        ToolCall(id="call-1", function="incr", arguments={"x": 1}, parse_error=None),
+        ToolCall(id="call-2", function="incr", arguments={"x": 2}, parse_error=None),
+        ToolCall(id="call-3", function="incr", arguments={"x": 3}, parse_error=None),
+    ]
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=calls)], [tool_def]
+    )
+
+    tool_messages = [m for m in messages if isinstance(m, ChatMessageTool)]
+    tool_events = [e for e in transcript.events if isinstance(e, ToolEvent)]
+    assert len(tool_messages) == 3
+    assert len(tool_events) == 3
+
+    for tool_message, tool_event in zip(tool_messages, tool_events):
+        assert tool_event.id == tool_message.tool_call_id
+        assert tool_event.message_id == tool_message.id
+
+    # ensure each event has a distinct message_id (regression: previously
+    # every event pointed at the first ChatMessageTool)
+    assert len({e.message_id for e in tool_events}) == 3

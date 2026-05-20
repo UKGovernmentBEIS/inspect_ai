@@ -4,6 +4,7 @@ import inspect
 import os
 import urllib.parse
 from collections.abc import AsyncIterable
+from functools import partial
 from io import BytesIO
 from logging import getLogger
 from typing import Any, AsyncIterator, Literal, Tuple, cast
@@ -16,6 +17,7 @@ from pydantic import BaseModel
 from s3fs import S3FileSystem  # type: ignore
 from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai._view.azure import (
     azure_warning_hint,
@@ -26,11 +28,13 @@ from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json,
     is_log_file,
-    list_eval_logs,
-    log_file_info,
-    log_files_from_ls,
+    log_file_info_async,
+    log_files_from_ls_async,
     read_eval_log_async,
 )
+from inspect_ai.log._recorders.buffer.buffer import sample_buffer
+from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
+from inspect_ai.log._recorders.buffer.types import PendingSampleUrls, SegmentRef
 
 logger = getLogger(__name__)
 
@@ -177,6 +181,77 @@ class LogInfo(BaseModel):
     direct_url: str | None = None
 
 
+async def get_direct_url(path: str) -> str | None:
+    """Return a presigned URL for `path` if it's on S3, else None.
+
+    Swallows exceptions from the presigning path (returns None and logs a
+    warning); callers must assume any S3 path can still land `None` here.
+    """
+    fs = filesystem(path)
+    if not fs.is_s3():
+        return None
+    try:
+        connection = async_connection(path)
+        # _url is the async variant of url() (fsspec convention)
+        url: str = await connection._url(path, expires=3600)
+        return url
+    except Exception:
+        logger.warning(
+            f"Failed to generate presigned URL for {path}",
+            exc_info=True,
+        )
+        return None
+
+
+async def build_pending_sample_urls(
+    file: str,
+    id: str,
+    epoch: int,
+    after_event_id: int | None,
+    after_attachment_id: int | None,
+    after_message_pool_id: int | None,
+    after_call_pool_id: int | None,
+    max_segments: int | None,
+    tail: bool = False,
+) -> PendingSampleUrls | None:
+    """Build the `/pending-sample-data-urls` response, or None for 404.
+
+    Returns None when the buffer is not filestore-backed (in-process database
+    buffer for a running eval, not yet synced), the manifest is missing, or
+    the requested sample is not in the manifest. Callers map None to 404.
+    """
+    buffer = sample_buffer(file)
+    if not isinstance(buffer, SampleBufferFilestore):
+        return None
+
+    pending = buffer.get_pending_segments(
+        id,
+        epoch,
+        after_event_id=after_event_id,
+        after_attachment_id=after_attachment_id,
+        after_message_pool_id=after_message_pool_id,
+        after_call_pool_id=after_call_pool_id,
+        max_segments=max_segments,
+        tail=tail,
+    )
+    if pending is None:
+        return None
+
+    direct_urls = await tg_collect(
+        [partial(get_direct_url, seg.path) for seg in pending.segments]
+    )
+    refs = [
+        SegmentRef(id=seg.id, member_name=seg.member_name, direct_url=url)
+        for seg, url in zip(pending.segments, direct_urls)
+    ]
+
+    return PendingSampleUrls(
+        segments=refs,
+        complete=pending.complete,
+        has_more=pending.has_more,
+    )
+
+
 async def get_log_info(
     log_file: str,
     generate_direct_url: bool = False,
@@ -189,22 +264,7 @@ async def get_log_info(
             presigned URL in the response.
     """
     size = await get_log_size(log_file)
-    direct_url: str | None = None
-
-    if generate_direct_url:
-        fs = filesystem(log_file)
-        if fs.is_s3():
-            try:
-                connection = async_connection(log_file)
-                # _url is the async variant of url() (fsspec convention)
-                url: str = await connection._url(log_file, expires=3600)
-                direct_url = url
-            except Exception:
-                logger.warning(
-                    f"Failed to generate presigned URL for {log_file}",
-                    exc_info=True,
-                )
-
+    direct_url = await get_direct_url(log_file) if generate_direct_url else None
     return LogInfo(size=size, direct_url=direct_url)
 
 
@@ -432,18 +492,19 @@ async def list_eval_logs_async(
                         await async_fs._ls(log_dir, detail=True),
                     )
                 logs = [fs._file_info(file) for file in files]
-                # resolve to eval logs
-                return log_files_from_ls(logs, formats, descending)
+                # resolve to eval logs (async fan-out so header reads on
+                # non-conforming filenames don't block the event loop)
+                return await log_files_from_ls_async(logs, formats, descending)
             else:
                 return []
     else:
-        return list_eval_logs(
-            log_dir=log_dir,
-            formats=formats,
-            recursive=recursive,
-            descending=descending,
-            fs_options=fs_options,
-        )
+        # sync filesystem (e.g. local) — list sync but resolve headers via
+        # the async fan-out so non-conforming filenames don't block the loop
+        # and so trio callers don't hit the sync-only read_eval_log path.
+        if not fs.exists(log_dir):
+            return []
+        logs = fs.ls(log_dir, recursive=recursive)
+        return await log_files_from_ls_async(logs, formats, descending)
 
 
 def resolve_header_only(path: str, header_only: int | None) -> bool:
@@ -473,7 +534,7 @@ async def eval_log_info_async(
     fs = filesystem(log_file, fs_options)
     if fs.exists(log_file):
         info = fs.info(log_file)
-        return log_file_info(info)
+        return await log_file_info_async(info)
     else:
         return None
 

@@ -13,9 +13,7 @@ citation:
 
 ## Welcome
 
-Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Security Institute](https://aisi.gov.uk).
-
-Inspect can be used for a broad range of evaluations that measure coding, agentic tasks, reasoning, knowledge, behavior, and multi-modal understanding. Core features of Inspect include:
+Inspect is a framework for frontier AI evaluations developed by the [UK AI Security Institute](https://aisi.gov.uk) and [Meridian Labs](https://meridianlabs.ai). Inspect can be used for a broad range of evaluations that measure coding, agentic tasks, reasoning, knowledge, behavior, and multi-modal understanding. Core features of Inspect include:
 
 ::: welcome-bullets
 -   A set of straightforward interfaces for implementing evaluations and re-using components across evaluations.
@@ -207,13 +205,15 @@ These sections provide a more in depth treatment of the various components used 
 
 -   [Scorers](scorers.qmd) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
 
+-   [Scanners](scanners.qmd) review transcripts to find issues like misconfigured environments, refusals, and evaluation awareness.
+
 These sections cover defining custom tools as well as Inspect's standard built-in tools:
 
 -   [Tool Basics](tools.qmd): Tools provide a means of extending the capabilities of models by registering Python functions for them to call. This section describes how to create custom tools and use them in evaluations.
 
 -   [Standard Tools](tools-standard.qmd) describes Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
 
--   [MCP Tools](tools-mcp.qmd) covers how to intgrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
+-   [MCP Tools](tools-mcp.qmd) covers how to integrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
 
 -   [Custom Tools](tools-custom.qmd) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.
 
@@ -236,6 +236,8 @@ These sections cover how to use various language models with Inspect:
 -   [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
 
 -   [Batch Mode](models-batch.qmd) covers using batch processing APIs for model inference.
+
+-   [Model Concurrency](models-concurrency.qmd) covers tuning model API connection limits, adaptive concurrency, and rate-limit handling.
 
 -   [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.
 
@@ -273,7 +275,7 @@ These sections discuss more advanced features and workflows. You don't need to r
 
 -   [Caching](caching.qmd) enables you to cache model output to reduce the number of API calls made, saving both time and expense.
 
--   [Parallelism](parallelism.qmd) delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture---here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
+-   [Parallelism](parallelism.qmd) covers running multiple models or tasks in parallel, sandbox container concurrency, and writing parallel custom code (tools, solvers, scorers). For tuning model API connection limits and rate-limit handling, see [Model Concurrency](models-concurrency.qmd).
 
 -   [Interactivity](interactivity.qmd) covers various ways to introduce user interaction into the implementation of tasks (for example, prompting the model dynamically based on the trajectory of the evaluation).
 

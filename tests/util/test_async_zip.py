@@ -514,3 +514,42 @@ def test_entries_caching_trio(test_zip_file: Path) -> None:
             }
 
     anyio.run(main, backend="trio")
+
+
+async def test_read_multi_frame_zstd_member(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """AsyncZipReader must read back zstd entries that span multiple frames."""
+    from test_helpers.zstd import (
+        ZSTD_MAGIC,
+        moderately_compressible_payload,
+        read_raw_compressed_entry,
+    )
+
+    # Lower the per-frame cap so the test produces multi-frame output cheaply.
+    monkeypatch.setattr("inspect_ai._util.zipfile._MAX_INPUT_PER_FRAME", 64 * 1024)
+
+    payload = moderately_compressible_payload(256 * 1024)
+    zip_path = tmp_path / "multi_frame_zstd.zip"
+    zip_zstandard: int = getattr(zipfile, "ZIP_ZSTANDARD", 93)
+    with zipfile.ZipFile(zip_path, "w", compression=zip_zstandard) as zf:
+        zf.writestr("big.json", payload)
+
+    raw = read_raw_compressed_entry(zip_path, "big.json")
+    frame_count = raw.count(ZSTD_MAGIC)
+    assert frame_count >= 2, (
+        f"expected >=2 zstd frames in entry, found {frame_count} "
+        f"(monkey-patch may have failed)"
+    )
+
+    async with AsyncFilesystem() as fs:
+        reader = AsyncZipReader(fs, str(zip_path))
+        chunks: list[bytes] = []
+        async with await reader.open_member("big.json") as stream:
+            async for chunk in stream:
+                chunks.append(chunk)
+
+    data = b"".join(chunks)
+    assert data == payload, (
+        f"round-trip mismatch: wrote {len(payload)} bytes, read back {len(data)} bytes"
+    )

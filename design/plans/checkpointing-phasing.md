@@ -1,0 +1,452 @@
+# Inspect Checkpointing — Implementation Phasing
+
+> Companion to [checkpointing-working.md](./checkpointing-working.md). The
+> design doc establishes *what* we're building; this doc proposes the
+> order we'll build it in.
+
+## Principles
+
+- **Each phase closes a loop end-to-end** so we get real roundtrip
+  testing rather than a half-built dead end.
+- **Latent merges are fine** when they shrink risk and let us land
+  scaffolding under review before the heavy machinery follows.
+  Phases 1 and 2 are intentionally latent (no customer-visible
+  behavior on their own).
+- **Front-load the simpler half.** Host-only checkpointing stabilizes
+  the format and the resume harness before the sandbox-side novelty
+  (restic injection, egress protocol, privilege model) lands on top.
+
+## Phase 1 — Restic acquisition
+
+**Status:** Done.
+
+**Plan sections covered:** §4c.
+
+**What landed:**
+
+- `src/inspect_ai/util/_restic/`: `Platform` literal,
+  `current_platform()`, async `resolve_restic(platform)`,
+  `cache_path()`, pinned version in `version.txt` (currently
+  `0.18.1`).
+- Cache lives at `platformdirs.user_cache_path("inspect_ai") / "bin/"`
+  (handles `$XDG_CACHE_HOME` on linux/mac and `%LOCALAPPDATA%` on
+  windows automatically).
+- Download path: urllib + bz2 / zipfile, atomic `os.replace`,
+  SHA256 verification against fetched `SHA256SUMS`. Fail-fast on any
+  error (no retries, no locking). Sync work wrapped in
+  `anyio.to_thread`.
+- Hidden CLI command `inspect download restic` (no flags) that
+  fetches every supported platform. Idempotent: prints "downloaded" or
+  "already cached" per platform, then a summary table. Hosted under a
+  hidden `inspect download` group so future binary downloads can slot
+  in alongside without namespace churn. Hidden via click `hidden=True`
+  so it doesn't appear in `--help` until checkpointing itself is
+  exposed.
+- 3 unit tests (`tests/util/test_restic_resolver.py`) covering cache
+  hit, cache miss + populate, and SHA256 mismatch. No network.
+- Decisions deliberately deferred: file locking, retry, macOS xattr
+  stripping, cache cleanup CLI.
+
+**Why first:** every later phase depends on it; risk was contained (no
+inspect runtime semantics changed); the hidden CLI gives an easy
+verification surface.
+
+## Phase 2 — Checkpointer skeleton (no I/O)
+
+**Status:** Done.
+
+**Plan sections covered:** §2 (`CheckpointConfig` + policy types),
+partial §3 (built-in support primitives).
+
+**What landed:**
+
+- `src/inspect_ai/util/_checkpoint/`: subpackage with
+  `CheckpointConfig`, all six policy types (`TimeInterval`,
+  `TurnInterval`, `TokenInterval`, `CostInterval`, `BudgetPercent`,
+  and the `"manual"` literal), `Retention`, the `checkpointer()`
+  async-cm factory, and the `Checkpointer` Protocol that the yielded
+  session implements. The factory dispatches to a no-op or active
+  session impl on entry; later phases swap implementations
+  underneath.
+- `tick()` consults the policy and decides whether the iteration is a
+  checkpoint moment; firing is a **no-op** (counter and timestamp
+  resets only). Active session is tracked via a
+  `contextvars.ContextVar` so free helpers can locate it without
+  explicit plumbing.
+- `tick()` implements `TimeInterval`, `TurnInterval`, and `"manual"`
+  policies. `TokenInterval` / `CostInterval` / `BudgetPercent` raise
+  `NotImplementedError` at session construction (scheduled for
+  Phase 6).
+- `cp.checkpoint()` on the yielded session forces a fire regardless
+  of policy.
+- 10 unit tests (`tests/checkpoint/test_checkpointer.py`) covering
+  all policies, fire counts, mocked-time semantics,
+  NotImplementedError paths, and the outside-context error case.
+  No I/O.
+
+**Why this carve-out:** locked the agent contract and the public type
+surface before the heavy machinery lands on top of it. Pure policy
+tests caught subtle threshold semantics in isolation. The state
+ownership question (`TaskState` vs. context var) settled in favor of
+context var.
+
+## Phase 2.5 — React agent wiring + sample identity capture
+
+**Status:** Done.
+
+**Plan sections covered:** the agent-wiring half of §3.
+
+**What landed:**
+
+- `react()` and `react_no_submit()` enter `checkpointer()` (zero-arg)
+  around the agent loop and call `await cp.tick()` per iteration.
+  Conversation messages are tracked by the agent itself via
+  `state.messages = cp.track("messages", lambda: state.messages,
+  state.messages)`. Config is ambient: the harness installs the
+  resolved `CheckpointConfig` on `ActiveSample.checkpoint` before the
+  agent runs, and the factory reads `sample_active()` on entry. If no
+  config is installed (or no sample is active), the factory dispatches
+  to the no-op session.
+- `build_impl()` (called by the factory) captures `sample_id`, `epoch`,
+  `log_location`, and `eval_id` from `sample_active()` and passes them
+  to the active `_Checkpointer` constructor for use by Phase 3's
+  `_fire()`.
+- `examples/checkpoint_ctf.py`: layered-decoder CTF harness exercising
+  the public API surface end-to-end (no real fire yet).
+
+**Deferred (still lands with Phase 3):**
+
+- **Sample-level retry / attempt index in `ActiveSample`.**
+  `build_impl()` currently captures `sample_id`, `epoch`,
+  `log_location`, and `eval_id`. The retry / attempt index needed to
+  disambiguate `<sample-id>__<epoch>_<retry>/` is **not yet captured**
+  — `ActiveSample` doesn't expose it. Phase 3 resolves this either by
+  adding an `attempt` field to `ActiveSample` (symmetric with `epoch`)
+  or by subscribing to `on_sample_attempt_start`. See the TODO in
+  `src/inspect_ai/util/_checkpoint/checkpointer_impl.py:build_impl`.
+
+**Why this carve-out:** wiring the agent and capturing identity are
+mechanical and reviewable on their own; pulling them forward gives a
+runnable harness (`examples/checkpoint_ctf.py`) that exercises the
+public API surface before the real I/O lands, and leaves Phase 3 as a
+focused swap of `_fire()`'s body plus the read side.
+
+## Phase 3 — Checkpoint write (host + sandbox, end-to-end)
+
+**Status:** In progress; most landed.
+
+**Plan sections covered:** §1, §4a, §4d, §4e, §4f, §4g, §4h, §5,
+§7a, §7b, §8a, §8b, §8c, §8e, Appendix B.
+
+This phase consolidates the write-side of the original Phase 3
+(host-only) and Phase 4 (sandbox + egress) — both ended up landing
+together because the work fell out that way naturally. Resume
+(read-side) is split into the new Phase 4.
+
+**Vocabulary** (used consistently across modules + tests):
+
+- *eval checkpoints dir*: `<parent>/<log-base>.checkpoints/` where
+  `<log-base>` is the eval log filename with a trailing `.eval`
+  stripped. `<parent>` defaults to the log's directory; overridable
+  via `CheckpointConfig.checkpoints_dir`. Eventually s3-capable; see
+  the "still TBD" list below for current limitations.
+- *sample checkpoints dir*: `<eval checkpoints dir>/<sample>__<epoch>/`
+  (per-attempt subtree on the destination).
+- *eval working dir*: `inspect_cache_dir("checkpoints")/<log-base>/`
+  (host-local, ephemeral).
+- *sample working dir*:
+  `<eval working dir>/<sample>__<epoch>/` (host-local, restic backs
+  this up each cycle).
+
+**Landed so far (write side):**
+
+- Modules `_eval_checkpoints`, `_sample_checkpoints`, `_working_dir`
+  own paths + writes for each of the four dir kinds. `init_eval_…`
+  sets up the manifest; `ensure_sample_…` is the public entry-point
+  on each side and handles the eval-level setup as an implementation
+  detail.
+- `manifest.json` written at the eval checkpoints dir with an
+  auto-generated `secrets.token_urlsafe` password. Idempotent across
+  samples; mismatched `eval_id` raises.
+- `checkpointer()` is a thin async-cm factory; `build_impl()` picks
+  one of two session impls on entry:
+  - `_NoopCheckpointer` when no `ActiveSample` is active or it carries
+    no `CheckpointConfig` — both methods are pass-through.
+  - `_Checkpointer` for active configs — holds pre-ensured sample
+    dirs, the resolved host restic binary, and the eval password as
+    ivars. Tracks turn counter, per-checkpoint ordinal, and trigger
+    derivation (`time` / `turn` / `manual`).
+- The active session (either impl) is registered on a ContextVar so
+  free helpers work transparently regardless of whether the
+  surrounding session is active or no-op.
+- **Restic integration is real**:
+  - Host: `init_host_repo` (idempotent — skip if `repo/config` exists)
+    runs in `build_impl()` against `<sample-checkpoints-dir>/host/`;
+    `run_host_backup` runs each fire and parses restic's `--json`
+    summary into a `ResticBackupSummary` pydantic model.
+  - Sandbox: `inject_restic` streams the linux binary as root via
+    stdin into `/opt/inspect-restic/restic` (parent dir mode 0700,
+    invisible to non-root). `init_sandbox_repo` initializes
+    `/opt/inspect-restic/repo` once. `run_sandbox_backup` invokes the
+    injected binary as root each fire.
+  - **Sandbox egress** (Appendix B): each cycle, `egress_sandbox`
+    runs a phase-1 root exec in the sandbox that diffs current
+    `repo/` files against `egress-manifest.txt`, builds an ordered
+    tar (`config → keys → data → index → snapshots`) into
+    `staging/egress-NNNNN.tar`, and emits the new file list. Host
+    pulls the tar via `env.read_file`, extracts into the destination
+    `<sample-checkpoints-dir>/sandboxes/<name>/`, runs
+    `restic snapshots --json` against the destination to verify the
+    new snapshot id is listed, then phase-2 root exec advances the
+    manifest and drops the tarball. Failure between phases leaves
+    the manifest unadvanced so the next cycle re-egresses the same
+    files. Destination repo is **not** pre-initialized — first
+    cycle's tarball carries `config` + `keys/*`, which makes the
+    destination valid on extraction.
+  - **Host + each sandbox `(backup → egress)` run in parallel** via
+    `inspect_ai.util.collect()`. Within a sandbox the pair is
+    sequential (egress diffs against what backup just wrote); pairs
+    across sandboxes and the host backup are independent.
+- **Sidecar carries per-backup stats** (`host: SnapshotInfo`,
+  `sandboxes: dict[str, SnapshotInfo]`) where `SnapshotInfo` =
+  `{snapshot_id, size_bytes, duration_ms}`. `size_bytes` comes from
+  restic's `data_added_packed` (post-compression on-disk cost);
+  `duration_ms` from restic's `total_duration`. Top-level
+  `size_bytes` on the sidecar is the rolled-up total.
+- **Host snapshot: up to five files, condensed + pooled.** The host
+  working dir is overwritten each fire with:
+  - `events.json` — condensed events; `ModelEvent.input` and
+    `ModelEvent.call` messages are replaced with `input_refs` /
+    `call_refs` into the pools.
+  - `events_data.json` — `{messages, calls}` dedup pools that the
+    refs index into. Built incrementally: each fire processes only
+    the new event slice via `condense_model_event_inputs` /
+    `condense_model_event_calls` against the session's persisted
+    `_msg_index` / `_call_index`, appending new entries. Total
+    hashing work over a sample is O(N) rather than O(N) per fire.
+  - `attachments.json` — `transcript().attachments`, captured live
+    by `Transcript._process_event` as call payloads >100 chars get
+    rewritten to `attachment://<hash>` refs. Persisted alongside so
+    resume can resolve the refs.
+  - `store.json` — `store_jsonable(state.store)`, pulled from
+    `sample_state().store`.
+  - `agent_state.json` *(opt-in)* — agent-defined property bag.
+    The agent registers one or more keyed callbacks via
+    `cp.track(key, callback, initial_value)` — a single combined
+    affordance that also returns the prior value (or `initial_value`
+    when none). Each callback is invoked at fire time and its result
+    is stored under its key in the merged dict. Duplicate keys raise.
+    File is absent when no callback was registered. `react()`
+    registers two callbacks: `"messages"` (the conversation, which
+    the protocol no longer privileges as a separate top-level file)
+    and `"attempt_count"` (so retries resume at the right attempt).
+  All files serialize via `to_jsonable_python(..., exclude_none=True)`.
+  `events.json` and `events_data.json` both have a byte-stable prefix
+  across fires (only the tail grows), which tightens restic CDC
+  dedup beyond what a flat events array would give.
+- **Restic-config tuning for the host repo.** Host backup invokes
+  restic with `--compression max` (zstd-max ≈ 5–10× ratio on
+  JSON-only content vs the default `auto` ≈ 2–3×) and `--no-scan`
+  (skips the up-front size-estimate walk; we control the source).
+  Sandbox backups keep restic defaults — sandbox content is mixed
+  binaries / logs, where `auto` is right.
+- **Sidecar commit is "parses or doesn't."** The sidecar write
+  itself is non-atomic. Resume globs `ckpt-*.json` and parse-and-skips
+  torn entries — the latest *parseable* sidecar is the resume point.
+  A mid-write crash costs at most one checkpoint, same as crashing
+  before the sidecar starts. See §4d.
+- **Concurrent-safe manifest init.** A module-level threading.Lock
+  serializes `_init_eval_checkpoints_dir_blocking` across the worker
+  threads spawned by per-sample `anyio.to_thread.run_sync`. Exactly
+  one caller generates the password and writes the manifest; the
+  rest see the existing file and return. Cross-process not covered
+  (filenames embed the eval_id UUID, so accidental sharing is
+  effectively impossible; the eval_id mismatch check catches the
+  pathological `inspect eval retry` overlap).
+- **Destination override**: `CheckpointConfig.checkpoints_dir`
+  repoints the parent root under which the per-eval subdir lands;
+  default is the log's directory. The per-eval subdir name strips a
+  trailing `.eval` and appends `.checkpoints` (so `foo.eval` →
+  `foo.checkpoints/`, replacing the earlier `foo.eval.checkpoints/`).
+
+**Still TBD (write side):**
+
+- `max_consecutive_failures` enforcement.
+- **Real s3 / remote `checkpoints_dir` support**. The override accepts
+  any string today, but only local destinations work end-to-end. The
+  fsspec-mediated paths (manifest, sidecar, dir creation) already
+  handle `s3://` correctly, but the restic-touching paths assume
+  local fs. Concretely:
+  - The host backup should be sent **directly** to the destination
+    via restic's native s3 backend (no host-local stage). That means
+    translating fsspec URLs (`s3://bucket/path`) to restic's URL form
+    (`s3:<endpoint>/bucket/path`) before invoking restic, and
+    propagating AWS credentials into the restic subprocess `env`
+    (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / region) — our
+    minimal `_restic_env` only sets `RESTIC_PASSWORD` + `PATH` today.
+  - `_restic.init_host_repo` and `egress_sandbox`'s
+    `Path(repo).mkdir(...)` / `Path(repo) / "config"` calls collapse
+    `s3://` to `s3:` and treat it as local; replace with
+    `filesystem(repo).mkdir(...)` / `filesystem(repo).exists(...)`.
+  - Egress tar extraction (`tarfile.extractall(dest_repo)`) is
+    local-fs only; for remote destinations, either extract to a
+    local staging dir then `filesystem(...).put_file(...)` per
+    member, or skip the staging and stream extracted bytes through
+    fsspec writes. Same restic-URL/creds handling as above for the
+    post-extract `restic snapshots` verification.
+  - Until that lands, validate the override at config-validation
+    time and reject non-local paths with a clear NotImplementedError.
+
+**End state of Phase 3:** Every checkpoint cycle produces a real,
+crash-resumable on-disk artifact for both native and sandbox-CLI
+agents, on either local or remote destinations. Resume code (Phase 4)
+will read these artifacts; nothing in Phase 3 actually rehydrates a
+sample.
+
+## Phase 4 — Resume (read side, all surfaces)
+
+**Status:** Not started.
+
+**Plan sections covered:** §6, §7c (resume integration with retry
+machinery), and the read-side complement of §1, §4a, §5, §8a, §8b.
+
+This phase consolidates the read-side that was originally split across
+the old Phase 3 (host-only resume) and Phase 4 (sandbox resume). They
+share enough machinery (sample-source extension, resume hook, retry
+integration) that splitting them produced redundant work; tackled
+together they're one coherent body.
+
+**Deliverables:**
+
+- Sample-source extension to deliver **partial** samples (the existing
+  retry pathway delivers either fresh or completed samples; this
+  phase adds a third state).
+- Read sidecar → restore host working dir from the host repo →
+  rehydrate condensed messages/events + `Store` into `TaskState`.
+  Reuses `condense_sample()` / `resolve_sample_events_data()` (§5)
+  on the read side. Glob `ckpt-*.json` and parse-and-skip torn /
+  missing entries — the latest *parseable* sidecar is the resume
+  point. Matches the consistency pattern called out in §4d.
+- **Sandbox state restore**: on resume, re-inject restic into the
+  fresh sandbox container, clone the destination sandbox repo back
+  in (mechanism — in-sandbox `restic restore` vs host-mediated
+  copy-in — settled during implementation), and confirm the agent
+  sees its prior `sandbox_paths`.
+- Agent protocol: `resume: Literal[True] | None` parameter; agents
+  that opt in receive the rehydrated `TaskState`.
+- `TaskState.resumed: bool` so agents can branch on it without
+  re-reading the sidecar themselves.
+- `Checkpointer.track` plumbing: the agent-facing method and
+  `_Checkpointer`'s `resume_state: dict[str, Any] | None` constructor
+  param are already in place (`initial_value` is returned until this
+  phase wires resume state through). `T` is unbounded — the contract
+  on captured values is "anything `to_jsonable_python` can serialize"
+  (JSON primitives, Pydantic models, dataclasses, and nesting). This
+  phase reads `agent_state.json` out of the rehydrated host working
+  dir and passes the parsed dict into `_Checkpointer` via
+  `build_impl()`, applying a deserialization heuristic from the
+  initial-value's type (BaseModel subclass → validate via that class;
+  non-empty list of BaseModel instances → validate element-wise;
+  else return JSON-loaded value as-is). `react()`'s
+  `cp.track("messages", ..., state.messages)` and
+  `cp.track("attempt_count", ..., 0)` calls then resolve to stored
+  values automatically — no change in agent code.
+- Integration with `inspect eval retry <log>` and eval-set retry —
+  both pathways resolve into the same sample source, so wiring in
+  the partial-sample state lights both up.
+
+**End state of Phase 4:** A killed eval (native or sandbox-CLI agent)
+resumes from the latest checkpoint with full roundtrip fidelity —
+messages, events, `Store`, and sandbox filesystem all match the
+pre-kill state. **Full roundtrip testable**, and the only blocker
+to shipping the feature.
+
+**Why after Phase 3 finishes:** the user has explicitly opted to ship
+nothing until resume works, so there's no incentive to start resume
+on a moving write-side target. Phase 3's remaining items change
+format-level details that resume reads — finishing them first means
+resume code is written once against the final shape.
+
+## Phase 5 — Observability
+
+**Status:** Not started.
+
+**Plan sections covered:** §8 (write-side observability surfaces).
+
+Customer-visible signals that checkpointing is happening — for
+debugging, monitoring, and ops integration. Deferred out of Phase 3
+because they're orthogonal to "the cycle works": every item here
+improves visibility, none is required for round-trip correctness.
+
+**Deliverables:**
+
+- `CheckpointEvent` in the per-sample event stream — one entry per
+  fired checkpoint carrying `{checkpoint_id, trigger, snapshot ids,
+  size_bytes, duration_ms}`. Lands in the `.eval` log alongside
+  model and tool events; viewable in `inspect view`.
+- `on_checkpoint_start` lifecycle hook — extension point for users
+  to observe / react at the start of each cycle (e.g. flush
+  in-memory state to disk so it lands in the snapshot, gate
+  background work that shouldn't be mid-flight when restic
+  enumerates the working tree). Symmetric with the existing
+  `on_sample_*` hooks.
+- TUI indicator — show "checkpoint N saved" / cumulative checkpoint
+  bytes in the running-eval view, similar to how token usage shows
+  today.
+
+**Why fifth:** Phases 3 + 4 produce the on-disk artifacts and the
+roundtrip; Phase 5 makes them legible to humans and external tooling
+without changing the write/read contract.
+
+## Phase 6 — Advanced policies + retention + polish
+
+**Plan sections covered:** the remaining bits of §2 (live wiring of
+token/cost/budget policies into inspect's existing limit machinery),
+§8d.
+
+**Deliverables:**
+
+- `tick()` implementation for `TokenInterval`, `CostInterval`,
+  `BudgetPercent` policies — observe inspect's existing
+  `token_limit` / `cost_limit` / `time_limit` / `working_limit`
+  state and fire on threshold crossings. Phase 2 already shipped the
+  types; this phase makes them functional.
+- `Retention` field actually enforced (`delete` vs `retain`
+  after_eval).
+- Any remaining failure-handling polish.
+- Documentation handoff to the public docs.
+
+**Why later:** none of these block customer value; they refine the
+experience after the core works.
+
+## Phase 7+ — Future capabilities
+
+Not scheduled. Tracked here so they're not lost:
+
+- Mid-tool-call checkpointing (currently a Phase-1 non-goal in the
+  plan).
+- User-provided encryption password.
+- Eval-complete vs sample-complete retention granularity (the §9 open
+  question).
+- Provider-native snapshot variants (Modal memory snapshots, etc.) if
+  and when worth it.
+
+## Notes on this shape
+
+- **Phases 1 / 2 / 2.5 were latent** — scaffolding under review before
+  the user-facing machinery followed.
+- **Phase 3 is the biggest single phase** and consolidates write-side
+  work that the original plan split between host-only (old Phase 3)
+  and sandbox (old Phase 4). Both halves landed together because the
+  modules and abstractions are shared. The phase isn't shipping
+  anything user-facing on its own — there's no resume code yet — but
+  produces real on-disk artifacts that Phase 4 will roundtrip.
+- **Phase 4 (resume) is the ship gate.** Per the project decision,
+  nothing about checkpointing ships to users until Phase 4 is done.
+  That means Phase 3's finishing items aren't time-pressured — we
+  can land them in any order before resume work begins.
+- **Phases 5 + 6 are layered, not blocking.** Phase 5 (observability)
+  lands customer-visible signals — events, hooks, TUI — that don't
+  change the write/read contract. Phase 6 (advanced policies +
+  retention) is intentionally optional polish; anything not ready
+  slots into a later release without blocking the core feature.

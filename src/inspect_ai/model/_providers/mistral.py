@@ -58,14 +58,14 @@ from inspect_ai.model._reasoning import parse_content_with_reasoning
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util._json import json_schema_dump
 
-from ..._util.httpx import httpx_should_retry
+from ..._util.httpx import httpx_classify_retry
 from .._call_tools import parse_tool_call
 from .._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
@@ -271,13 +271,15 @@ class MistralAPI(ModelAPI):
         return f"mistral/{self.service_model_name()}"
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         if isinstance(ex, SDKError):
-            return is_retryable_http_status(ex.status_code)
-        elif httpx_should_retry(ex):
-            return True
-        else:
-            return False
+            if not is_retryable_http_status(ex.status_code):
+                return RetryDecision.no()
+            if ex.status_code == 429:
+                return RetryDecision.rate_limit()
+            return RetryDecision.transient()
+        decision = httpx_classify_retry(ex)
+        return decision if decision is not None else RetryDecision.no()
 
     @override
     def connection_key(self) -> str:

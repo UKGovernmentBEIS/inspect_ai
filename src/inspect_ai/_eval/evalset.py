@@ -24,6 +24,7 @@ from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
 from inspect_ai._eval.task.run import resolve_plan
+from inspect_ai._eval.task.scan import Scanners, scan_already_clean
 from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.azure import call_with_azure_auth_fallback
 from inspect_ai._util.error import PrerequisiteError
@@ -64,6 +65,7 @@ from inspect_ai.scorer._reducer import reducer_log_name
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import DisplayType, SandboxEnvironmentType
+from inspect_ai.util._checkpoint import CheckpointConfig
 from inspect_ai.util._display import (
     display_type_initialized,
     display_type_plain,
@@ -74,6 +76,7 @@ from .eval import eval, eval_init, eval_resolve_tasks
 from .loader import resolve_task_args, solver_from_spec
 from .task import Epochs
 from .task.resolved import ResolvedTask
+from .task.scan import scan_context
 from .task.task import PreviousTask, resolve_epochs
 from .task.tasks import Tasks
 
@@ -112,13 +115,16 @@ def eval_set(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
+    checkpoint: CheckpointConfig | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
+    scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
     score: bool = True,
+    score_display: bool | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_format: Literal["eval", "json"] | None = None,
@@ -129,6 +135,7 @@ def eval_set(
     fail_on_error: bool | float | None = None,
     continue_on_fail: bool | None = None,
     retry_on_error: int | None = None,
+    score_on_error: bool | None = None,
     debug_errors: bool | None = None,
     message_limit: int | None = None,
     token_limit: int | None = None,
@@ -164,14 +171,16 @@ def eval_set(
             (required to ensure that a unique storage scope is assigned for the set).
         retry_attempts: Maximum number of retry attempts before giving up
             (defaults to 10).
-        retry_wait: Time to wait between attempts, increased exponentially.
-            (defaults to 30, resulting in waits of 30, 60, 120, 240, etc.). Wait time
-            per-retry will in no case by longer than 1 hour.
+        retry_wait: Time to wait between attempts when `retry_immediate=False`,
+            increased exponentially (defaults to 30, resulting in waits of 30, 60,
+            120, 240, etc.). Wait time per-retry will in no case be longer than 1
+            hour. Ignored when `retry_immediate=True`.
         retry_connections: Reduce max_connections at this rate with each retry
-            (defaults to 1.0, which results in no reduction).
+            when `retry_immediate=False` (defaults to 1.0, which results in no
+            reduction). Ignored when `retry_immediate=True`.
         retry_cleanup: Cleanup failed log files after retries
             (defaults to True)
-        retry_immediate: If True, will immediately retry tasks as they fail without waiting for all tasks to complete. If False, will maintain legacy retry behavior of waiting for all tasks to complete before retrying any tasks. When True, `retry_wait` and `retry_connections` are ignored (defaults to False).
+        retry_immediate: If True (the default), immediately retry tasks as they fail without waiting for all tasks to complete; completed samples are reused from logs on retry. If False, wait for all tasks to complete before retrying any tasks (legacy batch-retry behavior). When True, `retry_wait` and `retry_connections` are ignored.
         model: Model(s) for evaluation. If not specified use the value of the INSPECT_EVAL_MODEL
             environment variable. Specify `None` to define no default model(s), which will
             leave model usage entirely up to tasks.
@@ -186,8 +195,12 @@ def eval_set(
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
+        checkpoint: Checkpoint configuration for this eval set. Overrides
+            any task- or sample-level `checkpoint` when set.
         solver: Alternative solver(s) for
             evaluating task(s). Optional (uses task solver by default).
+        scanner: Scanner(s) to apply to each sample's transcript after the
+            sample completes.
         tags: Tags to associate with this evaluation run.
         metadata: Metadata to associate with this evaluation run.
         trace: Trace message interactions with evaluated model to terminal.
@@ -196,6 +209,7 @@ def eval_set(
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
         score: Score output (defaults to True)
+        score_display: Show scoring metrics in realtime (defaults to True)
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -215,6 +229,9 @@ def eval_set(
             `False` to fail eval immediately when the `fail_on_error` condition is met (default).
         retry_on_error: Number of times to retry samples if they encounter errors
             (by default, no retries occur).
+        score_on_error: Score samples that error rather than failing the eval mid-run.
+            Errors still count toward the `fail_on_error` threshold for marking the eval
+            log as 'error'. Only takes effect after retries (if any) are exhausted.
         debug_errors: Raise task errors (rather than logging them)
             so they can be debugged (defaults to False).
         message_limit: Limit on total messages used for each sample.
@@ -232,7 +249,7 @@ def eval_set(
             memory per task. When exceeded, samples are paged to a temporary
             file on disk (defaults to None, which keeps all samples in memory).
         max_tasks: Maximum number of tasks to run in parallel
-            (defaults to the greater of 4 and the number of models being evaluated)
+            (defaults to the greater of 10 and the number of models being evaluated)
         max_subprocesses: Maximum number of subprocesses to
             run in parallel (default is os.cpu_count())
         max_sandboxes: Maximum number of sandboxes (per-provider)
@@ -266,6 +283,8 @@ def eval_set(
     from inspect_ai.hooks._hooks import emit_eval_set_end, emit_eval_set_start
 
     num_retry_attempts = 10 if retry_attempts is None else retry_attempts
+    if retry_immediate is None:
+        retry_immediate = True
     task_retry_attempts = num_retry_attempts if retry_immediate else 0
 
     if retry_immediate and num_retry_attempts == 0:
@@ -291,7 +310,9 @@ def eval_set(
             task_args=task_args,
             sandbox=sandbox,
             sandbox_cleanup=sandbox_cleanup,
+            checkpoint=checkpoint,
             solver=solver,
+            scanner=scanner,
             tags=tags,
             metadata=metadata,
             trace=trace,
@@ -308,6 +329,7 @@ def eval_set(
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
+            score_on_error=score_on_error,
             debug_errors=debug_errors,
             message_limit=message_limit,
             token_limit=token_limit,
@@ -329,6 +351,7 @@ def eval_set(
             log_shared=log_shared,
             log_header_only=True,
             score=score,
+            score_display=score_display,
             eval_set_id=eval_set_id,
             task_retry_attempts=task_retry_attempts,
             **kwargs,
@@ -370,8 +393,30 @@ def eval_set(
     # resolve some parameters
     retry_connections = retry_connections or 1.0
     retry_cleanup = retry_cleanup is not False
+    # adaptive_connections subsumes retry_connections — the controller manages
+    # scale-down internally on retry signals. Force retry_connections to 1.0
+    # silently (rather than warning), so that this stays quiet when adaptive
+    # eventually becomes default-on. Only fires when adaptive will actually be
+    # active: explicit max_connections takes precedence (per the precedence
+    # rule in Model._connection_concurrency), batch mode disables adaptive
+    # entirely (worker tasks don't propagate retry signals), and in those
+    # cases retry_connections decay should still apply to the static cap.
+    # The predicate must match Model._connection_concurrency and
+    # create_sample_semaphore exactly — otherwise a user passing
+    # batch=True + adaptive_connections=True + retry_connections=0.5 would
+    # silently lose decay (evalset suppresses it, but the model path goes
+    # static and never sets up an adaptive controller).
+    from inspect_ai.util._concurrency import adaptive_active
+
+    adaptive_will_be_active = adaptive_active(
+        kwargs.get("adaptive_connections"),
+        kwargs.get("max_connections"),
+        kwargs.get("batch"),
+    )
+    if adaptive_will_be_active:
+        retry_connections = 1.0
     max_connections = starting_max_connections(models, GenerateConfig(**kwargs))
-    max_tasks = max_tasks if max_tasks is not None else max(len(models), 4)
+    max_tasks = max_tasks if max_tasks is not None else max(len(models), 10)
     log_dir_allow_dirty = log_dir_allow_dirty is True
 
     # prepare console/status
@@ -380,10 +425,22 @@ def eval_set(
 
     # before sleep
     def before_sleep(retry_state: RetryCallState) -> None:
-        # compute/update next max_connections
+        # Compute/update next max_connections, but only inject into kwargs when
+        # retry_connections actually decays (!= 1.0). Reasons:
+        #   1. If adaptive will be active at eval-set level, retry_connections
+        #      was already forced to 1.0 above (controller handles scale-down).
+        #   2. With default retry_connections=1.0, the "decayed" value equals
+        #      the original — injecting would be a no-op for static behavior
+        #      but would silently override any task-level adaptive_connections
+        #      (since any non-None max_connections disables adaptive per the
+        #      precedence rule in Model._connection_concurrency).
+        # When the user explicitly opts into decay (retry_connections != 1.0),
+        # we inject — this preserves the long-standing static behavior, with
+        # the trade-off that task-level adaptive yields to the explicit decay.
         nonlocal max_connections
-        max_connections = max(round(max_connections * retry_connections), 1)
-        kwargs["max_connections"] = max_connections
+        if retry_connections != 1.0:
+            max_connections = max(round(max_connections * retry_connections), 1)
+            kwargs["max_connections"] = max_connections
 
         # print waiting status
         msg = (
@@ -423,6 +480,12 @@ def eval_set(
             sandbox,
             sample_shuffle,
         )
+
+        # fail with a legible error if no tasks were found (matches `eval`)
+        if len(resolved_tasks) == 0:
+            raise PrerequisiteError(
+                "Error: No inspect tasks were found at the specified paths."
+            )
 
         # list all logs currently in the log directory (update manifest if there are some)
         all_logs = list_all_eval_logs(log_dir)
@@ -497,9 +560,19 @@ def eval_set(
                 failed_tasks = as_previous_tasks(
                     failed_resolved_tasks, failed_logs, eval_set_args
                 )
-            tasks_to_run = pending_tasks + failed_tasks
+            tasks_to_run = (
+                pending_tasks
+                + failed_tasks
+                + _resume_scan_tasks(
+                    scanner,
+                    success_logs,
+                    resolved_tasks,
+                    eval_set_args,
+                    prior_scan_clean,
+                )
+            )
+
             if not tasks_to_run:
-                # no new tasks and no failed logs to retry, just return success logs
                 return [log.header for log in success_logs]
 
         # run the tasks
@@ -523,7 +596,14 @@ def eval_set(
         before=before,
     )
 
-    with _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext():
+    # must read BEFORE scan_context enters — scan_init invalidates the
+    # finalize flag on attach, so reading from inside try_eval is too late
+    prior_scan_clean = scan_already_clean(scanner, eval_set_id, log_dir)
+
+    with (
+        _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext(),
+        scan_context(scanner, scan_id=eval_set_id, log_dir=log_dir),
+    ):
         # emit start event
         run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
 
@@ -552,6 +632,12 @@ def eval_set(
     else:
         msg = status_msg(f"Did not successfully complete all tasks in '{log_dir}'.")
     console.print(f"{msg}")
+
+    if scanner is not None:
+        from inspect_ai._eval.task.scan import print_scan_status
+
+        print()
+        print_scan_status(log_dir, scanner)
 
     # update manifest
     write_log_dir_manifest(log_dir)
@@ -608,6 +694,36 @@ def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str
     with file(eval_set_id_file, "w") as f:
         f.write(eval_set_id)
     return eval_set_id
+
+
+def _resume_scan_tasks(
+    scanner: "Scanners | None",
+    success_logs: list[Log],
+    resolved_tasks: list[ResolvedTask],
+    eval_set_args: EvalSetArgsInTaskIdentifier,
+    prior_scan_clean: bool,
+) -> list[PreviousTask]:
+    """Build PreviousTask wrappers for success_logs that may need re-scanning.
+
+    Returned tasks fan out via `run_eval` so the per-sample reuse path
+    can dispatch scans for transcripts whose row never landed in the
+    scan dir. Returns an empty list when there's no scan work to do
+    (no scanner, no success logs, or the prior scan finalized
+    cleanly — in which case every transcript already has a row).
+
+    Must be added to `tasks_to_run` even when there are pending or
+    failed tasks; otherwise unscanned transcripts in already-
+    completed tasks are silently skipped on every call that has work.
+    """
+    if scanner is None or not success_logs or prior_scan_clean:
+        return []
+    success_task_identifiers = {log.task_identifier for log in success_logs}
+    success_resolved_tasks = [
+        task
+        for task in resolved_tasks
+        if task_identifier(task, eval_set_args) in success_task_identifiers
+    ]
+    return as_previous_tasks(success_resolved_tasks, success_logs, eval_set_args)
 
 
 # convert resolved tasks to previous tasks
