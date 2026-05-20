@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import threading
 import time
+import zipfile
 from copy import deepcopy
 from pathlib import Path
 from typing import Callable
@@ -34,7 +35,7 @@ from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import basename, size_in_mb
+from inspect_ai._util.file import basename, local_path, size_in_mb
 from inspect_ai.dataset import Sample
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import (
@@ -1723,3 +1724,86 @@ def test_eval_set_retry_immediate(retry_immediate: bool | None) -> None:
             errored_sample,
             errored_sample,
         ]
+
+
+def test_carried_forward_samples_remain_condensed() -> None:
+    """eval_set retry must re-condense samples it carries forward.
+
+    Regression for the bug where retried eval_set runs wrote
+    previously-completed samples back into the new .eval in their
+    decondensed form (events_data dropped, ModelEvent.input inlined),
+    causing ~5x-15x per-sample bloat. The carry-forward path must
+    invoke condense_sample() like the normal write path does.
+    """
+    # Sample 1 fails on the first attempt and succeeds on the second.
+    # Sample 2 succeeds on the first attempt and is therefore carried
+    # forward (as a reused previous_sample) into the retry .eval.
+    # We use a seen-set to distinguish first vs. second visit to sample 1.
+    seen: set[int] = set()
+
+    @solver
+    def fail_once_on_sample_1() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 1 and state.sample_id not in seen:
+                seen.add(state.sample_id)
+                raise ValueError("first attempt for sample 1")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, logs = eval_set(
+            tasks=Task(
+                dataset=[
+                    Sample(id=1, input="Say hello", target="hello"),
+                    Sample(id=2, input="Say hello", target="hello"),
+                ],
+                solver=[fail_once_on_sample_1(), generate()],
+                scorer=includes(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=2,
+            retry_wait=0.1,
+            retry_immediate=True,
+            model="mockllm/model",
+        )
+        assert success, "eval_set should have succeeded after one retry"
+
+        # With retry_immediate=True the retry writes into the same log file, so
+        # there is exactly one .eval in the directory. That log contains both the
+        # freshly-run sample (id=1, re-run on retry) and the carried-forward
+        # sample (id=2, succeeded on attempt 1, copied in from the old log).
+        all_logs = list_eval_logs(log_dir)
+        assert len(all_logs) == 1, f"expected 1 eval log, got {len(all_logs)}"
+        latest = all_logs[0]
+
+        # list_eval_logs returns file:// URIs; convert to a plain path so
+        # zipfile.ZipFile can open it.
+        eval_path = local_path(latest.name)
+
+        # Read each sample's raw JSON directly from the zip so we observe
+        # the on-disk condensed/decondensed state. read_eval_log_sample()
+        # would call _resolve_sample_for_read and decondense, hiding the bug.
+        with zipfile.ZipFile(eval_path) as zf:
+            sample_members = [n for n in zf.namelist() if n.startswith("samples/")]
+            assert sample_members, "no sample files in retry .eval"
+            for member in sample_members:
+                data = json.loads(zf.read(member))
+                # Condensed samples either have events_data populated, OR
+                # have at least one ModelEvent with input_refs set and an
+                # empty input list. The bug produces samples with neither.
+                events_data_present = data.get("events_data") is not None
+                model_events = [
+                    e for e in data.get("events", []) if e.get("event") == "model"
+                ]
+                any_input_refs = any(
+                    e.get("input_refs") is not None and not e.get("input")
+                    for e in model_events
+                )
+                assert events_data_present or any_input_refs, (
+                    f"sample {member} in {latest.name} was written in "
+                    f"decondensed form (events_data missing AND no "
+                    f"ModelEvent has input_refs). "
+                    f"events_data={data.get('events_data')!r}, "
+                    f"model_event_count={len(model_events)}"
+                )
