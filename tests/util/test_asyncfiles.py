@@ -400,6 +400,397 @@ def test_write_file_streaming_s3(mock_s3: None) -> None:
 
 
 # =============================================================================
+# Tests for get_file()
+# =============================================================================
+
+
+async def test_get_file_local() -> None:
+    """get_file copies a local source to a local destination."""
+    test_data = b"local get_file payload"
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        src = Path(temp_dir) / "src.bin"
+        dst = Path(temp_dir) / "dst.bin"
+        src.write_bytes(test_data)
+
+        async with AsyncFilesystem() as fs:
+            await fs.get_file(str(src), str(dst))
+
+        assert dst.read_bytes() == test_data
+
+
+def test_get_file_s3(mock_s3: None) -> None:
+    """get_file downloads an S3 source to a local destination."""
+    test_data = b"s3 get_file payload"
+    s3_path = f"{S3_BUCKET}/get_file_test/file.bin"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(s3_path, test_data)
+            with tempfile.TemporaryDirectory() as temp_dir:
+                dst = Path(temp_dir) / "downloaded.bin"
+                await fs.get_file(s3_path, str(dst))
+                assert dst.read_bytes() == test_data
+
+    asyncio.run(run())
+
+
+# =============================================================================
+# Tests for exists()
+# =============================================================================
+
+
+async def test_exists_local_true() -> None:
+    """Existing local file returns True."""
+    with tempfile.NamedTemporaryFile(mode="wb", delete=False) as f:
+        f.write(b"x")
+        temp_path = f.name
+
+    try:
+        async with AsyncFilesystem() as fs:
+            assert await fs.exists(temp_path) is True
+    finally:
+        Path(temp_path).unlink()
+
+
+async def test_exists_local_false() -> None:
+    """Missing local file returns False."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        missing = Path(temp_dir) / "does_not_exist.bin"
+        async with AsyncFilesystem() as fs:
+            assert await fs.exists(str(missing)) is False
+
+
+def test_exists_s3_true(mock_s3: None) -> None:
+    """Existing S3 key returns True."""
+    s3_path = f"{S3_BUCKET}/exists_test/present.bin"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(s3_path, b"data")
+            assert await fs.exists(s3_path) is True
+
+    asyncio.run(run())
+
+
+def test_exists_s3_false(mock_s3: None) -> None:
+    """Missing S3 key returns False."""
+    s3_path = f"{S3_BUCKET}/exists_test/absent.bin"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            assert await fs.exists(s3_path) is False
+
+    asyncio.run(run())
+
+
+# =============================================================================
+# Tests for iter_files() and iter_dirs()
+# =============================================================================
+
+
+async def _collect(it):
+    return [x async for x in it]
+
+
+def _make_local_tree(root: Path) -> None:
+    """Create a fixture tree for iter_files/iter_dirs tests.
+
+    root/
+      a.txt
+      b.log
+      sub1/
+        c.txt
+        d.log
+        deep/
+          e.txt
+      sub2/
+        f.txt
+    """
+    (root / "a.txt").write_bytes(b"a")
+    (root / "b.log").write_bytes(b"b")
+    (root / "sub1").mkdir()
+    (root / "sub1" / "c.txt").write_bytes(b"c")
+    (root / "sub1" / "d.log").write_bytes(b"d")
+    (root / "sub1" / "deep").mkdir()
+    (root / "sub1" / "deep" / "e.txt").write_bytes(b"e")
+    (root / "sub2").mkdir()
+    (root / "sub2" / "f.txt").write_bytes(b"f")
+
+
+async def test_iter_files_local_one_level() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _make_local_tree(root)
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_files(str(root)))
+            names = sorted(Path(p).name for p in paths)
+            assert names == ["a.txt", "b.log"]
+
+
+async def test_iter_files_local_pattern() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _make_local_tree(root)
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_files(str(root), "*.txt"))
+            names = sorted(Path(p).name for p in paths)
+            assert names == ["a.txt"]
+
+
+async def test_iter_files_local_recursive() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _make_local_tree(root)
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_files(str(root), "*.txt", recursive=True))
+            names = sorted(Path(p).name for p in paths)
+            assert names == ["a.txt", "c.txt", "e.txt", "f.txt"]
+
+
+async def test_iter_files_local_empty_result() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _make_local_tree(root)
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_files(str(root), "*.nope", recursive=True))
+            assert paths == []
+
+
+async def test_iter_files_local_question_mark_pattern() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        (root / "a1.txt").write_bytes(b"")
+        (root / "a2.txt").write_bytes(b"")
+        (root / "ab.txt").write_bytes(b"")
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_files(str(root), "a?.txt"))
+            names = sorted(Path(p).name for p in paths)
+            assert names == ["a1.txt", "a2.txt", "ab.txt"]
+
+
+async def test_iter_files_local_bracket_pattern() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        (root / "a1.txt").write_bytes(b"")
+        (root / "a2.txt").write_bytes(b"")
+        (root / "ab.txt").write_bytes(b"")
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_files(str(root), "a[12].txt"))
+            names = sorted(Path(p).name for p in paths)
+            assert names == ["a1.txt", "a2.txt"]
+
+
+async def test_iter_dirs_local_one_level() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _make_local_tree(root)
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_dirs(str(root)))
+            terminal = sorted(p.rstrip("/").rsplit("/", 1)[-1] for p in paths)
+            assert terminal == ["sub1", "sub2"]
+            for p in paths:
+                assert p.endswith("/")
+
+
+async def test_iter_dirs_local_pattern() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _make_local_tree(root)
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_dirs(str(root), "sub1"))
+            terminal = sorted(p.rstrip("/").rsplit("/", 1)[-1] for p in paths)
+            assert terminal == ["sub1"]
+
+
+async def test_iter_dirs_local_recursive() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _make_local_tree(root)
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_dirs(str(root), "*", recursive=True))
+            terminal = sorted(p.rstrip("/").rsplit("/", 1)[-1] for p in paths)
+            assert terminal == ["deep", "sub1", "sub2"]
+
+
+async def test_iter_dirs_local_recursive_pattern() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _make_local_tree(root)
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_dirs(str(root), "deep", recursive=True))
+            terminal = sorted(p.rstrip("/").rsplit("/", 1)[-1] for p in paths)
+            assert terminal == ["deep"]
+
+
+async def test_iter_dirs_local_empty() -> None:
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        (root / "a.txt").write_bytes(b"")
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_dirs(str(root)))
+            assert paths == []
+
+
+async def test_iter_files_local_excludes_dirs() -> None:
+    """iter_files at one level returns only files, not dirs."""
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _make_local_tree(root)
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_files(str(root)))
+            for p in paths:
+                assert not p.endswith("/")
+                assert Path(p).is_file()
+
+
+def test_iter_files_s3_one_level(mock_s3: None) -> None:
+    base = f"{S3_BUCKET}/iter_test_files_1lvl"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(f"{base}/a.txt", b"a")
+            await fs.write_file(f"{base}/b.log", b"b")
+            await fs.write_file(f"{base}/sub/c.txt", b"c")
+            paths = await _collect(fs.iter_files(base))
+            assert sorted(paths) == [
+                f"{base}/a.txt",
+                f"{base}/b.log",
+            ]
+
+    asyncio.run(run())
+
+
+def test_iter_files_s3_pattern(mock_s3: None) -> None:
+    base = f"{S3_BUCKET}/iter_test_files_pat"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(f"{base}/a.txt", b"a")
+            await fs.write_file(f"{base}/b.log", b"b")
+            paths = await _collect(fs.iter_files(base, "*.txt"))
+            assert sorted(paths) == [f"{base}/a.txt"]
+
+    asyncio.run(run())
+
+
+def test_iter_files_s3_recursive(mock_s3: None) -> None:
+    base = f"{S3_BUCKET}/iter_test_files_rec"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(f"{base}/a.txt", b"a")
+            await fs.write_file(f"{base}/sub/b.txt", b"b")
+            await fs.write_file(f"{base}/sub/deep/c.txt", b"c")
+            await fs.write_file(f"{base}/sub/d.log", b"d")
+            paths = await _collect(fs.iter_files(base, "*.txt", recursive=True))
+            assert sorted(paths) == [
+                f"{base}/a.txt",
+                f"{base}/sub/b.txt",
+                f"{base}/sub/deep/c.txt",
+            ]
+
+    asyncio.run(run())
+
+
+def test_iter_files_s3_missing_prefix(mock_s3: None) -> None:
+    """Missing prefix returns empty iterator (not an error)."""
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(
+                fs.iter_files(f"{S3_BUCKET}/never_existed", recursive=True)
+            )
+            assert paths == []
+
+    asyncio.run(run())
+
+
+def test_iter_files_s3_pagination(mock_s3: None) -> None:
+    """Pagination: >1000 keys must all be returned."""
+    base = f"{S3_BUCKET}/iter_test_files_page"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            for i in range(1050):
+                await fs.write_file(f"{base}/k{i:04d}.txt", b"x")
+            paths = await _collect(fs.iter_files(base, recursive=True))
+            assert len(paths) == 1050
+
+    asyncio.run(run())
+
+
+def test_iter_dirs_s3_one_level(mock_s3: None) -> None:
+    base = f"{S3_BUCKET}/iter_test_dirs_1lvl"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(f"{base}/sub1/a.txt", b"a")
+            await fs.write_file(f"{base}/sub1/b.txt", b"b")
+            await fs.write_file(f"{base}/sub2/c.txt", b"c")
+            await fs.write_file(f"{base}/file.txt", b"f")
+            paths = await _collect(fs.iter_dirs(base))
+            assert sorted(paths) == [f"{base}/sub1/", f"{base}/sub2/"]
+            for p in paths:
+                assert p.endswith("/")
+
+    asyncio.run(run())
+
+
+def test_iter_dirs_s3_recursive_dedup(mock_s3: None) -> None:
+    """Recursive: dir with many files yields once."""
+    base = f"{S3_BUCKET}/iter_test_dirs_dedup"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            for i in range(5):
+                await fs.write_file(f"{base}/sub/f{i}.txt", b"x")
+            paths = await _collect(fs.iter_dirs(base, "sub", recursive=True))
+            assert paths == [f"{base}/sub/"]
+
+    asyncio.run(run())
+
+
+def test_iter_dirs_s3_recursive_depth(mock_s3: None) -> None:
+    base = f"{S3_BUCKET}/iter_test_dirs_depth"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(f"{base}/sub1/deep/a.txt", b"a")
+            await fs.write_file(f"{base}/sub2/b.txt", b"b")
+            paths = await _collect(fs.iter_dirs(base, "*", recursive=True))
+            assert sorted(paths) == [
+                f"{base}/sub1/",
+                f"{base}/sub1/deep/",
+                f"{base}/sub2/",
+            ]
+
+    asyncio.run(run())
+
+
+def test_iter_dirs_s3_recursive_excludes_ancestors(mock_s3: None) -> None:
+    """Recursive iter_dirs must NOT yield ancestors of base."""
+    base = f"{S3_BUCKET}/iter_test_dirs_anc/nested"
+
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            await fs.write_file(f"{base}/inner/a.txt", b"a")
+            paths = await _collect(fs.iter_dirs(base, "*", recursive=True))
+            assert paths == [f"{base}/inner/"]
+
+    asyncio.run(run())
+
+
+def test_iter_dirs_s3_empty(mock_s3: None) -> None:
+    async def run() -> None:
+        async with AsyncFilesystem() as fs:
+            paths = await _collect(fs.iter_dirs(f"{S3_BUCKET}/iter_test_dirs_empty"))
+            assert paths == []
+
+    asyncio.run(run())
+
+
+# =============================================================================
 # Tests for AsyncFilesystem sharing via ContextVar
 # =============================================================================
 

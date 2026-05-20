@@ -25,7 +25,7 @@ from inspect_ai.scorer import (
     value_to_float,
 )
 from inspect_ai.scorer._reducer import create_reducers
-from inspect_ai.scorer._reducer.reducer import pass_at
+from inspect_ai.scorer._reducer.reducer import pass_at, pass_k
 from inspect_ai.scorer._reducer.registry import REDUCER_NAME, reducer_log_name
 
 avg_reducer = mean_score()
@@ -39,6 +39,10 @@ pass_at_2_no_threshhold = pass_at(2)
 pass_at_3_threshhold = pass_at(3, 2)
 pass_at_5_no_threshhold = pass_at(5)
 pass_at_5_threshhold = pass_at(5, 2)
+pass_k_2_no_threshold = pass_k(2)
+pass_k_3_threshold = pass_k(3, 2)
+pass_k_5_no_threshold = pass_k(5)
+pass_k_5_threshold = pass_k(5, 2)
 
 
 def test_simple_reducers() -> None:
@@ -65,6 +69,10 @@ def test_all_nan_simple_reducers() -> None:
     assert _is_nan(pass_at_3_threshhold(simple_scores).value)
     assert _is_nan(pass_at_5_no_threshhold(simple_scores).value)
     assert _is_nan(pass_at_5_threshhold(simple_scores).value)
+    assert _is_nan(pass_k_2_no_threshold(simple_scores).value)
+    assert _is_nan(pass_k_3_threshold(simple_scores).value)
+    assert _is_nan(pass_k_5_no_threshold(simple_scores).value)
+    assert _is_nan(pass_k_5_threshold(simple_scores).value)
 
 
 def test_list_reducers() -> None:
@@ -97,6 +105,8 @@ def test_all_nan_list_reducers() -> None:
     assert_list_nan(reduced)
     reduced = pass_at_2_no_threshhold(list_scores).value
     assert_list_nan(reduced)
+    reduced = pass_k_2_no_threshold(list_scores).value
+    assert_list_nan(reduced)
 
 
 def test_nan_root_list_reducers() -> None:
@@ -119,6 +129,7 @@ def test_nan_root_list_reducers() -> None:
     assert max_reducer(list_scores).value == [4, 3]
     assert at_least_3_reducer(list_scores).value == [1, 1]
     assert pass_at_2_no_threshhold(list_scores).value == [1, 1]
+    assert pass_k_2_no_threshold(list_scores).value == [1, 1]
 
 
 def test_all_nan_root_list_reducers() -> None:
@@ -136,6 +147,7 @@ def test_all_nan_root_list_reducers() -> None:
     assert _is_nan(max_reducer(list_scores).value)
     assert _is_nan(at_least_3_reducer(list_scores).value)
     assert _is_nan(pass_at_2_no_threshhold(list_scores).value)
+    assert _is_nan(pass_k_2_no_threshold(list_scores).value)
 
 
 def test_dict_reducers() -> None:
@@ -172,6 +184,8 @@ def test_all_nan_dict_reducers() -> None:
     assert_dict_nan(reduced)
     reduced = pass_at_2_no_threshhold(dict_scores).value
     assert_dict_nan(reduced)
+    reduced = pass_k_2_no_threshold(dict_scores).value
+    assert_dict_nan(reduced)
 
 
 def test_nan_root_dict_reducers() -> None:
@@ -196,6 +210,7 @@ def test_nan_root_dict_reducers() -> None:
     assert at_least_4_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
     assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
     assert pass_at_2_no_threshhold(dict_scores).value == {"coolness": 1, "spiciness": 1}
+    assert pass_k_2_no_threshold(dict_scores).value == {"coolness": 1, "spiciness": 1}
 
 
 def test_all_nan_root_dict_reducers() -> None:
@@ -213,6 +228,7 @@ def test_all_nan_root_dict_reducers() -> None:
     assert _is_nan(max_reducer(scores).value)
     assert _is_nan(at_least_3_reducer(scores).value)
     assert _is_nan(pass_at_2_no_threshhold(scores).value)
+    assert _is_nan(pass_k_2_no_threshold(scores).value)
 
 
 def test_nan_root_first_score_dict_reducers() -> None:
@@ -275,6 +291,7 @@ def test_reducer_preserve_metadata() -> None:
         max_reducer,
         at_least_3_reducer,
         pass_at_2_no_threshhold,
+        pass_k_2_no_threshold,
     ]
 
     # verify that other fields are set only if equal across all samples
@@ -411,6 +428,7 @@ def test_create_reducers_exact_name_with_trailing_digits() -> None:
     # built-in `_<k>` shorthand must still work
     assert create_reducers("at_least_2")
     assert create_reducers("pass_at_3")
+    assert create_reducers("pass_k_3")
 
 
 def test_at_least_reducer_name_includes_k() -> None:
@@ -428,6 +446,8 @@ def test_at_least_reducer_name_includes_k() -> None:
     # log name must not double-append the suffix
     assert reducer_log_name(r3) == "at_least_3"
     assert reducer_log_name(pass_at(4)) == "pass_at_4"
+    assert reducer_log_name(pass_k(4)) == "pass_k_4"
+    assert not hasattr(pass_k, REDUCER_NAME)
 
 
 def test_max_reducer_dict_per_key_nan_order_independent() -> None:
@@ -472,6 +492,38 @@ def test_pass_at_k_insufficient_scored_epochs() -> None:
     assert pass_at(3)([Score(value=0.0)] * 4).value == 0.0
 
 
+def test_pass_k_insufficient_scored_epochs() -> None:
+    # pass_k mirrors pass_at: when NaN-filtering shrinks the valid count
+    # below k, the estimator is undefined and the reducer yields the
+    # unscored NaN sentinel rather than a spurious 0.0 from comb(c, k)=0.
+    scores = [
+        Score(value=1.0),
+        Score(value=1.0),
+        Score(value=float("nan")),
+        Score(value=float("nan")),
+    ]
+    result = pass_k(3)(scores).value
+    assert _is_nan(result), f"expected NaN for <k scored epochs, got {result!r}"
+
+    # sanity: with k scored epochs and all correct, pass^k is 1.0
+    assert pass_k(3)([Score(value=1.0)] * 3).value == 1.0
+
+
+def test_validate_pass_k_reducer() -> None:
+    import pytest
+
+    from inspect_ai._util.error import PrerequisiteError
+    from inspect_ai.scorer._reducer.registry import validate_reducer
+
+    # k <= epochs: ok
+    validate_reducer(5, pass_k(5))
+    validate_reducer(8, pass_k(3))
+
+    # k > epochs: raises with the reducer's logged name in the message
+    with pytest.raises(PrerequisiteError, match="pass_k_5"):
+        validate_reducer(3, pass_k(5))
+
+
 def eval_with_reducer():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
     return eval(task, model="mockllm/model", epochs=Epochs(5, max_score()))[0]
@@ -486,6 +538,12 @@ def test_reducer_by_name():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
     log = eval(task, model="mockllm/model", epochs=Epochs(5, "at_least_2"))[0]
     assert log.eval.config.epochs_reducer == ["at_least_2"]
+
+
+def test_pass_k_reducer_by_name():
+    task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
+    log = eval(task, model="mockllm/model", epochs=Epochs(5, "pass_k_2"))[0]
+    assert log.eval.config.epochs_reducer == ["pass_k_2"]
 
 
 def test_no_reducer():
@@ -565,6 +623,13 @@ def _test_simple_reducers_impl(include_nan: bool = False) -> None:
     assert pass_at_3_threshhold(simple_scores).value == 0.95
     assert pass_at_5_no_threshhold(simple_scores).value == 1.0
     assert pass_at_5_threshhold(simple_scores).value == 1.0
+    # pass_k = comb(correct, k) / comb(total, k). For simple_scores
+    # (correct=3, total=6): pass_k(2)=3/15=0.2; pass_k(3, value=2)=1/20=0.05;
+    # pass_k(5,*)=0/6=0.0 since correct < k.
+    assert pass_k_2_no_threshold(simple_scores).value == 0.2
+    assert pass_k_3_threshold(simple_scores).value == 0.05
+    assert pass_k_5_no_threshold(simple_scores).value == 0.0
+    assert pass_k_5_threshold(simple_scores).value == 0.0
 
 
 def _test_list_reducers_impl(include_nan: bool = False) -> None:
@@ -585,6 +650,7 @@ def _test_list_reducers_impl(include_nan: bool = False) -> None:
     assert at_least_3_reducer(list_scores).value == [1, 1]
     assert at_least_4_reducer(list_scores).value == [1, 1]
     assert pass_at_2_no_threshhold(list_scores).value == [1, 1]
+    assert pass_k_2_no_threshold(list_scores).value == [1, 1]
 
 
 def _test_dict_reducers_impl(include_nan: bool = False) -> None:
@@ -608,6 +674,7 @@ def _test_dict_reducers_impl(include_nan: bool = False) -> None:
     assert at_least_4_reducer(dict_scores).value == {"coolness": 1, "spiciness": 1}
     assert at_least_5_reducer(dict_scores).value == {"coolness": 0, "spiciness": 0}
     assert pass_at_2_no_threshhold(dict_scores).value == {"coolness": 1, "spiciness": 1}
+    assert pass_k_2_no_threshold(dict_scores).value == {"coolness": 1, "spiciness": 1}
 
 
 def _is_nan(x: Any) -> bool:
