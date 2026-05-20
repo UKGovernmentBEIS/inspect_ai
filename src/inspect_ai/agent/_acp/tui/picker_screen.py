@@ -42,6 +42,54 @@ _COL_TOKENS = "tokens"
 _COL_RUNNING = "running"
 
 
+def _display_task(task: str) -> str:
+    """Drop the namespace prefix for display.
+
+    Picker rows are typically scoped within one eval suite, so the
+    leading ``namespace/`` (e.g. ``inspect_evals/``) is redundant
+    noise. Splits on the FIRST slash so multi-segment task names like
+    ``inspect_evals/swe_bench`` show as ``swe_bench``. With no slash
+    we return the original string; with an empty tail (trailing
+    slash) we fall back to the head so a malformed ``"namespace/"``
+    still renders as ``"namespace"`` rather than an empty cell.
+    """
+    head, sep, tail = task.partition("/")
+    if not sep:
+        return task
+    return tail or head
+
+
+def _sort_rows(rows: list[SessionRow]) -> list[SessionRow]:
+    """Order: longest running first; pre-start rows at the bottom.
+
+    ``None`` ``started_at`` (no claim yet) sorts after every
+    timestamped row; ties break on ``(eval_id, sample_id, epoch)`` so
+    the order is fully deterministic and stable across rescans —
+    new samples join at the bottom, finished samples drop out,
+    existing samples don't reorder.
+    """
+    return sorted(
+        rows,
+        key=lambda r: (
+            r.started_at is None,
+            r.started_at if r.started_at is not None else 0.0,
+            r.eval_id,
+            r.sample_id,
+            r.epoch,
+        ),
+    )
+
+
+def _tokens_cell(n: int) -> Text:
+    """Right-justified Rich Text for the tokens column.
+
+    Centralised so add_row + update_cell (per-tick refresh) agree on
+    the alignment shape — a Text wrapped on one side and a bare str
+    on the other would lose the right-justify on the next tick.
+    """
+    return Text(format_tokens(n), justify="right")
+
+
 def _sample_cell(sample_id: str, *, is_cursor: bool) -> Text:
     """Sample-column cell value with an embedded cursor prefix.
 
@@ -52,20 +100,29 @@ def _sample_cell(sample_id: str, *, is_cursor: bool) -> Text:
     so an extra column adds 2 cells, not 1).
     """
     if is_cursor:
-        cell = Text("▸ ", style="bold $primary")
+        # ``$warning`` (warm amber in the dark theme) matches the
+        # plan-overlay running-row highlight, sharing one selection
+        # vocabulary across the picker and the in-session plan view.
+        cell = Text("▸ ", style="bold $warning")
         cell.append(sample_id)
         return cell
     return Text(f"  {sample_id}")
 
 
 def _row_matches(row: SessionRow, query: str) -> bool:
-    """Case-insensitive substring match across the user-visible fields."""
+    """Case-insensitive substring match across the user-visible fields.
+
+    Task is matched against the *stripped* display form so the filter
+    behaves consistently with what's on screen — typing
+    ``inspect_evals`` against a row showing ``swe_bench`` (its
+    stripped form) deliberately produces no match.
+    """
     if not query:
         return True
     q = query.lower()
     return (
         q in (row.sample_id or "").lower()
-        or q in (row.task or "").lower()
+        or q in _display_task(row.task or "").lower()
         or q in (row.agent_name or "").lower()
     )
 
@@ -190,7 +247,7 @@ class PickerScreen(Screen[None]):
     #filter-input {
         margin: 0 2;
         height: 3;
-        border: tall $primary 30%;
+        border: tall $accent 30%;
     }
     #filter-input.hidden { display: none; }
     /* Table inset uses ``margin`` (not ``padding``) so the table's
@@ -209,16 +266,19 @@ class PickerScreen(Screen[None]):
        ribbon. The selectors below scope to ``PickerScreen DataTable``
        so they outrank Textual's widget-default selectors (which have
        lower specificity once we add the screen prefix), without
-       having to resort to ``!important``. Focused state gets a
-       slightly stronger tint so the table reads as "active" without
-       falling back to the saturated default. */
+       having to resort to ``!important``. ``$warning`` (warm amber
+       in the dark theme) matches the plan-overlay running-row
+       highlight, sharing one selection vocabulary across the
+       picker and the in-session plan view. Focused state gets a
+       stronger tint so the table reads as "active" without falling
+       back to the saturated default. */
     PickerScreen DataTable > .datatable--cursor {
-        background: $primary 20%;
+        background: $warning 28%;
         color: $text;
         text-style: none;
     }
     PickerScreen DataTable:focus > .datatable--cursor {
-        background: $primary 35%;
+        background: $warning 42%;
         color: $text;
         text-style: none;
     }
@@ -243,11 +303,14 @@ class PickerScreen(Screen[None]):
         rescan: Callable[[], Awaitable[list[SessionRow]]] | None = None,
     ) -> None:
         super().__init__()
-        # Source-of-truth row list (everything enumeration returned).
-        self._rows = rows
+        # Source-of-truth row list (everything enumeration returned),
+        # sorted longest-running first. The sort is stable and applied
+        # at every (re)assignment of ``_rows`` so derived views like
+        # ``_visible_rows`` inherit the order automatically.
+        self._rows = _sort_rows(rows)
         # Currently-displayed subset (after the filter substring is
         # applied). Mirrors ``_rows`` when ``_filter_text`` is empty.
-        self._visible_rows: list[SessionRow] = list(rows)
+        self._visible_rows: list[SessionRow] = list(self._rows)
         self._server_override = server_override
         self._on_select = on_select
         self._rescan = rescan
@@ -287,7 +350,7 @@ class PickerScreen(Screen[None]):
                 "inspect eval <task> --acp-server\n"
                 "```\n\n"
                 "To use ACP with a remote machine, pass a host/port "
-                "to `--acp-server` then pass that server to `inspect acp`:\n\n"
+                "to `--acp-server`:\n\n"
                 "```bash\n"
                 "# start server\n"
                 'inspect eval <task> --acp-server "0.0.0.0:4545"\n\n'
@@ -318,13 +381,14 @@ class PickerScreen(Screen[None]):
             placeholder="filter samples...", id="filter-input", classes="hidden"
         )
 
-        # No zebra stripes — clean dark background with a single
-        # highlighted cursor row. `sample` leads (it's the most
+        # Zebra stripes alternate row backgrounds so it's easier to
+        # track values across the row at a glance — useful once the
+        # picker grows past a handful of rows. `sample` leads (most
         # identifying field); `eval` is intentionally NOT a column —
         # the eval id lives in the SessionScreen meta row once
         # attached. The count summary above already tells the user
         # how many evals are in play.
-        table: DataTable[str | Text] = DataTable(cursor_type="row", zebra_stripes=False)
+        table: DataTable[str | Text] = DataTable(cursor_type="row", zebra_stripes=True)
         # The ▸ cursor glyph is embedded into the sample cell itself
         # (rather than living in its own gutter column) so we get a
         # single space between glyph and sample text. A separate
@@ -336,12 +400,17 @@ class PickerScreen(Screen[None]):
         # can ``update_cell(row_key, "sample", …)`` — add_columns
         # would assign auto-generated UUID keys, breaking the swap.
         table.add_column(_COL_SAMPLE, key=_COL_SAMPLE)
-        table.add_columns(_COL_TASK, _COL_EPOCH, _COL_AGENT)
+        # Order: ``epoch`` sits adjacent to ``sample`` so the two
+        # identifying numbers read together; ``task`` follows since
+        # it's the dim narrative column the eye skims past.
+        table.add_columns(_COL_EPOCH, _COL_TASK, _COL_AGENT)
         # Use literal string keys (NOT ``str(ColumnKey)`` — that
         # returns the object's repr, which doesn't match anything on
         # lookup). update_cell calls in _tick_column reference the
         # same constants.
-        table.add_column(_COL_TOKENS, key=_COL_TOKENS)
+        # Tokens header is right-justified to match the cell values
+        # (cells get the same Text wrap via ``_tokens_cell``).
+        table.add_column(Text(_COL_TOKENS, justify="right"), key=_COL_TOKENS)
         table.add_column(_COL_RUNNING, key=_COL_RUNNING)
         self._populate_table(table)
         with Vertical():
@@ -371,11 +440,23 @@ class PickerScreen(Screen[None]):
         ``_apply_filter`` so the displayed row set follows the filter
         without recomposing the whole screen (recompose would steal
         focus from the filter Input and break live typing).
+
+        Cursor preservation: ``table.clear()`` resets the DataTable
+        cursor to row 0, which is annoying when the user has scrolled
+        to a specific row or is typing into the filter. Capture the
+        highlighted session_id beforehand and restore the cursor to
+        that session's new position (or clamp to row 0 when the
+        session is no longer visible).
         """
         if table is None:
             table = self._table_or_none()
             if table is None:
                 return
+        # Snapshot the highlighted session_id (if any) so we can land
+        # the cursor back on the same row after the rebuild.
+        prior_cursor_session_id: str | None = None
+        if table.row_count > 0 and 0 <= table.cursor_row < len(self._visible_rows):
+            prior_cursor_session_id = self._visible_rows[table.cursor_row].session_id
         # ``clear()`` drops rows but keeps the column layout, which is
         # what we want when narrowing/widening the visible set.
         table.clear()
@@ -387,18 +468,35 @@ class PickerScreen(Screen[None]):
             # the prefix as the cursor moves.
             table.add_row(
                 _sample_cell(row.sample_id, is_cursor=(idx == 0)),
-                # Dim the task column — the mockup keeps it muted so
-                # the eye lands on sample id / agent / time.
-                Text(row.task, style="dim"),
                 str(row.epoch),
+                # Dim the task column — the mockup keeps it muted so
+                # the eye lands on sample id / agent / time. Display
+                # form strips any ``namespace/`` prefix; the underlying
+                # ``row.task`` stays untouched for log paths etc.
+                Text(_display_task(row.task), style="dim"),
                 row.agent_name or "—",
-                format_tokens(row.total_tokens),
+                _tokens_cell(row.total_tokens),
                 format_running(row.started_at, now),
                 key=row.session_id,
             )
-        self._gutter_row_key = (
-            self._visible_rows[0].session_id if self._visible_rows else None
-        )
+        # Restore cursor: prefer the previously-highlighted
+        # session_id if it's still visible, else clamp to row 0. The
+        # ▸ glyph is on row 0 (from add_row's ``is_cursor=(idx == 0)``)
+        # so seed ``_gutter_row_key`` to row 0's id and let
+        # ``on_data_table_row_highlighted`` swap the glyph when the
+        # cursor move fires the highlight event.
+        if not self._visible_rows:
+            self._gutter_row_key = None
+            return
+        new_index = 0
+        if prior_cursor_session_id is not None:
+            for idx, row in enumerate(self._visible_rows):
+                if row.session_id == prior_cursor_session_id:
+                    new_index = idx
+                    break
+        self._gutter_row_key = self._visible_rows[0].session_id
+        if new_index != 0:
+            table.move_cursor(row=new_index, animate=False)
 
     def _refresh_status(self) -> None:
         try:
@@ -464,9 +562,8 @@ class PickerScreen(Screen[None]):
         # focus to the table so navigation + attach work out of the
         # gate. Only meaningful in the populated branch — the empty
         # branch has no DataTable.
-        table = self._table_or_none()
-        if table is not None:
-            table.focus()
+        self._focus_table_if_present()
+        if self._table_or_none() is not None:
             # Per-second refresh of the running column so elapsed times
             # tick visibly. Cheap (in-place cell update).
             self.set_interval(1.0, self._tick_running)
@@ -476,6 +573,18 @@ class PickerScreen(Screen[None]):
         # cursor / scroll state survive in steady state.
         if self._rescan is not None:
             self.set_interval(self.RESCAN_INTERVAL_SECS, self._do_rescan)
+
+    def _focus_table_if_present(self) -> None:
+        """Focus the DataTable if it's mounted; no-op in the empty branch.
+
+        Used at initial mount AND after the empty→populated recompose
+        so the operator can navigate / press Enter immediately when
+        the first session appears, without first having to click into
+        the table to take focus away from the (hidden) filter Input.
+        """
+        table = self._table_or_none()
+        if table is not None:
+            table.focus()
 
     async def _do_rescan(self) -> None:
         """Background rescan: pull fresh rows, recompose only on structural change.
@@ -496,6 +605,9 @@ class PickerScreen(Screen[None]):
             # Transient enumeration failures shouldn't disturb the
             # current view; try again next tick.
             return
+        # Sort up front so both the steady-state and the diff branches
+        # observe the canonical order.
+        new_rows = _sort_rows(new_rows)
         if not self._row_ids_changed(new_rows):
             # Steady state for the *set* of sessions, but per-row
             # fields (notably ``total_tokens``) may have advanced.
@@ -511,6 +623,13 @@ class PickerScreen(Screen[None]):
                 r for r in self._rows if _row_matches(r, self._filter_text)
             ]
             self.refresh(recompose=True)
+            # Recompose is queued; the new DataTable isn't mounted
+            # yet, so defer the focus to after the next layout pass.
+            # Without this, the empty→populated transition leaves
+            # focus on whatever the empty-state branch had (the
+            # Markdown hint) and arrow keys / Enter would do nothing
+            # until the operator clicked or tabbed into the table.
+            self.call_after_refresh(self._focus_table_if_present)
             return
         # Row diff with a live table — reapply the filter in place so
         # rescanning during filtering doesn't drop back to unfiltered.
@@ -543,11 +662,16 @@ class PickerScreen(Screen[None]):
         Token totals only advance when the rescan loop pulls new data
         from the server — there's no local computation to redo every
         second — so this is wired into ``_do_rescan`` rather than the
-        per-second tick.
+        per-second tick. Wraps via ``_tokens_cell`` so the
+        right-justify alignment survives every cell update.
         """
-        self._tick_column(_COL_TOKENS, lambda row: format_tokens(row.total_tokens))
+        self._tick_column(_COL_TOKENS, lambda row: _tokens_cell(row.total_tokens))
 
-    def _tick_column(self, col_key: str, value_fn: Callable[[SessionRow], str]) -> None:
+    def _tick_column(
+        self,
+        col_key: str,
+        value_fn: Callable[[SessionRow], str | Text],
+    ) -> None:
         """Update one column's cells in place across the visible rows.
 
         Silently skips when the table isn't mounted (table not yet

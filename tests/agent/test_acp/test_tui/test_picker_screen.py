@@ -10,12 +10,18 @@ from __future__ import annotations
 import time
 
 import pytest
+from rich.text import Text
 from test_helpers.utils import skip_if_trio
 from textual.widgets import DataTable, Input, Markdown, Static
 
 from inspect_ai.agent._acp.tui.app import InspectAcpApp
 from inspect_ai.agent._acp.tui.client import SessionRow
-from inspect_ai.agent._acp.tui.picker_screen import PickerScreen
+from inspect_ai.agent._acp.tui.picker_screen import (
+    PickerScreen,
+    _display_task,
+    _row_matches,
+    _sort_rows,
+)
 from inspect_ai.agent._acp.tui.widgets._formatting import (
     format_running as _format_running,
 )
@@ -130,8 +136,8 @@ async def test_picker_populated_renders_all_rows(
         columns = [str(c.label) for c in table.columns.values()]
         assert columns == [
             "sample",
-            "task",
             "epoch",
+            "task",
             "agent",
             "tokens",
             "running",
@@ -143,9 +149,8 @@ async def test_picker_populated_renders_all_rows(
         assert "3 samples" in status_text
         assert "2 evals" in status_text
         # Agent values render — missing names become an em-dash so
-        # the column never shows a literal "None". Agent column index
-        # shifted by one with the gutter column removed (sample=0,
-        # task=1, epoch=2, agent=3, tokens=4, running=5).
+        # the column never shows a literal "None". Column indices:
+        # sample=0, epoch=1, task=2, agent=3, tokens=4, running=5.
         agent_cells = [str(c) for c in table.get_column_at(3)]
         assert "react" in agent_cells
         assert "deepagent" in agent_cells
@@ -231,7 +236,7 @@ async def test_picker_running_column_ticks_in_place(monkeypatch) -> None:
         assert isinstance(picker, PickerScreen)
         table = picker.query_one(DataTable)
 
-        # ``running`` is column index 5 (sample, task, epoch, agent,
+        # ``running`` is column index 5 (sample, epoch, task, agent,
         # tokens, running) — the gutter column was removed and the
         # cursor glyph embedded into the sample cell instead.
         before = str(list(table.get_column_at(5))[0])
@@ -450,7 +455,11 @@ async def test_picker_filter_survives_rescan(
         await picker._do_rescan()
         await pilot.pause()
         # Source-of-truth shrinks, but the filter still narrows to deep.
-        assert picker._rows == sample_rows[1:]
+        # Compare as sets — _rows is now sorted longest-running-first
+        # which differs from the fixture's source order.
+        assert {r.session_id for r in picker._rows} == {
+            r.session_id for r in sample_rows[1:]
+        }
         assert picker.query_one(DataTable).row_count == 1
         assert picker._visible_rows[0].agent_name == "deepagent"
 
@@ -506,7 +515,7 @@ async def test_picker_rescan_updates_tokens_in_steady_state(
         picker = app.screen
         assert isinstance(picker, PickerScreen)
         table = picker.query_one(DataTable)
-        # Tokens column is index 4 (sample=0, task=1, epoch=2,
+        # Tokens column is index 4 (sample=0, epoch=1, task=2,
         # agent=3, tokens=4, running=5) — gutter column was dropped.
         # Initial fixture rows have total_tokens=0 → cell renders "0".
         before = [str(c) for c in table.get_column_at(4)]
@@ -525,12 +534,389 @@ async def test_picker_rescan_updates_tokens_in_steady_state(
         await pilot.pause()
 
         after = [str(c) for c in table.get_column_at(4)]
-        # _format_tokens: 1234 → "1.2K", 999999 → "1000K" → actually
-        # under 1M so "1000K"? Let's compute: 999999/1000 = 999.999
-        # → 1000 → trim ".0" → "1000K". And 2_500_000 → "2.5M".
-        assert after[0] == "1.2K"
-        assert after[1] == "1000K"
-        assert after[2] == "2.5M"
+        # Display order is longest-running-first now, so the fixture's
+        # sess-3 (oldest started_at) lands at row 0, sess-2 at row 1,
+        # sess-1 at row 2. _format_tokens: 1234 → "1.2K",
+        # 999999/1000 = 999.999 → 1000 → trim ".0" → "1000K",
+        # 2_500_000 → "2.5M". Bumped values map by session: sess-1=1.2K,
+        # sess-2=1000K, sess-3=2.5M.
+        assert after[0] == "2.5M"  # sess-3 (oldest)
+        assert after[1] == "1000K"  # sess-2
+        assert after[2] == "1.2K"  # sess-1 (newest)
+
+
+def test_display_task_strips_namespace_prefix() -> None:
+    """Single-slash split: everything before the first ``/`` is dropped."""
+    assert _display_task("inspect_evals/swe_bench") == "swe_bench"
+    assert _display_task("plain") == "plain"
+    # Multi-segment paths keep everything after the first slash.
+    assert _display_task("a/b/c") == "b/c"
+    assert _display_task("") == ""
+    # Leading slash leaves an empty namespace → return the tail.
+    assert _display_task("/foo") == "foo"
+    # Trailing slash leaves an empty tail → return the original.
+    assert _display_task("namespace/") == "namespace"
+
+
+def test_row_matches_filters_on_stripped_task(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Filter scope is the stripped task display form, not the full string."""
+    # Build a row with a namespaced task so the stripping matters.
+    row = SessionRow(
+        eval_id=sample_rows[0].eval_id,
+        session_id=sample_rows[0].session_id,
+        task="inspect_evals/swe_bench",
+        sample_id=sample_rows[0].sample_id,
+        epoch=sample_rows[0].epoch,
+        agent_name=sample_rows[0].agent_name,
+        started_at=sample_rows[0].started_at,
+        target=sample_rows[0].target,
+    )
+    assert _row_matches(row, "swe")  # stripped form matches
+    # The hidden namespace deliberately does NOT match — operator can
+    # only filter on what's on screen.
+    assert not _row_matches(row, "inspect_evals")
+
+
+def test_sort_rows_orders_by_started_at_ascending(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Smallest started_at (longest running) lands at index 0."""
+    sorted_rows = _sort_rows(sample_rows)
+    # Fixture: sess-3 has the oldest started_at, sess-2 next, sess-1 newest.
+    assert [r.session_id for r in sorted_rows] == ["sess-3", "sess-2", "sess-1"]
+
+
+def test_sort_rows_none_started_at_sinks_to_bottom(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Rows with started_at=None sort after every timestamped row."""
+    pre_start = SessionRow(
+        eval_id=sample_rows[0].eval_id,
+        session_id="sess-pre",
+        task="not_started_yet",
+        sample_id="9",
+        epoch=1,
+        agent_name=None,
+        started_at=None,
+        target=sample_rows[0].target,
+    )
+    sorted_rows = _sort_rows([pre_start, *sample_rows])
+    assert sorted_rows[-1].session_id == "sess-pre"
+
+
+def test_sort_rows_deterministic_tiebreak(sample_rows: list[SessionRow]) -> None:
+    """Identical started_at → tiebreak on (eval_id, sample_id, epoch)."""
+    a = SessionRow(
+        eval_id="eval-aaa",
+        session_id="tie-a",
+        task="t",
+        sample_id="2",
+        epoch=1,
+        agent_name=None,
+        started_at=1000.0,
+        target=sample_rows[0].target,
+    )
+    b = SessionRow(
+        eval_id="eval-aaa",
+        session_id="tie-b",
+        task="t",
+        sample_id="1",
+        epoch=1,
+        agent_name=None,
+        started_at=1000.0,
+        target=sample_rows[0].target,
+    )
+    # Same started_at, b has smaller sample_id ⇒ b comes first.
+    sorted_rows = _sort_rows([a, b])
+    assert [r.session_id for r in sorted_rows] == ["tie-b", "tie-a"]
+    # Re-shuffle the input; the output order is unchanged.
+    sorted_again = _sort_rows([b, a])
+    assert [r.session_id for r in sorted_again] == ["tie-b", "tie-a"]
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_task_column_renders_stripped_name(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Namespaced task names render with the prefix stripped."""
+    namespaced = SessionRow(
+        eval_id=sample_rows[0].eval_id,
+        session_id="sess-ns",
+        task="inspect_evals/swe_bench",
+        sample_id="0",
+        epoch=1,
+        agent_name="react",
+        started_at=sample_rows[0].started_at,
+        target=sample_rows[0].target,
+    )
+    client = make_fake_client([namespaced])
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        # Task column is index 2 (sample, epoch, task, agent, tokens, running).
+        task_cells = [str(c) for c in table.get_column_at(2)]
+        assert task_cells == ["swe_bench"]
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_tokens_cell_and_header_are_right_justified(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Tokens column header + cells are wrapped in right-justified Text."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        # Header label is a Text("tokens", justify="right").
+        tokens_col = list(table.columns.values())[4]
+        assert isinstance(tokens_col.label, Text)
+        assert tokens_col.label.justify == "right"
+        # Every cell value is a Text(..., justify="right").
+        tokens_cells = list(table.get_column_at(4))
+        assert all(isinstance(c, Text) for c in tokens_cells)
+        assert all(c.justify == "right" for c in tokens_cells)
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_tokens_tick_preserves_right_justify(
+    sample_rows: list[SessionRow],
+) -> None:
+    """``_tick_tokens`` keeps the right-justify wrap on updated cells.
+
+    Regression guard for ``update_cell`` losing the alignment by passing
+    a bare string. ``_tick_column`` MUST round-trip through
+    ``_tokens_cell``.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+
+        bumped = [
+            replace_total_tokens(sample_rows[0], 1_234),
+            replace_total_tokens(sample_rows[1], 2_345),
+            replace_total_tokens(sample_rows[2], 3_456),
+        ]
+        app._client = make_fake_client(bumped)
+        await picker._do_rescan()
+        await pilot.pause()
+
+        tokens_cells = list(table.get_column_at(4))
+        assert all(isinstance(c, Text) for c in tokens_cells)
+        assert all(c.justify == "right" for c in tokens_cells)
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_rows_are_sorted_longest_running_first(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Display order = oldest started_at first regardless of input order."""
+    # Reverse the fixture so input order is intentionally wrong.
+    client = make_fake_client(list(reversed(sample_rows)))
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        # _rows is the sorted form; first row is the oldest started_at.
+        assert picker._rows[0].session_id == "sess-3"
+        assert picker._rows[-1].session_id == "sess-1"
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_cursor_preserved_across_rescan_same_set(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Cursor stays on the same session across a steady-state rescan.
+
+    Most common in-the-wild case: operator scrolls to a row, walks
+    away for tea, comes back to find the cursor exactly where they
+    left it.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        # Move cursor to row 2 (last row in sorted display order).
+        table.move_cursor(row=2)
+        await pilot.pause()
+        cursor_session = picker._visible_rows[table.cursor_row].session_id
+
+        # Drive a rescan with identical ids + bumped tokens (steady
+        # state path).
+        bumped = [replace_total_tokens(r, r.total_tokens + 100) for r in sample_rows]
+        app._client = make_fake_client(bumped)
+        await picker._do_rescan()
+        await pilot.pause()
+
+        # Cursor should still be on the same session.
+        new_cursor_session = picker._visible_rows[table.cursor_row].session_id
+        assert new_cursor_session == cursor_session
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_cursor_preserved_across_filter_typing(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Typing into the filter preserves the cursor if the session survives.
+
+    Pinned because the prior behavior reset the cursor to row 0 on
+    every keystroke — typing "react" while the cursor was on the
+    only react row would yank it back to the top of the filtered
+    list. Useless when navigating-while-filtering.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        # Move cursor onto the deepagent row (sess-3, sorted to index 0
+        # because it's the oldest). Pick a row whose session_id is
+        # uniquely matched by "deep" so the filter narrows to exactly
+        # that row.
+        for idx, r in enumerate(picker._visible_rows):
+            if r.agent_name == "deepagent":
+                table.move_cursor(row=idx)
+                break
+        await pilot.pause()
+        cursor_session = picker._visible_rows[table.cursor_row].session_id
+        assert cursor_session == "sess-3"
+
+        # Open the filter and narrow to "deep" — only sess-3 survives.
+        inp = picker.query_one("#filter-input", Input)
+        picker.action_filter()
+        await pilot.pause()
+        inp.value = "deep"
+        await pilot.pause()
+        assert table.row_count == 1
+        # Cursor lands on the surviving session (row 0 because only
+        # one row is visible).
+        assert picker._visible_rows[table.cursor_row].session_id == "sess-3"
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_cursor_clamps_when_session_gone_from_filter(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Cursor clamps to row 0 when the prior session is filtered out."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        # Move cursor to a row with agent_name=react.
+        for idx, r in enumerate(picker._visible_rows):
+            if r.agent_name == "react":
+                table.move_cursor(row=idx)
+                break
+        await pilot.pause()
+        # Apply a filter that excludes the react rows.
+        inp = picker.query_one("#filter-input", Input)
+        picker.action_filter()
+        await pilot.pause()
+        inp.value = "deep"
+        await pilot.pause()
+        # Only the deepagent row remains; cursor clamps to row 0.
+        assert table.row_count == 1
+        assert table.cursor_row == 0
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_focuses_table_when_first_session_appears(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Empty → populated recompose auto-focuses the new DataTable.
+
+    Without ``call_after_refresh(_focus_table_if_present)`` in
+    ``_do_rescan``, focus would stay on the empty-state Markdown
+    hint after the table appears, and arrow keys / Enter would
+    silently do nothing until the operator clicked into the table.
+    """
+    # Start with no rows so the empty branch composes.
+    client = make_fake_client([])
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        # Sanity: the empty branch has no DataTable mounted.
+        assert picker._table_or_none() is None
+
+        # Swap the fake client so the next rescan returns sessions
+        # — triggers the empty→populated recompose path.
+        app._client = make_fake_client(sample_rows)
+        await picker._do_rescan()
+        # Pump for both the recompose AND the deferred focus call.
+        await pilot.pause()
+        await pilot.pause()
+
+        table = picker._table_or_none()
+        assert table is not None
+        assert table.has_focus
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_picker_cursor_preserved_across_rescan_with_row_diff(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Rescan that drops other rows still points the cursor at our session."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        # Move cursor to sess-2 (deepagent's sibling react row).
+        for idx, r in enumerate(picker._visible_rows):
+            if r.session_id == "sess-2":
+                table.move_cursor(row=idx)
+                break
+        await pilot.pause()
+
+        # Rescan returns only sess-2 + sess-3 (sess-1 ends). The
+        # surviving sess-2 should re-anchor the cursor regardless of
+        # its new index in the smaller list.
+        app._client = make_fake_client([sample_rows[1], sample_rows[2]])
+        await picker._do_rescan()
+        await pilot.pause()
+        assert picker._visible_rows[table.cursor_row].session_id == "sess-2"
 
 
 @skip_if_trio
