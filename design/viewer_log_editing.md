@@ -131,6 +131,30 @@ per-path lock would close the race window for a single-process viewer, but
 the single-user case doesn't warrant the complexity yet. Listed as a
 follow-up below.
 
+### In-progress logs are read-only
+
+While the recorder is still running (`EvalLog.status == "started"`), the
+viewer-driven edit endpoint refuses writes: any header rewrite would
+race the recorder's own end-of-eval header flush. Concretely:
+
+- **Server**: `apply_log_edits` reads the header first and raises a
+  dedicated `LogInProgressError` when `log.status == "started"`. Both
+  server variants map this to **HTTP 409 Conflict** (distinct from 400
+  bad-input and 412 stale-ETag, so clients can render the right
+  message).
+- **UI**: tags and metadata still *render* against an in-progress log
+  (so reviewers can read what's been set so far), but the Edit
+  affordances (`PrimaryBar` header chip strip, `TaskTab` tags row,
+  `PlanCard` metadata header) are hidden. The dialog never opens, so
+  the 409 round-trip is reserved as a server-side safety net for any
+  client that misses the gate.
+
+Once the recorder finalizes the log (`status` flips to `success` /
+`error` / `cancelled`), editing becomes available again. Tests pin
+the 409 contract in `tests/_view/test_view_server.py`
+(`test_api_log_edit_returns_409_for_in_progress_log`,
+parameterized over both server variants).
+
 ### Metadata-specific behavior
 
 `MetadataEdit` accepts two operations per edit:

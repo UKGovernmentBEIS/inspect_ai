@@ -178,10 +178,17 @@ class AioHTTPViewTestClient(ViewTestClient):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def write_eval_log(base_dir: Path, filename: str) -> str:
-    """Write a minimal eval log to ``base_dir/filename``. Return full path."""
+def write_eval_log(
+    base_dir: Path, filename: str, status: str = "success"
+) -> str:
+    """Write a minimal eval log to ``base_dir/filename``. Return full path.
+
+    Defaults to a finished log (``status="success"``); tests exercising
+    in-progress behavior should pass ``status="started"`` explicitly.
+    """
     full_path = str(base_dir / filename)
     eval_log = inspect_ai.log.EvalLog(
+        status=status,  # type: ignore[arg-type]
         eval=inspect_ai.log.EvalSpec(
             created="2025-01-01T00:00:00Z",
             task="task",
@@ -189,7 +196,7 @@ def write_eval_log(base_dir: Path, filename: str) -> str:
             dataset=inspect_ai.log.EvalDataset(),
             model="model",
             config=inspect_ai.log.EvalConfig(),
-        )
+        ),
     )
     inspect_ai.log.write_eval_log(eval_log, full_path, "eval")
     return full_path
@@ -475,6 +482,39 @@ def test_api_log_edit_metadata_null_value_persists(
     assert persisted.metadata["ok_key"] == "v"
 
 
+def test_api_log_edit_returns_409_for_in_progress_log(
+    view_client: ViewTestClient,
+) -> None:
+    # The recorder owns a still-running log (status == "started") and
+    # is actively appending to it. A viewer-driven header rewrite would
+    # race that write loop, so the server refuses edits to such logs
+    # with 409 Conflict (distinct from 412 stale-ETag and 400 bad-input
+    # so the client can render the right message).
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname, status="started")
+    resp = view_client.request(
+        "POST",
+        view_client.log_url("log-edit", fname),
+        json={
+            "edits": [
+                {"type": "tags", "tags_add": ["qa_passed"], "tags_remove": []}
+            ],
+            "provenance": {"author": "alice"},
+        },
+    )
+    assert resp.status_code == 409
+    # Body conveys the reason so the UI can surface it.
+    assert "in progress" in resp.text.lower()
+
+    # Crucially, the rejected edit must not have written anything: the
+    # on-disk header must still show no log_updates and the original
+    # status.
+    persisted = inspect_ai.log.read_eval_log(full_path, header_only=True)
+    assert persisted.status == "started"
+    assert not persisted.log_updates
+    assert persisted.tags == []
+
+
 def test_api_log_edit_tags_roundtrip(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
     full_path = write_eval_log(view_client.log_dir, fname)
@@ -644,7 +684,7 @@ def test_api_logs_listing(view_client: ViewTestClient) -> None:
 
 def test_api_log_headers(view_client: ViewTestClient) -> None:
     fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
-    full_path = write_eval_log(view_client.log_dir, fname)
+    full_path = write_eval_log(view_client.log_dir, fname, status="started")
     encoded = urllib.parse.quote_plus(full_path)
     resp = view_client.request("GET", f"/log-headers?file={encoded}")
     resp.raise_for_status()
@@ -1568,9 +1608,14 @@ def test_api_pending_sample_data_urls_tail_without_cap_returns_all(
     assert body["has_more"] is False
 
 
-def _write_eval_log_to_s3(s3_path: str) -> None:
-    """Write a minimal eval log to an s3:// path. Uses the moto-mocked bucket."""
+def _write_eval_log_to_s3(s3_path: str, status: str = "success") -> None:
+    """Write a minimal eval log to an s3:// path. Uses the moto-mocked bucket.
+
+    Defaults to a finished log (``status="success"``) so edit tests pass
+    the in-progress gate; override for tests that need a running log.
+    """
     eval_log = inspect_ai.log.EvalLog(
+        status=status,  # type: ignore[arg-type]
         eval=inspect_ai.log.EvalSpec(
             created="2025-01-01T00:00:00Z",
             task="task",
@@ -1578,7 +1623,7 @@ def _write_eval_log_to_s3(s3_path: str) -> None:
             dataset=inspect_ai.log.EvalDataset(),
             model="model",
             config=inspect_ai.log.EvalConfig(),
-        )
+        ),
     )
     inspect_ai.log.write_eval_log(eval_log, s3_path, "eval")
 

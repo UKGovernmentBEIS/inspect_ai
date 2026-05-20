@@ -181,6 +181,18 @@ async def get_log_file(file: str, header_only_param: str | None) -> LogPayload:
     return LogPayload(contents=eval_log_json(log), etag=log.etag)
 
 
+class LogInProgressError(ValueError):
+    """Raised when an edit is attempted on a log whose recorder is still
+    running.
+
+    `EvalLog.status == "started"` means the recorder owns the file and is
+    actively appending samples; viewer-driven edits would race that
+    write loop. Callers should map this to HTTP 409 (Conflict) so the
+    client can distinguish it from validation errors (400) and ETag
+    conflicts (412).
+    """
+
+
 async def apply_log_edits(
     file: str,
     update: LogUpdate,
@@ -200,8 +212,19 @@ async def apply_log_edits(
         if_match_etag: When set on an S3 path, the write is conditional on
             the current S3 ETag matching this value. Raises
             `WriteConflictError` on mismatch. Ignored for non-S3 paths.
+
+    Raises:
+        LogInProgressError: If the log's status is "started" (the recorder
+            is still running). The caller should surface this as a 409.
     """
     log = await read_eval_log_async(file, header_only=True)
+    # Refuse to write while the recorder is still appending — any header
+    # we write would race the recorder's own header flush at end-of-eval.
+    if log.status == "started":
+        raise LogInProgressError(
+            "Cannot edit a log while it is in progress. "
+            "Wait for the eval to finish (status != 'started'), then try again."
+        )
     log = edit_eval_log(log, update.edits, update.provenance)
     await write_eval_log_async(
         log, location=file, if_match_etag=if_match_etag, header_only=True

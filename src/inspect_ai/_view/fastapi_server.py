@@ -36,6 +36,7 @@ from inspect_ai._view.common import (
     LogDirResponse,
     LogFilesResponse,
     LogInfo,
+    LogInProgressError,
     LogListingResponse,
     apply_log_edits,
     build_pending_sample_urls,
@@ -179,6 +180,10 @@ def view_server_app(
             contents, new_etag = await apply_log_edits(
                 await _map_file(request, file), update, if_match_etag=if_match
             )
+        except LogInProgressError as ex:
+            # 409 Conflict — the recorder still owns the file. Distinct
+            # from 412 (stale ETag) and 400 (bad input).
+            raise HTTPException(status_code=409, detail=str(ex))
         except ValueError as ex:
             raise HTTPException(status_code=400, detail=str(ex))
         except WriteConflictError as ex:
