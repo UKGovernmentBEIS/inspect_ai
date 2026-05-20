@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.224 (20 May 2026)
 
 - AsyncFilesystem: Add `iter_files()` and `iter_dirs()` methods.
 - Scoring: Add `pass_k` reducer for computing the probability that all `k` epoch attempts succeed (τ-bench reliability metric).
