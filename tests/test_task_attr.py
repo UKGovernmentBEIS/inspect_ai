@@ -56,6 +56,16 @@ def test_package_task_uses_source_dir_without_changing_run_dir():
     assert task_run_dir(task) == str(Path.cwd())
 
 
+def test_package_task_override_sandbox_resolves_relative_to_run_dir():
+    ensure_test_package_installed()
+
+    task = task_create("inspect_package/implicit_sandbox_task")
+    resolved = resolve_task_sandbox(task, ("podman", "override.yaml"))
+
+    assert resolved is not None
+    assert resolved.config == str(Path.cwd() / "override.yaml")
+
+
 @skip_if_no_docker
 def test_package_task_implicit_docker_build_uses_package_dockerfile():
     ensure_test_package_installed()

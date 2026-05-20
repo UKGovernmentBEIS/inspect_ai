@@ -14,6 +14,7 @@ from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.util import (
     split_spec,
     task_file,
+    task_run_dir,
     task_source_dir,
 )
 from inspect_ai._util.decorator import parse_decorators
@@ -244,6 +245,9 @@ def resolve_task_sandbox(
 ) -> SandboxEnvironmentSpec | None:
     # do the resolution
     resolved_sandbox = resolve_sandbox_environment(sandbox) or task.sandbox
+    config_base_dir = (
+        task_run_dir(task) if sandbox is not None else task_source_dir(task)
+    )
 
     # if we have a sandbox with no config, see if there are implcit
     # config files available for the provider
@@ -265,6 +269,7 @@ def resolve_task_sandbox(
                     resolved_sandbox = SandboxEnvironmentSpec(
                         resolved_sandbox.type, config_file
                     )
+                    config_base_dir = src_dir
                     break
 
             # if we found an override without a config then we may still
@@ -279,12 +284,13 @@ def resolve_task_sandbox(
                 resolved_sandbox = SandboxEnvironmentSpec(
                     resolved_sandbox.type, task.sandbox.config
                 )
+                config_base_dir = task_source_dir(task)
 
         # resolve relative paths
         if isinstance(resolved_sandbox.config, str):
             file_path = Path(resolved_sandbox.config)
             if not file_path.is_absolute():
-                file_path = Path(task_source_dir(task)) / file_path
+                file_path = Path(config_base_dir) / file_path
                 resolved_sandbox = SandboxEnvironmentSpec(
                     resolved_sandbox.type, file_path.as_posix()
                 )
