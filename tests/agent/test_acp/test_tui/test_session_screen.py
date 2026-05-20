@@ -152,9 +152,13 @@ async def test_composer_text_area_grows_but_caps_height(
                 break
         assert isinstance(app.screen, SessionScreen)
         composer = app.screen.query_one("#composer", TextArea)
-        assert composer.styles.height.is_auto
-        assert composer.styles.min_height.value == 1
-        assert composer.styles.max_height.value == 8
+        height = composer.styles.height
+        min_height = composer.styles.min_height
+        max_height = composer.styles.max_height
+        assert height is not None and min_height is not None and max_height is not None
+        assert height.is_auto
+        assert min_height.value == 1
+        assert max_height.value == 8
 
 
 @skip_if_trio
@@ -745,7 +749,7 @@ async def test_session_screen_lifecycle_pill_flips_to_running(
         assert "running" in str(pill.content)
         assert pill.has_class("running")
         composer = app.screen.query_one("#composer", TextArea)
-        assert "esc to interrupt" in composer.placeholder
+        assert "esc to interrupt" in str(composer.placeholder)
 
 
 @skip_if_trio
@@ -781,7 +785,7 @@ async def test_session_screen_lifecycle_pill_flips_to_interrupted(
         assert "interrupted" in str(pill.content)
         assert pill.has_class("interrupted")
         composer = app.screen.query_one("#composer", TextArea)
-        assert "esc to interrupt" not in composer.placeholder
+        assert "esc to interrupt" not in str(composer.placeholder)
 
 
 @skip_if_trio
