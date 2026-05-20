@@ -488,8 +488,12 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        """Scope for enforcing max_connections (could also use endpoint)."""
-        return str(self.api_key)
+        """Scope for enforcing max_connections.
+
+        OpenAI rate-limits per model (RPM/TPM), so each model gets its own
+        adaptive controller rather than one shared per key.
+        """
+        return f"{self.api_key}:{self.model_name}"
 
     @override
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:
