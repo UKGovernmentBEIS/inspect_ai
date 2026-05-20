@@ -1,5 +1,6 @@
 import os
 import reprlib
+from pathlib import Path
 from copy import deepcopy
 from fnmatch import fnmatch
 from logging import getLogger
@@ -14,7 +15,7 @@ from inspect_ai.dataset._util import normalise_sample_id
 from inspect_ai.model import ChatMessage, ChatMessageUser
 
 from ..task import Task
-from .constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
+from .constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR, TASK_SRC_DIR_ATTR
 
 logger = getLogger(__name__)
 
@@ -31,6 +32,18 @@ def sample_messages(sample: Sample) -> list[ChatMessage]:
 
 def task_run_dir(task: Task) -> str:
     return getattr(task, TASK_RUN_DIR_ATTR, os.getcwd())
+
+
+def task_source_dir(task: Task) -> str:
+    src_dir = cast(str | None, getattr(task, TASK_SRC_DIR_ATTR, None))
+    if src_dir is not None:
+        return src_dir
+
+    file = cast(str | None, getattr(task, TASK_FILE_ATTR, None))
+    if file is not None:
+        return Path(file).parent.as_posix()
+
+    return task_run_dir(task)
 
 
 def task_file(task: Task, relative: bool = False) -> str | None:

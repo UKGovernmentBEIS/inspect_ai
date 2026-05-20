@@ -11,7 +11,7 @@ from typing import Any, Callable, Tuple, cast
 from shortuuid import uuid
 
 from inspect_ai._eval.task.resolved import ResolvedTask
-from inspect_ai._eval.task.util import split_spec, task_file, task_run_dir
+from inspect_ai._eval.task.util import split_spec, task_file, task_run_dir, task_source_dir
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once
@@ -45,7 +45,7 @@ from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from .list import task_files
 from .registry import task_create
 from .task import PreviousTask, Task, TaskInfo
-from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR
+from .task.constants import TASK_FILE_ATTR, TASK_RUN_DIR_ATTR, TASK_SRC_DIR_ATTR
 from .task.hf import task_create_from_hf
 from .task.run import eval_log_sample_source
 from .task.tasks import Tasks
@@ -254,7 +254,7 @@ def resolve_task_sandbox(
             config_files = config_files_fn()
 
             # probe for them in task src dir
-            src_dir = task_run_dir(task)
+            src_dir = task_source_dir(task)
             for config_file in config_files:
                 config_file_path = os.path.join(src_dir, config_file)
                 if os.path.isfile(config_file_path):
@@ -280,7 +280,7 @@ def resolve_task_sandbox(
         if isinstance(resolved_sandbox.config, str):
             file_path = Path(resolved_sandbox.config)
             if not file_path.is_absolute():
-                file_path = Path(task_run_dir(task)) / file_path
+                file_path = Path(task_source_dir(task)) / file_path
                 resolved_sandbox = SandboxEnvironmentSpec(
                     resolved_sandbox.type, file_path.as_posix()
                 )
@@ -392,6 +392,7 @@ def create_file_tasks(
             task = task_create(task_spec, **task_args)
             setattr(task, TASK_FILE_ATTR, file.as_posix())
             setattr(task, TASK_RUN_DIR_ATTR, run_dir)
+            setattr(task, TASK_SRC_DIR_ATTR, run_dir)
             tasks.append(task)
 
             # warn that chdir has been removed

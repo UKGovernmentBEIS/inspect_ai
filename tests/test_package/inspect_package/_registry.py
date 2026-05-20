@@ -8,6 +8,7 @@ from inspect_ai.util import sandboxenv
 from .approvers.renamer import renamer
 from .score.scorer import simple_score
 from .solvers.cot import cot
+from .tasks import implicit_sandbox_task, relative_sandbox_task
 
 # delayed import for the model and sandbox allows us to only resolve the imports
 # when they are actually requeasted (so that we don't end up requiring all

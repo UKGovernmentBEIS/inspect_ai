@@ -22,6 +22,10 @@ class PodmanSandboxEnvironment(SandboxEnvironment):
         return {"default": PodmanSandboxEnvironment(None)}
 
     @classmethod
+    def config_files(cls) -> list[str]:
+        return ["podman.yaml"]
+
+    @classmethod
     async def sample_cleanup(
         cls,
         task_name: str,
