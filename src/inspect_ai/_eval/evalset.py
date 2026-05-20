@@ -116,6 +116,7 @@ def eval_set(
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
+    acp_server: bool | int | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -197,6 +198,11 @@ def eval_set(
             (defaults to True)
         checkpoint: Checkpoint configuration for this eval set. Overrides
             any task- or sample-level `checkpoint` when set.
+        acp_server: Override the original eval's ACP server transport on retry.
+            `True` enables a default AF_UNIX socket; an integer binds a TCP
+            loopback port; a string is taken as a custom UNIX socket path;
+            `None` (default) replays whatever transport (or no transport) was
+            persisted in the original log's `EvalConfig.acp_server`.
         solver: Alternative solver(s) for
             evaluating task(s). Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -354,6 +360,7 @@ def eval_set(
             score_display=score_display,
             eval_set_id=eval_set_id,
             task_retry_attempts=task_retry_attempts,
+            acp_server=acp_server,
             **kwargs,
         )
 
@@ -946,7 +953,7 @@ def latest_completed_task_eval_logs(
 
         # sort by last file write time
         id_logs.sort(
-            key=lambda id_log: (id_log[0].mtime if id_log[0].mtime else 0), reverse=True
+            key=lambda id_log: id_log[0].mtime if id_log[0].mtime else 0, reverse=True
         )
 
         # take the most recent
