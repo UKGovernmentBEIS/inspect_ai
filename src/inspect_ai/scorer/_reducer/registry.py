@@ -184,7 +184,11 @@ def validate_reducer(epochs: int, reducer: ScoreReducer) -> None:
         if k > epochs:
             name = registry_log_name(reducer)
             # don't interfere w/ unknown uses of 'k' (i.e. only validate built in)
-            if name.startswith("pass_at") or name.startswith("at_least"):
+            if (
+                name.startswith("pass_at")
+                or name.startswith("pass_k")
+                or name.startswith("at_least")
+            ):
                 raise PrerequisiteError(
                     f"Reducer '{reducer_log_name(reducer)}' requires {k} epochs however evaluation has only {epochs} epochs."
                 )

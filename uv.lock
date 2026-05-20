@@ -1897,7 +1897,6 @@ name = "inspect-ai"
 source = { editable = "." }
 dependencies = [
     { name = "aioboto3" },
-    { name = "aiohttp" },
     { name = "anyio" },
     { name = "beautifulsoup4" },
     { name = "boto3" },
@@ -1905,6 +1904,7 @@ dependencies = [
     { name = "debugpy" },
     { name = "docstring-parser" },
     { name = "exceptiongroup", marker = "python_full_version < '3.11'" },
+    { name = "fastapi" },
     { name = "fsspec" },
     { name = "httpx" },
     { name = "ijson" },
@@ -1932,6 +1932,7 @@ dependencies = [
     { name = "tiktoken" },
     { name = "typing-extensions" },
     { name = "universal-pathlib" },
+    { name = "uvicorn" },
     { name = "zipfile-zstd", marker = "python_full_version < '3.14'" },
     { name = "zipp" },
     { name = "zstandard" },
@@ -1943,7 +1944,6 @@ dev = [
     { name = "anthropic" },
     { name = "azure-ai-inference" },
     { name = "azure-identity" },
-    { name = "fastapi" },
     { name = "google-genai" },
     { name = "griffe" },
     { name = "groq" },
@@ -1991,7 +1991,6 @@ dev = [
     { name = "types-python-dateutil" },
     { name = "types-pyyaml" },
     { name = "types-regex" },
-    { name = "uvicorn" },
     { name = "xai-sdk" },
     { name = "zipfile-zstd", marker = "python_full_version < '3.14'" },
 ]
@@ -2020,7 +2019,6 @@ dev = [
 requires-dist = [
     { name = "adlfs", marker = "extra == 'dev'", specifier = ">=2025.8.0" },
     { name = "aioboto3", specifier = ">=13.0.0" },
-    { name = "aiohttp", specifier = ">=3.9.0" },
     { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.96.0" },
     { name = "anyio", specifier = ">=4.8.0" },
     { name = "azure-ai-inference", marker = "extra == 'dev'" },
@@ -2033,7 +2031,7 @@ requires-dist = [
     { name = "debugpy" },
     { name = "docstring-parser", specifier = ">=0.16" },
     { name = "exceptiongroup", marker = "python_full_version < '3.11'", specifier = ">=1.0.2" },
-    { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.119.0" },
+    { name = "fastapi", specifier = ">=0.119.0" },
     { name = "fsspec", specifier = ">=2023.1.0,<=2025.9.0" },
     { name = "google-genai", marker = "extra == 'dev'", specifier = ">=1.69.0" },
     { name = "griffe", marker = "extra == 'dev'", specifier = ">=2" },
@@ -2054,7 +2052,7 @@ requires-dist = [
     { name = "markdown", marker = "extra == 'dev'" },
     { name = "markdown", marker = "extra == 'doc'" },
     { name = "mcp", marker = "extra == 'dev'", specifier = ">=1.10.0" },
-    { name = "mistralai", marker = "extra == 'dev'", git = "https://github.com/mistralai/client-python.git?rev=v2.4.5" },
+    { name = "mistralai", marker = "extra == 'dev'", specifier = ">=2.4.5" },
     { name = "mmh3", specifier = ">3.1.0" },
     { name = "moto", extras = ["server"], marker = "extra == 'dev'", specifier = ">=5.1.5" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.17.0" },
@@ -2113,7 +2111,7 @@ requires-dist = [
     { name = "types-regex", marker = "extra == 'dev'" },
     { name = "typing-extensions", specifier = ">=4.14.0" },
     { name = "universal-pathlib", specifier = ">=0.2.6" },
-    { name = "uvicorn", marker = "extra == 'dev'" },
+    { name = "uvicorn" },
     { name = "xai-sdk", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "zipfile-zstd", marker = "python_full_version < '3.14'", specifier = ">=0.0.4" },
     { name = "zipfile-zstd", marker = "python_full_version < '3.14' and extra == 'dev'", specifier = ">=0.0.4" },
@@ -3268,7 +3266,7 @@ wheels = [
 [[package]]
 name = "mistralai"
 version = "2.4.5"
-source = { git = "https://github.com/mistralai/client-python.git?rev=v2.4.5#7ebe84b5a9eee0714f81c687c8cf636eaa12476f" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "eval-type-backport" },
     { name = "httpx" },
@@ -3278,6 +3276,10 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dateutil" },
     { name = "typing-inspection" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8e/3f/5624d57c5897c83c55d3e4c7dd4127de42ad14fd3183e26566cdc7dca1bf/mistralai-2.4.5.tar.gz", hash = "sha256:ef165bb004ec4423cbf19a440bf0983ca0c3fc92ab12a35ebca097bdf418e33a", size = 424611, upload-time = "2026-05-07T11:46:43.888Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1b/48/2c5c4f853dec32a625c1a3d23809b80cf2e135c3441fe1764f72910dfea9/mistralai-2.4.5-py3-none-any.whl", hash = "sha256:bf3b6550258ab16dec8547b90e9c18bebf9099f55b7fc25a884bf0bbeffced0f", size = 995999, upload-time = "2026-05-07T11:46:41.915Z" },
 ]
 
 [[package]]
