@@ -18,7 +18,12 @@ from inspect_ai._util.registry import (
 )
 
 from .task import Task
-from .task.constants import TASK_ALL_PARAMS_ATTR, TASK_FILE_ATTR, TASK_RUN_DIR_ATTR, TASK_SRC_DIR_ATTR
+from .task.constants import (
+    TASK_ALL_PARAMS_ATTR,
+    TASK_FILE_ATTR,
+    TASK_RUN_DIR_ATTR,
+    TASK_SRC_DIR_ATTR,
+)
 
 MODEL_PARAM = "model"
 

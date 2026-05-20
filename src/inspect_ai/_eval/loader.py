@@ -11,7 +11,11 @@ from typing import Any, Callable, Tuple, cast
 from shortuuid import uuid
 
 from inspect_ai._eval.task.resolved import ResolvedTask
-from inspect_ai._eval.task.util import split_spec, task_file, task_run_dir, task_source_dir
+from inspect_ai._eval.task.util import (
+    split_spec,
+    task_file,
+    task_source_dir,
+)
 from inspect_ai._util.decorator import parse_decorators
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.logger import warn_once

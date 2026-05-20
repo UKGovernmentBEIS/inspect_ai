@@ -21,4 +21,4 @@ inspect_package = "inspect_package._registry"
 
 
 [tool.setuptools.package-data]
-inspect_package = ["*.yaml"]
+inspect_package = ["*.yaml", "Dockerfile"]

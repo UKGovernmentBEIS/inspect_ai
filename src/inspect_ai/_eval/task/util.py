@@ -1,9 +1,9 @@
 import os
 import reprlib
-from pathlib import Path
 from copy import deepcopy
 from fnmatch import fnmatch
 from logging import getLogger
+from pathlib import Path
 from typing import cast
 
 from inspect_ai._util.error import PrerequisiteError
