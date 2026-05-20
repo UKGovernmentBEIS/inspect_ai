@@ -455,7 +455,7 @@ class PickerScreen(Screen[None]):
                 # documentation block; "98.51.100.0" was a typo
                 # missing the leading "1" and is a real allocated
                 # address.
-                "inspect acp --server 198.51.100.0:4545\n"
+                'inspect acp --server "198.51.100.0:4545"\n'
                 "```\n"
                 f"\nLearn how to enable ACP in your agent: <{_INTERVENTION_URL}>\n"
             )
