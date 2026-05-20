@@ -31,7 +31,7 @@ pytest-textual-snapshot
 pytest-watcher
 pytest-xdist
 # match ruff version specified in .pre-commit-config.yaml
-ruff>=0.13.0,
+ruff>=0.13.0
 textual-dev>=0.86.2
 together>=2.0.0
 trio
