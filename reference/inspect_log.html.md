@@ -24,6 +24,7 @@ inspect log [OPTIONS] COMMAND [ARGS]...
 | [dump](#inspect-log-dump) | Print log file contents as JSON. |
 | [convert](#inspect-log-convert) | Convert between log file formats. |
 | [schema](#inspect-log-schema) | Print JSON schema for log files. |
+| [export-config](#inspect-log-export-config) | Export the run configuration from a log file. |
 | [recover](#inspect-log-recover) | Recover crashed eval logs from sample buffer databases. |
 
 ## inspect log list
@@ -107,6 +108,30 @@ inspect log schema [OPTIONS]
 
 | Name     | Type    | Description                 | Default |
 |----------|---------|-----------------------------|---------|
+| `--help` | boolean | Show this message and exit. | `False` |
+
+## inspect log export-config
+
+Export the run configuration from a log file.
+
+Reads LOG_FILE and writes a YAML (or JSON) file that can be passed directly to ‘inspect eval –run-config’ to reproduce the run.
+
+Example: inspect log export-config logs/my_run.eval \> run.yaml
+
+    inspect eval --run-config run.yaml
+
+#### Usage
+
+``` text
+inspect log export-config [OPTIONS] LOG_FILE
+```
+
+#### Options
+
+| Name | Type | Description | Default |
+|----|----|----|----|
+| `--output` | text | Write output to this file instead of stdout. | None |
+| `--format` | choice (`yaml` \| `json`) | Output format. | `yaml` |
 | `--help` | boolean | Show this message and exit. | `False` |
 
 ## inspect log recover

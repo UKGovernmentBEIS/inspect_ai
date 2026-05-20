@@ -297,6 +297,7 @@
   "perplexity_per_seq": "inspect_ai.scorer.qmd#perplexity_per_seq",
   "at_least": "inspect_ai.scorer.qmd#at_least",
   "pass_at": "inspect_ai.scorer.qmd#pass_at",
+  "pass_k": "inspect_ai.scorer.qmd#pass_k",
   "max_score": "inspect_ai.scorer.qmd#max_score",
   "mean_score": "inspect_ai.scorer.qmd#mean_score",
   "median_score": "inspect_ai.scorer.qmd#median_score",

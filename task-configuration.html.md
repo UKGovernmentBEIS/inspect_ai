@@ -343,6 +343,15 @@ inspect eval --run-config run.yaml --temperature 0.9
 
 `--run-config` cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. Use `--run-config` when you want a single file; use the individual options when you want to compose configuration from multiple files.
 
+To generate a run config from an existing eval log, use `inspect log export-config`. This extracts the complete realised configuration and writes it as a `--run-config`-compatible YAML:
+
+``` bash
+inspect log export-config logs/my_run.eval > run.yaml
+inspect eval --run-config run.yaml
+```
+
+See [Exporting Run Config](./eval-logs.html.md#exporting-run-config) for details.
+
 ## Solver Override
 
 The solver can be overridden at every layer:

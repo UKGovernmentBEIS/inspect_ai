@@ -592,6 +592,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#listing-logs" id="toc-listing-logs" class="nav-link" data-scroll-target="#listing-logs">Listing Logs</a></li>
   <li><a href="#reading-logs" id="toc-reading-logs" class="nav-link" data-scroll-target="#reading-logs">Reading Logs</a></li>
   <li><a href="#converting-logs" id="toc-converting-logs" class="nav-link" data-scroll-target="#converting-logs">Converting Logs</a></li>
+  <li><a href="#exporting-run-config" id="toc-exporting-run-config" class="nav-link" data-scroll-target="#exporting-run-config">Exporting Run Config</a></li>
   <li><a href="#log-schema" id="toc-log-schema" class="nav-link" data-scroll-target="#log-schema">Log Schema</a></li>
   </ul></li>
   </ul>
@@ -1163,6 +1164,10 @@ inspect view  # streams directly from Azure</code></pre>
 <h2 class="anchored" data-anchor-id="sec-log-commands">Log Commands</h2>
 <p>We’ve shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g.&nbsp;TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages:</p>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 36%">
+<col style="width: 63%">
+</colgroup>
 <thead>
 <tr class="header">
 <th>Command</th>
@@ -1183,6 +1188,10 @@ inspect view  # streams directly from Azure</code></pre>
 <td>Convert between log file formats.</td>
 </tr>
 <tr class="even">
+<td><code>inspect log export-config</code></td>
+<td>Export a run config YAML from a log file.</td>
+</tr>
+<tr class="odd">
 <td><code>inspect log schema</code></td>
 <td>Print JSON schema for log files.</td>
 </tr>
@@ -1219,10 +1228,18 @@ inspect view  # streams directly from Azure</code></pre>
 <p>Logs that are already in the target format are simply copied to the output directory. By default, log files in the target directory will not be overwritten, however you can add the <code>--overwrite</code> flag to force an overwrite.</p>
 <p>Note that the output directory is always required to enforce the practice of not doing conversions that result in side-by-side log files that are identical save for their format.</p>
 </section>
+<section id="exporting-run-config" class="level3">
+<h3 class="anchored" data-anchor-id="exporting-run-config">Exporting Run Config</h3>
+<p>The <code>inspect log export-config</code> command reads a log file and writes a YAML (or JSON) file that captures the complete configuration used for that run — task, model, model roles, generation parameters, solver, and eval settings. The output can be passed directly to <code>inspect eval --run-config</code> to reproduce the run:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb47"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log export-config logs/my_run.eval <span class="op">&gt;</span> run.yaml</span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval <span class="at">--run-config</span> run.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This closes the round-trip: <code>eval → log → export-config → eval</code>. By default output goes to stdout; use <code>--output</code> to write to a file, and <code>--format json</code> for JSON instead of YAML.</p>
+<p>See <a href="./task-configuration.html#run-config">Run Config File</a> for the full schema that <code>--run-config</code> accepts.</p>
+</section>
 <section id="log-schema" class="level3">
 <h3 class="anchored" data-anchor-id="log-schema">Log Schema</h3>
 <p>Log files are stored in JSON. You can get the JSON schema for the log file format with a call to <code>inspect log schema</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb47"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb48"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect log schema</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <div class="callout callout-style-simple callout-important callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">

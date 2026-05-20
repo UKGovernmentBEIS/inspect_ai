@@ -2098,6 +2098,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.scorer.html#pass_k" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">pass_k</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#max_score" class="sidebar-item-text sidebar-link">
  <span class="menu-text">max_score</span></a>
   </div>
@@ -3094,6 +3100,7 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#inspect-log-dump" id="toc-inspect-log-dump" class="nav-link" data-scroll-target="#inspect-log-dump">inspect log dump</a></li>
   <li><a href="#inspect-log-convert" id="toc-inspect-log-convert" class="nav-link" data-scroll-target="#inspect-log-convert">inspect log convert</a></li>
   <li><a href="#inspect-log-schema" id="toc-inspect-log-schema" class="nav-link" data-scroll-target="#inspect-log-schema">inspect log schema</a></li>
+  <li><a href="#inspect-log-export-config" id="toc-inspect-log-export-config" class="nav-link" data-scroll-target="#inspect-log-export-config">inspect log export-config</a></li>
   <li><a href="#inspect-log-recover" id="toc-inspect-log-recover" class="nav-link" data-scroll-target="#inspect-log-recover">inspect log recover</a></li>
   </ul>
 </nav>
@@ -3161,6 +3168,10 @@ ul.task-list li input[type="checkbox"] {
 <td>Print JSON schema for log files.</td>
 </tr>
 <tr class="odd">
+<td><a href="#inspect-log-export-config">export-config</a></td>
+<td>Export the run configuration from a log file.</td>
+</tr>
+<tr class="even">
 <td><a href="#inspect-log-recover">recover</a></td>
 <td>Recover crashed eval logs from sample buffer databases.</td>
 </tr>
@@ -3421,15 +3432,65 @@ ul.task-list li input[type="checkbox"] {
 </table>
 </section>
 </section>
-<section id="inspect-log-recover" class="level2" data-toc-label="recover">
-<h2 data-toc-label="recover" class="anchored" data-anchor-id="inspect-log-recover">inspect log recover</h2>
-<p>Recover crashed eval logs from sample buffer databases.</p>
+<section id="inspect-log-export-config" class="level2" data-toc-label="export-config">
+<h2 data-toc-label="export-config" class="anchored" data-anchor-id="inspect-log-export-config">inspect log export-config</h2>
+<p>Export the run configuration from a log file.</p>
+<p>Reads LOG_FILE and writes a YAML (or JSON) file that can be passed directly to ‘inspect eval –run-config’ to reproduce the run.</p>
+<p>Example: inspect log export-config logs/my_run.eval &gt; run.yaml</p>
+<pre><code>inspect eval --run-config run.yaml</code></pre>
 <section id="usage-5" class="level4">
 <h4 class="anchored" data-anchor-id="usage-5">Usage</h4>
-<pre class="text"><code>inspect log recover [OPTIONS] [LOG_FILE]</code></pre>
+<pre class="text"><code>inspect log export-config [OPTIONS] LOG_FILE</code></pre>
 </section>
 <section id="options-4" class="level4">
 <h4 class="anchored" data-anchor-id="options-4">Options</h4>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 15%">
+<col style="width: 50%">
+<col style="width: 10%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Name</th>
+<th>Type</th>
+<th>Description</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>--output</code></td>
+<td>text</td>
+<td>Write output to this file instead of stdout.</td>
+<td>None</td>
+</tr>
+<tr class="even">
+<td><code>--format</code></td>
+<td>choice (<code>yaml</code> | <code>json</code>)</td>
+<td>Output format.</td>
+<td><code>yaml</code></td>
+</tr>
+<tr class="odd">
+<td><code>--help</code></td>
+<td>boolean</td>
+<td>Show this message and exit.</td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="inspect-log-recover" class="level2" data-toc-label="recover">
+<h2 data-toc-label="recover" class="anchored" data-anchor-id="inspect-log-recover">inspect log recover</h2>
+<p>Recover crashed eval logs from sample buffer databases.</p>
+<section id="usage-6" class="level4">
+<h4 class="anchored" data-anchor-id="usage-6">Usage</h4>
+<pre class="text"><code>inspect log recover [OPTIONS] [LOG_FILE]</code></pre>
+</section>
+<section id="options-5" class="level4">
+<h4 class="anchored" data-anchor-id="options-5">Options</h4>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 25%">

@@ -870,6 +870,7 @@ Inspect includes several built in reducers which are summarised below.
 | mode | Reduce to the most common score. |
 | max | Reduce to the maximum of all scores. |
 | pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
+| pass_k\_{k} | Probability that all `k` epoch attempts succeed (<https://arxiv.org/pdf/2406.12045>) |
 | at_least\_{k} | `1` if at least `k` samples are correct, else `0`. |
 
 > **NOTE: Note**

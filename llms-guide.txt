@@ -994,7 +994,7 @@ For a complete matrix of which task, solver, and runtime settings can be configu
 | `--limit` | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`) |
 | `--sample-id` | Evaluate a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
 | `--epochs` | Number of times to repeat each sample (defaults to 1) |
-| `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, and `pass_at_{k}`. |
+| `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, `pass_at_{k}`, and `pass_k_{k}`. |
 | `--no-epochs-reducer` | Do not reduce epochs across samples (compute metrics across all samples and epochs together). |
 
 ## Parallelism
@@ -2274,6 +2274,15 @@ inspect eval --run-config run.yaml --temperature 0.9
 ```
 
 `--run-config` cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. Use `--run-config` when you want a single file; use the individual options when you want to compose configuration from multiple files.
+
+To generate a run config from an existing eval log, use `inspect log export-config`. This extracts the complete realised configuration and writes it as a `--run-config`-compatible YAML:
+
+``` bash
+inspect log export-config logs/my_run.eval > run.yaml
+inspect eval --run-config run.yaml
+```
+
+See [Exporting Run Config](./eval-logs.html.md#exporting-run-config) for details.
 
 ## Solver Override
 
@@ -4110,6 +4119,7 @@ Inspect includes several built in reducers which are summarised below.
 | mode | Reduce to the most common score. |
 | max | Reduce to the maximum of all scores. |
 | pass_at\_{k} | Probability of at least 1 correct sample given `k` epochs (<https://arxiv.org/pdf/2107.03374>) |
+| pass_k\_{k} | Probability that all `k` epoch attempts succeed (<https://arxiv.org/pdf/2406.12045>) |
 | at_least\_{k} | `1` if at least `k` samples are correct, else `0`. |
 
 > **NOTE: Note**
@@ -4903,7 +4913,8 @@ The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](
 
 | Variable | Description |
 |----|----|
-| `AZUREAI_OPENAI_API_KEY` | API key credentials (optional). |
+| `AZUREAI_OPENAI_API_KEY` | API key credentials (optional, preferred name). |
+| `AZURE_OPENAI_API_KEY` | API key credentials (optional, used as a fallback if `AZUREAI_OPENAI_API_KEY` is unset). |
 | `AZUREAI_OPENAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
@@ -4995,8 +5006,11 @@ Authentication is doing using the standard Google Cloud CLI (i.e. if you have a
 
 The `anthropic` provider supports Anthropic models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use Anthropic models on Azure AI, specify the following environment variables:
 
-- `AZUREAI_ANTHROPIC_API_KEY`
-- `AZUREAI_ANTHROPIC_BASE_URL`
+| Variable | Description |
+|----|----|
+| `AZUREAI_ANTHROPIC_API_KEY` | API key credentials (optional, preferred name). |
+| `AZURE_ANTHROPIC_API_KEY` | API key credentials (optional, used as a fallback if `AZUREAI_ANTHROPIC_API_KEY` is unset). |
+| `AZUREAI_ANTHROPIC_BASE_URL` | Base URL for requests (required). |
 
 You can then use the normal `anthropic` provider with the `azure` qualifier and the name of your model deployment (e.g. `Claude-4-0-Sonnet-2411`). For example:
 
@@ -5016,7 +5030,7 @@ export GOOGLE_API_KEY=your-google-api-key
 inspect eval arc.py --model google/gemini-2.5-pro
 ```
 
-For the `google` provider, custom model args (`-M`) are forwarded to the `genai.Client` function.
+For the `google` provider, custom model args (`-M`) are forwarded to the `genai.Client` function. Google GenAI requests use a default SDK transport timeout of 1 hour when `timeout` is not configured; setting `timeout` applies the same value to each Google SDK request attempt and to Inspect’s overall retry budget.
 
 The following environment variables are supported by the Google provider
 
@@ -5048,7 +5062,7 @@ Authentication is done using the standard Google Cloud CLI. For example:
 gcloud auth application-default login
 ```
 
-If you have authorised the CLI then no additional auth is needed for the model API.
+If you have authorised the CLI then no additional auth is needed for the model API. Alternatively, if you are running in [Vertex Express Mode](https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview), set `VERTEX_API_KEY` to authenticate with an Express Mode API key.
 
 You can optionally specify a custom `GOOGLE_VERTEX_BASE_URL` to override the default base URL for Vertex.
 
@@ -5163,11 +5177,12 @@ export XAI_API_KEY=your-grok-api-key
 inspect eval arc.py --model grok/grok-3-mini
 ```
 
-The following environment variables are supported by the Grok provider
+The following environment variables are supported by the Grok provider. The provider reads its API key from `XAI_API_KEY` if set, otherwise from `GROK_API_KEY`; one of them must be defined.
 
 | Variable | Description |
 |----|----|
-| `XAI_API_KEY` | API key credentials (required). |
+| `XAI_API_KEY` | API key credentials (preferred). |
+| `GROK_API_KEY` | API key credentials (fallback if `XAI_API_KEY` is unset). |
 | `XAI_BASE_URL` | Base URL for requests (optional, defaults to `api.x.ai`, note no “https://” prefix is used for the base url). |
 
 ### Model Args
@@ -5350,7 +5365,8 @@ The following environment variables are supported by the Azure AI provider
 
 | Variable | Description |
 |----|----|
-| `AZUREAI_API_KEY` | API key credentials (optional). |
+| `AZURE_API_KEY` | API key credentials (optional, preferred name). |
+| `AZUREAI_API_KEY` | API key credentials (optional, used as a fallback if `AZURE_API_KEY` is unset). |
 | `AZUREAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
@@ -5429,7 +5445,7 @@ To use the [SambaNova](https://sambanova.ai/) provider, install the `openai` pac
 
 ``` bash
 pip install openai
-export SAMABANOVA_API_KEY=your-sambanova-api-key
+export SAMBANOVA_API_KEY=your-sambanova-api-key
 inspect eval arc.py --model sambanova/DeepSeek-V1-0324
 ```
 
@@ -5619,6 +5635,41 @@ The following environment variables are supported by the vLLM provider:
 You can also access models from ModelScope rather than Hugging Face, see the [vLLM documentation](https://docs.vllm.ai/en/stable/getting_started/quickstart.html) for details on this.
 
 vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.
+
+### Multiple Servers
+
+`VLLM_BASE_URL` sets a single global endpoint, but a vLLM server only serves one model. If you need different models for different purposes — for example, a small model for the solver and a larger one as a judge for [model-graded scoring](./scorers.html.md#model-graded) — start a vLLM server per model and pass a per-model `base_url` rather than relying on the env var.
+
+The most ergonomic path is [model roles](./models.html.md#model-roles), which lets the built-in `model_graded_*` scorers automatically resolve their judge from the `grader` role:
+
+``` bash
+inspect eval task.py \
+    --model vllm/meta-llama/Llama-3-8B \
+    --model-base-url http://gpu1:8000/v1 \
+    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, base_url: http://gpu2:8000/v1}'
+```
+
+Equivalent from Python:
+
+``` python
+from inspect_ai import eval
+from inspect_ai.model import get_model
+
+eval(
+    "task.py",
+    model=get_model("vllm/meta-llama/Llama-3-8B", base_url="http://gpu1:8000/v1"),
+    model_roles={
+        "grader": get_model(
+            "vllm/meta-llama/Llama-3-70B-Instruct",
+            base_url="http://gpu2:8000/v1",
+        ),
+    },
+)
+```
+
+Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. `VLLM_API_KEY` is also accepted as a per-model `api_key=` argument if your servers use different keys.
+
+Note: Inspect reuses a single server entry per base model name, so two `vllm/<same-model>` instances pointed at different URLs will collapse to the first URL. This caveat does not apply to the typical solver-vs-judge setup since the two models are different.
 
 ### Batching
 
@@ -5985,6 +6036,8 @@ Or using the [eval()](./reference/inspect_ai.html.md#eval) function:
 ``` python
 eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(responses_api=True))
 ```
+
+When using the Responses API, `openai-api` also supports the `responses_phase` model arg to synthesize missing assistant message `phase` values when replaying Responses API histories.
 
 ### Tool Emulation
 
@@ -12600,12 +12653,13 @@ As with other log file oriented environment variables, you may find it convenien
 
 We’ve shown a number of Python functions that let you work with eval logs from code. However, you may be writing an orchestration or visualisation tool in another language (e.g. TypeScript) where its not particularly convenient to call the Python API. The Inspect CLI has a few commands intended to make it easier to work with Inspect logs from other languages:
 
-| Command               | Description                         |
-|-----------------------|-------------------------------------|
-| `inspect log list`    | List all logs in the log directory. |
-| `inspect log dump`    | Print log file contents as JSON.    |
-| `inspect log convert` | Convert between log file formats.   |
-| `inspect log schema`  | Print JSON schema for log files.    |
+| Command                     | Description                               |
+|-----------------------------|-------------------------------------------|
+| `inspect log list`          | List all logs in the log directory.       |
+| `inspect log dump`          | Print log file contents as JSON.          |
+| `inspect log convert`       | Convert between log file formats.         |
+| `inspect log export-config` | Export a run config YAML from a log file. |
+| `inspect log schema`        | Print JSON schema for log files.          |
 
 ### Listing Logs
 
@@ -12660,6 +12714,19 @@ $ inspect log convert logs --to eval --output-dir logs-eval
 Logs that are already in the target format are simply copied to the output directory. By default, log files in the target directory will not be overwritten, however you can add the `--overwrite` flag to force an overwrite.
 
 Note that the output directory is always required to enforce the practice of not doing conversions that result in side-by-side log files that are identical save for their format.
+
+### Exporting Run Config
+
+The `inspect log export-config` command reads a log file and writes a YAML (or JSON) file that captures the complete configuration used for that run — task, model, model roles, generation parameters, solver, and eval settings. The output can be passed directly to `inspect eval --run-config` to reproduce the run:
+
+``` bash
+$ inspect log export-config logs/my_run.eval > run.yaml
+$ inspect eval --run-config run.yaml
+```
+
+This closes the round-trip: `eval → log → export-config → eval`. By default output goes to stdout; use `--output` to write to a file, and `--format json` for JSON instead of YAML.
+
+See [Run Config File](./task-configuration.html.md#run-config) for the full schema that `--run-config` accepts.
 
 ### Log Schema
 
