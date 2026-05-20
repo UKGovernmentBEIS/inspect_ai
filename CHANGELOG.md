@@ -5,6 +5,7 @@
 - Model Roles: Preserve overrides of config when calling `get_model()` with `role`.
 - OpenAI: Set `redacted=False` when reasoning content, summary, and encrypted exists.
 - OpenAI Compatible: Add support for `responses_phase` parameter.
+- Google: Add a default 1 hour SDK transport timeout for GenAI requests.
 - OpenRouter: Strip reasoning_details replay for Gemini models (they currently cause a runtime error due to OpenRouter not handling the `id` properly).
 - Agent Bridge: Preserve wrapped OpenAI reasoning payloads.
 - Docker: Retry docker compose commands on BrokenResourceError.
@@ -19,7 +20,6 @@
 
 ## 0.3.222 (16 May 2026)
 
-- Google: Add a default 1 hour SDK transport timeout for GenAI requests.
 - Scanners: Declare Scanner import in a way that's compatible with pyright type checking.
 
 ## 0.3.221 (16 May 2026)
