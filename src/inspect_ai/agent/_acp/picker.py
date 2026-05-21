@@ -1,0 +1,227 @@
+"""In-channel session picker.
+
+Pure helpers that compute the set of attachable ACP target sessions
+from the eval's :data:`_active_samples` registry and resolve a user's
+selection string back to a target.
+
+The picker has no socket dependency. ``AcpServer`` (and tests) call
+:func:`list_picker_targets` and :func:`resolve_selection` directly.
+Each accepted connection sees the *current* set of targets at
+picker-build time, so clients connecting late enumerate samples that
+came up after server start, and samples that have finished are
+correctly excluded.
+
+The picker's selection surface accepts a numeric index (``"1"``,
+``"2"``, ...) matching the visible order, or a uuid string matching
+one of ``targets[i].session_id``. Tuple parsing
+(``"task/sample_id/epoch"``) was considered and deferred — the native
+``inspect acp`` client reads the structured target list out of the
+notification's ``_meta`` (see :data:`inspect_ext.PICKER_META_KEY`)
+and submits the matching uuid directly.
+
+The picker notification's wire shape (numbered-list text body +
+structured ``_meta`` target array) lives in :mod:`inspect_ext` —
+``build_picker_notification`` and ``picker_target_meta_dict`` —
+since both are Inspect-specific extensions on a standard ACP payload.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+from inspect_ai.log._samples import active_samples
+
+__all__ = [
+    "PickerTarget",
+    "SampleListing",
+    "list_picker_targets",
+    "list_all_samples",
+    "resolve_selection",
+]
+
+
+@dataclass(frozen=True)
+class PickerTarget:
+    """A single attachable ACP session target."""
+
+    session_id: str
+    """The target ``LiveAcpSession.session_id`` (uuid)."""
+
+    task: str
+    """Task name (e.g. ``"my_task"``)."""
+
+    sample_id: str
+    """Sample id as a string (``Sample.id`` may be int or str; we
+    stringify for transport)."""
+
+    epoch: int
+    """Epoch number."""
+
+    agent_name: str | None = None
+    """Registered ``@agent`` / solver name (e.g. ``"react"``). Derived
+    at ``active_sample()`` setup time using inspect_scout's
+    ``log.eval.solver`` → last-plan-step heuristic. ``None`` when no
+    solver name is available (rare; lifts to ``None`` in the TUI's
+    meta row)."""
+
+    started_at: float | None = None
+    """Unix timestamp when the sample's task group started (from
+    :attr:`inspect_ai.log._samples.ActiveSample.started`). ``None``
+    before the sample's ``start()`` is called. Drives the picker's
+    ``running`` column."""
+
+    total_tokens: int = 0
+    """Running total tokens for the sample (from
+    :attr:`inspect_ai.log._samples.ActiveSample.total_tokens`). Drives
+    the picker's ``tokens`` column; refreshed on rescan."""
+
+    fails_on_error: bool = False
+    """Mirror of :attr:`ActiveSample.fails_on_error`.
+
+    Drives the cancel-sample bar's ``[e] error`` visibility: hidden
+    when this is ``True`` (operator marking it errored is moot — the
+    sample would error on its own), shown when ``False``. Matches the
+    in-proc ``--display full`` TUI's rule
+    (``cancel_with_error.display = not sample.fails_on_error``) so
+    both display modes stay in lockstep — fractional thresholds and
+    integer counts collapse to ``True`` here just as they do in
+    ``--display full``.
+
+    Snapshot at enumeration; never mutates."""
+
+
+def list_picker_targets() -> list[PickerTarget]:
+    """Snapshot active samples that have claimed ACP.
+
+    Filters :func:`inspect_ai.log._samples.active_samples` to those
+    whose ``acp_session`` is set to a non-noop live session — i.e.
+    agents that have called ``before_turn`` at least once and
+    therefore have a real ``LiveAcpSession.session_id``.
+    """
+    targets: list[PickerTarget] = []
+    for sample in active_samples():
+        session = sample.acp_session
+        if session is None or session.session_id == "noop":
+            continue
+        targets.append(
+            PickerTarget(
+                session_id=session.session_id,
+                task=sample.task,
+                sample_id=str(sample.sample.id) if sample.sample.id is not None else "",
+                epoch=sample.epoch,
+                agent_name=sample.agent_name,
+                started_at=sample.started,
+                total_tokens=sample.total_tokens,
+                # Mirror ActiveSample.fails_on_error verbatim so the
+                # ACP TUI's [e] error visibility matches --display
+                # full's `cancel_with_error.display = not
+                # sample.fails_on_error` rule exactly.
+                fails_on_error=sample.fails_on_error,
+            )
+        )
+    return targets
+
+
+@dataclass(frozen=True)
+class SampleListing:
+    """One entry in the ``inspect/list_samples`` enumeration.
+
+    Same field set as :class:`PickerTarget` but ``session_id`` is
+    optional — ``None`` when the sample's agent has not claimed ACP
+    (no call to ``before_turn`` yet, or no ACP-aware scaffold at all).
+    The Inspect TUI consumes this enumeration to surface non-ACP
+    samples in the picker so operators can see "the eval is running
+    but I can't drive it from here" instead of an empty list.
+    """
+
+    session_id: str | None
+    """Live ``LiveAcpSession.session_id`` (uuid) for ACP-claimed
+    samples; ``None`` when the sample has no ACP session or only the
+    pre-claim noop placeholder."""
+
+    task: str
+    sample_id: str
+    epoch: int
+    agent_name: str | None = None
+    started_at: float | None = None
+    total_tokens: int = 0
+    fails_on_error: bool = False
+
+
+def list_all_samples() -> list[SampleListing]:
+    """Snapshot ALL active samples — ACP-claimed and not.
+
+    Walks :func:`inspect_ai.log._samples.active_samples` unfiltered.
+    ACP-claimed entries (agent has called ``before_turn`` at least
+    once) carry the live ``session_id``; non-claimed entries — those
+    with no ``acp_session`` or only the noop sentinel — surface as
+    ``session_id=None`` so the TUI can render them as non-attachable.
+
+    ``agent_name`` is omitted (``None``) for non-ACP entries — the
+    column reads ``acp agent`` and a non-ACP sample by definition has
+    no attachable ACP agent, so surfacing its solver name there
+    would be misleading. The TUI's display layer already shows ``—``
+    for non-ACP rows; this keeps the wire payload consistent with
+    that intent.
+
+    Sample-id stringification mirrors :func:`list_picker_targets`.
+    """
+    listings: list[SampleListing] = []
+    for sample in active_samples():
+        session = sample.acp_session
+        if session is None or session.session_id == "noop":
+            session_id: str | None = None
+            agent_name: str | None = None
+        else:
+            session_id = session.session_id
+            agent_name = sample.agent_name
+        listings.append(
+            SampleListing(
+                session_id=session_id,
+                task=sample.task,
+                sample_id=str(sample.sample.id) if sample.sample.id is not None else "",
+                epoch=sample.epoch,
+                agent_name=agent_name,
+                started_at=sample.started,
+                total_tokens=sample.total_tokens,
+                fails_on_error=sample.fails_on_error,
+            )
+        )
+    return listings
+
+
+def resolve_selection(
+    prompt_text: str,
+    targets: list[PickerTarget],
+) -> PickerTarget | None:
+    """Resolve a picker selection string to a target.
+
+    Accepts:
+
+    - A 1-based index (``"1"``, ``"2"``, ...) matching the order
+      returned by :func:`list_picker_targets`.
+    - A uuid string matching one of ``targets[i].session_id``.
+
+    Returns the matched target, or ``None`` if the selection doesn't
+    parse or doesn't match (caller is responsible for re-prompting or
+    returning an error to the client).
+    """
+    selection = prompt_text.strip()
+    if not selection:
+        return None
+
+    # Numeric-index branch.
+    try:
+        index = int(selection)
+    except ValueError:
+        pass
+    else:
+        if 1 <= index <= len(targets):
+            return targets[index - 1]
+        return None
+
+    # SessionId-match branch.
+    for target in targets:
+        if target.session_id == selection:
+            return target
+    return None

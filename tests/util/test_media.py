@@ -55,4 +55,4 @@ def test_media_google_video():
 
 @skip_if_no_openai
 def test_media_openai_audio():
-    check_audio("openai/gpt-4o-audio-preview")
+    check_audio("openai/gpt-audio")

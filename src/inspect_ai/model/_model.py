@@ -1112,7 +1112,13 @@ class Model:
                 time_start = time.monotonic()
                 try:
                     assert isinstance(event, ModelEvent)
-                    with track_active_model_event(event):
+                    # Local import to avoid an import cycle (agent → model → agent).
+                    from inspect_ai.agent._acp import current_acp_session
+
+                    with (
+                        track_active_model_event(event),
+                        current_acp_session().track_model_event(event),
+                    ):
                         with timeout_cm:
                             result = await self.api.generate(
                                 input=input,
@@ -1424,6 +1430,17 @@ class Model:
         def complete(
             result: ModelOutput | Exception, updated_call: ModelCall | None
         ) -> None:
+            # Note on operator-cancel: ``AcpSession.cancel_current_turn``
+            # stamps ``event.error = OPERATOR_CANCEL_ERROR`` on the
+            # in-flight event. The model API can still return inside the
+            # cancellation propagation window; we deliberately let the
+            # natural completion run so ``event.output`` / ``event.call``
+            # capture the real response for forensic logging. The
+            # success branch below does not overwrite ``event.error``,
+            # so the cancel marker stays sticky and downstream
+            # renderers (TUI + inspect view) discriminate on it to
+            # suppress display.
+
             # trace
             if isinstance(result, ModelOutput):
                 if result.choices:
@@ -1622,6 +1639,10 @@ def get_model(
     if role is not None:
         model_for_role = model_roles().get(role, None)
         if model_for_role is not None:
+            if config.model_dump(exclude_none=True):
+                model_for_role = copy(model_for_role)
+                model_for_role.config = config.merge(model_for_role.config)
+                model_for_role._set_role(role)
             return model_for_role
 
         # raise if required and not found

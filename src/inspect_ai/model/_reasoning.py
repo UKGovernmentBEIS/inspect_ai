@@ -48,6 +48,11 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
 
         # Extract nested <summary> tag from content
         reasoning, summary = _parse_summary(reasoning)
+        if redacted and signature and signature.startswith("rs_"):
+            # Redacted reasoning bodies carry opaque provider payloads such as
+            # encrypted_content. Some text scaffolds wrap long lines; whitespace
+            # inserted there is not part of the payload.
+            reasoning = re.sub(r"\s+", "", reasoning)
 
         # Remove the matched <think>...</think> from the input
         start, end = match.span()

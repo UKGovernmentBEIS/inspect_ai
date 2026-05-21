@@ -4,6 +4,7 @@ from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import set_exception_hook
 
 from .. import __version__
+from .acp import acp_command
 from .cache import cache_command
 from .download import download_command
 from .eval import eval_command, eval_retry_command, eval_set_command
@@ -38,6 +39,7 @@ def inspect(ctx: click.Context, version: bool) -> None:
         ctx.exit()
 
 
+inspect.add_command(acp_command)
 inspect.add_command(cache_command)
 inspect.add_command(download_command)
 inspect.add_command(eval_command)

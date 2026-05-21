@@ -1,3 +1,28 @@
+## Unreleased
+
+- [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
+
+## 0.3.224 (20 May 2026)
+
+- AsyncFilesystem: Add `iter_files()` and `iter_dirs()` methods.
+- Scoring: Add `pass_k` reducer for computing the probability that all `k` epoch attempts succeed (τ-bench reliability metric).
+- Model Roles: Preserve overrides of config when calling `get_model()` with `role`.
+- OpenAI: Set `redacted=False` when reasoning content, summary, and encrypted exists.
+- OpenAI Compatible: Add support for `responses_phase` parameter.
+- Anthropic: Convert mid-stream content_filter APIStatusError to refusal.
+- Google: Add a default 1 hour SDK transport timeout for GenAI requests.
+- OpenRouter: Strip reasoning_details replay for Gemini models (they currently cause a runtime error due to OpenRouter not handling the `id` properly).
+- Agent Bridge: Preserve wrapped OpenAI reasoning payloads.
+- Docker: Retry docker compose commands on BrokenResourceError.
+- Inspect View: Replaced the aiohttp server with a FastAPI server. `fastapi` and `uvicorn` are now required dependencies.
+
+## 0.3.223 (18 May 2026)
+
+- Config: Add `inspect log export-config` command to export a run config from an existing log file.
+- Anthropic: Skip thinking blocks when placing lookback cache_control.
+- AsyncFilesystem: Add `get_file()` and `exists()` methods.
+- Inspect View: Fix regression where switching task tabs would reload log, causing latency.
+
 ## 0.3.222 (16 May 2026)
 
 - Scanners: Declare Scanner import in a way that's compatible with pyright type checking.

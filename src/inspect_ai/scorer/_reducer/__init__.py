@@ -1,4 +1,12 @@
-from .reducer import at_least, max_score, mean_score, median_score, mode_score, pass_at
+from .reducer import (
+    at_least,
+    max_score,
+    mean_score,
+    median_score,
+    mode_score,
+    pass_at,
+    pass_k,
+)
 from .registry import (
     create_reducers,
     reducer_log_name,
@@ -21,5 +29,6 @@ __all__ = [
     "max_score",
     "at_least",
     "pass_at",
+    "pass_k",
     "validate_reducer",
 ]
