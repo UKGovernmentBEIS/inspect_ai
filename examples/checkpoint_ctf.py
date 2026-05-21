@@ -29,7 +29,8 @@ from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import includes
 from inspect_ai.tool import Tool, bash, tool
-from inspect_ai.util import CheckpointConfig, TurnInterval, store
+from inspect_ai.util import CheckpointConfig, store
+from inspect_ai.util._checkpoint._triggers.types import TokenInterval
 
 FLAG = "FLAG{checkpointing-actually-works}"
 
@@ -145,7 +146,37 @@ def cp_ctf() -> Task:
         scorer=includes(),
         sandbox="docker",
         checkpoint=CheckpointConfig(
-            trigger=TurnInterval(1),
+            trigger=TokenInterval(5000),
+            # trigger=TurnInterval(1),
             sandbox_paths={"default": ["/workspace"]},
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# Debug entry point: run this file as a script (under a debugger) to kick off
+# a retry of the most recent `cp_ctf` log without going through the CLI. Drop
+# breakpoints anywhere in the retry flow (e.g. `_CheckpointerSetup.__aenter__`,
+# `eval_log_sample_source._resume_if_checkpointed`, `run_sample`'s
+# `ResumeCheckpoint` branch) and step through.
+#
+#   python examples/checkpoint_ctf.py                 # newest log in ./logs/
+#   python examples/checkpoint_ctf.py path/to/x.eval  # specific log
+# ---------------------------------------------------------------------------
+if __name__ == "__main__":
+    import os
+    import sys
+
+    from inspect_ai import eval_retry
+
+    # The env-var gate is still on — guarantee it's set so the checkpointer
+    # actually engages rather than returning a no-op.
+    os.environ.setdefault("INSPECT_CHECKPOINTING", "1")
+
+    # Default log: a known-incomplete-with-sidecars cp_ctf run captured
+    # for local debugging. Override by passing a log path as argv[1].
+    DEFAULT_LOG = "logs/2026-05-19T18-27-48-00-00_cp-ctf_evrSez33AVsudxeecu9DtJ.eval"
+    log_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_LOG
+
+    print(f"Retrying {log_path}")
+    eval_retry(log_path)

@@ -1,6 +1,13 @@
 google:
   display_name: Google
   models:
+    gemini-3.5-flash:
+      display_name: "Gemini 3.5 Flash"
+      release_date: 2026-05-19
+      knowledge_cutoff_date: 2025-01-01
+      context_length: 1048576
+      output_tokens: 65536
+      reasoning: True
     gemini-3.1-pro:
       display_name: "Gemini 3.1 Pro"
       release_date: 2026-02-19

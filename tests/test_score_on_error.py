@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import anyio
 from test_helpers.utils import failing_solver_deterministic
 
@@ -6,6 +8,7 @@ from inspect_ai._eval.task.run import eval_log_sample_source
 from inspect_ai.dataset import MemoryDataset, Sample
 from inspect_ai.scorer import Score, Scorer, Target, mean, scorer, stderr
 from inspect_ai.solver import TaskState
+from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 
 
 @scorer(metrics=[mean(), stderr()])
@@ -173,6 +176,46 @@ def test_score_on_error_sample_source_skips_errored():
 
     dataset = MemoryDataset([Sample(id=errored_sample.id, input="hi", target="hi")])
     source = eval_log_sample_source(log, None, dataset)
+
+    async def call() -> object:
+        return await source(errored_sample.id, errored_sample.epoch)
+
+    assert anyio.run(call) is None
+
+
+def test_eval_log_sample_source_resume_when_checkpoint_exists(tmp_path: Path) -> None:
+    # errored sample + sidecar on disk → factory returns ResumeCheckpoint
+    log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
+    assert log.samples is not None
+    errored_sample = log.samples[0]
+
+    eval_ckpt_dir = tmp_path / "eval.checkpoints"
+    sample_dir = eval_ckpt_dir / f"{errored_sample.id}__{errored_sample.epoch}"
+    sample_dir.mkdir(parents=True)
+    (sample_dir / "ckpt-00001.json").write_text("{}")
+
+    dataset = MemoryDataset([Sample(id=errored_sample.id, input="hi", target="hi")])
+    source = eval_log_sample_source(log, None, dataset, str(eval_ckpt_dir))
+
+    async def call() -> object:
+        return await source(errored_sample.id, errored_sample.epoch)
+
+    result = anyio.run(call)
+    assert isinstance(result, ResumeCheckpoint)
+    assert result.sample_checkpoints_dir == str(sample_dir)
+
+
+def test_eval_log_sample_source_no_resume_when_sidecar_absent(tmp_path: Path) -> None:
+    # errored sample + no sidecar → factory still returns None
+    log = eval(_make_task([True]), score_on_error=True, fail_on_error=False)[0]
+    assert log.samples is not None
+    errored_sample = log.samples[0]
+
+    eval_ckpt_dir = tmp_path / "eval.checkpoints"
+    # intentionally do not create any sidecar
+
+    dataset = MemoryDataset([Sample(id=errored_sample.id, input="hi", target="hi")])
+    source = eval_log_sample_source(log, None, dataset, str(eval_ckpt_dir))
 
     async def call() -> object:
         return await source(errored_sample.id, errored_sample.epoch)

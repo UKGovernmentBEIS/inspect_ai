@@ -46,6 +46,7 @@ def _make_active_sample(
     session_id: str,
     agent_name: str | None = "react",
     started: float | None = 1_700_000_000.0,
+    total_messages: int = 0,
     total_tokens: int = 0,
     fails_on_error: bool = True,
 ) -> Any:
@@ -62,6 +63,7 @@ def _make_active_sample(
     # unset MagicMock attribute returns a MagicMock that the encoder
     # can't handle, and the server's request handler crashes silently
     # in a background task, leaving the client awaiting forever.
+    active.total_messages = total_messages
     active.total_tokens = total_tokens
     active.fails_on_error = fails_on_error
     sess = MagicMock()

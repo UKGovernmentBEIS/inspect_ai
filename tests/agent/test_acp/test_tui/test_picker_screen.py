@@ -128,7 +128,7 @@ async def test_picker_populated_renders_all_rows(
         assert isinstance(screen, PickerScreen)
         table = screen.query_one(DataTable)
         assert table.row_count == 3
-        # Six columns — the ▸ selection glyph used to live in a
+        # Seven columns — the ▸ selection glyph used to live in a
         # dedicated 1-char gutter column but is now embedded into the
         # sample cell so DataTable's uniform cell_padding doesn't
         # produce a double-space gap. eval column is intentionally
@@ -143,6 +143,7 @@ async def test_picker_populated_renders_all_rows(
             "epoch",
             "task",
             "acp agent",
+            "msgs",
             "tokens",
             "running",
         ]
@@ -154,7 +155,7 @@ async def test_picker_populated_renders_all_rows(
         assert "2 evals" in status_text
         # Agent values render — missing names become an em-dash so
         # the column never shows a literal "None". Column indices:
-        # sample=0, epoch=1, task=2, agent=3, tokens=4, running=5.
+        # sample=0, epoch=1, task=2, agent=3, msgs=4, tokens=5, running=6.
         agent_cells = [str(c) for c in table.get_column_at(3)]
         assert "react" in agent_cells
         assert "deepagent" in agent_cells
@@ -240,10 +241,10 @@ async def test_picker_running_column_ticks_in_place(monkeypatch) -> None:
         assert isinstance(picker, PickerScreen)
         table = picker.query_one(DataTable)
 
-        # ``running`` is column index 5 (sample, epoch, task, agent,
-        # tokens, running) — the gutter column was removed and the
+        # ``running`` is column index 6 (sample, epoch, task, agent,
+        # msgs, tokens, running) — the gutter column was removed and the
         # cursor glyph embedded into the sample cell instead.
-        before = str(list(table.get_column_at(5))[0])
+        before = str(list(table.get_column_at(6))[0])
         assert before.endswith("s") and "m" not in before  # initial "Ns" form
 
         # Patch ``time.time`` on the *picker* module so its
@@ -257,7 +258,7 @@ async def test_picker_running_column_ticks_in_place(monkeypatch) -> None:
         picker._tick_running()
         await pilot.pause()
 
-        after = str(list(table.get_column_at(5))[0])
+        after = str(list(table.get_column_at(6))[0])
         # Cursor / row count survive the in-place update.
         assert table.row_count == 1
         assert table.cursor_row == 0
@@ -519,13 +520,14 @@ async def test_picker_rescan_updates_tokens_in_steady_state(
         picker = app.screen
         assert isinstance(picker, PickerScreen)
         table = picker.query_one(DataTable)
-        # Tokens column is index 4 (sample=0, epoch=1, task=2,
-        # agent=3, tokens=4, running=5) — gutter column was dropped.
-        # Initial fixture rows have total_tokens=0 → cell renders
-        # ``—`` (em-dash). The empty-state token cell is intentionally
-        # distinct from a small-but-nonzero value so the eye can scan
-        # the column for "actual usage" at a glance.
-        before = [str(c) for c in table.get_column_at(4)]
+        # Tokens column is index 5 (sample=0, epoch=1, task=2,
+        # agent=3, msgs=4, tokens=5, running=6) — gutter column was
+        # dropped, msgs sits between agent and tokens. Initial fixture
+        # rows have total_tokens=0 → cell renders ``—`` (em-dash).
+        # The empty-state token cell is intentionally distinct from a
+        # small-but-nonzero value so the eye can scan the column for
+        # "actual usage" at a glance.
+        before = [str(c) for c in table.get_column_at(5)]
         assert all(c == "—" for c in before)
 
         # Rebind the client with the SAME session ids but bumped
@@ -540,7 +542,7 @@ async def test_picker_rescan_updates_tokens_in_steady_state(
         await picker._do_rescan()
         await pilot.pause()
 
-        after = [str(c) for c in table.get_column_at(4)]
+        after = [str(c) for c in table.get_column_at(5)]
         # Display order is longest-running-first now, so the fixture's
         # sess-3 (oldest started_at) lands at row 0, sess-2 at row 1,
         # sess-1 at row 2. _format_tokens: 1234 → "1.2K",

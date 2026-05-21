@@ -3,26 +3,55 @@
 Kept deliberately light so that this module can be imported eagerly
 from ``inspect_ai.util._checkpoint/__init__.py`` and ``inspect_ai.util``
 without triggering the heavy ``log``/``solver``/``model`` chain that
-the active-session implementation in :mod:`.checkpointer` pulls in
-(that chain loops back to ``inspect_ai.dataset.Sample`` and breaks
+the active-session implementation in :mod:`.checkpointer_impl` pulls
+in (that chain loops back to ``inspect_ai.dataset.Sample`` and breaks
 during initial package load otherwise).
 
-The factory defers the import of the heavy build function to call
-time, so the cycle never arises in practice.
+Two-phase shape:
+
+* The harness stashes a setup object (an
+  ``AbstractAsyncContextManager[Checkpointer]``) on the active sample.
+  It holds the inputs but does no I/O.
+* The agent's ``async with checkpointer() as cp:`` enters that setup,
+  which performs the on-disk + sandbox setup and yields a fully-formed
+  :class:`Checkpointer` — the agent-facing API with no lifecycle
+  concerns.
 """
 
 from __future__ import annotations
 
 import contextlib
 from collections.abc import AsyncIterator
-from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Callable, Protocol, TypeVar
 
 T = TypeVar("T")
 
 
+@dataclass
+class ResumeCheckpoint:
+    """Per-sample resume info: where the on-disk checkpoint lives."""
+
+    sample_checkpoints_dir: str
+
+
 class Checkpointer(Protocol):
-    """The session yielded by ``async with checkpointer() as cp:``."""
+    """The session yielded by ``async with checkpointer() as cp:``.
+
+    Agent-facing — no lifecycle methods. The async-ctx-mgr concerns
+    live on the setup object that the harness keeps on the active
+    sample.
+    """
+
+    @property
+    def is_resuming(self) -> bool:
+        """True iff this sample is being resumed from a prior checkpoint.
+
+        Agents can branch on this to skip one-time setup that was
+        already performed on the original run, or to log/handle resume
+        specially. Stable across the lifetime of the session.
+        """
+        ...
 
     async def tick(self) -> None:
         """Invoke at each turn boundary; may fire a checkpoint.
@@ -37,11 +66,39 @@ class Checkpointer(Protocol):
         """Force a fire regardless of policy (used by manual triggers)."""
         ...
 
+    def span_session(self) -> contextlib.AbstractAsyncContextManager[None]:
+        """Bracket the agent's checkpointed scope with per-checkpoint transcript spans.
+
+        Spans are peers — siblings under whatever span was active when the
+        agent opened ``async with checkpointer()``. Each span's name
+        matches the sidecar id it will fire under (1-indexed, same
+        numbering as ``ckpt-NNNNN.json``): ``checkpoint 1`` is the work
+        that the first fire commits, ``checkpoint 2`` is the work that
+        the second fire commits, and so on.
+
+        On fire, the current span closes *before* ``write_host_context``
+        (so the ``SpanEndEvent`` lands in this checkpoint's
+        ``events.json``), then the next span opens after the sidecar is
+        committed.
+
+        A sample that finishes without ever firing leaves an unclosed
+        ``checkpoint 1`` span — expected and informative: it records the
+        work that would have been the first checkpoint had any fire
+        happened. Same shape on resume: an attempt with ``M`` prior
+        commits that finishes without firing leaves an unclosed
+        ``checkpoint M+1``.
+
+        For the no-op session this returns an empty ctx mgr.
+        """
+        ...
+
     def track(
         self,
         key: str,
         callback: Callable[[], T],
         initial_value: T,
+        *,
+        value_type: type[T] | None = None,
     ) -> T:
         """Track ``key`` as part of the agent's checkpointed state.
 
@@ -55,44 +112,47 @@ class Checkpointer(Protocol):
         serialize" — JSON primitives, lists, dicts, Pydantic models,
         dataclasses, and arbitrary nesting of these.
 
+        ``value_type`` is required for any ``T`` whose JSON form differs
+        from its in-memory form — collections of Pydantic models,
+        discriminated unions, models nested in generic containers, etc.
+        Two cases are auto-handled and do **not** need a ``value_type``:
+
+        * A single Pydantic model instance — the instance's runtime
+          class is unambiguous.
+        * A JSON-primitive value (``int``, ``float``, ``str``, ``bool``,
+          ``None``) — round-trips identically through ``json``.
+
+        Any other ``initial_value`` without a ``value_type`` raises
+        ``TypeError`` at register time. The check fires deterministically
+        on every run (fresh or resume) so the missing-``value_type`` bug
+        surfaces during development rather than mid-agent-loop after a
+        real failure-and-retry.
+
         A key may be tracked only once per session; a duplicate call
         raises ``ValueError``.
         """
         ...
 
 
-# Set by `checkpointer()` for either impl, so free functions (e.g. the
-# manual `checkpoint()` trigger) get back whichever session is active
-# — including the no-op one. Outside any `checkpointer()` context,
-# lookups return None.
-_active_checkpointer: ContextVar[Checkpointer | None] = ContextVar(
-    "inspect_ai_active_checkpointer", default=None
-)
-
-
 @contextlib.asynccontextmanager
 async def checkpointer() -> AsyncIterator[Checkpointer]:
-    """Enter a checkpointer for the current sample.
+    """Enter the checkpointer bound to the active sample.
 
-    Picks one of two concrete impls on entry: a no-op session when the
-    active sample has no checkpoint config (or no sample is active at
-    all), or an active session bound to the current sample. Either
-    way, the yielded object satisfies :class:`CheckpointSession` and
-    is registered as the active session for the current async context.
+    Delegates to the per-sample setup object stashed on the active
+    sample by the harness. The setup builds and caches a real
+    :class:`Checkpointer` on first entry; subsequent opens within the
+    same sample reuse the cached instance.
 
-    The resolved :class:`CheckpointConfig` lives on
-    :class:`inspect_ai.log._samples.ActiveSample` — installed by the
-    harness at sample-run setup time per eval / task / sample
-    precedence. Agents do not pass a config here.
+    Must be called inside an active sample — :func:`sample_active`
+    returning ``None`` raises ``RuntimeError``.
     """
-    # Function-scoped import of the heavy build function: keeps this
-    # module light enough to be imported during initial inspect_ai load
-    # without triggering the dataset/Sample cycle.
-    from .checkpointer_impl import build_impl
+    # Function-scoped import to avoid a load-time cycle with
+    # `inspect_ai.log._samples`.
+    from inspect_ai.log._samples import sample_active
 
-    impl = await build_impl()
-    token = _active_checkpointer.set(impl)
-    try:
-        yield impl
-    finally:
-        _active_checkpointer.reset(token)
+    active = sample_active()
+    if active is None:
+        raise RuntimeError("checkpointer() must be called inside an active sample")
+    async with active.checkpointer as cp:
+        async with cp.span_session():
+            yield cp

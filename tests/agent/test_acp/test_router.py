@@ -45,6 +45,7 @@ from inspect_ai.event import (
 )
 from inspect_ai.event._logger import LoggingMessage
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.log._samples import _sample_active as samples_var
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -57,6 +58,8 @@ from inspect_ai.model._model_output import (
     ModelOutput,
 )
 from inspect_ai.tool._tool import Tool, tool
+
+from ._capture import acp_test_active_sample
 
 # ---------------------------------------------------------------------------
 # Test helpers
@@ -1666,6 +1669,7 @@ async def test_router_publishes_for_react_against_mockllm() -> None:
     """End-to-end: react under acp_session emits ModelEvent + ToolEvent notifications."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         # Sequence: turn 1 calls a no-op tool, turn 2 submits "done".
         @tool
@@ -1722,6 +1726,7 @@ async def test_router_publishes_for_react_against_mockllm() -> None:
         # Each tool call should also progress through to completion.
         assert "completed" in progress_statuses
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -1729,6 +1734,7 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
     """React with as_tool sub-agent: subscriber sees only outer notifications."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         from inspect_ai.agent._agent import agent as agent_decorator
 
@@ -1788,6 +1794,7 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
                 f"unexpected sub-agent-internal leak in titles: {titles}"
             )
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -1803,6 +1810,7 @@ async def test_sub_agent_notifications_publish_when_filter_disabled() -> None:
     """
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         from inspect_ai.agent._agent import agent as agent_decorator
 
@@ -1855,4 +1863,5 @@ async def test_sub_agent_notifications_publish_when_filter_disabled() -> None:
             f"sub-agent text missing from subscriber items; got texts={texts}"
         )
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
