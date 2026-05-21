@@ -522,3 +522,23 @@ async def test_add_new_score_with_recompute_metrics():
     assert "new_custom_score" in sample.scores
     assert sample.scores["new_custom_score"].value == 0.75
     assert log.results.scores[0].metrics["mean"].value == original_mean
+
+
+@pytest.mark.anyio
+async def test_recompute_preserves_results_metadata():
+    """recompute_metrics should preserve caller-set EvalResults.metadata across the recompute."""
+    logs = await eval_async(single_metric_task())
+    log = logs[0]
+
+    log.results.metadata = {"training_step": 1234, "run_tag": "exp-42"}
+
+    edit_score(
+        log,
+        log.samples[0].id,
+        "single_metric_scorer",
+        ScoreEdit(value=0),
+        recompute_metrics=False,
+    )
+    recompute_metrics(log)
+
+    assert log.results.metadata == {"training_step": 1234, "run_tag": "exp-42"}
