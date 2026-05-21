@@ -304,7 +304,13 @@ class GrokAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        """Scope per (key, model) since xAI rate-limits per model, not per key."""
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
         return f"{self.api_key}:{self.model_name}"
 
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
