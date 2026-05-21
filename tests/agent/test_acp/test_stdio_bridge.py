@@ -535,6 +535,7 @@ def _make_full_sample(
     active.epoch = epoch
     active.agent_name = None
     active.started = None
+    active.total_messages = 0
     active.total_tokens = 0
     active.fails_on_error = False
     active.transcript = Transcript()
