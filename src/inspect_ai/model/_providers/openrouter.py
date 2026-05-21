@@ -338,9 +338,15 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             or self.reasoning_enabled is not None
         ):
             reasoning = dict()
-            # openrouter supports one of max_tokens or effort, prefer effort
+            # openrouter supports one of max_tokens or effort, prefer effort.
+            # OpenRouter accepts minimal/low/medium/high/xhigh (per
+            # https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)
+            # but not `max`; map it to `xhigh` (their highest tier, ratio 0.95).
             if config.reasoning_effort is not None:
-                reasoning["effort"] = config.reasoning_effort
+                effort: str = config.reasoning_effort
+                if effort == "max":
+                    effort = "xhigh"
+                reasoning["effort"] = effort
                 if config.reasoning_tokens is not None:
                     warn_once(
                         logger,

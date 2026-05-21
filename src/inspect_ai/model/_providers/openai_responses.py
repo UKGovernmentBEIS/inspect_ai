@@ -373,7 +373,12 @@ def completion_params_responses(
 
     reasoning: dict[str, str] = {}
     if config.reasoning_effort is not None:
-        reasoning["effort"] = config.reasoning_effort
+        # OpenAI's highest published effort is `xhigh`; map `max` to it so the
+        # request isn't rejected. Mirrors the mapping in
+        # `OpenAIAPI._get_reasoning_params_for_config`.
+        reasoning["effort"] = (
+            "xhigh" if config.reasoning_effort == "max" else config.reasoning_effort
+        )
     if config.reasoning_summary != "none":
         reasoning["summary"] = config.reasoning_summary or "auto"
     if len(reasoning) > 0:
