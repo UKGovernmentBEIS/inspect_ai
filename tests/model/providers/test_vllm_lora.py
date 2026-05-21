@@ -84,15 +84,24 @@ class TestParseVLLMModel:
         """No slash → treat suffix as a lora_name already on the server."""
         base, adapter = parse_vllm_model("llama:my-preloaded-name")
         assert base == "llama"
-        assert adapter == LoRAAdapter("my-preloaded-name")
+        assert adapter == LoRAAdapter("my-preloaded-name", is_preloaded=True)
+        assert adapter is not None
+        assert adapter.is_preloaded is True
 
     def test_bare_name_with_at_preserves_full_string(self) -> None:
         """Bare names can contain '@' (vLLM accepts any string); don't split it."""
         base, adapter = parse_vllm_model("llama:my-preloaded@with-at")
         assert base == "llama"
-        assert adapter == LoRAAdapter("my-preloaded@with-at")
+        assert adapter == LoRAAdapter("my-preloaded@with-at", is_preloaded=True)
         assert adapter is not None
         assert adapter.revision is None
+        assert adapter.is_preloaded is True
+
+    def test_hf_adapter_not_marked_preloaded(self) -> None:
+        """HF-shaped paths are not preloaded — we'll try to load them."""
+        _, adapter = parse_vllm_model("llama:org/adapter")
+        assert adapter is not None
+        assert adapter.is_preloaded is False
 
     def test_empty_revision_raises(self) -> None:
         with pytest.raises(ValueError, match="Empty revision"):
@@ -184,7 +193,7 @@ class TestVLLMAPIInit:
         rank_map = {"adapter-a": 16, "adapter-b": 256}
         with patch(
             "inspect_ai.model._providers.vllm.get_adapter_rank",
-            side_effect=lambda p: rank_map.get(p),
+            side_effect=lambda adapter: rank_map.get(adapter.path),
         ):
             api1 = VLLMAPI("base-model:adapter-a")
             api2 = VLLMAPI("base-model:adapter-b")

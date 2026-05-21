@@ -18,7 +18,6 @@ from subprocess import Popen
 
 import anyio
 import httpx
-from huggingface_hub import snapshot_download
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +27,17 @@ class LoRAAdapter:
     """A LoRA adapter reference: HF repo or local path, plus optional revision.
 
     Frozen so it can be used as a ``set`` / ``dict`` key.
+
+    ``is_preloaded`` distinguishes adapters that should be loaded by this
+    process (HF repo or on-disk path) from bare names that name an
+    adapter already registered on an external vLLM server (used with
+    ``VLLM_BASE_URL``). For the latter we skip the HF rank-detection
+    and load-on-startup paths.
     """
 
     path: str
     revision: str | None = None
+    is_preloaded: bool = False
 
     @property
     def name(self) -> str:
@@ -48,15 +54,16 @@ class LoRAAdapter:
         """Parse the post-colon suffix of a vLLM model name.
 
         Accepts a local path that exists on disk, a HuggingFace repo
-        (``org/name``), or either with an ``@revision`` suffix.
+        (``org/name``), or either with an ``@revision`` suffix. A bare
+        name (no ``/`` and not a local path) is treated as the
+        ``lora_name`` of an adapter already loaded on an external
+        server.
         """
         if Path(suffix).exists():
             return cls(path=suffix)
         path, _, revision = suffix.partition("@")
         if "/" not in path:
-            # Not a hf repo, treat entire suffix as a LoRA name
-            # (e.g. for external server with pre-loaded adapters with "@" in their names)
-            return cls(path=suffix)
+            return cls(path=suffix, is_preloaded=True)
         if "@" in suffix and not revision:
             raise ValueError(
                 "Empty revision after '@'. Use 'org/my-adapter@<branch|tag|commit>'."
@@ -130,23 +137,29 @@ def parse_vllm_model(model_name: str) -> tuple[str, LoRAAdapter | None]:
     return (base, LoRAAdapter.from_suffix(suffix))
 
 
-def get_adapter_rank(adapter_path: str) -> int | None:
+def get_adapter_rank(adapter: LoRAAdapter) -> int | None:
     """Get the LoRA rank from an adapter's configuration.
 
     Reads the ``r`` field from ``adapter_config.json``, looking first
-    for a local file and falling back to downloading from HuggingFace.
+    for a local file and falling back to downloading from HuggingFace
+    (at ``adapter.revision`` if specified). Returns ``None`` for
+    pre-loaded external adapters (their config isn't reachable from
+    this process) and when the field can't be read.
 
     Args:
-        adapter_path: Local path or HuggingFace repo ID for the adapter.
+        adapter: The adapter to inspect.
 
     Returns:
         The LoRA rank (``r``) value, or ``None`` if it cannot be determined.
     """
-    local_path = Path(adapter_path) / "adapter_config.json"
+    if adapter.is_preloaded:
+        return None
+
+    local_path = Path(adapter.path) / "adapter_config.json"
     if local_path.exists():
         config_path: Path = local_path
     else:
-        downloaded = _download_adapter_config(adapter_path)
+        downloaded = _download_adapter_config(adapter)
         if downloaded is None:
             return None
         config_path = downloaded
@@ -156,17 +169,17 @@ def get_adapter_rank(adapter_path: str) -> int | None:
 
     if "r" not in adapter_config:
         logger.warning(
-            f"adapter_config.json for {adapter_path} has no 'r' field. "
+            f"adapter_config.json for {adapter.name} has no 'r' field. "
             f"Skipping max_lora_rank auto-detection."
         )
         return None
 
     rank: int = adapter_config["r"]
-    logger.info(f"Detected LoRA rank {rank} for adapter {adapter_path}")
+    logger.info(f"Detected LoRA rank {rank} for adapter {adapter.name}")
     return rank
 
 
-def _download_adapter_config(adapter_path: str) -> Path | None:
+def _download_adapter_config(adapter: LoRAAdapter) -> Path | None:
     """Download adapter_config.json from HuggingFace Hub.
 
     Returns:
@@ -176,10 +189,14 @@ def _download_adapter_config(adapter_path: str) -> Path | None:
     from huggingface_hub.errors import EntryNotFoundError
 
     try:
-        return Path(hf_hub_download(adapter_path, "adapter_config.json"))
+        return Path(
+            hf_hub_download(
+                adapter.path, "adapter_config.json", revision=adapter.revision
+            )
+        )
     except EntryNotFoundError:
         logger.warning(
-            f"Could not fetch adapter_config.json for {adapter_path}. "
+            f"Could not fetch adapter_config.json for {adapter.name}. "
             f"Skipping max_lora_rank auto-detection."
         )
         return None
@@ -208,6 +225,8 @@ def _load_adapter(base_url: str, adapter: LoRAAdapter, api_key: str) -> None:
     api_base = _normalize_api_base(base_url)
     lora_path = adapter.path
     if adapter.revision is not None:
+        from huggingface_hub import snapshot_download
+
         lora_path = snapshot_download(adapter.path, revision=adapter.revision)
 
     with httpx.Client() as client:
@@ -291,6 +310,15 @@ def ensure_adapter_loaded(server: VLLMServer, adapter: LoRAAdapter) -> None:
         except httpx.HTTPStatusError as e:
             logger.warning(f"Failed to check adapter availability: {e}")
             raise
+
+        if adapter.is_preloaded:
+            raise RuntimeError(
+                f"LoRA adapter '{adapter.name}' is not registered on the vLLM "
+                f"server, and as a bare name (no '/') it cannot be loaded as a "
+                f"HuggingFace repo or local path. Either pre-load it on the "
+                f"server before connecting, or use 'org/name[@revision]' or "
+                f"'/local/path' syntax."
+            )
 
         logger.info(f"Loading LoRA adapter: {adapter.name}")
         _load_adapter(server.base_url, adapter, server.api_key)

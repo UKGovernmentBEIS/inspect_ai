@@ -188,7 +188,7 @@ class VLLMAPI(OpenAICompatibleAPI):
         self._server = _vllm_servers.setdefault(self.base_model, VLLMServer())
         if self.adapter:
             self._server.enable_lora = True
-            rank = get_adapter_rank(self.adapter.path)
+            rank = get_adapter_rank(self.adapter)
             if rank is not None:
                 self._server.max_lora_rank = max(self._server.max_lora_rank or 0, rank)
 
