@@ -127,8 +127,19 @@ def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
 
     backend = current_async_backend()
     if backend is None:
-        # No running event loop, so start one on the configured backend.
-        return anyio.run(_run_with_async_filesystem, backend=configured_async_backend())
+        try:
+            # sniffio can report no backend from synchronous callbacks even
+            # though an asyncio loop is active.
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No running event loop, so start one on the configured backend.
+            return anyio.run(
+                _run_with_async_filesystem, backend=configured_async_backend()
+            )
+        else:
+            # Running asyncio loop -- re-enter it via nest_asyncio.
+            init_nest_asyncio()
+            return asyncio.run(_run_with_async_filesystem())
     elif backend == "trio":
         # trio has no nest_asyncio equivalent so we cannot re-enter the
         # running loop from sync code (callers should use the _async variant)
