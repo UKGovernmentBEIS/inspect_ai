@@ -143,8 +143,11 @@ class TaskLogger:
         # redact authentication oriented model_args
         model_args = model_args_for_log(model_args)
 
-        # cwd_relative_path for sandbox config
-        if sandbox and isinstance(sandbox.config, str):
+        # cwd_relative_path for sandbox config when we can later recover the
+        # source location used to resolve relative configs (i.e. file-based tasks).
+        # Package tasks do not have task_file metadata, so preserving an absolute
+        # config path avoids making eval-retry cwd-dependent.
+        if sandbox and isinstance(sandbox.config, str) and task_file is not None:
             sandbox = SandboxEnvironmentSpec(
                 sandbox.type, cwd_relative_path(sandbox.config)
             )
