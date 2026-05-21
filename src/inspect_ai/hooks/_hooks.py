@@ -1,10 +1,10 @@
 import math
+import queue
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Awaitable, Callable, Literal, Type, TypeVar, cast
 
 import anyio
-from anyio.streams.memory import MemoryObjectReceiveStream
 
 from inspect_ai._eval.eval import EvalLogs
 from inspect_ai._eval.task.log import TaskLogger
@@ -660,6 +660,29 @@ async def emit_sample_start(
     await _emit_to_all(lambda hook: hook.on_sample_start(data))
 
 
+# Sentinel pushed onto the per-sample event queue to tell the drainer
+# task to exit cleanly. Using a module-level singleton (not a SampleEvent)
+# is safe because the queue is typed ``SampleEvent | object``.
+_SAMPLE_EVENT_QUEUE_SHUTDOWN: object = object()
+
+# Drainer worker threads block in ``queue.get`` for the lifetime of a
+# sample. With anyio's default thread limiter (typically 40), many
+# concurrent samples would queue up waiting for a thread slot, blocking
+# sample startup. Use an unbounded limiter dedicated to drainers,
+# lazily created on first use because ``anyio.CapacityLimiter`` requires
+# an active event loop at construction time.
+_drainer_thread_limiter: anyio.CapacityLimiter | None = None
+
+
+def _get_drainer_thread_limiter() -> anyio.CapacityLimiter:
+    global _drainer_thread_limiter
+    if _drainer_thread_limiter is None:
+        # ``anyio.CapacityLimiter`` validates with ``value is math.inf``,
+        # so ``float("inf")`` is rejected. Use the constant.
+        _drainer_thread_limiter = anyio.CapacityLimiter(math.inf)
+    return _drainer_thread_limiter
+
+
 def emit_sample_event(
     eval_set_id: str | None,
     run_id: str,
@@ -668,7 +691,7 @@ def emit_sample_event(
     event: Event,
 ) -> None:
     active = sample_active()
-    if active is None or active.event_send is None:
+    if active is None or active.event_queue is None:
         return
     if event.pending:
         return
@@ -679,10 +702,13 @@ def emit_sample_event(
         sample_id=sample_id,
         event=event,
     )
-    try:
-        active.event_send.send_nowait(data)
-    except (anyio.ClosedResourceError, anyio.BrokenResourceError):
-        pass
+    # ``queue.SimpleQueue.put`` is thread-safe and never blocks (unbounded),
+    # so this is safe to call from any thread — the event loop thread, an
+    # anyio worker spawned by ``to_thread.run_sync``, or a plain
+    # ``threading.Thread`` (e.g. the subprocess capture threads in
+    # ``_util/local_server.py``). The drainer task on the event loop
+    # thread is responsible for the actual hook dispatch.
+    active.event_queue.put(data)
 
 
 def start_sample_event_emitter() -> None:
@@ -694,19 +720,28 @@ def start_sample_event_emitter() -> None:
     if active is None or active.tg is None:
         return
 
-    send_stream, receive_stream = anyio.create_memory_object_stream[SampleEvent](
-        math.inf
-    )
-    active.event_send = send_stream
-    active.event_receive = receive_stream
+    event_queue: queue.SimpleQueue[SampleEvent | object] = queue.SimpleQueue()
+    active.event_queue = event_queue
     active.event_done = anyio.Event()
 
     async def _emit_loop(
-        receive: MemoryObjectReceiveStream[SampleEvent],
+        q: queue.SimpleQueue[SampleEvent | object],
         done: anyio.Event,
     ) -> None:
         try:
-            async for data in receive:
+            while True:
+                # Block a worker thread (not the event loop) on
+                # ``queue.get`` until a producer puts something on the
+                # queue. The worker round-trip is the price of being
+                # safe to call ``put`` from any thread.
+                data = await anyio.to_thread.run_sync(
+                    q.get,
+                    abandon_on_cancel=True,
+                    limiter=_get_drainer_thread_limiter(),
+                )
+                if data is _SAMPLE_EVENT_QUEUE_SHUTDOWN:
+                    return
+                assert isinstance(data, SampleEvent)
                 try:
 
                     async def _call_hook(hook: Hooks, d: SampleEvent = data) -> None:
@@ -718,7 +753,7 @@ def start_sample_event_emitter() -> None:
         finally:
             done.set()
 
-    active.tg.start_soon(_emit_loop, receive_stream, active.event_done)
+    active.tg.start_soon(_emit_loop, event_queue, active.event_done)
 
 
 async def drain_sample_events() -> None:
@@ -732,9 +767,10 @@ async def drain_sample_events() -> None:
         return
 
     try:
-        # Close the send stream to signal no more events
-        if active.event_send is not None:
-            await active.event_send.aclose()
+        # Signal the drainer to exit once it has processed everything
+        # ahead of the sentinel.
+        if active.event_queue is not None:
+            active.event_queue.put(_SAMPLE_EVENT_QUEUE_SHUTDOWN)
 
         # Wait for the background emitter to finish processing
         if active.event_done is not None:
@@ -743,25 +779,29 @@ async def drain_sample_events() -> None:
             if not active.event_done.is_set():
                 logger.warning("Timed out waiting for sample event emitter to drain")
 
-        # Process any remaining events the background emitter didn't get to
-        # (e.g. scoring events queued after the solver task group was cancelled)
-        if active.event_receive is not None:
-            try:
-                while True:
-                    data = active.event_receive.receive_nowait()
+        # Process any remaining events the drainer didn't reach (e.g.
+        # scoring events queued after the solver task group was
+        # cancelled, so the drainer task never ran the iteration that
+        # would have read them).
+        if active.event_queue is not None:
+            while True:
+                try:
+                    data = active.event_queue.get_nowait()
+                except queue.Empty:
+                    break
+                if data is _SAMPLE_EVENT_QUEUE_SHUTDOWN:
+                    continue
+                assert isinstance(data, SampleEvent)
 
-                    async def _emit_event(hook: Hooks, d: SampleEvent = data) -> None:
-                        await hook.on_sample_event(d)
+                async def _emit_event(hook: Hooks, d: SampleEvent = data) -> None:
+                    await hook.on_sample_event(d)
 
-                    await _emit_to_all(_emit_event)
-            except (anyio.WouldBlock, anyio.EndOfStream, anyio.ClosedResourceError):
-                pass
+                await _emit_to_all(_emit_event)
     except Exception as ex:
         logger.warning(f"Exception draining sample events: {ex}")
     finally:
         # Clean up regardless of success/failure
-        active.event_send = None
-        active.event_receive = None
+        active.event_queue = None
         active.event_done = None
 
 

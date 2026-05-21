@@ -1,4 +1,5 @@
 import contextlib
+import queue
 from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from datetime import datetime, timezone
@@ -14,8 +15,6 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
-
     from inspect_ai.agent._acp.session import AcpSession
     from inspect_ai.hooks._hooks import SampleEvent
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
@@ -88,8 +87,20 @@ class ActiveSample:
         self.agent_name = agent_name
         self._interrupt_action: Literal["score", "error"] | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
-        self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
-        self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
+        # Thread-safe channel between the (possibly off-event-loop-thread)
+        # producers of sample events (notably the stdlib-logging `LogHandler`
+        # path, which can be called from anyio worker threads, subprocess
+        # capture threads, atexit, etc.) and the event-loop-side emitter
+        # task that dispatches events to hook subscribers. Use ``queue``
+        # rather than ``anyio.MemoryObjectStream`` because the latter wakes
+        # waiters via ``trio.Event.set`` → ``trio._core.reschedule``, which
+        # raises ``RuntimeError("must be called from async context")`` when
+        # invoked off the event loop thread. ``queue.SimpleQueue`` is
+        # stdlib-thread-safe with no async assumptions. The drainer side
+        # (``hooks/_hooks.py:start_sample_event_emitter``) blocks on
+        # ``queue.get`` via ``anyio.to_thread.run_sync`` so the wait does
+        # not occupy the event loop.
+        self.event_queue: "queue.SimpleQueue[SampleEvent | object] | None" = None
         self.event_done: anyio.Event | None = None
         # Live ACP session for this sample, if any. Set by
         # `LiveAcpSession.__aenter__` on entry; cleared at `__aexit__`.
