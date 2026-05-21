@@ -1,7 +1,7 @@
 ## Unreleased
 
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
-- Google: Enable suport for "medium" thinking level for Gemini 3 Pro models.
+- Google: Enable support for "medium" thinking level for Gemini 3 Pro models.
 - Google: Retry transport-level aiohttp errors and SDK transport timeouts in `should_retry()` so the model-layer tenacity loop can retry network failures that escape the SDK's one-shot inline retry.
 - Model API: Create separate connection limit pools per model (improving concurrency under adaptive connections).
 - Scoring: Use scorers_info instead of scorers for functions that recompute metrics.
