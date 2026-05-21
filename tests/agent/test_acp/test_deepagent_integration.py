@@ -114,7 +114,7 @@ def test_deepagent_task_dispatch_emits_agent_boundary_span() -> None:
     )
 
     task = Task(
-        dataset=[Sample(input="Do a thing")],
+        dataset=[Sample(id=1, input="Do a thing")],
         solver=deepagent(
             subagents=[custom_subagent], submit=True, memory=False, todo_write=False
         ),
@@ -195,7 +195,7 @@ def test_deepagent_outer_gets_live_subagent_gets_noop() -> None:
     )
 
     task = Task(
-        dataset=[Sample(input="Do a thing")],
+        dataset=[Sample(id=1, input="Do a thing")],
         solver=deepagent(
             subagents=[custom_subagent],
             submit=True,
@@ -297,7 +297,7 @@ def test_deepagent_subagent_events_are_nested_inside_agent_span() -> None:
     )
 
     task = Task(
-        dataset=[Sample(input="Do a thing")],
+        dataset=[Sample(id=1, input="Do a thing")],
         solver=deepagent(
             subagents=[custom_subagent], submit=True, memory=False, todo_write=False
         ),
@@ -400,7 +400,7 @@ def test_deepagent_exit_on_submit_matches_react() -> None:
     just delegates to react) but the test pins the contract.
     """
     task = Task(
-        dataset=[Sample(input="Just submit immediately")],
+        dataset=[Sample(id=1, input="Just submit immediately")],
         solver=deepagent(submit=True, memory=False, todo_write=False),
         message_limit=5,
     )
@@ -461,7 +461,7 @@ def test_deepagent_cancel_propagates_through_subagent_dispatch() -> None:
     )
 
     task = Task(
-        dataset=[Sample(input="Try to cancel me")],
+        dataset=[Sample(id=1, input="Try to cancel me")],
         solver=deepagent(
             subagents=[custom_subagent], submit=True, memory=False, todo_write=False
         ),
@@ -533,7 +533,7 @@ def test_deepagent_todo_write_arguments_are_visible_in_tool_event() -> None:
     end-to-end.
     """
     task = Task(
-        dataset=[Sample(input="Make a plan")],
+        dataset=[Sample(id=1, input="Make a plan")],
         # todo_write=True is the default but spell it out for clarity.
         solver=deepagent(submit=True, memory=False, todo_write=True),
         message_limit=10,

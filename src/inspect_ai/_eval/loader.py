@@ -33,6 +33,10 @@ from inspect_ai.solver._bridge import bridge
 from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
+from inspect_ai.util._checkpoint._layout import (
+    eval_checkpoints_dir_from_config,
+)
+from inspect_ai.util._checkpoint.config import CheckpointConfig
 from inspect_ai.util._sandbox.compose import (
     is_docker_compatible_config,
     is_docker_compatible_sandbox_type,
@@ -71,6 +75,7 @@ def resolve_tasks(
     model_roles: dict[str, Model] | None,
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
+    eval_checkpoint: CheckpointConfig | None = None,
 ) -> list[ResolvedTask]:
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         # shuffle data in tasks if requested
@@ -112,6 +117,7 @@ def resolve_tasks(
             sample_shuffle=sample_shuffle,
             model=model,
             model_roles=model_roles,
+            eval_checkpoint=eval_checkpoint,
         )
 
     # simple cases of passing us Task objects
@@ -147,6 +153,7 @@ def resolve_previous_tasks(
     sample_shuffle: bool | int | None,
     model: Model,
     model_roles: dict[str, Model] | None,
+    eval_checkpoint: CheckpointConfig | None = None,
 ) -> list[ResolvedTask]:
     result = []
     for sequence, task in enumerate(tasks):
@@ -177,6 +184,7 @@ def resolve_previous_tasks(
                     model_roles,
                     previous_task,
                     sequence,
+                    eval_checkpoint,
                 )
             )
     return result
@@ -189,6 +197,7 @@ def resolve_previous_task(
     model_roles: dict[str, Model] | None,
     previous_task: PreviousTask,
     sequence: int,
+    eval_checkpoint: CheckpointConfig | None = None,
 ) -> ResolvedTask:
     # carry token usage forward from the prior log so cumulative totals stay
     # accurate across retries. Deep-copy so the prior log is never mutated.
@@ -215,7 +224,16 @@ def resolve_previous_task(
         sequence=sequence,
         id=previous_task.id,
         sample_source=eval_log_sample_source(
-            previous_task.log, previous_task.log_info, loaded_task.dataset
+            previous_task.log,
+            previous_task.log_info,
+            loaded_task.dataset,
+            eval_checkpoints_dir_from_config(
+                previous_task.log_info.name
+                if previous_task.log_info is not None
+                else previous_task.log.location,
+                loaded_task.checkpoint,
+                eval_checkpoint,
+            ),
         ),
         initial_model_usage=initial_model_usage,
         initial_role_usage=initial_role_usage,

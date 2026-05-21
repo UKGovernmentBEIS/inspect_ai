@@ -18,9 +18,12 @@ from rich.console import Console
 from rich.table import Table
 
 from inspect_ai._util._async import configured_async_backend
-from inspect_ai.util._restic import Platform, resolve_restic
-from inspect_ai.util._restic._platform import SUPPORTED_PLATFORMS
-from inspect_ai.util._restic._resolver import cache_path
+from inspect_ai.util._restic import (
+    SUPPORTED_PLATFORMS,
+    Platform,
+    cache_path,
+    resolve_restic,
+)
 
 
 @click.group("download", hidden=True)

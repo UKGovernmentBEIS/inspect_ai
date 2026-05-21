@@ -9,6 +9,7 @@ from inspect_ai.agent._acp import AcpSession
 from inspect_ai.agent._acp.session_live import LiveAcpSession
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.event import InterruptEvent
+from inspect_ai.log._samples import _sample_active as samples_var
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -19,7 +20,11 @@ from inspect_ai.model import (
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 from inspect_ai.tool import Tool, ToolCall, tool
 
-from ._capture import capture_session_tool, slow_tool_with_event
+from ._capture import (
+    acp_test_active_sample,
+    capture_session_tool,
+    slow_tool_with_event,
+)
 
 
 def _user_state(text: str = "start") -> AgentState:
@@ -30,6 +35,7 @@ async def test_react_runs_unchanged_with_no_acp_producer() -> None:
     """react() works as before when no producer is interacting with it."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         model = get_model(
             "mockllm/model",
@@ -46,6 +52,7 @@ async def test_react_runs_unchanged_with_no_acp_producer() -> None:
         result = await agent(_user_state())
         assert "42" in result.output.completion
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -53,6 +60,7 @@ async def test_track_model_event_populates_session_during_generate() -> None:
     """While a generate is in flight, session._active_model_event is set."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         captured: dict[str, AcpSession] = {}
         ready = anyio.Event()
@@ -107,6 +115,7 @@ async def test_track_model_event_populates_session_during_generate() -> None:
         assert active is not None
         assert active.uuid is not None
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -114,6 +123,7 @@ async def test_track_tool_call_populates_session_during_tool_execution() -> None
     """While a tool is in flight, session._in_flight_tool_calls contains its id."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         captured: dict[str, AcpSession] = {}
         ready = anyio.Event()
@@ -163,6 +173,7 @@ async def test_track_tool_call_populates_session_during_tool_execution() -> None
 
         assert observed_in_flight == [["slow-id-1"]]
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -173,6 +184,7 @@ async def test_cancel_mid_generate() -> None:
     """
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         captured: dict[str, AcpSession] = {}
         ready = anyio.Event()
@@ -231,6 +243,7 @@ async def test_cancel_mid_generate() -> None:
         ]
         assert len(follow_ups) == 1
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -241,6 +254,7 @@ async def test_cancel_mid_tool_call() -> None:
     """
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         captured: dict[str, AcpSession] = {}
         ready = anyio.Event()
@@ -312,6 +326,7 @@ async def test_cancel_mid_tool_call() -> None:
         ]
         assert any(m.content == "please stop" for m in operator_messages)
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -319,6 +334,7 @@ async def test_interrupt_event_recorded_with_correct_fields() -> None:
     """A cancel-mid-generate emits an InterruptEvent with the right fields."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         captured: dict[str, AcpSession] = {}
         ready = anyio.Event()
@@ -376,6 +392,7 @@ async def test_interrupt_event_recorded_with_correct_fields() -> None:
         assert ev.interrupted_model_event_id is not None
         assert ev.interrupted_tool_call_id is None
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -383,6 +400,7 @@ async def test_inject_between_turns() -> None:
     """Operator message submitted between turns is picked up on the next."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         captured: dict[str, AcpSession] = {}
         ready = anyio.Event()
@@ -432,6 +450,7 @@ async def test_inject_between_turns() -> None:
         ]
         assert any(m.content == "interjection" for m in operator_msgs)
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -441,6 +460,7 @@ async def test_react_no_submit_cancel_mid_tool() -> None:
 
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         captured: dict[str, AcpSession] = {}
         ready = anyio.Event()
@@ -515,6 +535,7 @@ async def test_react_no_submit_cancel_mid_tool() -> None:
         ]
         assert any(m.content == "stop" for m in operator_msgs)
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -529,6 +550,7 @@ async def test_cancel_repairs_all_unanswered_tool_calls_in_batch() -> None:
     """
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         captured: dict[str, AcpSession] = {}
         ready = anyio.Event()
@@ -625,6 +647,7 @@ async def test_cancel_repairs_all_unanswered_tool_calls_in_batch() -> None:
         cancelled = [m for m in tool_results if m.error and m.error.type == "cancelled"]
         assert len(cancelled) >= 1
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -639,6 +662,7 @@ async def test_cancel_clears_pending_on_in_flight_events() -> None:
     """
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         captured: dict[str, AcpSession] = {}
         ready = anyio.Event()
@@ -695,6 +719,7 @@ async def test_cancel_clears_pending_on_in_flight_events() -> None:
             f"slow_tool event was left pending: {pending_tool_events}"
         )
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -721,6 +746,7 @@ async def test_cancel_notifies_event_updated_for_cancelled_events() -> None:
     transcript._event_updated = spy_update  # type: ignore[method-assign]
 
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         captured: dict[str, AcpSession] = {}
         ready = anyio.Event()
@@ -777,4 +803,5 @@ async def test_cancel_notifies_event_updated_for_cancelled_events() -> None:
             "log writers / hooks would not see the cleared pending flag"
         )
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
