@@ -34,7 +34,7 @@ def test_single_layer_passes_through() -> None:
 
 def test_layer_without_trigger_raises() -> None:
     with pytest.raises(ValueError, match="no trigger"):
-        merge_checkpoint_configs(CheckpointConfig(checkpoints_dir="/tmp"))
+        merge_checkpoint_configs(CheckpointConfig(checkpoints_location="/tmp"))
 
 
 def test_sample_layer_uses_sample_config_type() -> None:
@@ -44,11 +44,13 @@ def test_sample_layer_uses_sample_config_type() -> None:
     assert not hasattr(sample, "retention")
 
     out = merge_checkpoint_configs(
-        task=CheckpointConfig(trigger=TurnInterval(every=5), checkpoints_dir="/tmp"),
+        task=CheckpointConfig(
+            trigger=TurnInterval(every=5), checkpoints_location="/tmp"
+        ),
         sample=sample,
     )
     assert out is not None
-    assert out.checkpoints_dir == "/tmp"  # from task
+    assert out.checkpoints_location == "/tmp"  # from task
     assert out.trigger == TurnInterval(every=2)  # from sample
 
 
@@ -104,13 +106,13 @@ def test_per_field_layering() -> None:
         max_consecutive_failures=3,
     )
     sample = CheckpointConfig(max_consecutive_failures=10)
-    eval_ = CheckpointConfig(checkpoints_dir="s3://bucket/checkpoints")
+    eval_ = CheckpointConfig(checkpoints_location="s3://bucket/checkpoints")
     out = merge_checkpoint_configs(task, sample, eval_)
     assert out is not None
     assert out.trigger == TurnInterval(every=5)  # from task
     assert out.sandbox_paths == {"default": ["/workspace"]}  # from task
     assert out.max_consecutive_failures == 10  # from sample
-    assert out.checkpoints_dir == "s3://bucket/checkpoints"  # from eval
+    assert out.checkpoints_location == "s3://bucket/checkpoints"  # from eval
 
 
 def test_eval_only_with_partial_config_completes_from_task() -> None:
