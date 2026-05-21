@@ -313,7 +313,8 @@ async def score_async(
             resolved_scorers,
             log_metrics,
             scorer_names,
-            log.results.early_stopping if log.results else None,
+            early_stopping=log.results.early_stopping if log.results else None,
+            metadata=log.results.metadata if log.results else None,
         )
 
         # Since the metrics calculation above is only be done using the scorers
