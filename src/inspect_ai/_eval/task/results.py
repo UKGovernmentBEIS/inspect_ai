@@ -84,7 +84,7 @@ def eval_results(
     samples: int,
     scores: list[dict[str, SampleScore]],
     reducers: ScoreReducer | list[ScoreReducer] | None,
-    scorers: list[Scorer] | None,
+    scorers: list[Scorer] | list[ScorerInfo] | None,
     metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None,
     scorer_names: list[str] | None = None,
     early_stopping: EarlyStoppingSummary | None = None,
@@ -101,7 +101,10 @@ def eval_results(
 
     # extract scorers info from scorers then create scorers info for any
     # scores not already accounted for by a scorer name
-    scorers_info = [ScorerInfo.from_scorer(scorer) for scorer in (scorers or [])]
+    scorers_info = [
+        s if isinstance(s, ScorerInfo) else ScorerInfo.from_scorer(s)
+        for s in (scorers or [])
+    ]
 
     # use resolved scorer names to detect scores that are present in task state
     # that don't have a corresponding scorer

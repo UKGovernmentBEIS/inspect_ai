@@ -221,6 +221,11 @@ class SessionHeaderWidget(Widget):
             f"[dim]sample:[/dim] {row.sample_id}/{row.epoch}",
             f"[dim]agent:[/dim] {agent}",
         ]
+        # Messages sits immediately before tokens so the two running
+        # metrics read as a pair (matches the picker table column order).
+        messages = self._messages_markup()
+        if messages:
+            parts.append(messages)
         tokens = self._tokens_markup()
         if tokens:
             parts.append(tokens)
@@ -234,6 +239,17 @@ class SessionHeaderWidget(Widget):
         if u is None:
             return ""
         return f"[dim]tokens[/dim] {format_tokens(u.used)}"
+
+    def _messages_markup(self) -> str:
+        # Same K/M abbreviation as tokens so the two adjacent metrics
+        # line up visually. Suppressed entirely when no usage tick has
+        # arrived yet — the chip would otherwise render an em-dash
+        # before the first model event, which reads as "broken" rather
+        # than "no data yet."
+        u = self._usage
+        if u is None:
+            return ""
+        return f"[dim]messages[/dim] {format_tokens(u.messages)}"
 
     def on_click(self, event: Click) -> None:
         """Treat a click on the ``inspect acp`` title as ^S switch sample.
