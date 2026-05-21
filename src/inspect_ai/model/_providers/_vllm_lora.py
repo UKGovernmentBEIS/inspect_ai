@@ -18,8 +18,51 @@ from subprocess import Popen
 
 import anyio
 import httpx
+from huggingface_hub import snapshot_download
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class LoRAAdapter:
+    """A LoRA adapter reference: HF repo or local path, plus optional revision.
+
+    Frozen so it can be used as a ``set`` / ``dict`` key.
+    """
+
+    path: str
+    revision: str | None = None
+
+    @property
+    def name(self) -> str:
+        """vLLM-side ``lora_name`` for this adapter.
+
+        Format: ``"<path>"`` or ``"<path>@<revision>"``. Encoding the
+        revision in the name disambiguates same-path-different-revision
+        loads on one server, and makes ``/v1/models`` self-describing.
+        """
+        return f"{self.path}@{self.revision}" if self.revision else self.path
+
+    @classmethod
+    def from_suffix(cls, suffix: str) -> "LoRAAdapter":
+        """Parse the post-colon suffix of a vLLM model name.
+
+        Accepts a local path that exists on disk, a HuggingFace repo
+        (``org/name``), or either with an ``@revision`` suffix.
+        """
+        if Path(suffix).exists():
+            return cls(path=suffix)
+        path, _, revision = suffix.partition("@")
+        if "/" not in path:
+            # Not a hf repo, treat entire suffix as a LoRA name
+            # (e.g. for external server with pre-loaded adapters with "@" in their names)
+            path = suffix
+            revision = None
+        elif "@" in suffix and not revision:
+            raise ValueError(
+                "Empty revision after '@'. Use 'org/my-adapter@<branch|tag|commit>'."
+            )
+        return cls(path=path, revision=revision or None)
 
 
 @dataclass
@@ -42,8 +85,8 @@ class VLLMServer:
     port: int | None = None
     process: Popen[str] | None = None
 
-    # Adapter loading
-    loaded_adapters: set[str] = field(default_factory=set)
+    # Set of adapters registered on the server (vLLM name is ``adapter.name``).
+    loaded_adapters: set[LoRAAdapter] = field(default_factory=set)
 
     # Lifecycle epoch — bumped by close() so all instances know to re-resolve
     _epoch: int = 0
@@ -58,35 +101,34 @@ class VLLMServer:
 _vllm_servers: dict[str, VLLMServer] = {}
 
 
-def parse_vllm_model(model_name: str) -> tuple[str, str | None, str | None]:
+def parse_vllm_model(model_name: str) -> tuple[str, LoRAAdapter | None]:
     """Parse vLLM model name into base model and optional LoRA adapter.
 
-    Supports syntax: ``"base-model"`` or ``"base-model:adapter-path"``.
-    Splits on the first colon only (the adapter path may itself contain
-    colons, e.g. for URLs).
+    Supports syntax: ``"base-model"``, ``"base-model:adapter-name"``,
+    or ``"base-model:adapter/path[@revision]"``. Splits on the first
+    colon only (the adapter path may itself contain colons, e.g. for
+    URLs).
 
     Args:
-        model_name: Model name, optionally with ``:adapter`` suffix.
+        model_name: Model name, optionally with ``:adapter[@revision]`` suffix.
 
     Returns:
-        Tuple of (base_model, adapter_path, adapter_name) where
-        adapter_path is the HuggingFace repo or local path (``None``
-        if no adapter) and adapter_name is a ``/``-sanitized identifier
-        for the vLLM API (``None`` if no adapter).
+        Tuple of (base_model, adapter). The adapter is ``None`` if no
+        LoRA suffix was provided.
 
     Examples:
         >>> parse_vllm_model("meta-llama/Llama-3-8B")
-        ('meta-llama/Llama-3-8B', None, None)
+        ('meta-llama/Llama-3-8B', None)
         >>> parse_vllm_model("meta-llama/Llama-3-8B:org/my-adapter")
-        ('meta-llama/Llama-3-8B', 'org/my-adapter', 'org_my-adapter')
+        ('meta-llama/Llama-3-8B', LoRAAdapter(path='org/my-adapter', revision=None))
+        >>> parse_vllm_model("meta-llama/Llama-3-8B:org/my-adapter@v2")
+        ('meta-llama/Llama-3-8B', LoRAAdapter(path='org/my-adapter', revision='v2'))
     """
     if ":" not in model_name:
-        return (model_name, None, None)
+        return (model_name, None)
     # Split on first colon only (adapter path may contain colons for URLs)
-    base, adapter_path = model_name.split(":", 1)
-    # Replace / with _ to create a flat vLLM adapter identifier
-    adapter_name = adapter_path.replace("/", "_")
-    return (base, adapter_path, adapter_name)
+    base, suffix = model_name.split(":", 1)
+    return (base, LoRAAdapter.from_suffix(suffix))
 
 
 def get_adapter_rank(adapter_path: str) -> int | None:
@@ -152,18 +194,12 @@ def _normalize_api_base(base_url: str) -> str:
     return url
 
 
-def _load_adapter(
-    base_url: str,
-    adapter_name: str,
-    adapter_path: str,
-    api_key: str,
-) -> None:
+def _load_adapter(base_url: str, adapter: LoRAAdapter, api_key: str) -> None:
     """Load a LoRA adapter on the vLLM server via its HTTP API.
 
     Args:
         base_url: vLLM server base URL (may include ``/v1`` suffix).
-        adapter_name: Name to register the adapter under.
-        adapter_path: HuggingFace repo or local path to adapter weights.
+        adapter: The adapter to load.
         api_key: API key for authentication.
 
     Raises:
@@ -171,11 +207,14 @@ def _load_adapter(
             adapter fails to load (400).
     """
     api_base = _normalize_api_base(base_url)
+    lora_path = adapter.path
+    if adapter.revision is not None:
+        lora_path = snapshot_download(adapter.path, revision=adapter.revision)
 
     with httpx.Client() as client:
         response = client.post(
             f"{api_base}/v1/load_lora_adapter",
-            json={"lora_name": adapter_name, "lora_path": adapter_path},
+            json={"lora_name": adapter.name, "lora_path": lora_path},
             headers={"Authorization": f"Bearer {api_key}"},
             timeout=120.0,
         )
@@ -189,7 +228,7 @@ def _load_adapter(
 
         if response.status_code == 400:
             raise RuntimeError(
-                f"Failed to load LoRA adapter '{adapter_path}': {response.text}\n"
+                f"Failed to load LoRA adapter '{adapter.name}': {response.text}\n"
                 f"Common causes:\n"
                 f"  - Adapter not found (check HuggingFace repo or local path)\n"
                 f"  - Adapter incompatible with base model\n"
@@ -197,7 +236,7 @@ def _load_adapter(
             )
 
         response.raise_for_status()
-        logger.info(f"Loaded LoRA adapter: {adapter_name}")
+        logger.info(f"Loaded LoRA adapter: {adapter.name}")
 
 
 def _adapter_on_server(base_url: str, adapter_name: str, api_key: str) -> bool:
@@ -214,54 +253,49 @@ def _adapter_on_server(base_url: str, adapter_name: str, api_key: str) -> bool:
         return adapter_name in model_ids
 
 
-def ensure_adapter_loaded(
-    server: VLLMServer,
-    adapter_path: str,
-    adapter_name: str,
-) -> None:
+def ensure_adapter_loaded(server: VLLMServer, adapter: LoRAAdapter) -> None:
     """Ensure a LoRA adapter is loaded on the server.
 
-    Idempotent and thread-safe.  Checks the local ``loaded_adapters`` set
-    first, then queries the server's ``/v1/models`` endpoint (the adapter
-    may have been loaded externally), and finally loads via
+    Idempotent and thread-safe. Checks the local ``loaded_adapters``
+    set first, then queries the server's ``/v1/models`` endpoint (the
+    adapter may have been loaded externally), and finally loads via
     ``/v1/load_lora_adapter`` if needed.
 
-    Called from ``_resolve_server`` (sync).  In the async path this runs
+    Called from ``_resolve_server`` (sync). In the async path this runs
     inside ``anyio.to_thread.run_sync``, matching the existing pattern
     for ``_resolve_server`` / ``_ensure_server_started``.
 
     Args:
         server: Shared server state (must have ``base_url`` set).
-        adapter_path: HuggingFace repo or local path to adapter weights.
-        adapter_name: Name to register/query the adapter under.
+        adapter: The adapter to register.
 
     Raises:
         RuntimeError: If adapter loading fails.
     """
-    if adapter_path in server.loaded_adapters:
+    if adapter in server.loaded_adapters:
         return
 
     with server._load_lock:
-        if adapter_path in server.loaded_adapters:
+        if adapter in server.loaded_adapters:
             return
 
         if server.base_url is None or server.api_key is None:
             raise RuntimeError("Server must be resolved before loading adapters")
 
         try:
-            if _adapter_on_server(server.base_url, adapter_name, server.api_key):
+            if _adapter_on_server(server.base_url, adapter.name, server.api_key):
                 logger.info(
-                    f"LoRA adapter '{adapter_name}' already available on server"
+                    f"LoRA adapter '{adapter.name}' already available on server"
                 )
-                server.loaded_adapters.add(adapter_path)
+                server.loaded_adapters.add(adapter)
                 return
         except httpx.HTTPStatusError as e:
             logger.warning(f"Failed to check adapter availability: {e}")
             raise
 
-        logger.info(f"Loading LoRA adapter: {adapter_path} as {adapter_name}")
-        _load_adapter(server.base_url, adapter_name, adapter_path, server.api_key)
-        server.loaded_adapters.add(adapter_path)
+        logger.info(f"Loading LoRA adapter: {adapter.name}")
+        _load_adapter(server.base_url, adapter, server.api_key)
+        server.loaded_adapters.add(adapter)
 
 
 def cleanup_servers() -> None:

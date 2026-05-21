@@ -59,9 +59,17 @@ class VLLMAPI(OpenAICompatibleAPI):
     1. Connect to an existing vLLM server (if base_url or port is provided)
     2. Start a new vLLM server for the specified model
 
-    LoRA adapters are specified with ``"base-model:adapter"`` syntax::
+    LoRA adapters are specified with ``"base-model:adapter[@revision]"``
+    syntax::
 
+        # HuggingFace repo
         get_model("vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter")
+        # HuggingFace repo pinned to a specific branch/tag/commit
+        get_model("vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter@v2")
+        # Local path
+        get_model("vllm/meta-llama/Llama-3-8B:/abs/path/to/adapter")
+        # Pre-loaded adapter on an external server (see VLLM_BASE_URL)
+        get_model("vllm/meta-llama/Llama-3-8B:my-preloaded-name")
 
     Multiple models sharing the same base reuse a single server.  The
     server is started lazily on the first ``generate()`` call, after all
@@ -70,8 +78,21 @@ class VLLMAPI(OpenAICompatibleAPI):
 
     Args:
         model_name (str): Name or path of the model to use. Optionally
-            include ``:adapter`` suffix to specify a LoRA adapter from
-            HuggingFace or a local path.
+            include a ``:adapter[@revision]`` suffix to specify a LoRA
+            adapter. The adapter portion is interpreted as:
+
+            - a local path, if the path exists on disk;
+            - a HuggingFace repo (``org/name`` form), optionally pinned
+              to a revision with ``@<branch|tag|commit>``;
+            - otherwise (no ``/``), treated as the ``lora_name`` of an
+              adapter already loaded on the vLLM server — useful when
+              connecting via ``VLLM_BASE_URL`` to a server whose
+              adapters were registered out-of-band.
+
+            The adapter is registered on vLLM under its full
+            ``path`` (with ``@revision`` appended if specified), so
+            ``/v1/models`` is self-describing and same-path-different-revision
+            loads don't collide.
         base_url (str | None): Base URL of an existing vLLM server. If
             not provided, a new server will be started on localhost.
         port (int | None): Port of an existing vLLM server on localhost.
@@ -130,10 +151,8 @@ class VLLMAPI(OpenAICompatibleAPI):
         client_timeout: float | None = None,
         **server_args: Any,
     ) -> None:
-        # Parse "base-model" or "base-model:adapter-path"
-        self.base_model, self.adapter_path, self.adapter_name = parse_vllm_model(
-            model_name
-        )
+        # Parse "base-model" or "base-model:adapter-path[@revision]"
+        self.base_model, self.adapter = parse_vllm_model(model_name)
 
         if base_url and port:
             raise ValueError("base_url and port cannot both be provided.")
@@ -167,9 +186,9 @@ class VLLMAPI(OpenAICompatibleAPI):
         # Get or create the shared server entry for this base model
         # and incrementally update LoRA config.
         self._server = _vllm_servers.setdefault(self.base_model, VLLMServer())
-        if self.adapter_path:
+        if self.adapter:
             self._server.enable_lora = True
-            rank = get_adapter_rank(self.adapter_path)
+            rank = get_adapter_rank(self.adapter.path)
             if rank is not None:
                 self._server.max_lora_rank = max(self._server.max_lora_rank or 0, rank)
 
@@ -215,8 +234,8 @@ class VLLMAPI(OpenAICompatibleAPI):
         )
         self._resolved_epoch = self._server._epoch
 
-        if self.adapter_path and self.adapter_name:
-            ensure_adapter_loaded(self._server, self.adapter_path, self.adapter_name)
+        if self.adapter:
+            ensure_adapter_loaded(self._server, self.adapter)
 
     async def _ensure_server_started(self) -> None:
         """Lazy version of ``_resolve_server`` — thread-safe for concurrent ``generate()`` calls."""
@@ -341,15 +360,14 @@ class VLLMAPI(OpenAICompatibleAPI):
 
     @override
     def service_model_name(self) -> str:
-        """Return adapter name for LoRA requests, else the base model.
+        """Return adapter ``name`` for LoRA requests, else the base model.
 
         vLLM's OpenAI-compatible API routes LoRA requests by the ``model``
-        field, so we send the adapter name instead of the base model when
-        a LoRA adapter is in use.
+        field. The adapter is registered on the server under
+        ``adapter.name``, so we send that as the ``model`` when a LoRA
+        adapter is in use.
         """
-        if self.adapter_name:
-            return self.adapter_name
-        return self.base_model
+        return self.adapter.name if self.adapter else self.base_model
 
     @override
     async def tokenize(self, text: str) -> list[int]:
