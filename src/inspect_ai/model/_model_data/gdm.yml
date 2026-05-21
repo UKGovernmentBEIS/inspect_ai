@@ -8,6 +8,9 @@ google:
       context_length: 1048576
       output_tokens: 65536
       reasoning: True
+      # Gemini 3 Flash supports MINIMAL/LOW/MEDIUM/HIGH; default thinking_level
+      # is MEDIUM. https://ai.google.dev/gemini-api/docs/gemini-3
+      reasoning_effort_default: medium
     gemini-3.1-pro:
       display_name: "Gemini 3.1 Pro"
       release_date: 2026-02-19
@@ -15,6 +18,9 @@ google:
       context_length: 1048576
       output_tokens: 65536
       reasoning: True
+      # Gemini 3 Pro defaults to thinking_level=HIGH if unspecified.
+      # https://ai.google.dev/gemini-api/docs/gemini-3
+      reasoning_effort_default: high
       versions:
         gemini-3.1-pro-preview:
           snapshot: "preview"
@@ -25,6 +31,9 @@ google:
       context_length: 1048576
       output_tokens: 65536
       reasoning: True
+      # Gemini 3 Pro defaults to thinking_level=HIGH if unspecified.
+      # https://ai.google.dev/gemini-api/docs/gemini-3
+      reasoning_effort_default: high
       versions:
         gemini-3-pro-preview:
           snapshot: "preview"
@@ -35,6 +44,8 @@ google:
       context_length: 1048576
       output_tokens: 65536
       reasoning: True
+      # https://ai.google.dev/gemini-api/docs/gemini-3
+      reasoning_effort_default: medium
       versions:
         gemini-3-flash-preview:
           snapshot: "preview"
@@ -52,6 +63,8 @@ google:
       knowledge_cutoff_date: 2025-01-01
       release_date: 2026-03-03
       reasoning: True
+      # https://ai.google.dev/gemini-api/docs/gemini-3
+      reasoning_effort_default: medium
       context_length: 1048576
       output_tokens: 65536
       versions:

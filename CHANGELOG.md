@@ -1,6 +1,10 @@
 ## Unreleased
 
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
+- Reasoning: `--reasoning-effort` now works uniformly across Claude 3.7–4.5 and Gemini 2.5. Inspect automatically bridges effort to a `budget_tokens` / `thinking_budget` value using a fixed table (minimal=2048, low=4096, medium=10000, high=16000, xhigh/max=32000). Previously these models silently ignored `reasoning_effort`.
+- Reasoning: Clamp extended effort values (`minimal` / `xhigh` / `max`) to the `low` / `medium` / `high` tier accepted by upstream APIs for Groq, Ollama, and SageMaker.
+- Reasoning: OpenRouter — clamp `max` effort to `xhigh` before forwarding (OpenRouter does not accept `max`).
+- OpenAI: Apply the `max` → `xhigh` mapping for `reasoning_effort`.
 - Google: Enable support for "medium" thinking level for Gemini 3 Pro models.
 - Google: Retry transport-level aiohttp errors and SDK transport timeouts in `should_retry()` so the model-layer tenacity loop can retry network failures that escape the SDK's one-shot inline retry.
 - Model API: Create separate connection limit pools per model (improving concurrency under adaptive connections).

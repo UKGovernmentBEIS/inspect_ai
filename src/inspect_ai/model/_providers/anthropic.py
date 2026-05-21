@@ -168,6 +168,7 @@ from .._providers._anthropic_citations import (
     to_anthropic_citation,
     to_inspect_citation,
 )
+from .._reasoning import effort_to_reasoning_tokens
 from ._anthropic_batch import AnthropicBatcher
 from .util import (
     check_azure_deployment_mismatch,
@@ -814,9 +815,12 @@ class AnthropicAPI(ModelAPI):
                 # reasoning_effort takes precedence over effort
                 params["output_config"] = OutputConfigParam(effort=reasoning_effort)  # type: ignore[typeddict-item]  # (no support for 'xhigh' in sdk yet)
             else:
+                # pre-4.6 Claude: extended thinking with an explicit budget.
+                # bridged_reasoning_tokens prefers reasoning_tokens, falling
+                # back to a fixed-table translation of reasoning_effort.
                 params["thinking"] = dict(
                     type="enabled",
-                    budget_tokens=config.reasoning_tokens,
+                    budget_tokens=self.bridged_reasoning_tokens(config),
                     display="summarized",
                 )
             headers["anthropic-version"] = "2023-06-01"
@@ -880,8 +884,12 @@ class AnthropicAPI(ModelAPI):
                     "max": 32000,
                 }
                 max_tokens = max_tokens + effort_tokens.get(reasoning_effort, 16000)
-            elif config.reasoning_tokens is not None:
-                max_tokens = max_tokens + config.reasoning_tokens
+            else:
+                # pre-4.6 path: size for explicit reasoning_tokens, or for
+                # the bridged effort->tokens translation when only effort is set.
+                bridged = self.bridged_reasoning_tokens(config)
+                if bridged is not None:
+                    max_tokens = max_tokens + bridged
 
         # migration-guide floor: xhigh/max effort wants ≥64k max_tokens
         # (model caps below will still clamp on older models)
@@ -909,9 +917,26 @@ class AnthropicAPI(ModelAPI):
 
     def is_using_thinking(self, config: GenerateConfig) -> bool:
         return self.is_thinking_model() and (
-            (config.reasoning_tokens is not None)
+            (self.bridged_reasoning_tokens(config) is not None)
             or (self.effort_from_reasoning_effort(config) is not None)
         )
+
+    def bridged_reasoning_tokens(self, config: GenerateConfig) -> int | None:
+        """Effective `budget_tokens` for pre-4.6 Claude (uses extended thinking).
+
+        Explicit `reasoning_tokens` wins; otherwise `reasoning_effort` is
+        translated via the shared fixed-table bridge. Frontier Claude uses
+        adaptive thinking with `effort` and ignores this path (returns None).
+        """
+        if config.reasoning_tokens is not None:
+            return config.reasoning_tokens
+        if (
+            not self.is_claude_frontier()
+            and config.reasoning_effort is not None
+            and config.reasoning_effort != "none"
+        ):
+            return effort_to_reasoning_tokens(config.reasoning_effort)
+        return None
 
     # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
     def auto_streaming(self, config: GenerateConfig) -> bool:
