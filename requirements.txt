@@ -1,3 +1,4 @@
+agent-client-protocol>=0.9.0
 aioboto3>=13.0.0
 anyio>=4.8.0
 beautifulsoup4>=4.10.0
@@ -29,7 +30,7 @@ semver>=3.0.0
 shortuuid
 sniffio
 tenacity
-textual>=2.1.0
+textual>=6.2.0
 tiktoken>=0.12.0
 typing_extensions>=4.14.0
 universal-pathlib>=0.2.6

@@ -9,6 +9,41 @@ from shortuuid import uuid as shortuuid
 
 logger = getLogger(__name__)
 
+
+AGENT_SPAN_TYPE = "agent"
+"""Span ``type`` value marking an agent-invocation boundary.
+
+Every code path that invokes an ``Agent`` opens a span with this type
+(``agent.run``, ``as_tool``, ``as_solver``, ``handoff``, and deepagent
+task dispatch). The ACP event router counts concurrently-open spans
+with this type to determine sub-agent nesting depth when filtering
+transcript events for ``session/update`` notifications — events at
+depth > 1 originated from a nested agent and are dropped.
+"""
+
+
+SCORERS_SPAN_NAME = "scorers"
+"""Span ``name`` (and default ``type``, since ``span()`` defaults the
+``type`` to ``name`` when omitted) wrapping the post-agent scoring phase.
+
+Opened once by the task runner around the scorer loop. The ACP TUI
+reads this in its raw-event consumer to (a) clear the plan strip once
+scoring begins and (b) latch a "no more plan updates" flag so a
+stale ``AgentPlanUpdate`` from late-attach replay can't resurrect the
+plan after scoring already started.
+"""
+
+
+SCORER_SPAN_TYPE = "scorer"
+"""Span ``type`` value wrapping a single scorer's execution.
+
+Opened by the scorer loop per individual scorer (the inner span inside
+the outer :data:`SCORERS_SPAN_NAME` block). The ACP TUI uses these to
+mount + clear the per-scorer ``scoring · X…`` indicator chip — begin
+mounts; matching end (or the scorer's ``ScoreEvent``) clears.
+"""
+
+
 SpanIdProvider = Callable[[str, str | None, str | None], Awaitable[str]]
 """Signature for a span-ID provider: ``await provider(name, parent_id, requested_id)`` → span id.
 

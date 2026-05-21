@@ -70,7 +70,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError, apply_limits
-from inspect_ai.util._span import span
+from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
 from ._chat_message import (
     ChatMessage,
@@ -158,11 +158,25 @@ async def _execute_tools_impl(
             agent_span_id: str | None = None
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
+            # Track this tool call on the ACP session so a client cancel can
+            # snapshot the in-flight tool id into InterruptEvent and so
+            # after_cancel can synthesize a repair message. No-op when no ACP
+            # session is active or when called from a sub-agent's shadowed
+            # session.
+            from inspect_ai.agent._acp import current_acp_session
+
             try:
                 try:
-                    result, messages, output, agent, agent_span_id = await call_tool(
-                        tdefs, message.text, call, event, conversation
-                    )
+                    with current_acp_session().track_tool_call(call.id, event):
+                        (
+                            result,
+                            messages,
+                            output,
+                            agent,
+                            agent_span_id,
+                        ) = await call_tool(
+                            tdefs, message.text, call, event, conversation
+                        )
                 # unwrap exception group
                 except Exception as ex:
                     inner_ex = inner_exception(ex)
@@ -566,7 +580,7 @@ async def agent_handoff(
         # The agent_tool's limits will be applied multiple times if the agent is handed
         # off to multiple times which is not supported, so create a copy of each limit.
         with apply_limits(deepcopy(agent_tool.limits)):
-            async with span(name=agent_name, type="agent"):
+            async with span(name=agent_name, type=AGENT_SPAN_TYPE):
                 agent_state = await agent_tool.agent(agent_state, **arguments)
     except LimitExceededError as ex:
         limit_error = ex

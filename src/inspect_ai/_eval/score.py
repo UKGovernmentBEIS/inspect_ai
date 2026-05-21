@@ -64,7 +64,7 @@ from inspect_ai.util._display import (
     display_type_initialized,
     init_display_type,
 )
-from inspect_ai.util._span import span
+from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME, span
 from inspect_ai.util._store import init_subtask_store
 
 from .task.results import ScorerInfo, eval_results
@@ -377,13 +377,13 @@ async def _run_score_task(
 
     results: dict[str, SampleScore] = {}
     scorer_names: list[str] = []
-    async with span(name="scorers"):
+    async with span(name=SCORERS_SPAN_NAME):
         for scorer in scorers:
             scorer_name = unique_scorer_name(
                 scorer, list({*existing_score_names, *results})
             )
             scorer_names.append(scorer_name)
-            async with span(name=scorer_name, type="scorer"):
+            async with span(name=scorer_name, type=SCORER_SPAN_TYPE):
                 score_result = await scorer(state, target)
                 if scorer_name in state.scores:
                     raise RuntimeError(

@@ -12,6 +12,7 @@ from google.genai.types import (
     FunctionCall,
     FunctionCallingConfigMode,
     GenerateContentResponse,
+    HttpOptions,
     JobState,
     Part,
 )
@@ -30,7 +31,7 @@ from inspect_ai._util.content import (
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._chat_message import ChatMessageUser
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
 )
@@ -41,6 +42,7 @@ from inspect_ai.model._providers.google import (
     completion_choice_from_candidate,
     content,
 )
+from inspect_ai.model._providers.util.hooks import HttpHooks
 from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
 from inspect_ai.tool import (
@@ -588,6 +590,23 @@ def _create_mock_google_client(mock_generate: AsyncMock) -> MagicMock:
     return mock_client
 
 
+def _create_mock_google_count_tokens_client(total_tokens: int = 7) -> MagicMock:
+    mock_client = MagicMock()
+    mock_client.aio.__aenter__ = AsyncMock(return_value=mock_client.aio)
+    mock_client.aio.__aexit__ = AsyncMock(return_value=None)
+    mock_client.aio.models.count_tokens = AsyncMock(
+        return_value=MagicMock(total_tokens=total_tokens)
+    )
+    mock_client._api_client._async_httpx_client = MagicMock()
+    return mock_client
+
+
+def _client_http_options(client_mock: MagicMock) -> HttpOptions:
+    http_options = client_mock.call_args.kwargs["http_options"]
+    assert isinstance(http_options, HttpOptions)
+    return http_options
+
+
 def _create_malformed_response(
     finish_message: str | None = None,
 ) -> GenerateContentResponse:
@@ -633,6 +652,110 @@ def _create_test_tool() -> ToolInfo:
             required=["x"],
         ),
     )
+
+
+@pytest.mark.parametrize(
+    ("config", "expected_timeout"),
+    [
+        (GenerateConfig(), 3_600_000),
+        (GenerateConfig(timeout=123), 123_000),
+        (GenerateConfig(timeout=0), 0),
+    ],
+)
+@pytest.mark.anyio
+async def test_google_generate_http_timeout(
+    config: GenerateConfig, expected_timeout: int
+) -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=config,
+        )
+
+    http_options = _client_http_options(client)
+    assert http_options.timeout == expected_timeout
+
+
+@pytest.mark.anyio
+async def test_google_batcher_client_uses_default_http_timeout() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        config = GenerateConfig(batch=BatchConfig(size=1))
+
+        api._resolve_batcher(config, api._http_options(config))
+
+        assert api._batcher is not None
+        assert api._batcher._client is mock_client
+
+    http_options = client.call_args.kwargs["http_options"]
+    assert http_options.timeout == 3_600_000
+
+
+@pytest.mark.anyio
+async def test_google_count_tokens_none_config_uses_default_http_timeout() -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        tokens = await api.count_tokens("Hello")
+
+    assert tokens == 7
+    http_options = _client_http_options(client)
+    assert http_options.timeout == 3_600_000
+
+
+@pytest.mark.anyio
+async def test_google_generate_preserves_request_extra_headers() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(extra_headers={"x-test-header": "present"}),
+        )
+
+    request_config = mock_generate.call_args.kwargs["config"]
+    assert request_config.http_options.headers["x-test-header"] == "present"
+    assert HttpHooks.REQUEST_ID_HEADER in request_config.http_options.headers
 
 
 @pytest.mark.anyio

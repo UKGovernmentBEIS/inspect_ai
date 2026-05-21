@@ -28,6 +28,7 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.util._checkpoint import checkpointer
 
+from ._acp import TurnCancelled, acp_session
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._filter import MessageFilter
 from ._handoff import has_handoff
@@ -187,7 +188,11 @@ def react(
         )
 
     async def execute(state: AgentState) -> AgentState:
-        async with checkpointer() as cp, mcp_connection(tools):
+        async with (
+            checkpointer() as cp,
+            mcp_connection(tools),
+            acp_session() as acp,
+        ):
             # prepend system message if we have one
             if system_message:
                 state.messages.insert(0, system_message)
@@ -212,91 +217,101 @@ def react(
             # main loop = will terminate after submit (subject to max_attempts)
             # or if a message or token limit is hit
             while True:
+                # drain any operator-injected messages from an ACP client
+                state.messages.extend(await acp.before_turn(state.messages))
+
                 # checkpoint at turn boundary (no-op when policy says so)
                 await cp.tick()
 
-                # generate output and append assistant message
-                state = await _agent_generate(
-                    model, state, tools, retry_refusals, compact
-                )
+                try:
+                    with acp.turn_scope():
+                        # generate output and append assistant message
+                        state = await _agent_generate(
+                            model, state, tools, retry_refusals, compact
+                        )
 
-                # check for context window overflow
-                if state.output.stop_reason == "model_length":
-                    state, handled = await _handle_overflow(state, overflow, compact)
-                    if handled:
-                        continue
-                    else:
-                        break
-
-                # check for content filter (model refusal) -- allow a few
-                # chances to recover before breaking to avoid infinite loop
-                if state.output.stop_reason == "content_filter":
-                    consecutive_content_filter += 1
-                    if consecutive_content_filter >= 3:
-                        break
-                else:
-                    consecutive_content_filter = 0
-
-                # resolve tool calls (if any)
-                if state.output.message.tool_calls:
-                    # call tool functions
-                    messages, output = await execute_tools(
-                        state.messages, tools, approval=approval
-                    )
-                    state.messages.extend(messages)
-                    if output:
-                        state.output = output
-
-                    # check for a submission
-                    answer = submission(messages)
-                    if answer is not None:
-                        # set the output to the answer for scoring
-                        if submit.answer_only:
-                            state.output.completion = answer
-                        else:
-                            state.output.completion = f"{state.output.completion}{submit.answer_delimiter}{answer}".strip()
-
-                        # also populate the message text (as the submit tool will be removed)
-                        if (
-                            not submit.keep_in_messages
-                            and len(state.output.choices) > 0
-                        ):
-                            message = state.output.choices[0].message
-                            if isinstance(message.content, str):
-                                message.content = f"{message.content}{submit.answer_delimiter}{answer}".strip()
-                            else:
-                                message.content.append(ContentText(text=answer))
-
-                        # exit if we are at max_attempts
-                        attempt_count += 1
-                        if attempt_count >= attempts.attempts:
-                            break
-
-                        # exit if the submission is successful
-                        answer_scores = await score(state)
-                        if attempts.score_value(answer_scores[0].value) == 1.0:
-                            break
-
-                        # otherwise notify the model that it was incorrect and continue
-                        else:
-                            if callable(attempts.incorrect_message):
-                                if not is_callable_coroutine(
-                                    attempts.incorrect_message
-                                ):
-                                    raise ValueError(
-                                        "The incorrect_message function must be async."
-                                    )
-                                response_message: str = (
-                                    await attempts.incorrect_message(
-                                        state, answer_scores
-                                    )
-                                )
-                            else:
-                                response_message = attempts.incorrect_message
-
-                            state.messages.append(
-                                ChatMessageUser(content=response_message)
+                        # check for context window overflow
+                        if state.output.stop_reason == "model_length":
+                            state, handled = await _handle_overflow(
+                                state, overflow, compact
                             )
+                            if handled:
+                                continue
+                            else:
+                                break
+
+                        # check for content filter (model refusal) -- allow a few
+                        # chances to recover before breaking to avoid infinite loop
+                        if state.output.stop_reason == "content_filter":
+                            consecutive_content_filter += 1
+                            if consecutive_content_filter >= 3:
+                                break
+                        else:
+                            consecutive_content_filter = 0
+
+                        # resolve tool calls (if any)
+                        if state.output.message.tool_calls:
+                            # call tool functions
+                            messages, output = await execute_tools(
+                                state.messages, tools, approval=approval
+                            )
+                            state.messages.extend(messages)
+                            if output:
+                                state.output = output
+
+                            # check for a submission
+                            answer = submission(messages)
+                            if answer is not None:
+                                # set the output to the answer for scoring
+                                if submit.answer_only:
+                                    state.output.completion = answer
+                                else:
+                                    state.output.completion = f"{state.output.completion}{submit.answer_delimiter}{answer}".strip()
+
+                                # also populate the message text (as the submit tool will be removed)
+                                if (
+                                    not submit.keep_in_messages
+                                    and len(state.output.choices) > 0
+                                ):
+                                    message = state.output.choices[0].message
+                                    if isinstance(message.content, str):
+                                        message.content = f"{message.content}{submit.answer_delimiter}{answer}".strip()
+                                    else:
+                                        message.content.append(ContentText(text=answer))
+
+                                # exit if we are at max_attempts
+                                attempt_count += 1
+                                if attempt_count >= attempts.attempts:
+                                    break
+
+                                # exit if the submission is successful
+                                answer_scores = await score(state)
+                                if attempts.score_value(answer_scores[0].value) == 1.0:
+                                    break
+
+                                # otherwise notify the model that it was incorrect and continue
+                                else:
+                                    if callable(attempts.incorrect_message):
+                                        if not is_callable_coroutine(
+                                            attempts.incorrect_message
+                                        ):
+                                            raise ValueError(
+                                                "The incorrect_message function must be async."
+                                            )
+                                        response_message: str = (
+                                            await attempts.incorrect_message(
+                                                state, answer_scores
+                                            )
+                                        )
+                                    else:
+                                        response_message = attempts.incorrect_message
+
+                                    state.messages.append(
+                                        ChatMessageUser(content=response_message)
+                                    )
+                except TurnCancelled:
+                    state.messages.extend(await acp.after_cancel(state.messages))
+                    continue
 
                 # call the on_continue hook (if any)
                 if callable(on_continue):
@@ -369,7 +384,11 @@ def react_no_submit(
     system_message = _prompt_to_system_message(prompt, tools, None)
 
     async def execute(state: AgentState) -> AgentState:
-        async with checkpointer() as cp, mcp_connection(tools):
+        async with (
+            checkpointer() as cp,
+            mcp_connection(tools),
+            acp_session() as acp,
+        ):
             # prepend system message if we have one
             if system_message:
                 state.messages.insert(0, system_message)
@@ -390,40 +409,50 @@ def react_no_submit(
 
             # main loop
             while True:
+                # drain any operator-injected messages from an ACP client
+                state.messages.extend(await acp.before_turn(state.messages))
+
                 # checkpoint at turn boundary (no-op when policy says so)
                 await cp.tick()
 
-                # generate output and append assistant message
-                state = await _agent_generate(
-                    model, state, tools, retry_refusals, compact
-                )
+                try:
+                    with acp.turn_scope():
+                        # generate output and append assistant message
+                        state = await _agent_generate(
+                            model, state, tools, retry_refusals, compact
+                        )
 
-                # check for context window overflow
-                if state.output.stop_reason == "model_length":
-                    state, handled = await _handle_overflow(state, overflow, compact)
-                    if handled:
-                        continue
-                    else:
-                        break
+                        # check for context window overflow
+                        if state.output.stop_reason == "model_length":
+                            state, handled = await _handle_overflow(
+                                state, overflow, compact
+                            )
+                            if handled:
+                                continue
+                            else:
+                                break
 
-                # check for content filter (model refusal) -- allow a few
-                # chances to recover before breaking to avoid infinite loop
-                if state.output.stop_reason == "content_filter":
-                    consecutive_content_filter += 1
-                    if consecutive_content_filter >= 3:
-                        break
-                else:
-                    consecutive_content_filter = 0
+                        # check for content filter (model refusal) -- allow a few
+                        # chances to recover before breaking to avoid infinite loop
+                        if state.output.stop_reason == "content_filter":
+                            consecutive_content_filter += 1
+                            if consecutive_content_filter >= 3:
+                                break
+                        else:
+                            consecutive_content_filter = 0
 
-                # resolve tool calls (if any)
-                if state.output.message.tool_calls:
-                    # call tool functions
-                    messages, output = await execute_tools(
-                        state.messages, tools, approval=approval
-                    )
-                    state.messages.extend(messages)
-                    if output:
-                        state.output = output
+                        # resolve tool calls (if any)
+                        if state.output.message.tool_calls:
+                            # call tool functions
+                            messages, output = await execute_tools(
+                                state.messages, tools, approval=approval
+                            )
+                            state.messages.extend(messages)
+                            if output:
+                                state.output = output
+                except TurnCancelled:
+                    state.messages.extend(await acp.after_cancel(state.messages))
+                    continue
 
                 # call the on_continue hook (if any)
                 if on_continue:
