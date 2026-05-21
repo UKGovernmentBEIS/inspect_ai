@@ -70,6 +70,11 @@ class PickerTarget:
     before the sample's ``start()`` is called. Drives the picker's
     ``running`` column."""
 
+    total_messages: int = 0
+    """Running total messages for the sample (from
+    :attr:`inspect_ai.log._samples.ActiveSample.total_messages`). Drives
+    the picker's ``messages`` column; refreshed on rescan."""
+
     total_tokens: int = 0
     """Running total tokens for the sample (from
     :attr:`inspect_ai.log._samples.ActiveSample.total_tokens`). Drives
@@ -111,6 +116,7 @@ def list_picker_targets() -> list[PickerTarget]:
                 epoch=sample.epoch,
                 agent_name=sample.agent_name,
                 started_at=sample.started,
+                total_messages=sample.total_messages,
                 total_tokens=sample.total_tokens,
                 # Mirror ActiveSample.fails_on_error verbatim so the
                 # ACP TUI's [e] error visibility matches --display
@@ -144,6 +150,7 @@ class SampleListing:
     epoch: int
     agent_name: str | None = None
     started_at: float | None = None
+    total_messages: int = 0
     total_tokens: int = 0
     fails_on_error: bool = False
 
@@ -183,6 +190,7 @@ def list_all_samples() -> list[SampleListing]:
                 epoch=sample.epoch,
                 agent_name=agent_name,
                 started_at=sample.started,
+                total_messages=sample.total_messages,
                 total_tokens=sample.total_tokens,
                 fails_on_error=sample.fails_on_error,
             )
