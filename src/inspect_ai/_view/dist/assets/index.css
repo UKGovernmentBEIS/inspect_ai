@@ -23602,7 +23602,7 @@ thead th {
   gap: 0.1em;
   padding-right: 1em;
 }
-._container_ctxmw_1 {
+._container_1xr17_1 {
   display: flex;
   padding-top: 0;
   margin-left: 0.5rem;
@@ -23616,89 +23616,79 @@ thead th {
    before there was any real space pressure (large empty gap between
    the Edit button and the right column). With `auto` the results
    panel takes its natural width and the body absorbs the rest. */
-._wrapper_ctxmw_15 {
+._wrapper_1xr17_15 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
 }
 
-._toggle_ctxmw_21 {
+._toggle_1xr17_21 {
   margin-top: 0.3em;
   font-size: 1em;
   padding: 0rem 0.1rem 0.1rem 0rem;
   display: flex;
 }
 
-._body_ctxmw_28 {
+._body_1xr17_28 {
   display: flex;
   flex-direction: column;
   margin-left: 0.2rem;
 }
 
-/* Single-line flex row: title + model + tag chips share one baseline. The
-   title is the only shrinkable item (via min-width:0 + text-truncate); the
-   model and tag row stay at their natural width so chips sit inline after
-   the model. If chips themselves exceed the remaining space, the inner
-   `tagRow` (flex-wrap: wrap) lets them flow onto extra lines within the
-   tag block without breaking off from the model name. */
-._bodyContainer_ctxmw_40 {
+/* Single-line flex row: title + model + tag chips. Items align to
+   their TOP so the eval name's top stays flush with the first chip
+   row even when chips wrap. A small bottom margin reserves breathing
+   room between the chip block and the secondary row (filename / copy
+   / download). */
+._bodyContainer_1xr17_39 {
   margin-top: 0.1rem;
+  margin-bottom: 0.4rem;
   display: flex;
   flex-wrap: nowrap;
-  align-items: center;
+  align-items: flex-start;
   column-gap: 0.5rem;
   min-width: 0;
 }
 
-._tagRow_ctxmw_49 {
+/* The chip strip + Edit pill, all in a single wrap-aware container.
+   Edit is the last item in source order, so when chips wrap to
+   additional lines, the Edit pill follows the last chip onto whichever
+   line it lands on. Matches the Task tab's tag row.
+
+   The small top margin pulls the chip row down a couple of pixels so
+   the first chip sits roughly at the x-height of the eval name (the
+   top of the dot on the "i") instead of touching the title's cap
+   line — visually less crowded against the heading. */
+._tagRow_1xr17_58 {
   display: inline-flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.375rem;
-  /* Allow shrinking (so chip wrap can engage when content truly exceeds
-     the available width), but pair this with a high flex-shrink on the
-     title (below) so the title absorbs the entire deficit first. Without
-     that bias, the flex algorithm splits the deficit proportional to
-     content size — and the chip strip's content is usually wider than
-     the title's, so it ends up absorbing most of the shrink and wrapping
-     prematurely while the title still shows its full text. */
+  margin-top: 0.25rem;
   flex-shrink: 1;
   min-width: 0;
 }
 
-._tagSeparator_ctxmw_65 {
-  display: inline-block;
-  width: 1px;
-  height: 0.875rem;
-  background: var(--bs-border-color);
-  margin: 0 0.125rem;
-}
-
-._taskTitle_ctxmw_73 {
+._taskTitle_1xr17_68 {
   font-weight: 600;
-  /* `text-truncate` (overflow:hidden + ellipsis + nowrap) plus min-width:0
-     lets the title shrink below its intrinsic width and ellipsize.
-     The high flex-shrink biases the flex algorithm so the title absorbs
-     essentially all of the deficit before the tag row gives up any of
-     its width — keeping chips inline beside the model until the title
-     has been fully ellipsized to its minimum. */
-  min-width: 0;
-  flex-shrink: 100;
+  /* The eval name always renders in full — no ellipsis. The tag row
+     wraps to additional lines instead of squeezing the title. */
+  flex-shrink: 0;
 }
 
-._taskModel_ctxmw_85 {
+._taskModel_1xr17_75 {
   padding-top: 0.4rem;
   flex-shrink: 0;
 }
 
-._taskStatus_ctxmw_90 {
+._taskStatus_1xr17_80 {
   display: flex;
   justify-content: end;
   margin-right: 1em;
   margin-bottom: 0;
 }
 
-._secondaryContainer_ctxmw_97 {
+._secondaryContainer_1xr17_87 {
   opacity: 0.7;
   margin-top: -0.1rem;
   padding-bottom: 0;
@@ -23707,7 +23697,7 @@ thead th {
   gap: 0.5rem;
 }
 
-._buttonGroup_ctxmw_106 {
+._buttonGroup_1xr17_96 {
   display: flex;
   gap: 0.15rem;
   align-items: center;
