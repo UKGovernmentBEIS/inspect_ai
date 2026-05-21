@@ -300,7 +300,7 @@ def task_metric(metrics: list[TaskDisplayMetric], width: int | None = None) -> s
         metric.reducer for metric in metrics if metric.reducer is not None
     }
     show_reducer = len(reducer_names) > 1 or (
-        len(reducer_names) == 1 and "avg" not in reducer_names
+        len(reducer_names) == 1 and not _is_default_reducer_name(reducer_names)
     )
 
     metric = metrics[0]
@@ -325,7 +325,7 @@ def task_metrics(scores: list[EvalScore]) -> str:
     reducer_names: Set[str] = {
         score.reducer for score in scores if score.reducer is not None
     }
-    show_reducer = len(reducer_names) > 1 or "avg" not in reducer_names
+    show_reducer = len(reducer_names) > 1 or not _is_default_reducer_name(reducer_names)
     output: dict[str, str] = {}
     for score in scores:
         for name, metric in score.metrics.items():
@@ -350,3 +350,7 @@ def task_metrics(scores: list[EvalScore]) -> str:
         return f"[{theme.metric}]{task_dict(output, True)}[/{theme.metric}]"
     else:
         return ""
+
+
+def _is_default_reducer_name(reducer_names: Set[str]) -> bool:
+    return reducer_names in [{"avg"}, {"mean"}]

@@ -555,7 +555,9 @@ def test_no_reducer():
 def test_default_reducer():
     task = Task(dataset=[Sample(input="Say hello.", target="Hello")], scorer=match())
     log = eval(task, model="mockllm/model", epochs=4)[0]
-    assert log.eval.config.epochs_reducer == ["mean"]
+    assert log.eval.config.epochs_reducer is None
+    assert log.results.scores[0].reducer == "mean"
+    assert log.reductions[0].reducer == "mean"
 
 
 def test_eval_reducer():
