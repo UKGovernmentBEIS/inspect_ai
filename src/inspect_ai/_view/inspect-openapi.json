@@ -497,7 +497,7 @@
         "type": "object"
       },
       "BudgetPercent": {
-        "description": "Fire at percentage milestones of a named budget. Not yet implemented (Phase 5).\n\nExample: ``BudgetPercent(budget=\"cost\", percent=10)`` fires at 10%, 20%, \u2026\nof the ``cost_limit`` configured on the task or sample.",
+        "description": "Fire on each ``percent``-percent slice of the active ``budget``.\n\n``percent`` is in 0..100. With ``percent=25``, the trigger fires\nat ~25% / 50% / 75% / 100% of the relevant limit's usage. Has no\neffect when no limit is set for the chosen budget.",
         "properties": {
           "budget": {
             "enum": [
@@ -1104,6 +1104,129 @@
         "title": "ChatMessageUser",
         "type": "object"
       },
+      "CheckpointEvent": {
+        "additionalProperties": true,
+        "description": "A successful checkpoint commit.\n\nEmitted by the checkpointer immediately after the per-checkpoint\nsidecar JSON is written \u2014 see working.md \u00a78a. Carries the full\nsidecar payload flattened into top-level fields (via multiple\ninheritance from :class:`CheckpointDetails`), so a consumer of\n``transcript().events`` (or the ``.eval`` log) reads\n``event.checkpoint_id`` / ``event.trigger`` / ``event.host`` etc.\ndirectly \u2014 same data as someone reading\n``<sample>/ckpt-NNNNN.json`` from disk.",
+        "properties": {
+          "checkpoint_id": {
+            "title": "Checkpoint Id",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "event": {
+            "const": "checkpoint",
+            "default": "checkpoint",
+            "title": "Event",
+            "type": "string"
+          },
+          "host": {
+            "$ref": "#/components/schemas/SnapshotDetails"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "sandboxes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SnapshotDetails"
+            },
+            "title": "Sandboxes",
+            "type": "object"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "trigger": {
+            "enum": [
+              "time",
+              "turn",
+              "manual",
+              "token",
+              "cost",
+              "budget"
+            ],
+            "title": "Trigger",
+            "type": "string"
+          },
+          "turn": {
+            "title": "Turn",
+            "type": "integer"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "checkpoint_id",
+          "trigger",
+          "turn",
+          "created_at",
+          "duration_ms",
+          "size_bytes",
+          "host",
+          "sandboxes",
+          "timestamp",
+          "working_start",
+          "event"
+        ],
+        "title": "CheckpointEvent",
+        "type": "object"
+      },
       "CheckpointSampleConfig": {
         "description": "Checkpoint configuration fields that may be set at the sample layer.\n\nThese fields can be specified on ``Sample(checkpoint=...)`` and are\nalso accepted at the task and eval layers (where they participate in\nthe per-field merge \u2014 precedence: eval > sample > task).\n\nThe fields excluded from this base class \u2014 ``checkpoints_dir`` and\n``retention`` \u2014 are eval-wide concerns that the sample layer must\nnot influence. They live only on the derived :class:`CheckpointConfig`,\nwhich is the type used at the task and eval layers.\n\nSee ``design/plans/checkpointing-working.md`` \u00a72.",
         "properties": {
@@ -1138,10 +1261,13 @@
           "trigger": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/TimeInterval"
+                "$ref": "#/components/schemas/Manual"
               },
               {
                 "$ref": "#/components/schemas/TurnInterval"
+              },
+              {
+                "$ref": "#/components/schemas/TimeInterval"
               },
               {
                 "$ref": "#/components/schemas/TokenInterval"
@@ -1151,10 +1277,6 @@
               },
               {
                 "$ref": "#/components/schemas/BudgetPercent"
-              },
-              {
-                "const": "manual",
-                "type": "string"
               },
               {
                 "type": "null"
@@ -1842,7 +1964,7 @@
         "type": "object"
       },
       "CostInterval": {
-        "description": "Fire every $N spent. Not yet implemented (Phase 5).",
+        "description": "Fire every ``every`` dollars of sample-level cost.\n\nSample total cost is read from\n:func:`inspect_ai.model.sample_total_cost`; the trigger fires\neach time the running total crosses another ``every``-dollar\nboundary since the last fire.",
         "properties": {
           "every": {
             "title": "Every",
@@ -2945,6 +3067,9 @@
                       "$ref": "#/components/schemas/BranchEvent"
                     },
                     {
+                      "$ref": "#/components/schemas/CheckpointEvent"
+                    },
+                    {
                       "$ref": "#/components/schemas/CompactionEvent"
                     },
                     {
@@ -3142,6 +3267,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/BranchEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/CheckpointEvent"
                 },
                 {
                   "$ref": "#/components/schemas/CompactionEvent"
@@ -4487,6 +4615,9 @@
           },
           {
             "$ref": "#/components/schemas/BranchEvent"
+          },
+          {
+            "$ref": "#/components/schemas/CheckpointEvent"
           },
           {
             "$ref": "#/components/schemas/CompactionEvent"
@@ -6315,6 +6446,12 @@
           "content"
         ],
         "title": "Logprobs",
+        "type": "object"
+      },
+      "Manual": {
+        "description": "No-op trigger spec.\n\nThe engine's ``tick()`` always returns ``None`` for this spec \u2014\nfires happen only through explicit ``cp.checkpoint()`` calls.",
+        "properties": {},
+        "title": "Manual",
         "type": "object"
       },
       "MessagePoolData": {
@@ -8717,6 +8854,31 @@
         "title": "SegmentRef",
         "type": "object"
       },
+      "SnapshotDetails": {
+        "additionalProperties": true,
+        "description": "Per-backup stats captured in the sidecar.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary \u2014 see :class:`ResticBackupSummary`.",
+        "properties": {
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id",
+          "size_bytes",
+          "duration_ms"
+        ],
+        "title": "SnapshotDetails",
+        "type": "object"
+      },
       "SpanBeginEvent": {
         "description": "Mark the beginning of a transcript span.",
         "properties": {
@@ -9363,7 +9525,7 @@
         "type": "object"
       },
       "TimeInterval": {
-        "description": "Fire every N of wall-clock time.",
+        "description": "Fire after a wall-clock interval.\n\nThe engine fires when at least ``every`` has elapsed since the\nlast fire (or since the session opened, for the first fire).",
         "properties": {
           "every": {
             "format": "duration",
@@ -9537,7 +9699,7 @@
         "type": "object"
       },
       "TokenInterval": {
-        "description": "Fire every N tokens generated. Not yet implemented (Phase 5).",
+        "description": "Fire every ``every`` tokens of sample-level usage.\n\nSample total tokens are read from\n:func:`inspect_ai.model.sample_total_tokens`; the trigger fires\neach time the running total crosses another ``every``-token\nboundary since the last fire.",
         "properties": {
           "every": {
             "title": "Every",
@@ -10108,7 +10270,7 @@
         "type": "object"
       },
       "TurnInterval": {
-        "description": "Fire every N agent turns.",
+        "description": "Fire after every ``every`` agent turns of work.\n\nThe very first ``tick()`` call marks the boundary *before* turn 1\nhas run \u2014 agents place ``cp.tick()`` at the top of their loop, so\nthe opening tick stands between \"no turn yet\" and \"turn 1.\" That\nboundary is informational and doesn't count toward the threshold;\notherwise ``every=1`` would fire an empty checkpoint on the\nopening tick.",
         "properties": {
           "every": {
             "title": "Every",
