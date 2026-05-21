@@ -5,6 +5,7 @@
 - Scoring: Use scorers_info instead of scorers for functions that recompute metrics.
 - Logging: Atomic write of local eval (`.eval`) and JSON (`.json`) log files.
 - Async: `run_coroutine()` (and the sync log/analysis helpers built on it) now honour `INSPECT_ASYNC_BACKEND=trio` when called with no running event loop, rather than always using asyncio.
+- Bugfix: Resolve message/call pool references in DB-buffer recovery.
 
 ## 0.3.224 (20 May 2026)
 
