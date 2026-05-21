@@ -1,6 +1,8 @@
 """Tests for atomic write utilities."""
 
 import os
+import stat
+import sys
 from pathlib import Path
 from unittest import mock
 
@@ -194,19 +196,56 @@ class TestAtomicWriteInvalidInputs:
             with atomic_write(str(target), mode="rb"):
                 pass
 
-    def test_nonexistent_parent_directory(self, tmp_path: Path) -> None:
-        """Test error when parent directory doesn't exist."""
-        target = tmp_path / "nonexistent" / "test.dat"
+    def test_creates_missing_parent_directory(self, tmp_path: Path) -> None:
+        """Parent directories are auto-created (matches fsspec's local writer)."""
+        target = tmp_path / "a" / "b" / "c.dat"
 
-        with pytest.raises(FileNotFoundError):
-            with atomic_write(str(target)) as f:
-                f.write(b"data")
+        with atomic_write(str(target)) as f:
+            f.write(b"data")
+
+        assert target.read_bytes() == b"data"
 
     def test_remote_path_rejected(self) -> None:
         """Remote paths must be rejected — use AsyncFilesystem instead."""
         with pytest.raises(ValueError, match="local"):
             with atomic_write("s3://bucket/some/key.bin"):
                 pass
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX mode bits don't apply on Windows",
+)
+class TestAtomicWriteFileMode:
+    """Test mode preservation (POSIX only).
+
+    On Windows os.chmod only honours the read-only bit, so these
+    assertions are skipped there.
+    """
+
+    def test_preserves_existing_file_mode(self, tmp_path: Path) -> None:
+        """Overwriting an existing file preserves its prior mode."""
+        target = tmp_path / "existing.dat"
+        target.write_bytes(b"old")
+        os.chmod(target, 0o664)
+
+        with atomic_write(str(target)) as f:
+            f.write(b"new")
+
+        assert stat.S_IMODE(target.stat().st_mode) == 0o664
+        assert target.read_bytes() == b"new"
+
+    def test_new_file_uses_umask_default(self, tmp_path: Path) -> None:
+        """New files use 0o666 & ~umask (matches open(..., 'wb'))."""
+        target = tmp_path / "new.dat"
+        umask = os.umask(0)
+        os.umask(umask)
+        expected = 0o666 & ~umask
+
+        with atomic_write(str(target)) as f:
+            f.write(b"x")
+
+        assert stat.S_IMODE(target.stat().st_mode) == expected
 
 
 class TestAtomicWriteInterruption:

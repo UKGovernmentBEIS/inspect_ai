@@ -92,6 +92,28 @@ def atomic_write(
 
     target_dir = str(Path(target_path).parent)
 
+    # Match fsspec's LocalFileSystem.open behaviour: auto-create missing
+    # parent directories. Otherwise tempfile.mkstemp(dir=target_dir) would
+    # raise FileNotFoundError for callers like
+    # `write_eval_log("new/dir/log.json", format="json")`.
+    os.makedirs(target_dir, exist_ok=True)
+
+    # Determine the mode the target should end up with. mkstemp() hardcodes
+    # 0o600, so without this step os.replace() would install that mode as
+    # the final log. We preserve the existing target's mode on overwrite,
+    # or use `0o666 & ~umask` for new files (matching what `open(..., "wb")`
+    # would have produced via the previous fsspec local path). On Windows
+    # both calls are mostly cosmetic (only the read-only bit is honoured),
+    # so this is harmless cross-platform.
+    try:
+        target_mode = os.stat(target_path).st_mode & 0o777
+    except FileNotFoundError:
+        # New file: read the umask (Python only exposes a setter that returns
+        # the previous value, so set-then-restore is the standard idiom).
+        umask = os.umask(0)
+        os.umask(umask)
+        target_mode = 0o666 & ~umask
+
     # Create temp file in the target's directory so os.replace() is atomic.
     fd, temp_path = tempfile.mkstemp(
         dir=target_dir, prefix=".inspect_tmp_", suffix=".writing"
@@ -104,6 +126,11 @@ def atomic_write(
             if fsync:
                 tmp_file.flush()
                 os.fsync(tmp_file.fileno())
+
+        # Install the chosen mode before the rename so the final inode
+        # carries it. Doing this after os.replace() would leave a brief
+        # window where the file has mkstemp's 0o600 mode.
+        os.chmod(temp_path, target_mode)
 
         # Atomic rename: POSIX rename() / Windows MoveFileEx.
         os.replace(temp_path, target_path)
