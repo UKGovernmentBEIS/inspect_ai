@@ -38,7 +38,7 @@ def run_in_background(
             asyncio.create_task(wrapper())
         else:
             raise RuntimeError(
-                f"run_coroutine cannot be used {'with trio' if backend == 'trio' else 'outside of an async context'}"
+                f"run_in_background cannot be used {'with trio' if backend == 'trio' else 'outside of an async context'}"
             )
 
 

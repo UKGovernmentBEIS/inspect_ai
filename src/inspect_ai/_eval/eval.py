@@ -683,6 +683,7 @@ async def _eval_async_inner(
             approval,
             sandbox,
             sample_shuffle,
+            checkpoint,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -956,6 +957,7 @@ def eval_retry(
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
+    checkpoint: CheckpointConfig | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1033,6 +1035,11 @@ def eval_retry(
             to fully customize bounds and tuning (cooldown_seconds, decrease_factor,
             scale_up_percent). An explicit `max_connections` or `batch=True`
             takes precedence and uses static concurrency.
+        checkpoint:
+            Checkpoint configuration for this retry. Must match the config
+            used on the original eval for resume detection to find the
+            sidecars (the original `--checkpoint` is not recorded in the
+            log file).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1076,6 +1083,7 @@ def eval_retry(
             attempt_timeout=attempt_timeout,
             max_connections=max_connections,
             adaptive_connections=adaptive_connections,
+            checkpoint=checkpoint,
         )
 
     result = task_display().run_task_app(with_async_fs(run_task_app))
@@ -1126,6 +1134,7 @@ async def eval_retry_async(
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
+    checkpoint: CheckpointConfig | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1184,6 +1193,7 @@ async def eval_retry_async(
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
+        checkpoint: Checkpoint configuration for this retry. Must match the config used on the original eval for resume detection to find the sidecars (the original `--checkpoint` is not recorded in the log file).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1456,6 +1466,7 @@ async def eval_retry_async(
                 log_shared=log_shared,
                 score=score,
                 score_display=score_display,
+                checkpoint=checkpoint,
                 acp_server=acp_server,
                 **dict(config),
             )
@@ -1518,6 +1529,7 @@ def eval_resolve_tasks(
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None,
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
+    eval_checkpoint: CheckpointConfig | None = None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
@@ -1534,7 +1546,13 @@ def eval_resolve_tasks(
             init_active_model(m, config)
             resolved_tasks.extend(
                 resolve_tasks(
-                    tasks, task_args, m, resolved_model_roles, sandbox, sample_shuffle
+                    tasks,
+                    task_args,
+                    m,
+                    resolved_model_roles,
+                    sandbox,
+                    sample_shuffle,
+                    eval_checkpoint,
                 )
             )
 
