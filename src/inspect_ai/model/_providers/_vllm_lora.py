@@ -56,9 +56,8 @@ class LoRAAdapter:
         if "/" not in path:
             # Not a hf repo, treat entire suffix as a LoRA name
             # (e.g. for external server with pre-loaded adapters with "@" in their names)
-            path = suffix
-            revision = None
-        elif "@" in suffix and not revision:
+            return cls(path=suffix)
+        if "@" in suffix and not revision:
             raise ValueError(
                 "Empty revision after '@'. Use 'org/my-adapter@<branch|tag|commit>'."
             )

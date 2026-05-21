@@ -244,7 +244,7 @@ class TestVLLMAPIClose:
         api._server.base_url = "http://localhost:8000/v1"
         api._server.api_key = "test-key"
         api._server.port = 8000
-        api._server.loaded_adapters.add("adapter")
+        api._server.loaded_adapters.add(LoRAAdapter("adapter"))
         self._simulate_resolved(api)
 
         api.close()
