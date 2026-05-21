@@ -2,6 +2,7 @@
 
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
 - Scoring: Use scorers_info instead of scorers for functions that recompute metrics.
+- Async: `run_coroutine()` (and the sync log/analysis helpers built on it) now honour `INSPECT_ASYNC_BACKEND=trio` when called with no running event loop, rather than always using asyncio.
 
 ## 0.3.224 (20 May 2026)
 

@@ -845,6 +845,54 @@ async def test_get_async_filesystem_raises_when_none() -> None:
         get_async_filesystem()
 
 
+def test_run_coroutine_no_loop_uses_configured_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """run_coroutine() with no running loop honours INSPECT_ASYNC_BACKEND=trio."""
+    import sniffio
+
+    monkeypatch.setenv("INSPECT_ASYNC_BACKEND", "trio")
+
+    async def report_backend() -> str:
+        return sniffio.current_async_library()
+
+    assert run_coroutine(report_backend()) == "trio"
+    assert _current_async_fs.get() is None
+
+
+def test_run_coroutine_reenters_asyncio_loop_from_sync_callback() -> None:
+    """run_coroutine() re-enters asyncio even when sniffio has no async context."""
+    result: int | None = None
+    errors: list[BaseException] = []
+
+    async def inner() -> int:
+        return 42
+
+    def callback() -> None:
+        nonlocal result
+        try:
+            result = run_coroutine(inner())
+        except BaseException as ex:
+            errors.append(ex)
+        finally:
+            asyncio.get_running_loop().stop()
+
+    loop = asyncio.new_event_loop()
+    try:
+        asyncio.set_event_loop(loop)
+        loop.call_soon(callback)
+        loop.run_forever()
+    finally:
+        asyncio.set_event_loop(None)
+        loop.close()
+
+    if errors:
+        raise errors[0]
+
+    assert result == 42
+    assert _current_async_fs.get() is None
+
+
 def test_run_coroutine_cleans_up_filesystem() -> None:
     """run_coroutine() cleans up the filesystem created during execution."""
 
