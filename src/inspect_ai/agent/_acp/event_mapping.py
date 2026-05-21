@@ -59,6 +59,7 @@ from acp.schema import (
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent._acp.inspect_ext import (
+    TOTAL_MESSAGES_META_KEY,
     assistant_complete_chunk_meta,
     assistant_content_chunk_meta,
     assistant_pending_chunk_meta,
@@ -563,7 +564,17 @@ def _map_model_event(
         # SessionUpdate union (the schema discriminated union includes it,
         # but the helper's typedef is narrower). Constructing the
         # notification by hand sidesteps the type mismatch.
-        yield SessionNotification(session_id=session_id, update=usage_update)
+        #
+        # Piggyback the sample's running ``total_messages`` on the outer
+        # ``field_meta`` so the TUI's header re-renders the ``messages``
+        # chip on the same per-model-event tick that drives ``tokens``.
+        yield SessionNotification(
+            session_id=session_id,
+            update=usage_update,
+            field_meta={
+                TOTAL_MESSAGES_META_KEY: _active_sample_total_messages(session_id)
+            },
+        )
 
 
 # UUIDv5 namespace for deriving message_id from Inspect ModelEvent uuids.
@@ -584,6 +595,23 @@ def _model_event_message_id(model_event_uuid: str) -> str:
     client.
     """
     return str(_uuid_module.uuid5(_INSPECT_MESSAGE_ID_NAMESPACE, model_event_uuid))
+
+
+def _active_sample_total_messages(session_id: str) -> int:
+    """Look up ``ActiveSample.total_messages`` for the given ACP session.
+
+    Returns 0 if no matching active sample is found (e.g. the sample
+    finished between the model event firing and our lookup) — the TUI
+    treats 0 as "no data" and renders an em-dash, matching the
+    ``totalTokens=0`` fallback the picker already uses.
+    """
+    from inspect_ai.log._samples import active_samples
+
+    for sample in active_samples():
+        sess = sample.acp_session
+        if sess is not None and sess.session_id == session_id:
+            return sample.total_messages
+    return 0
 
 
 def _build_usage_update(event: ModelEvent) -> UsageUpdate | None:

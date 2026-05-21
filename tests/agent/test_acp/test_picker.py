@@ -184,6 +184,7 @@ def test_build_picker_notification_carries_structured_meta() -> None:
             "epoch": 0,
             "agentName": None,
             "startedAt": None,
+            "totalMessages": 0,
             "totalTokens": 0,
             "failsOnError": False,
         },
@@ -194,6 +195,7 @@ def test_build_picker_notification_carries_structured_meta() -> None:
             "epoch": 3,
             "agentName": None,
             "startedAt": None,
+            "totalMessages": 0,
             "totalTokens": 0,
             "failsOnError": False,
         },
@@ -552,6 +554,7 @@ def test_sample_listing_meta_dict_emits_camelcase_with_session_id() -> None:
         epoch=0,
         agent_name="react",
         started_at=1_700_000_000.0,
+        total_messages=42,
         total_tokens=12_345,
         fails_on_error=True,
     )
@@ -562,6 +565,7 @@ def test_sample_listing_meta_dict_emits_camelcase_with_session_id() -> None:
         "epoch": 0,
         "agentName": "react",
         "startedAt": 1_700_000_000.0,
+        "totalMessages": 42,
         "totalTokens": 12_345,
         "failsOnError": True,
     }
@@ -580,6 +584,7 @@ def test_sample_listing_meta_dict_session_id_null_for_non_acp() -> None:
     # Other fields still present with defaults — keeps the wire shape stable.
     assert payload["agentName"] is None
     assert payload["startedAt"] is None
+    assert payload["totalMessages"] == 0
     assert payload["totalTokens"] == 0
     assert payload["failsOnError"] is False
 
@@ -608,6 +613,7 @@ def test_notification_serializes_meta_under_underscore_meta_alias() -> None:
             "epoch": 0,
             "agentName": None,
             "startedAt": None,
+            "totalMessages": 0,
             "totalTokens": 0,
             "failsOnError": False,
         },
