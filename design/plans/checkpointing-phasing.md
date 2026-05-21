@@ -141,7 +141,7 @@ focused swap of `_fire()`'s body plus the read side.
 
 ## Phase 3 — Checkpoint write (host + sandbox, end-to-end)
 
-**Status:** Done; one remote-destination follow-up tracked below.
+**Status:** Done.
 
 **Plan sections covered:** §1, §4a, §4d, §4e, §4f, §4g, §4h, §5,
 §7a, §7b, §8a, §8b, §8c, §8e, Appendix B.
@@ -151,44 +151,51 @@ This phase consolidates the write-side of the original Phase 3
 together because the work fell out that way naturally. Resume
 (read-side) is split into the new Phase 4.
 
-**Vocabulary** (used consistently across modules + tests):
-
-- *eval checkpoints dir*: `<parent>/<log-base>.checkpoints/` where
-  `<log-base>` is the eval log filename with a trailing `.eval`
-  stripped. `<parent>` defaults to the log's directory; overridable
-  via `CheckpointConfig.checkpoints_location`. Eventually s3-capable;
-  see the "still TBD" list below for current limitations.
-- *sample checkpoints dir*: `<eval checkpoints dir>/<sample>__<epoch>/`
-  (per-attempt subtree on the destination).
-- *eval working dir*: `inspect_cache_dir("checkpoints")/<log-base>/`
-  (host-local, ephemeral).
-- *sample working dir*:
-  `<eval working dir>/<sample>__<epoch>/` (host-local, restic backs
-  this up each cycle).
+**Vocabulary.** The canonical terms are defined in
+`src/inspect_ai/util/_checkpoint/UBIQUITOUS_LANGUAGE.md` — **evals
+checkpoints dir**, **eval checkpoints dir**, **sample checkpoints
+dir**, **sample staging dir**, **context subdir**, **in-sandbox
+restic repo**, plus the **sample root** convenience term. Both local
+and remote (`s3://`, etc.) destinations are supported.
 
 **Landed (write side):**
 
-- **Layout subpackage.** `src/inspect_ai/util/_checkpoint/layout/`
+- **Layout subpackage.** `src/inspect_ai/util/_checkpoint/_layout/`
   groups everything that knows about where checkpoint state lives on
   disk and what shape each file takes:
   - `eval_checkpoints_dir.py` — eval-dir path computation +
     `log_basename` helper.
-  - `sample_checkpoints_dir.py` — `sample.json` + `ckpt-*.json`
-    sidecar I/O, plus `scan_latest_committed_id` (parses-OK
-    high→low sidecar walker used on resume).
-  - `working_dir.py` — eval / sample working dir paths under
-    `inspect_cache_dir("checkpoints")`.
-  - `host_context.py` — the 5-file JSON schema inside the sample
-    working dir (events, events_data, attachments, store,
-    agent_state), with paired read/write.
-  - `sidecar.py` — pydantic models (`CheckpointDetails`,
-    `CheckpointSample`, `SnapshotDetails`) for the on-disk JSON shapes.
-- **Per-sample restic password in `sample.json`.** Each sample subtree
-  carries its own `sample.json` with a `restic_password` field
-  auto-minted at first checkpoint setup via `secrets.token_urlsafe`.
-  No eval-level manifest, no shared secret, no cross-sample
-  coordination — every sample is independent. On retry, the password
-  rides forward via the FS copy at resume (see Phase 4).
+  - `sample_checkpoints_dir.py` — `restic-config.json` + `ckpt-*.json`
+    checkpoint file I/O, plus `scan_latest_committed_id` (parses-OK
+    high→low checkpoint file walker used on resume).
+  - `staging_dir.py` — sample staging dir (remote-dest only) + the
+    per-sample subdir helpers (`restic_dir`, `host_repo_dir`,
+    `sandbox_repo_dir`, `context_dir`, `restic_config_path`,
+    `is_remote_destination`).
+  - `host_context.py` — the 5-file JSON schema inside the context
+    subdir (events, events_data, attachments, store, agent_state),
+    with paired read/write.
+  - `schemas.py` — pydantic models (`Checkpoint`, `ResticConfig`,
+    `SnapshotDetails`) for the on-disk JSON shapes.
+  - `__init__.py` is a narrow facade that re-exports only what
+    crosses the package boundary
+    (`eval_checkpoints_dir`, `eval_checkpoints_dir_from_config`,
+    `has_sample_checkpoint`, `sample_checkpoints_dir`). Internal
+    callers import the concrete submodule.
+- **Host egress + async fs.**
+  `src/inspect_ai/util/_checkpoint/_host_egress.py` ships staging-dir
+  files to remote destinations (see remote-destination bullet below).
+  `_async_fs.py` exposes `async_mkdir` — a thin S3-aware wrapper that
+  no-ops on S3 (no directories) and delegates to local `mkdir`
+  otherwise; everything else goes through
+  `inspect_ai._util.asyncfiles.get_async_filesystem()`.
+- **Per-sample restic password in `restic/restic-config.json`.** Each
+  sample subtree carries its own `restic-config.json` with a
+  `restic_password` field auto-minted at first checkpoint setup via
+  `secrets.token_urlsafe`. No eval-level manifest, no shared secret,
+  no cross-sample coordination — every sample is independent. On
+  retry, the password rides forward via the FS copy at resume (see
+  Phase 4).
 - **Two-phase checkpointer lifecycle.** `checkpointer()` is the
   agent-facing async-cm; the harness stashes a `_CheckpointerSetup`
   on `ActiveSample` ahead of time, and entering it performs the
@@ -212,7 +219,7 @@ together because the work fell out that way naturally. Resume
     `_restic/ops.py`.
 - **Restic integration is real**:
   - Host: `init_repo` (idempotent — skip if `repo/config` exists)
-    runs at hydrate-time against `<sample-checkpoints-dir>/host/`;
+    runs at hydrate-time against `<sample-root>/restic/host/`;
     `run_backup(restic, repo, password, source, tag)` runs each fire
     and parses restic's `--json` summary into a
     `ResticBackupSummary`. Tag format `ckpt-{N:05d}` is built by
@@ -228,7 +235,7 @@ together because the work fell out that way naturally. Resume
     tar (`config → keys → data → index → snapshots`) into
     `staging/egress-<tag>.tar`, and emits the new file list. Host
     pulls the tar via `env.read_file`, extracts into the destination
-    `<sample-checkpoints-dir>/sandboxes/<name>/`, runs
+    `<sample-root>/restic/sandboxes/<name>/`, runs
     `restic snapshots --json` against the destination to verify the
     new snapshot id is listed, then phase-2 root exec advances the
     manifest and drops the tarball. Failure between phases leaves
@@ -240,14 +247,15 @@ together because the work fell out that way naturally. Resume
     `tg_collect`. Within a sandbox the pair is sequential (egress
     diffs against what backup just wrote); pairs across sandboxes
     and the host backup are independent.
-- **Sidecar carries per-backup stats** (`host: SnapshotDetails`,
+- **Checkpoint file carries per-backup stats** (`host: SnapshotDetails`,
   `sandboxes: dict[str, SnapshotDetails]`) where `SnapshotDetails` =
   `{snapshot_id, size_bytes, duration_ms}`. `size_bytes` comes from
   restic's `data_added_packed` (post-compression on-disk cost);
   `duration_ms` from restic's `total_duration`. Top-level
-  `size_bytes` on the sidecar is the rolled-up total.
-- **Host snapshot: up to five files, condensed + pooled.** The host
-  working dir is overwritten each fire by `host_context.write()` with:
+  `size_bytes` on the checkpoint file is the rolled-up total.
+- **Host snapshot: up to five files, condensed + pooled.** The
+  context subdir (`<sample-root>/context/`) is overwritten each fire
+  by `host_context.write()` with:
   - `events.json` — condensed events; `ModelEvent.input` and
     `ModelEvent.call` messages are replaced with `input_refs` /
     `call_refs` into the pools. **Span-only invariant**: only events
@@ -288,49 +296,52 @@ together because the work fell out that way naturally. Resume
   (skips the up-front size-estimate walk; we control the source).
   Sandbox backups keep restic defaults — sandbox content is mixed
   binaries / logs, where `auto` is right.
-- **Sidecar commit is "parses or doesn't."** The sidecar write
-  itself is non-atomic. Resume reads the highest *parseable*
-  `ckpt-NNNNN.json` (via `scan_latest_committed_id`) as the resume
-  point. A mid-write crash costs at most one checkpoint, same as
-  crashing before the sidecar starts. See §4d.
+- **Checkpoint file commit is "parses or doesn't."** The checkpoint
+  file write itself is non-atomic. Resume reads the highest
+  *parseable* `ckpt-NNNNN.json` (via `scan_latest_committed_id`) as
+  the resume point. A mid-write crash costs at most one checkpoint,
+  same as crashing before the checkpoint file starts. See §4d.
 - **Destination override**: `CheckpointConfig.checkpoints_location`
   repoints the parent root under which the per-eval subdir lands;
   default is the log's directory. The per-eval subdir name strips a
   trailing `.eval` and appends `.checkpoints` (so `foo.eval` →
   `foo.checkpoints/`).
+- **Remote (`s3://`, etc.) destinations.** Restic always writes
+  locally. When the resolved sample checkpoints dir is remote, the
+  fire materializes into a per-sample **staging dir** under
+  `inspect_cache_dir("checkpoints")/<log-basename>/<sample>__<epoch>/`
+  with the same internal layout as a local sample checkpoints dir
+  plus `.egress-manifest.txt`. At the end of each fire, `host_egress`
+  (`_host_egress.py`) reads the manifest, diffs against the staging
+  dir, ships new files via `AsyncFilesystem` in a safe order
+  (`config`/`keys` → `data` → `index` → `snapshots` → `restic-config.json`
+  → `ckpt-NNNNN.json`), and atomically advances the manifest. The
+  checkpoint file's arrival at the destination is the remote commit
+  point. The context subdir and the manifest itself are never
+  shipped. Idempotent re-ship is safe (restic content is content-
+  addressed; checkpoint files overwrite cleanly). This sidesteps
+  restic's narrow AWS auth (no SSO / profile / assume-role) — all
+  remote I/O flows through `AsyncFilesystem`, which uses the full
+  boto3 credential chain. See
+  [checkpointing-remote-dest.md](./checkpointing-remote-dest.md).
+- **`max_consecutive_failures` enforcement.** `_fire` wraps the fire
+  body (`_fire_once`) so a failed attempt is non-fatal by default: it's
+  recorded (structured `InfoEvent` `source="checkpoint"` + a logged
+  warning) and the per-session failure counter increments;
+  `CheckpointFailureLimitExceeded` re-raises only when the count
+  exceeds `max_consecutive_failures` (`None` = unlimited, `N` = fail on
+  the (N+1)th, `0` = strict), at which point the sample fails through
+  inspect's normal sample-error machinery. A successful fire zeroes the
+  counter; the counter is fresh per session. See working.md §8d.
 
 **Still TBD (write side):**
 
-- `max_consecutive_failures` enforcement.
-- **Real s3 / remote `checkpoints_location` support**. The override
-  accepts any string today, but only local destinations work
-  end-to-end. The fsspec-mediated paths (sidecar, dir creation)
-  already handle `s3://` correctly, but the restic-touching paths
-  assume local fs. Concretely:
-  - The host backup should be sent **directly** to the destination
-    via restic's native s3 backend (no host-local stage). That means
-    translating fsspec URLs (`s3://bucket/path`) to restic's URL form
-    (`s3:<endpoint>/bucket/path`) before invoking restic, and
-    propagating AWS credentials into the restic subprocess `env`
-    (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / region) — our
-    minimal `restic_env` only sets `RESTIC_PASSWORD` + `PATH` today.
-  - `_restic.ops.init_repo` and `egress_sandbox`'s
-    `Path(repo).mkdir(...)` / `Path(repo) / "config"` calls collapse
-    `s3://` to `s3:` and treat it as local; replace with
-    `filesystem(repo).mkdir(...)` / `filesystem(repo).exists(...)`.
-  - Egress tar extraction (`tarfile.extractall(dest_repo)`) is
-    local-fs only; for remote destinations, either extract to a
-    local staging dir then `filesystem(...).put_file(...)` per
-    member, or skip the staging and stream extracted bytes through
-    fsspec writes. Same restic-URL/creds handling as above for the
-    post-extract `restic snapshots` verification.
-  - Until that lands, validate the override at config-validation
-    time and reject non-local paths with a clear NotImplementedError.
+- None — write side is complete.
 
 **End state of Phase 3:** Every checkpoint cycle produces a real,
 crash-resumable on-disk artifact for both native and sandbox-CLI
-agents on local destinations. Phase 4 (resume) reads these artifacts;
-remote-destination support is the last remaining write-side item.
+agents on local **and** remote destinations, with bounded failure
+tolerance. Phase 4 (resume) reads these artifacts.
 
 ## Phase 4 — Resume (read side, all surfaces)
 
@@ -361,18 +372,29 @@ landed and what remains.
   pass `None` and mint their own password without any awareness of
   the surrounding retry.
 - **`hydrate()` orchestrator + parallel domain hydration.** Phase 1
-  prologue (paths, dirs, `sample.json` materialization, restic
-  binary, `latest_committed_id` scan); Phase 2 fans out
+  prologue (paths, dirs, `restic/restic-config.json` materialization,
+  restic binary, `latest_committed_id` scan); Phase 2 fans out
   `_hydrate_host` and `_hydrate_sandboxes` in parallel via a task
   group. Returns a `HydrationResult` with everything the agent-facing
   `_EnteredCheckpointer` needs at construction. See hydration.md
   §3 for the function structure.
+- **Remote-source resume.** The FS copy used at hydrate-time
+  (`_fs_copy_cross_cutting` for `restic-config.json` + `ckpt-*.json`,
+  `_fs_copy_repo` for the host and sandbox restic repos) goes through
+  `AsyncFilesystem`, so a prior eval's sample checkpoints dir can
+  live on `s3://` (or any supported scheme) and resume reads it into
+  the new sample root just as it would from local disk. When the
+  *new* eval's destination is also remote, `seed_manifest()`
+  pre-populates `.egress-manifest.txt` from everything just copied
+  into the staging dir — without this, the first post-resume fire's
+  host egress would treat every downloaded file as "new" and re-ship
+  the full resume payload.
 - **Orphan-snapshot cleanup.** Both `_hydrate_host` and
   `_hydrate_sandbox` drop any restic snapshot tagged `ckpt-NNNNN`
   with `N > latest_committed_id` from the FS-copied repo before the
-  restore / ingress step. This enforces "sidecar is the commit
-  point" against fires that completed their backup but not their
-  sidecar (working.md §4d). For sandboxes, the drop runs on the
+  restore / ingress step. This enforces "checkpoint file is the
+  commit point" against fires that completed their backup but not
+  their checkpoint file (working.md §4d). For sandboxes, the drop runs on the
   host-side repo *before* `ingress_sandbox` tars it into the
   container, so the in-container repo never sees the orphan packs.
 - **In-container sandbox restore via `ingress_sandbox`.** Tar the
@@ -402,12 +424,13 @@ landed and what remains.
   the push and raises if any invariant fails (first event is
   `span_begin checkpoint restore 1`, sequential checkpoint + wrap names,
   paired begin/end by id, checkpoint count matches
-  `latest_committed_id`, sidecar parity, `CheckpointEvent` count
-  matches `latest_committed_id` with sequential
-  `sidecar.checkpoint_id`s). Console-logs a readable summary either
+  `latest_committed_id`, checkpoint file parity, `CheckpointEvent`
+  count matches `latest_committed_id` with sequential
+  `checkpoint_id`s). Console-logs a readable summary either
   way under `[hydrate.validate]`.
-- **Per-sample restic password from `sample.json`.** Each sample
-  carries its own password in `sample.json`; the FS copy at resume
+- **Per-sample restic password from `restic/restic-config.json`.** Each
+  sample carries its own password in `restic/restic-config.json`; the
+  FS copy at resume
   preserves it so the new sample dir's restic repos unlock with the
   same password. There is no eval-level shared secret.
 - **`Checkpointer.track` resume plumbing.** `track(key, callback,
@@ -427,7 +450,8 @@ landed and what remains.
 **End state of Phase 4:** A killed eval (native or sandbox-CLI agent)
 resumes from the latest checkpoint with full roundtrip fidelity —
 messages, events, `Store`, and sandbox filesystem all match the
-pre-kill state. Achieved.
+pre-kill state. Works whether the prior eval's sample checkpoints
+dir is local or remote.
 
 ## Phase 5 — Observability
 
@@ -444,23 +468,29 @@ improves visibility, none is required for round-trip correctness.
 
 - **Per-checkpoint transcript spans.** Each agent-checkpointed
   window is bracketed by a `span_begin/span_end` pair of
-  `type="checkpoint"`, `name="checkpoint N"` matching the sidecar
-  id. Spans are siblings (not nested). On resume, the rehydrated
+  `type="checkpoint"`, `name="checkpoint N"` matching the checkpoint
+  file id. Spans are siblings (not nested). On resume, the rehydrated
   spans are wrapped in a synthesized `prior_run` sibling span
   (`type="prior_run"`, `name="checkpoint restore N"`). See working.md §8b
   and hydration.md §3b1.
 - **`CheckpointEvent` in the transcript / `.eval` log.** Each
   successful fire emits a `CheckpointEvent` carrying the full
-  per-checkpoint sidecar contents as flat top-level fields (via
-  multiple inheritance from `BaseEvent` + `CheckpointDetails`).
+  per-checkpoint file contents as flat top-level fields (via
+  multiple inheritance from `BaseEvent` + `Checkpoint`).
   Lands in the `.eval` log alongside model and tool events;
-  viewable in `inspect view`. Emitted *after* `write_sidecar` so
+  viewable in `inspect view`. Emitted *after* `write_checkpoint_file` so
   the event position is `span_end_N` → `CheckpointEvent_N` →
   `span_begin_(N+1)`. By construction the event is **not** in fire
   N's `events.json`; it **is** captured in fire N+1's. Resume
   reconstructs the trailing event from
   `ckpt-{latest_committed_id:05d}.json` so the rehydrated transcript
   matches a live run. See working.md §8a and hydration.md §3b.
+- **Failed-attempt record.** A failed fire emits a structured
+  `InfoEvent` (`source="checkpoint"`, `data.event="checkpoint_failed"`)
+  into the transcript / `.eval` log and logs a warning — reusing
+  existing event types rather than a dedicated failure event. See
+  working.md §8a / §8d and the Phase 3 `max_consecutive_failures`
+  bullet.
 
 **Still TBD:**
 
@@ -518,11 +548,14 @@ Not scheduled. Tracked here so they're not lost:
 - **Phase 3 is the biggest single phase** and consolidates write-side
   work that the original plan split between host-only (old Phase 3)
   and sandbox (old Phase 4). Both halves landed together because the
-  modules and abstractions are shared.
+  modules and abstractions are shared; remote-destination support
+  ultimately landed in the same phase via the staging-dir + host-egress
+  topology rather than restic-native S3.
 - **Phase 4 (resume) cleared the ship gate.** The hydration core,
   orphan-snapshot cleanup, `prior_run` wrap, validation, and the
   `inspect eval retry` integration are in place and roundtrip-tested
-  locally on the CTF example. Phases 5 + 6 are layered polish on top.
+  on the CTF example with both local and `s3://` sample checkpoints
+  dirs. Phases 5 + 6 are layered polish on top.
 - **Phases 5 + 6 are layered, not blocking.** Phase 5 (observability)
   lands customer-visible signals — events, hooks, TUI — that don't
   change the write/read contract. Phase 6 (advanced policies +

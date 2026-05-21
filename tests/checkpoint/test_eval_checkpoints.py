@@ -33,3 +33,19 @@ def test_eval_checkpoints_dir_with_s3_override() -> None:
         eval_checkpoints_dir("/logs/foo.eval", "s3://bucket/ckpts")
         == "s3://bucket/ckpts/foo.checkpoints"
     )
+
+
+def test_eval_checkpoints_dir_strips_trailing_slash_on_override() -> None:
+    """A trailing slash on the override must not produce ``//`` in the join.
+
+    S3 honors empty path segments literally, surfacing them as an
+    extra "directory" in the console.
+    """
+    assert (
+        eval_checkpoints_dir("/logs/foo.eval", "s3://bucket/ckpts/")
+        == "s3://bucket/ckpts/foo.checkpoints"
+    )
+    assert (
+        eval_checkpoints_dir("/logs/foo.eval", "/scratch/ckpts/")
+        == "/scratch/ckpts/foo.checkpoints"
+    )

@@ -1628,8 +1628,8 @@ def eval_log_sample_source(
     # take care of no log or no samples in log. Note we still proceed when
     # in-memory samples and `eval_log_info` are both absent if a
     # `eval_checkpoints_dir` is available — the prior eval may have been
-    # killed before writing any sample, and on-disk sidecars can still
-    # drive resume detection in `read_from_memory` below.
+    # killed before writing any sample, and on-disk checkpoint files
+    # can still drive resume detection in `read_from_memory` below.
     if not eval_log:
         return no_sample_source
     elif not eval_log.samples and not eval_log_info and not eval_checkpoints_dir:

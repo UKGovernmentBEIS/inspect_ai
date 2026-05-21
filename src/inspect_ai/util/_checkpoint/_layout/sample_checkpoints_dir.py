@@ -1,12 +1,15 @@
-"""Sample checkpoints dir contents: ``sample.json`` + ``ckpt-*.json`` sidecars.
+"""Sample checkpoints dir contents.
 
 Each ``(sample, epoch[, retry])`` attempt gets its own sample
 checkpoints dir under the eval checkpoints dir. The dir holds:
 
-- ``sample.json`` — per-sample state (currently the restic password).
-- ``ckpt-NNNNN.json`` — one plaintext sidecar per fired checkpoint;
-  the index into the host + sandbox restic repos.
-- ``host/`` and ``sandboxes/<name>/`` — restic repos.
+- ``ckpt-NNNNN.json`` — one plaintext checkpoint file per fired
+  checkpoint; the index into the host + sandbox restic repos.
+- ``restic/`` — restic state subdir, containing
+  ``restic-config.json`` (per-sample restic password),
+  ``host/`` (host restic repo), and
+  ``sandboxes/<name>/`` (per-sandbox restic repos).
+- ``context/`` — restic backup source (host context JSON files).
 
 See ``design/plans/checkpointing-working.md`` §1 and
 ``design/plans/checkpointing-hydration.md``.
@@ -19,44 +22,37 @@ The optional ``_<retry>`` suffix on the dir name is omitted until
 from __future__ import annotations
 
 import secrets
+from typing import TypeVar
 
-import anyio
+from pydantic import BaseModel
 
-from inspect_ai._util.file import file, filesystem
+from inspect_ai._util.asyncfiles import get_async_filesystem
 
-from .sidecar import CheckpointDetails, CheckpointSample
+from .._async_fs import async_mkdir
+from .schemas import Checkpoint, ResticConfig
+from .staging_dir import restic_config_path, restic_dir
 
-
-def _sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
-    return f"{eval_dir}/{sample_id}__{epoch}"
+_M = TypeVar("_M", bound=BaseModel)
 
 
 def sample_checkpoints_dir(eval_dir: str, sample_id: int | str, epoch: int) -> str:
     """Return the per-sample checkpoints dir path (no FS side effects)."""
-    return _sample_checkpoints_dir(eval_dir, sample_id, epoch)
+    return f"{eval_dir}/{sample_id}__{epoch}"
 
 
 async def has_sample_checkpoint(
     eval_dir: str, sample_id: int | str, epoch: int
 ) -> bool:
-    """Return True if any ``ckpt-*.json`` sidecar exists for this sample attempt."""
-    return await anyio.to_thread.run_sync(
-        _has_sample_checkpoint_blocking, eval_dir, sample_id, epoch
-    )
+    """Return True if any ``ckpt-*.json`` checkpoint file exists for this sample attempt.
 
-
-def _has_sample_checkpoint_blocking(
-    eval_dir: str, sample_id: int | str, epoch: int
-) -> bool:
-    sample_dir = _sample_checkpoints_dir(eval_dir, sample_id, epoch)
-    fs = filesystem(sample_dir)
-    if not fs.exists(sample_dir):
-        return False
-    for entry in fs.ls(sample_dir):
-        name = entry.name.rsplit("/", 1)[-1]
-        if name.startswith("ckpt-") and name.endswith(".json"):
-            return True
-    return False
+    Doesn't pre-check the dir's existence — S3 has no real directories,
+    so ``AsyncFilesystem.exists(prefix)`` always returns False for an
+    S3 dir prefix even when there are checkpoint files under it. The
+    iteration handles the "no checkpoint files" case naturally
+    (yields nothing).
+    """
+    sample_dir = sample_checkpoints_dir(eval_dir, sample_id, epoch)
+    return bool(await _list_checkpoint_ids(sample_dir))
 
 
 async def ensure_sample_checkpoints_dir(
@@ -64,112 +60,113 @@ async def ensure_sample_checkpoints_dir(
 ) -> str:
     """Create (idempotent) and return the sample checkpoints dir path.
 
-    Also ensures the eval checkpoints dir exists; that's an
-    implementation detail callers shouldn't have to repeat.
+    Single mkdir — for local fs, ``async_mkdir`` resolves to
+    ``makedirs`` which creates parents; for S3, it's a no-op (no
+    directory concept).
     """
-    return await anyio.to_thread.run_sync(
-        _ensure_sample_checkpoints_dir_blocking, eval_dir, sample_id, epoch
-    )
-
-
-def _ensure_sample_checkpoints_dir_blocking(
-    eval_dir: str, sample_id: int | str, epoch: int
-) -> str:
-    sample_dir = _sample_checkpoints_dir(eval_dir, sample_id, epoch)
-    fs = filesystem(sample_dir)
-    fs.mkdir(eval_dir, exist_ok=True)
-    fs.mkdir(sample_dir, exist_ok=True)
+    sample_dir = sample_checkpoints_dir(eval_dir, sample_id, epoch)
+    await async_mkdir(sample_dir)
     return sample_dir
 
 
-async def ensure_sample_json(sample_dir: str) -> CheckpointSample:
-    """Ensure ``<sample_dir>/sample.json`` exists; return its contents.
+async def ensure_restic_config(sample_root: str) -> ResticConfig:
+    """Ensure ``<sample_root>/restic/restic-config.json`` exists; return its contents.
 
     Mints a fresh restic password and writes the file on first call.
     Subsequent calls read and return the existing file. Idempotent
-    across concurrent samples (different sample dirs) — there is no
+    across concurrent samples (different sample roots) — there is no
     cross-sample race.
+
+    Also ensures the ``restic/`` subdir exists, since restic-config.json
+    is the first file written into it.
     """
-    return await anyio.to_thread.run_sync(_ensure_sample_json_blocking, sample_dir)
+    path = restic_config_path(sample_root)
+    if await get_async_filesystem().exists(path):
+        return await _load_model_json(path, ResticConfig)
+    await async_mkdir(restic_dir(sample_root))
+    config = ResticConfig(restic_password=secrets.token_urlsafe(32))
+    await _write_model_json(path, config)
+    return config
 
 
-def _ensure_sample_json_blocking(sample_dir: str) -> CheckpointSample:
-    sample_json_path = f"{sample_dir}/sample.json"
-    fs = filesystem(sample_json_path)
-    if fs.exists(sample_json_path):
-        with file(sample_json_path, "r") as f:
-            return CheckpointSample.model_validate_json(f.read())
-    sample = CheckpointSample(restic_password=secrets.token_urlsafe(32))
-    with file(sample_json_path, "w") as f:
-        f.write(sample.model_dump_json(indent=2))
-    return sample
+async def _read_restic_config(sample_root: str) -> ResticConfig:
+    """Read ``<sample_root>/restic/restic-config.json``. Caller must have ensured it exists."""
+    return await _load_model_json(restic_config_path(sample_root), ResticConfig)
 
 
-async def _read_sample_json(sample_dir: str) -> CheckpointSample:
-    """Read ``<sample_dir>/sample.json``. Caller must have ensured it exists."""
-    return await anyio.to_thread.run_sync(_read_sample_json_blocking, sample_dir)
+async def scan_latest_committed_id(sample_checkpoints_dir: str) -> int | None:
+    """Return the highest checkpoint id whose checkpoint file parses cleanly.
 
-
-def _read_sample_json_blocking(sample_dir: str) -> CheckpointSample:
-    with file(f"{sample_dir}/sample.json", "r") as f:
-        return CheckpointSample.model_validate_json(f.read())
-
-
-def scan_latest_committed_id(sample_checkpoints_dir: str) -> int | None:
-    """Return the highest checkpoint id whose sidecar parses cleanly.
-
-    Walks ``ckpt-NNNNN.json`` files in the sample dir from highest N to
-    lowest; the first whose contents validate as a
-    :class:`CheckpointDetails` is the commit point. A torn-write sidecar
-    is silently skipped. Returns ``None`` if no sidecar exists or none
-    parses (caller is responsible for treating that as a meaningful
-    state — typically an error on resume).
+    Walks ``ckpt-NNNNN.json`` files in the sample dir from highest N
+    to lowest; the first whose contents validate as a
+    :class:`Checkpoint` is the commit point. A torn-write checkpoint
+    file is silently skipped. Returns ``None`` if no checkpoint file
+    exists or none parses (caller is responsible for treating that as
+    a meaningful state — typically an error on resume).
     """
-    fs = filesystem(sample_checkpoints_dir)
-    if not fs.exists(sample_checkpoints_dir):
-        return None
-    ids: list[int] = []
-    for entry in fs.ls(sample_checkpoints_dir):
-        name = entry.name.rsplit("/", 1)[-1]
-        if name.startswith("ckpt-") and name.endswith(".json"):
-            try:
-                ids.append(int(name.removeprefix("ckpt-").removesuffix(".json")))
-            except ValueError:
-                continue
+    ids = await _list_checkpoint_ids(sample_checkpoints_dir)
+    async_fs = get_async_filesystem()
     for n in sorted(ids, reverse=True):
         path = f"{sample_checkpoints_dir}/ckpt-{n:05d}.json"
         try:
-            with file(path, "r") as f:
-                CheckpointDetails.model_validate_json(f.read())
+            raw = await async_fs.read_file(path)
+            Checkpoint.model_validate_json(raw)
             return n
         except Exception:
             continue
     return None
 
 
-async def write_sidecar(
+async def write_checkpoint_file(
     *,
     sample_checkpoints_dir: str,
-    sidecar: CheckpointDetails,
+    checkpoint: Checkpoint,
 ) -> str:
-    """Write ``ckpt-NNNNN.json`` for this checkpoint. Returns the path."""
-    return await anyio.to_thread.run_sync(
-        _write_sidecar_blocking,
-        sample_checkpoints_dir,
-        sidecar,
+    """Write ``ckpt-NNNNN.json`` for this checkpoint. Returns the path.
+
+    Non-atomic on purpose. Per ``checkpointing-working.md`` §4d, the
+    commit point is "checkpoint file that parses": resume globs
+    ``ckpt-*.json``, parse-and-skips torn / missing entries, and falls
+    back to the prior parseable checkpoint file. A mid-write crash
+    costs at most one checkpoint's progress — same as crashing before
+    the file starts.
+    """
+    path = f"{sample_checkpoints_dir}/ckpt-{checkpoint.checkpoint_id:05d}.json"
+    await _write_model_json(path, checkpoint)
+    return path
+
+
+async def _list_checkpoint_ids(sample_dir: str) -> list[int]:
+    """Return every checkpoint id present as ``ckpt-NNNNN.json`` in ``sample_dir``.
+
+    Unsorted. Names that don't parse as an int are silently skipped.
+    Works over any ``AsyncFilesystem``-supported scheme; a missing dir
+    yields nothing (no pre-check needed — see note on
+    ``has_sample_checkpoint``).
+    """
+    ids: list[int] = []
+    async for uri in get_async_filesystem().iter_files(
+        sample_dir, pattern="ckpt-*.json"
+    ):
+        name = uri.rsplit("/", 1)[-1]
+        try:
+            ids.append(int(name.removeprefix("ckpt-").removesuffix(".json")))
+        except ValueError:
+            continue
+    return ids
+
+
+async def _load_model_json(path: str, model_cls: type[_M]) -> _M:
+    """Load a pydantic model from a JSON file via ``AsyncFilesystem``."""
+    raw = await get_async_filesystem().read_file(path)
+    return model_cls.model_validate_json(raw)
+
+
+async def _write_model_json(path: str, model: BaseModel) -> None:
+    """Write a pydantic model to a JSON file via ``AsyncFilesystem``.
+
+    Pretty-printed (``indent=2``); non-atomic.
+    """
+    await get_async_filesystem().write_file(
+        path, model.model_dump_json(indent=2).encode()
     )
-
-
-def _write_sidecar_blocking(
-    sample_checkpoints_dir: str,
-    sidecar: CheckpointDetails,
-) -> str:
-    sidecar_path = f"{sample_checkpoints_dir}/ckpt-{sidecar.checkpoint_id:05d}.json"
-    # Non-atomic on purpose. Per §4d, the commit point is "sidecar that
-    # parses": resume globs `ckpt-*.json`, parse-and-skips torn / missing
-    # entries, and falls back to the prior parseable sidecar. A
-    # mid-write crash costs at most one checkpoint's progress — same as
-    # crashing before the sidecar starts.
-    with file(sidecar_path, "w") as f:
-        f.write(sidecar.model_dump_json(indent=2))
-    return sidecar_path

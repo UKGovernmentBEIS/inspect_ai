@@ -44,37 +44,50 @@ logs/
                                              #   sample-level retries are
                                              #   enabled (another existing
                                              #   inspect concept).
-      sample.json                            # per-sample state: the restic
+      ckpt-00001.json                        # per-checkpoint file
+      ckpt-00002.json                        #   (plaintext index;
+      ...                                    #    its write is the
+                                             #    commit point — see §4d).
+      restic/                                # all restic state for this
+                                             #   sample.
+        restic-config.json                   # per-sample state: the restic
                                              #   password that encrypts this
                                              #   sample's repos. One per
                                              #   attempt; written once at
                                              #   first checkpoint setup and
                                              #   preserved across retries via
                                              #   the FS copy at resume.
-      ckpt-00001.json                        # per-checkpoint sidecar
-      ckpt-00002.json                        #   (plaintext index;
-      ...                                    #    sidecar write is the
-                                             #    commit point — see §4d).
-      host/                                  # restic repo: host state.
+        host/                                # restic repo: host state.
                                              #   each snapshot contains
-                                             #   messages, events (condensed),
+                                             #   events (condensed),
                                              #   events_data, attachments,
                                              #   store, and optionally an
                                              #   agent-defined property bag
                                              #   (see §5).
-        config data/ index/ snapshots/ keys/ locks/
-      sandboxes/
-        <sandbox-name-1>/                    # restic repo: sandbox 1's
-                                             #   configured paths (§4a).
           config data/ index/ snapshots/ keys/ locks/
-        <sandbox-name-2>/                    # restic repo: sandbox 2's
+        sandboxes/
+          <sandbox-name-1>/                  # restic repo: sandbox 1's
+                                             #   configured paths (§4a).
+            config data/ index/ snapshots/ keys/ locks/
+          <sandbox-name-2>/                  # restic repo: sandbox 2's
                                              #   configured paths.
-          ...
+            ...
+      context/                               # restic's input — host
+                                             #   context files written each
+                                             #   fire and snapshotted into
+                                             #   restic/host/ (see §5).
+                                             #   When the destination is
+                                             #   remote, lives only in the
+                                             #   host-local staging dir and
+                                             #   never ships.
+        events.json  events_data.json
+        attachments.json  store.json
+        agent_state.json  (opt-in)
     <sample-id>__<epoch>[_<retry>]/
       ...
 ```
 
-A **checkpoint** is identified by an ordinal integer (1, 2, 3, …) chosen by inspect at write time. Each per-checkpoint sidecar (`ckpt-NNNNN.json`, zero-padded for lexical sort) carries the customer-facing metadata and references into the restic repos:
+A **checkpoint** is identified by an ordinal integer (1, 2, 3, …) chosen by inspect at write time. Each per-checkpoint file (`ckpt-NNNNN.json`, zero-padded for lexical sort) carries the customer-facing metadata and references into the restic repos:
 
 ```json
 {
@@ -109,7 +122,7 @@ Each per-repo entry (`host` and the values in `sandboxes`) is a
 backup's incremental size (`data_added_packed` from restic's summary)
 and elapsed time. The top-level `size_bytes` is the rolled-up total.
 
-Listing checkpoints for an attempt is `ls <attempt>/ckpt-*.json` — no restic invocation needed. Restic snapshots are also tagged with the ordinal as a debugging aid / fallback if a sidecar is lost; the sidecar is the authoritative index.
+Listing checkpoints for an attempt is `ls <attempt>/ckpt-*.json` — no restic invocation needed. Restic snapshots are also tagged with the ordinal as a debugging aid / fallback if a checkpoint file is lost; the checkpoint file is the authoritative index.
 
 Inspect already supports both multiple **epochs** per sample (an
 existing feature — multi-pass evaluation of the same sample) and
@@ -287,7 +300,7 @@ Inspect provides checkpointing support at two layers:
 
 The right paths are agent-specific. Native Python agents typically need none — their state lives in messages and `Store`, both captured by the host repo. **Sandbox CLI agents** (Claude Code, Codex CLI, Gemini CLI, etc.) typically need several directories: the agent's home directory, the project working directory (often `/workspace`), and any tool-state directories the agent writes to. Agent authors are expected to declare the paths their agent actually depends on.
 
-**Host repo** captures a small per-attempt host-local working tree containing the messages, condensed events + dedup pools, attachments, `Store`, and an optional agent-defined property bag — see §5.
+**Host repo** captures the per-sample **context subdir** (`<sample-root>/context/`), which holds the messages, condensed events + dedup pools, attachments, `Store`, and an optional agent-defined property bag — see §5.
 
 ### 4b. Engine: restic
 
@@ -361,9 +374,9 @@ binary.chmod(binary.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 ### 4d. Repository and snapshot scoping
 
 -   **N+1 restic repos per attempt:** one `host/` repo plus one `sandboxes/<sandbox-name>/` repo per active sandbox. Every repo lives **at the destination** — there is no separate "active" or "mirror" concept. The path to a repo on disk (or in s3) *is* the repo.
--   **Snapshots correlate 1:1 with checkpoint ids.** For every committed checkpoint, the host repo and each sandbox repo contain a snapshot tagged `ckpt-NNNNN` (zero-padded to match the sidecar filename). The per-checkpoint sidecar (§1) is the authoritative mapping from checkpoint id to restic snapshot ids; restic tags are how resume identifies which snapshots belong to which checkpoint id during orphan cleanup (see below).
--   **Commit point = sidecar that parses.** Each cycle: write all sandbox snapshots, write the host snapshot, then write `ckpt-NNNNN.json`. A checkpoint is visible to resume only if its sidecar exists *and* parses as valid JSON. Crashed cycles leave either no sidecar (process killed before write) or a torn one (killed mid-write); resume treats both the same. This matches inspect's existing append-only-tolerate-truncation consistency pattern (`.eval` zips, buffer DB segments) rather than introducing a new atomic-rename primitive; the cost is at most one checkpoint's progress, identical to the "crash before sidecar starts" case that already exists.
--   **Orphan-snapshot cleanup on resume.** A fire interrupted between `restic backup` and `write_sidecar` leaves a snapshot in the repo with no committing sidecar. On resume, hydrate enforces the "sidecar is the commit point" rule actively: it computes the highest sidecar id whose `ckpt-NNNNN.json` parses cleanly (`latest_committed_id`) and `restic forget`s any snapshot tagged `ckpt-NNNNN` with `N > latest_committed_id`. After this, `restic restore latest` is guaranteed to pick the committed snapshot, and the next fire writes a fresh `ckpt-{latest_committed_id+1:05d}` tag with no collision. Forgotten snapshots' pack files stay on disk (no `prune`); restic dedup means a subsequent fire's snapshot shares blocks with the orphan rather than bloating the repo. Same rule applies to each sandbox-side repo. See checkpointing-hydration.md §3b for the resume-time mechanics.
+-   **Snapshots correlate 1:1 with checkpoint ids.** For every committed checkpoint, the host repo and each sandbox repo contain a snapshot tagged `ckpt-NNNNN` (zero-padded to match the checkpoint file's filename). The per-checkpoint file (§1) is the authoritative mapping from checkpoint id to restic snapshot ids; restic tags are how resume identifies which snapshots belong to which checkpoint id during orphan cleanup (see below).
+-   **Commit point = checkpoint file that parses.** Each cycle: write all sandbox snapshots, write the host snapshot, then write `ckpt-NNNNN.json`. A checkpoint is visible to resume only if its checkpoint file exists *and* parses as valid JSON. Crashed cycles leave either no checkpoint file (process killed before write) or a torn one (killed mid-write); resume treats both the same. This matches inspect's existing append-only-tolerate-truncation consistency pattern (`.eval` zips, buffer DB segments) rather than introducing a new atomic-rename primitive; the cost is at most one checkpoint's progress, identical to the "crash before checkpoint file starts" case that already exists.
+-   **Orphan-snapshot cleanup on resume.** A fire interrupted between `restic backup` and `write_checkpoint_file` leaves a snapshot in the repo with no committing checkpoint file. On resume, hydrate enforces the "checkpoint file is the commit point" rule actively: it computes the highest checkpoint id whose `ckpt-NNNNN.json` parses cleanly (`latest_committed_id`) and `restic forget`s any snapshot tagged `ckpt-NNNNN` with `N > latest_committed_id`. After this, `restic restore latest` is guaranteed to pick the committed snapshot, and the next fire writes a fresh `ckpt-{latest_committed_id+1:05d}` tag with no collision. Forgotten snapshots' pack files stay on disk (no `prune`); restic dedup means a subsequent fire's snapshot shares blocks with the orphan rather than bloating the repo. Same rule applies to each sandbox-side repo. See checkpointing-hydration.md §3b for the resume-time mechanics.
 
 ### 4e. Injection
 
@@ -377,7 +390,7 @@ The restic binary must be injected into the sandbox image — it runs inside the
 
 ### 4g. Encryption
 
-Restic mandates encryption. Inspect **auto-generates** a random password per *sample* at first-checkpoint-setup time and stores it in that sample's `sample.json` (peer of the sidecars; see §1). The same password is used for both the sample's `host/` repo and each `sandboxes/<name>/` repo; §4h covers how the password reaches sandbox-side restic without being persisted in the sandbox. On retry, the password rides forward via the FS copy at resume (see checkpointing-hydration.md §3a) so the new sample dir's repos unlock with the same password. There is no eval-level shared secret — each sample is independent. Encryption is effectively nominal — anyone with access to the sample's checkpoint directory has the key — but operational burden on customers is zero. Customers requiring real at-rest encryption should place the checkpoint directory on an encrypted volume or bucket. A future user-provided-password mode can be added without breaking the auto-generate default.
+Restic mandates encryption. Inspect **auto-generates** a random password per *sample* at first-checkpoint-setup time and stores it in that sample's `restic/restic-config.json` (peer of the per-sample restic repos; see §1). The same password is used for both the sample's `restic/host/` repo and each `restic/sandboxes/<name>/` repo; §4h covers how the password reaches sandbox-side restic without being persisted in the sandbox. On retry, the password rides forward via the FS copy at resume (see checkpointing-hydration.md §3a) so the new sample dir's repos unlock with the same password. There is no eval-level shared secret — each sample is independent. Encryption is effectively nominal — anyone with access to the sample's checkpoint directory has the key — but operational burden on customers is zero. Customers requiring real at-rest encryption should place the checkpoint directory on an encrypted volume or bucket. A future user-provided-password mode can be added without breaking the auto-generate default.
 
 ### 4h. Sandbox privilege model
 
@@ -392,7 +405,7 @@ Rationale: hiding the checkpoint mechanism from the agent prevents an adversaria
 
 ## 5. Host snapshot contents
 
-Each host-repo snapshot contains up to five files, sourced from a host-local working tree at checkpoint time:
+Each host-repo snapshot contains up to five files, sourced from the per-sample **context subdir** (`<sample-root>/context/`) at checkpoint time:
 
 -   **`events.json`** — condensed events with `ModelEvent` inputs and tool-call payloads replaced by `input_refs` / `call_refs` into the pools in `events_data.json`. Same condensed representation used inside a `.eval` log (avoids the O(N²) serialization cost). Reuses `condense_model_event_inputs` / `condense_model_event_calls` from `src/inspect_ai/log/_pool.py`. Not a `.eval` file; no zip coupling.
 
@@ -402,33 +415,11 @@ Each host-repo snapshot contains up to five files, sourced from a host-local wor
 -   **`store.json`** — the sample's `Store` key/value state.
 -   **`agent_state.json`** *(opt-in)* — agent-defined property bag. Written only when the agent has registered at least one callback via `Checkpointer.track(key, callback, initial_value)`. Each registered key becomes a top-level field; its value is whatever the corresponding callback returns. The agent's conversation messages typically live here under the `"messages"` key — the protocol no longer privileges them as a top-level file. `react()` registers two callbacks: `"messages"` (the conversation) and `"attempt_count"` (so retries resume at the correct attempt index).
 
-Customer-facing checkpoint metadata (trigger, turn, duration, sandbox snapshot ids, etc.) lives in the per-checkpoint sidecar at the attempt root (§1), not inside the snapshot.
+Customer-facing checkpoint metadata (trigger, turn, duration, sandbox snapshot ids, etc.) lives in the per-checkpoint file at the attempt root (§1), not inside the snapshot.
 
-The host working tree is host-local and ephemeral (not at the destination). Restic needs a real local-filesystem source path even when the destination is on s3; the working tree is overwritten in place each cycle.
+The context subdir is restic's *input*: it's overwritten in place each fire (the prior fire's contents have already been snapshotted into `restic/host/`), and restic needs a real local-filesystem source path even when the destination is on s3.
 
-**Working-tree location.** Working trees live under
-`inspect_cache_dir("checkpoints")/<log-basename>/<sample-id>__<epoch>[_<retry>]/`,
-where `<log-basename>` is the eval log file name with its `.eval`
-suffix stripped. The per-attempt subtree mirrors the per-attempt
-subtree of the destination `<log>.eval.checkpoints/` directory — same
-shape, different root — so a working tree and its destination repo
-are trivially correlated. Caching under `inspect_cache_dir` keeps the
-working tree writable in all install scenarios (matching the §4c
-restic-binary cache rationale) and survives across `pip install`
-cycles. The working tree is overwritten in place each cycle and
-cleaned up on attempt completion.
-
-```
-$XDG_CACHE_HOME/inspect_ai/checkpoints/      # working-tree root
-  <log-basename>/                            # one per eval log
-    <sample-id>__<epoch>[_<retry>]/          # one per attempt;
-                                             #   shape mirrors §1.
-      events.json
-      events_data.json
-      attachments.json
-      store.json
-      agent_state.json                       # opt-in (see above)
-```
+**Context-subdir location.** When the **sample checkpoints dir** is local, the context subdir lives at `<sample_checkpoints_dir>/context/` — alongside the restic repos in the destination tree. When the **sample checkpoints dir** is remote (e.g. `s3://…`), restic still needs a local source, so the entire **sample staging dir** (including the context subdir) lives host-locally under `inspect_cache_dir("checkpoints")/<log-basename>/<sample-id>__<epoch>[_<retry>]/`. The context subdir is **never shipped** to a remote destination — its contents are part of the restic snapshot in `restic/host/`, which does ship.
 
 ## 6. Resumption
 
@@ -459,19 +450,19 @@ Three task states already handled by the retry code:
 
 Today sample source returns *complete* samples or nothing. We extend it to also return *partial* samples when a checkpoint exists for a sample that didn't complete. The harness's existing three-state handling then covers checkpointed samples without reinventing retry logic.
 
-Identity and completion discovery come from the log plus existing retry infrastructure. The checkpoints directory is a sidecar the sample source consults; its location is the log's sibling by default, overridable via `CheckpointConfig.checkpoints_location` (see §1).
+Identity and completion discovery come from the log plus existing retry infrastructure. The checkpoints directory is a sibling the sample source consults; its location is the log's sibling by default, overridable via `CheckpointConfig.checkpoints_location` (see §1).
 
 ### 6d. Division of labor on restore
 
 The **harness** performs the full restoration before the agent runs. The detailed mechanics live in checkpointing-hydration.md §3; the contract:
 
-1.  FS-copy the prior sample checkpoints dir into the new one (preserves `sample.json` with the restic password, the existing `ckpt-*.json` sidecars, and the `host/` + `sandboxes/<name>/` restic repos).
-2.  Compute `latest_committed_id` from the copied sidecars (highest id whose JSON parses) and `restic forget` any orphan snapshots tagged beyond it (§4d).
+1.  FS-copy the prior sample checkpoints dir into the new one (preserves `restic/restic-config.json` with the restic password, the existing `ckpt-*.json` checkpoint files, and the `restic/host/` + `restic/sandboxes/<name>/` repos).
+2.  Compute `latest_committed_id` from the copied checkpoint files (highest id whose JSON parses) and `restic forget` any orphan snapshots tagged beyond it (§4d).
 3.  Restore each sandbox-side restic repo's now-committed snapshot back into the fresh sandbox container.
-4.  Restore the host repo's now-committed snapshot to a local working dir; parse the §5 host files.
+4.  Restore the host repo's now-committed snapshot to the new sample root's `context/` subdir; parse the §5 host files.
 5.  Wrap the rehydrated events in a `prior_run` sibling span (§8b) and push the wrapped events into the live `Transcript`. Push `attachments.json` into the transcript, `store.json` into the `Store`.
 6.  Seed the checkpointer's condensed-events / message-pool / call-pool accumulators from the rehydrated content so the next fire writes a cumulative snapshot.
-7.  Validate the assembled state (`_validate_resume_state`) — sequential names, paired spans, sidecar/span count parity — and fail loudly on mismatch.
+7.  Validate the assembled state (`_validate_resume_state`) — sequential names, paired spans, checkpoint file/span count parity — and fail loudly on mismatch.
 8.  Yield the agent-facing `Checkpointer` to the agent. `agent_state.json` (when present) flows through `track(...)` so messages, `attempt_count`, and any other agent-tracked state come back (e.g. `state.messages = cp.track("messages", lambda: state.messages, state.messages)`).
 
 The **agent** does not re-open the checkpoint, does not re-materialize the sandbox, and does not re-parse stored state.
@@ -557,20 +548,20 @@ The lambda closes over the local `attempt_count` cell, so subsequent rebinds (`a
 
 ### 8a. CheckpointEvent
 
-Each **successful** checkpoint commit emits a structured `CheckpointEvent` into the normal event stream. The event multiply-inherits from both `BaseEvent` (for `uuid` / `span_id` / `timestamp` / etc.) and `CheckpointDetails` (for the per-checkpoint contents), so all sidecar fields — `checkpoint_id`, `trigger`, `turn`, `created_at`, `duration_ms`, `size_bytes`, `host`, `sandboxes` — are flat top-level attributes on the event. A consumer reads `event.checkpoint_id` directly; the JSON form is a single flat object. Anyone reading the event has the same information as someone reading `ckpt-NNNNN.json` from disk. Events are part of the `.eval` log, so checkpoint history is preserved in the normal log; no dedicated checkpoint journal file in v1.
+Each **successful** checkpoint commit emits a structured `CheckpointEvent` into the normal event stream. The event multiply-inherits from both `BaseEvent` (for `uuid` / `span_id` / `timestamp` / etc.) and `Checkpoint` (for the per-checkpoint contents), so all checkpoint-file fields — `checkpoint_id`, `trigger`, `turn`, `created_at`, `duration_ms`, `size_bytes`, `host`, `sandboxes` — are flat top-level attributes on the event. A consumer reads `event.checkpoint_id` directly; the JSON form is a single flat object. Anyone reading the event has the same information as someone reading `ckpt-NNNNN.json` from disk. Events are part of the `.eval` log, so checkpoint history is preserved in the normal log; no dedicated checkpoint journal file in v1.
 
-**Emit time and snapshot inclusion.** The event is emitted *after* `write_sidecar` returns (so its data — snapshot IDs, durations — is final). By construction this is *after* `write_host_context` already snapshotted this fire's `events.json`, so the event is **not** in fire N's `events.json`; it **is** captured in fire N+1's `events.json`. Live transcript and `.eval` log are correctly ordered (the event lands immediately after `span_end checkpoint N`, outside the closing checkpoint span). Resume reconstructs the trailing CheckpointEvent that didn't make it into the most recent snapshot — see checkpointing-hydration.md §3b.
+**Emit time and snapshot inclusion.** The event is emitted *after* `write_checkpoint_file` returns (so its data — snapshot IDs, durations — is final). By construction this is *after* `write_host_context` already snapshotted this fire's `events.json`, so the event is **not** in fire N's `events.json`; it **is** captured in fire N+1's `events.json`. Live transcript and `.eval` log are correctly ordered (the event lands immediately after `span_end checkpoint N`, outside the closing checkpoint span). Resume reconstructs the trailing CheckpointEvent that didn't make it into the most recent snapshot — see checkpointing-hydration.md §3b.
 
-**Failure events are not in v1.** A failed fire raises today and there is no `outcome=failure` / `error` event. Failure observability lands together with `max_consecutive_failures` enforcement.
+**Failed fires surface as an `InfoEvent` + warning.** A failed checkpoint attempt records a structured `InfoEvent` (`source="checkpoint"`, `data.event="checkpoint_failed"` carrying `trigger` / `turn` / `consecutive_failures` / `error`) into the transcript and logs a Python warning for operator/stderr visibility. There is no dedicated `CheckpointFailureEvent` type. When `max_consecutive_failures` is breached the fire re-raises and the sample fails through inspect's normal machinery (recorded as the sample's `ErrorEvent`). See §8d.
 
 ### 8b. Per-checkpoint transcript spans
 
 The agent's checkpointed scope is bracketed by a sequence of transcript spans (`SpanBeginEvent` / `SpanEndEvent`). Two span types come into play: **`checkpoint`** for the agent's per-checkpoint windows, and **`prior_run`** synthesized at hydrate time to bundle a prior session's rehydrated checkpoints.
 
-**Checkpoint spans.** Each agent-checkpointed window is bracketed by a `span_begin / span_end` pair of `type="checkpoint"`, `name="checkpoint N"`, where `N` is the sidecar id this span fires under — the same 1-indexed numbering as `ckpt-NNNNN.json`. Spans are **peers** — siblings (not nested) under whatever span was active when the agent opened `async with checkpointer()` (typically `react/agent` or another solver span).
+**Checkpoint spans.** Each agent-checkpointed window is bracketed by a `span_begin / span_end` pair of `type="checkpoint"`, `name="checkpoint N"`, where `N` is the checkpoint id this span fires under — the same 1-indexed numbering as `ckpt-NNNNN.json`. Spans are **peers** — siblings (not nested) under whatever span was active when the agent opened `async with checkpointer()` (typically `react/agent` or another solver span).
 
-- On `async with checkpointer()` entry, the first span opens with `N = (max committed sidecar id) + 1`. A fresh sample opens `checkpoint 1`; a resumed sample with `M` prior commits opens `checkpoint M+1`.
-- On fire, the current span closes **before** `write_host_context` so the `SpanEndEvent` lands inside this checkpoint's `events.json`. After the sidecar is committed, the next span opens with the updated `next_checkpoint_id`.
+- On `async with checkpointer()` entry, the first span opens with `N = (max committed checkpoint id) + 1`. A fresh sample opens `checkpoint 1`; a resumed sample with `M` prior commits opens `checkpoint M+1`.
+- On fire, the current span closes **before** `write_host_context` so the `SpanEndEvent` lands inside this checkpoint's `events.json`. After the checkpoint file is committed, the next span opens with the updated `next_checkpoint_id`.
 - On `async with checkpointer()` exit, whatever span is currently open closes.
 
 A sample that completes without ever firing a checkpoint leaves an unclosed `checkpoint 1` span — expected and informative: it records the work that would have been the first checkpoint had any fire happened. Same shape on resume: an attempt with `M` prior commits that finishes without firing leaves an unclosed `checkpoint M+1`.
@@ -591,7 +582,7 @@ The inspect TUI shows a small indicator while a checkpoint is running and the la
 
 ### 8d. Checkpoint-attempt failures
 
-A failed checkpoint attempt (disk full, sandbox exec error, restic error, etc.) is logged as a warning. **Failed attempts are not retried in the moment** — the next attempt fires on the next policy boundary. The policy cadence is itself the retry; there is no per-attempt retry count.
+A failed checkpoint attempt (disk full, sandbox exec error, restic error, etc.) is recorded as a structured `InfoEvent` (`source="checkpoint"`) and logged as a warning. **Failed attempts are not retried in the moment** — the next attempt fires on the next policy boundary. The policy cadence is itself the retry; there is no per-attempt retry count.
 
 `max_consecutive_failures` (§2) controls when the *sample* should give up on checkpointing entirely:
 
@@ -604,6 +595,10 @@ A successful checkpoint resets the count. A failed sample is then handled by ins
 Rationale for unlimited as the default: durability is a nicety, not a correctness requirement; failing a long-horizon sample over transient hiccups would be worse than the loss it's meant to prevent. The ceiling lets strict callers bound that tradeoff.
 
 Known risk under the unlimited default: a customer not monitoring the event stream could believe they have recent checkpoints when they don't. The TUI indicator and event-stream visibility make this visible in practice; setting a finite tolerance gives a hard signal instead.
+
+**Implementation.** `_fire` wraps the fire body (`_fire_once`) in a try/except (`checkpointer_impl.py`). On failure it records the attempt (§8a), increments a per-session counter, and re-raises `CheckpointFailureLimitExceeded` only when the count exceeds `max_consecutive_failures`; a successful fire zeroes the counter. The counter is fresh per session, so a resumed attempt starts with a clean budget.
+
+Known limitation under tolerance: the fire closes the current checkpoint span *before* the failure-prone work (so the `SpanEndEvent` lands in the snapshot), and only re-opens the next span on success. Across a tolerated failure the persisted transcript therefore omits the inter-fire gap work (the stray events are filtered by `_filter_persisted_events`, preserving the resume span-count invariants), while the next successful fire's `store.json` / `agent_state.json` reflect state as of that later fire. The agent resumes correctly from messages + store; only the persisted transcript under-represents the gap. Acceptable under "durability is a nicety."
 
 ### 8e. Retention
 
@@ -626,7 +621,7 @@ class Hooks:
 
 Subclass `Hooks`, decorate with `@hooks`, and override the method. Sits alongside the existing `on_run_start` / `on_task_start` / `on_sample_start` hooks; same registration and discovery mechanism.
 
-Useful for flushing in-memory agent state to disk so it is captured by the snapshot, notifying external monitoring at checkpoint boundaries, or pausing background work that shouldn't be mid-flight when restic enumerates the working tree.
+Useful for flushing in-memory agent state to disk so it is captured by the snapshot, notifying external monitoring at checkpoint boundaries, or pausing background work that shouldn't be mid-flight when restic enumerates the context subdir.
 
 ## 9. Open questions
 
