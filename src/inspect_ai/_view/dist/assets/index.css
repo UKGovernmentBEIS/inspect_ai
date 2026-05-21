@@ -22455,7 +22455,7 @@ pre._value_8citi_25 {
   color: var(--bs-warning-text-emphasis);
 }
 /* Shared chrome — variant-specific look in `.link` and `.pill` below. */
-._button_1cp00_2 {
+._button_1pdin_2 {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -22463,7 +22463,10 @@ pre._value_8citi_25 {
   cursor: pointer;
   text-decoration: none;
   text-transform: none;
-  line-height: 1;
+  /* Matches TagChip's line-height so chips and pills auto-size to the
+     same height and descenders aren't clipped. Keep in sync with
+     TagChip.module.css `.chip`. */
+  line-height: 1.3;
   /* When the button sits in a flex row (the PrimaryBar tag strip),
      prevent it from being shrunk past its content width. */
   flex-shrink: 0;
@@ -22473,20 +22476,23 @@ pre._value_8citi_25 {
    where the action belongs next to the section title. Body-color text
    so it reads as part of the header rather than a link, with a hover
    tint to convey clickability. */
-._link_1cp00_1 {
+._link_1pdin_1 {
   border: none;
   color: var(--bs-body-color);
   padding: 0.125rem 0.4rem;
   border-radius: 4px;
-  font-weight: 500;
+  /* Matches the pill variant's regular weight so the two Edit
+     affordances (metadata card header, tag-strip pill) read at the
+     same visual weight. */
+  font-weight: 400;
   letter-spacing: 0;
 }
 
-._link_1cp00_1:hover {
+._link_1pdin_1:hover {
   background: var(--bs-secondary-bg);
 }
 
-._link_1cp00_1:focus-visible {
+._link_1pdin_1:focus-visible {
   outline: 2px solid var(--bs-border-color);
   outline-offset: 1px;
 }
@@ -22494,26 +22500,27 @@ pre._value_8citi_25 {
 /* Pill variant — matches TagChip's outline-only style so the Edit
    button can sit at the end of a chip strip without competing for
    attention. Values here mirror TagChip.module.css `.chip`; keep
-   them in sync if either changes. */
-._pill_1cp00_1 {
+   them in sync if either changes. (Height auto-sizes from
+   line-height + padding — no fixed height, so chip and pill stay
+   visually aligned without drift if font-size changes.) */
+._pill_1pdin_1 {
   color: var(--bs-body-color);
   border: 1px solid var(--bs-border-color);
   border-radius: 999px;
   padding: 0.125rem 0.5rem;
-  height: 1.375rem;
   font-weight: 400;
   letter-spacing: 0.01em;
 }
 
-._pill_1cp00_1:hover {
+._pill_1pdin_1:hover {
   background: var(--bs-secondary-bg);
 }
 
-._pill_1cp00_1:focus-visible {
+._pill_1pdin_1:focus-visible {
   outline: 2px solid var(--bs-border-color);
   outline-offset: 1px;
 }
-._modal_154pu_1 {
+._modal_8i1ew_1 {
   margin-left: auto;
   margin-right: auto;
   display: flex;
@@ -22526,21 +22533,29 @@ pre._value_8citi_25 {
   z-index: 1050;
 }
 
-._header_154pu_14 {
-  height: 2em;
+/* Even vertical whitespace above and below the title across every
+   Modal consumer (tags, metadata, scoring detail, …). An earlier
+   `height: 2em` rule clamped the header below its natural padding-
+   based height; the title still rendered, but how much of the
+   padding survived varied by CSS load order, so some surfaces ended
+   up visibly tighter than others. Setting padding explicitly removes
+   that dependency. */
+._header_8i1ew_21 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
 }
 
-._modalTitle_154pu_18 {
+._modalTitle_8i1ew_26 {
   font-weight: 600;
 }
 
-._btnClose_154pu_22 {
+._btnClose_8i1ew_30 {
   height: 0.8em;
   width: 0.8em;
 }
 
 /* Backdrop styling for the glass effect */
-._backdrop_154pu_28 {
+._backdrop_8i1ew_36 {
   position: fixed;
   top: 0;
   left: 0;
@@ -22552,125 +22567,155 @@ pre._value_8citi_25 {
   z-index: 1040;
 }
 
-._overflowVisible_154pu_40 {
+._overflowVisible_8i1ew_48 {
   overflow: visible;
 }
 
-._overflowHidden_154pu_44 {
+._overflowHidden_8i1ew_52 {
   overflow: hidden;
 }
 
-._overflowScroll_154pu_48 {
+._overflowScroll_8i1ew_56 {
   overflow: scroll;
 }
 
-._overflowAuto_154pu_52 {
+._overflowAuto_8i1ew_60 {
   overflow: auto;
 }
 
-._noPadding_154pu_56 {
+._noPadding_8i1ew_64 {
   padding: 0;
 }
 
 /* Used when a custom footer node is supplied via the `footer` prop —
-   matches the design's lighter footer rail and lets the consumer
-   provide its own buttons. */
-._footerSlot_154pu_63 {
-  background: var(--bs-tertiary-bg);
+   provides the consistent padding for consumer-supplied buttons.
+   Background is left to the modal-content default (white) so this
+   footer matches other modals across the viewer rather than getting
+   the tinted rail look. */
+._footerSlot_8i1ew_73 {
   padding: 0.75rem 1.125rem;
 }
-._textarea_1i52c_1 {
+._textarea_8mbr9_1 {
   font-family: var(--bs-font-monospace);
   font-size: 0.75rem;
   line-height: 1.5;
   padding: 0.4rem 0.625rem;
-  border-radius: 5px;
   resize: none;
   /* No inner scrollbar — the surrounding container (e.g. the metadata
      table scroll wrapper) handles overflow. The height is matched to
      scrollHeight, so a scrollbar would only appear from a transient
      measurement glitch. */
   overflow: hidden;
-  background: var(--bs-body-bg);
+  /* Borderless, transparent flat-cell look so the textarea reads as
+     part of the surrounding grid (and `rowNew` highlights bleed
+     through unbroken). Overrides Bootstrap `form-control`'s border,
+     border-radius, and focus box-shadow. */
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
-._container_1y8hh_1 {
-  margin-top: 0.6rem;
+
+._textarea_8mbr9_1:focus {
+  outline: none;
+  box-shadow: none;
+  /* Subtle tinted background as the focus indicator — replaces the
+     form-control blue ring with something that doesn't visually
+     interrupt the grid. */
+  background: var(--bs-tertiary-bg);
+}
+._container_13ofn_1 {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
   color: var(--bs-secondary-color);
   font-style: italic;
+  /* When placed in the dialog footer next to the action buttons, the
+     summary needs to absorb the leftover horizontal space and shrink
+     below its content width so individual lines can ellipsize rather
+     than push the buttons off the right edge. `min-width: 0` is
+     required because a flex item's default `min-width: auto` resolves
+     to the intrinsic min-content width — which would defeat the
+     ellipsis on long add/edit/remove lists. */
+  flex: 1 1 0;
+  min-width: 0;
 }
 
-._label_1y8hh_10 {
+._line_13ofn_18 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._label_13ofn_24 {
   font-weight: 600;
   font-style: normal;
 }
 
-._items_1y8hh_15 {
+._items_13ofn_29 {
   color: var(--bs-secondary-color);
 }
 
-._accentAdding_1y8hh_19 {
+._accentAdding_13ofn_33 {
   color: var(--bs-success-text-emphasis);
 }
 
-._accentEditing_1y8hh_23 {
+._accentEditing_13ofn_37 {
   color: var(--bs-warning-text-emphasis);
 }
 
-._accentRemoving_1y8hh_27 {
+._accentRemoving_13ofn_41 {
   color: var(--bs-danger);
 }
 /* Shared chrome for EditTagsDialog and EditMetadataDialog. */
 
-._body_1stg5_3 {
+._body_1rmem_3 {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-._section_1stg5_9 {
+._section_1rmem_9 {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
 
-._labelRow_1stg5_15 {
+._labelRow_1rmem_15 {
   display: flex;
   align-items: baseline;
   gap: 0.4rem;
 }
 
-._label_1stg5_15 {
+._label_1rmem_15 {
   font-weight: 600;
   color: var(--bs-body-color);
   margin: 0;
 }
 
-._hint_1stg5_27 {
+._hint_1rmem_27 {
   color: var(--bs-secondary-color);
   font-weight: 400;
+  font-style: italic;
 }
 
-._required_1stg5_32 {
+._required_1rmem_33 {
   color: var(--bs-danger);
   margin-left: 0.15rem;
 }
 
-._divider_1stg5_37 {
+._divider_1rmem_38 {
   border: none;
   border-top: 1px solid var(--bs-border-color);
   margin: 0.15rem 0;
 }
 
-._provenance_1stg5_43 {
+._provenance_1rmem_44 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-._error_1stg5_49 {
+._error_1rmem_50 {
   padding: 0.4rem 0.6rem;
   background: var(--bs-danger-bg-subtle);
   color: var(--bs-danger-text-emphasis);
@@ -22678,18 +22723,28 @@ pre._value_8citi_25 {
   border-radius: var(--bs-border-radius);
 }
 
-._footer_1stg5_57 {
+/* Footer layout: optional change-summary on the left, action buttons
+   pinned to the right via `margin-left: auto` on `.footerActions` so
+   the buttons stay flush right whether or not the summary is showing
+   (it returns null when there are no pending changes). */
+._footer_1rmem_59 {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+._footerActions_1rmem_59 {
+  display: flex;
   align-items: center;
   gap: 0.5rem;
-  width: 100%;
+  margin-left: auto;
 }
 /* The scroll wrapper bounds the table's vertical reach so the add-key
    row, provenance fields, and footer stay on-screen no matter how many
    keys the user has. The chrome (border, rounded corners) moves to
    this element since the inner table now overflows scrollwise. */
-._tableScroll_1g33t_5 {
+._tableScroll_twuq5_5 {
   max-height: 40vh;
   overflow-y: auto;
   border: 1px solid var(--bs-border-color);
@@ -22697,79 +22752,90 @@ pre._value_8citi_25 {
   background: var(--bs-body-bg);
 }
 
-._table_1g33t_5 {
-  /* chrome handled by .tableScroll above */
-}
-
-._empty_1g33t_17 {
-  padding: 0.75rem 0.875rem;
-  color: var(--bs-secondary-color);
-}
-
-._row_1g33t_22 {
+/* Single grid spanning every row so columns line up uniformly across
+   the whole table. Each row is a subgrid inheriting the parent track
+   layout, which keeps row-level styling (divider, "new" highlight)
+   attached to a single wrapper element rather than every cell. */
+._table_twuq5_5 {
   display: grid;
   grid-template-columns: minmax(140px, 220px) 1fr auto;
-  gap: 0.625rem;
-  align-items: flex-start;
-  padding: 0.625rem 0.75rem;
+  column-gap: 0.625rem;
 }
 
-._rowDivider_1g33t_30 {
+._empty_twuq5_23 {
+  padding: 0.75rem 0.875rem;
+  color: var(--bs-secondary-color);
+  /* Span all columns when the table is otherwise empty. */
+  grid-column: 1 / -1;
+}
+
+._row_twuq5_30 {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: flex-start;
+}
+
+._rowDivider_twuq5_37 {
   border-top: 1px solid var(--bs-border-color);
 }
 
-._rowNew_1g33t_34 {
+._rowNew_twuq5_41 {
   background: var(--bs-success-bg-subtle);
 }
 
-._key_1g33t_38 {
+/* Padding lives on the individual cells (not the .row wrapper) so the
+   subgrid tracks stay aligned to the parent's column lines — putting
+   padding on the wrapper would shift its content inward and break the
+   subgrid alignment. The first and last cells absorb the horizontal
+   inset that previously came from `.row { padding-inline: 0.75rem }`. */
+._key_twuq5_50 {
   font-family: var(--bs-font-monospace);
-  color: var(--bs-body-color);
-  padding-top: 0.4rem;
   word-break: break-all;
+  padding: 1rem 0 0.625rem 0.75rem;
 }
 
-._value_1g33t_45 {
+._value_twuq5_56 {
   min-width: 0;
+  padding: 0.625rem 0;
 }
 
-._remove_1g33t_49 {
+._remove_twuq5_61 {
   background: transparent;
   border: none;
-  padding: 0.25rem 0.4rem;
-  margin-top: 0.25rem;
+  padding: 0.875rem 0.75rem 0.625rem 0.4rem;
   color: var(--bs-secondary-color);
   cursor: pointer;
   border-radius: 4px;
   line-height: 1;
 }
 
-._remove_1g33t_49:hover {
+._remove_twuq5_61:hover {
   color: var(--bs-danger);
   background: var(--bs-tertiary-bg);
 }
 
-._remove_1g33t_49:disabled {
+._remove_twuq5_61:disabled {
   cursor: default;
   opacity: 0.5;
 }
 
-._addRow_1g33t_70 {
+._addRow_twuq5_81 {
   margin-top: 0.625rem;
   display: grid;
   grid-template-columns: 1fr 7.5rem auto;
   gap: 0.5rem;
 }
 
-._addKeyInput_1g33t_77 {
+._addKeyInput_twuq5_88 {
   min-width: 0;
 }
 
-._typeSelect_1g33t_81 {
+._typeSelect_twuq5_92 {
   font-family: var(--bs-font-monospace);
 }
 
-._addButton_1g33t_85 {
+._addButton_twuq5_96 {
   white-space: nowrap;
 }
 ._item_1uzhd_1 {
@@ -23225,12 +23291,11 @@ pre._value_8citi_25 {
 ._addButton_yxwie_27 {
   white-space: nowrap;
 }
-._chip_300at_1 {
+._chip_1k2wf_1 {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   padding: 0.125rem 0.5rem;
-  height: 1.375rem;
   /* Cap chip width so one giant tag can't push the inline Edit button
      off the right edge of the header. The label inside ellipsizes. */
   max-width: 18rem;
@@ -23243,10 +23308,20 @@ pre._value_8citi_25 {
   border: 1px solid var(--bs-border-color);
   letter-spacing: 0.01em;
   white-space: nowrap;
-  line-height: 1;
+  /* When the chip is rendered as a <button> (clickable header chip),
+     inherit the surrounding font so the user-agent button styling
+     doesn't switch the text to system fonts at the wrong size. */
+  font: inherit;
+  /* line-height > 1 so the label's `overflow: hidden` box (used for
+     ellipsis on long tags) contains the full glyph extent, including
+     descenders on g/p/q/y/j. With line-height: 1 the box was exactly
+     the font size and the bottom of descenders was clipped. The chip
+     auto-sizes from this + padding instead of using a fixed height,
+     so any future font-size change stays in proportion. */
+  line-height: 1.3;
 }
 
-._chipLabel_300at_22 {
+._chipLabel_1k2wf_31 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -23255,12 +23330,28 @@ pre._value_8citi_25 {
 
 /* Pending-add variant inside the editor: keep the green outline so it
    still reads as "new", but no fill (matches the saved-chip style). */
-._chipNew_300at_31 {
+._chipNew_1k2wf_40 {
   border-color: var(--bs-success-border-subtle);
   color: var(--bs-success-text-emphasis);
 }
 
-._chipRemove_300at_36 {
+/* Applied when the chip is rendered as a clickable <button> (header
+   context). Mirrors the Edit/overflow pills' hover + focus treatment
+   so the whole strip behaves consistently. */
+._chipClickable_1k2wf_48 {
+  cursor: pointer;
+}
+
+._chipClickable_1k2wf_48:hover {
+  background: var(--bs-secondary-bg);
+}
+
+._chipClickable_1k2wf_48:focus-visible {
+  outline: 2px solid var(--bs-border-color);
+  outline-offset: 1px;
+}
+
+._chipRemove_1k2wf_61 {
   background: none;
   border: none;
   padding: 0;
@@ -23273,21 +23364,29 @@ pre._value_8citi_25 {
   line-height: 1;
 }
 
-._chipRemove_300at_36:hover {
+._chipRemove_1k2wf_61:hover {
   opacity: 1;
   color: var(--bs-danger);
 }
-._grid_1xxot_1 {
+/* Base rules for the tag chip strip. Layout primitives only — context
+   (alignment, margins, shrink behavior) is supplied by the consumer via
+   the `className` prop. */
+._tagRow_pg3wd_4 {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+._grid_q7chi_1 {
   display: grid;
   grid-template-columns: fit-content(50%) fit-content(50%);
   column-gap: 3em;
   align-items: flex-start;
 }
 
-._tagPillRow_1xxot_8 {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
+/* TaskTab-context override for <TagStrip>. Centers chips vertically
+   inside the MetaDataGrid value cell so they line up with the "tags"
+   label on the left. Base flex rules come from TagStrip.module.css. */
+._tagPillAlign_q7chi_11 {
   align-items: center;
 }
 ._button_12472_1 {
@@ -23602,7 +23701,7 @@ thead th {
   gap: 0.1em;
   padding-right: 1em;
 }
-._container_1xr17_1 {
+._container_1x0td_1 {
   display: flex;
   padding-top: 0;
   margin-left: 0.5rem;
@@ -23616,79 +23715,76 @@ thead th {
    before there was any real space pressure (large empty gap between
    the Edit button and the right column). With `auto` the results
    panel takes its natural width and the body absorbs the rest. */
-._wrapper_1xr17_15 {
+._wrapper_1x0td_15 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
 }
 
-._toggle_1xr17_21 {
+._toggle_1x0td_21 {
   margin-top: 0.3em;
   font-size: 1em;
   padding: 0rem 0.1rem 0.1rem 0rem;
   display: flex;
 }
 
-._body_1xr17_28 {
+._body_1x0td_28 {
   display: flex;
   flex-direction: column;
   margin-left: 0.2rem;
 }
 
-/* Single-line flex row: title + model + tag chips. Items align to
-   their TOP so the eval name's top stays flush with the first chip
-   row even when chips wrap. A small bottom margin reserves breathing
-   room between the chip block and the secondary row (filename / copy
-   / download). */
-._bodyContainer_1xr17_39 {
+/* Single-line flex row: title + model + tag chips. Items align by
+   text baseline so the eval name, model name, and first row of chips
+   all sit on the same line. (Subsequent wrapped chip rows fall below,
+   inside the tag row's own box.) A small bottom margin reserves
+   breathing room between the chip block and the secondary row
+   (filename / copy / download). */
+._bodyContainer_1x0td_40 {
   margin-top: 0.1rem;
   margin-bottom: 0.4rem;
   display: flex;
   flex-wrap: nowrap;
-  align-items: flex-start;
+  align-items: baseline;
   column-gap: 0.5rem;
   min-width: 0;
 }
 
-/* The chip strip + Edit pill, all in a single wrap-aware container.
-   Edit is the last item in source order, so when chips wrap to
-   additional lines, the Edit pill follows the last chip onto whichever
-   line it lands on. Matches the Task tab's tag row.
-
-   The small top margin pulls the chip row down a couple of pixels so
-   the first chip sits roughly at the x-height of the eval name (the
-   top of the dot on the "i") instead of touching the title's cap
-   line — visually less crowded against the heading. */
-._tagRow_1xr17_58 {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 0.375rem;
-  margin-top: 0.25rem;
+/* Header-context overrides for <TagStrip>. The base flex rules
+   (display/wrap/gap) live in TagStrip.module.css; this class adds the
+   bits that only make sense inside the title+chips flex contention:
+     - flex-shrink: 1 + min-width: 0 — the chip strip must shrink below
+       its content width so chips wrap instead of pushing the trailing
+       Edit pill past the right edge. (Default `min-width: auto`
+       resolves to the content's intrinsic min and would prevent
+       shrinking even with flex-shrink: 1.)
+   Vertical alignment to the title/model baseline is handled by the
+   parent `.bodyContainer`'s `align-items: baseline` — no margin or
+   internal `align-items` is needed here. */
+._tagRowHeader_1x0td_61 {
   flex-shrink: 1;
   min-width: 0;
 }
 
-._taskTitle_1xr17_68 {
+._taskTitle_1x0td_66 {
   font-weight: 600;
   /* The eval name always renders in full — no ellipsis. The tag row
      wraps to additional lines instead of squeezing the title. */
   flex-shrink: 0;
 }
 
-._taskModel_1xr17_75 {
-  padding-top: 0.4rem;
+._taskModel_1x0td_73 {
   flex-shrink: 0;
 }
 
-._taskStatus_1xr17_80 {
+._taskStatus_1x0td_77 {
   display: flex;
   justify-content: end;
   margin-right: 1em;
   margin-bottom: 0;
 }
 
-._secondaryContainer_1xr17_87 {
+._secondaryContainer_1x0td_84 {
   opacity: 0.7;
   margin-top: -0.1rem;
   padding-bottom: 0;
@@ -23697,7 +23793,7 @@ thead th {
   gap: 0.5rem;
 }
 
-._buttonGroup_1xr17_96 {
+._buttonGroup_1x0td_93 {
   display: flex;
   gap: 0.15rem;
   align-items: center;
