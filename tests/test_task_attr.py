@@ -76,7 +76,9 @@ def test_package_task_logs_absolute_sandbox_config_for_retry(monkeypatch, tmp_pa
 
     inspect_package = importlib.import_module("inspect_package")
 
-    monkeypatch.chdir("/home/claw/.openclaw/workspace/repos/inspect_ai")
+    initial_cwd = tmp_path / "initial-cwd"
+    initial_cwd.mkdir()
+    monkeypatch.chdir(initial_cwd)
 
     task = task_create("inspect_package/implicit_sandbox_task")
     sandbox = resolve_task_sandbox(task, None)
@@ -115,7 +117,9 @@ def test_package_task_logs_absolute_sandbox_config_for_retry(monkeypatch, tmp_pa
     assert logger.eval.sandbox is not None
     assert logger.eval.sandbox.config == expected
 
-    monkeypatch.chdir(tmp_path)
+    retry_cwd = tmp_path / "retry-cwd"
+    retry_cwd.mkdir()
+    monkeypatch.chdir(retry_cwd)
     retried = resolve_task_file_sandbox(logger.eval.task_file, logger.eval.sandbox)
     assert retried is not None
     assert retried.config == expected
