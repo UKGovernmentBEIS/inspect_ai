@@ -104,6 +104,15 @@ MODEL_EVENT_COMPLETE_META_KEY = "inspect.model_event_complete"
 # already-rendered text on reconnect; harmless on first attach).
 REPLAY_META_KEY = "inspect.replay"
 
+# Stamped on the OUTER ``SessionNotification.field_meta`` of every
+# ``UsageUpdate`` notification — carries the sample's running
+# ``ActiveSample.total_messages`` count alongside the standard
+# ACP ``used`` / ``size`` token fields. ACP's ``UsageUpdate`` schema has
+# no first-class message-count field, so the Inspect TUI reads this key
+# off the outer notification to drive the header's ``messages`` chip on
+# the same tick as ``tokens``.
+TOTAL_MESSAGES_META_KEY = "inspect.total_messages"
+
 
 # ---------------------------------------------------------------------------
 # inspect/* JSON-RPC methods (non-standard)
@@ -759,6 +768,7 @@ def picker_target_meta_dict(target: PickerTarget) -> dict[str, Any]:
         "epoch": target.epoch,
         "agentName": target.agent_name,
         "startedAt": target.started_at,
+        "totalMessages": target.total_messages,
         "totalTokens": target.total_tokens,
         "failsOnError": target.fails_on_error,
     }
@@ -779,6 +789,7 @@ def sample_listing_meta_dict(listing: SampleListing) -> dict[str, Any]:
         "epoch": listing.epoch,
         "agentName": listing.agent_name,
         "startedAt": listing.started_at,
+        "totalMessages": listing.total_messages,
         "totalTokens": listing.total_tokens,
         "failsOnError": listing.fails_on_error,
     }

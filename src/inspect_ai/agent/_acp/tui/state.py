@@ -55,6 +55,7 @@ from inspect_ai.agent._acp.inspect_ext import (
     MODEL_META_KEY,
     PICKER_META_KEY,
     REPLAY_META_KEY,
+    TOTAL_MESSAGES_META_KEY,
     USER_SOURCE_META_KEY,
 )
 from inspect_ai.scorer._metric import CORRECT, INCORRECT, NOANSWER, PARTIAL
@@ -653,6 +654,7 @@ class UsageState:
 
     used: int
     size: int
+    messages: int = 0
 
 
 class SessionState:
@@ -1441,7 +1443,7 @@ class SessionState:
         elif isinstance(update, ToolCallProgress):
             changed = self._consume_tool_progress(update)
         elif isinstance(update, UsageUpdate):
-            changed = self._consume_usage(update)
+            changed = self._consume_usage(update, outer_meta)
         elif isinstance(update, SessionInfoUpdate):
             changed = self._consume_session_info(update)
         elif isinstance(update, AgentPlanUpdate):
@@ -2418,8 +2420,15 @@ class SessionState:
         if update.raw_output is not None:
             tc.raw_output = update.raw_output
 
-    def _consume_usage(self, update: UsageUpdate) -> bool:
-        self.usage = UsageState(used=update.used, size=update.size)
+    def _consume_usage(self, update: UsageUpdate, outer_meta: dict[str, Any]) -> bool:
+        # ``totalMessages`` rides on the outer ``field_meta`` (the inspect-
+        # ext extension lane) since ACP's ``UsageUpdate`` schema has no
+        # first-class message-count field. Server stamps it in
+        # ``event_mapping._map_model_event``; absent key falls back to 0
+        # so older servers (or paths that don't bind to an ActiveSample)
+        # render the ``messages`` chip as em-dash via ``format_tokens(0)``.
+        messages = int(outer_meta.get(TOTAL_MESSAGES_META_KEY) or 0)
+        self.usage = UsageState(used=update.used, size=update.size, messages=messages)
         return True
 
     # ------------------------------------------------------------------
