@@ -2,7 +2,7 @@
 
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
 - Scoring: Use scorers_info instead of scorers for functions that recompute metrics.
-- Logging: Atomic write of local eval (`.eval`) and JSON (`.json`) log files. Writes go to a `.inspect_tmp_*.writing` tempfile in the same directory, are `fsync`'d, then renamed via `os.replace()`. Prevents corruption from interrupted writes (e.g. disk-full). Remote (S3/Azure/GCS) writes continue to use `AsyncFilesystem` (already atomic at the cloud provider). (#2949)
+- Logging: Atomic write of local eval (`.eval`) and JSON (`.json`) log files.
 
 ## 0.3.224 (20 May 2026)
 
