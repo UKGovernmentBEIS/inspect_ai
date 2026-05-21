@@ -126,6 +126,12 @@ def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
         return asyncio.run(_run_with_async_filesystem())
 
     backend = current_async_backend()
+    if backend == "trio":
+        # trio has no nest_asyncio equivalent so we cannot re-enter the
+        # running loop from sync code (callers should use the _async variant)
+        raise RuntimeError(
+            "run_coroutine cannot be used from within a running trio task"
+        )
     if backend is None:
         try:
             # sniffio can report no backend from synchronous callbacks even
@@ -136,20 +142,9 @@ def run_coroutine(coroutine: Coroutine[None, None, T]) -> T:
             return anyio.run(
                 _run_with_async_filesystem, backend=configured_async_backend()
             )
-        else:
-            # Running asyncio loop -- re-enter it via nest_asyncio.
-            init_nest_asyncio()
-            return asyncio.run(_run_with_async_filesystem())
-    elif backend == "trio":
-        # trio has no nest_asyncio equivalent so we cannot re-enter the
-        # running loop from sync code (callers should use the _async variant)
-        raise RuntimeError(
-            "run_coroutine cannot be used from within a running trio task"
-        )
-    else:
-        # Running asyncio loop -- re-enter it via nest_asyncio.
-        init_nest_asyncio()
-        return asyncio.run(_run_with_async_filesystem())
+    # Running asyncio loop -- re-enter it via nest_asyncio.
+    init_nest_asyncio()
+    return asyncio.run(_run_with_async_filesystem())
 
 
 def current_async_backend() -> Literal["asyncio", "trio"] | None:
