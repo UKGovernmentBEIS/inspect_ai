@@ -547,6 +547,21 @@ async def _s3_download_with_etag(
     return etag.strip('"')  # S3 returns ETag with quotes
 
 
+async def s3_head_etag(location: str) -> str:
+    """Return an S3 object's current ETag via a HEAD request.
+
+    Cheaper than `read_eval_log_async(..., header_only=True)` when the
+    caller only needs the ETag — no central-directory read, no zip
+    parsing, no body bytes. Used by the viewer's edit endpoint to
+    surface the post-write ETag without re-fetching the header.
+    """
+    bucket, key = _s3_bucket_and_key(location)
+    async with AsyncFilesystem() as async_fs:
+        s3_client = await async_fs.s3_client_async()
+        response = await s3_client.head_object(Bucket=bucket, Key=key)
+        return str(response["ETag"]).strip('"')
+
+
 async def _write_s3_conditional(
     async_fs: AsyncFilesystem,
     bucket: str,
