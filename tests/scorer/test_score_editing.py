@@ -654,6 +654,7 @@ def custom_metric_task():
     assert isinstance(grouped_metrics, dict)
     assert grouped_metrics["group"][0]([]) == 0.5
 
+
 @pytest.mark.anyio
 async def test_recompute_preserves_results_metadata():
     """recompute_metrics should preserve caller-set EvalResults.metadata across the recompute."""
