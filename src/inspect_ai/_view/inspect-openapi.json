@@ -740,7 +740,8 @@
               {
                 "enum": [
                   "input",
-                  "generate"
+                  "generate",
+                  "operator"
                 ],
                 "type": "string"
               },
@@ -848,7 +849,8 @@
               {
                 "enum": [
                   "input",
-                  "generate"
+                  "generate",
+                  "operator"
                 ],
                 "type": "string"
               },
@@ -963,7 +965,8 @@
               {
                 "enum": [
                   "input",
-                  "generate"
+                  "generate",
+                  "operator"
                 ],
                 "type": "string"
               },
@@ -1068,7 +1071,8 @@
               {
                 "enum": [
                   "input",
-                  "generate"
+                  "generate",
+                  "operator"
                 ],
                 "type": "string"
               },
@@ -2109,6 +2113,23 @@
       "EvalConfig": {
         "description": "Configuration used for evaluation.",
         "properties": {
+          "acp_server": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acp Server"
+          },
           "approval": {
             "anyOf": [
               {
@@ -2930,6 +2951,9 @@
                       "$ref": "#/components/schemas/InputEvent"
                     },
                     {
+                      "$ref": "#/components/schemas/InterruptEvent"
+                    },
+                    {
                       "$ref": "#/components/schemas/ScoreEvent"
                     },
                     {
@@ -3124,6 +3148,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/InputEvent"
+                },
+                {
+                  "$ref": "#/components/schemas/InterruptEvent"
                 },
                 {
                   "$ref": "#/components/schemas/ScoreEvent"
@@ -4468,6 +4495,9 @@
             "$ref": "#/components/schemas/InputEvent"
           },
           {
+            "$ref": "#/components/schemas/InterruptEvent"
+          },
+          {
             "$ref": "#/components/schemas/ScoreEvent"
           },
           {
@@ -5046,6 +5076,156 @@
         "title": "GenerateConfig",
         "type": "object"
       },
+      "GrepSearchInput": {
+        "additionalProperties": false,
+        "description": "A persisted grep search input.",
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "ignore_case": {
+            "title": "Ignore Case",
+            "type": "boolean"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "regex": {
+            "title": "Regex",
+            "type": "boolean"
+          },
+          "search_id": {
+            "title": "Search Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "grep",
+            "default": "grep",
+            "title": "Type",
+            "type": "string"
+          },
+          "word_boundary": {
+            "title": "Word Boundary",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "search_id",
+          "query",
+          "created_at",
+          "type",
+          "regex",
+          "ignore_case",
+          "word_boundary"
+        ],
+        "title": "GrepSearchInput",
+        "type": "object"
+      },
+      "GrepSearchRequest": {
+        "additionalProperties": false,
+        "description": "Request body for grep transcript searches.",
+        "properties": {
+          "events": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "model",
+                        "tool",
+                        "compaction",
+                        "branch",
+                        "approval",
+                        "sandbox",
+                        "info",
+                        "store",
+                        "logger",
+                        "error",
+                        "span_begin",
+                        "span_end"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Events"
+          },
+          "ignore_case": {
+            "default": true,
+            "title": "Ignore Case",
+            "type": "boolean"
+          },
+          "messages": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "enum": [
+                    "system",
+                    "user",
+                    "assistant",
+                    "tool"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Messages"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "regex": {
+            "default": false,
+            "title": "Regex",
+            "type": "boolean"
+          },
+          "type": {
+            "const": "grep",
+            "default": "grep",
+            "title": "Type",
+            "type": "string"
+          },
+          "word_boundary": {
+            "default": false,
+            "title": "Word Boundary",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query",
+          "type",
+          "regex",
+          "ignore_case",
+          "word_boundary"
+        ],
+        "title": "GrepSearchRequest",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5249,6 +5429,119 @@
           "input_ansi"
         ],
         "title": "InputEvent",
+        "type": "object"
+      },
+      "InterruptEvent": {
+        "description": "Records that an agent's turn or sample was cut short.\n\nEmitted in three cases:\n\n- ``source=\"user_cancel\"`` \u2014 an ACP client (e.g. an editor or TUI)\n  called ``session/cancel`` while a turn was in flight.\n- ``source=\"limit\"`` \u2014 a sample-level limit (tokens, time, cost,\n  messages) tripped during execution.\n- ``source=\"system\"`` \u2014 the eval is shutting down for an external\n  reason and is cancelling active samples.\n\nThe ``interrupted`` field records what was running at the moment\nthe cancel reached the cancel scope. ``interrupted_tool_call_id``\nand ``interrupted_model_event_id`` give cross-references when\napplicable so downstream consumers can correlate this event with\nthe in-flight ``ToolEvent`` or ``ModelEvent``.",
+        "properties": {
+          "event": {
+            "const": "interrupt",
+            "default": "interrupt",
+            "title": "Event",
+            "type": "string"
+          },
+          "interrupted": {
+            "enum": [
+              "generate",
+              "tool_call",
+              "between_turns"
+            ],
+            "title": "Interrupted",
+            "type": "string"
+          },
+          "interrupted_model_event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interrupted Model Event Id"
+          },
+          "interrupted_tool_call_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interrupted Tool Call Id"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending"
+          },
+          "source": {
+            "enum": [
+              "user_cancel",
+              "limit",
+              "system"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "span_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Span Id"
+          },
+          "timestamp": {
+            "title": "Timestamp",
+            "type": "string"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "working_start": {
+            "title": "Working Start",
+            "type": "number"
+          }
+        },
+        "required": [
+          "timestamp",
+          "working_start",
+          "event",
+          "source",
+          "interrupted"
+        ],
+        "title": "InterruptEvent",
         "type": "object"
       },
       "JSONSchema": {
@@ -5519,6 +5812,145 @@
         "type": "object"
       },
       "JsonValue": {},
+      "LlmSearchInput": {
+        "additionalProperties": false,
+        "description": "A persisted LLM search input.",
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "search_id": {
+            "title": "Search Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "llm",
+            "default": "llm",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "search_id",
+          "query",
+          "created_at",
+          "type"
+        ],
+        "title": "LlmSearchInput",
+        "type": "object"
+      },
+      "LlmSearchRequest": {
+        "additionalProperties": false,
+        "description": "Request body for LLM transcript searches.",
+        "properties": {
+          "events": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "model",
+                        "tool",
+                        "compaction",
+                        "branch",
+                        "approval",
+                        "sandbox",
+                        "info",
+                        "store",
+                        "logger",
+                        "error",
+                        "span_begin",
+                        "span_end"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Events"
+          },
+          "messages": {
+            "anyOf": [
+              {
+                "const": "all",
+                "type": "string"
+              },
+              {
+                "items": {
+                  "enum": [
+                    "system",
+                    "user",
+                    "assistant",
+                    "tool"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Messages"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "type": {
+            "const": "llm",
+            "default": "llm",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "type"
+        ],
+        "title": "LlmSearchRequest",
+        "type": "object"
+      },
       "LogDirResponse": {
         "properties": {
           "log_dir": {
@@ -6612,6 +7044,40 @@
         "title": "ProvenanceData",
         "type": "object"
       },
+      "Reference": {
+        "description": "Reference to scanned content.",
+        "properties": {
+          "cite": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cite"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "message",
+              "event"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "id"
+        ],
+        "title": "Reference",
+        "type": "object"
+      },
       "ResponseSchema": {
         "description": "Schema for model response when using Structured Output.",
         "properties": {
@@ -6650,6 +7116,94 @@
           "json_schema"
         ],
         "title": "ResponseSchema",
+        "type": "object"
+      },
+      "Result": {
+        "description": "Scan result.",
+        "properties": {
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/Reference"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "uuid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uuid"
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonValue"
+          }
+        },
+        "required": [
+          "value",
+          "references"
+        ],
+        "title": "Result",
         "type": "object"
       },
       "Sample": {
@@ -8082,6 +8636,58 @@
         "title": "ScoreEvent",
         "type": "object"
       },
+      "SearchInput": {
+        "discriminator": {
+          "mapping": {
+            "grep": "#/components/schemas/GrepSearchInput",
+            "llm": "#/components/schemas/LlmSearchInput"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/GrepSearchInput"
+          },
+          {
+            "$ref": "#/components/schemas/LlmSearchInput"
+          }
+        ]
+      },
+      "SearchInputListResponse": {
+        "description": "Response from the list search inputs endpoint.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SearchInput"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "SearchInputListResponse",
+        "type": "object"
+      },
+      "SearchResponse": {
+        "description": "Response from running a transcript search.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "result": {
+            "$ref": "#/components/schemas/Result"
+          }
+        },
+        "required": [
+          "id",
+          "result"
+        ],
+        "title": "SearchResponse",
+        "type": "object"
+      },
       "SegmentRef": {
         "properties": {
           "direct_url": {
@@ -9050,6 +9656,7 @@
               "is_a_directory",
               "limit",
               "approval",
+              "cancelled",
               "unknown",
               "output_limit"
             ],
@@ -10534,6 +11141,223 @@
           }
         },
         "summary": "Api Pending Samples"
+      }
+    },
+    "/scout/searches": {
+      "get": {
+        "description": "List recent global search inputs, newest first.",
+        "operationId": "list_search_inputs_scout_searches_get",
+        "parameters": [
+          {
+            "description": "Search input type to list",
+            "in": "query",
+            "name": "type",
+            "required": true,
+            "schema": {
+              "description": "Search input type to list",
+              "enum": [
+                "grep",
+                "llm"
+              ],
+              "title": "Type",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Maximum number of recent search inputs to return",
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "description": "Maximum number of recent search inputs to return",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Count",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchInputListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List recent search inputs",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/scout/transcripts/{dir}/{id}/search": {
+      "post": {
+        "description": "Search a transcript using grep or LLM-based search.\n\nReturns cached results if the same search was run before.",
+        "operationId": "search_scout_transcripts__dir___id__search_post",
+        "parameters": [
+          {
+            "description": "Transcripts directory (base64url-encoded)",
+            "in": "path",
+            "name": "dir",
+            "required": true,
+            "schema": {
+              "description": "Transcripts directory (base64url-encoded)",
+              "title": "Dir",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Transcript ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Transcript ID",
+              "title": "Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "discriminator": {
+                  "mapping": {
+                    "grep": "#/components/schemas/GrepSearchRequest",
+                    "llm": "#/components/schemas/LlmSearchRequest"
+                  },
+                  "propertyName": "type"
+                },
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/GrepSearchRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/LlmSearchRequest"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Search a transcript",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/scout/transcripts/{dir}/{id}/searches/{search_id}": {
+      "get": {
+        "description": "Get a cached search result by search input ID and transcript scope.",
+        "operationId": "get_search_scout_transcripts__dir___id__searches__search_id__get",
+        "parameters": [
+          {
+            "description": "Transcripts directory (base64url-encoded)",
+            "in": "path",
+            "name": "dir",
+            "required": true,
+            "schema": {
+              "description": "Transcripts directory (base64url-encoded)",
+              "title": "Dir",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Transcript ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "description": "Transcript ID",
+              "title": "Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Search ID",
+            "in": "path",
+            "name": "search_id",
+            "required": true,
+            "schema": {
+              "description": "Search ID",
+              "title": "Search Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Message filter used for the cached search result",
+            "in": "query",
+            "name": "messages",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Message filter used for the cached search result",
+              "title": "Messages"
+            }
+          },
+          {
+            "description": "Event filter used for the cached search result",
+            "in": "query",
+            "name": "events",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Event filter used for the cached search result",
+              "title": "Events"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Result"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get a saved search result",
+        "tags": [
+          "search"
+        ]
       }
     },
     "/tool-choice": {

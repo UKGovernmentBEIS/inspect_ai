@@ -57,6 +57,7 @@ from .common import (
 from .util import (
     SectionedCommand,
     int_bool_or_str_flag_callback,
+    int_bool_or_str_retry_flag_callback,
     int_or_bool_flag_callback,
     parse_cli_args,
     parse_cli_config,
@@ -358,6 +359,22 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         default=None,
         help=CHECKPOINT_HELP,
         envvar="INSPECT_EVAL_CHECKPOINT",
+    )
+    @click.option(
+        "--acp-server",
+        is_flag=False,
+        flag_value="true",
+        default=None,
+        callback=int_bool_or_str_flag_callback(True, None),
+        help=(
+            "Expose this eval via an Agent Client Protocol server for various "
+            "clients (e.g. the `inspect acp` command). Bare flag enables a "
+            "default AF_UNIX socket; pass an integer to bind a TCP loopback "
+            "port (e.g. `--acp-server=4444`); pass `host:port` to bind on a "
+            "specific interface (e.g. `--acp-server=0.0.0.0:4444`); pass a "
+            "filesystem path for a custom UNIX socket."
+        ),
+        envvar="INSPECT_EVAL_ACP_SERVER",
     )
     @click.option(
         "--limit",
@@ -889,6 +906,7 @@ def _eval_command_impl(
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
+    acp_server: bool | int | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1035,6 +1053,7 @@ def _eval_command_impl(
         log_shared=log_shared,
         no_score=no_score,
         no_score_display=no_score_display,
+        acp_server=acp_server,
         is_eval_set=False,
         **config,
     )
@@ -1148,6 +1167,7 @@ def eval_set_command(
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
+    acp_server: bool | int | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1303,6 +1323,7 @@ def eval_set_command(
         log_shared=log_shared,
         no_score=no_score,
         no_score_display=no_score_display,
+        acp_server=acp_server,
         is_eval_set=True,
         retry_attempts=retry_attempts,
         retry_immediate=retry_immediate,
@@ -1513,6 +1534,7 @@ def eval_exec(
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
+    acp_server: bool | int | str | None,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1717,6 +1739,7 @@ def eval_exec(
             log_shared=log_shared,
             score=score,
             score_display=score_display,
+            acp_server=acp_server,
         )
         | kwargs
     )
@@ -2041,6 +2064,26 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_SCORE_DISPLAY",
 )
 @click.option(
+    "--acp-server",
+    is_flag=False,
+    flag_value="true",
+    default=None,
+    # Retry semantics: omitted → None (replay log); explicit false → False
+    # (force disable, overriding the log). The standard callback would
+    # collapse those two cases, leaving no way to turn ACP off on a retry
+    # of a log that had it enabled.
+    callback=int_bool_or_str_retry_flag_callback(True),
+    help=(
+        "Override the original eval's Agent Client Protocol server. "
+        "Bare flag enables a default AF_UNIX socket; pass an integer "
+        "to bind a TCP loopback port; pass `host:port` to bind on a "
+        "specific interface (e.g. `0.0.0.0:4444`); pass a filesystem "
+        "path for a custom UNIX socket; pass `false` to disable. Omit "
+        "to replay whatever transport the original log used."
+    ),
+    envvar="INSPECT_EVAL_ACP_SERVER",
+)
+@click.option(
     "--max-connections",
     type=int,
     help=MAX_CONNECTIONS_HELP,
@@ -2097,6 +2140,7 @@ def eval_retry_command(
     log_shared: int | None,
     no_score: bool | None,
     no_score_display: bool | None,
+    acp_server: bool | int | str | None,
     max_connections: int | None,
     adaptive_connections: str | None,
     max_retries: int | None,
@@ -2216,6 +2260,7 @@ def eval_retry_command(
         log_shared=log_shared,
         score=score,
         score_display=score_display,
+        acp_server=acp_server,
         scanner=eval_scanner,
         max_retries=max_retries,
         timeout=timeout,

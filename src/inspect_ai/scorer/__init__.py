@@ -39,6 +39,7 @@ from ._reducer import (
     median_score,
     mode_score,
     pass_at,
+    pass_k,
     score_reducer,
 )
 from ._score import score
@@ -85,6 +86,7 @@ __all__ = [
     "model_graded_qa",
     "multi_scorer",
     "pass_at",
+    "pass_k",
     "pattern",
     "perplexity",
     "perplexity_per_seq",

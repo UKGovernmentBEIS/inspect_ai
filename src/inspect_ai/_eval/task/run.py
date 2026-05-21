@@ -920,6 +920,15 @@ async def task_run_sample(
                 transcript()._event(ErrorEvent(error=err[0]))
                 return err
 
+        # Derive agent name for the ACP picker / TUI meta row. Mirrors
+        # inspect_scout's `_agent(log)` heuristic: prefer the configured
+        # eval-level solver string, fall back to the last plan step.
+        agent_name: str | None = None
+        if logger is not None and logger.eval.solver is not None:
+            agent_name = logger.eval.solver
+        elif plan.steps:
+            agent_name = registry_log_name(plan.steps[-1])
+
         async with active_sample(
             task=task_name,
             log_location=log_location,
@@ -937,6 +946,7 @@ async def task_run_sample(
             eval_set_id=eval_set_id,
             run_id=run_id,
             eval_id=task_id,
+            agent_name=agent_name,
         ) as active:
             # check for early stopping
             if early_stopping is not None and logger is not None:

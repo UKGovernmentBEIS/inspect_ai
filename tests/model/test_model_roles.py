@@ -9,7 +9,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._file import read_eval_log
 from inspect_ai.log._log import EvalLog
-from inspect_ai.model import Model, get_model
+from inspect_ai.model import GenerateConfig, Model, get_model
 from inspect_ai.solver import solver
 
 RED_TEAM = "red_team"
@@ -325,3 +325,33 @@ def test_model_role_merge_preserves_unspecified() -> None:
     model_events = [e for e in log.samples[0].events if e.event == "model"]
     reviewer_event = next(e for e in model_events if e.role == REVIEWER)
     assert reviewer_event.model == MOCK_B
+
+
+def test_model_role_merge_preserves_get_model_config_defaults() -> None:
+    """Role overrides should not drop defaults supplied at the get_model call site."""
+
+    @solver
+    def configured_grader_solver():
+        async def solve(state, generate):
+            model = get_model(
+                role=GRADER,
+                default=MOCK_A,
+                config=GenerateConfig(max_tokens=17, reasoning_effort="low"),
+            )
+            state.output = await model.generate(state.messages)
+            state.messages.append(state.output.message)
+            return state
+
+        return solve
+
+    log = eval(
+        Task(solver=configured_grader_solver()),
+        model_roles={GRADER: MOCK_B},
+    )[0]
+    assert log.status == "success"
+    check_model_role(log, GRADER, MOCK_B)
+
+    assert log.samples
+    model_event = next(e for e in log.samples[0].events if e.event == "model")
+    assert model_event.config.max_tokens == 17
+    assert model_event.config.reasoning_effort == "low"
