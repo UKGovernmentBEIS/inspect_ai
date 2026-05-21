@@ -1,6 +1,6 @@
 """Pydantic models for the on-disk checkpoint layout.
 
-Defines the shape of the eval-level ``manifest.json`` and the per-checkpoint
+Defines the shape of the per-sample ``sample.json`` and the per-checkpoint
 ``ckpt-NNNNN.json`` sidecar files. See ``design/plans/checkpointing-working.md``
 §1 for the full layout description. These are pure data types — read/write
 helpers live with the Phase 3 write code.
@@ -9,21 +9,13 @@ helpers live with the Phase 3 write code.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-CheckpointTriggerKind = Literal["time", "turn", "manual", "token", "cost", "budget"]
-"""Identifier of which trigger fired, as recorded on the sidecar.
-
-Distinct from :data:`inspect_ai.util._checkpoint.CheckpointTrigger`, which is
-the *configuration* type (a union of `TimeInterval`/`TurnInterval`/etc.
-plus the ``"manual"`` literal). This is the runtime *label* for the
-configured trigger that fired this checkpoint.
-"""
+from .._triggers import CheckpointTriggerKind
 
 
-class SnapshotInfo(BaseModel):
+class SnapshotDetails(BaseModel):
     """Per-backup stats captured in the sidecar.
 
     One per repo (host repo + one per active sandbox repo). Values come
@@ -43,7 +35,7 @@ class SnapshotInfo(BaseModel):
     """How long the restic invocation took, in milliseconds."""
 
 
-class CheckpointSidecar(BaseModel):
+class CheckpointDetails(BaseModel):
     """Per-checkpoint metadata file (``<attempt>/ckpt-NNNNN.json``).
 
     Written atomically at each successful checkpoint. The sidecar's existence
@@ -71,33 +63,26 @@ class CheckpointSidecar(BaseModel):
     size_bytes: int
     """Total on-disk size added by this checkpoint (sum of host + sandboxes)."""
 
-    host: SnapshotInfo
+    host: SnapshotDetails
     """Stats for the host repo backup this cycle."""
 
-    sandboxes: dict[str, SnapshotInfo] = Field(default_factory=dict)
+    sandboxes: dict[str, SnapshotDetails] = Field(default_factory=dict)
     """Per-sandbox stats keyed by sandbox name. Empty when checkpointing is
     host-only."""
 
 
-class CheckpointManifest(BaseModel):
-    """Eval-level manifest (``<destination>/manifest.json``).
+class CheckpointSample(BaseModel):
+    """Per-sample state file (``<sample_checkpoints_dir>/sample.json``).
 
-    Written once at checkpoint-directory creation. Carries identity, format
-    version, and repo encryption material. See §1 and §4g.
+    Peer of the sidecars. Written once at first checkpoint setup for a
+    sample; never rewritten. Preserved across retries of the same sample
+    via the FS copy at resume — so the same password unlocks the FS-copied
+    ``host/`` and ``sandboxes/<name>/`` repos in the new sample dir.
     """
 
     model_config = ConfigDict(extra="allow")
 
-    eval_id: str
-    """Pairs the checkpoint directory with its sibling ``.eval`` log."""
-
-    layout_version: int
-    """Currently ``1``. Bumped on incompatible directory-layout changes."""
-
-    engine: Literal["restic"]
-    """Snapshot engine. Currently restic only."""
-
     restic_password: str
-    """Auto-generated password used by every repo (host + each sandbox) under
-    this eval. See §4g for the password lifecycle and §4h for how it reaches
-    sandbox-side restic without being persisted in the sandbox."""
+    """Password used by every repo (host + each sandbox) under this
+    sample. See ``design/plans/checkpointing-hydration.md`` for how it
+    reaches sandbox-side restic without being persisted in the sandbox."""

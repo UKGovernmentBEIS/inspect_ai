@@ -3,10 +3,11 @@
 The eval working dir lives at
 ``inspect_cache_dir("checkpoints")/<log-basename>/``; under it, each
 attempt has its sample working dir
-(``<sample-id>__<epoch>[_<retry>]/``) holding the two files
-(``context.json``, ``store.json``) restic snapshots each cycle. Working
-dirs are overwritten in place at every fire. See
-``design/plans/checkpointing-working.md`` §5.
+(``<sample-id>__<epoch>[_<retry>]/``) holding the JSON files restic
+snapshots each cycle (``events.json``, ``events_data.json``,
+``attachments.json``, ``store.json``, and optionally
+``agent_state.json``). Working dirs are overwritten in place at every
+fire. See ``design/plans/checkpointing-working.md`` §5.
 """
 
 from __future__ import annotations
@@ -16,16 +17,12 @@ from pathlib import Path
 import anyio
 
 from inspect_ai._util.appdirs import inspect_cache_dir
-from inspect_ai._util.file import basename
 
-_LOG_SUFFIX = ".eval"
+from .eval_checkpoints_dir import log_basename
 
 
 def _eval_working_dir(log_location: str) -> str:
-    log_base = basename(log_location)
-    if log_base.endswith(_LOG_SUFFIX):
-        log_base = log_base[: -len(_LOG_SUFFIX)]
-    return str(inspect_cache_dir("checkpoints") / log_base)
+    return str(inspect_cache_dir("checkpoints") / log_basename(log_location))
 
 
 def _sample_working_dir(log_location: str, sample_id: int | str, epoch: int) -> str:

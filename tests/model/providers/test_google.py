@@ -3,6 +3,7 @@ import base64
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 from google.genai.types import (
     Blob,
@@ -1287,3 +1288,39 @@ async def test_image_in_user_follow_up():
     assert blob is not None
     assert blob.mime_type == "image/png"
     assert blob.data == image_bytes
+
+
+@pytest.mark.parametrize(
+    "exception_factory",
+    [
+        lambda: aiohttp.ClientOSError(103, "Software caused connection abort"),
+        lambda: aiohttp.ServerDisconnectedError(),
+        lambda: aiohttp.ClientConnectorError(MagicMock(), OSError("connect failed")),
+        lambda: asyncio.TimeoutError(),
+    ],
+)
+def test_should_retry_aiohttp_transport_errors(exception_factory):
+    from inspect_ai.model._model import RetryDecision
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    decision = api.should_retry(exception_factory())
+
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry
+    assert decision.kind == "transient"
+
+
+def test_should_retry_unrelated_error_not_retried():
+    from inspect_ai.model._model import RetryDecision
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    decision = api.should_retry(ValueError("bad input"))
+
+    assert isinstance(decision, RetryDecision)
+    assert not decision.retry

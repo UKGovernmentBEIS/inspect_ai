@@ -13,7 +13,39 @@ from typing import Any
 import anyio
 
 from inspect_ai.agent._acp import AcpSession, current_acp_session
+from inspect_ai.dataset._dataset import Sample
+from inspect_ai.log._samples import ActiveSample
+from inspect_ai.log._transcript import Transcript
 from inspect_ai.tool._tool import Tool, tool
+from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
+
+
+def acp_test_active_sample(transcript: Transcript) -> ActiveSample:
+    """Bare ``ActiveSample`` for tests that drive ``react()`` directly.
+
+    ``react()`` opens ``checkpointer()``, which reads the active sample.
+    Tests in this directory exercise react() outside the real eval
+    harness, so they publish this bare ``ActiveSample`` (carrying a
+    ``_NoopCheckpointer`` and the test's own transcript) on the
+    ``_sample_active`` ContextVar.
+    """
+    return ActiveSample(
+        task="t",
+        log_location="mem://test",
+        model="mockllm/model",
+        sample=Sample(id=1, input="hi"),
+        epoch=0,
+        message_limit=None,
+        token_limit=None,
+        cost_limit=None,
+        time_limit=None,
+        working_limit=None,
+        fails_on_error=False,
+        transcript=transcript,
+        sandboxes={},
+        checkpointer=_NoopCheckpointer(),
+        eval_id="eval-1",
+    )
 
 
 def capture_session_tool(captured: dict[str, AcpSession], ready: anyio.Event) -> Tool:

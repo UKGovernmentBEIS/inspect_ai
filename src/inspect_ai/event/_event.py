@@ -5,6 +5,7 @@ from inspect_ai.event._score_edit import ScoreEditEvent
 from ._anchor import AnchorEvent
 from ._approval import ApprovalEvent
 from ._branch import BranchEvent
+from ._checkpoint import CheckpointEvent
 from ._compaction import CompactionEvent
 from ._error import ErrorEvent
 from ._info import InfoEvent
@@ -34,6 +35,7 @@ Event: TypeAlias = Union[
     AnchorEvent,
     ApprovalEvent,
     BranchEvent,
+    CheckpointEvent,
     CompactionEvent,
     InputEvent,
     InterruptEvent,
