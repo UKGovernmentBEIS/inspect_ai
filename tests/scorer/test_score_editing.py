@@ -1,5 +1,7 @@
 """Tests for score editing functionality."""
 
+from pathlib import Path
+
 import pytest
 
 from inspect_ai import Task, eval_async, task
@@ -546,9 +548,7 @@ def task_with_metrics_no_scorer():
 
 @pytest.mark.anyio
 async def test_recompute_metrics_when_task_has_no_scorers():
-    """recompute_metrics must work when log.eval.scorers is None and score keys
-    aren't registered scorers (tasks that declare metrics but no scorer, with the
-    solver writing Score objects directly into state.scores under arbitrary keys)."""
+    """recompute_metrics handles task metrics when log.eval.scorers is None."""
     logs = await eval_async(task_with_metrics_no_scorer(), model="mockllm/model")
     log = logs[0]
 
@@ -560,3 +560,96 @@ async def test_recompute_metrics_when_task_has_no_scorers():
 
     assert log.results.scores[0].name == "custom_key"
     assert log.results.scores[0].metrics["mean"].value == 0.75  # (0 + 1 + 1 + 1) / 4
+
+
+def test_resolve_scorers_info_loads_task_file_metrics_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    """Custom scorer metrics from task files should resolve during recompute."""
+    import inspect_ai._eval.score as score_module
+    from inspect_ai._eval.loader import load_file_tasks as real_load_file_tasks
+    from inspect_ai._util.registry import _registry, registry_key
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalLog,
+        EvalMetricDefinition,
+        EvalScorer,
+        EvalSpec,
+    )
+
+    metric_one = "task_file_recompute_metric_one"
+    metric_two = "task_file_recompute_metric_two"
+    task_file = tmp_path / "custom_metric_task.py"
+    task_file.write_text(
+        f"""
+from inspect_ai import Task, task
+from inspect_ai.dataset import MemoryDataset
+from inspect_ai.scorer import Metric, SampleScore, metric
+
+
+@metric
+def {metric_one}() -> Metric:
+    def score(scores: list[SampleScore]) -> float:
+        return 0.25
+
+    return score
+
+
+@metric
+def {metric_two}() -> Metric:
+    def score(scores: list[SampleScore]) -> float:
+        return 0.5
+
+    return score
+
+
+@task
+def custom_metric_task():
+    return Task(dataset=MemoryDataset([]), plan=[])
+""",
+        encoding="utf-8",
+    )
+
+    for metric_name in (metric_one, metric_two):
+        _registry.pop(registry_key("metric", metric_name), None)
+
+    load_calls: list[Path] = []
+
+    def load_file_tasks_once(path: Path) -> None:
+        load_calls.append(path)
+        real_load_file_tasks(path)
+
+    monkeypatch.setattr(score_module, "load_file_tasks", load_file_tasks_once)
+
+    log = EvalLog(
+        eval=EvalSpec(
+            created="2026-05-21T00:00:00+00:00",
+            task="custom_metric_task",
+            task_file=task_file.as_posix(),
+            dataset=EvalDataset(samples=0),
+            model="mockllm/model",
+            config=EvalConfig(),
+            scorers=[
+                EvalScorer(
+                    name="custom_scorer",
+                    metrics=[
+                        EvalMetricDefinition(name=metric_one),
+                        {"group": [EvalMetricDefinition(name=metric_two)]},
+                    ],
+                )
+            ],
+        )
+    )
+
+    infos = score_module.resolve_scorers_info(log)
+
+    assert load_calls == [task_file.absolute()]
+    metrics = infos[0].metrics
+    assert isinstance(metrics, list)
+    first_metric = metrics[0]
+    assert not isinstance(first_metric, dict)
+    assert first_metric([]) == 0.25
+    grouped_metrics = metrics[1]
+    assert isinstance(grouped_metrics, dict)
+    assert grouped_metrics["group"][0]([]) == 0.5

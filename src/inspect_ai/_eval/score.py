@@ -22,13 +22,14 @@ import anyio
 
 from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
-from inspect_ai._eval.loader import scorer_from_spec
+from inspect_ai._eval.loader import load_file_tasks, scorer_from_spec
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
     has_registry_params,
     registry_create,
+    registry_lookup,
     registry_params,
     registry_unqualified_name,
 )
@@ -514,6 +515,21 @@ def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
     if log.eval.scorers is None:
         return []
 
+    task_file = log.eval.task_file
+    task_path = Path(task_file).absolute() if task_file else None
+    task_loaded = False
+
+    def resolve_metric(metric: EvalMetricDefinition) -> Metric:
+        nonlocal task_loaded
+        if (
+            task_path is not None
+            and not task_loaded
+            and registry_lookup("metric", metric.name) is None
+        ):
+            load_file_tasks(task_path)
+            task_loaded = True
+        return metric_from_log(metric)
+
     infos: list[ScorerInfo] = []
     for s in log.eval.scorers:
         # s.metrics holds EvalMetricDefinition entries (serialized name + options).
@@ -529,16 +545,16 @@ def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
                 if isinstance(m, dict):
                     metrics_list.append(
                         {
-                            key: [metric_from_log(md) for md in mds]
+                            key: [resolve_metric(md) for md in mds]
                             for key, mds in m.items()
                         }
                     )
                 else:
-                    metrics_list.append(metric_from_log(m))
+                    metrics_list.append(resolve_metric(m))
             metrics = metrics_list
         else:
             metrics = {
-                key: [metric_from_log(md) for md in mds]
+                key: [resolve_metric(md) for md in mds]
                 for key, mds in s.metrics.items()
             }
         infos.append(
