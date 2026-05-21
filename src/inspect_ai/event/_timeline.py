@@ -8,7 +8,7 @@ Uses inspect_ai's event_tree() to parse span structure.
 from __future__ import annotations
 
 import contextlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Annotated, Any, AsyncIterator, Callable, Literal, Sequence
 
 from pydantic import (
@@ -55,14 +55,20 @@ def _min_start_time(
         The minimum start_time, or ``datetime.max`` if empty (so empty
         spans sort last and ``min()`` callers don't crash).
     """
-    return min((node.start_time() for node in nodes), default=datetime.max)
+    return min(
+        (node.start_time() for node in nodes),
+        default=datetime.max.replace(tzinfo=timezone.utc),
+    )
 
 
 def _max_end_time(
     nodes: Sequence[TimelineEvent | TimelineSpan],
 ) -> datetime:
     """Return the latest end time among nodes (``datetime.min`` when empty)."""
-    return max((node.end_time() for node in nodes), default=datetime.min)
+    return max(
+        (node.end_time() for node in nodes),
+        default=datetime.min.replace(tzinfo=timezone.utc),
+    )
 
 
 def _sum_tokens(

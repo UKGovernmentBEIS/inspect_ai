@@ -83,7 +83,7 @@ class TestRunInBackground:
                     pass
 
                 with pytest.raises(
-                    RuntimeError, match="run_coroutine cannot be used with trio"
+                    RuntimeError, match="run_in_background cannot be used with trio"
                 ):
                     run_in_background(test_func)
         finally:
@@ -108,7 +108,7 @@ class TestRunInBackground:
 
                 with pytest.raises(
                     RuntimeError,
-                    match="run_coroutine cannot be used.*outside of an async context",
+                    match="run_in_background cannot be used.*outside of an async context",
                 ):
                     run_in_background(test_func)
         finally:
