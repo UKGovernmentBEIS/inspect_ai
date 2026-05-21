@@ -11,6 +11,7 @@
 | google/gemini-3.5-flash | medium |
 | grok/grok-3-mini | low |
 | grok/grok-4 | no effort scale |
+| grok/grok-4.3 | low |
 | mistral/magistral-medium-2506 | no effort scale |
 | mistral/magistral-small-2506 | no effort scale |
 | openai/gpt-5 | medium |

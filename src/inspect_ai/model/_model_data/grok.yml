@@ -123,6 +123,9 @@ grok:
       knowledge_cutoff_date: 2025-12-01
       context_length: 1000000
       reasoning: True
+      # Grok 4.3 accepts reasoning_effort (none/low/medium/high) and defaults
+      # to `low`. https://docs.x.ai/developers/model-capabilities/text/reasoning
+      reasoning_effort_default: low
       versions:
         grok-4.3-latest:
           snapshot: latest

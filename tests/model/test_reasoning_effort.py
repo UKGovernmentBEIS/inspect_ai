@@ -214,6 +214,60 @@ def test_ollama_effort_none_omitted():
     assert "extra_body" not in params or "reasoning" not in params.get("extra_body", {})
 
 
+# -- OpenAI Responses path max -> xhigh clamp --
+
+
+@pytest.mark.parametrize(
+    "effort,expected",
+    [
+        ("minimal", "minimal"),
+        ("low", "low"),
+        ("medium", "medium"),
+        ("high", "high"),
+        ("xhigh", "xhigh"),
+        ("max", "xhigh"),  # OpenAI's highest published value is xhigh
+    ],
+)
+def test_openai_responses_max_clamped_to_xhigh(effort, expected):
+    from unittest.mock import MagicMock
+
+    from openai._types import NOT_GIVEN
+
+    from inspect_ai.model._providers.openai_responses import (
+        completion_params_responses,
+    )
+
+    model_info = MagicMock()
+    # Reasoning-capable model
+    model_info.has_reasoning_options.return_value = True
+    model_info.reasoning_only_fallback.return_value = False
+    model_info.is_gpt.return_value = True
+    model_info.is_gpt_5.return_value = True
+    model_info.is_gpt_5_plus.return_value = True
+    model_info.is_gpt_5_pro.return_value = False
+    model_info.is_gpt_5_chat.return_value = False
+    model_info.is_o_series.return_value = False
+    model_info.is_o1.return_value = False
+    model_info.is_o3_mini.return_value = False
+    model_info.is_deep_research.return_value = False
+    model_info.is_codex.return_value = False
+
+    params = completion_params_responses(
+        "gpt-5",
+        model_info=model_info,
+        config=GenerateConfig(reasoning_effort=effort),
+        service_tier=None,
+        prompt_cache_key=NOT_GIVEN,
+        prompt_cache_retention=NOT_GIVEN,
+        safety_identifier=NOT_GIVEN,
+        responses_store=None,
+        tools=False,
+        tool_params=[],
+        has_computer_tool=False,
+    )
+    assert params["reasoning"]["effort"] == expected
+
+
 # -- OpenRouter max -> xhigh clamp --
 
 
@@ -251,14 +305,13 @@ def test_openrouter_max_clamped_to_xhigh(effort, expected):
 def test_grok_effort_mapping(effort, expected):
     from inspect_ai.model._providers.grok import GrokAPI
 
-    api = GrokAPI(model_name="grok-4", api_key="test-key")
-    # Grok stores reasoning_effort in chat config; assert the mapping table.
-    # We access the internal mapping by inspecting params construction.
+    # Use grok-4.3 (a variant that supports reasoning_effort) — the original
+    # grok-4 reasons but rejects the parameter.
+    api = GrokAPI(model_name="grok-4.3", api_key="test-key")
     config = GenerateConfig(reasoning_effort=effort)
     gconfig: dict[str, object] = {}
-    # mimic the relevant branch from grok.completion_params
     if config.reasoning_effort is not None and (
-        api.is_grok_3_mini() or api.is_grok_4()
+        api.is_grok_3_mini() or (api.is_grok_4() and not api.is_grok_4_original())
     ):
         match config.reasoning_effort:
             case "minimal" | "low":
@@ -268,3 +321,16 @@ def test_grok_effort_mapping(effort, expected):
             case "high" | "xhigh" | "max":
                 gconfig["reasoning_effort"] = "high"
     assert gconfig.get("reasoning_effort") == expected
+
+
+def test_grok_4_original_excluded_from_reasoning_effort():
+    """The deprecated grok-4 reasons but does not accept reasoning_effort."""
+    from inspect_ai.model._providers.grok import GrokAPI
+
+    for name in ("grok-4", "grok-4-latest", "grok-4-0709"):
+        api = GrokAPI(model_name=name, api_key="test-key")
+        assert api.is_grok_4_original(), f"{name} should be detected as original"
+    # grok-4.3 / 4-fast / 4.20 are NOT the original
+    for name in ("grok-4.3", "grok-4-fast-reasoning", "grok-4.20"):
+        api = GrokAPI(model_name=name, api_key="test-key")
+        assert not api.is_grok_4_original(), f"{name} must not be original"

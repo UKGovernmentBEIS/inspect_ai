@@ -14,7 +14,7 @@ The `reasoning_effort` option controls how much reasoning is performed. Inspect 
 For example:
 
 ``` bash
-inspect eval math.py --model openai/gpt=5 --reasoning-effort high
+inspect eval math.py --model openai/gpt-5 --reasoning-effort high
 ```
 
 Or from Python:
@@ -90,7 +90,7 @@ Note that you can also pass `reasoning_tokens` explicitly for these models.
 
 #### Grok
 
-Grok 3 Mini and Grok 4 support reasoning and map `reasoning_tokens` as follows:
+Grok 3 Mini and Grok 4.X variants (`grok-4-fast-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.20`, `grok-4.3`) accept `reasoning_effort`. The original `grok-4` reasons but [does not accept the parameter](https://docs.x.ai/developers/model-capabilities/text/reasoning) — Inspect omits effort for that model. Inspect maps `reasoning_effort` as follows:
 
 | Inspect input            | API value         |
 |--------------------------|-------------------|
@@ -152,7 +152,7 @@ The following reasoning options are available from the CLI and within `GenerateC
 
 | Option | Description |
 |--------|-------------|
-| `reasoning_effort` | Constrains effort on reasoning. Accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. See [Reasoning Effort](#reasoning-effort) for per-provider mapping. Supported by all reasoning models (Inspect [bridges automatically](#effort-to-tokens-bridge) for legacy Claude and Gemini 2.5). Default is provider-defined. |
+| `reasoning_effort` | Constrains effort on reasoning. Accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. See [Reasoning Effort](#reasoning-effort) for per-provider mapping. Supported by all reasoning models — Inspect automatically bridges effort to a token budget for legacy Claude (3.7–4.5) and Gemini 2.5. Default is provider-defined. |
 | `reasoning_tokens` | **Deprecated.** Prefer `reasoning_effort`. Explicit token budget for reasoning. Both Anthropic (`budget_tokens`) and Google (`thinking_budget`) have deprecated this control in favour of effort-based reasoning.|
 | `reasoning_summary` | **OpenAI only.** Provide a summary of reasoning steps. Accepts `none`, `concise`, `detailed`, `auto`. Use `auto` to access the most detailed summarizer available. Some OpenAI accounts require [organization verification](https://help.openai.com/en/articles/10910291-api-organization-verification). |
 | `reasoning_history` | How much prior reasoning to replay in conversation history. Accepts `none`, `all`, `last`, `auto`. Use `last` to keep reasoning from dominating the context window. Defaults to `auto`. |
