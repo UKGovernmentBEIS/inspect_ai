@@ -107,25 +107,26 @@ def resolve_tasks(
     if isinstance(tasks, PreviousTask):
         tasks = [tasks]
     if isinstance(tasks, list) and isinstance(tasks[0], (ResolvedTask, PreviousTask)):
-        tasks = cast(
-            list[PreviousTask] | list[ResolvedTask] | list[ResolvedTask | PreviousTask],
-            tasks,
-        )
         return resolve_previous_tasks(
-            tasks, sample_shuffle=sample_shuffle, model=model, model_roles=model_roles
+            [t for t in tasks if isinstance(t, (ResolvedTask, PreviousTask))],
+            sample_shuffle=sample_shuffle,
+            model=model,
+            model_roles=model_roles,
         )
 
     # simple cases of passing us Task objects
     if isinstance(tasks, Task):
         return as_resolved_tasks([tasks])
     elif isinstance(tasks, list) and isinstance(tasks[0], Task):
-        return as_resolved_tasks(cast(list[Task], tasks))
+        return as_resolved_tasks([t for t in tasks if isinstance(t, Task)])
 
     # convert TaskInfo to str
     if isinstance(tasks, TaskInfo):
         tasks = [tasks]
     if isinstance(tasks, list) and isinstance(tasks[0], TaskInfo):
-        tasks = [f"{task.file}@{task.name}" for task in cast(list[TaskInfo], tasks)]
+        tasks = [
+            f"{task.file}@{task.name}" for task in tasks if isinstance(task, TaskInfo)
+        ]
 
     # handle functions that return tasks (we get their registry name)
     if isinstance(tasks, list) and callable(tasks[0]):

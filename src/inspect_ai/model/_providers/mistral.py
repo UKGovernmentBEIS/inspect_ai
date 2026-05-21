@@ -568,9 +568,12 @@ def completion_content_chunks(content: ContentChunk) -> list[Content]:
         if isinstance(content.image_url, str):
             return [ContentImage(image=content.image_url)]
         else:
+            detail: Literal["auto", "low", "high"]
             match content.image_url.detail:
-                case "low" | "high":
-                    detail: Literal["auto", "low", "high"] = content.image_url.detail
+                case "low":
+                    detail = "low"
+                case "high":
+                    detail = "high"
                 case _:
                     detail = "auto"
             return [ContentImage(image=content.image_url.url, detail=detail)]
@@ -604,7 +607,9 @@ def choice_stop_reason(choice: MistralChatCompletionChoice) -> StopReason:
             return "stop"
         case "length":
             return "max_tokens"
-        case "model_length" | "tool_calls":
-            return choice.finish_reason
+        case "model_length":
+            return "model_length"
+        case "tool_calls":
+            return "tool_calls"
         case _:
             return "unknown"

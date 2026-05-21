@@ -82,9 +82,15 @@ class MockLLM(ModelAPI):
             "messages": [m.model_dump() for m in input],
         }
 
-        # If we have a custom function, call it with the generate arguments each time
+        # If we have a custom function, call it with the generate arguments each time.
+        # Supports both sync and async callables (async lets tests `await anyio.sleep`
+        # to simulate slow generates that an ACP client can cancel mid-flight).
         if callable(self.outputs):
+            import inspect as _inspect
+
             output = self.outputs(input, tools, tool_choice, config)
+            if _inspect.isawaitable(output):
+                output = await output
             model_call = ModelCall.create(request, {"content": output.completion})
             return output, model_call
 
