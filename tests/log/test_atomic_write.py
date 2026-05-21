@@ -202,6 +202,12 @@ class TestAtomicWriteInvalidInputs:
             with atomic_write(str(target)) as f:
                 f.write(b"data")
 
+    def test_remote_path_rejected(self) -> None:
+        """Remote paths must be rejected — use AsyncFilesystem instead."""
+        with pytest.raises(ValueError, match="local"):
+            with atomic_write("s3://bucket/some/key.bin"):
+                pass
+
 
 class TestAtomicWriteInterruption:
     """Test interruption handling."""
