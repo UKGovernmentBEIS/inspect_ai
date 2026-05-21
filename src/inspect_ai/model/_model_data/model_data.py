@@ -33,6 +33,7 @@ class BaseModelDefinition(BaseModel):
     output_tokens: Optional[int] = None
     input_tokens: Optional[int] = None
     reasoning: Optional[bool] = None
+    reasoning_effort_default: Optional[str] = None
     snapshot: Optional[str] = None
     aliases: Optional[List[str]] = None
 
@@ -86,6 +87,8 @@ def create_model_info(
         output_tokens=data_source.output_tokens or model_def.output_tokens,
         _input_tokens=data_source.input_tokens or model_def.input_tokens,
         reasoning=data_source.reasoning or model_def.reasoning,
+        reasoning_effort_default=data_source.reasoning_effort_default
+        or model_def.reasoning_effort_default,
     )
 
 
@@ -115,6 +118,19 @@ class ModelInfo(BaseModel):
 
     reasoning: bool | None = Field(default=None)
     """Is this a reasoning model."""
+
+    reasoning_effort_default: str | None = Field(default=None)
+    """Documented provider default for `reasoning_effort` on this model.
+
+    Sourced from the provider's published documentation. May be one of the
+    standard effort values (`minimal`, `low`, `medium`, `high`, `xhigh`, `max`)
+    or a sentinel such as `adaptive` (Anthropic Claude 4.6+, where the model
+    selects effort per-request) or `fixed` (models without an effort scale,
+    e.g. DeepSeek-R1 and Mistral Magistral). `None` means undocumented.
+
+    Inspect does not send this value automatically — it is metadata used to
+    generate the per-model defaults table in the docs.
+    """
 
     cost: ModelCost | None = Field(default=None)
     """Cost per million tokens for this model."""

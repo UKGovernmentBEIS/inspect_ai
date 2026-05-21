@@ -109,7 +109,10 @@ from inspect_ai.model._providers._google_computer_use import (
     maybe_computer_use_tool,
     tool_call_from_gemini_computer_action,
 )
-from inspect_ai.model._reasoning import reasoning_to_think_tag
+from inspect_ai.model._reasoning import (
+    effort_to_reasoning_tokens,
+    reasoning_to_think_tag,
+)
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import (
     ToolCall,
@@ -844,6 +847,16 @@ class GoogleGenAIAPI(ModelAPI):
                 return ThinkingConfig(
                     include_thoughts=True, thinking_budget=config.reasoning_tokens
                 )
+
+            # gemini 2.5 bridge: translate reasoning_effort to a thinking_budget
+            # via the fixed-table mapping (thinking_level / effort isn't accepted
+            # by 2.5 itself, but users sweeping across model versions expect
+            # --reasoning-effort to do *something* on 2.5).
+            elif config.reasoning_effort is not None and self.is_gemini_2_5():
+                budget = effort_to_reasoning_tokens(config.reasoning_effort)
+                if budget is not None:
+                    return ThinkingConfig(include_thoughts=True, thinking_budget=budget)
+                return ThinkingConfig(include_thoughts=True)
 
             # generic thinking with defaults
             else:

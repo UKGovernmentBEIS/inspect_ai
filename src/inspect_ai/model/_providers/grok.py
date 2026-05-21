@@ -438,7 +438,7 @@ class GrokAPI(ModelAPI):
                     gconfig["reasoning_effort"] = "low"
                 case "medium":
                     gconfig["reasoning_effort"] = "medium"
-                case "medium" | "high" | "xhigh" | "max":
+                case "high" | "xhigh" | "max":
                     gconfig["reasoning_effort"] = "high"
 
         # return encrypted reasoning blocks

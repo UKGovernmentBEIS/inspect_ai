@@ -7,6 +7,9 @@ grok:
       knowledge_cutoff_date: 2024-11-01
       context_length: 256000
       reasoning: True
+      # Grok 4 reasons but does not accept the `reasoning_effort` parameter.
+      # https://docs.x.ai/docs/guides/reasoning
+      reasoning_effort_default: fixed
       versions:
         grok-4-0709:
           snapshot: "0709"
@@ -138,6 +141,10 @@ grok:
       release_date: 2025-02-17
       knowledge_cutoff_date: 2024-11-01
       context_length: 131072
+      reasoning: True
+      # Grok 3 Mini accepts reasoning_effort=low/high; defaults to `low`.
+      # https://docs.x.ai/docs/guides/reasoning
+      reasoning_effort_default: low
       versions:
         grok-3-mini-latest:
           snapshot: latest
