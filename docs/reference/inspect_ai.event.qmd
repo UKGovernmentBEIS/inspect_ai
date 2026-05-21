@@ -47,8 +47,8 @@ description: Transcript events.
 ### StateEvent
 ### StoreEvent
 ### InputEvent
-
 ### ScoreEditEvent
+### InterruptEvent
 
 ## Types
 

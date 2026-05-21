@@ -54,6 +54,42 @@ def int_or_bool_flag_callback(
     return callback
 
 
+def int_bool_or_str_retry_flag_callback(
+    true_value: Any = True,
+) -> Callable[[click.Context, click.Parameter, Any], Any]:
+    """Variant of :func:`int_bool_or_str_flag_callback` for retry-time flags.
+
+    Distinguishes "user did not pass the flag" (returns ``None`` so the
+    retry path falls back to the logged value) from "user explicitly
+    passed ``--flag=false``" (returns ``False`` so the retry forces the
+    feature off, overriding whatever was in the original log).
+
+    Use this for retry/replay flags where ``None`` must mean "no
+    override" rather than "disabled".
+    """
+
+    def callback(ctx: click.Context, param: click.Parameter, value: Any) -> Any:
+        source = ctx.get_parameter_source(param.name) if param.name else ""
+        if source == click.core.ParameterSource.DEFAULT:
+            # Flag not provided — leave as None so the retry path
+            # replays whatever was in the original log.
+            return None
+        if value is None:
+            # Bare flag, e.g. `--flag` with no value.
+            return true_value
+        lower_val = value.lower()
+        if lower_val in ("true", "yes", "1"):
+            return true_value
+        if lower_val in ("false", "no", "0"):
+            return False
+        try:
+            return int(value)
+        except ValueError:
+            return str(value)
+
+    return callback
+
+
 def int_bool_or_str_flag_callback(
     true_value: int, false_value: int | None = None
 ) -> Callable[[click.Context, click.Parameter, Any], int | str | None]:

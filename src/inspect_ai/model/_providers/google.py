@@ -127,6 +127,7 @@ GOOGLE_API_KEY = "GOOGLE_API_KEY"
 VERTEX_API_KEY = "VERTEX_API_KEY"
 
 SAFETY_SETTINGS = "safety_settings"
+DEFAULT_GOOGLE_HTTP_TIMEOUT = 60 * 60
 
 # Key under ContentReasoning.internal that links a redacted reasoning block
 # to the function_call whose thought_signature it carries. Used to preserve
@@ -287,6 +288,19 @@ class GoogleGenAIAPI(ModelAPI):
     def is_vertex(self) -> bool:
         return self.service == "vertex"
 
+    def _http_options(self, config: GenerateConfig | None = None) -> HttpOptions:
+        http_options = HttpOptions(
+            base_url=self.base_url,
+            api_version=self.api_version,
+        )
+
+        if config is not None and config.timeout is not None:
+            http_options.timeout = config.timeout * 1000
+        elif http_options.timeout is None:
+            http_options.timeout = DEFAULT_GOOGLE_HTTP_TIMEOUT * 1000
+
+        return http_options
+
     async def generate(
         self,
         input: list[ChatMessage],
@@ -295,14 +309,7 @@ class GoogleGenAIAPI(ModelAPI):
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
         # http options
-        http_options = HttpOptions(
-            base_url=self.base_url,
-            api_version=self.api_version,
-        )
-
-        # apply timeout if specified
-        if config.timeout:
-            http_options.timeout = config.timeout * 1000
+        http_options = self._http_options(config)
 
         # resolve batcher as required
         self._resolve_batcher(config, http_options)
@@ -611,7 +618,7 @@ class GoogleGenAIAPI(ModelAPI):
         input: str | list[ChatMessage],
         config: GenerateConfig | None = None,
     ) -> int:
-        client = self.model_client()
+        client = self.model_client(self._http_options(config))
         async with client.aio:
             # normalize to messages
             if isinstance(input, str):

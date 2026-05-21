@@ -8,6 +8,7 @@ from ._error import ErrorEvent
 from ._event import Event
 from ._info import InfoEvent
 from ._input import InputEvent
+from ._interrupt import InterruptEvent
 from ._logger import LoggerEvent, LoggingLevel, LoggingMessage
 from ._model import ModelEvent
 from ._sample_init import SampleInitEvent
@@ -50,6 +51,7 @@ __all__ = [
     "ErrorEvent",
     "InfoEvent",
     "InputEvent",
+    "InterruptEvent",
     "LoggerEvent",
     "ModelEvent",
     "CompactionEvent",

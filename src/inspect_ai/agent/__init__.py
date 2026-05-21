@@ -1,5 +1,6 @@
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 
+from ._acp import AcpSession, TurnCancelled, acp_session
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._as_solver import as_solver
 from ._as_tool import as_tool
@@ -52,4 +53,7 @@ __all__ = [
     "research",
     "plan",
     "general",
+    "AcpSession",
+    "acp_session",
+    "TurnCancelled",
 ]

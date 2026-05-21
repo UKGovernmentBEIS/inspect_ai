@@ -525,8 +525,14 @@ class AnthropicAPI(ModelAPI):
                     stop_reason="model_length",
                     error=ex.message,
                 ), model_call or ModelCall(request={})
-            else:
-                raise ex
+            # Content-filter errors that arrive mid-stream surface as a plain
+            # APIStatusError (the SDK can't infer the 400 subclass once the
+            # HTTP response was 200), so route through handle_bad_request to
+            # convert them into a content_filter refusal.
+            handled = self.handle_bad_request(ex)
+            if isinstance(handled, ModelOutput):
+                return handled, model_call or ModelCall(request={})
+            raise ex
 
     @override
     async def count_tokens(
@@ -1078,8 +1084,8 @@ class AnthropicAPI(ModelAPI):
     def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
         return "all"
 
-    # convert some common BadRequestError states into 'refusal' model output
-    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
+    # convert some common APIStatusError states into 'refusal' model output
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
         error = exception_message(ex).lower()
         content: str | None = None
         stop_reason: StopReason | None = None
