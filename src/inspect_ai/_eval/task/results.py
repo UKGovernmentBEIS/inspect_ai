@@ -88,12 +88,14 @@ def eval_results(
     metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None,
     scorer_names: list[str] | None = None,
     early_stopping: EarlyStoppingSummary | None = None,
+    metadata: dict[str, Any] | None = None,
 ) -> Tuple[EvalResults, list[EvalSampleReductions] | None]:
     # initialise results
     results = EvalResults(
         total_samples=samples,
         completed_samples=len(scores),
         early_stopping=early_stopping,
+        metadata=metadata,
     )
     reductions = None
 
