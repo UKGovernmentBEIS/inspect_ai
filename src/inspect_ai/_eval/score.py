@@ -22,13 +22,14 @@ import anyio
 
 from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
-from inspect_ai._eval.loader import scorer_from_spec
+from inspect_ai._eval.loader import load_file_tasks, scorer_from_spec
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
     has_registry_params,
     registry_create,
+    registry_lookup,
     registry_params,
     registry_unqualified_name,
 )
@@ -67,7 +68,7 @@ from inspect_ai.util._display import (
 from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME, span
 from inspect_ai.util._store import init_subtask_store
 
-from .task.results import eval_results
+from .task.results import ScorerInfo, eval_results
 
 ScoreAction = Literal["append", "overwrite"]
 
@@ -508,3 +509,61 @@ def resolve_scorers(
         if log.results
         else []
     )
+
+
+def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
+    """Build ScorerInfo objects from an evaluation log for metrics recomputation."""
+    if log.eval.scorers is None:
+        return []
+
+    task_file = log.eval.task_file
+    task_path = Path(task_file).absolute() if task_file else None
+    task_loaded = False
+
+    def resolve_metric(metric: EvalMetricDefinition) -> Metric:
+        nonlocal task_loaded
+        if (
+            task_path is not None
+            and not task_loaded
+            and registry_lookup("metric", metric.name) is None
+        ):
+            load_file_tasks(task_path)
+            task_loaded = True
+        return metric_from_log(metric)
+
+    infos: list[ScorerInfo] = []
+    for s in log.eval.scorers:
+        # s.metrics holds EvalMetricDefinition entries (serialized name + options).
+        # ScorerInfo needs callable Metric instances since eval_results invokes them
+        # via call_metric(). Walk the (possibly nested) list/dict structure and run
+        # each leaf through metric_from_log to instantiate it from the registry.
+        metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]
+        if not s.metrics:
+            metrics = []
+        elif isinstance(s.metrics, list):
+            metrics_list: list[Metric | dict[str, list[Metric]]] = []
+            for m in s.metrics:
+                if isinstance(m, dict):
+                    metrics_list.append(
+                        {
+                            key: [resolve_metric(md) for md in mds]
+                            for key, mds in m.items()
+                        }
+                    )
+                else:
+                    metrics_list.append(resolve_metric(m))
+            metrics = metrics_list
+        else:
+            metrics = {
+                key: [resolve_metric(md) for md in mds]
+                for key, mds in s.metrics.items()
+            }
+        infos.append(
+            ScorerInfo(
+                name=s.name,
+                metrics=metrics,
+                params=s.options or {},
+                metadata=s.metadata or {},
+            )
+        )
+    return infos

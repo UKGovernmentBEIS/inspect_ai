@@ -1,6 +1,7 @@
 ## Unreleased
 
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
+- Scoring: Use scorers_info instead of scorers for functions that recompute metrics.
 
 ## 0.3.224 (20 May 2026)
 
