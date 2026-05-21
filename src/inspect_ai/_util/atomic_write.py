@@ -24,12 +24,49 @@ semantics. Callers should gate calls to :func:`atomic_write` on
 """
 
 import os
-import tempfile
+import secrets
 from contextlib import contextmanager
 from pathlib import Path
 from typing import BinaryIO, Iterator, cast
 
 from inspect_ai._util.file import filesystem
+
+_TEMP_PREFIX = ".inspect_tmp_"
+_TEMP_SUFFIX = ".writing"
+_TEMP_TRIES = 100
+
+
+def _create_local_tempfile(target_dir: str) -> tuple[int, str]:
+    """Create a unique temp file in ``target_dir`` with ``mode=0o666``.
+
+    The kernel applies the current process umask atomically at creation
+    (``mode & ~umask``), so the resulting permission bits match what
+    ``open(..., "wb")`` would have produced — without the process-global
+    ``os.umask(0); os.umask(prev)`` dance, which is not thread-safe.
+
+    Uses ``O_EXCL`` for race-safe creation and ``secrets.token_urlsafe``
+    for collision-resistant random names; retries on the astronomically
+    unlikely collision.
+
+    Returns:
+        ``(fd, path)`` — file descriptor and absolute temp path.
+
+    Raises:
+        OSError: If no unique name can be created (typically because the
+            target directory is unwritable, in which case the first
+            ``os.open`` call raises and propagates without retry).
+    """
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_BINARY"):
+        flags |= os.O_BINARY  # Windows: prevent CRLF translation
+    for _ in range(_TEMP_TRIES):
+        name = f"{_TEMP_PREFIX}{secrets.token_urlsafe(8)}{_TEMP_SUFFIX}"
+        temp_path = os.path.join(target_dir, name)
+        try:
+            return os.open(temp_path, flags, 0o666), temp_path
+        except FileExistsError:
+            continue
+    raise OSError(f"Could not create unique temp file in {target_dir!r}")
 
 
 @contextmanager
@@ -98,26 +135,21 @@ def atomic_write(
     # `write_eval_log("new/dir/log.json", format="json")`.
     os.makedirs(target_dir, exist_ok=True)
 
-    # Determine the mode the target should end up with. mkstemp() hardcodes
-    # 0o600, so without this step os.replace() would install that mode as
-    # the final log. We preserve the existing target's mode on overwrite,
-    # or use `0o666 & ~umask` for new files (matching what `open(..., "wb")`
-    # would have produced via the previous fsspec local path). On Windows
-    # both calls are mostly cosmetic (only the read-only bit is honoured),
-    # so this is harmless cross-platform.
+    # Capture the existing target's mode before we create the temp file,
+    # so we can restore it after the rename. For new targets the temp
+    # file's OS-applied umask default is already correct and no chmod
+    # is needed (matches what `open(..., "wb")` would have produced via
+    # the previous fsspec local path). On Windows os.chmod only honours
+    # the read-only bit, so this is harmless cross-platform.
     try:
-        target_mode = os.stat(target_path).st_mode & 0o777
+        target_mode_existing: int | None = os.stat(target_path).st_mode & 0o777
     except FileNotFoundError:
-        # New file: read the umask (Python only exposes a setter that returns
-        # the previous value, so set-then-restore is the standard idiom).
-        umask = os.umask(0)
-        os.umask(umask)
-        target_mode = 0o666 & ~umask
+        target_mode_existing = None
 
-    # Create temp file in the target's directory so os.replace() is atomic.
-    fd, temp_path = tempfile.mkstemp(
-        dir=target_dir, prefix=".inspect_tmp_", suffix=".writing"
-    )
+    # Create the temp file with mode=0o666 so the kernel applies the
+    # current process umask atomically at creation — no thread-unsafe
+    # `os.umask(0); os.umask(prev)` mutation.
+    fd, temp_path = _create_local_tempfile(target_dir)
 
     try:
         with os.fdopen(fd, mode) as tmp_file:
@@ -127,10 +159,12 @@ def atomic_write(
                 tmp_file.flush()
                 os.fsync(tmp_file.fileno())
 
-        # Install the chosen mode before the rename so the final inode
-        # carries it. Doing this after os.replace() would leave a brief
-        # window where the file has mkstemp's 0o600 mode.
-        os.chmod(temp_path, target_mode)
+        # Restore the prior mode for existing targets (the OS-applied
+        # umask default would otherwise overwrite the file's previous
+        # permissions). Doing this before os.replace() means the final
+        # inode carries the right mode atomically.
+        if target_mode_existing is not None:
+            os.chmod(temp_path, target_mode_existing)
 
         # Atomic rename: POSIX rename() / Windows MoveFileEx.
         os.replace(temp_path, target_path)
