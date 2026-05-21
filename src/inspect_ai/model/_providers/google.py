@@ -725,8 +725,14 @@ class GoogleGenAIAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        """Scope for enforcing max_connections."""
-        return str(self.api_key)
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.api_key}:{self.model_name}"
 
     @override
     def tool_result_images(self) -> bool:
