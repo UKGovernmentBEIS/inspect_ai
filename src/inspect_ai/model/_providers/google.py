@@ -820,7 +820,7 @@ class GoogleGenAIAPI(ModelAPI):
             # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
             # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
             elif config.reasoning_effort is not None and self.is_gemini_3_plus():
-                # note: minimal and medium currently only supported by flash model
+                # note: minimal currently only supported by flash model
                 is_flash = self.is_gemini_3_flash()
                 match config.reasoning_effort:
                     case "minimal":
@@ -830,9 +830,7 @@ class GoogleGenAIAPI(ModelAPI):
                     case "low":
                         thinking_level = ThinkingLevel.LOW
                     case "medium":
-                        thinking_level = (
-                            ThinkingLevel.MEDIUM if is_flash else ThinkingLevel.HIGH
-                        )
+                        thinking_level = ThinkingLevel.MEDIUM
                     case "high" | "xhigh" | "max":
                         thinking_level = ThinkingLevel.HIGH
                     case _:
