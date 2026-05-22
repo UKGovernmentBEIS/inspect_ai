@@ -14295,6 +14295,12 @@ pre[class*="language-"] {
   --bs-border-radius-lg: 4px;
   --bs-popover-max-width: 50%;
   --bs-code-color: #8b0000;
+  /* Secondary/italic guidance text (e.g. "optional" next to the Reason
+     label in the edit dialogs). Bootstrap's --bs-secondary-color is
+     readable on a light surface; in VS Code dark themes it disappears
+     against the dialog background, so this variable is re-pointed at
+     --vscode-descriptionForeground below. */
+  --inspect-hint-foreground: var(--bs-secondary-color);
   --inspect-find-background: var(--bs-body-bg);
   --inspect-find-foreground: var(--bs-body-color);
   --inspect-input-background: var(--bs-body-bg);
@@ -14494,6 +14500,10 @@ body[class^="vscode-"] {
   --inspect-input-background: var(--vscode-input-background);
   --inspect-input-foreground: var(--vscode-input-foreground);
   --inspect-input-border: var(--vscode-input-border);
+  /* descriptionForeground is the muted-but-readable text VS Code uses
+     for inline guidance (e.g. quick-pick descriptions). Matches the
+     editor's contrast tuning in both light and dark themes. */
+  --inspect-hint-foreground: var(--vscode-descriptionForeground);
   --inspect-diff-add-color: var(--vscode-diffEditor-insertedTextBackground);
   --inspect-diff-remove-color: var(--vscode-diffEditor-removedTextBackground);
   --inspect-glass-color: var(--vscode-editor-foreground);
@@ -14601,6 +14611,58 @@ body[class^="vscode-"] .btn-primary {
   --bs-btn-disabled-color: var(--vscode-button-foreground);
   --bs-btn-disabled-bg: var(--vscode-button-background);
   --bs-btn-disabled-border-color: var(--vscode-button-background);
+  --bs-btn-disabled-opacity: 0.8;
+}
+
+/* Inside modal dialogs (edit tags / edit metadata / scoring detail)
+   the editor-tuned `--vscode-editorGroup-border` reads as nearly
+   invisible against dark themes — chip strips, the metadata grid,
+   and form-control inputs all lose their visual containers. Re-point
+   `--bs-border-color` to a widget-grade border so anything Bootstrap
+   styles with the border-color token (chip outlines, input borders,
+   table dividers, etc.) becomes legible. The fallback chain prefers
+   widget/editorWidget borders (typically tuned by themes for popups)
+   and only drops back to editorGroup-border if nothing else is set. */
+body[class^="vscode-"] .modal {
+  --bs-border-color: var(
+    --vscode-widget-border,
+    var(--vscode-editorWidget-border, var(--vscode-editorGroup-border))
+  );
+}
+
+/* Form-control inputs inside dialogs (Author, Reason, "Add a tag…",
+   "Add a key…") should look like native VS Code inputs rather than
+   editor-background panes: surface the input background/foreground
+   tokens, and use the input placeholder token so the placeholder
+   text stays readable in dark themes. */
+body[class^="vscode-"] .modal .form-control {
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border-color: var(
+    --vscode-input-border,
+    var(--vscode-widget-border, var(--vscode-editorGroup-border))
+  );
+}
+
+body[class^="vscode-"] .modal .form-control::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+  opacity: 1;
+}
+
+/* Mirror .btn-primary for .btn-secondary so Cancel buttons and the
+   "+ Add" pill (both rendered with Bootstrap's btn-secondary) read as
+   native VS Code secondary buttons rather than the washed-out
+   Bootstrap gray that has poor contrast in dark themes. */
+body[class^="vscode-"] .btn-secondary {
+  --bs-btn-bg: var(--vscode-button-secondaryBackground);
+  --bs-btn-border-color: var(--vscode-button-secondaryBackground);
+  --bs-btn-hover-bg: var(--vscode-button-secondaryHoverBackground);
+  --bs-btn-hover-border-color: var(--vscode-button-secondaryHoverBackground);
+  --bs-btn-color: var(--vscode-button-secondaryForeground);
+  --bs-btn-hover-color: var(--vscode-button-secondaryForeground);
+  --bs-btn-disabled-color: var(--vscode-button-secondaryForeground);
+  --bs-btn-disabled-bg: var(--vscode-button-secondaryBackground);
+  --bs-btn-disabled-border-color: var(--vscode-button-secondaryBackground);
   --bs-btn-disabled-opacity: 0.8;
 }
 
@@ -22668,54 +22730,57 @@ pre._value_8citi_25 {
 }
 /* Shared chrome for EditTagsDialog and EditMetadataDialog. */
 
-._body_1rmem_3 {
+._body_13gwg_3 {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
-._section_1rmem_9 {
+._section_13gwg_9 {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
 }
 
-._labelRow_1rmem_15 {
+._labelRow_13gwg_15 {
   display: flex;
   align-items: baseline;
   gap: 0.4rem;
 }
 
-._label_1rmem_15 {
+._label_13gwg_15 {
   font-weight: 600;
   color: var(--bs-body-color);
   margin: 0;
 }
 
-._hint_1rmem_27 {
-  color: var(--bs-secondary-color);
+._hint_13gwg_27 {
+  /* `--inspect-hint-foreground` defaults to --bs-secondary-color but
+     resolves to --vscode-descriptionForeground inside VS Code so the
+     italic "optional" stays readable against dark editor themes. */
+  color: var(--inspect-hint-foreground);
   font-weight: 400;
   font-style: italic;
 }
 
-._required_1rmem_33 {
+._required_13gwg_36 {
   color: var(--bs-danger);
   margin-left: 0.15rem;
 }
 
-._divider_1rmem_38 {
+._divider_13gwg_41 {
   border: none;
   border-top: 1px solid var(--bs-border-color);
   margin: 0.15rem 0;
 }
 
-._provenance_1rmem_44 {
+._provenance_13gwg_47 {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
 }
 
-._error_1rmem_50 {
+._error_13gwg_53 {
   padding: 0.4rem 0.6rem;
   background: var(--bs-danger-bg-subtle);
   color: var(--bs-danger-text-emphasis);
@@ -22727,14 +22792,14 @@ pre._value_8citi_25 {
    pinned to the right via `margin-left: auto` on `.footerActions` so
    the buttons stay flush right whether or not the summary is showing
    (it returns null when there are no pending changes). */
-._footer_1rmem_59 {
+._footer_13gwg_62 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   width: 100%;
 }
 
-._footerActions_1rmem_59 {
+._footerActions_13gwg_62 {
   display: flex;
   align-items: center;
   gap: 0.5rem;
