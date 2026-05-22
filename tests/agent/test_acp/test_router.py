@@ -45,6 +45,7 @@ from inspect_ai.event import (
 )
 from inspect_ai.event._logger import LoggingMessage
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.log._samples import _sample_active as samples_var
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -57,6 +58,8 @@ from inspect_ai.model._model_output import (
     ModelOutput,
 )
 from inspect_ai.tool._tool import Tool, tool
+
+from ._capture import acp_test_active_sample
 
 # ---------------------------------------------------------------------------
 # Test helpers
@@ -808,8 +811,32 @@ def test_descriptive_title_per_known_tool() -> None:
     # Planning / thinking — bare name reads fine.
     assert _descriptive_title(_ev("think")) == "think"
     assert _descriptive_title(_ev("todo_write")) == "todo_write"
-    # Unknown tools — fall back to function name.
-    assert _descriptive_title(_ev("my_custom_tool", foo="bar")) == "my_custom_tool"
+    # Unknown tools — first string-valued argument feeds the dim
+    # second half of the TUI's title split (see _header_text in
+    # tui/widgets/tool_call.py), so user-defined tools get a
+    # distinguishable card preview without registering a viewer.
+    assert (
+        _descriptive_title(_ev("my_custom_tool", city="London", seconds=2.0))
+        == "my_custom_tool London"
+    )
+    # Non-string args before the first string arg are skipped.
+    assert (
+        _descriptive_title(_ev("my_custom_tool", count=5, name="alice"))
+        == "my_custom_tool alice"
+    )
+    # No string args → bare function name (current behaviour preserved).
+    assert _descriptive_title(_ev("my_custom_tool", count=5)) == "my_custom_tool"
+    assert _descriptive_title(_ev("my_custom_tool")) == "my_custom_tool"
+    # Empty / whitespace-only string args are skipped — wouldn't add signal.
+    assert (
+        _descriptive_title(_ev("my_custom_tool", first="", second="real value"))
+        == "my_custom_tool real value"
+    )
+    # Long string args truncate via _short_summary.
+    long = "x" * 200
+    title = _descriptive_title(_ev("my_custom_tool", payload=long))
+    assert title.startswith("my_custom_tool ")
+    assert "…" in title
 
 
 # ---------------------------------------------------------------------------
@@ -1666,6 +1693,7 @@ async def test_router_publishes_for_react_against_mockllm() -> None:
     """End-to-end: react under acp_session emits ModelEvent + ToolEvent notifications."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         # Sequence: turn 1 calls a no-op tool, turn 2 submits "done".
         @tool
@@ -1716,12 +1744,16 @@ async def test_router_publishes_for_react_against_mockllm() -> None:
         for i in items:
             if isinstance(i.update, ToolCallProgress):
                 progress_statuses.append(i.update.status)
-        assert "echo" in start_titles, (
+        # Title may include a first-string-arg suffix (e.g. "echo hi")
+        # from descriptive_title's generic fallback — match on the
+        # function-name prefix, not exact equality.
+        assert any(t == "echo" or t.startswith("echo ") for t in start_titles), (
             f"expected an echo ToolCallStart; got start_titles={start_titles}"
         )
         # Each tool call should also progress through to completion.
         assert "completed" in progress_statuses
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -1729,6 +1761,7 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
     """React with as_tool sub-agent: subscriber sees only outer notifications."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         from inspect_ai.agent._agent import agent as agent_decorator
 
@@ -1779,8 +1812,10 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
             if isinstance(s.update, ToolCallStart):
                 titles.append(s.update.title)
         # We expect the outer "inner_agent" tool call (visible) and possibly
-        # "submit" but no sub-agent-internal tool calls.
-        assert "inner_agent" in titles
+        # "submit" but no sub-agent-internal tool calls. The title may
+        # include a first-string-arg suffix (e.g. "inner_agent do stuff")
+        # from descriptive_title's generic fallback — match the prefix.
+        assert any(t == "inner_agent" or t.startswith("inner_agent ") for t in titles)
         # Nothing with a "sub_" prefix or similar should appear; this is a
         # negative assertion guarding sub-agent leakage.
         for t in titles:
@@ -1788,6 +1823,7 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
                 f"unexpected sub-agent-internal leak in titles: {titles}"
             )
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -1803,6 +1839,7 @@ async def test_sub_agent_notifications_publish_when_filter_disabled() -> None:
     """
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         from inspect_ai.agent._agent import agent as agent_decorator
 
@@ -1855,4 +1892,5 @@ async def test_sub_agent_notifications_publish_when_filter_disabled() -> None:
             f"sub-agent text missing from subscriber items; got texts={texts}"
         )
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)

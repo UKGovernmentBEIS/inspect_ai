@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from logging import getLogger
 from typing import Any
 
-from pydantic import TypeAdapter
+from pydantic import JsonValue, TypeAdapter
 from shortuuid import uuid as _shortuuid
 
 from inspect_ai._util.constants import get_deserializing_context
@@ -14,11 +15,22 @@ from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
-from inspect_ai.log._recorders.buffer.types import EventData, SampleData
+from inspect_ai.log._pool import (
+    resolve_model_event_calls,
+    resolve_model_event_inputs,
+)
+from inspect_ai.log._recorders.buffer.types import (
+    CallPoolData,
+    EventData,
+    MessagePoolData,
+    SampleData,
+)
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.model._model_output import ModelOutput
 
 logger = getLogger(__name__)
+
+_CHAT_MESSAGES_ADAPTER: TypeAdapter[list[ChatMessage]] = TypeAdapter(list[ChatMessage])
 
 
 def _summary_with_uuid_fallback(summary: EvalSampleSummary) -> EvalSampleSummary:
@@ -70,10 +82,18 @@ def reconstruct_eval_sample(
         [event_data.event for event_data in deduped_event_data]
     )
 
-    # Extract messages and output from events
+    # Buffer-DB rows store events condensed; without resolving here,
+    # _extract_messages_from_events sees empty ModelEvent.input and drops
+    # every user/tool message from the recovered sample.
+    events = resolve_model_event_inputs(
+        events, _deserialize_message_pool(sample_data.message_pool)
+    )
+    events = resolve_model_event_calls(
+        events, _deserialize_call_pool(sample_data.call_pool)
+    )
+
     messages, output = _extract_messages_from_events(events)
 
-    # Build attachments dict from buffer DB attachment data
     attachments = {
         attachment.hash: attachment.content for attachment in sample_data.attachments
     }
@@ -119,6 +139,23 @@ def reconstruct_eval_sample(
 
 
 _LIST_EVENT_ADAPTER: TypeAdapter[list[Event]] = TypeAdapter(list[Event])
+
+
+def _deserialize_message_pool(
+    entries: list[MessagePoolData],
+) -> list[ChatMessage]:
+    if not entries:
+        return []
+    return _CHAT_MESSAGES_ADAPTER.validate_python(
+        [json.loads(entry.data) for entry in sorted(entries, key=lambda e: e.id)],
+        context=get_deserializing_context(),
+    )
+
+
+def _deserialize_call_pool(entries: list[CallPoolData]) -> list[JsonValue]:
+    if not entries:
+        return []
+    return [json.loads(entry.data) for entry in sorted(entries, key=lambda e: e.id)]
 
 
 def _deserialize_events(event_dicts: list[dict[str, Any]]) -> list[Event]:

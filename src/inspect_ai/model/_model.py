@@ -83,7 +83,6 @@ from inspect_ai.util._limit import (
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
 from ._call_tools import (
     copy_tools_info,
-    disable_parallel_tools,
     execute_tools,
     prepare_tools,
     snapshot_tools_for_event,
@@ -701,10 +700,6 @@ class Model:
             config.max_tokens = self.api.max_tokens_for_config(config)
             if config.max_tokens is None:
                 config.max_tokens = self.api.max_tokens()
-
-        # disable parallel tool calls if requested by any of our tools
-        if disable_parallel_tools(tools):
-            config.parallel_tool_calls = False
 
         # normalize input to chat
         if isinstance(input, str):

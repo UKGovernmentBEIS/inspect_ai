@@ -36,6 +36,7 @@ from inspect_ai._util.format import format_progress_time
 from inspect_ai._util.port_names import get_service_by_port
 from inspect_ai._util.task import task_display_name
 from inspect_ai._util.vscode import EXTENSION_COMMAND_OPEN_SAMPLE, VSCodeCommand
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._samples import ActiveSample
 
@@ -800,13 +801,18 @@ class SampleToolbar(Horizontal):
             return
         if self.sample:
             if event.button.id == self.TIMEOUT_TOOL_CALL:
-                last_event = (
-                    self.sample.transcript.events[-1]
-                    if self.sample.transcript.events
-                    else None
-                )
-                if isinstance(last_event, ToolEvent):
-                    last_event._cancel()
+                # Under parallel tool calls multiple ToolEvents can be
+                # pending at once. Each owns its own per-call CancelScope
+                # (see _call_tools.py run_one), so fan out the cancel to
+                # every pending sibling.
+                pending_tools = [
+                    ev
+                    for ev in self.sample.transcript.pending_events
+                    if isinstance(ev, ToolEvent)
+                ]
+                if pending_tools:
+                    for tool_event in pending_tools:
+                        tool_event._cancel()
                     event.button.disabled = True
                     event.button.tooltip = self.TIMEOUT_TOOL_CALL_DISABLED
             elif event.button.id in (self.CANCEL_SCORE_OUTPUT, self.CANCEL_RAISE_ERROR):
@@ -979,8 +985,6 @@ class SampleToolbar(Horizontal):
         self._exit_prompt_mode()
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
-        from inspect_ai.event._model import ModelEvent
-
         # is it a new sample?
         new_sample = sample != self.sample
 
@@ -1032,39 +1036,75 @@ class SampleToolbar(Horizontal):
                 cancel_with_error.disabled = False
                 cancel_with_error.tooltip = self.CANCEL_RAISE_ERROR_ENABLED
 
-            # if we have a pending event then start the clock and show pending status
-            last_event = (
-                sample.transcript.events[-1]
-                if len(sample.transcript.events) > 0
-                else None
-            )
-            if last_event and last_event.pending:
+            # Resolve the pending state from the transcript's sidecar.
+            # ``pending_events`` is maintained by ``_event``/``_event_updated``
+            # so it's O(in-flight) to read regardless of total
+            # transcript length — important for the once-per-second
+            # ``update_display`` cadence and for future DB-backed
+            # transcripts where ``events`` may not be in memory.
+            #
+            # Pending state classification:
+            #   - Only pending ModelEvent → "Generating...", no timeout
+            #     button (model calls aren't cancellable from this
+            #     affordance).
+            #   - Any pending ToolEvent → "Executing..." / "Executing N
+            #     tools...", timeout button visible. This case wins
+            #     even when a nested ModelEvent is also pending
+            #     (sub-agents / handoffs / parallel-tool-internal
+            #     generation) because the operator's intent in that
+            #     mixed state is to cancel the tool(s), not the inner
+            #     model call.
+            pending_model: ModelEvent | None = None
+            earliest_pending_tool: ToolEvent | None = None
+            pending_tool_count = 0
+            for ev in sample.transcript.pending_events:
+                if isinstance(ev, ModelEvent):
+                    if pending_model is None:
+                        pending_model = ev
+                elif isinstance(ev, ToolEvent):
+                    if earliest_pending_tool is None:
+                        earliest_pending_tool = ev
+                    pending_tool_count += 1
+
+            if earliest_pending_tool is not None:
                 pending_status.visible = True
                 pending_caption = cast(
                     Static, self.query_one("#" + self.PENDING_CAPTION)
                 )
-                if isinstance(last_event, ModelEvent):
-                    # see if there are retries in play
-                    if last_event.retries:
-                        suffix = "retry" if last_event.retries == 1 else "retries"
-                        pending_caption_text = (
-                            f"Generating ({last_event.retries:,} {suffix})..."
-                        )
-                    else:
-                        pending_caption_text = "Generating..."
+                if pending_tool_count > 1:
+                    pending_caption_text = f"Executing {pending_tool_count} tools..."
+                    timeout_tooltip = (
+                        "Cancel the tool calls and report a timeout to the model."
+                    )
                 else:
                     pending_caption_text = "Executing..."
+                    timeout_tooltip = self.TIMEOUT_TOOL_CALL_ENABLED
                 status_group.styles.width = max(22, len(pending_caption_text))
-
                 pending_caption.update(
                     Text.from_markup(f"[italic]{pending_caption_text}[/italic]")
                 )
-
-                timeout_tool.display = isinstance(last_event, ToolEvent)
+                timeout_tool.display = True
                 timeout_tool.disabled = False
-                timeout_tool.tooltip = self.TIMEOUT_TOOL_CALL_ENABLED
-
-                clock.start(last_event.timestamp.timestamp())
+                timeout_tool.tooltip = timeout_tooltip
+                clock.start(earliest_pending_tool.timestamp.timestamp())
+            elif pending_model is not None:
+                pending_status.visible = True
+                pending_caption = cast(
+                    Static, self.query_one("#" + self.PENDING_CAPTION)
+                )
+                if pending_model.retries:
+                    suffix = "retry" if pending_model.retries == 1 else "retries"
+                    pending_caption_text = (
+                        f"Generating ({pending_model.retries:,} {suffix})..."
+                    )
+                else:
+                    pending_caption_text = "Generating..."
+                status_group.styles.width = max(22, len(pending_caption_text))
+                pending_caption.update(
+                    Text.from_markup(f"[italic]{pending_caption_text}[/italic]")
+                )
+                timeout_tool.display = False
+                clock.start(pending_model.timestamp.timestamp())
             else:
                 pending_status.visible = False
                 timeout_tool.display = False

@@ -141,6 +141,7 @@ async def _execute_tools_impl(
         from inspect_ai.event._tool import ToolEvent
         from inspect_ai.log._transcript import transcript
 
+        tool_calls = message.tool_calls
         tdefs = await tool_defs(tools)
 
         async def call_tool_task(
@@ -319,92 +320,272 @@ async def _execute_tools_impl(
                     )
                 )
 
-        # call tools
+        StreamItem = tuple[ExecuteToolsResult, ToolEvent, Exception | None]
+
+        # Determine each call's parallel eligibility from its ToolDef.
+        # Unknown tools default to serial.
+        def is_parallel(call: ToolCall) -> bool:
+            tdef = next((t for t in tdefs if t.name == call.function), None)
+            return bool(tdef and tdef.parallel)
+
+        # Partition tool_calls into ordered execution stages. Consecutive
+        # parallel-safe calls coalesce into one concurrent stage; each
+        # serial call is its own one-element stage and acts as a barrier
+        # that preserves the model's declared ordering between stateful
+        # and stateless calls.
+        parallel_flags = [is_parallel(c) for c in tool_calls]
+        stages: list[list[int]] = []
+        i = 0
+        while i < len(parallel_flags):
+            if parallel_flags[i]:
+                start = i
+                while i < len(parallel_flags) and parallel_flags[i]:
+                    i += 1
+                stages.append(list(range(start, i)))
+            else:
+                stages.append([i])
+                i += 1
+
         result_messages: list[ChatMessage] = []
         result_output: ModelOutput | None = None
-        for call in message.tool_calls:
-            # create pending tool event and add it to the transcript
-            # (record the waiting time for the sample so we can compare
-            # it at the end to deduce total waiting time inside the tool
-            # call (in turn used to calculate working time)
-            waiting_time_start = sample_waiting_time()
-            event = ToolEvent(
-                id=call.id,
-                function=call.function,
-                arguments=call.arguments,
-                view=call.view,
-                pending=True,
-            )
 
-            # execute the tool call. if the operator cancels the
-            # tool call then synthesize the appropriate message/event
-            send_stream, receive_stream = anyio.create_memory_object_stream[
-                tuple[ExecuteToolsResult, ToolEvent, Exception | None]
-            ]()
-
-            result_exception = None
-            async with anyio.create_task_group() as tg:
-                tg.start_soon(call_tool_task, call, event, messages, send_stream)
-                event._set_cancel_fn(tg.cancel_scope.cancel)
-                async with receive_stream:
-                    (
-                        result,
-                        result_event,
-                        result_exception,
-                    ) = await receive_stream.receive()
-
-            # track where this call's result message(s) start so that we
-            # can associate the event with its own ChatMessageTool (rather
-            # than always pointing at the first tool call's message)
-            result_start = len(result_messages)
-            if event.cancelled:
-                tool_message = ChatMessageTool(
-                    content="",
-                    function=call.function,
-                    tool_call_id=call.id,
-                    error=ToolCallError(
-                        "timeout", "Command timed out before completing."
-                    ),
-                )
-                result_event = ToolEvent(
+        for stage in stages:
+            # Pre-create pending events and waiting-time baselines so they
+            # reflect the moment this stage actually starts. (The tool
+            # transcript event itself is recorded inside call_tool by
+            # call_tool_task; the baseline lets us compute working time.)
+            stage_events: dict[int, ToolEvent] = {}
+            waiting_starts: dict[int, float] = {}
+            stage_results: dict[int, StreamItem | None] = {}
+            for idx in stage:
+                call = tool_calls[idx]
+                waiting_starts[idx] = sample_waiting_time()
+                stage_events[idx] = ToolEvent(
                     id=call.id,
                     function=call.function,
                     arguments=call.arguments,
-                    result=tool_result_content(tool_message.content),
-                    truncated=None,
                     view=call.view,
-                    error=tool_message.error,
+                    pending=True,
                 )
-                transcript().info(
-                    f"Tool call '{call.function}' was cancelled by operator."
-                )
-                result_messages.append(tool_message)
-            elif result is not None:
-                result_messages.extend(result.messages)
-                if result.output is not None:
-                    result_output = result.output
+                stage_results[idx] = None
 
-            # update the event with the results
-            waiting_time_end = sample_waiting_time()
-            event._set_result(
-                result=result_event.result,
-                truncated=result_event.truncated,
-                error=result_event.error,
-                waiting_time=waiting_time_end - waiting_time_start,
-                agent=result_event.agent,
-                failed=True if result_exception else None,
-                message_id=result_messages[result_start].id
-                if len(result_messages) > result_start
-                else None,
-                agent_span_id=result_event.agent_span_id,
-            )
-            transcript()._event_updated(event)
+            async def run_one(
+                idx: int,
+                events: dict[int, ToolEvent],
+                results: dict[int, StreamItem | None],
+                waiting_starts: dict[int, float],
+            ) -> None:
+                call = tool_calls[idx]
+                event = events[idx]
+                waiting_start = waiting_starts[idx]
+                send_stream, receive_stream = anyio.create_memory_object_stream[
+                    StreamItem
+                ]()
+                try:
+                    # Per-call task group nested inside the stage's outer
+                    # task group. Its cancel_scope is exposed via
+                    # event._set_cancel_fn so an operator-driven cancel of
+                    # this specific call doesn't disturb its siblings.
+                    async with anyio.create_task_group() as tg:
+                        tg.start_soon(
+                            call_tool_task, call, event, messages, send_stream
+                        )
+                        event._set_cancel_fn(tg.cancel_scope.cancel)
+                        async with receive_stream:
+                            item = await receive_stream.receive()
+                            results[idx] = item
+                            result, result_event, call_exception = item
 
-            # if there was an exception then re-raise it -- we do this
-            # after updating the event so that we flush the transcript
-            # for the event
-            if result_exception is not None:
-                raise result_exception
+                            # Finalise this call's event now so its
+                            # `completed`/`working_time` reflect when *this*
+                            # call actually finished, not when the whole
+                            # stage exits. Fast siblings of slow tools would
+                            # otherwise look as slow as the slowest call.
+                            waiting_time_end = sample_waiting_time()
+                            event._set_result(
+                                result=result_event.result,
+                                truncated=result_event.truncated,
+                                error=result_event.error,
+                                waiting_time=waiting_time_end - waiting_start,
+                                agent=result_event.agent,
+                                failed=True if call_exception else None,
+                                message_id=(
+                                    result.messages[0].id
+                                    if result and result.messages
+                                    else None
+                                ),
+                                agent_span_id=result_event.agent_span_id,
+                            )
+                            transcript()._event_updated(event)
+
+                            # An unhandled exception captured by call_tool_task
+                            # needs to be re-raised here so the surrounding
+                            # outer task group cancels in-flight siblings.
+                            if call_exception is not None:
+                                raise call_exception
+                except anyio.EndOfStream:
+                    # call_tool_task closed send_stream without sending;
+                    # leave the post-task-group block below to detect and
+                    # finalise the cancellation.
+                    pass
+
+                # If this call's per-call CancelScope was cancelled via
+                # `event._cancel()` (operator-initiated for *this* call),
+                # the CancelScope swallowed its own CancelledError and we
+                # exited the task group cleanly. Synthesise and finalise
+                # the cancellation now so `completed`/`working_time`
+                # reflect when the cancel hit — not stage end. A synthetic
+                # StreamItem is stashed in `results` so the post-stage
+                # loop splices the cancellation message in declared order.
+                #
+                # When the outer task group cancelled this call instead
+                # (sibling raised), the CancelledError propagates out of
+                # `run_one` and this block is skipped; the post-stage loop
+                # handles the sibling-cancellation synthesis with its
+                # own messaging.
+                if results[idx] is None and event.cancelled:
+                    op_tool_message = ChatMessageTool(
+                        content="",
+                        function=call.function,
+                        tool_call_id=call.id,
+                        error=ToolCallError(
+                            "timeout", "Command timed out before completing."
+                        ),
+                    )
+                    op_result_event = ToolEvent(
+                        id=call.id,
+                        function=call.function,
+                        arguments=call.arguments,
+                        result=tool_result_content(op_tool_message.content),
+                        truncated=None,
+                        view=call.view,
+                        error=op_tool_message.error,
+                    )
+                    results[idx] = (
+                        ExecuteToolsResult(messages=[op_tool_message], output=None),
+                        op_result_event,
+                        None,
+                    )
+                    waiting_time_end = sample_waiting_time()
+                    event._set_result(
+                        result=op_result_event.result,
+                        truncated=op_result_event.truncated,
+                        error=op_result_event.error,
+                        waiting_time=waiting_time_end - waiting_start,
+                        agent=op_result_event.agent,
+                        # Operator-cancel preserves pre-existing serial
+                        # semantics: failed=None, the "timeout" error
+                        # type is the only marker.
+                        failed=None,
+                        message_id=op_tool_message.id,
+                        agent_span_id=op_result_event.agent_span_id,
+                    )
+                    # call_tool records the pending event only after
+                    # approval. If the cancel hit before that, append it
+                    # now (both _event and _event_updated notify
+                    # subscribers via _process_event, so we do one or
+                    # the other — never both).
+                    if event not in transcript().events:
+                        transcript()._event(event)
+                    else:
+                        transcript()._event_updated(event)
+                    transcript().info(
+                        f"Tool call '{call.function}' was cancelled by operator."
+                    )
+
+            stage_exception: Exception | None = None
+            try:
+                async with anyio.create_task_group() as outer_tg:
+                    for idx in stage:
+                        outer_tg.start_soon(
+                            run_one,
+                            idx,
+                            stage_events,
+                            stage_results,
+                            waiting_starts,
+                        )
+            except Exception as ex:
+                stage_exception = inner_exception(ex)
+
+            # Splice results into `result_messages` in declared order so the
+            # message list matches the order of tool_calls (Anthropic and
+            # other providers require tool_result blocks to match tool_use
+            # block order). Events are already finalised — successes and
+            # exceptions inside run_one's success path, operator cancels
+            # inside run_one's EndOfStream path — except for siblings
+            # cancelled by an unhandled exception in another stage member,
+            # which we synthesise and finalise here.
+            for idx in stage:
+                call = tool_calls[idx]
+                event = stage_events[idx]
+                waiting_start = waiting_starts[idx]
+                stream_item = stage_results[idx]
+
+                if stream_item is None:
+                    # No StreamItem means the call neither completed nor was
+                    # operator-cancelled (run_one's EndOfStream branch would
+                    # have synthesised one). The only remaining cause is the
+                    # outer task group cancelling this call when another
+                    # sibling raised an unhandled exception.
+                    tool_message = ChatMessageTool(
+                        content="",
+                        function=call.function,
+                        tool_call_id=call.id,
+                        error=ToolCallError(
+                            "cancelled",
+                            "Tool call cancelled because a parallel sibling "
+                            "tool call raised an exception.",
+                        ),
+                    )
+                    cancellation_event = ToolEvent(
+                        id=call.id,
+                        function=call.function,
+                        arguments=call.arguments,
+                        result=tool_result_content(tool_message.content),
+                        truncated=None,
+                        view=call.view,
+                        error=tool_message.error,
+                    )
+                    transcript().info(
+                        f"Tool call '{call.function}' was cancelled because "
+                        "a parallel sibling tool call raised an exception."
+                    )
+                    result_messages.append(tool_message)
+
+                    waiting_time_end = sample_waiting_time()
+                    event._set_result(
+                        result=cancellation_event.result,
+                        truncated=cancellation_event.truncated,
+                        error=cancellation_event.error,
+                        waiting_time=waiting_time_end - waiting_start,
+                        agent=cancellation_event.agent,
+                        failed=True,
+                        message_id=tool_message.id,
+                        agent_span_id=cancellation_event.agent_span_id,
+                    )
+                    # call_tool records the pending event only after
+                    # approval. If the sibling cancel hit before that,
+                    # append it now (both _event and _event_updated
+                    # notify subscribers via _process_event, so we do
+                    # one or the other — never both).
+                    if event not in transcript().events:
+                        transcript()._event(event)
+                    else:
+                        transcript()._event_updated(event)
+                else:
+                    # Event was finalised in run_one (success, exception, or
+                    # operator cancel). Just splice the (possibly synthetic)
+                    # messages in declared order.
+                    result, _, _ = stream_item
+                    if result is not None:
+                        result_messages.extend(result.messages)
+                        if result.output is not None:
+                            result_output = result.output
+
+            # If anything in the stage raised, re-raise after updating the
+            # events so the transcript captures partial state cleanly.
+            if stage_exception is not None:
+                raise stage_exception
 
         # return tool messages
         return ExecuteToolsResult(result_messages, result_output)
@@ -774,18 +955,6 @@ def get_tools_info(
                 )
             )
     return tools_info
-
-
-def disable_parallel_tools(
-    tools: Sequence[Tool | ToolDef | ToolInfo | ToolSource] | ToolSource,
-) -> bool:
-    if not isinstance(tools, ToolSource):
-        for tool in tools:
-            if isinstance(tool, Tool):
-                tool = ToolDef(tool)
-            if isinstance(tool, ToolDef) and not tool.parallel:
-                return True
-    return False
 
 
 def type_hint_includes_none(type_hint: Type[Any] | None) -> bool:

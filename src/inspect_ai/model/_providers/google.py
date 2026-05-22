@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import functools
 import hashlib
@@ -10,6 +11,7 @@ from textwrap import dedent
 from typing import Any, Literal, NamedTuple, cast
 
 # SDK Docs: https://googleapis.github.io/python-genai/
+import aiohttp
 import anyio
 import httpx
 from google.genai import Client
@@ -107,7 +109,10 @@ from inspect_ai.model._providers._google_computer_use import (
     maybe_computer_use_tool,
     tool_call_from_gemini_computer_action,
 )
-from inspect_ai.model._reasoning import reasoning_to_think_tag
+from inspect_ai.model._reasoning import (
+    effort_to_reasoning_tokens,
+    reasoning_to_think_tag,
+)
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import (
     ToolCall,
@@ -707,12 +712,30 @@ class GoogleGenAIAPI(ModelAPI):
             if ex.code == 503 and "RESOURCE_EXHAUSTED" in status.upper():
                 return RetryDecision.rate_limit(retry_after=retry_after)
             return RetryDecision.transient(retry_after=retry_after)
+        # genai's _async_request_once retries these exactly once inline;
+        # without this branch a second failure terminates the sample.
+        if isinstance(
+            ex,
+            (
+                aiohttp.ClientConnectorError,
+                aiohttp.ClientOSError,
+                aiohttp.ServerDisconnectedError,
+                asyncio.TimeoutError,
+            ),
+        ):
+            return RetryDecision.transient()
         return RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
-        """Scope for enforcing max_connections."""
-        return str(self.api_key)
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.api_key}:{self.model_name}"
 
     @override
     def tool_result_images(self) -> bool:
@@ -800,7 +823,7 @@ class GoogleGenAIAPI(ModelAPI):
             # thinking_level is now the preferred way of setting reasoning (thinking_budget is deprecated)
             # consult it first for gemini 3+ models, otherwise fall through to tokens for other models
             elif config.reasoning_effort is not None and self.is_gemini_3_plus():
-                # note: minimal and medium currently only supported by flash model
+                # note: minimal currently only supported by flash model
                 is_flash = self.is_gemini_3_flash()
                 match config.reasoning_effort:
                     case "minimal":
@@ -810,9 +833,7 @@ class GoogleGenAIAPI(ModelAPI):
                     case "low":
                         thinking_level = ThinkingLevel.LOW
                     case "medium":
-                        thinking_level = (
-                            ThinkingLevel.MEDIUM if is_flash else ThinkingLevel.HIGH
-                        )
+                        thinking_level = ThinkingLevel.MEDIUM
                     case "high" | "xhigh" | "max":
                         thinking_level = ThinkingLevel.HIGH
                     case _:
@@ -826,6 +847,16 @@ class GoogleGenAIAPI(ModelAPI):
                 return ThinkingConfig(
                     include_thoughts=True, thinking_budget=config.reasoning_tokens
                 )
+
+            # gemini 2.5 bridge: translate reasoning_effort to a thinking_budget
+            # via the fixed-table mapping (thinking_level / effort isn't accepted
+            # by 2.5 itself, but users sweeping across model versions expect
+            # --reasoning-effort to do *something* on 2.5).
+            elif config.reasoning_effort is not None and self.is_gemini_2_5():
+                budget = effort_to_reasoning_tokens(config.reasoning_effort)
+                if budget is not None:
+                    return ThinkingConfig(include_thoughts=True, thinking_budget=budget)
+                return ThinkingConfig(include_thoughts=True)
 
             # generic thinking with defaults
             else:

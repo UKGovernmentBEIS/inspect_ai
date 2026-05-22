@@ -3,82 +3,24 @@
 These dataclasses are the public surface that users construct when
 configuring checkpointing on a :class:`Sample`, :class:`Task`, or
 ``eval(...)``. Configs at different levels are combined via per-field
-merging — see :func:`merge_checkpoint_configs` in ``_resolve.py``. The
+merging — see :func:`merge_checkpoint_configs` in this module. The
 full semantic model is described in
 ``design/plans/checkpointing-working.md`` §2.
 
 Every field on :class:`CheckpointConfig` defaults to ``None`` so that
 "not set at this level" is distinguishable from "explicitly set to a
-default value." The merge resolver materializes defaults at the end.
+default value." The merge resolver materializes defaults at the end
+and returns a :class:`ResolvedCheckpointConfig` — a strict type whose
+``trigger`` is guaranteed non-None and whose container fields are
+filled in with their canonical defaults.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import timedelta
+from dataclasses import dataclass, field
 from typing import Literal
 
-
-@dataclass
-class TimeInterval:
-    """Fire every N of wall-clock time."""
-
-    every: timedelta
-
-
-@dataclass
-class TurnInterval:
-    """Fire every N agent turns."""
-
-    every: int
-
-
-@dataclass
-class TokenInterval:
-    """Fire every N tokens generated. Not yet implemented (Phase 5)."""
-
-    every: int
-
-
-@dataclass
-class CostInterval:
-    """Fire every $N spent. Not yet implemented (Phase 5)."""
-
-    every: float
-
-
-@dataclass
-class BudgetPercent:
-    """Fire at percentage milestones of a named budget. Not yet implemented (Phase 5).
-
-    Example: ``BudgetPercent(budget="cost", percent=10)`` fires at 10%, 20%, …
-    of the ``cost_limit`` configured on the task or sample.
-    """
-
-    budget: Literal["token", "cost", "time", "working"]
-    percent: float
-
-
-CheckpointTrigger = (
-    TimeInterval
-    | TurnInterval
-    | TokenInterval
-    | CostInterval
-    | BudgetPercent
-    | Literal["manual"]
-)
-"""Checkpoint trigger policy.
-
-- :class:`TimeInterval` — every N of wall-clock time
-- :class:`TurnInterval` — every N agent turns
-- :class:`TokenInterval` — every N tokens generated (Phase 5)
-- :class:`CostInterval` — every $N spent (Phase 5)
-- :class:`BudgetPercent` — at percentage milestones of a named budget (Phase 5)
-- ``"manual"`` — agent-triggered via :func:`checkpoint`
-
-To disable checkpointing entirely, omit ``checkpoint=...`` at every
-level (eval / task / sample).
-"""
+from ._triggers import CheckpointTrigger
 
 
 @dataclass
@@ -107,9 +49,10 @@ class CheckpointSampleConfig:
     """
 
     trigger: CheckpointTrigger | None = None
-    """Checkpoint trigger. See :data:`CheckpointTrigger`. ``None`` means
-    "inherit from a lower-priority layer"; the final merged config must
-    have a non-None trigger or resolution raises."""
+    """Checkpoint trigger strategy — any implementer of
+    :class:`CheckpointTrigger` (see :mod:`.triggers`). ``None`` means
+    "inherit from a lower-priority layer"; the final merged config
+    must have a non-None trigger or resolution raises."""
 
     sandbox_paths: dict[str, list[str]] | None = None
     """Per-sandbox-name list of absolute paths to capture inside the
@@ -139,7 +82,7 @@ class CheckpointConfig(CheckpointSampleConfig):
     See ``design/plans/checkpointing-working.md`` §2.
     """
 
-    checkpoints_dir: str | None = None
+    checkpoints_location: str | None = None
     """Override the parent directory under which the eval checkpoints
     dir lands. ``None`` = sibling of the eval log file. When set,
     inspect places ``<log-base>.checkpoints/`` under this root.
@@ -152,11 +95,32 @@ class CheckpointConfig(CheckpointSampleConfig):
     Eval-wide — settable only at the task or eval layer."""
 
 
+@dataclass
+class ResolvedCheckpointConfig:
+    """Merged checkpoint config — the runtime contract for sample execution.
+
+    Produced by :func:`merge_checkpoint_configs`. Distinct from the
+    user-facing :class:`CheckpointConfig` because every field has been
+    resolved: ``trigger`` is non-None (caller-provided or raise),
+    ``sandbox_paths`` is a real (possibly-empty) dict, and ``retention``
+    has its canonical default applied. Internal callers downstream of
+    the merge depend on these invariants — typing them out lets the
+    type system enforce them rather than asking each consumer to
+    re-validate.
+    """
+
+    trigger: CheckpointTrigger
+    sandbox_paths: dict[str, list[str]] = field(default_factory=dict)
+    retention: Retention = field(default_factory=Retention)
+    checkpoints_location: str | None = None
+    max_consecutive_failures: int | None = None
+
+
 def merge_checkpoint_configs(
     task: CheckpointConfig | None = None,
     sample: CheckpointSampleConfig | None = None,
     eval_: CheckpointConfig | None = None,
-) -> CheckpointConfig | None:
+) -> ResolvedCheckpointConfig | None:
     """Merge checkpoint config layers across task, sample, and eval.
 
     Precedence: **eval > sample > task** — the layer closest to the run
@@ -174,13 +138,12 @@ def merge_checkpoint_configs(
     replacement), not key-wise merged.
 
     Returns ``None`` if no layer supplied a config (checkpointing
-    disabled). Returns a materialized :class:`CheckpointConfig`
-    otherwise — `trigger` is guaranteed non-None and the nullable
-    container fields (`sandbox_paths`, `retention`) are filled with
-    their canonical defaults.
+    disabled). Otherwise returns a :class:`ResolvedCheckpointConfig`
+    with ``trigger`` guaranteed non-None and ``sandbox_paths`` /
+    ``retention`` filled with canonical defaults.
 
     Raises ``ValueError`` if at least one layer was supplied but no
-    layer set a `trigger`.
+    layer set a ``trigger``.
     """
     if task is None and sample is None and eval_ is None:
         return None
@@ -198,13 +161,13 @@ def merge_checkpoint_configs(
         if layer.max_consecutive_failures is not None:
             max_consecutive_failures = layer.max_consecutive_failures
 
-    checkpoints_dir: str | None = None
+    checkpoints_location: str | None = None
     retention: Retention | None = None
     for layer in (task, eval_):
         if layer is None:
             continue
-        if layer.checkpoints_dir is not None:
-            checkpoints_dir = layer.checkpoints_dir
+        if layer.checkpoints_location is not None:
+            checkpoints_location = layer.checkpoints_location
         if layer.retention is not None:
             retention = layer.retention
 
@@ -213,10 +176,10 @@ def merge_checkpoint_configs(
             "checkpoint config provided but no trigger was set at any level"
         )
 
-    return CheckpointConfig(
+    return ResolvedCheckpointConfig(
         trigger=trigger,
-        checkpoints_dir=checkpoints_dir,
         sandbox_paths=sandbox_paths if sandbox_paths is not None else {},
-        max_consecutive_failures=max_consecutive_failures,
         retention=retention if retention is not None else Retention(),
+        checkpoints_location=checkpoints_location,
+        max_consecutive_failures=max_consecutive_failures,
     )

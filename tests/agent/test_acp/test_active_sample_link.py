@@ -18,6 +18,7 @@ from inspect_ai.dataset._dataset import Sample
 from inspect_ai.log._samples import ActiveSample, active_sample
 from inspect_ai.log._samples import _sample_active as samples_var
 from inspect_ai.log._transcript import Transcript
+from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._limit import LimitExceededError
 
 
@@ -27,7 +28,7 @@ def _make_active_sample() -> ActiveSample:
         task="t",
         log_location="mem://test",
         model="mockllm/model",
-        sample=Sample(input="hi"),
+        sample=Sample(id=1, input="hi"),
         epoch=0,
         message_limit=None,
         token_limit=None,
@@ -37,6 +38,8 @@ def _make_active_sample() -> ActiveSample:
         fails_on_error=False,
         transcript=Transcript(),
         sandboxes={},
+        checkpointer=_NoopCheckpointer(),
+        eval_id="eval-1",
     )
 
 
@@ -429,7 +432,7 @@ async def test_active_sample_exit_calls_on_complete_hook() -> None:
         task="t",
         log_location="mem://test",
         model="mockllm/model",
-        sample=Sample(input="hi"),
+        sample=Sample(id=1, input="hi"),
         epoch=0,
         message_limit=None,
         token_limit=None,
@@ -438,6 +441,7 @@ async def test_active_sample_exit_calls_on_complete_hook() -> None:
         working_limit=None,
         fails_on_error=False,
         transcript=Transcript(),
+        eval_id="eval-1",
     ) as active:
         active.on_complete = _on_complete
         assert fired == []
@@ -463,7 +467,7 @@ async def test_active_sample_exit_on_complete_failure_is_logged_not_raised() -> 
         task="t",
         log_location="mem://test",
         model="mockllm/model",
-        sample=Sample(input="hi"),
+        sample=Sample(id=1, input="hi"),
         epoch=0,
         message_limit=None,
         token_limit=None,
@@ -472,6 +476,7 @@ async def test_active_sample_exit_on_complete_failure_is_logged_not_raised() -> 
         working_limit=None,
         fails_on_error=False,
         transcript=Transcript(),
+        eval_id="eval-1",
     ) as active:
         active.on_complete = _bad
     # Reaching here = teardown didn't raise. `active.completed` was

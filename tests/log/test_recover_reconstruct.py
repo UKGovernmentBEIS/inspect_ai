@@ -1,13 +1,22 @@
 """Tests for reconstructing EvalSample from buffer DB data."""
 
+import json
 from datetime import datetime, timezone
+
+from pydantic_core import to_jsonable_python
 
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._step import StepEvent
 from inspect_ai.log._log import EvalSample, EvalSampleSummary
-from inspect_ai.log._recorders.buffer.types import AttachmentData, EventData, SampleData
+from inspect_ai.log._recorders.buffer.types import (
+    AttachmentData,
+    CallPoolData,
+    EventData,
+    MessagePoolData,
+    SampleData,
+)
 from inspect_ai.log._recover import reconstruct_eval_sample
 from inspect_ai.log._recover._reconstruct import MessageAccumulator
 from inspect_ai.model._chat_message import (
@@ -16,6 +25,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.scorer._metric import Score
 
@@ -487,3 +497,94 @@ def test_reconstruct_in_progress_summary_without_uuid_synthesizes_one() -> None:
     )
 
     assert sample.uuid is not None
+
+
+def test_reconstruct_resolves_message_pool_refs() -> None:
+    """Regression: reconstruct must rehydrate ModelEvent.input from message_pool."""
+    summary = _make_completed_summary()
+    user_msg = ChatMessageUser(content="What is 2+2?")
+    assert user_msg.id is not None
+
+    model_event = ModelEvent(
+        model="mockllm/model",
+        input=[],
+        input_refs=[(0, 1)],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content(
+            model="mockllm/model", content="The answer is 4."
+        ),
+    )
+
+    sample_data = SampleData(
+        events=[_event_to_event_data(model_event, id=1)],
+        attachments=[],
+        message_pool=[
+            MessagePoolData(
+                id=1,
+                sample_id="1",
+                epoch=1,
+                msg_id=user_msg.id,
+                data=json.dumps(to_jsonable_python(user_msg, exclude_none=True)),
+            )
+        ],
+    )
+
+    sample = reconstruct_eval_sample(summary, sample_data)
+
+    assert isinstance(sample.events[0], ModelEvent)
+    assert len(sample.events[0].input) == 1, (
+        f"expected resolved input from message_pool, got {sample.events[0].input!r}"
+    )
+    assert sample.events[0].input[0].text == "What is 2+2?"
+
+    assert len(sample.messages) == 2
+    assert sample.messages[0].role == "user"
+    assert sample.messages[0].text == "What is 2+2?"
+    assert sample.messages[1].role == "assistant"
+
+
+def test_reconstruct_resolves_call_pool_refs() -> None:
+    """Regression: reconstruct must rehydrate ModelCall.request from call_pool."""
+    summary = _make_completed_summary()
+    pooled_message = {"role": "user", "content": "What is 2+2?"}
+
+    model_event = ModelEvent(
+        model="mockllm/model",
+        input=[ChatMessageUser(content="What is 2+2?")],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content(
+            model="mockllm/model", content="The answer is 4."
+        ),
+        call=ModelCall(
+            request={"model": "mockllm/model", "messages": []},
+            response={},
+            call_refs=[(0, 1)],
+            call_key="messages",
+        ),
+    )
+
+    sample_data = SampleData(
+        events=[_event_to_event_data(model_event, id=1)],
+        attachments=[],
+        call_pool=[
+            CallPoolData(
+                id=1,
+                sample_id="1",
+                epoch=1,
+                hash="dummy-hash",
+                data=json.dumps(pooled_message),
+            )
+        ],
+    )
+
+    sample = reconstruct_eval_sample(summary, sample_data)
+
+    assert isinstance(sample.events[0], ModelEvent)
+    call = sample.events[0].call
+    assert call is not None
+    assert call.call_refs is None
+    assert call.request["messages"] == [pooled_message]

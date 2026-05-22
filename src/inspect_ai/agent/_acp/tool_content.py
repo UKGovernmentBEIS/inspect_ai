@@ -207,6 +207,19 @@ def descriptive_title(fn: str, arguments: dict[str, Any] | None) -> str:
     if fn in ("think", "todo_write", "update_plan"):
         return fn
 
+    # Generic fallback for user-defined tools without a named heuristic
+    # above: surface the first non-empty string-valued argument so the
+    # card line is distinguishable in a list of many parallel calls.
+    # Argument iteration follows the model's tool-call argument dict
+    # which preserves declaration order (Python 3.7+ insertion order),
+    # so "first" matches the function signature's first string arg.
+    # Tools that want a different preview register a custom viewer.
+    for value in args.values():
+        if isinstance(value, str):
+            summary = _short_summary(value)
+            if summary:
+                return f"{fn} {summary}"
+
     return fn
 
 

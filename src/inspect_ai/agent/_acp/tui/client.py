@@ -155,6 +155,10 @@ class SessionRow:
     target: TargetAddress
     """The discovered address for the eval that owns this session."""
 
+    total_messages: int = 0
+    """Running total messages for the sample — drives the picker's
+    ``messages`` column. Refreshed on the picker's 10s rescan."""
+
     total_tokens: int = 0
     """Running total tokens for the sample — drives the picker's
     ``tokens`` column. Refreshed on the picker's 10s rescan."""
@@ -281,6 +285,7 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
                 agent_name=s.get("agentName"),
                 started_at=s.get("startedAt"),
                 target=target,
+                total_messages=int(s.get("totalMessages") or 0),
                 total_tokens=int(s.get("totalTokens") or 0),
                 fails_on_error=bool(s.get("failsOnError", False)),
             )

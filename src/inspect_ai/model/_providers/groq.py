@@ -36,7 +36,10 @@ from inspect_ai._util.http import (
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
 from inspect_ai.log._samples import set_active_model_event_call
-from inspect_ai.model._reasoning import reasoning_to_think_tag
+from inspect_ai.model._reasoning import (
+    clamp_reasoning_effort_to_low_medium_high,
+    reasoning_to_think_tag,
+)
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.util._json import json_schema_dump
 
@@ -214,7 +217,11 @@ class GroqAPI(ModelAPI):
         if config.num_choices is not None:
             params["n"] = config.num_choices
         if config.reasoning_effort is not None:
-            params["reasoning_effort"] = config.reasoning_effort
+            # Groq's API accepts low/medium/high; clamp the extended effort
+            # values (minimal/xhigh/max) so requests aren't rejected.
+            clamped = clamp_reasoning_effort_to_low_medium_high(config.reasoning_effort)
+            if clamped is not None:
+                params["reasoning_effort"] = clamped
         if config.response_schema is not None:
             json_schema_dict: dict[str, Any] = dict(
                 name=config.response_schema.name,
@@ -257,7 +264,14 @@ class GroqAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        return str(self.api_key)
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.api_key}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:

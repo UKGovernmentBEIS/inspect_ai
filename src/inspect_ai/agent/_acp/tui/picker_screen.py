@@ -61,6 +61,8 @@ _COL_TASK = "task"
 _COL_EPOCH = "epoch"
 _COL_AGENT = "agent"
 _COL_AGENT_HEADER = "acp agent"
+_COL_MESSAGES = "messages"
+_COL_MESSAGES_HEADER = "msgs"
 _COL_TOKENS = "tokens"
 _COL_RUNNING = "running"
 
@@ -145,6 +147,18 @@ def _tokens_cell(n: int, *, dim: bool = False) -> Text:
 
     ``dim=True`` paints the cell with the muted style used for
     non-ACP rows.
+    """
+    style = "dim" if dim else ""
+    return Text(format_tokens(n), justify="right", style=style)
+
+
+def _messages_cell(n: int, *, dim: bool = False) -> Text:
+    """Right-justified Rich Text for the messages column.
+
+    Mirrors :func:`_tokens_cell` so the messages column shares the
+    same alignment + K/M abbreviation formatting (via
+    :func:`format_tokens`) as tokens. Keeps the two adjacent metric
+    columns visually parallel.
     """
     style = "dim" if dim else ""
     return Text(format_tokens(n), justify="right", style=style)
@@ -521,9 +535,15 @@ class PickerScreen(Screen[None]):
         # below are non-ACP samples (no attachable agent). Key stays
         # ``"agent"`` so update_cell sites need no audit.
         table.add_column(_COL_AGENT_HEADER, key=_COL_AGENT)
-        # Tokens + running headers are right-justified to match their
-        # cell values (cells get the same Text wrap via the
-        # ``_tokens_cell`` / ``_running_cell`` helpers).
+        # Messages, tokens, and running headers are right-justified to
+        # match their cell values (cells get the same Text wrap via the
+        # ``_messages_cell`` / ``_tokens_cell`` / ``_running_cell``
+        # helpers). Messages sits immediately left of tokens so the two
+        # running metrics read as a pair. Visible header reads ``msgs``
+        # (abbreviated) to keep the column narrow — same key/header
+        # split convention as ``_COL_AGENT`` / ``_COL_AGENT_HEADER`` so
+        # update_cell sites still reference the unabbreviated key.
+        table.add_column(Text(_COL_MESSAGES_HEADER, justify="right"), key=_COL_MESSAGES)
         table.add_column(Text(_COL_TOKENS, justify="right"), key=_COL_TOKENS)
         table.add_column(Text(_COL_RUNNING, justify="right"), key=_COL_RUNNING)
         self._populate_table(table)
@@ -617,6 +637,7 @@ class PickerScreen(Screen[None]):
                 # no extra branch needed here.
                 task_cell,
                 agent_cell,
+                _messages_cell(row.total_messages, dim=not is_acp),
                 _tokens_cell(row.total_tokens, dim=not is_acp),
                 _running_cell(row.started_at, now, dim=not is_acp),
                 key=_row_key(row),
@@ -762,6 +783,7 @@ class PickerScreen(Screen[None]):
                 r for r in self._rows if _row_matches(r, self._filter_text)
             ]
             self._tick_tokens()
+            self._tick_messages()
             return
         self._rows = new_rows
         if self._needs_recompose(new_rows):
@@ -822,6 +844,19 @@ class PickerScreen(Screen[None]):
         self._tick_column(
             _COL_TOKENS,
             lambda row: _tokens_cell(row.total_tokens, dim=not _is_acp(row)),
+        )
+
+    def _tick_messages(self) -> None:
+        """Refresh the ``messages`` column after a rescan pulls fresh data.
+
+        Mirrors :meth:`_tick_tokens` — message totals only advance with
+        a rescan, so they're refreshed on the rescan path rather than
+        the per-second tick. Wraps via ``_messages_cell`` so the
+        right-justify alignment survives every cell update.
+        """
+        self._tick_column(
+            _COL_MESSAGES,
+            lambda row: _messages_cell(row.total_messages, dim=not _is_acp(row)),
         )
 
     def _tick_column(
