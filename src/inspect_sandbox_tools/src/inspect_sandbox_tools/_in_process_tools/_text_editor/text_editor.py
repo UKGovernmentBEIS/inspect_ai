@@ -1,7 +1,9 @@
 """Adapted from: https://github.com/anthropics/anthropic-quickstarts/blob/main/computer-use-demo/computer_use_demo/tools/edit.py"""
 
+import logging
 import os
 import pickle
+import tempfile
 from collections import defaultdict
 from pathlib import Path
 from typing import Literal
@@ -13,7 +15,10 @@ from inspect_sandbox_tools._in_process_tools._text_editor._run import (
 from inspect_sandbox_tools._util.common_types import ToolException
 
 DEFAULT_HISTORY_PATH = "/tmp/inspect_editor_history.pkl"
+MAX_HISTORY_ENTRIES_PER_FILE = 10
 SNIPPET_LINES: int = 4
+
+logger = logging.getLogger(__name__)
 
 HistoryEntryType = str | Literal[-1]
 HistoryType = dict[Path, list[HistoryEntryType]]
@@ -165,9 +170,12 @@ async def insert(path_str: str, insert_line: int, new_str: str) -> str:
 async def undo_edit(path_str: str) -> str:
     path = _validated_path(path_str, "undo_edit")
     history = _load_history()
-    if not history[path]:
-        raise ToolException(f"No edit history found for {path}.")
-    entry = history[path].pop()
+    entries = history.get(path)
+    if not entries:
+        raise ToolException(
+            f"No edit history found for {path}. The text editor only retains the last {MAX_HISTORY_ENTRIES_PER_FILE} edits per file."
+        )
+    entry = entries.pop()
     _save_history(history)
 
     match entry:
@@ -249,19 +257,57 @@ def _add_history_entry(path: Path, entry: HistoryEntryType) -> None:
     _save_history(history)
 
 
-def _save_history(history: HistoryType, file_path: str = DEFAULT_HISTORY_PATH) -> None:
+def _trim_history(history: HistoryType) -> None:
+    for path, entries in list(history.items()):
+        if len(entries) > MAX_HISTORY_ENTRIES_PER_FILE:
+            del entries[:-MAX_HISTORY_ENTRIES_PER_FILE]
+        if not entries:
+            del history[path]
+
+
+def _save_history(history: HistoryType, file_path: str | None = None) -> None:
+    file_path = file_path or DEFAULT_HISTORY_PATH
     try:
-        with open(file_path, "wb") as f:
-            pickle.dump(history, f)
+        _trim_history(history)
+        _atomic_pickle_dump(history, file_path)
     except Exception as e:
-        raise ToolException(f"Failed to save history to {file_path}: {e}") from None
+        # Leave any temp file behind; edit success matters more than cleanup in
+        # this rare history-save failure path.
+        logger.warning("Discarding text_editor history at %s due to: %s", file_path, e)
+        _discard_history(file_path)
 
 
-def _load_history(file_path: str = DEFAULT_HISTORY_PATH) -> HistoryType:
+def _atomic_pickle_dump(history: HistoryType, file_path: str) -> None:
+    """Write history via atomic replace so errors cannot leave a partial pickle."""
+    path = Path(file_path)
+    with tempfile.NamedTemporaryFile(
+        "wb", dir=path.parent, prefix=f".{path.name}.", delete=False
+    ) as f:
+        pickle.dump(history, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(f.name, file_path)
+
+
+def _load_history(file_path: str | None = None) -> HistoryType:
+    file_path = file_path or DEFAULT_HISTORY_PATH
     try:
         with open(file_path, "rb") as f:
-            return pickle.load(f)
+            history = pickle.load(f)
+        return defaultdict(list, history)
     except FileNotFoundError:
+        # First edit in this sandbox: no undo history exists yet.
         return defaultdict(list)
     except Exception as e:
-        raise ToolException(f"Failed to load history from {file_path}: {e}") from None
+        logger.warning("Discarding text_editor history at %s due to: %s", file_path, e)
+        _discard_history(file_path)
+        return defaultdict(list)
+
+
+def _discard_history(file_path: str) -> None:
+    try:
+        os.unlink(file_path)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
