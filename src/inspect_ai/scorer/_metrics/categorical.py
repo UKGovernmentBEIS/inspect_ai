@@ -115,9 +115,10 @@ def categorical(categories: Categories = None) -> list[Metric]:
         @scorer(metrics={"*": categorical()})
         def my_grader() -> Scorer: ...
 
-    When a scorer returns ``StrEnum`` values, epochs are not reduced for that
-    scorer: each epoch's score is treated as an independent observation by
-    ``frequency()``.
+    When a scorer returns ``StrEnum`` values and no epoch reducer is
+    explicitly configured, epochs are not reduced for that scorer: each
+    epoch's score is treated as an independent observation by ``frequency()``.
+    An explicitly configured reducer (e.g. ``Epochs(n, "mode")``) is honoured.
 
     Args:
        categories: The full set of possible categories (typically a
