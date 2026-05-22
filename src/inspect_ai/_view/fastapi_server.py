@@ -51,6 +51,7 @@ from inspect_ai._view.common import (
     parse_log_token,
     stream_log_bytes,
 )
+from inspect_ai._view.scout_routes import get_scout_search_router
 from inspect_ai.log import EvalLog
 from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._file import read_eval_log_headers_async
@@ -522,6 +523,10 @@ def view_server_app(
         if body is None:
             return Response(status_code=HTTP_404_NOT_FOUND)
         return body
+
+    scout_router = get_scout_search_router()
+    if scout_router is not None:
+        app.include_router(scout_router, prefix="/scout")
 
     return app
 

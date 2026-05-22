@@ -168,6 +168,7 @@ from .._providers._anthropic_citations import (
     to_anthropic_citation,
     to_inspect_citation,
 )
+from .._reasoning import effort_to_reasoning_tokens
 from ._anthropic_batch import AnthropicBatcher
 from .util import (
     check_azure_deployment_mismatch,
@@ -525,8 +526,14 @@ class AnthropicAPI(ModelAPI):
                     stop_reason="model_length",
                     error=ex.message,
                 ), model_call or ModelCall(request={})
-            else:
-                raise ex
+            # Content-filter errors that arrive mid-stream surface as a plain
+            # APIStatusError (the SDK can't infer the 400 subclass once the
+            # HTTP response was 200), so route through handle_bad_request to
+            # convert them into a content_filter refusal.
+            handled = self.handle_bad_request(ex)
+            if isinstance(handled, ModelOutput):
+                return handled, model_call or ModelCall(request={})
+            raise ex
 
     @override
     async def count_tokens(
@@ -808,9 +815,12 @@ class AnthropicAPI(ModelAPI):
                 # reasoning_effort takes precedence over effort
                 params["output_config"] = OutputConfigParam(effort=reasoning_effort)  # type: ignore[typeddict-item]  # (no support for 'xhigh' in sdk yet)
             else:
+                # pre-4.6 Claude: extended thinking with an explicit budget.
+                # bridged_reasoning_tokens prefers reasoning_tokens, falling
+                # back to a fixed-table translation of reasoning_effort.
                 params["thinking"] = dict(
                     type="enabled",
-                    budget_tokens=config.reasoning_tokens,
+                    budget_tokens=self.bridged_reasoning_tokens(config),
                     display="summarized",
                 )
             headers["anthropic-version"] = "2023-06-01"
@@ -874,8 +884,12 @@ class AnthropicAPI(ModelAPI):
                     "max": 32000,
                 }
                 max_tokens = max_tokens + effort_tokens.get(reasoning_effort, 16000)
-            elif config.reasoning_tokens is not None:
-                max_tokens = max_tokens + config.reasoning_tokens
+            else:
+                # pre-4.6 path: size for explicit reasoning_tokens, or for
+                # the bridged effort->tokens translation when only effort is set.
+                bridged = self.bridged_reasoning_tokens(config)
+                if bridged is not None:
+                    max_tokens = max_tokens + bridged
 
         # migration-guide floor: xhigh/max effort wants ≥64k max_tokens
         # (model caps below will still clamp on older models)
@@ -903,9 +917,26 @@ class AnthropicAPI(ModelAPI):
 
     def is_using_thinking(self, config: GenerateConfig) -> bool:
         return self.is_thinking_model() and (
-            (config.reasoning_tokens is not None)
+            (self.bridged_reasoning_tokens(config) is not None)
             or (self.effort_from_reasoning_effort(config) is not None)
         )
+
+    def bridged_reasoning_tokens(self, config: GenerateConfig) -> int | None:
+        """Effective `budget_tokens` for pre-4.6 Claude (uses extended thinking).
+
+        Explicit `reasoning_tokens` wins; otherwise `reasoning_effort` is
+        translated via the shared fixed-table bridge. Frontier Claude uses
+        adaptive thinking with `effort` and ignores this path (returns None).
+        """
+        if config.reasoning_tokens is not None:
+            return config.reasoning_tokens
+        if (
+            not self.is_claude_frontier()
+            and config.reasoning_effort is not None
+            and config.reasoning_effort != "none"
+        ):
+            return effort_to_reasoning_tokens(config.reasoning_effort)
+        return None
 
     # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
     def auto_streaming(self, config: GenerateConfig) -> bool:
@@ -989,7 +1020,14 @@ class AnthropicAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        return str(self.api_key)
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.api_key}:{self.service_model_name()}"
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
@@ -1078,8 +1116,8 @@ class AnthropicAPI(ModelAPI):
     def force_reasoning_history(self) -> Literal["none", "all", "last"] | None:
         return "all"
 
-    # convert some common BadRequestError states into 'refusal' model output
-    def handle_bad_request(self, ex: BadRequestError) -> ModelOutput | Exception:
+    # convert some common APIStatusError states into 'refusal' model output
+    def handle_bad_request(self, ex: APIStatusError) -> ModelOutput | Exception:
         error = exception_message(ex).lower()
         content: str | None = None
         stop_reason: StopReason | None = None
@@ -1197,18 +1235,14 @@ class AnthropicAPI(ModelAPI):
             # tools
             if tools_params:
                 add_cache_control(tools_params[-1])
-            # mark the second-to-last block. auto-cache marks the last; this
-            # write gives lookback a fallback when that block changes (RAG,
-            # scorers, approvers, branching evals). harmless extra write for
-            # append-only growth where auto-cache alone suffices.
+            # mark the second-to-last cacheable block. auto-cache marks the
+            # last; this write gives lookback a fallback when that block
+            # changes (RAG, scorers, approvers, branching evals). harmless
+            # extra write for append-only growth where auto-cache alone
+            # suffices. Skip thinking/redacted_thinking blocks — the API
+            # rejects cache_control on those.
             if message_params:
-                last_content = message_params[-1]["content"]
-                if isinstance(last_content, list) and len(last_content) >= 2:
-                    add_cache_control(cast(dict[str, Any], last_content[-2]))
-                elif len(message_params) >= 2:
-                    prev_content = message_params[-2]["content"]
-                    if isinstance(prev_content, list) and prev_content:
-                        add_cache_control(cast(dict[str, Any], prev_content[-1]))
+                add_lookback_cache_control(message_params)
 
         # return chat input
         return (
@@ -1618,6 +1652,43 @@ def is_code_execution_tool(
     param: ToolParamDef,
 ) -> TypeGuard[BetaCodeExecutionTool20250825Param]:
     return param.get("name") == "code_execution" and not is_tool_param(param)
+
+
+_NON_CACHEABLE_BLOCK_TYPES = frozenset({"thinking", "redacted_thinking"})
+
+
+def add_lookback_cache_control(message_params: list[MessageParam]) -> None:
+    """Tag the second-to-last cacheable content block across `message_params`.
+
+    Walks blocks in reverse (last message first), skipping
+    thinking/redacted_thinking (the API rejects `cache_control` on those with
+    `Extra inputs are not permitted`), and tags the second cacheable block
+    found. Tagging the *second*-to-last rather than the last gives lookback
+    caching a fallback when the final block changes (RAG, scorers, approvers,
+    branching) — auto-cache already covers the very last block.
+
+    Bare-string content counts as one cacheable block for position purposes
+    (it is the "last block" that auto-cache covers) but cannot itself carry
+    a `cache_control` field, so it is counted but never tagged.
+    """
+    seen_cacheable = 0
+    for msg in reversed(message_params):
+        content = msg["content"]
+        if isinstance(content, str):
+            seen_cacheable += 1
+            if seen_cacheable >= 2:
+                return
+        elif isinstance(content, list):
+            for block in reversed(content):
+                if (
+                    isinstance(block, dict)
+                    and block.get("type") in _NON_CACHEABLE_BLOCK_TYPES
+                ):
+                    continue
+                seen_cacheable += 1
+                if seen_cacheable == 2:
+                    add_cache_control(cast(dict[str, Any], block))
+                    return
 
 
 def add_cache_control(

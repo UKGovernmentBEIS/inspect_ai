@@ -21,6 +21,9 @@ anthropic:
       context_length: 1000000
       output_tokens: 128000
       reasoning: True
+      # Adaptive thinking: model selects effort per-request.
+      # https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+      reasoning_effort_default: adaptive
       versions:
         claude-opus-4-6:
           snapshot: "20260205"
@@ -33,6 +36,9 @@ anthropic:
       context_length: 1000000
       output_tokens: 128000
       reasoning: True
+      # Adaptive thinking: model selects effort per-request.
+      # https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+      reasoning_effort_default: adaptive
       versions:
         claude-opus-4-7:
           snapshot: "20260415"
@@ -71,6 +77,9 @@ anthropic:
       context_length: 1000000
       output_tokens: 64000
       reasoning: True
+      # Adaptive thinking: model selects effort per-request.
+      # https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+      reasoning_effort_default: adaptive
       versions:
         claude-sonnet-4-6:
           snapshot: "20250217"

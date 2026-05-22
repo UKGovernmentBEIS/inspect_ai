@@ -4,6 +4,7 @@ from logging import getLogger
 from typing import (
     Callable,
     Iterator,
+    Literal,
     Sequence,
     TypeVar,
     overload,
@@ -17,6 +18,7 @@ from inspect_ai._util.logger import warn_once
 from inspect_ai.event._base import BaseEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._store import StoreEvent
 from inspect_ai.event._timeline import Timeline
@@ -58,6 +60,17 @@ class Transcript:
         self._timelines: list[Timeline] = []
         self._model_call_counts: dict[str, int] = {}
         self._kept_event_ids: set[int] = set()
+        self._additional_subscribers: list[Callable[[Event], None]] = []
+        # Re-entry guard for the subscriber loop. A subscriber that
+        # raises causes :data:`logger.exception` to run, which (when
+        # ``inspect_ai``'s ``LogHandler`` is installed by eval) feeds
+        # a fresh ``LoggerEvent`` back through ``_event`` → straight
+        # into this method again. Without the guard, a consistently
+        # broken subscriber would recurse infinitely. We still want
+        # the recursive event to land in ``_events`` and reach the
+        # single-slot ``_event_logger`` (log writer), but skip the
+        # subscriber loop to break the cycle.
+        self._notifying_subscribers: bool = False
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -147,6 +160,22 @@ class Transcript:
         if self._event_logger:
             self._event_logger(event)
 
+        # Re-entrant call (a subscriber's logger.exception fed a
+        # LoggerEvent back through here). Skip the subscriber loop
+        # to avoid infinite recursion with a consistently broken
+        # subscriber — the outer call's loop is the one that
+        # delivers events anyway.
+        if not self._notifying_subscribers:
+            self._notifying_subscribers = True
+            try:
+                for sub in self._additional_subscribers:
+                    try:
+                        sub(event)
+                    except Exception:
+                        logger.exception("Transcript subscriber raised; continuing")
+            finally:
+                self._notifying_subscribers = False
+
         # condense model event calls immediately to prevent O(N) memory usage
         if isinstance(event, ModelEvent) and event.call is not None:
             event_fn = events_attachment_fn(self.attachments)
@@ -155,10 +184,62 @@ class Transcript:
     def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
         self._event_logger = event_logger
 
+    def _add_subscriber(self, callback: Callable[[Event], None]) -> Callable[[], None]:
+        """Register an additive event subscriber.
+
+        Unlike :meth:`_subscribe` (single-slot, used by the eval runner's
+        log writer), multiple subscribers coexist and all fire on every
+        event. Each subscriber runs in a try/except so one failing
+        subscriber does not block others or interrupt the agent loop.
+
+        Returns an idempotent unsubscribe callable.
+        """
+        self._additional_subscribers.append(callback)
+
+        def unsubscribe() -> None:
+            try:
+                self._additional_subscribers.remove(callback)
+            except ValueError:
+                pass
+
+        return unsubscribe
+
 
 def transcript() -> Transcript:
     """Get the current `Transcript`."""
     return _transcript.get()
+
+
+def record_interrupt_event(
+    *,
+    source: Literal["user_cancel", "limit", "system"],
+    interrupted: Literal["generate", "tool_call", "between_turns"],
+    interrupted_tool_call_id: str | None = None,
+    interrupted_model_event_id: str | None = None,
+) -> None:
+    """Append an `InterruptEvent` to the current transcript.
+
+    Internal helper used by Inspect's cancellation machinery — the ACP
+    `cancel_current_turn` path, sample-level limit handlers, and system
+    shutdown. Not a public API for agent authors.
+
+    Args:
+        source: What caused the interrupt — an ACP client cancel,
+            a sample limit, or system shutdown.
+        interrupted: What was running at the moment of the interrupt.
+        interrupted_tool_call_id: ``ToolEvent.id`` of the in-flight
+            tool call, if any.
+        interrupted_model_event_id: ``ModelEvent.uuid`` of the
+            in-flight model call, if any.
+    """
+    transcript()._event(
+        InterruptEvent(
+            source=source,
+            interrupted=interrupted,
+            interrupted_tool_call_id=interrupted_tool_call_id,
+            interrupted_model_event_id=interrupted_model_event_id,
+        )
+    )
 
 
 @contextlib.contextmanager

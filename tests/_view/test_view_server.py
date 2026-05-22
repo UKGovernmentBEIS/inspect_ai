@@ -1,9 +1,4 @@
-"""Tests for the inspect view server — both aiohttp and FastAPI implementations.
-
-Parameterized tests run the same assertions against both servers. Tests that
-are specific to FastAPI abstractions (AccessPolicy, FileMappingPolicy) or that
-document gaps between the two implementations are grouped at the end.
-"""
+"""Tests for the inspect view server."""
 
 import asyncio
 import json
@@ -32,13 +27,11 @@ from inspect_ai._view.fastapi_server import AccessPolicy, FileMappingPolicy
 from inspect_ai.model._generate_config import GenerateConfig
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Unified test client wrapper
+# Test client wrapper
 # ═══════════════════════════════════════════════════════════════════════════
 
 
 class SimpleResponse:
-    """Normalised response that works for both server implementations."""
-
     def __init__(
         self,
         status_code: int,
@@ -64,43 +57,8 @@ class SimpleResponse:
 
 
 class ViewTestClient:
-    """Unified interface over FastAPI TestClient and aiohttp TestClient.
-
-    Handles the URL-prefix and log-path-encoding differences transparently.
-    """
-
-    def __init__(self, impl: str, log_dir: Path) -> None:
-        self.impl = impl
-        self.log_dir = log_dir
-
-    def request(
-        self,
-        method: str,
-        path: str,
-        headers: dict[str, str] | None = None,
-        json: Any = None,
-    ) -> SimpleResponse:
-        raise NotImplementedError
-
-    def log_path(self, filename: str) -> str:
-        """Full filesystem path for a log file under log_dir."""
-        return str(self.log_dir / filename)
-
-    def log_url(self, endpoint: str, filename: str) -> str:
-        """Build a URL for a log-path endpoint (e.g. ``logs``, ``log-info``)."""
-        full_path = self.log_path(filename)
-        return f"/{endpoint}/{self._encode_for_url(full_path)}"
-
-    def _encode_for_url(self, file_path: str) -> str:
-        raise NotImplementedError
-
-    def close(self) -> None:
-        pass
-
-
-class FastAPIViewTestClient(ViewTestClient):
     def __init__(self, log_dir: Path) -> None:
-        super().__init__("fastapi", log_dir)
+        self.log_dir = log_dir
         app = fastapi_server.view_server_app(default_dir=str(log_dir))
         self._tc = fastapi.testclient.TestClient(app)
         self._tc.__enter__()
@@ -118,59 +76,14 @@ class FastAPIViewTestClient(ViewTestClient):
         resp = self._tc.request(method, path, **kwargs)
         return SimpleResponse(resp.status_code, resp.content, dict(resp.headers))
 
-    def _encode_for_url(self, file_path: str) -> str:
-        # FastAPI {log:path} captures slashes natively
-        return file_path
+    def log_path(self, filename: str) -> str:
+        return str(self.log_dir / filename)
+
+    def log_url(self, endpoint: str, filename: str) -> str:
+        return f"/{endpoint}/{self.log_path(filename)}"
 
     def close(self) -> None:
         self._tc.__exit__(None, None, None)
-
-
-class AioHTTPViewTestClient(ViewTestClient):
-    def __init__(self, log_dir: Path) -> None:
-        super().__init__("aiohttp", log_dir)
-        from inspect_ai._view.server import view_server_app
-
-        self._loop = asyncio.new_event_loop()
-        aiohttp_app = view_server_app(log_dir=str(log_dir))
-
-        async def _start() -> None:
-            from aiohttp.test_utils import TestClient as AioTestClient
-            from aiohttp.test_utils import TestServer
-
-            self._server = TestServer(aiohttp_app)
-            self._client = AioTestClient(self._server)
-            await self._client.start_server()
-
-        self._loop.run_until_complete(_start())
-
-    def request(
-        self,
-        method: str,
-        path: str,
-        headers: dict[str, str] | None = None,
-        json: Any = None,
-    ) -> SimpleResponse:
-        # aiohttp routes are prefixed with /api
-        full_path = f"/api{path}"
-
-        async def _do() -> SimpleResponse:
-            kwargs: dict[str, Any] = {"headers": headers or {}}
-            if json is not None:
-                kwargs["json"] = json
-            resp = await self._client.request(method, full_path, **kwargs)
-            body = await resp.read()
-            return SimpleResponse(resp.status, body, dict(resp.headers))
-
-        return self._loop.run_until_complete(_do())
-
-    def _encode_for_url(self, file_path: str) -> str:
-        # aiohttp {log} is a single path segment — encode slashes
-        return urllib.parse.quote(file_path, safe="")
-
-    def close(self) -> None:
-        self._loop.run_until_complete(self._client.close())
-        self._loop.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -388,34 +301,19 @@ def write_eval_log_named(base_dir: Path, filename: str, task: str, task_id: str)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Parameterized fixture
+# Fixture
 # ═══════════════════════════════════════════════════════════════════════════
-
-
-@pytest.fixture(params=["fastapi", "aiohttp"])
-def view_client(
-    request: pytest.FixtureRequest, tmp_path: Path
-) -> Generator[ViewTestClient, Any, None]:
-    impl = request.param
-    client: ViewTestClient
-    if impl == "fastapi":
-        client = FastAPIViewTestClient(tmp_path)
-    else:
-        client = AioHTTPViewTestClient(tmp_path)
-    yield client
-    client.close()
 
 
 @pytest.fixture
-def fastapi_view_client(tmp_path: Path) -> Generator[ViewTestClient, Any, None]:
-    """FastAPI-only view client using real local paths (no memory:// mapping)."""
-    client = FastAPIViewTestClient(tmp_path)
+def view_client(tmp_path: Path) -> Generator[ViewTestClient, Any, None]:
+    client = ViewTestClient(tmp_path)
     yield client
     client.close()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Parameterized parity tests (run against both servers)
+# View server tests (real local paths)
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -921,7 +819,7 @@ def test_api_eval_set_missing(view_client: ViewTestClient) -> None:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# FastAPI-specific tests (memory://, AccessPolicy, FileMappingPolicy)
+# Tests using memory:// + AccessPolicy / FileMappingPolicy
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -1356,8 +1254,7 @@ def test_fastapi_log_bytes_start_beyond_file_size(
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Former gap tests — these previously documented aiohttp behaviors missing
-# from FastAPI. All gaps have been fixed.
+# Misc FastAPI server tests
 # ═══════════════════════════════════════════════════════════════════════════
 
 
@@ -1632,7 +1529,7 @@ def test_api_log_returns_etag_header_for_s3(mock_s3: None, tmp_path: Path) -> No
     s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_read.eval"
     _write_eval_log_to_s3(s3_log)
 
-    client = FastAPIViewTestClient(tmp_path)
+    client = ViewTestClient(tmp_path)
     try:
         resp = client.request("GET", f"/logs/{s3_log}")
         resp.raise_for_status()
@@ -1654,7 +1551,7 @@ def test_api_log_edit_s3_returns_new_etag(mock_s3: None, tmp_path: Path) -> None
     s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_edit.eval"
     _write_eval_log_to_s3(s3_log)
 
-    client = FastAPIViewTestClient(tmp_path)
+    client = ViewTestClient(tmp_path)
     try:
         # Read once to capture current ETag.
         read_resp = client.request("GET", f"/logs/{s3_log}")
@@ -1693,7 +1590,7 @@ def test_api_log_edit_s3_stale_if_match_returns_412(
     s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_stale.eval"
     _write_eval_log_to_s3(s3_log)
 
-    client = FastAPIViewTestClient(tmp_path)
+    client = ViewTestClient(tmp_path)
     try:
         read_resp = client.request("GET", f"/logs/{s3_log}")
         read_resp.raise_for_status()
@@ -1741,7 +1638,7 @@ def test_api_log_edit_s3_without_if_match_succeeds(
     s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_optional.eval"
     _write_eval_log_to_s3(s3_log)
 
-    client = FastAPIViewTestClient(tmp_path)
+    client = ViewTestClient(tmp_path)
     try:
         resp = client.request(
             "POST",
@@ -1776,7 +1673,7 @@ def test_api_pending_sample_data_urls_s3_populates_direct_url(
     inspect_ai.log.write_eval_log(eval_log, s3_log, "eval")
     _create_sample_buffer(s3_log)
 
-    client = FastAPIViewTestClient(tmp_path)
+    client = ViewTestClient(tmp_path)
     try:
         resp = client.request(
             "GET",
