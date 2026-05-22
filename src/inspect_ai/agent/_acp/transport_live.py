@@ -48,7 +48,7 @@ from inspect_ai.tool._tool_call import ToolCallError
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
-    from inspect_ai.agent._channel import AgentRef
+    from inspect_ai.agent._channel import AgentChannel, AgentRef
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._transcript import Transcript
@@ -685,6 +685,16 @@ class LiveAcpTransport:
         # First-binder-wins per active top-level react; cleared by
         # :meth:`unbind`; rebindable by a successor react.
         self._ref: "AgentRef | None" = None
+        # Unsubscribe handle for the channel drain observer registered
+        # during :meth:`maybe_bind`. Stored so :meth:`unbind` can drop
+        # the subscription cleanly; ``None`` when not currently bound.
+        self._unsubscribe_drained: Callable[[], None] | None = None
+        # Test-only override for :attr:`is_attachable`. Production code
+        # leaves this at ``None`` (the property derives from ``_ref`` +
+        # ``_agent_completed``). Test fixtures that hand-wire a session
+        # without going through the real bind flow can set this to
+        # ``True`` to make the picker treat the session as attachable.
+        self._attachable_override: bool | None = None
 
     @property
     def session_id(self) -> str:
@@ -696,17 +706,49 @@ class LiveAcpTransport:
         """Currently-bound :class:`AgentRef`, or ``None``."""
         return self._ref
 
-    def maybe_bind(self, ref: "AgentRef") -> bool:
-        """Accept ``ref`` as the active producer target if none is bound.
+    @property
+    def is_attachable(self) -> bool:
+        """True iff a channel is bound and the agent loop is still live.
+
+        Returns False (a) before the first :meth:`maybe_bind` (sample
+        setup window) and (b) after :meth:`finalize` has marked the
+        transport agent-completed (scoring window). Either state means
+        the session can't actually drive an agent loop and shouldn't
+        show up in pickers.
+
+        Tests that exercise picker/forwarding behavior without going
+        through the real bind flow can set
+        :attr:`_attachable_override` to True to flag a hand-wired
+        session as attachable. Production paths leave it at the
+        default (``None`` → derived from ``_ref`` + ``_agent_completed``).
+        """
+        if self._attachable_override is not None:
+            return self._attachable_override
+        return self._ref is not None and not self._agent_completed
+
+    def maybe_bind(self, channel: "AgentChannel", ref: "AgentRef") -> bool:
+        """Accept the (channel, ref) pair as the active producer target if none is bound.
 
         Returns True iff this call became the binder. Subsequent
         :meth:`maybe_bind` calls return False until :meth:`unbind` clears
         the slot — this is what makes ACP attach to the top-level react()
         only: a nested sub-agent's bind attempt sees the outer's ref still
         present and is rejected.
+
+        On accept, also subscribes to ``channel.subscribe_drained`` so
+        the transport learns when its queued :class:`UserMessage` items
+        reach the consumer. This is what lets ``interrupt_pending``
+        clear correctly when an operator submits BEFORE pressing Esc:
+        the channel drains the queued message inside ``after_cancel``,
+        the subscription fires, and the coordinator's pending flag
+        flips False — observable to the TUI's modal-prompt UI and
+        Inspect-aware ACP clients.
         """
         if self._ref is None:
             self._ref = ref
+            self._unsubscribe_drained = channel.subscribe_drained(
+                self._on_channel_drained
+            )
             return True
         return False
 
@@ -715,10 +757,28 @@ class LiveAcpTransport:
 
         Sub-agents whose :meth:`maybe_bind` was rejected get a no-op
         here. The outer react's unbind clears the slot, so a successor
-        react in the same sample can rebind.
+        react in the same sample can rebind. Also drops the channel
+        drain subscription registered in :meth:`maybe_bind`.
         """
         if self._ref is ref:
             self._ref = None
+            if self._unsubscribe_drained is not None:
+                self._unsubscribe_drained()
+                self._unsubscribe_drained = None
+
+    def _on_channel_drained(self, items: list[Any]) -> None:
+        """Callback fired by the channel after a non-empty drain.
+
+        Resolves a pending interrupt iff the drained items include a
+        :class:`UserMessage` — the operator's redirect message reached
+        the consumer, so the TUI/client modal-prompt indicator should
+        clear. Non-UserMessage drains (e.g. a bare ``Cancel`` item) are
+        ignored.
+        """
+        from inspect_ai.agent._channel import UserMessage as _ChannelUserMessage
+
+        if any(isinstance(it, _ChannelUserMessage) for it in items):
+            self._interrupt.resolve_if_pending()
 
     async def __aenter__(self) -> AcpTransport:
         """Enter the session scope; attach the event router and return ``self``.

@@ -120,7 +120,7 @@ async def agent_channel() -> AsyncIterator[AgentChannel]:
 
         sample = sample_active()
         if sample is not None and sample.acp_transport is not None:
-            if sample.acp_transport.maybe_bind(ref):
+            if sample.acp_transport.maybe_bind(ch, ref):
                 bound_session = sample.acp_transport
     except Exception:  # noqa: BLE001 — best-effort hook; never crash the agent
         pass

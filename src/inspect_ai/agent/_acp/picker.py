@@ -96,17 +96,20 @@ class PickerTarget:
 
 
 def list_picker_targets() -> list[PickerTarget]:
-    """Snapshot active samples that have claimed ACP.
+    """Snapshot active samples whose transport is currently attachable.
 
     Filters :func:`inspect_ai.log._samples.active_samples` to those
-    whose ``acp_session`` is set to a non-noop live session — i.e.
-    agents that have called ``before_turn`` at least once and
-    therefore have a real ``LiveAcpTransport.session_id``.
+    whose ``acp_transport`` reports :attr:`AcpTransport.is_attachable`
+    — i.e. a channel is bound and the agent loop is still live. Skips
+    the pre-binding window (sample started, agent_channel not yet
+    opened), the post-agent scoring window, and non-channel agents
+    that never bind. Operators only see sessions they can actually
+    drive.
     """
     targets: list[PickerTarget] = []
     for sample in active_samples():
         session = sample.acp_transport
-        if session is None or session.session_id == "noop":
+        if session is None or not session.is_attachable:
             continue
         targets.append(
             PickerTarget(
@@ -176,7 +179,7 @@ def list_all_samples() -> list[SampleListing]:
     listings: list[SampleListing] = []
     for sample in active_samples():
         session = sample.acp_transport
-        if session is None or session.session_id == "noop":
+        if session is None or not session.is_attachable:
             session_id: str | None = None
             agent_name: str | None = None
         else:

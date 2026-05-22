@@ -812,6 +812,7 @@ async def test_entry_returns_none_when_no_acp_session(patch_sample_active) -> No
 async def test_entry_returns_none_when_no_clients(patch_sample_active) -> None:
     """ACP session exists but no clients attached → fall through."""
     session = LiveAcpTransport()
+    session._attachable_override = True
     patch_sample_active(session)
     result = await request_human_approval_via_acp(
         message="please confirm",
@@ -826,6 +827,7 @@ async def test_entry_returns_none_when_no_clients(patch_sample_active) -> None:
 async def test_entry_routes_to_attached_client(patch_sample_active) -> None:
     """One client attached → request routes through it; decision returns."""
     session = LiveAcpTransport()
+    session._attachable_override = True
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -865,6 +867,7 @@ async def test_entry_prepends_assistant_message_as_content_block(
     purely for API stability; it doesn't ride on the wire.
     """
     session = LiveAcpTransport()
+    session._attachable_override = True
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -895,6 +898,7 @@ async def test_entry_omits_message_block_for_empty_message(
 ) -> None:
     """Empty / whitespace-only message is also a no-op (still no Assistant block)."""
     session = LiveAcpTransport()
+    session._attachable_override = True
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -927,6 +931,7 @@ async def test_entry_substitutes_view_placeholders_with_call_arguments(
     ``{{command}}`` / ``{{path}}`` in the editor card.
     """
     session = LiveAcpTransport()
+    session._attachable_override = True
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -976,6 +981,7 @@ async def test_entry_carries_view_content_in_request(patch_sample_active) -> Non
     is present); we scan all blocks to be robust to ordering changes.
     """
     session = LiveAcpTransport()
+    session._attachable_override = True
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -1356,6 +1362,7 @@ async def test_approval_over_real_socket_round_trip(
     # Set up a fake ActiveSample so list_picker_targets has something
     # to return — needed for session/load to bind successfully.
     session = LiveAcpTransport()
+    session._attachable_override = True
     # Initialize an empty session id; the real wire test below will
     # use session/load directly with the session id.
     sample = MagicMock()

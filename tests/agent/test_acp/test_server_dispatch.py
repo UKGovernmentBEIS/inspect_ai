@@ -109,6 +109,11 @@ def _make_sample(
     else:
         session = MagicMock()
         session.session_id = session_id
+        # Match production semantics: noop placeholder is not attachable,
+        # real bound sessions are. Without this the MagicMock's
+        # auto-generated ``is_attachable`` is truthy, and the picker's
+        # ``is_attachable`` filter doesn't strip the noop sentinel.
+        session.is_attachable = session_id != "noop"
         active.acp_transport = session
     return active
 

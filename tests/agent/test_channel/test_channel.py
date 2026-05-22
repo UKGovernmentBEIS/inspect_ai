@@ -278,6 +278,60 @@ def test_repair_cause_selects_message_text() -> None:
 
 
 # ---------------------------------------------------------------------------
+# subscribe_drained observer
+# ---------------------------------------------------------------------------
+
+
+def test_subscribe_drained_fires_on_non_empty_drain() -> None:
+    """Observer callback receives the drained items."""
+    ch = AgentChannel()
+    captured: list[list] = []
+    ch.subscribe_drained(lambda items: captured.append(items))
+    ch._post(UserMessage(message=ChatMessageUser(content="a", source="operator")))
+    items = ch._drain()
+    assert len(captured) == 1
+    assert captured[0] == items
+
+
+def test_subscribe_drained_does_not_fire_on_empty_drain() -> None:
+    """Empty drains carry no signal; observer is not invoked."""
+    ch = AgentChannel()
+    captured: list[list] = []
+    ch.subscribe_drained(lambda items: captured.append(items))
+    assert ch._drain() == []
+    assert captured == []
+
+
+def test_subscribe_drained_unsubscribe_is_idempotent() -> None:
+    """Calling the returned unsubscribe more than once is safe."""
+    ch = AgentChannel()
+    unsub = ch.subscribe_drained(lambda items: None)
+    unsub()
+    unsub()  # must not raise
+
+
+def test_subscribe_drained_broken_observer_does_not_break_drain() -> None:
+    """A raising observer must not break sibling observers or the drain itself.
+
+    Mirrors the resilience contract on the transcript subscriber
+    fan-out: a producer's task continues even if a downstream
+    listener is broken.
+    """
+    ch = AgentChannel()
+    good_calls: list[list] = []
+
+    def broken(items: list) -> None:
+        raise RuntimeError("boom")
+
+    ch.subscribe_drained(broken)
+    ch.subscribe_drained(lambda items: good_calls.append(items))
+    ch._post(UserMessage(message=ChatMessageUser(content="x", source="operator")))
+    items = ch._drain()
+    assert len(items) == 1
+    assert len(good_calls) == 1
+
+
+# ---------------------------------------------------------------------------
 # High-level facade — before_turn / after_cancel
 # ---------------------------------------------------------------------------
 
@@ -365,6 +419,48 @@ async def test_after_cancel_blocks_for_followup_when_none_queued() -> None:
         assert len(received) == 1
         assert isinstance(received[0], ChatMessageUser)
         assert received[0].content == "late"
+
+
+async def test_after_cancel_blocks_for_redirect_with_existing_user_messages() -> None:
+    """Post-cancel block fires regardless of prior user messages in history.
+
+    Regression: an earlier implementation delegated to ``before_turn``,
+    whose user-message gate fires only when ``messages`` has no
+    ``ChatMessageUser``. After turn 1 the history always has user
+    messages, so the block was silently skipped — the agent would
+    resume immediately after a cancel instead of waiting for the
+    operator's redirect.
+    """
+    async with agent_channel() as ch:
+        # Realistic post-turn-1 conversation: prior user message in history.
+        msgs: list[ChatMessage] = [
+            ChatMessageUser(content="initial prompt"),
+            ChatMessageAssistant(content="prior turn complete"),
+        ]
+        received: list[ChatMessage] = []
+
+        async def consumer() -> None:
+            received.extend(await ch.after_cancel(msgs))
+
+        async def producer() -> None:
+            # Delay the redirect — after_cancel must block for it
+            # rather than returning immediately on the back of the
+            # existing user message in history.
+            await anyio.sleep(0.05)
+            ch._post(
+                UserMessage(
+                    message=ChatMessageUser(content="redirect", source="operator")
+                )
+            )
+
+        async with anyio.create_task_group() as tg:
+            tg.start_soon(consumer)
+            tg.start_soon(producer)
+
+        # Only the redirect; no repair (no in-flight tool calls in msgs).
+        assert len(received) == 1
+        assert isinstance(received[0], ChatMessageUser)
+        assert received[0].content == "redirect"
 
 
 # ---------------------------------------------------------------------------

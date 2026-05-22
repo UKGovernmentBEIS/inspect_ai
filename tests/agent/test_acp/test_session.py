@@ -351,6 +351,75 @@ async def test_noop_session_subscribe_returns_noop_unsubscribe() -> None:
     unsub_r()
 
 
+async def test_after_cancel_drain_clears_pending_via_channel_observer() -> None:
+    """``interrupt_pending`` clears when the channel drains a pre-queued message.
+
+    Regression: in the submit-then-cancel-then-drain sequence, the operator
+    queued a follow-up BEFORE pressing Esc. The cancel sets pending=True.
+    The agent's ``after_cancel`` drains the queued message — but the channel
+    is ACP-agnostic and won't directly notify the transport. The transport
+    subscribes to ``channel.subscribe_drained`` during ``maybe_bind`` so it
+    can flip pending=False when its queued :class:`UserMessage` reaches
+    the consumer. Without this hook the TUI's modal-prompt UI sticks open
+    even after the redirect was applied.
+    """
+    from inspect_ai.agent._channel import agent_channel
+    from inspect_ai.model._chat_message import ChatMessageUser as _U
+
+    async with acp_session() as acp:
+        # Open a channel + manually bind it to the transport. In normal
+        # use the agent_channel() factory does this via sample_active(),
+        # but these unit tests run outside any sample context — wire the
+        # binding directly so submit/cancel/drain all route through the
+        # bound ref.
+        async with agent_channel() as ch:
+            assert acp.maybe_bind(ch, ch._ref()) is True
+            resolved: list[None] = []
+            acp.subscribe_prompt_resolved(lambda: resolved.append(None))
+            # Order: submit FIRST, then cancel. submit doesn't fire resolved
+            # (no pending yet); cancel sets pending.
+            acp.submit_user_message(_U(content="resume"))
+            assert acp.interrupt_pending is False
+            assert resolved == []
+            acp.cancel_current_turn()
+            assert acp.interrupt_pending is True
+            # Agent loop runs after_cancel — drains the queued message,
+            # which fires the subscribe_drained observer on the transport,
+            # which calls resolve_if_pending().
+            drained = await ch.after_cancel(messages=[])
+            assert any(isinstance(m, _U) for m in drained)
+            assert acp.interrupt_pending is False
+            assert len(resolved) == 1
+
+
+async def test_after_cancel_drain_no_double_fire_when_submit_already_cleared() -> None:
+    """The drain observer must not re-fire resolved when submit already did.
+
+    The common ordering — cancel first, then user submits, then drain —
+    already clears pending in :meth:`submit_user_message`. The subsequent
+    channel drain fires the observer, which calls resolve_if_pending on
+    a non-pending state (no-op). The resolved subscriber must NOT fire
+    twice (would cause the TUI to attempt a redundant exit).
+    """
+    from inspect_ai.agent._channel import agent_channel
+    from inspect_ai.model._chat_message import ChatMessageUser as _U
+
+    async with acp_session() as acp:
+        async with agent_channel() as ch:
+            assert acp.maybe_bind(ch, ch._ref()) is True
+            resolved: list[None] = []
+            acp.subscribe_prompt_resolved(lambda: resolved.append(None))
+            acp.cancel_current_turn()
+            # Submit BEFORE drain — clears pending + fires resolved.
+            acp.submit_user_message(_U(content="ok"))
+            assert acp.interrupt_pending is False
+            assert len(resolved) == 1
+            # Drain via after_cancel — observer fires but pending already
+            # cleared, so no second resolve.
+            await ch.after_cancel(messages=[])
+            assert len(resolved) == 1
+
+
 async def test_repeated_cancel_keeps_pending_and_re_fires_interrupted() -> None:
     """Cancel-cancel (without intervening submit) re-fires + keeps pending.
 

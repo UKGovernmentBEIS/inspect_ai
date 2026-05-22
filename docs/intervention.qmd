@@ -81,7 +81,7 @@ You can also bind to a non-loopback interface with `--acp-server 0.0.0.0:4545`, 
 
 ## Adding ACP to an Agent
 
-Add intervention support to a custom agent via the `agent)channel()` context manager.
+Add intervention support to a custom agent via the `agent_channel()` context manager.
 
 A minimal agent loop, with `tools` captured from the surrounding `@agent` factory the way `react()` does (click the circled numbers for details):
 

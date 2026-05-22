@@ -340,18 +340,32 @@ class ConnectionHandler:
                             "target_session_id": target_id,
                         }
                     )
-                if target.agent_completed:
-                    # The session is parked for the scoring window —
-                    # the agent loop has exited and there's no consumer
-                    # to drain ``submit_user_message``. Pre-fix the
-                    # call returned success and the message was silently
-                    # discarded by ``LiveAcpTransport.submit_user_message``'s
-                    # post-agent guard. Surface a real error so the
-                    # client (TUI / editor) can show "scoring in progress"
-                    # instead of pretending it landed.
+                if not target.is_attachable:
+                    # The target's transport is alive but has no bound
+                    # agent loop to receive this prompt. Two states
+                    # collapse here:
+                    #
+                    # - ``agent_completed`` — react() has exited and
+                    #   the transport is parked for the scoring window;
+                    # - no bound channel — react() between consecutive
+                    #   invocations (the inter-react gap in the same
+                    #   sample), or a non-channel custom agent.
+                    #
+                    # Pre-fix, the message was silently discarded by
+                    # ``LiveAcpTransport.submit_user_message``'s
+                    # ``_ref is None`` guard. Surface a real error so
+                    # the client (TUI / editor) can drop the binding
+                    # instead of pretending it landed. Detail the
+                    # specific sub-state so clients can render a
+                    # tailored message.
+                    reason = (
+                        "session is scoring"
+                        if target.agent_completed
+                        else "session not currently attachable"
+                    )
                     raise RequestError.invalid_request(
                         {
-                            "reason": "session is scoring",
+                            "reason": reason,
                             "target_session_id": target_id,
                         }
                     )
@@ -390,6 +404,17 @@ class ConnectionHandler:
                 target = _find_live_session(target_id)
                 if target is None:
                     # Bound target has already finished; nothing to cancel.
+                    return None
+                if not target.is_attachable:
+                    # No bound agent loop right now (post-agent scoring
+                    # window, or between consecutive react() invocations
+                    # in the same sample). Recording an InterruptEvent
+                    # here would falsely suggest an active turn was
+                    # interrupted; flipping ``interrupt_pending`` would
+                    # leave the TUI / Inspect-aware clients showing a
+                    # prompt-mode indicator forever since no agent will
+                    # consume the resolution. Notifications can't return
+                    # errors, so silently drop.
                     return None
                 target.cancel_current_turn()
             case PickerMode() | Unbound():

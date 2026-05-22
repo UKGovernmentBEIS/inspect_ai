@@ -41,7 +41,7 @@ from inspect_ai.model._chat_message import ChatMessageUser
 if TYPE_CHECKING:
     from acp.schema import RequestPermissionRequest, RequestPermissionResponse
 
-    from inspect_ai.agent._channel import AgentRef
+    from inspect_ai.agent._channel import AgentChannel, AgentRef
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
@@ -421,15 +421,21 @@ class AcpTransport(Protocol):
         """
         ...
 
-    def maybe_bind(self, ref: "AgentRef") -> bool:
+    def maybe_bind(self, channel: "AgentChannel", ref: "AgentRef") -> bool:
         """First-binder-wins channel attachment.
 
         Called by the agent runtime when it opens a new
         :class:`inspect_ai.agent.AgentChannel` (rebindable per top-level
         :func:`react <inspect_ai.agent.react>` invocation in the sample,
         ignored on nested sub-agent opens). Returns True iff this call
-        accepted the ref — the caller uses that to know whether to
+        accepted the binding — the caller uses that to know whether to
         :meth:`unbind` on exit.
+
+        Implementations may use ``channel`` to subscribe to channel
+        events (e.g. :meth:`AgentChannel.subscribe_drained` so the
+        transport learns when its queued :class:`UserMessage` items
+        reach the consumer); ``ref`` is the producer-side handle used
+        for posting and interrupting.
         """
         ...
 
@@ -447,6 +453,21 @@ class AcpTransport(Protocol):
 
         Producers (:meth:`submit_user_message`, :meth:`cancel_current_turn`)
         consult this to route into the agent's channel when one is bound.
+        """
+        ...
+
+    @property
+    def is_attachable(self) -> bool:
+        """True iff this transport has a bound channel and isn't shutting down.
+
+        ACP clients (the picker, ``inspect/list_sessions``, the
+        connection-handler's session lookup) should only see transports
+        that can actually receive prompts and surface their effects.
+
+        Pre-binding window (sample started, agent loop not yet inside
+        ``agent_channel()``) and post-agent window (loop exited,
+        scoring underway) both return False so ghost sessions don't
+        appear in the picker.
         """
         ...
 

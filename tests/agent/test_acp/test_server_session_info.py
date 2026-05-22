@@ -84,6 +84,7 @@ def register_target(monkeypatch):
 
 def _make_live_session_with_transcript() -> LiveAcpTransport:
     session = LiveAcpTransport()
+    session._attachable_override = True
     session._transcript = Transcript()
     return session
 

@@ -109,6 +109,7 @@ def register_target(monkeypatch):
 def _make_live_session_with_transcript() -> LiveAcpTransport:
     """LiveAcpTransport with a real Transcript wired up, bypassing __aenter__."""
     session = LiveAcpTransport()
+    session._attachable_override = True
     session._transcript = Transcript()
     return session
 
@@ -512,5 +513,123 @@ async def test_generic_client_sees_clean_error_when_bound_session_ends(
             assert "data" in error
             assert error["data"].get("reason") == "bound session no longer active"
             assert error["data"].get("target_session_id") == wire_session_id
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_session_prompt_rejected_when_target_not_attachable(
+    short_data_dir: Path, register_target
+) -> None:
+    """A bound client whose target loses its channel gets a clean error.
+
+    Post-react or between consecutive reacts the transport remains
+    registered on the sample, but ``_ref`` is None until the next
+    ``maybe_bind``. The connection layer surfaces this so the client
+    can drop the binding instead of getting a silently-dropped message.
+
+    Regression for the gap that ``is_attachable`` was introduced to close:
+    pre-fix, ``submit_user_message`` no-op'd when ``_ref is None`` and the
+    wire call returned a success that didn't land. Connection-layer gate
+    surfaces this as a structured error so the client can drop the
+    binding instead of getting ghost-success responses.
+    """
+    live = _make_live_session_with_transcript()
+    sample = _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=live)
+    register_target(sample)
+
+    async with acp_server(eval_id="evt-unbound", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await client.request(
+                "initialize",
+                {
+                    "protocolVersion": 1,
+                    "clientInfo": {"name": "generic-acp-test", "version": "0.0"},
+                    "clientCapabilities": {},
+                },
+            )
+            new_resp = await client.request(
+                "session/new", {"cwd": "/tmp", "mcpServers": []}
+            )
+            wire_session_id = new_resp["result"]["sessionId"]
+            await client.next_notification()
+            await client.next_notification()
+
+            # Simulate react() unbinding: target still on the sample
+            # (transport hasn't finalized — scoring window or between
+            # consecutive react() invocations), but no channel ref is
+            # currently bound, so ``is_attachable`` flips False.
+            live._attachable_override = False
+
+            prompt_resp = await client.request(
+                "session/prompt",
+                {
+                    "sessionId": wire_session_id,
+                    "prompt": [{"type": "text", "text": "anyone home?"}],
+                },
+            )
+            assert "error" in prompt_resp, prompt_resp
+            error = prompt_resp["error"]
+            assert "data" in error
+            assert error["data"].get("reason") == "session not currently attachable"
+            assert error["data"].get("target_session_id") == wire_session_id
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_session_cancel_dropped_when_target_not_attachable(
+    short_data_dir: Path, register_target
+) -> None:
+    """A cancel notification for a non-attachable target is silently dropped.
+
+    Notifications can't return errors, so the connection layer drops the
+    cancel rather than letting it record a phantom ``InterruptEvent`` or
+    flip ``interrupt_pending`` (which would leave the TUI's prompt-mode
+    indicator stuck on, since no agent loop will consume the resolution).
+    """
+    live = _make_live_session_with_transcript()
+    cancel_calls: list[None] = []
+    # Spy on the producer-side cancel so we can assert it was NOT invoked.
+    live.cancel_current_turn = lambda cause="user_cancel": cancel_calls.append(  # type: ignore[method-assign]
+        None
+    )
+    sample = _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=live)
+    register_target(sample)
+
+    async with acp_server(eval_id="evt-unbound-cancel", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await client.request(
+                "initialize",
+                {
+                    "protocolVersion": 1,
+                    "clientInfo": {"name": "generic-acp-test", "version": "0.0"},
+                    "clientCapabilities": {},
+                },
+            )
+            new_resp = await client.request(
+                "session/new", {"cwd": "/tmp", "mcpServers": []}
+            )
+            wire_session_id = new_resp["result"]["sessionId"]
+            await client.next_notification()
+            await client.next_notification()
+
+            # Unbind: simulate the post-react / between-react state.
+            live._attachable_override = False
+
+            # Send cancel — must be silently dropped.
+            await client.notify("session/cancel", {"sessionId": wire_session_id})
+            # Give the server a moment to process the notification.
+            await asyncio.sleep(0.05)
+
+            assert cancel_calls == [], (
+                f"cancel reached transport while not attachable: {cancel_calls}"
+            )
         finally:
             await client.close()

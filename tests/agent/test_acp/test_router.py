@@ -67,7 +67,9 @@ from ._capture import acp_test_active_sample
 
 
 def _new_session() -> LiveAcpTransport:
-    return LiveAcpTransport()
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    return session
 
 
 def _attach_router(

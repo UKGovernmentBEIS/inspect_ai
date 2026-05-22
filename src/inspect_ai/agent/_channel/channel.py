@@ -41,7 +41,7 @@ attached, ``drain`` returns ``[]`` and ``scope`` never cancels.
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, Iterator, Sequence
+from typing import TYPE_CHECKING, Callable, Iterator, Sequence
 
 import anyio
 
@@ -122,6 +122,12 @@ class AgentChannel:
         # raise AgentInterrupted on exit) from a sample-level cancel
         # propagating from outside (let CancelledError unwind).
         self._pending_interrupt: bool = False
+        # Producer-side observers fired when ``_drain`` consumes items.
+        # Producers register via ``subscribe_drained`` to learn that
+        # their queued items reached the consumer (e.g. the ACP
+        # transport clears its ``interrupt_pending`` flag when a
+        # pre-queued operator message is drained).
+        self._on_drained: list[Callable[[list[ChannelItem]], None]] = []
 
     # ------------------------------------------------------------------
     # Producer-facing API (also exposed via AgentRef)
@@ -203,11 +209,54 @@ class AgentChannel:
 
         Sole-consumer drain: the channel is single-reader by contract
         (the enclosing agent loop). Returns ``[]`` if nothing is queued.
+
+        Fires any registered drain observers (see
+        :meth:`subscribe_drained`) when items are returned. Empty drains
+        do not fire observers (no signal to consumers).
         """
         items = list(self._queue)
         self._queue.clear()
         self._event = anyio.Event()
+        if items:
+            # Snapshot to tolerate unsubscribes that fire during iteration.
+            for cb in list(self._on_drained):
+                try:
+                    cb(items)
+                except Exception:
+                    # Observers must not break the consumer loop.
+                    # Log via channel logger if we add one; for now,
+                    # swallow per the same resilience contract as the
+                    # transcript subscriber fan-out.
+                    pass
         return items
+
+    def subscribe_drained(
+        self, callback: Callable[[list[ChannelItem]], None]
+    ) -> Callable[[], None]:
+        """Register a callback fired after a non-empty :meth:`_drain`.
+
+        The callback receives the list of items that were drained. It
+        runs synchronously in the consumer's task; exceptions are
+        swallowed so a broken observer cannot stall the agent loop.
+
+        Returns an idempotent unsubscribe callable — calling it more
+        than once is safe and has no further effect.
+
+        Producer use case: the ACP transport subscribes during
+        :meth:`AcpTransport.maybe_bind` to observe when its queued
+        :class:`UserMessage` items reach the consumer, so it can
+        resolve its ``interrupt_pending`` flag without the channel
+        needing to know about ACP.
+        """
+        self._on_drained.append(callback)
+
+        def _unsubscribe() -> None:
+            try:
+                self._on_drained.remove(callback)
+            except ValueError:
+                pass
+
+        return _unsubscribe
 
     async def _recv(self) -> list[ChannelItem]:
         """Await at least one item, then drain.
@@ -297,17 +346,21 @@ class AgentChannel:
           flight, so the conversation is well-formed for the next
           generation.
         - Pending user messages — coalesced producer follow-up posted
-          alongside the interrupt. Blocks for one if none arrived
+          alongside the interrupt. Always blocks for one if none arrived
           (preserves the stop-and-redirect semantics: after a cancel
-          the agent waits for the operator's follow-up before resuming).
+          the agent waits for the operator's follow-up before resuming,
+          regardless of how many user messages already exist in the
+          conversation history).
         """
         repair_msgs = self._repair(messages)
-        # Compose so the user-message gate in before_turn sees the
-        # post-repair shape — the synthetic tool results count as
-        # message activity but they're not user messages, so the gate
-        # still blocks for the operator's redirect.
-        followup = await self.before_turn([*messages, *repair_msgs])
-        return [*repair_msgs, *followup]
+        # Distinct from before_turn: the post-cancel block is
+        # unconditional on the queue being empty. We've just been told
+        # to stop; the operator's redirect — not stale prior user
+        # messages — is what determines whether we resume.
+        items = self._drain()
+        if not any(isinstance(it, UserMessage) for it in items):
+            items += await self._recv()
+        return [*repair_msgs, *coalesce(items)]
 
 
 def _unanswered_tool_call_ids(messages: Sequence[ChatMessage]) -> list[str]:

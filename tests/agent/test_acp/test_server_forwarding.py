@@ -223,6 +223,7 @@ def _make_live_session_with_transcript() -> tuple[LiveAcpTransport, Transcript]:
     transcript without any extra coupling.
     """
     session = LiveAcpTransport()
+    session._attachable_override = True
     tr = Transcript()
     session._transcript = tr
     return session, tr

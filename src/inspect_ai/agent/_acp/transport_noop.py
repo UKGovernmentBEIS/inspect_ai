@@ -26,7 +26,7 @@ from inspect_ai.model._chat_message import ChatMessageUser
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.transport import AcpTransport, ApproverClient
-    from inspect_ai.agent._channel import AgentRef
+    from inspect_ai.agent._channel import AgentChannel, AgentRef
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
@@ -186,7 +186,7 @@ class NoOpAcpTransport:
         """No-op session returns an empty driver chain."""
         return []
 
-    def maybe_bind(self, ref: AgentRef) -> bool:
+    def maybe_bind(self, channel: AgentChannel, ref: AgentRef) -> bool:
         """No-op session never accepts a binder."""
         return False
 
@@ -198,3 +198,8 @@ class NoOpAcpTransport:
     def ref(self) -> AgentRef | None:
         """No-op session has no producer target."""
         return None
+
+    @property
+    def is_attachable(self) -> bool:
+        """No-op sessions are never attachable."""
+        return False

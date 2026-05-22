@@ -59,6 +59,7 @@ def acp_test_active_sample(transcript: Transcript) -> ActiveSample:
     # producer surface needed by react() and the in-flight tracking
     # path.
     session = LiveAcpTransport()
+    session._attachable_override = True
     session._transcript_capture.captured = transcript
     sample.acp_transport = session
     sample.execution_observer = session

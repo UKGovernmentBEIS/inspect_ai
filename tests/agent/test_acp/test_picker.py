@@ -36,14 +36,21 @@ def _make_sample(
     agent_name: str | None = None,
     started: float | None = None,
     fails_on_error: bool = True,
+    is_attachable: bool | None = None,
 ) -> Any:
     """Build a stub ActiveSample-shaped object for the picker.
 
     Bare-minimum attributes the picker reads: ``task``, ``sample.id``,
-    ``epoch``, ``acp_session`` (with ``.session_id``), ``agent_name``,
-    ``started``, ``fails_on_error`` (collapsed bool). Using a plain
-    object instead of a real ActiveSample keeps the test independent
-    of the ActiveSample constructor's larger field surface.
+    ``epoch``, ``acp_transport`` (with ``.session_id`` and
+    ``.is_attachable``), ``agent_name``, ``started``, ``fails_on_error``.
+    Using a plain object instead of a real ActiveSample keeps the test
+    independent of the ActiveSample constructor's larger field surface.
+
+    ``is_attachable`` defaults to True for any non-``None`` session_id
+    other than the noop sentinel, matching the production semantics:
+    real bound live sessions are attachable; the noop placeholder is
+    not. Tests can override explicitly to simulate pre-binding /
+    post-agent windows.
 
     Default ``fails_on_error=True`` mirrors what the eval harness
     produces from the default ``EvalConfig.fail_on_error=None``
@@ -64,6 +71,10 @@ def _make_sample(
     else:
         session = MagicMock()
         session.session_id = session_id
+        if is_attachable is None:
+            session.is_attachable = session_id != "noop"
+        else:
+            session.is_attachable = is_attachable
         active.acp_transport = session
     return active
 
@@ -91,6 +102,69 @@ def test_list_picker_targets_skips_noop_sessions(monkeypatch) -> None:
 
     targets = list_picker_targets()
     assert [t.session_id for t in targets] == ["uuid-real"]
+
+
+def test_list_picker_targets_hides_unbound_transports(monkeypatch) -> None:
+    """Pre-binding window: transport exists but no channel has bound yet.
+
+    A sample has been set up (transport created) but the agent loop
+    has not yet opened ``agent_channel()``. ``is_attachable`` is False
+    until the first bind; the picker must hide the transport so
+    operators don't connect and have prompts silently dropped.
+    """
+    samples = [
+        _make_sample(
+            task="t-pending",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-unbound",
+            is_attachable=False,
+        ),
+        _make_sample(task="t-bound", sample_id="s", epoch=0, session_id="uuid-bound"),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    targets = list_picker_targets()
+    assert [t.session_id for t in targets] == ["uuid-bound"]
+
+
+def test_list_picker_targets_hides_completed_transports(monkeypatch) -> None:
+    """Post-agent scoring window: agent loop exited, transport finalizing.
+
+    After ``__aexit__``, the transport sets ``agent_completed=True`` and
+    parks itself for the scoring window. The picker must hide it — new
+    clients can't drive a finished agent.
+    """
+    samples = [
+        _make_sample(
+            task="t-scoring",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-completed",
+            is_attachable=False,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    assert list_picker_targets() == []
+
+
+def test_list_picker_targets_shows_bound_transport(monkeypatch) -> None:
+    """Happy path: react() running with a bound channel — picker shows it."""
+    samples = [
+        _make_sample(
+            task="t",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-live",
+            is_attachable=True,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    targets = list_picker_targets()
+    assert len(targets) == 1
+    assert targets[0].session_id == "uuid-live"
 
 
 def test_list_picker_targets_stringifies_int_sample_id(monkeypatch) -> None:

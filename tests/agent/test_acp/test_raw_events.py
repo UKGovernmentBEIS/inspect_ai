@@ -187,6 +187,7 @@ async def _connect(server: Any) -> _RpcClient:
 
 def _make_live_session() -> tuple[LiveAcpTransport, Transcript]:
     session = LiveAcpTransport()
+    session._attachable_override = True
     tr = Transcript()
     session._transcript = tr
     return session, tr

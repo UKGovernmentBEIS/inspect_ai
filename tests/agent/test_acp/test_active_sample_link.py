@@ -157,6 +157,7 @@ async def test_aexit_unbound_session_does_full_teardown() -> None:
     token = samples_var.set(None)
     try:
         session = LiveAcpTransport()
+        session._attachable_override = True
         await session.__aenter__()
         stream = session.attach()
         await session.__aexit__(None, None, None)
@@ -265,7 +266,9 @@ async def test_aexit_identity_guard_protects_active_registration() -> None:
     token = samples_var.set(active)
     try:
         session_a = LiveAcpTransport()
+        session_a._attachable_override = True
         session_b = LiveAcpTransport()
+        session_b._attachable_override = True
         # Enter A first so it registers on active.
         await session_a.__aenter__()
         assert active.acp_transport is session_a
@@ -337,7 +340,9 @@ async def test_finalize_identity_guard_protects_callbacks() -> None:
     token = samples_var.set(active)
     try:
         session_a = LiveAcpTransport()
+        session_a._attachable_override = True
         session_b = LiveAcpTransport()
+        session_b._attachable_override = True
         await session_a.__aenter__()
         # B wins a race and takes over (also rewriting callbacks).
         active.acp_transport = session_b

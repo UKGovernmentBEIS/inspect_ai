@@ -65,7 +65,9 @@ set_model_info(
 
 
 def _new_session() -> LiveAcpTransport:
-    return LiveAcpTransport()
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    return session
 
 
 def _attach_router(
