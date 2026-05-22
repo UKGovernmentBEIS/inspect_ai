@@ -8389,24 +8389,26 @@ You can also bind to a non-loopback interface with `--acp-server 0.0.0.0:4545`, 
 
 ## Adding ACP to an Agent
 
-Add intervention support to a custom agent via the [acp_session()](./reference/inspect_ai.agent.html.md#acp_session) context manager.
+Add intervention support to a custom agent via the [agent_channel()](./reference/inspect_ai.agent.html.md#agent_channel) context manager.
 
 A minimal agent loop, with `tools` captured from the surrounding `@agent` factory the way [react()](./reference/inspect_ai.agent.html.md#react) does (click the circled numbers for details):
 
 ``` python
-from inspect_ai.agent import AgentState, acp_session, TurnCancelled
+from inspect_ai.agent import (
+    AgentState, agent_channel, AgentInterrupted
+)
 from inspect_ai.model import execute_tools, get_model
 
 async def execute(state: AgentState) -> AgentState:
-1    async with acp_session() as acp:
+1    async with agent_channel() as ch:
         while True:
 2            # handle operator messages
             state.messages.extend(
-                await acp.before_turn(state.messages)
+                await ch.before_turn(state.messages)
             )
 
             try:
-3                with acp.turn_scope():
+3                with ch.turn_scope():
                     state.output = await get_model().generate(
                         state.messages, tools=tools
                     )
@@ -8414,16 +8416,16 @@ async def execute(state: AgentState) -> AgentState:
 
                     if state.output.message.tool_calls:
                         messages, _ = await execute_tools(
-                            state.messages, 
+                            state.messages,
                             tools
                         )
                         state.messages.extend(messages)
                     else:
                         break  # agent is done
-4            except TurnCancelled:
+4            except AgentInterrupted:
                 # operator interrupted agent
                 state.messages.extend(
-                    await acp.after_cancel(state.messages)
+                    await ch.after_cancel(state.messages)
                 )
                 continue
 
@@ -8431,10 +8433,10 @@ async def execute(state: AgentState) -> AgentState:
 ```
 
 1  
-Open the ACP session. Clients see a clean shutdown when the agent loop exits.
+Open the agent channel. ACP clients see a clean shutdown when the agent loop exits.
 
 2  
-Drain any messages the operator queued between turns.
+Drain any messages the operator queued between turns. Blocks for an initial user message on the first turn if `state.messages` has none.
 
 3  
 The cancel target for the operator’s **Esc**, entered and exited per turn.
@@ -8444,11 +8446,11 @@ The cancel target for the operator’s **Esc**, entered and exited per turn.
 
 Notes:
 
-- Custom solvers and agents without this code still run normally. they just don’t appear in the `inspect acp` picker.
+- Custom solvers and agents without this code still run normally. They just don’t appear in the `inspect acp` picker.
 
-- Sub-agents invoked via [handoff()](./reference/inspect_ai.agent.html.md#handoff), [as_tool()](./reference/inspect_ai.agent.html.md#as_tool), or [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) get a no-op session. Only the outermost agent in a sample is ACP-controllable; sub-agent activity collapses to a single tool call in the operator’s view.
+- Sub-agents invoked via [handoff()](./reference/inspect_ai.agent.html.md#handoff), [as_tool()](./reference/inspect_ai.agent.html.md#as_tool), or [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) open their own channel but are not bound to the ACP transport. Only the outermost agent in a sample is ACP-controllable; sub-agent activity collapses to a single tool call in the operator’s view.
 
-- Hard sample cancels (limits, eval shutdown) propagate as `CancelledError` and unwind the agent normally. `turn_scope` distinguishes the two: only client-driven cancels raise [TurnCancelled](./reference/inspect_ai.agent.html.md#turncancelled).
+- Hard sample cancels (limits, eval shutdown) propagate as `CancelledError` and unwind the agent normally. `ch.turn_scope()` distinguishes the two: only producer-driven interrupts raise [AgentInterrupted](./reference/inspect_ai.agent.html.md#agentinterrupted).
 
 ## Using Other ACP Clients
 

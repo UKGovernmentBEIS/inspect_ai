@@ -395,6 +395,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Google: Retry transport-level aiohttp errors and SDK transport timeouts in <code>should_retry()</code> so the model-layer tenacity loop can retry network failures that escape the SDK’s one-shot inline retry.</li>
 <li>vLLM: Support HF <span class="citation" data-cites="revision">@revision</span> and other extended characters in LoRA adapter names.</li>
 <li>Model API: Create separate connection limit pools per model (improving concurrency under adaptive connections).</li>
+<li>Eval Set: Re-condense carried-forward samples on retry.</li>
 <li>Scoring: Use scorers_info instead of scorers for functions that recompute metrics.</li>
 <li>Async: <code>run_coroutine()</code> (and the sync log/analysis helpers built on it) now honour <code>INSPECT_ASYNC_BACKEND=trio</code> when called with no running event loop, rather than always using asyncio.</li>
 <li>Bugfix: Resolve message/call pool references in DB-buffer recovery.</li>
