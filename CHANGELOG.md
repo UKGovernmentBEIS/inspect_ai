@@ -57,6 +57,7 @@
 - Scanning: Compatibility with Inspect Scout 0.4.37.
 - Async: `run_coroutine()` (and the sync log/analysis helpers built on it) now honour `INSPECT_ASYNC_BACKEND=trio` when called with no running event loop, rather than always using asyncio.
 - Bugfix: Resolve message/call pool references in DB-buffer recovery.
+- Bedrock: Support adaptive thinking and `output_config.effort` for Claude 4.6 / 4.7. Renames the wrapper key in `additionalModelRequestFields` from `reasoning_config` to `thinking` (the prior key was silently ignored by Bedrock's Anthropic passthrough), and adds `is_using_thinking` / `effort_from_reasoning_effort` helpers mirroring the native Anthropic provider. `reasoning_tokens` on Claude 4.7+ is auto-promoted to adaptive thinking since manual `budget_tokens` thinking is no longer accepted there. Fixes #3765.
 
 ## 0.3.224 (20 May 2026)
 
