@@ -91,9 +91,7 @@ class ViewTestClient:
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-def write_eval_log(
-    base_dir: Path, filename: str, status: str = "success"
-) -> str:
+def write_eval_log(base_dir: Path, filename: str, status: str = "success") -> str:
     """Write a minimal eval log to ``base_dir/filename``. Return full path.
 
     Defaults to a finished log (``status="success"``); tests exercising
@@ -394,9 +392,7 @@ def test_api_log_edit_returns_409_for_in_progress_log(
         "POST",
         view_client.log_url("log-edit", fname),
         json={
-            "edits": [
-                {"type": "tags", "tags_add": ["qa_passed"], "tags_remove": []}
-            ],
+            "edits": [{"type": "tags", "tags_add": ["qa_passed"], "tags_remove": []}],
             "provenance": {"author": "alice"},
         },
     )
@@ -1548,11 +1544,12 @@ def test_api_log_no_etag_header_for_local(view_client: ViewTestClient) -> None:
 
 
 def test_api_log_info_returns_etag_for_s3(mock_s3: None, tmp_path: Path) -> None:
-    """`get_log_info` should expose the S3 ETag so the client can prime an
-    `If-Match` on the *first* edit. Without this, the new ETag protection
-    is reachable only on the second-and-later edit (the chained-edit
-    fallback), and a save that races a concurrent external edit silently
-    last-writer-wins."""
+    """`get_log_info` should expose the S3 ETag so the client can prime `If-Match`.
+
+    Without this, the new ETag protection is reachable only on the
+    second-and-later edit (the chained-edit fallback), and a save that races
+    a concurrent external edit silently last-writer-wins.
+    """
     s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_info.eval"
     _write_eval_log_to_s3(s3_log)
 

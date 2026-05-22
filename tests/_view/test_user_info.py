@@ -58,9 +58,7 @@ def test_empty_local_part_falls_back_to_user_name() -> None:
 
 def test_falls_back_to_os_user_when_git_returns_nothing() -> None:
     with _patch_git({"user.name": None, "user.email": None}):
-        with patch(
-            "inspect_ai._view.user_info.getpass.getuser", return_value="osuser"
-        ):
+        with patch("inspect_ai._view.user_info.getpass.getuser", return_value="osuser"):
             info = user_info()
     assert info.name == "osuser"
     assert info.email is None
@@ -70,9 +68,7 @@ def test_skips_git_when_unavailable() -> None:
     # shutil.which returns None when git isn't installed; should still
     # produce a non-empty name from getpass.
     with patch("inspect_ai._view.user_info.shutil.which", return_value=None):
-        with patch(
-            "inspect_ai._view.user_info.getpass.getuser", return_value="osuser"
-        ):
+        with patch("inspect_ai._view.user_info.getpass.getuser", return_value="osuser"):
             info = user_info()
     assert info.name == "osuser"
     assert info.email is None

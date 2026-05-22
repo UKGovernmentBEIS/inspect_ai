@@ -183,8 +183,7 @@ async def get_log_file(file: str, header_only_param: str | None) -> LogPayload:
 
 
 class LogInProgressError(ValueError):
-    """Raised when an edit is attempted on a log whose recorder is still
-    running.
+    """Raised when an edit is attempted on a log whose recorder is still running.
 
     `EvalLog.status == "started"` means the recorder owns the file and is
     actively appending samples; viewer-driven edits would race that

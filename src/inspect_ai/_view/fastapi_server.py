@@ -31,7 +31,6 @@ from inspect_ai._util.file import filesystem
 from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai._view import notify
 from inspect_ai._view._dist import resolve_dist_directory
-from inspect_ai._view.user_info import UserInfo, user_info
 from inspect_ai._view.common import (
     LogDirResponse,
     LogFilesResponse,
@@ -52,6 +51,7 @@ from inspect_ai._view.common import (
     stream_log_bytes,
 )
 from inspect_ai._view.scout_routes import get_scout_search_router
+from inspect_ai._view.user_info import UserInfo, user_info
 from inspect_ai.log import EvalLog
 from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._file import read_eval_log_headers_async

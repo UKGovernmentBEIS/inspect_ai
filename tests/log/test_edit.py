@@ -236,9 +236,7 @@ def test_metadata_edit_remove_key(eval_log: EvalLog) -> None:
         [MetadataEdit(metadata_set={"k": 1})],
         _provenance(),
     )
-    log = edit_eval_log(
-        log, [MetadataEdit(metadata_remove=["k"])], _provenance()
-    )
+    log = edit_eval_log(log, [MetadataEdit(metadata_remove=["k"])], _provenance())
     assert "k" not in log.metadata
 
 
