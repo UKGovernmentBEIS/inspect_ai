@@ -22928,6 +22928,20 @@ pre._value_8citi_25 {
 ._addButton_twuq5_96 {
   white-space: nowrap;
 }
+._headerActions_1fn25_1 {
+  /* CardHeader is a flex row (icon → label → children); pushing this
+     wrapper with margin-left:auto sends the Edit affordance to the
+     right edge of the header. */
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+._emptyMetadata_1fn25_10 {
+  color: var(--bs-secondary-color);
+  font-style: italic;
+  padding: 0.25rem 0.5rem;
+}
 ._item_1uzhd_1 {
   margin-bottom: 0em;
 }
@@ -23011,20 +23025,6 @@ pre._value_8citi_25 {
   margin-right: 0.3em;
   margin-top: 0;
   margin-bottom: -0.1em;
-}
-._headerActions_1fn25_1 {
-  /* CardHeader is a flex row (icon → label → children); pushing this
-     wrapper with margin-left:auto sends the Edit affordance to the
-     right edge of the header. */
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-}
-
-._emptyMetadata_1fn25_10 {
-  color: var(--bs-secondary-color);
-  font-style: italic;
-  padding: 0.25rem 0.5rem;
 }
 .download-button {
   margin-top: 3em;
