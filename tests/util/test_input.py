@@ -1,12 +1,8 @@
-import sys
 from typing import Any, Callable, cast
 
 import anyio
 import pytest
 from acp.schema import ElicitationSchema
-
-if sys.version_info < (3, 11):
-    from exceptiongroup import BaseExceptionGroup
 
 from inspect_ai._util.registry import registry_create
 from inspect_ai.util._input import (
@@ -102,12 +98,28 @@ async def test_input_notifier_registers_and_creates() -> None:
 # -- orchestrator: builtin dispatch ---------------------------------------
 
 
-async def test_empty_config_dispatches_to_builtin_which_raises() -> None:
-    # No custom handler, no notifiers -> falls through to _dispatch_builtin
-    # (Phase 1 stub raises NotImplementedError).
-    with pytest.raises(BaseExceptionGroup) as exc_info:
-        await request_input("hello", SCHEMA)
-    assert any(isinstance(e, NotImplementedError) for e in exc_info.value.exceptions)
+async def test_empty_config_dispatches_to_console_handler(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # With no custom handler configured, request_input falls through to
+    # _dispatch_builtin, which now routes to console_handler.
+    sentinel = InputResult(outcome="accepted", content={"from": "console"})
+    called = 0
+
+    from inspect_ai.util._input import console as console_module
+
+    async def fake_console_handler(
+        message: str, schema: ElicitationSchema
+    ) -> InputResult:
+        nonlocal called
+        called += 1
+        return sentinel
+
+    monkeypatch.setattr(console_module, "console_handler", fake_console_handler)
+
+    result = await request_input("hello", SCHEMA)
+    assert result is sentinel
+    assert called == 1
 
 
 # -- orchestrator: custom handler outcomes --------------------------------
