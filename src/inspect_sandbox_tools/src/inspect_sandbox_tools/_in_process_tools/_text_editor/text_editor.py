@@ -273,7 +273,7 @@ def _save_history(history: HistoryType, file_path: str | None = None) -> None:
     except Exception as e:
         # Leave any temp file behind; edit success matters more than cleanup in
         # this rare history-save failure path.
-        logger.warning("Discarding text_editor history at %s due to: %s", file_path, e)
+        logger.warning(f"Discarding text_editor history at {file_path} due to: {e}")
         _discard_history(file_path)
 
 
@@ -299,7 +299,7 @@ def _load_history(file_path: str | None = None) -> HistoryType:
         # First edit in this sandbox: no undo history exists yet.
         return defaultdict(list)
     except Exception as e:
-        logger.warning("Discarding text_editor history at %s due to: %s", file_path, e)
+        logger.warning(f"Discarding text_editor history at {file_path} due to: {e}")
         _discard_history(file_path)
         return defaultdict(list)
 
