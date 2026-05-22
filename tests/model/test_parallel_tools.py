@@ -645,3 +645,82 @@ async def test_sibling_cancel_during_approval_records_event_in_transcript():
     assert target_ev.error is not None
     assert target_ev.error.type == "cancelled"
     assert target_ev.failed is True
+
+
+async def test_parallel_pending_events_coexist_with_distinct_uuids():
+    """Mid-execution, two parallel tools both have pending=True with distinct uuids.
+
+    Precondition for the live transcript UIs (Inspect View live samples
+    collapser, Textual TUI SampleToolbar): when siblings are running
+    concurrently, the transcript must hold a distinct pending ToolEvent
+    for each so the UI can render each spinner / cancel each call
+    independently. The collapser keys streaming-update coalescing on
+    ``uuid``; distinct uuids on siblings are what lets parallel
+    pending rows survive the live-render filter.
+    """
+    from inspect_ai.log._transcript import transcript
+
+    both_started = anyio.Event()
+    snapshot_taken = anyio.Event()
+    started_count = [0]
+    snapshots: list[list[ToolEvent]] = []
+
+    @tool(parallel=True)
+    def gated():
+        async def gated(label: str) -> str:
+            """Hold both siblings pending until the snapshot is captured.
+
+            Args:
+                label: The label.
+            """
+            started_count[0] += 1
+            if started_count[0] == 2:
+                both_started.set()
+            await both_started.wait()
+
+            # ``label == "a"`` is the snapshotter. ``label == "b"`` waits
+            # on ``snapshot_taken`` so it cannot finalize before the
+            # snapshot — otherwise B's ToolEvent could already be
+            # ``pending=None`` by the time A snapshots, intermittently
+            # returning len(pending) == 1.
+            if label == "a":
+                snapshots.append(
+                    [
+                        e
+                        for e in transcript().events
+                        if isinstance(e, ToolEvent)
+                        and e.id in {"coexist-a", "coexist-b"}
+                        and e.pending
+                    ]
+                )
+                snapshot_taken.set()
+            else:
+                await snapshot_taken.wait()
+            return label
+
+        return gated
+
+    tdef = ToolDef(gated())
+    calls = [
+        call("gated", "coexist-a", label="a"),
+        call("gated", "coexist-b", label="b"),
+    ]
+
+    with anyio.fail_after(5):
+        messages, _ = await execute_tools([assistant(*calls)], [tdef])
+
+    # Mid-execution snapshot: both siblings appear with pending=True and
+    # distinct, non-null uuids.
+    assert snapshots, "expected at least one mid-execution transcript snapshot"
+    pending_events = snapshots[0]
+    assert len(pending_events) == 2
+    assert {e.id for e in pending_events} == {"coexist-a", "coexist-b"}
+    uuids = {e.uuid for e in pending_events}
+    assert len(uuids) == 2 and None not in uuids, (
+        f"parallel pending tool events must have distinct non-null uuids, got {uuids}"
+    )
+
+    # Result messages preserve declared call order.
+    tool_msgs = [m for m in messages if isinstance(m, ChatMessageTool)]
+    assert [m.tool_call_id for m in tool_msgs] == ["coexist-a", "coexist-b"]
+    assert [m.content for m in tool_msgs] == ["a", "b"]

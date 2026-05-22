@@ -2538,21 +2538,22 @@ class SessionState:
         )
 
     @property
-    def cancel_tool_call_id(self) -> str | None:
-        """``tool_call_id`` of the tool ``^L`` would currently cancel, or None.
+    def cancel_tool_call_ids(self) -> list[str]:
+        """All eligible in-flight tool ids that a ``^L`` press should cancel.
 
-        Eligibility: in-flight (``pending`` / ``in_progress``), not
-        awaiting an operator approval decision (the approval bar's
-        ``reject`` / ``terminate`` is the right exit there), and not
-        already cancel-requested (so a second ``^L`` advances to the
-        next eligible tool instead of re-firing on the one we just
-        cancelled). Among eligible tools, the most-recently-started
-        wins — that's the card the operator is most likely watching
-        at the bottom of the transcript.
+        Eligibility (same as :attr:`cancel_tool_call_id`): in-flight
+        (``pending`` / ``in_progress``), not awaiting an operator
+        approval decision (the approval bar's ``reject`` /
+        ``terminate`` is the right exit there), and not already
+        cancel-requested (so a second ``^L`` is a no-op on tools the
+        operator has already cancelled).
 
-        Used by :class:`SessionScreen` to resolve the ``^L`` binding
-        and by ``check_action`` to decide whether the screen-footer
-        ``cancel tool`` hint should be visible.
+        Under parallel tool calls multiple tools share the in-flight
+        state; a single ``^L`` press fans out to cancel all of them
+        rather than dispatching one at a time. Order is
+        ``start_time`` ascending so the on-screen cancelling-state
+        transitions show oldest-first; semantically any order is
+        correct because each fires an independent RPC.
         """
         eligible = [
             tc
@@ -2561,9 +2562,18 @@ class SessionState:
             and tc.pending_approval is None
             and not tc.cancel_requested
         ]
-        if not eligible:
-            return None
-        return max(eligible, key=lambda tc: tc.start_time).tool_call_id
+        eligible.sort(key=lambda tc: tc.start_time)
+        return [tc.tool_call_id for tc in eligible]
+
+    @property
+    def cancel_tool_call_id(self) -> str | None:
+        """First id from :attr:`cancel_tool_call_ids`, or ``None``.
+
+        Used by :class:`SessionScreen.check_action` to decide whether
+        the screen-footer ``cancel tool`` hint should be visible.
+        """
+        ids = self.cancel_tool_call_ids
+        return ids[0] if ids else None
 
     @property
     def plan_done_count(self) -> int:

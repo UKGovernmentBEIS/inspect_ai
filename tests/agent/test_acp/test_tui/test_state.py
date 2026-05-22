@@ -2044,18 +2044,22 @@ def test_cancel_tool_call_id_returns_only_in_flight_tool() -> None:
     assert state.cancel_tool_call_id == "tc-1"
 
 
-def test_cancel_tool_call_id_picks_most_recently_started_when_multiple() -> None:
-    """With two in-flight tools, ^L targets the one started latest.
+def test_cancel_tool_call_ids_returns_all_eligible_oldest_first() -> None:
+    """With multiple in-flight tools, the accessor lists all of them.
 
-    ``start_time`` is the tiebreaker — the bottom-most card in the
-    transcript (most likely what the operator is watching) wins.
+    Order is ``start_time`` ascending so the cancelling-state
+    transitions on-screen reflect oldest-first; semantically any
+    order is correct because each fires an independent RPC.
     """
     clock = _FakeClock()
     state = SessionState(now=clock)
     state.consume(_tool_start("tc-older"))
     clock.advance(1.0)
     state.consume(_tool_start("tc-newer"))
-    assert state.cancel_tool_call_id == "tc-newer"
+    assert state.cancel_tool_call_ids == ["tc-older", "tc-newer"]
+    # The convenience accessor returns the first id from the list
+    # (used by check_action to gate footer-hint visibility).
+    assert state.cancel_tool_call_id == "tc-older"
 
 
 def test_cancel_tool_call_id_filters_pending_approval_tools() -> None:
@@ -2071,25 +2075,25 @@ def test_cancel_tool_call_id_filters_pending_approval_tools() -> None:
     state.consume_approval_request(_pending(req, asyncio.Event()))
     # Synthesized card status is "pending", so without the
     # pending_approval filter the accessor would happily return it.
+    assert state.cancel_tool_call_ids == []
     assert state.cancel_tool_call_id is None
 
 
-def test_cancel_tool_call_id_skips_already_cancel_requested_tools() -> None:
-    """After ^L on one tool, the accessor advances to the next eligible.
-
-    Lets a second ^L target the next-most-recent instead of
-    re-firing on the one we just cancelled.
-    """
+def test_cancel_tool_call_ids_skips_already_cancel_requested_tools() -> None:
+    """``cancel_requested`` tools are excluded so a follow-up ^L is a no-op."""
     clock = _FakeClock()
     state = SessionState(now=clock)
     state.consume(_tool_start("tc-older"))
     clock.advance(1.0)
     state.consume(_tool_start("tc-newer"))
-    assert state.cancel_tool_call_id == "tc-newer"
+    assert state.cancel_tool_call_ids == ["tc-older", "tc-newer"]
+
+    assert state.mark_cancel_requested("tc-older") is True
+    assert state.cancel_tool_call_ids == ["tc-newer"]
 
     assert state.mark_cancel_requested("tc-newer") is True
-    # ^L now targets the remaining eligible tool.
-    assert state.cancel_tool_call_id == "tc-older"
+    assert state.cancel_tool_call_ids == []
+    assert state.cancel_tool_call_id is None
 
 
 def test_mark_cancel_requested_flips_flag_and_notifies() -> None:

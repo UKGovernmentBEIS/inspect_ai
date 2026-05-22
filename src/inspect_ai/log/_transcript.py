@@ -61,6 +61,17 @@ class Transcript:
         self._model_call_counts: dict[str, int] = {}
         self._kept_event_ids: set[int] = set()
         self._additional_subscribers: list[Callable[[Event], None]] = []
+        # Sidecar of currently-pending events keyed by ``event.uuid`` so
+        # consumers (live TUI toolbar, future DB-backed transcripts) can
+        # query in-flight state in O(in-flight) without scanning all
+        # events. Maintained by ``_event``/``_event_updated``. Insertion
+        # order = declared order; dict preserves it so the "earliest
+        # pending" is the first value.
+        self._pending_events: dict[str, Event] = {}
+        if events is not None:
+            for ev in events:
+                if ev.pending and ev.uuid is not None:
+                    self._pending_events[ev.uuid] = ev
         # Re-entry guard for the subscriber loop. A subscriber that
         # raises causes :data:`logger.exception` to run, which (when
         # ``inspect_ai``'s ``LogHandler`` is installed by eval) feeds
@@ -105,6 +116,18 @@ class Transcript:
         return self._events
 
     @property
+    def pending_events(self) -> Sequence[Event]:
+        """Currently-pending events in declared (insertion) order.
+
+        Returns a snapshot of events with ``pending=True`` keyed by
+        their ``uuid``. Updates whenever ``_event`` records a new
+        pending event or ``_event_updated`` flips one to a terminal
+        state. Bounded by the number of in-flight operations
+        (typically 0-1, up to the stage size under parallel tools).
+        """
+        return list(self._pending_events.values())
+
+    @property
     def attachments(self) -> dict[str, str]:
         return self._attachments
 
@@ -131,9 +154,27 @@ class Transcript:
     def _event(self, event: Event) -> None:
         self._process_event(event)
         self._events.append(event)
+        self._update_pending(event)
 
     def _event_updated(self, event: Event) -> None:
         self._process_event(event)
+        self._update_pending(event)
+
+    def _update_pending(self, event: Event) -> None:
+        """Reflect ``event``'s current pending state in the sidecar.
+
+        Adds the event on first emission with ``pending=True``; removes
+        on the subsequent ``_event_updated`` that flips it to a terminal
+        state. Events without a ``uuid`` (synthetic step/span events)
+        are skipped — they can't be deduplicated and don't represent
+        an in-flight operation.
+        """
+        if event.uuid is None:
+            return
+        if event.pending:
+            self._pending_events[event.uuid] = event
+        else:
+            self._pending_events.pop(event.uuid, None)
 
     def _process_event(self, event: Event) -> None:
         if isinstance(event, ModelEvent) and event.call is not None:
