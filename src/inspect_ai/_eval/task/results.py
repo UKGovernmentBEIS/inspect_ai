@@ -458,18 +458,16 @@ def scorers_from_metric_dict(
             group = registry_unqualified_name(target_metric)
             if isinstance(value, dict):
                 for key, val in value.items():
-                    name = f"{metric_name}_{key}"
-                    result_metrics[name] = EvalMetric(
-                        name=name,
+                    result_metrics[f"{metric_name}_{key}"] = EvalMetric(
+                        name=key,
                         group=group,
                         value=cast(float, val),
                         params=metric_params,
                     )
             elif isinstance(value, list):
                 for idx, item in enumerate(value):
-                    name = f"{metric_name}_{idx}"
-                    result_metrics[name] = EvalMetric(
-                        name=name,
+                    result_metrics[f"{metric_name}_{idx}"] = EvalMetric(
+                        name=str(idx),
                         group=group,
                         value=cast(float, item),
                         params=metric_params,
