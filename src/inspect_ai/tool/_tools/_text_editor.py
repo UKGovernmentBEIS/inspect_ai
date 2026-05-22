@@ -81,6 +81,8 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
     """
     timeout = timeout or 180
 
+    # Keep the undo_edit limit in execute()'s docstring in sync with
+    # MAX_HISTORY_ENTRIES_PER_FILE in the sandbox text_editor implementation.
     async def execute(
         command: Literal["view", "create", "str_replace", "insert", "undo_edit"],
         path: str,
