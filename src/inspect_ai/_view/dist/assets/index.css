@@ -14628,6 +14628,46 @@ body[class^="vscode-"] .modal {
     --vscode-widget-border,
     var(--vscode-editorWidget-border, var(--vscode-editorGroup-border))
   );
+  /* Error banner inside dialogs: the global vscode block only re-points
+     `--bs-danger-bg-subtle` (at the diff-editor red wash), leaving
+     `--bs-danger-text-emphasis` and `--bs-danger-border-subtle` at
+     Bootstrap's light-mode dark-red values — unreadable on a VS Code
+     dark dialog. Use the editor's input-validation tokens (designed
+     for exactly this purpose: a tinted background with readable
+     foreground and a visible border) with a fallback to
+     `errorForeground` for themes that only define the foreground.
+     Also re-point `--bs-danger` so the required-field asterisk picks
+     up the same readable red. */
+  --bs-danger: var(--vscode-errorForeground);
+  --bs-danger-bg-subtle: var(
+    --vscode-inputValidation-errorBackground,
+    var(--vscode-diffEditor-removedTextBackground)
+  );
+  --bs-danger-text-emphasis: var(
+    --vscode-inputValidation-errorForeground,
+    var(--vscode-errorForeground)
+  );
+  --bs-danger-border-subtle: var(
+    --vscode-inputValidation-errorBorder,
+    var(--vscode-errorForeground)
+  );
+  /* Change-tracking summary in the dialog footer uses these tokens
+     for the italic body, the "Adding" / "Editing" lines, and the
+     "No tags yet —" placeholder inside the chip box. Bootstrap's
+     light-mode values are unreadable on a dark VS Code modal; remap
+     to descriptionForeground (matches the hint label) plus the
+     editor's source-control accent colors so the categories stay
+     distinguishable. (Removing already inherits the readable red
+     from `--bs-danger` re-pointed above.) */
+  --bs-secondary-color: var(--vscode-descriptionForeground);
+  --bs-success-text-emphasis: var(
+    --vscode-gitDecoration-addedResourceForeground,
+    var(--vscode-charts-green)
+  );
+  --bs-warning-text-emphasis: var(
+    --vscode-gitDecoration-modifiedResourceForeground,
+    var(--vscode-charts-yellow)
+  );
 }
 
 /* Form-control inputs inside dialogs (Author, Reason, "Add a tag…",
@@ -22834,7 +22874,7 @@ pre._value_8citi_25 {
    row, provenance fields, and footer stay on-screen no matter how many
    keys the user has. The chrome (border, rounded corners) moves to
    this element since the inner table now overflows scrollwise. */
-._tableScroll_twuq5_5 {
+._tableScroll_1i84k_5 {
   max-height: 40vh;
   overflow-y: auto;
   border: 1px solid var(--bs-border-color);
@@ -22846,31 +22886,31 @@ pre._value_8citi_25 {
    the whole table. Each row is a subgrid inheriting the parent track
    layout, which keeps row-level styling (divider, "new" highlight)
    attached to a single wrapper element rather than every cell. */
-._table_twuq5_5 {
+._table_1i84k_5 {
   display: grid;
   grid-template-columns: minmax(140px, 220px) 1fr auto;
   column-gap: 0.625rem;
 }
 
-._empty_twuq5_23 {
+._empty_1i84k_23 {
   padding: 0.75rem 0.875rem;
   color: var(--bs-secondary-color);
   /* Span all columns when the table is otherwise empty. */
   grid-column: 1 / -1;
 }
 
-._row_twuq5_30 {
+._row_1i84k_30 {
   display: grid;
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: flex-start;
 }
 
-._rowDivider_twuq5_37 {
+._rowDivider_1i84k_37 {
   border-top: 1px solid var(--bs-border-color);
 }
 
-._rowNew_twuq5_41 {
+._rowNew_1i84k_41 {
   background: var(--bs-success-bg-subtle);
 }
 
@@ -22878,54 +22918,60 @@ pre._value_8citi_25 {
    subgrid tracks stay aligned to the parent's column lines — putting
    padding on the wrapper would shift its content inward and break the
    subgrid alignment. The first and last cells absorb the horizontal
-   inset that previously came from `.row { padding-inline: 0.75rem }`. */
-._key_twuq5_50 {
+   inset that previously came from `.row { padding-inline: 0.75rem }`.
+
+   No vertical padding on `.value`: the textarea's own internal padding
+   (0.4rem top/bottom from AutogrowText) already provides breathing
+   room within the edit box, and an outer pad makes the row feel
+   over-stuffed. `.key` and `.remove` use a top inset that lines them
+   up with the textarea's first text baseline. */
+._key_1i84k_54 {
   font-family: var(--bs-font-monospace);
   word-break: break-all;
-  padding: 1rem 0 0.625rem 0.75rem;
+  padding: 0.4rem 0 0 0.75rem;
 }
 
-._value_twuq5_56 {
+._value_1i84k_51 {
   min-width: 0;
-  padding: 0.625rem 0;
+  padding: 0;
 }
 
-._remove_twuq5_61 {
+._remove_1i84k_54 {
   background: transparent;
   border: none;
-  padding: 0.875rem 0.75rem 0.625rem 0.4rem;
+  padding: 0.4rem 0.75rem 0 0.4rem;
   color: var(--bs-secondary-color);
   cursor: pointer;
   border-radius: 4px;
   line-height: 1;
 }
 
-._remove_twuq5_61:hover {
+._remove_1i84k_54:hover {
   color: var(--bs-danger);
   background: var(--bs-tertiary-bg);
 }
 
-._remove_twuq5_61:disabled {
+._remove_1i84k_54:disabled {
   cursor: default;
   opacity: 0.5;
 }
 
-._addRow_twuq5_81 {
+._addRow_1i84k_87 {
   margin-top: 0.625rem;
   display: grid;
   grid-template-columns: 1fr 7.5rem auto;
   gap: 0.5rem;
 }
 
-._addKeyInput_twuq5_88 {
+._addKeyInput_1i84k_94 {
   min-width: 0;
 }
 
-._typeSelect_twuq5_92 {
+._typeSelect_1i84k_98 {
   font-family: var(--bs-font-monospace);
 }
 
-._addButton_twuq5_96 {
+._addButton_1i84k_102 {
   white-space: nowrap;
 }
 ._headerActions_1fn25_1 {
