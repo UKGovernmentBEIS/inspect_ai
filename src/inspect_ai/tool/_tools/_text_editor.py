@@ -97,8 +97,7 @@ def text_editor(timeout: int | None = None, user: str | None = None) -> Tool:
         Use this function to execute text editing commands.
 
         Args:
-          command: The command to execute.
-          undo_edit retains only the last 10 edits per file.
+          command: The command to execute. Note: `undo_edit` retains only the last 10 edits per file.
           path: Path to file or directory, e.g. `/repo/file.py` or `../repo`.
           file_text: Required parameter of `create` command, with the content of the file to be created.
           insert_line: Required parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`.
