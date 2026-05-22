@@ -258,6 +258,37 @@ For each method there is a documented set of errors that are raised: these are *
 
 See the documentation on [Sandbox Environments](./sandboxing.html.md) for additional details.
 
+## Parallel Execution
+
+> **NOTE:**
+>
+> The parallel tool execution feature described below is available only in the development version of Inspect. To install the development version:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+Models often emit several tool calls in a single assistant turn. By default Inspect executes those calls serially in declared order. Tools that have no shared mutable state (no sandbox interaction, no shared [Store](./reference/inspect_ai.util.html.md#store) writes, no order-dependent side effects) can opt in to running concurrently with their siblings via `@tool(parallel=True)`:
+
+``` python
+@tool(parallel=True)
+def fetch_url():
+    async def fetch_url(url: str) -> str:
+        """Fetch a URL and return its contents.
+
+        Args:
+            url: The URL to fetch.
+        """
+        ...
+    return fetch_url
+```
+
+When a batch mixes parallel and serial calls, each serial call acts as a barrier: consecutive parallel-eligible calls coalesce into one concurrent stage, a serial call runs alone, and the next stage begins after it completes. Result messages are spliced back in the model’s declared order regardless of completion timing.
+
+If one parallel call raises an unhandled exception, its in-flight siblings are cancelled. [ToolError](./reference/inspect_ai.tool.html.md#toolerror) is not an unhandled exception — it becomes tool-result content and siblings continue.
+
+Only opt a tool in to parallel execution after auditing it for concurrent-safety. Stateful tools like [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) keep the default (`parallel=False`) and run serially.
+
 ## Stateful Tools
 
 Some tools need to retain state across invocations (for example, the [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) and [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) tools both interact with a stateful remote process). You can create stateful tools by using the [store_as()](./reference/inspect_ai.util.html.md#store_as) function to access discrete storage for your tool and/or specific instances of your tool.
@@ -349,7 +380,7 @@ def web_surfer(instance: str | None = None) -> Tool:
     return execute
 ```
 
-Note that we make available an `instance` parameter that enables creation of multiple instances of the `web_surfer()` tool. We then pass this `instance` to the [store_as()](./reference/inspect_ai.util.html.md#store_as) function (to store our own tool’s message history) and the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) function (so that we also provision a unique browser for the web surfer session).
+We make available an `instance` parameter that enables creation of multiple instances of the `web_surfer()` tool. We then pass this `instance` to the [store_as()](./reference/inspect_ai.util.html.md#store_as) function (to store our own tool’s message history) and the [web_browser()](./reference/inspect_ai.tool.html.md#web_browser) function (so that we also provision a unique browser for the web surfer session).
 
 For example, this creates a distinct instance of the `web_surfer()` with its own state and browser:
 
@@ -358,6 +389,10 @@ from shortuuid import uuid
 
 react(..., tools=[web_surfer(instance=uuid())])
 ```
+
+> **IMPORTANT:**
+>
+> Note that stateful tools should generally not be marked as safe for [parallel execution](#sec-parallel-execution), as their state cannot be safely read and written from multiple concurrent callers.
 
 ## Tool Choice
 

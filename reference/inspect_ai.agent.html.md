@@ -14,7 +14,7 @@ Use the `attempts` option to enable additional submissions if the initial submis
 
 When using the `submit()` tool, the model will be urged to continue if it fails to call a tool. When not using a `submit()` tool, the agent will terminate if it fails to call a tool. Customise this behavior using the `on_continue` option.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_react.py#L47)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_react.py#L47)
 
 ``` python
 @agent
@@ -79,7 +79,7 @@ The Human CLI agent installs agent task tools in the default sandbox and present
 
 If the user is running in VS Code with the Inspect extension, they will also be presented with links to login to the sandbox using a VS Code Window or Terminal.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_human/agent.py#L16)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_human/agent.py#L16)
 
 ``` python
 @agent
@@ -119,7 +119,7 @@ Deep agent with subagent delegation, memory, and planning.
 
 A batteries-included agent that bundles the patterns popularized by Claude Code and Codex CLI into a single entry point. Builds on [react()](../reference/inspect_ai.agent.html.md#react) with subagent delegation via a task tool, persistent memory, structured planning, and an opinionated system prompt.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_deepagent/deepagent.py#L31)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_deepagent/deepagent.py#L31)
 
 ``` python
 @agent(description="Autonomous agent for complex, multi-step tasks.")
@@ -196,7 +196,7 @@ Maximum subagent recursion depth.
 
 Create a subagent configuration for use within a deep agent system.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_deepagent/subagent.py#L56)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_deepagent/subagent.py#L56)
 
 ``` python
 def subagent(
@@ -252,7 +252,7 @@ Compaction strategy for context management. None inherits the parent agent’s c
 
 Configuration blueprint for a subagent within a deep agent system.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_deepagent/subagent.py#L13)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_deepagent/subagent.py#L13)
 
 ``` python
 @dataclass(kw_only=True)
@@ -300,7 +300,7 @@ Create a research subagent for read-only information gathering.
 
 The research subagent is configured with read-only tools by default and is intended for tasks that involve gathering and synthesizing information without modifying state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_deepagent/research.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_deepagent/research.py#L36)
 
 ``` python
 def research(
@@ -346,7 +346,7 @@ Create a plan subagent for structured planning.
 
 The plan subagent is configured with read-only tools by default and is intended for analyzing tasks and producing structured implementation plans without executing changes.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_deepagent/plan.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_deepagent/plan.py#L36)
 
 ``` python
 def plan(
@@ -392,7 +392,7 @@ Create a general-purpose subagent with full tool access.
 
 The general subagent inherits the parent agent’s tools (including skills) by default and has read-write memory access. It is intended for tasks that require full capabilities in an isolated context.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_deepagent/general.py#L33)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_deepagent/general.py#L33)
 
 ``` python
 def general(
@@ -438,7 +438,7 @@ If True, inherits parent conversation context. Use same model or model family as
 
 Create a tool that enables models to handoff to agents.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_handoff.py#L19)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_handoff.py#L19)
 
 ``` python
 def handoff(
@@ -479,7 +479,7 @@ Run an agent.
 
 The input messages(s) will be copied prior to running so are not modified in place.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_run.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_run.py#L36)
 
 ``` python
 async def run(
@@ -517,7 +517,7 @@ Convert an agent to a tool.
 
 By default the model will see all of the agent’s arguments as tool arguments (save for `state` which is converted to an `input` arguments of type `str`). Provide optional `agent_kwargs` to mask out agent parameters with default values (these parameters will not be presented to the model as part of the tool interface)
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_as_tool.py#L21)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_as_tool.py#L21)
 
 ``` python
 @tool
@@ -547,7 +547,7 @@ Convert an agent to a solver.
 
 Note that agents used as solvers will only receive their first parameter (`state`). Any other parameters must provide appropriate defaults or be explicitly specified in `agent_kwargs`
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_as_solver.py#L25)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_as_solver.py#L25)
 
 ``` python
 def as_solver(agent: Agent, limits: list[Limit] = [], **agent_kwargs: Any) -> Solver
@@ -572,7 +572,7 @@ Provide Inspect integration for 3rd party agents that use the the OpenAI Complet
 
 See the [Agent Bridge](https://inspect.aisi.org.uk/agent-bridge.html) documentation for additional details.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_bridge/bridge.py#L84)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_bridge/bridge.py#L84)
 
 ``` python
 @contextlib.asynccontextmanager
@@ -609,7 +609,7 @@ Configuration for mapping model internal code_execution tools to Inspect. By def
 
 Agent bridge.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_bridge/types.py#L23)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_bridge/types.py#L23)
 
 ``` python
 class AgentBridge
@@ -638,7 +638,7 @@ Compaction function for bridge.
 
 Note: This will always return the same compaction function for a given instance of the bridge.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_bridge/types.py#L67)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_bridge/types.py#L67)
 
 ``` python
 def compaction(
@@ -660,7 +660,7 @@ Provide Inspect integration for agents running inside sandboxes. Runs a proxy se
 
 You should set `OPENAI_BASE_URL=http://localhost:13131/v1`, `ANTHROPIC_BASE_URL=http://localhost:13131`, or `GOOGLE_GEMINI_BASE_URL=http://localhost:13131` when executing the agent within the container and ensure that your agent targets the model name “inspect” when calling OpenAI, Anthropic, or Google. Use “inspect/” to target other Inspect model providers.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_bridge/sandbox/bridge.py#L36)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_bridge/sandbox/bridge.py#L36)
 
 ``` python
 @contextlib.asynccontextmanager
@@ -717,7 +717,7 @@ Host-side Inspect tools to expose to the sandboxed agent via MCP protocol. Each 
 
 Sandbox agent bridge.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_bridge/sandbox/types.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_bridge/sandbox/types.py#L9)
 
 ``` python
 class SandboxAgentBridge(AgentBridge)
@@ -755,7 +755,7 @@ Compaction function for bridge.
 
 Note: This will always return the same compaction function for a given instance of the bridge.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_bridge/types.py#L67)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_bridge/types.py#L67)
 
 ``` python
 def compaction(
@@ -775,7 +775,7 @@ Specification for host-side tools to expose via MCP bridge.
 
 This allows Inspect tools defined on the host to be exposed to agents running inside a sandbox via MCP.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/tool/_mcp/_tools_bridge/bridge.py#L9)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/tool/_mcp/_tools_bridge/bridge.py#L9)
 
 ``` python
 @dataclass
@@ -804,7 +804,7 @@ This is the default filter for agent handoffs and is intended to present a histo
 - Converts tool calls to user messages
 - Converts server tool calls to text
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_filter.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_filter.py#L22)
 
 ``` python
 async def content_only(messages: list[ChatMessage]) -> list[ChatMessage]
@@ -817,7 +817,7 @@ Messages to filter.
 
 Remove all but the last message.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_filter.py#L119)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_filter.py#L119)
 
 ``` python
 async def last_message(messages: list[ChatMessage]) -> list[ChatMessage]
@@ -832,7 +832,7 @@ Remove tool calls from messages.
 
 Removes all instances of [ChatMessageTool](../reference/inspect_ai.model.html.md#chatmessagetool) as well as the `tool_calls` field from [ChatMessageAssistant](../reference/inspect_ai.model.html.md#chatmessageassistant).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_filter.py#L96)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_filter.py#L96)
 
 ``` python
 async def remove_tools(messages: list[ChatMessage]) -> list[ChatMessage]
@@ -845,7 +845,7 @@ Messages to remove tool calls from.
 
 Filter messages sent to or received from agent handoffs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_filter.py#L18)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_filter.py#L18)
 
 ``` python
 MessageFilter = Callable[[list[ChatMessage]], Awaitable[list[ChatMessage]]]
@@ -864,7 +864,7 @@ Usage::
     async with acp_session() as acp:
         ...
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L502)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L502)
 
 ``` python
 @contextlib.asynccontextmanager
@@ -877,7 +877,7 @@ Per-agent ACP session facade.
 
 Provides the in-process pub/sub bus and the cancel/inject machinery: turn scopes, user-message queue, and producer-side cancel/submit methods.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L127)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L127)
 
 ``` python
 @runtime_checkable
@@ -908,7 +908,7 @@ Register a subscriber and return its receive stream.
 
 Caller iterates with `async for update in stream`. The session closes all subscriber streams on exit, so an idle `async for` terminates cleanly.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L169)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L169)
 
 ``` python
 def attach(self) -> MemoryObjectReceiveStream[AcpUpdate]
@@ -919,7 +919,7 @@ Unregister a subscriber previously returned by :meth:`attach`.
 
 Closes the matching send half and drops the subscriber from the fan-out list. Safe to call with an already-detached or unknown stream — silently does nothing.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L178)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L178)
 
 ``` python
 def detach(self, stream: MemoryObjectReceiveStream[AcpUpdate]) -> None
@@ -932,7 +932,7 @@ Fan `update` out to every attached subscriber.
 
 Non-blocking: a subscriber with a full buffer drops the update with a logged warning rather than stalling the producer.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L187)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L187)
 
 ``` python
 def publish(self, update: AcpUpdate) -> None
@@ -945,7 +945,7 @@ Wrap one agent turn so an ACP client cancel can interrupt it.
 
 Synchronous context manager. ACP `session/cancel` causes the wrapped block to raise :class:[TurnCancelled](../reference/inspect_ai.agent.html.md#turncancelled). Sample-level cancels (limit, eval shutdown) continue to propagate as `CancelledError` past this scope unchanged.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L195)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L195)
 
 ``` python
 def turn_scope(self) -> contextlib.AbstractContextManager[None]
@@ -958,7 +958,7 @@ On the very first call to this method, if `messages` contains no user message ye
 
 Takes a plain message sequence (not an [AgentState](../reference/inspect_ai.agent.html.md#agentstate)) so custom solvers can pass `state.messages` directly without needing the agent framework.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L205)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L205)
 
 ``` python
 async def before_turn(
@@ -975,7 +975,7 @@ Returns synthetic :class:[ChatMessageTool](../reference/inspect_ai.model.html.md
 
 When `messages` is provided, scans the last assistant message’s `tool_calls` and synthesizes a repair for every id that doesn’t yet have a matching :class:[ChatMessageTool](../reference/inspect_ai.model.html.md#chatmessagetool) result. This catches partially-completed tool batches that anyio cancellation interrupts before `_execute_tools_impl` can return.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L221)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L221)
 
 ``` python
 async def after_cancel(
@@ -990,7 +990,7 @@ Queue a user message for the next turn or after-cancel drain.
 
 Called by transports (TUI, sockets) when an ACP client sends `session/prompt`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L241)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L241)
 
 ``` python
 def submit_user_message(self, msg: ChatMessageUser) -> None
@@ -1005,7 +1005,7 @@ Snapshots :<data:%60_active_model_event>`and the current in-flight tool calls (v
 
 `cause` populates :attr:`InterruptEvent.source` AND the per-event cancel sentinel (`ModelEvent.error` / `ToolCallError.message`) so provenance is consistent across the sample-level interrupt record and the in-flight events it terminates. Default `"user_cancel"` covers wire `session/cancel` and TUI Esc; `"limit"` is the sample-level limit path (token / time / cost / messages); `"system"` is reserved for eval-shutdown paths.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L249)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L249)
 
 ``` python
 def cancel_current_turn(
@@ -1025,7 +1025,7 @@ The callback fires in the producer’s task context, BEFORE the log writer’s a
 
 Subscribers on the no-op session are silently dropped — the returned unsubscribe callable is a no-op.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L271)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L271)
 
 ``` python
 def subscribe_transcript_events(
@@ -1040,7 +1040,7 @@ Snapshot the captured transcript’s event list.
 
 Used by the replay-on-attach path to push recent transcript history to a late-joining client before live forwarding starts. Returns an empty sequence for the no-op session (nothing to replay).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L292)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L292)
 
 ``` python
 def transcript_events_snapshot(self) -> Sequence[Any]
@@ -1051,7 +1051,7 @@ Register a callback fired on every :meth:`cancel_current_turn`.
 
 Used by modal-prompt clients (in-proc TUI; Inspect-aware ACP clients via the connection handler’s `inspect/prompt_resolved` wiring) to auto-enter prompt mode regardless of who triggered the cancel. Returns an idempotent unsubscribe callable. No-op session returns a no-op unsubscribe.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L328)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L328)
 
 ``` python
 def subscribe_interrupted(self, callback: Callable[[], None]) -> Callable[[], None]
@@ -1064,7 +1064,7 @@ Register a callback fired when an open interrupt is resolved.
 
 Fires when :meth:`submit_user_message` lands while :attr:`interrupt_pending` is True. Used by modal-prompt clients to auto-exit their prompt UI when a sibling client provides the resumption text. Returns an idempotent unsubscribe callable. No-op session returns a no-op unsubscribe.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L340)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L340)
 
 ``` python
 def subscribe_prompt_resolved(
@@ -1083,7 +1083,7 @@ Returns an idempotent unsubscribe callable. No-op session returns a no-op unsubs
 
 Attaching the same client object twice is not supported — each connection is its own approver-client instance.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L354)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L354)
 
 ``` python
 def attach_approver_client(self, client: ApproverClient) -> Callable[[], None]
@@ -1096,7 +1096,7 @@ True if at least one :class:`ApproverClient` is currently attached.
 
 Cheap predicate used by the human-approver to decide whether to route via ACP. No-op session always returns False.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L374)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L374)
 
 ``` python
 def has_approver_clients(self) -> bool
@@ -1107,7 +1107,7 @@ True if any approver client has attached during this session.
 
 One-way bit: flips True on first attach and never resets. Used by the approval shim to distinguish “no operator ever connected” from “operator attached then disconnected mid-approval”. No-op session always returns False.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L382)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L382)
 
 ``` python
 def has_ever_had_approver_client(self) -> bool
@@ -1118,7 +1118,7 @@ Register `callback` to fire on :meth:`notify_approver_attach`.
 
 Used by the approval shim to park until a fresh client is fully ready after the current driver chain exhausts. Returns an idempotent unsubscribe callable. No-op session returns a no-op unsubscribe.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L392)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L392)
 
 ``` python
 def subscribe_approver_attach(
@@ -1133,7 +1133,7 @@ Promote `client` from pending to ready and fire subscribers.
 
 Decoupled from :meth:`attach_approver_client` (which runs before replay and registers as pending) so subscribers wake only after replay completes AND the connection has promoted itself via :meth:`mark_active_approver_client`. Half-bound clients are invisible to :meth:`approver_driver_chain` until this notification fires. The connection handler invokes this from its post-bind setup. No-op session does nothing.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L404)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L404)
 
 ``` python
 def notify_approver_attach(self, client: ApproverClient) -> None
@@ -1148,7 +1148,7 @@ Called by the connection handler after a `session/prompt` forwards to this sessi
 
 Silently no-ops if the client isn’t (or is no longer) in the registry. No-op session does nothing.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L417)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L417)
 
 ``` python
 def mark_active_approver_client(self, client: ApproverClient) -> None
@@ -1161,7 +1161,7 @@ Approver clients in fallback order: driver first, then others.
 
 The driver is the client whose `session/prompt` most recently landed; subsequent entries are the remaining attached clients in attach order. Returns a snapshot copy so iteration is stable against concurrent attach/detach.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L433)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L433)
 
 ``` python
 def approver_driver_chain(self) -> list[ApproverClient]
@@ -1172,7 +1172,7 @@ Mark a tool call as in flight for the lifetime of the scope.
 
 Wraps each top-level tool execution so :meth:`cancel_current_turn` knows which tool call ids to record in :class:[InterruptEvent](../reference/inspect_ai.event.html.md#interruptevent) and which to repair with synthetic results in :meth:`after_cancel`. When `event` is provided, :meth:`cancel_current_turn` also clears its `pending` flag on cancellation (otherwise the transcript shows cancelled tool rows as still in-flight). Nested-agent tool calls go to the no-op session and are not tracked here.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L443)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L443)
 
 ``` python
 def track_tool_call(
@@ -1189,7 +1189,7 @@ Mark a model call as in flight for the lifetime of the scope.
 
 Stored on the session (not a ContextVar) so a cancel coming from a sibling transport task can read it. The agent / generate path wraps each [ModelEvent](../reference/inspect_ai.event.html.md#modelevent) in this so :meth:`cancel_current_turn` can populate :attr:`InterruptEvent.interrupted_model_event_id`. Sibling to :func:`inspect_ai.log._samples.track_active_model_event` (which sets the ContextVar consumed by transcript/log writers); both coexist.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L459)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L459)
 
 ``` python
 def track_model_event(
@@ -1205,7 +1205,7 @@ Raised inside :meth:`AcpSession.turn_scope` when a client cancels.
 
 Distinct from `CancelledError`, which is reserved for sample-level hard cancels propagating from the enclosing task group (limit exceeded, eval shutdown). The agent loop catches [TurnCancelled](../reference/inspect_ai.agent.html.md#turncancelled) to recover and continue with a fresh user message; `CancelledError` continues to unwind the sample.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_acp/session.py#L116)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_acp/session.py#L116)
 
 ``` python
 class TurnCancelled(Exception)
@@ -1223,7 +1223,7 @@ You can give the model a tool that enables handoff to your agent using the [hand
 
 You can create a simple tool (that receives a string as input) from an agent using [as_tool()](../reference/inspect_ai.agent.html.md#as_tool).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_agent.py#L93)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_agent.py#L93)
 
 ``` python
 class Agent(Protocol):
@@ -1248,7 +1248,7 @@ Keyword arguments for the agent.
 
 Agent state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_agent.py#L34)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_agent.py#L34)
 
 ``` python
 class AgentState
@@ -1266,7 +1266,7 @@ Model output.
 
 Decorator for registering agents.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_agent.py#L141)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_agent.py#L141)
 
 ``` python
 def agent(
@@ -1292,7 +1292,7 @@ Agent with modifications to name and/or description
 
 This function modifies the passed agent in place and returns it. If you want to create multiple variations of a single agent using [agent_with()](../reference/inspect_ai.agent.html.md#agent_with) you should create the underlying agent multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_agent.py#L226)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_agent.py#L226)
 
 ``` python
 def agent_with(
@@ -1318,7 +1318,7 @@ Check if an object is an Agent.
 
 Determines if the provided object is registered as an Agent in the system registry. When this function returns True, type checkers will recognize ‘obj’ as an Agent type.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_agent.py#L285)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_agent.py#L285)
 
 ``` python
 def is_agent(obj: Any) -> TypeGuard[Agent]
@@ -1333,7 +1333,7 @@ Object to check against the registry.
 
 Prompt for agent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_types.py#L22)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_types.py#L22)
 
 ``` python
 class AgentPrompt(NamedTuple)
@@ -1363,7 +1363,7 @@ Configure a react agent to make multiple attempts.
 
 Submissions are evaluated using the task’s main scorer, with value of 1.0 indicating a correct answer. Scorer values are converted to float (e.g. “C” becomes 1.0) using the standard value_to_float() function. Provide an alternate conversion scheme as required via `score_value`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_types.py#L65)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_types.py#L65)
 
 ``` python
 class AgentAttempts(NamedTuple)
@@ -1386,7 +1386,7 @@ Function called to determine whether the agent should continue.
 
 Returns `True` to continue with a default continue message inserted, return `False` to stop. Returns `str` to continue with an additional custom user message inserted. Returns [AgentState](../reference/inspect_ai.agent.html.md#agentstate) to continue with the specified state.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_types.py#L55)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_types.py#L55)
 
 ``` python
 AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str | AgentState]]
@@ -1396,7 +1396,7 @@ AgentContinue: TypeAlias = Callable[[AgentState], Awaitable[bool | str | AgentSt
 
 Configure the submit tool of a react agent.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_types.py#L87)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_types.py#L87)
 
 ``` python
 class AgentSubmit(NamedTuple)
@@ -1444,7 +1444,7 @@ Bridge an external agent into an Inspect Agent.
 >
 > If you do choose to use the [bridge()](../reference/inspect_ai.agent.html.md#bridge) function, these [examples](https://github.com/UKGovernmentBEIS/inspect_ai/tree/b4670e798dc8d9ff379d4da4ef469be2468d916f/examples/bridge) demostrate its basic usage.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/4313307511233a6c29fa5c8db50bbe5edf5ea939/src/inspect_ai/agent/_bridge/bridge.py#L399)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/13ac48e9d5b0caf7a691820fe27ef6a58265c83d/src/inspect_ai/agent/_bridge/bridge.py#L399)
 
 ``` python
 @agent
