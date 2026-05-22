@@ -159,16 +159,23 @@ async def _execute_tools_impl(
             agent_span_id: str | None = None
             tool_error: ToolCallError | None = None
             tool_exception: Exception | None = None
-            # Track this tool call on the ACP session so a client cancel can
-            # snapshot the in-flight tool id into InterruptEvent and so
-            # after_cancel can synthesize a repair message. No-op when no ACP
-            # session is active or when called from a sub-agent's shadowed
-            # session.
-            from inspect_ai.agent._acp import current_acp_session
+            # Track this tool call on the active sample's execution observer
+            # so an intervention producer (ACP today) can snapshot the
+            # in-flight tool id into InterruptEvent. No-op when no observer
+            # is installed (no producer attached) or when no sample is active.
+            from inspect_ai.agent._channel import null_execution_observer
+            from inspect_ai.log._samples import sample_active
+
+            _sample = sample_active()
+            _observer = (
+                _sample.execution_observer
+                if _sample is not None
+                else null_execution_observer()
+            )
 
             try:
                 try:
-                    with current_acp_session().track_tool_call(call.id, event):
+                    with _observer.track_tool_call(call.id, event):
                         (
                             result,
                             messages,

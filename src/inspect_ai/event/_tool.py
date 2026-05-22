@@ -79,7 +79,7 @@ class ToolEvent(BaseEvent):
         agent_span_id: str | None = None,
     ) -> None:
         # When the event was already operator-cancelled
-        # (``AcpSession.cancel_current_turn`` stamps
+        # (``AcpTransport.cancel_current_turn`` stamps
         # ``error=ToolCallError("cancelled")`` + ``failed=True`` on any
         # in-flight tool) and the tool subsequently finished inside the
         # cancellation propagation window — whether naturally or with

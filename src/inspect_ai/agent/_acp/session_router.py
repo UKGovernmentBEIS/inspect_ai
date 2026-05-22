@@ -1,7 +1,7 @@
 """Per-bind outbound forwarder: transcript events → ACP session/update.
 
 The :class:`Forwarders` class owns the lifecycle of a single bind:
-attach to a target :class:`AcpSession`'s pub/sub bus + transcript
+attach to a target :class:`AcpTransport`'s pub/sub bus + transcript
 subscriber list, run the live forwarder task(s), and tear everything
 down on rebind / disconnect. Each bind creates a fresh
 :class:`Forwarders` instance — its per-bind state (plan-tool stash,
@@ -38,7 +38,7 @@ from inspect_ai.agent._acp.inspect_ext import (
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.connection import ConnectionState
-    from inspect_ai.agent._acp.session import AcpSession, ApproverClient
+    from inspect_ai.agent._acp.transport import AcpTransport, ApproverClient
 
 logger = getLogger(__name__)
 
@@ -52,7 +52,7 @@ REPLAY_MAX_EVENTS = 100
 
 # How long :meth:`Forwarders.stop` waits for the semantic task to
 # finish its EOF cleanup naturally before falling through to cancel.
-# On the standard end-of-sample path :meth:`LiveAcpSession.finalize`
+# On the standard end-of-sample path :meth:`LiveAcpTransport.finalize`
 # has already closed pubsub by the time ``stop()`` is called, so the
 # task is racing to drain the raw forwarder and send
 # ``inspect/session_ended`` — both finish within microseconds. The
@@ -149,7 +149,7 @@ class Forwarders:
         self._target_session_id = target_session_id
         self._wire_session_id = wire_session_id
         # Forwarder runtime — populated by ``start()``.
-        self._target: "AcpSession | None" = None
+        self._target: "AcpTransport | None" = None
         self._semantic_stream: Any = None
         self._semantic_task: asyncio.Task[None] | None = None
         # Inspect extensions, fresh per-bind. The raw-event forwarder
@@ -180,7 +180,7 @@ class Forwarders:
         self._sent_event: anyio.Event = anyio.Event()
         self._processing_item: bool = False
 
-    async def start(self, target: "AcpSession") -> None:
+    async def start(self, target: "AcpTransport") -> None:
         """Begin live forwarding for a freshly-bound target session.
 
         Three-step setup ordered to avoid both lost events AND
@@ -332,14 +332,14 @@ class Forwarders:
     # ------------------------------------------------------------------
 
     async def _run_semantic_forwarder(
-        self, target: "AcpSession", recv_stream: Any
+        self, target: "AcpTransport", recv_stream: Any
     ) -> None:
         """Background task: drain the subscriber stream and forward.
 
         Each notification has its ``session_id`` rewritten to the
         connection's ``wire_session_id`` before forwarding. The router
         publishes notifications keyed to the target's
-        ``LiveAcpSession.session_id``, but after a picker selection
+        ``LiveAcpTransport.session_id``, but after a picker selection
         the connection's wire id is the synthetic control id — so
         passthroughs would otherwise reach the client with a session
         id they've never seen. The auto-bind / direct loadSession
@@ -411,7 +411,7 @@ class Forwarders:
         if outer.should_exit:
             return
         # Reaching here means the subscriber stream returned EOF —
-        # the LiveAcpSession's ``__aexit__`` ran ``_pubsub.close_all()``
+        # the LiveAcpTransport's ``__aexit__`` ran ``_pubsub.close_all()``
         # because the sample's react loop returned. Signal the client
         # so it can flip its lifecycle pill to ``complete`` even though
         # the underlying transport remains open (the connection is

@@ -28,8 +28,11 @@ from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.util._checkpoint import checkpointer
 
-from ._acp import TurnCancelled, acp_session
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
+from ._channel import (
+    AgentInterrupted,
+    agent_channel,
+)
 from ._filter import MessageFilter
 from ._handoff import has_handoff
 from ._types import (
@@ -191,7 +194,7 @@ def react(
         async with (
             checkpointer() as cp,
             mcp_connection(tools),
-            acp_session() as acp,
+            agent_channel() as ch,
         ):
             # prepend system message if we have one
             if system_message:
@@ -220,14 +223,14 @@ def react(
             # main loop = will terminate after submit (subject to max_attempts)
             # or if a message or token limit is hit
             while True:
-                # drain any operator-injected messages from an ACP client
-                state.messages.extend(await acp.before_turn(state.messages))
+                # drain any operator-supplied messages for this turn
+                state.messages.extend(await ch.before_turn(state.messages))
 
                 # checkpoint at turn boundary (no-op when policy says so)
                 await cp.tick()
 
                 try:
-                    with acp.turn_scope():
+                    with ch.turn_scope():
                         # generate output and append assistant message
                         state = await _agent_generate(
                             model, state, tools, retry_refusals, compact
@@ -312,8 +315,11 @@ def react(
                                     state.messages.append(
                                         ChatMessageUser(content=response_message)
                                     )
-                except TurnCancelled:
-                    state.messages.extend(await acp.after_cancel(state.messages))
+                except AgentInterrupted:
+                    # Repair the conversation shape + drain any redirect
+                    # message posted alongside the interrupt (blocks for
+                    # an operator follow-up if none arrived).
+                    state.messages.extend(await ch.after_cancel(state.messages))
                     continue
 
                 # call the on_continue hook (if any)
@@ -390,7 +396,7 @@ def react_no_submit(
         async with (
             checkpointer() as cp,
             mcp_connection(tools),
-            acp_session() as acp,
+            agent_channel() as ch,
         ):
             # prepend system message if we have one
             if system_message:
@@ -415,14 +421,14 @@ def react_no_submit(
 
             # main loop
             while True:
-                # drain any operator-injected messages from an ACP client
-                state.messages.extend(await acp.before_turn(state.messages))
+                # drain any operator-supplied messages for this turn
+                state.messages.extend(await ch.before_turn(state.messages))
 
                 # checkpoint at turn boundary (no-op when policy says so)
                 await cp.tick()
 
                 try:
-                    with acp.turn_scope():
+                    with ch.turn_scope():
                         # generate output and append assistant message
                         state = await _agent_generate(
                             model, state, tools, retry_refusals, compact
@@ -456,8 +462,8 @@ def react_no_submit(
                             state.messages.extend(messages)
                             if output:
                                 state.output = output
-                except TurnCancelled:
-                    state.messages.extend(await acp.after_cancel(state.messages))
+                except AgentInterrupted:
+                    state.messages.extend(await ch.after_cancel(state.messages))
                     continue
 
                 # call the on_continue hook (if any)

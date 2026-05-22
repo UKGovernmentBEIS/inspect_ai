@@ -66,19 +66,19 @@ from .._approval import Approval, ApprovalDecision
 if TYPE_CHECKING:
     from acp.schema import ContentToolCallContent
 
-    from inspect_ai.agent._acp.session import ApproverClient
+    from inspect_ai.agent._acp.transport import ApproverClient
     from inspect_ai.tool._tool_call import ToolCallContent
 
 logger = getLogger(__name__)
 
 
 class _ApprovalRoutingSession(Protocol):
-    """Narrowed view of ``AcpSession`` for the approval shim.
+    """Narrowed view of ``AcpTransport`` for the approval shim.
 
     Only the three primitives the shim actually uses: the driver-chain
     snapshot, the one-way "has ever attached" bit, and the attach
     subscription. Narrowed (rather than parameterising on the full
-    :class:`~inspect_ai.agent._acp.session.AcpSession`) so tests can
+    :class:`~inspect_ai.agent._acp.transport.AcpTransport`) so tests can
     pass a minimal stub without implementing the full session surface.
     """
 
@@ -413,7 +413,7 @@ async def _request_from_driver_with_fallback(
        — park on the attach event we subscribed in step 1. The fresh
        client is fully bound, promoted, AND ready (replay completed)
        before the notify fires — see ``_post_bind_setup_locked`` and
-       ``LiveAcpSession.notify_approver_attach``.
+       ``LiveAcpTransport.notify_approver_attach``.
     5. Cancellation (sample-level cancel, Esc-interrupt) unwinds via
        ``anyio.Event.wait`` cleanly — no try/except on the cancel exc.
 
@@ -562,9 +562,9 @@ async def request_human_approval_via_acp(
         from inspect_ai.log._samples import sample_active
 
         sample = sample_active()
-        if sample is None or sample.acp_session is None:
+        if sample is None or sample.acp_transport is None:
             return None
-        session = sample.acp_session
+        session = sample.acp_transport
         # Use "has ever attached" rather than "has currently attached":
         # in --acp-server + TTY mode an operator may attach via
         # ``inspect acp``, trigger an approval, then disconnect. The
