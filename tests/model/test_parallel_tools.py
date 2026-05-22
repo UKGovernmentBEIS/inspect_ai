@@ -561,3 +561,87 @@ async def test_operator_cancel_finalises_when_cancel_hits_not_stage_end():
         f"target working_time {target_ev.working_time:.3f}s should be far "
         f"less than survivor {survivor_ev.working_time:.3f}s"
     )
+
+
+async def test_sibling_cancel_during_approval_records_event_in_transcript():
+    """A call cancelled while still in approval must still appear in the transcript.
+
+    Regression: `call_tool` doesn't record the pending `ToolEvent` until
+    *after* approval. If a parallel sibling raises while this call is
+    blocked on `apply_tool_approval`, the outer task group cancels it
+    before `transcript()._event(event)` runs. The post-stage sibling-cancel
+    branch then calls `event._set_result(...)` and `_event_updated(event)`,
+    but the event was never appended — leaving a transcript hole. The
+    `ChatMessageTool` in the returned message list is unaffected; the hole
+    is only in `transcript().events`.
+    """
+    from inspect_ai.approval._apply import _tool_approver
+    from inspect_ai.approval._approval import Approval
+    from inspect_ai.log._transcript import transcript
+
+    target_id = "approval-blocked-target"
+    fail_id = "fast-fail-sibling"
+
+    approval_reached = anyio.Event()
+
+    async def blocking_approver(message, call, view, history):
+        if call.id == target_id:
+            approval_reached.set()
+            # Block long enough for the sibling raise to win the race.
+            # If we're cancelled here, anyio raises CancelledError which
+            # propagates out of call_tool cleanly.
+            await anyio.sleep(60)
+            return Approval(decision="approve")  # unreachable
+        return Approval(decision="approve")
+
+    @tool(parallel=True)
+    def fast_fail_after_approval_reached():
+        async def fast_fail_after_approval_reached() -> str:
+            """Wait until the sibling has blocked in approval, then raise."""
+            await approval_reached.wait()
+            # Tiny delay so the sibling is reliably *inside* the approval
+            # await before our exception cancels it.
+            await anyio.sleep(0.01)
+            raise RuntimeError("kaboom")
+
+        return fast_fail_after_approval_reached
+
+    @tool(parallel=True)
+    def needs_approval():
+        async def needs_approval(label: str) -> str:
+            """Should never actually run.
+
+            Args:
+                label: The label (unused).
+            """
+            return label
+
+        return needs_approval
+
+    fail_def = ToolDef(fast_fail_after_approval_reached())
+    target_def = ToolDef(needs_approval())
+    calls = [
+        call("needs_approval", target_id, label="never"),
+        call("fast_fail_after_approval_reached", fail_id),
+    ]
+
+    token = _tool_approver.set(blocking_approver)
+    try:
+        with pytest.raises(RuntimeError, match="kaboom"):
+            with anyio.fail_after(5):
+                await execute_tools([assistant(*calls)], [target_def, fail_def])
+    finally:
+        _tool_approver.reset(token)
+
+    target_events = [
+        e for e in transcript().events if isinstance(e, ToolEvent) and e.id == target_id
+    ]
+    assert len(target_events) >= 1, (
+        "the cancelled target's ToolEvent must appear in transcript().events "
+        "even when cancellation hit before call_tool recorded the pending event"
+    )
+    target_ev = target_events[-1]
+    assert not target_ev.pending
+    assert target_ev.error is not None
+    assert target_ev.error.type == "cancelled"
+    assert target_ev.failed is True

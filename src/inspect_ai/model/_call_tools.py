@@ -480,7 +480,15 @@ async def _execute_tools_impl(
                         message_id=op_tool_message.id,
                         agent_span_id=op_result_event.agent_span_id,
                     )
-                    transcript()._event_updated(event)
+                    # call_tool records the pending event only after
+                    # approval. If the cancel hit before that, append it
+                    # now (both _event and _event_updated notify
+                    # subscribers via _process_event, so we do one or
+                    # the other — never both).
+                    if event not in transcript().events:
+                        transcript()._event(event)
+                    else:
+                        transcript()._event_updated(event)
                     transcript().info(
                         f"Tool call '{call.function}' was cancelled by operator."
                     )
@@ -555,7 +563,15 @@ async def _execute_tools_impl(
                         message_id=tool_message.id,
                         agent_span_id=cancellation_event.agent_span_id,
                     )
-                    transcript()._event_updated(event)
+                    # call_tool records the pending event only after
+                    # approval. If the sibling cancel hit before that,
+                    # append it now (both _event and _event_updated
+                    # notify subscribers via _process_event, so we do
+                    # one or the other — never both).
+                    if event not in transcript().events:
+                        transcript()._event(event)
+                    else:
+                        transcript()._event_updated(event)
                 else:
                     # Event was finalised in run_one (success, exception, or
                     # operator cancel). Just splice the (possibly synthetic)
