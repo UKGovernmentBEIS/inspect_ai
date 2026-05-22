@@ -200,6 +200,30 @@ react(..., tools=[web_surfer(instance=uuid())])
 ```
 
 
+## Parallel Execution {#sec-parallel-execution}
+
+Models often emit several tool calls in a single assistant turn. By default Inspect executes those calls serially in declared order. Tools that have no shared mutable state (no sandbox interaction, no shared `Store` writes, no order-dependent side effects) can opt in to running concurrently with their siblings via `@tool(parallel=True)`:
+
+``` python
+@tool(parallel=True)
+def fetch_url():
+    async def fetch_url(url: str) -> str:
+        """Fetch a URL and return its contents.
+
+        Args:
+            url: The URL to fetch.
+        """
+        ...
+    return fetch_url
+```
+
+When a batch mixes parallel and serial calls, each serial call acts as a barrier: consecutive parallel-eligible calls coalesce into one concurrent stage, a serial call runs alone, and the next stage begins after it completes. Result messages are spliced back in the model's declared order regardless of completion timing.
+
+If one parallel call raises an unhandled exception, its in-flight siblings are cancelled. `ToolError` is not an unhandled exception — it becomes tool-result content and siblings continue.
+
+Only opt a tool in to parallel execution after auditing it for concurrent-safety. Stateful tools like `bash_session()` and `web_browser()` keep the default (`parallel=False`) and run serially.
+
+
 ## Tool Choice
 
 By default models will use a tool if they think it's appropriate for the given task. You can override this behaviour using the `tool_choice` parameter of the `use_tools()` Solver. For example:

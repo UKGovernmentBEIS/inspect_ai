@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Tool calling: Execute tool calls in parallel when their tool declares `@tool(parallel=True)`. The `parallel` option is now opt-in (defaults to `False`) and controls in-loop execution rather than the provider hint. Consecutive parallel-eligible calls in an assistant message run concurrently; serial calls act as barriers that preserve the model's declared order. `GenerateConfig.parallel_tool_calls` is no longer derived from the per-tool flag and is now set only by the user. Note: per-tool `ToolEvent.waiting_time` no longer sums to the sample's total waiting time when waits overlap across siblings (the sample-level metric, which drives working-time limits, remains correct).
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
 - Reasoning: `--reasoning-effort` now works uniformly across Claude 3.7–4.5 and Gemini 2.5. Inspect automatically bridges effort to a `budget_tokens` / `thinking_budget` value using a fixed table (minimal=2048, low=4096, medium=10000, high=16000, xhigh/max=32000). Previously these models silently ignored `reasoning_effort`.
 - Reasoning: Clamp extended effort values (`minimal` / `xhigh` / `max`) to the `low` / `medium` / `high` tier accepted by upstream APIs for Groq, Ollama, and SageMaker.
