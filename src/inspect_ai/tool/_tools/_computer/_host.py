@@ -16,7 +16,6 @@ import asyncio
 import base64
 import io
 import platform
-import time
 from typing import Literal
 
 from inspect_ai._util.error import PrerequisiteError
@@ -228,9 +227,7 @@ async def right_click(coordinate: list[int], timeout: int | None = None) -> Tool
     return await _result_with_screenshot()
 
 
-async def middle_click(
-    coordinate: list[int], timeout: int | None = None
-) -> ToolResult:
+async def middle_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
     _require_deps()
     pyautogui.click(coordinate[0], coordinate[1], button="middle")  # type: ignore[union-attr]
     return await _result_with_screenshot()
@@ -248,17 +245,13 @@ async def forward_click(
     raise ToolError("forward_click is not supported in host mode")
 
 
-async def double_click(
-    coordinate: list[int], timeout: int | None = None
-) -> ToolResult:
+async def double_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
     _require_deps()
     pyautogui.doubleClick(coordinate[0], coordinate[1])  # type: ignore[union-attr]
     return await _result_with_screenshot()
 
 
-async def triple_click(
-    coordinate: list[int], timeout: int | None = None
-) -> ToolResult:
+async def triple_click(coordinate: list[int], timeout: int | None = None) -> ToolResult:
     _require_deps()
     pyautogui.tripleClick(coordinate[0], coordinate[1])  # type: ignore[union-attr]
     return await _result_with_screenshot()
@@ -337,7 +330,6 @@ async def zoom(region: list[int], timeout: int | None = None) -> ToolResult:
 
 async def open_web_browser(timeout: int | None = None) -> ToolResult:
     """Open the default web browser. Platform-dependent."""
-    import subprocess
     import webbrowser
 
     webbrowser.open("about:blank")

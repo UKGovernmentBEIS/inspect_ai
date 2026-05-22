@@ -92,7 +92,6 @@ def computer(
         ``"host"`` runs actions directly on the host machine using
         pyautogui (requires ``pip install pyautogui mss Pillow``).
     """
-
     if backend == "host":
         from . import _host as impl
     else:
@@ -279,9 +278,7 @@ def computer(
                     timeout=timeout,
                 )
             case "wait":
-                return await impl.wait(
-                    not_none(duration, "duration"), timeout=timeout
-                )
+                return await impl.wait(not_none(duration, "duration"), timeout=timeout)
             case "screenshot":
                 return await impl.screenshot(timeout=timeout)
             case "zoom":
