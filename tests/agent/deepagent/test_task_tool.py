@@ -472,3 +472,105 @@ class TestPrepareForkedInput:
         assert "Do work." in str(last.content)
         # Submit instructions appended
         assert "submit()" in str(last.content)
+
+
+class TestTaskToolParallelFlag:
+    """task()'s parallel flag is derived from the subagents' tool configs.
+
+    True iff every subagent's tools are themselves parallel-safe and no
+    subagent pulls in stateful additions (memory/skills) whose underlying
+    tools mutate shared per-instance Store state.
+    """
+
+    def _parallel_of(self, tool: object) -> bool:
+        from inspect_ai.tool._tool_def import tool_def_fields
+
+        return tool_def_fields(tool).parallel  # type: ignore[arg-type]
+
+    def test_default_subagents_use_parallel_safe_defaults(self) -> None:
+        # sa.tools=None -> read_file/list_files/grep, all parallel=True now.
+        sa = subagent(name="research", description="research", prompt="research.")
+        tool = task_tool(subagents=[sa])
+        assert self._parallel_of(tool) is True
+
+    def test_memory_remains_parallel_safe(self) -> None:
+        # memory() has no await points, so concurrent calls can't
+        # interleave on a single event loop.
+        sa = subagent(
+            name="research",
+            description="research",
+            prompt="research.",
+            memory="readwrite",
+        )
+        tool = task_tool(subagents=[sa])
+        assert self._parallel_of(tool) is True
+
+    def test_explicit_serial_tool_forces_serial(self) -> None:
+        from inspect_ai.tool import tool as tool_decorator
+
+        @tool_decorator
+        def serial_tool():  # default parallel=False
+            async def execute(x: str) -> str:
+                """Echo.
+
+                Args:
+                    x: A value.
+                """
+                return x
+
+            return execute
+
+        sa = subagent(
+            name="r",
+            description="r",
+            prompt="r.",
+            tools=[serial_tool()],
+        )
+        tool = task_tool(subagents=[sa])
+        assert self._parallel_of(tool) is False
+
+    def test_explicit_parallel_tool_keeps_parallel(self) -> None:
+        from inspect_ai.tool import tool as tool_decorator
+
+        @tool_decorator(parallel=True)
+        def parallel_tool():
+            async def execute(x: str) -> str:
+                """Echo.
+
+                Args:
+                    x: A value.
+                """
+                return x
+
+            return execute
+
+        sa = subagent(
+            name="r",
+            description="r",
+            prompt="r.",
+            tools=[parallel_tool()],
+        )
+        tool = task_tool(subagents=[sa])
+        assert self._parallel_of(tool) is True
+
+    def test_one_unsafe_subagent_disables_parallel(self) -> None:
+        from inspect_ai.tool import tool as tool_decorator
+
+        @tool_decorator  # default parallel=False
+        def serial_tool():
+            async def execute(x: str) -> str:
+                """Echo.
+
+                Args:
+                    x: A value.
+                """
+                return x
+
+            return execute
+
+        sa_safe = subagent(name="a", description="a", prompt="a.")
+        sa_unsafe = subagent(
+            name="b", description="b", prompt="b.", tools=[serial_tool()]
+        )
+        tool = task_tool(subagents=[sa_safe, sa_unsafe])
+        assert self._parallel_of(tool) is False
