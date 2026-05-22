@@ -36,7 +36,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.server import acp_server
-from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._interrupt import InterruptEvent
@@ -95,7 +95,7 @@ def _make_active_sample(*, acp_session: Any) -> Any:
     active.started = None
     active.total_tokens = 0
     active.fails_on_error = True
-    active.acp_session = acp_session
+    active.acp_transport = acp_session
     return active
 
 
@@ -185,8 +185,8 @@ async def _connect(server: Any) -> _RpcClient:
     return _RpcClient(reader, writer)
 
 
-def _make_live_session() -> tuple[LiveAcpSession, Transcript]:
-    session = LiveAcpSession()
+def _make_live_session() -> tuple[LiveAcpTransport, Transcript]:
+    session = LiveAcpTransport()
     tr = Transcript()
     session._transcript = tr
     return session, tr
@@ -683,7 +683,7 @@ async def test_raw_forwarder_drain_blocks_until_pending_items_sent() -> None:
         subscription=frozenset({RAW_EVENTS_GLOB}),
     )
     # Bypass attach() — we hand the bridge stream in directly so we
-    # can push payloads without standing up a full LiveAcpSession.
+    # can push payloads without standing up a full LiveAcpTransport.
     import math
 
     send, recv = anyio.create_memory_object_stream[Any](max_buffer_size=math.inf)

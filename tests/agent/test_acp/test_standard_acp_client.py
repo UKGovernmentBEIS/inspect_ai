@@ -36,7 +36,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.server import acp_server
-from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.log._transcript import Transcript
 
 # ---------------------------------------------------------------------------
@@ -90,7 +90,7 @@ def _make_active_sample(
     active.started = None
     active.total_tokens = 0
     active.fails_on_error = True
-    active.acp_session = acp_session
+    active.acp_transport = acp_session
     return active
 
 
@@ -106,9 +106,9 @@ def register_target(monkeypatch):
     return _register
 
 
-def _make_live_session_with_transcript() -> LiveAcpSession:
-    """LiveAcpSession with a real Transcript wired up, bypassing __aenter__."""
-    session = LiveAcpSession()
+def _make_live_session_with_transcript() -> LiveAcpTransport:
+    """LiveAcpTransport with a real Transcript wired up, bypassing __aenter__."""
+    session = LiveAcpTransport()
     session._transcript = Transcript()
     return session
 
@@ -301,7 +301,7 @@ async def test_generic_acp_client_full_picker_flow(
     inspect-namespaced fields landing in places that would surprise
     a generic client.
     """
-    # Two live sessions, both backed by real LiveAcpSession + transcript
+    # Two live sessions, both backed by real LiveAcpTransport + transcript
     # so the bus + forwarder path works end-to-end (not stubbed).
     live_a = _make_live_session_with_transcript()
     live_b = _make_live_session_with_transcript()

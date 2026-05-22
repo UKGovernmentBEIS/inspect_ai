@@ -1,19 +1,20 @@
-"""Agent Client Protocol session foundation.
+"""Agent Client Protocol transport foundation.
 
-This module defines the ACP session contract — the ``AcpSession``
+This module defines the ACP transport contract — the ``AcpTransport``
 :class:`typing.Protocol` plus the supporting ``ApproverClient``
-Protocol, ``TurnCancelled`` exception, and the ``acp_session()`` /
-``current_acp_session()`` factory + accessor. The two implementations
-live in sibling files:
+Protocol and the ``acp_session()`` / ``current_acp_transport()``
+factory + accessor. The two implementations live in sibling files:
 
-- :mod:`.session_noop` — :class:`NoOpAcpSession`, the null object
+- :mod:`.transport_noop` — :class:`NoOpAcpTransport`, the null object
   used as the default ContextVar value and as the shadow installed
   when ``acp_session()`` is opened inside an already-active session
   (sub-agent case).
-- :mod:`.session_live` — :class:`LiveAcpSession`, the active
-  implementation that owns the in-process pub/sub bus, the
-  user-message queue, the turn cancel scope, and the cancel/inject
-  machinery.
+- :mod:`.transport_live` — :class:`LiveAcpTransport`, the active
+  implementation. Owns the in-process pub/sub bus, approver registry,
+  transcript snapshot, and in-flight tracking. Acts as a *producer* on
+  the agent's :class:`~inspect_ai.agent.AgentChannel`:
+  ``submit_user_message`` forwards via ``ref.post``,
+  ``cancel_current_turn`` via ``ref.interrupt``.
 """
 
 from __future__ import annotations
@@ -35,11 +36,12 @@ from typing import (
 
 from anyio.streams.memory import MemoryObjectReceiveStream
 
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import ChatMessageUser
 
 if TYPE_CHECKING:
     from acp.schema import RequestPermissionRequest, RequestPermissionResponse
 
+    from inspect_ai.agent._channel import AgentRef
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
@@ -68,7 +70,7 @@ class ApproverClient(Protocol):
     """A client capable of handling ``session/request_permission``.
 
     An attached ACP client that can render an approval prompt for the
-    user and return their decision. ``LiveAcpSession`` keeps a registry
+    user and return their decision. ``LiveAcpTransport`` keeps a registry
     of these so the ``human_approver`` can route tool-approval prompts
     through ACP when at least one client is attached, falling back to
     the in-proc panel / console flow when none are.
@@ -113,24 +115,17 @@ class ApproverClient(Protocol):
         ...
 
 
-class TurnCancelled(Exception):
-    """Raised inside :meth:`AcpSession.turn_scope` when a client cancels.
-
-    Distinct from ``CancelledError``, which is reserved for
-    sample-level hard cancels propagating from the enclosing task
-    group (limit exceeded, eval shutdown). The agent loop catches
-    ``TurnCancelled`` to recover and continue with a fresh user
-    message; ``CancelledError`` continues to unwind the sample.
-    """
-
-
 @runtime_checkable
-class AcpSession(Protocol):
-    """Per-agent ACP session facade.
+class AcpTransport(Protocol):
+    """Per-sample ACP transport facade.
 
-    Provides the in-process pub/sub bus and the cancel/inject
-    machinery: turn scopes, user-message queue, and producer-side
-    cancel/submit methods.
+    Owns the ACP-specific machinery the wire protocol needs:
+    in-process pub/sub bus, approver-client registry, transcript
+    capture/replay, and the producer-side hooks that drive the agent's
+    :class:`~inspect_ai.agent.AgentChannel` (``submit_user_message`` →
+    ``ref.post``, ``cancel_current_turn`` → ``ref.interrupt``). The
+    cancellation primitive lives on the channel; this transport is one
+    *producer* on it.
     """
 
     @property
@@ -143,12 +138,12 @@ class AcpSession(Protocol):
         """
         ...
 
-    async def __aenter__(self) -> "AcpSession":
+    async def __aenter__(self) -> "AcpTransport":
         """Enter the session scope.
 
         Returns ``self``. The session is installed in the ACP
         ContextVar by the ``acp_session()`` factory immediately before
-        this is called; consumers can call :func:`current_acp_session`
+        this is called; consumers can call :func:`current_acp_transport`
         from anywhere inside the scope to retrieve it.
         """
         ...
@@ -189,52 +184,6 @@ class AcpSession(Protocol):
 
         Non-blocking: a subscriber with a full buffer drops the update
         with a logged warning rather than stalling the producer.
-        """
-        ...
-
-    def turn_scope(self) -> contextlib.AbstractContextManager[None]:
-        """Wrap one agent turn so an ACP client cancel can interrupt it.
-
-        Synchronous context manager. ACP ``session/cancel`` causes the
-        wrapped block to raise :class:`TurnCancelled`. Sample-level
-        cancels (limit, eval shutdown) continue to propagate as
-        ``CancelledError`` past this scope unchanged.
-        """
-        ...
-
-    async def before_turn(
-        self, messages: Sequence[ChatMessage]
-    ) -> list[ChatMessageUser]:
-        """Drain queued operator messages and return them.
-
-        On the very first call to this method, if ``messages`` contains
-        no user message yet, blocks until at least one is submitted. On
-        subsequent calls, drains non-blockingly and returns immediately
-        (possibly with an empty list).
-
-        Takes a plain message sequence (not an ``AgentState``) so
-        custom solvers can pass ``state.messages`` directly without
-        needing the agent framework.
-        """
-        ...
-
-    async def after_cancel(
-        self, messages: list[ChatMessage] | None = None
-    ) -> list[ChatMessage]:
-        """Return repair + follow-up messages after a turn cancel.
-
-        Returns synthetic :class:`ChatMessageTool` results for any tool
-        calls that were in flight at cancel time, followed by drained
-        operator user messages. Blocks until at least one user message
-        is available if the queue is empty. Returned list is ready to
-        extend onto ``state.messages``.
-
-        When ``messages`` is provided, scans the last assistant
-        message's ``tool_calls`` and synthesizes a repair for every id
-        that doesn't yet have a matching :class:`ChatMessageTool`
-        result. This catches partially-completed tool batches that
-        anyio cancellation interrupts before ``_execute_tools_impl``
-        can return.
         """
         ...
 
@@ -314,7 +263,7 @@ class AcpSession(Protocol):
     def agent_completed(self) -> bool:
         """True after the agent's react loop has exited (split-phase park).
 
-        ``LiveAcpSession.__aexit__`` parks the session for the scoring
+        ``LiveAcpTransport.__aexit__`` parks the session for the scoring
         window when bound to an ``ActiveSample`` — the router + pubsub
         stay attached so scoring events still reach clients, but the
         agent loop is gone. Connection handlers read this to reject
@@ -472,16 +421,45 @@ class AcpSession(Protocol):
         """
         ...
 
+    def maybe_bind(self, ref: "AgentRef") -> bool:
+        """First-binder-wins channel attachment.
 
-# NoOpAcpSession is imported at module bottom (after the Protocol
+        Called by the agent runtime when it opens a new
+        :class:`inspect_ai.agent.AgentChannel` (rebindable per top-level
+        :func:`react <inspect_ai.agent.react>` invocation in the sample,
+        ignored on nested sub-agent opens). Returns True iff this call
+        accepted the ref — the caller uses that to know whether to
+        :meth:`unbind` on exit.
+        """
+        ...
+
+    def unbind(self, ref: "AgentRef") -> None:
+        """Clear the bound :class:`AgentRef` if it matches ``ref``.
+
+        Identity match: an :meth:`unbind` call from a sub-agent whose
+        :meth:`maybe_bind` was rejected silently no-ops.
+        """
+        ...
+
+    @property
+    def ref(self) -> "AgentRef | None":
+        """Currently-bound :class:`AgentRef`, or ``None``.
+
+        Producers (:meth:`submit_user_message`, :meth:`cancel_current_turn`)
+        consult this to route into the agent's channel when one is bound.
+        """
+        ...
+
+
+# NoOpAcpTransport is imported at module bottom (after the Protocol
 # definitions it depends on) to keep the load order coherent: importing
 # ``session_noop`` triggers a re-import of this module while it's still
 # loading, and that re-import only needs the symbols defined above.
-from inspect_ai.agent._acp.session_noop import NoOpAcpSession  # noqa: E402
+from inspect_ai.agent._acp.transport_noop import NoOpAcpTransport  # noqa: E402
 
-_NOOP_SINGLETON: AcpSession = NoOpAcpSession()
+_NOOP_SINGLETON: AcpTransport = NoOpAcpTransport()
 
-_acp_var: ContextVar[AcpSession] = ContextVar("_acp_session", default=_NOOP_SINGLETON)
+_acp_var: ContextVar[AcpTransport] = ContextVar("_acp_session", default=_NOOP_SINGLETON)
 
 # Sticky "a Live session is active somewhere upstream" flag,
 # inherited like any ContextVar by spawned child tasks. The first
@@ -493,21 +471,21 @@ _acp_var: ContextVar[AcpSession] = ContextVar("_acp_session", default=_NOOP_SING
 # sufficient on its own. A sub-agent installs a NoOp shadow into
 # ``_acp_var``, so a sub-sub-agent that consulted the parent alone
 # would see a NoOp, conclude "no live session here", and install a
-# second Live session — overwriting ``ActiveSample.acp_session`` and
+# second Live session — overwriting ``ActiveSample.acp_transport`` and
 # double-registering the event router. This separate flag breaks that
 # false symmetry.
 _acp_live_active: ContextVar[bool] = ContextVar("_acp_live_active", default=False)
 
 
 @contextlib.asynccontextmanager
-async def acp_session() -> AsyncIterator[AcpSession]:
+async def acp_session() -> AsyncIterator[AcpTransport]:
     """Open an ACP session for the enclosing scope.
 
     The first ``acp_session()`` entry in a context chain installs a
-    real ``LiveAcpSession``. Every nested ``acp_session()`` block —
+    real ``LiveAcpTransport``. Every nested ``acp_session()`` block —
     sub-agents invoked via handoff / ``as_tool`` / dispatch, at any
     depth — installs a no-op shadow instead, so nested code can call
-    ``current_acp_session().submit_user_message(...)`` /
+    ``current_acp_transport().submit_user_message(...)`` /
     ``cancel_current_turn()`` without accidentally driving the
     top-level session.
 
@@ -519,9 +497,9 @@ async def acp_session() -> AsyncIterator[AcpSession]:
     if _acp_live_active.get():
         # Upstream already owns the live session — shadow regardless
         # of how deep we are. ``_acp_var`` still gets the shadow so
-        # ``current_acp_session()`` inside this scope returns it
+        # ``current_acp_transport()`` inside this scope returns it
         # rather than leaking the upstream Live one.
-        install: AcpSession = NoOpAcpSession()
+        install: AcpTransport = NoOpAcpTransport()
         token_var = _acp_var.set(install)
         try:
             async with install:
@@ -534,11 +512,11 @@ async def acp_session() -> AsyncIterator[AcpSession]:
         # Importing here means the factory is the only path that
         # materializes the live impl; tests that import it directly
         # take care of their own ordering.
-        from inspect_ai.agent._acp.session_live import LiveAcpSession
+        from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 
         # First entry — become the live session and mark the chain
         # so all descendants shadow.
-        install = LiveAcpSession()
+        install = LiveAcpTransport()
         token_live = _acp_live_active.set(True)
         token_var = _acp_var.set(install)
         try:
@@ -549,10 +527,24 @@ async def acp_session() -> AsyncIterator[AcpSession]:
             _acp_live_active.reset(token_live)
 
 
-def current_acp_session() -> AcpSession:
+def current_acp_transport() -> AcpTransport:
     """Return the currently active ACP session without entering a scope.
 
     Returns the no-op singleton when no ACP session is active. Safe to
     call from anywhere; never blocks; never raises.
+
+    Resolution order: (1) the ``_acp_var`` ContextVar (set by an
+    :func:`acp_session` entry on an ancestor task); (2) the active
+    sample's :attr:`ActiveSample.acp_transport` field, if any (lets test
+    fixtures attach a session by direct assignment without going through
+    the async context manager); (3) the no-op singleton.
     """
-    return _acp_var.get()
+    var_session = _acp_var.get()
+    if var_session is _NOOP_SINGLETON:
+        # Local import to avoid load-order cycle.
+        from inspect_ai.log._samples import sample_active
+
+        sample = sample_active()
+        if sample is not None and sample.acp_transport is not None:
+            return sample.acp_transport
+    return var_session

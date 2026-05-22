@@ -45,7 +45,7 @@ class PickerTarget:
     """A single attachable ACP session target."""
 
     session_id: str
-    """The target ``LiveAcpSession.session_id`` (uuid)."""
+    """The target ``LiveAcpTransport.session_id`` (uuid)."""
 
     task: str
     """Task name (e.g. ``"my_task"``)."""
@@ -101,11 +101,11 @@ def list_picker_targets() -> list[PickerTarget]:
     Filters :func:`inspect_ai.log._samples.active_samples` to those
     whose ``acp_session`` is set to a non-noop live session — i.e.
     agents that have called ``before_turn`` at least once and
-    therefore have a real ``LiveAcpSession.session_id``.
+    therefore have a real ``LiveAcpTransport.session_id``.
     """
     targets: list[PickerTarget] = []
     for sample in active_samples():
-        session = sample.acp_session
+        session = sample.acp_transport
         if session is None or session.session_id == "noop":
             continue
         targets.append(
@@ -141,7 +141,7 @@ class SampleListing:
     """
 
     session_id: str | None
-    """Live ``LiveAcpSession.session_id`` (uuid) for ACP-claimed
+    """Live ``LiveAcpTransport.session_id`` (uuid) for ACP-claimed
     samples; ``None`` when the sample has no ACP session or only the
     pre-claim noop placeholder."""
 
@@ -175,7 +175,7 @@ def list_all_samples() -> list[SampleListing]:
     """
     listings: list[SampleListing] = []
     for sample in active_samples():
-        session = sample.acp_session
+        session = sample.acp_transport
         if session is None or session.session_id == "noop":
             session_id: str | None = None
             agent_name: str | None = None

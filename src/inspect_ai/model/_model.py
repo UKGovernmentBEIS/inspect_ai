@@ -1108,11 +1108,19 @@ class Model:
                 try:
                     assert isinstance(event, ModelEvent)
                     # Local import to avoid an import cycle (agent → model → agent).
-                    from inspect_ai.agent._acp import current_acp_session
+                    from inspect_ai.agent._channel import null_execution_observer
+                    from inspect_ai.log._samples import sample_active
+
+                    _sample = sample_active()
+                    _observer = (
+                        _sample.execution_observer
+                        if _sample is not None
+                        else null_execution_observer()
+                    )
 
                     with (
                         track_active_model_event(event),
-                        current_acp_session().track_model_event(event),
+                        _observer.track_model_event(event),
                     ):
                         with timeout_cm:
                             result = await self.api.generate(
@@ -1425,7 +1433,7 @@ class Model:
         def complete(
             result: ModelOutput | Exception, updated_call: ModelCall | None
         ) -> None:
-            # Note on operator-cancel: ``AcpSession.cancel_current_turn``
+            # Note on operator-cancel: ``AcpTransport.cancel_current_turn``
             # stamps ``event.error = OPERATOR_CANCEL_ERROR`` on the
             # in-flight event. The model API can still return inside the
             # cancellation propagation window; we deliberately let the

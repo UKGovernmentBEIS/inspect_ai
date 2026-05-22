@@ -26,7 +26,7 @@ is what the design doc promised in Phase 5.
 
 from inspect_ai import Task, eval
 from inspect_ai.agent import deepagent
-from inspect_ai.agent._acp import AcpSession, current_acp_session
+from inspect_ai.agent._acp import AcpTransport, current_acp_transport
 from inspect_ai.agent._deepagent import Subagent
 from inspect_ai.dataset import Sample
 from inspect_ai.event import (
@@ -45,8 +45,8 @@ from inspect_ai.util._span import AGENT_SPAN_TYPE
 # ---------------------------------------------------------------------------
 
 
-def _capture_session_tool(captured: dict[str, AcpSession], key: str = "acp") -> Tool:
-    """Tool that records ``current_acp_session()`` into ``captured[key]``.
+def _capture_session_tool(captured: dict[str, AcpTransport], key: str = "acp") -> Tool:
+    """Tool that records ``current_acp_transport()`` into ``captured[key]``.
 
     Sibling of the same helper in ``tests/agent/test_acp/_capture.py``
     but parameterized on the key so a single test can capture multiple
@@ -57,7 +57,7 @@ def _capture_session_tool(captured: dict[str, AcpSession], key: str = "acp") -> 
     def capture_session() -> Tool:
         async def execute() -> str:
             """Capture the active ACP session for the test."""
-            captured[key] = current_acp_session()
+            captured[key] = current_acp_transport()
             return f"captured {key}"
 
         return execute
@@ -173,17 +173,22 @@ def test_deepagent_task_dispatch_emits_agent_boundary_span() -> None:
 
 
 def test_deepagent_outer_gets_live_subagent_gets_noop() -> None:
-    """Top-level deepagent's react opens a Live AcpSession; subagents see NoOp.
+    """Top-level deepagent and its subagents share one Live AcpTransport per sample.
 
-    Proves the sticky-``_acp_live_active`` flag (Phase 4) carries
-    through deepagent's task_tool dispatch correctly. The inner
-    subagent's ``react()`` opens ``acp_session()`` again; per the
-    nesting rule it should see the upstream Live and install a NoOp
-    shadow — so any call to ``current_acp_session().submit_user_message``
-    inside the subagent is a no-op (no accidental leakage to the
-    editor).
+    After the agent-channel migration, the ACP session lives at the
+    sample level (opened in :func:`active_sample`). Sub-agents in the
+    same sample see the **same** Live session via
+    :func:`current_acp_transport` — there is no per-react NoOp shadow
+    anymore. Sub-agent isolation from the editor's top-level
+    intervention surface is enforced at the **channel** layer: the
+    sub-agent's channel never binds to the session's ``ref`` (the
+    outer react's bind wins, sub-agent's :meth:`maybe_bind` is
+    rejected), so an interrupt or post issued through the sub-agent's
+    channel cannot drive the top-level session. This test confirms
+    both pieces: shared Live session identity AND the
+    ``session.ref is outer_channel_ref`` invariant.
     """
-    captured: dict[str, AcpSession] = {}
+    captured: dict[str, AcpTransport] = {}
 
     custom_subagent = Subagent(
         name="custom_sub",
@@ -248,16 +253,19 @@ def test_deepagent_outer_gets_live_subagent_gets_noop() -> None:
     log = eval(task, model=model)[0]
     assert log.status == "success", log.error
 
-    # Outer captured a Live session; inner captured a NoOp shadow.
+    # Both outer and inner see the SAME Live session — it's per-sample,
+    # not per-react. Isolation lives at the channel-binding layer.
     assert "outer" in captured, "outer capture_session tool didn't fire"
     assert "inner" in captured, "inner capture_session tool didn't fire"
     assert captured["outer"].session_id != "noop", (
-        "Top-level deepagent should hold a Live AcpSession, not a NoOp"
+        "Top-level deepagent should hold a Live AcpTransport"
     )
-    assert captured["inner"].session_id == "noop", (
-        "Sub-agent should see a NoOp shadow ACP session; saw "
-        f"{captured['inner'].session_id!r} which means inner agent could "
-        "accidentally drive the editor's top-level session"
+    assert captured["inner"] is captured["outer"], (
+        "Sub-agent should see the SAME sample-level Live session as the "
+        "outer; isolation is enforced at the channel layer, not via "
+        "separate session identity. Got distinct sessions: "
+        f"outer={captured['outer'].session_id!r} "
+        f"inner={captured['inner'].session_id!r}"
     )
 
 

@@ -302,7 +302,7 @@ def test_openrouter_max_clamped_to_xhigh(effort, expected):
         ("max", "high"),
     ],
 )
-def test_grok_effort_mapping(effort, expected):
+def test_grok_effort_mapping(effort, expected) -> None:
     from inspect_ai.model._providers.grok import GrokAPI
 
     # Use grok-4.3 (a variant that supports reasoning_effort) — the original

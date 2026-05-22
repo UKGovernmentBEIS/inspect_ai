@@ -1,20 +1,20 @@
-"""Phase 1 unit tests for ``AcpSession`` types, factory, and accessors."""
+"""Phase 1 unit tests for ``AcpTransport`` types, factory, and accessors."""
 
 import anyio
 import pytest
 
-from inspect_ai.agent import AcpSession, acp_session
-from inspect_ai.agent._acp.session import current_acp_session
+from inspect_ai.agent._acp import AcpTransport, acp_session
+from inspect_ai.agent._acp.transport import current_acp_transport
 
 
 async def test_current_outside_scope_is_noop() -> None:
-    acp = current_acp_session()
+    acp = current_acp_transport()
     assert acp.session_id == "noop"
 
 
 async def test_real_session_installed_inside_scope() -> None:
     async with acp_session() as acp:
-        assert current_acp_session() is acp
+        assert current_acp_transport() is acp
         assert acp.session_id != "noop"
         # session_id is stable across reads
         assert acp.session_id == acp.session_id
@@ -23,7 +23,7 @@ async def test_real_session_installed_inside_scope() -> None:
 async def test_session_id_reset_after_scope_exits() -> None:
     async with acp_session():
         pass
-    assert current_acp_session().session_id == "noop"
+    assert current_acp_transport().session_id == "noop"
 
 
 async def test_nested_scope_is_noop_shadow() -> None:
@@ -32,9 +32,9 @@ async def test_nested_scope_is_noop_shadow() -> None:
         async with acp_session() as inner:
             assert inner.session_id == "noop"
             assert inner is not outer
-            assert current_acp_session() is inner
+            assert current_acp_transport() is inner
         # after inner exits, outer is restored
-        assert current_acp_session() is outer
+        assert current_acp_transport() is outer
 
 
 async def test_triple_nested_scope_stays_noop_shadow() -> None:
@@ -45,7 +45,7 @@ async def test_triple_nested_scope_stays_noop_shadow() -> None:
     ``_acp_var`` ContextVar alone. At depth 2 the parent was itself a
     NoOp shadow, so the predicate flipped back to "install Live" and
     silently produced a second real session — overwriting
-    ``ActiveSample.acp_session`` and double-registering the event
+    ``ActiveSample.acp_transport`` and double-registering the event
     router. The sticky ``_acp_live_active`` flag fixes this; depth 3+
     blocks see the upstream Live and shadow correctly.
     """
@@ -62,13 +62,13 @@ async def test_triple_nested_scope_stays_noop_shadow() -> None:
                 assert level0 is not level1
                 assert level1 is not level2
                 assert level0 is not level2
-                assert current_acp_session() is level2
+                assert current_acp_transport() is level2
             # After level2 exits, level1 (still a shadow) is restored.
-            assert current_acp_session() is level1
+            assert current_acp_transport() is level1
         # After level1 exits, level0 (the live one) is restored.
-        assert current_acp_session() is level0
+        assert current_acp_transport() is level0
     # After level0 exits, default singleton is restored.
-    assert current_acp_session().session_id == "noop"
+    assert current_acp_transport().session_id == "noop"
 
 
 async def test_publish_to_single_subscriber() -> None:
@@ -117,7 +117,7 @@ async def test_subscriber_sees_eof_on_session_exit() -> None:
 
 
 async def test_noop_attach_returns_closed_stream() -> None:
-    acp = current_acp_session()
+    acp = current_acp_transport()
     assert acp.session_id == "noop"
     stream = acp.attach()
     with pytest.raises(anyio.EndOfStream):
@@ -125,7 +125,7 @@ async def test_noop_attach_returns_closed_stream() -> None:
 
 
 async def test_noop_publish_and_detach_are_safe() -> None:
-    acp = current_acp_session()
+    acp = current_acp_transport()
     stream = acp.attach()
     acp.publish({"k": "v"})  # no subscribers; no error
     acp.detach(stream)  # no-op
@@ -135,7 +135,7 @@ async def test_concurrent_tasks_have_isolated_sessions() -> None:
     """Sibling tasks each see their own session under genuine overlap.
 
     Two tasks each open their own ``acp_session()`` and keep both
-    scopes open simultaneously. ``current_acp_session()`` must return
+    scopes open simultaneously. ``current_acp_transport()`` must return
     *each task's own* session — proving ContextVar isolation under
     genuine overlap, not just sequential entry.
     """
@@ -148,9 +148,9 @@ async def test_concurrent_tasks_have_isolated_sessions() -> None:
             results[f"{label}_id"] = acp.session_id
             my_event.set()
             # Wait until the peer has also entered before reading
-            # current_acp_session() — guarantees both scopes overlap.
+            # current_acp_transport() — guarantees both scopes overlap.
             await peer_event.wait()
-            results[f"{label}_current"] = current_acp_session().session_id
+            results[f"{label}_current"] = current_acp_transport().session_id
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(task, "a", a_entered, b_entered)
@@ -193,7 +193,7 @@ async def test_subscriber_buffer_is_unbounded(monkeypatch) -> None:
     def capture(msg: str, *_args: object, **_kwargs: object) -> None:
         warnings.append(msg)
 
-    from inspect_ai.agent._acp import session_live as live_module
+    from inspect_ai.agent._acp import transport_live as live_module
 
     monkeypatch.setattr(live_module.logger, "warning", capture)
 
@@ -215,8 +215,8 @@ async def test_subscriber_buffer_is_unbounded(monkeypatch) -> None:
 
 async def test_acp_session_satisfies_protocol() -> None:
     async with acp_session() as acp:
-        assert isinstance(acp, AcpSession)
-    assert isinstance(current_acp_session(), AcpSession)
+        assert isinstance(acp, AcpTransport)
+    assert isinstance(current_acp_transport(), AcpTransport)
 
 
 # ---------------------------------------------------------------------------
@@ -340,64 +340,15 @@ async def test_noop_session_subscribe_returns_noop_unsubscribe() -> None:
     Lets callers use a uniform subscribe/unsubscribe pattern without
     isinstance-guarding the session type.
     """
-    from inspect_ai.agent._acp.session_noop import NoOpAcpSession
+    from inspect_ai.agent._acp.transport_noop import NoOpAcpTransport
 
-    noop = NoOpAcpSession()
+    noop = NoOpAcpTransport()
     unsub_i = noop.subscribe_interrupted(lambda: None)
     unsub_r = noop.subscribe_prompt_resolved(lambda: None)
     assert noop.interrupt_pending is False
     # Should not raise.
     unsub_i()
     unsub_r()
-
-
-async def test_after_cancel_clears_pending_when_draining_prequeued_message() -> None:
-    """When ``after_cancel`` drains a message that was queued BEFORE the cancel.
-
-    Submit-then-cancel never goes through ``submit_user_message`` again,
-    so ``_interrupt_pending`` would stay True forever without
-    ``after_cancel`` clearing it. Late subscribers (TUI re-attach after
-    sample switch) would see stale pending state. Pinned to keep the
-    state machine consistent across both orderings of submit/cancel.
-    """
-    async with acp_session() as acp:
-        resolved: list[None] = []
-        acp.subscribe_prompt_resolved(lambda: resolved.append(None))
-        # Order: submit FIRST, then cancel. submit doesn't fire resolved
-        # (no pending yet); cancel sets pending.
-        acp.submit_user_message(ChatMessageUser(content="resume"))
-        assert acp.interrupt_pending is False
-        assert resolved == []
-        acp.cancel_current_turn()
-        assert acp.interrupt_pending is True
-        # Agent loop runs after_cancel — drains the queued message.
-        # Should clear pending and fire resolved.
-        drained = await acp.after_cancel(messages=[])
-        # Drained contents include the pre-queued user message.
-        assert any(isinstance(m, ChatMessageUser) for m in drained)
-        assert acp.interrupt_pending is False
-        assert len(resolved) == 1
-
-
-async def test_after_cancel_no_double_fire_when_submit_already_cleared() -> None:
-    """``after_cancel`` must NOT fire resolved again when submit already did.
-
-    The common ordering — cancel first, then user submits, then
-    after_cancel drains — already cleared pending in
-    submit_user_message. after_cancel sees pending=False and shouldn't
-    re-fire (would cause the TUI to attempt a redundant exit).
-    """
-    async with acp_session() as acp:
-        resolved: list[None] = []
-        acp.subscribe_prompt_resolved(lambda: resolved.append(None))
-        acp.cancel_current_turn()
-        # Submit BEFORE after_cancel — clears pending + fires.
-        acp.submit_user_message(ChatMessageUser(content="ok"))
-        assert acp.interrupt_pending is False
-        assert len(resolved) == 1
-        await acp.after_cancel(messages=[])
-        # No second fire.
-        assert len(resolved) == 1
 
 
 async def test_repeated_cancel_keeps_pending_and_re_fires_interrupted() -> None:
@@ -419,7 +370,7 @@ async def test_repeated_cancel_keeps_pending_and_re_fires_interrupted() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Phase 14: approver-client registry on LiveAcpSession
+# Phase 14: approver-client registry on LiveAcpTransport
 #
 # Tracks ACP clients that can handle ``session/request_permission``.
 # The configured ``human_approver`` checks this registry at prompt
@@ -578,9 +529,9 @@ async def test_attach_unsubscribe_is_idempotent() -> None:
 
 async def test_noop_session_approver_client_is_no_op() -> None:
     """No-op session: predicate False, attach returns no-op unsubscribe, chain empty."""
-    from inspect_ai.agent._acp.session_noop import NoOpAcpSession
+    from inspect_ai.agent._acp.transport_noop import NoOpAcpTransport
 
-    noop = NoOpAcpSession()
+    noop = NoOpAcpTransport()
     client = _StubApproverClient()
     assert noop.has_approver_clients() is False
     assert noop.has_ever_had_approver_client() is False

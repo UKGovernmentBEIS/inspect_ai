@@ -5,8 +5,8 @@ from typing import Any, cast
 import anyio
 
 from inspect_ai.agent import react
-from inspect_ai.agent._acp import AcpSession
-from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp import AcpTransport
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.event import InterruptEvent
 from inspect_ai.log._samples import _sample_active as samples_var
@@ -62,7 +62,7 @@ async def test_track_model_event_populates_session_during_generate() -> None:
     token = _transcript.set(transcript)
     sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
-        captured: dict[str, AcpSession] = {}
+        captured: dict[str, AcpTransport] = {}
         ready = anyio.Event()
         observed_during_generate: list[Any] = []
 
@@ -104,7 +104,7 @@ async def test_track_model_event_populates_session_during_generate() -> None:
                 # Capture tool fired; the next generate (slow_done) is about
                 # to start. Wait for it to enter, then peek the session.
                 await anyio.sleep(0.05)
-                live = cast(LiveAcpSession, captured["acp"])
+                live = cast(LiveAcpTransport, captured["acp"])
                 observed_during_generate.append(live._turn_cancel._active_model_event)
 
             tg.start_soon(run_agent)
@@ -125,7 +125,7 @@ async def test_track_tool_call_populates_session_during_tool_execution() -> None
     token = _transcript.set(transcript)
     sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
-        captured: dict[str, AcpSession] = {}
+        captured: dict[str, AcpTransport] = {}
         ready = anyio.Event()
         release = anyio.Event()
         observed_in_flight: list[list[str]] = []
@@ -164,7 +164,7 @@ async def test_track_tool_call_populates_session_during_tool_execution() -> None
                 # Capture happened on turn 1. Now wait long enough for turn 2's
                 # slow_tool to enter the track_tool_call scope.
                 await anyio.sleep(0.1)
-                live = cast(LiveAcpSession, captured["acp"])
+                live = cast(LiveAcpTransport, captured["acp"])
                 observed_in_flight.append(list(live._turn_cancel._in_flight_tool_calls))
                 release.set()
 
@@ -186,7 +186,7 @@ async def test_cancel_mid_generate() -> None:
     token = _transcript.set(transcript)
     sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
-        captured: dict[str, AcpSession] = {}
+        captured: dict[str, AcpTransport] = {}
         ready = anyio.Event()
 
         async def slow_generate(
@@ -256,7 +256,7 @@ async def test_cancel_mid_tool_call() -> None:
     token = _transcript.set(transcript)
     sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
-        captured: dict[str, AcpSession] = {}
+        captured: dict[str, AcpTransport] = {}
         ready = anyio.Event()
         release = anyio.Event()
 
@@ -336,7 +336,7 @@ async def test_interrupt_event_recorded_with_correct_fields() -> None:
     token = _transcript.set(transcript)
     sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
-        captured: dict[str, AcpSession] = {}
+        captured: dict[str, AcpTransport] = {}
         ready = anyio.Event()
 
         async def slow_generate(
@@ -402,7 +402,7 @@ async def test_inject_between_turns() -> None:
     token = _transcript.set(transcript)
     sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
-        captured: dict[str, AcpSession] = {}
+        captured: dict[str, AcpTransport] = {}
         ready = anyio.Event()
 
         call_count = [0]
@@ -462,7 +462,7 @@ async def test_react_no_submit_cancel_mid_tool() -> None:
     token = _transcript.set(transcript)
     sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
-        captured: dict[str, AcpSession] = {}
+        captured: dict[str, AcpTransport] = {}
         ready = anyio.Event()
         release = anyio.Event()
 
@@ -552,7 +552,7 @@ async def test_cancel_repairs_all_unanswered_tool_calls_in_batch() -> None:
     token = _transcript.set(transcript)
     sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
-        captured: dict[str, AcpSession] = {}
+        captured: dict[str, AcpTransport] = {}
         ready = anyio.Event()
         release = anyio.Event()
 
@@ -664,7 +664,7 @@ async def test_cancel_clears_pending_on_in_flight_events() -> None:
     token = _transcript.set(transcript)
     sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
-        captured: dict[str, AcpSession] = {}
+        captured: dict[str, AcpTransport] = {}
         ready = anyio.Event()
         release = anyio.Event()
 
@@ -748,7 +748,7 @@ async def test_cancel_notifies_event_updated_for_cancelled_events() -> None:
     token = _transcript.set(transcript)
     sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
-        captured: dict[str, AcpSession] = {}
+        captured: dict[str, AcpTransport] = {}
         ready = anyio.Event()
         release = anyio.Event()
 

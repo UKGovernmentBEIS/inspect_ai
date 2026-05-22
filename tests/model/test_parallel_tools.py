@@ -152,7 +152,7 @@ async def test_parallel_batch_runs_concurrently():
     assert [m.content for m in tool_msgs] == ["L0", "L1", "L2"]
 
 
-async def test_mixed_batch_serial_acts_as_barrier():
+async def test_mixed_batch_serial_acts_as_barrier() -> None:
     """[par, par, ser, par] runs as {0,1} concurrently, then {2}, then {3}.
 
     The serial call must observe results of any prior parallel calls but
@@ -647,7 +647,7 @@ async def test_sibling_cancel_during_approval_records_event_in_transcript():
     assert target_ev.failed is True
 
 
-async def test_parallel_pending_events_coexist_with_distinct_uuids():
+async def test_parallel_pending_events_coexist_with_distinct_uuids() -> None:
     """Mid-execution, two parallel tools both have pending=True with distinct uuids.
 
     Precondition for the live transcript UIs (Inspect View live samples

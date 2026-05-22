@@ -60,7 +60,7 @@ from inspect_ai.agent._acp.session_router import Forwarders
 from inspect_ai.model._chat_message import ChatMessageUser
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp.session import AcpSession
+    from inspect_ai.agent._acp.transport import AcpTransport
     from inspect_ai.log._samples import ActiveSample
 
 logger = getLogger(__name__)
@@ -101,7 +101,7 @@ class Bound:
     """Connection is bound to a target session; forwarding is active.
 
     ``wire_session_id`` is what the client sees. ``target_session_id``
-    is the internal ``LiveAcpSession.session_id`` we forward to. In
+    is the internal ``LiveAcpTransport.session_id`` we forward to. In
     the auto-bind / direct-load paths these are equal; on the picker
     selection path the wire id is the synthetic control id and the
     target id is the chosen sample — the design contract is that the
@@ -345,7 +345,7 @@ class ConnectionHandler:
                     # the agent loop has exited and there's no consumer
                     # to drain ``submit_user_message``. Pre-fix the
                     # call returned success and the message was silently
-                    # discarded by ``LiveAcpSession.submit_user_message``'s
+                    # discarded by ``LiveAcpTransport.submit_user_message``'s
                     # post-agent guard. Surface a real error so the
                     # client (TUI / editor) can show "scoring in progress"
                     # instead of pretending it landed.
@@ -542,7 +542,7 @@ class ConnectionHandler:
         # ``sample.interrupt(action)`` fires the registered
         # ``on_interrupt`` hook before the task-group cancel — for an
         # ACP-bound sample that routes to
-        # ``LiveAcpSession.cancel_current_turn``, which clears
+        # ``LiveAcpTransport.cancel_current_turn``, which clears
         # in-flight ``ModelEvent.pending=True`` (otherwise anyio's
         # hard cancel bypasses the normal completion paths and the
         # TUI's assistant chip spins past the scoring chips). The
@@ -892,7 +892,7 @@ class ConnectionHandler:
         """Send ``session/request_permission`` to this client and await response.
 
         Implements the :class:`ApproverClient` protocol. The
-        ``LiveAcpSession`` registers this handler when the connection
+        ``LiveAcpTransport`` registers this handler when the connection
         binds (via :class:`Forwarders`); the configured
         ``human_approver`` calls this method (via the
         ``approval/_human/acp.py`` driver-fallback chain) when a tool
@@ -1239,8 +1239,8 @@ def _translate_prompt_blocks(prompt_blocks: list[Any]) -> str:
     return "".join(parts)
 
 
-def _find_live_session(session_id: str) -> "AcpSession | None":
-    """Look up a live :class:`AcpSession` by sessionId.
+def _find_live_session(session_id: str) -> "AcpTransport | None":
+    """Look up a live :class:`AcpTransport` by sessionId.
 
     Walks :func:`inspect_ai.log._samples.active_samples` for a sample
     whose ``acp_session.session_id`` matches. Returns ``None`` if
@@ -1250,7 +1250,7 @@ def _find_live_session(session_id: str) -> "AcpSession | None":
     from inspect_ai.log._samples import active_samples
 
     for sample in active_samples():
-        sess = sample.acp_session
+        sess = sample.acp_transport
         if sess is not None and sess.session_id == session_id:
             return sess
     return None
@@ -1267,7 +1267,7 @@ def _find_active_sample(session_id: str) -> "ActiveSample | None":
     from inspect_ai.log._samples import active_samples
 
     for sample in active_samples():
-        sess = sample.acp_session
+        sess = sample.acp_transport
         if sess is not None and sess.session_id == session_id:
             return sample
     return None

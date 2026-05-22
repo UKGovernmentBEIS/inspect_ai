@@ -105,11 +105,11 @@ def _make_sample(
     active.total_tokens = total_tokens
     active.fails_on_error = fails_on_error
     if session_id is None:
-        active.acp_session = None
+        active.acp_transport = None
     else:
         session = MagicMock()
         session.session_id = session_id
-        active.acp_session = session
+        active.acp_transport = session
     return active
 
 
@@ -1689,7 +1689,7 @@ async def test_bound_mode_prompt_with_unreachable_target_returns_internal_error(
     which does NOT plug into the registry the forwarder reads, so
     targets are present at picker time but unreachable at forward
     time — surfaces as ``internal_error`` with a clear reason. Real
-    forwarding to a live ``LiveAcpSession`` is exercised in
+    forwarding to a live ``LiveAcpTransport`` is exercised in
     ``test_server_forwarding.py``.
     """
     stub_targets(

@@ -35,7 +35,7 @@ from acp.schema import (
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp.server import acp_server
-from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.approval._approval import ApprovalDecision
 from inspect_ai.approval._human.acp import (
     _approval_from_response,
@@ -82,7 +82,7 @@ def _cancelled() -> RequestPermissionResponse:
 
 
 class _StubSession:
-    """Minimal AcpSession-like for ``_request_from_driver_with_fallback``.
+    """Minimal AcpTransport-like for ``_request_from_driver_with_fallback``.
 
     Reports a fixed driver chain plus the three primitives the shim
     needs: ``approver_driver_chain`` (snapshot), ``has_ever_had_approver_client``
@@ -772,11 +772,11 @@ async def test_driver_chain_falls_through_stale_handler_after_rebind() -> None:
 
 @pytest.fixture
 def patch_sample_active(monkeypatch):
-    """Patch sample_active to return a stub sample with an AcpSession."""
+    """Patch sample_active to return a stub sample with an AcpTransport."""
 
     def _patch(session: Any | None) -> None:
         sample = MagicMock()
-        sample.acp_session = session
+        sample.acp_transport = session
         monkeypatch.setattr(
             "inspect_ai.log._samples.sample_active",
             lambda: sample if session is not None else None,
@@ -811,7 +811,7 @@ async def test_entry_returns_none_when_no_acp_session(patch_sample_active) -> No
 
 async def test_entry_returns_none_when_no_clients(patch_sample_active) -> None:
     """ACP session exists but no clients attached → fall through."""
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
     patch_sample_active(session)
     result = await request_human_approval_via_acp(
         message="please confirm",
@@ -825,7 +825,7 @@ async def test_entry_returns_none_when_no_clients(patch_sample_active) -> None:
 @skip_if_trio
 async def test_entry_routes_to_attached_client(patch_sample_active) -> None:
     """One client attached → request routes through it; decision returns."""
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -864,7 +864,7 @@ async def test_entry_prepends_assistant_message_as_content_block(
     card. The shim now passes ``message`` to ``_build_request``
     purely for API stability; it doesn't ride on the wire.
     """
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -894,7 +894,7 @@ async def test_entry_omits_message_block_for_empty_message(
     patch_sample_active,
 ) -> None:
     """Empty / whitespace-only message is also a no-op (still no Assistant block)."""
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -926,7 +926,7 @@ async def test_entry_substitutes_view_placeholders_with_call_arguments(
     correctly in the in-proc panel but show literal
     ``{{command}}`` / ``{{path}}`` in the editor card.
     """
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -975,7 +975,7 @@ async def test_entry_carries_view_content_in_request(patch_sample_active) -> Non
     block appears AFTER the assistant message block (when a message
     is present); we scan all blocks to be robust to ordering changes.
     """
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
     client = _StubClient(response=_selected("approve"))
     session.attach_approver_client(client)
     session.notify_approver_attach(client)
@@ -1355,11 +1355,11 @@ async def test_approval_over_real_socket_round_trip(
     """
     # Set up a fake ActiveSample so list_picker_targets has something
     # to return — needed for session/load to bind successfully.
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
     # Initialize an empty session id; the real wire test below will
     # use session/load directly with the session id.
     sample = MagicMock()
-    sample.acp_session = session
+    sample.acp_transport = session
     sample.task = "t"
     sample.sample.id = "s"
     sample.epoch = 0

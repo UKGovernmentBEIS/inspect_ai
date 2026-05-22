@@ -60,11 +60,11 @@ def _make_sample(
     active.started = started
     active.fails_on_error = fails_on_error
     if session_id is None:
-        active.acp_session = None
+        active.acp_transport = None
     else:
         session = MagicMock()
         session.session_id = session_id
-        active.acp_session = session
+        active.acp_transport = session
     return active
 
 

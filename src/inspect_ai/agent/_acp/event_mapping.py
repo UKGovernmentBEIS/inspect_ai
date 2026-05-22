@@ -5,7 +5,7 @@ notifications out over a bound connection. This module is the
 in-process step before that — transcript events become typed
 ``acp.SessionNotification`` payloads on the session's pub/sub bus.
 
-When a :class:`LiveAcpSession` is active, an :class:`_AcpEventRouter`
+When a :class:`LiveAcpTransport` is active, an :class:`_AcpEventRouter`
 is attached at session entry. It subscribes to the active sample's
 ``Transcript`` and:
 
@@ -13,7 +13,7 @@ is attached at session entry. It subscribes to the active sample's
    to maintain a sub-agent nesting depth counter.
 2. Optionally filters out events emitted while a sub-agent boundary is
    open (default ACP-friendly behavior; consumers can opt out via
-   :meth:`LiveAcpSession.disable_subagent_filtering`).
+   :meth:`LiveAcpTransport.disable_subagent_filtering`).
 3. Maps the surviving events to ``acp.SessionNotification`` payloads
    and publishes them onto the session's pub/sub bus.
 
@@ -84,7 +84,7 @@ from inspect_ai.model._model_info import get_model_info
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp.session_live import LiveAcpSession
+    from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 
 logger = getLogger(__name__)
 
@@ -147,7 +147,7 @@ class SubagentDepthTracker:
 class _AcpEventRouter:
     """Subscribe to a transcript, map events, publish session notifications."""
 
-    def __init__(self, session: "LiveAcpSession") -> None:
+    def __init__(self, session: "LiveAcpTransport") -> None:
         self._session = session
         self._depth_tracker = SubagentDepthTracker()
         self._seen_tool_call_ids: set[str] = set()
@@ -608,7 +608,7 @@ def _active_sample_total_messages(session_id: str) -> int:
     from inspect_ai.log._samples import active_samples
 
     for sample in active_samples():
-        sess = sample.acp_session
+        sess = sample.acp_transport
         if sess is not None and sess.session_id == session_id:
             return sample.total_messages
     return 0
