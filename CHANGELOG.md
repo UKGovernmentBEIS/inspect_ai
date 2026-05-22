@@ -10,6 +10,7 @@
 - Google: Retry transport-level aiohttp errors and SDK transport timeouts in `should_retry()` so the model-layer tenacity loop can retry network failures that escape the SDK's one-shot inline retry.
 - vLLM: Support HF @revision and other extended characters in LoRA adapter names.
 - Model API: Create separate connection limit pools per model (improving concurrency under adaptive connections).
+- Eval Set: Re-condense carried-forward samples on retry.
 - Scoring: Use scorers_info instead of scorers for functions that recompute metrics.
 - Async: `run_coroutine()` (and the sync log/analysis helpers built on it) now honour `INSPECT_ASYNC_BACKEND=trio` when called with no running event loop, rather than always using asyncio.
 - Bugfix: Resolve message/call pool references in DB-buffer recovery.
