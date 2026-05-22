@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import threading
 import time
+import zipfile
 from copy import deepcopy
 from pathlib import Path
 from typing import Callable
@@ -34,7 +35,7 @@ from inspect_ai._eval.loader import resolve_tasks
 from inspect_ai._eval.task.resolved import ResolvedTask
 from inspect_ai._eval.task.task import task_with
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.file import basename, size_in_mb
+from inspect_ai._util.file import basename, local_path, size_in_mb
 from inspect_ai.dataset import Sample
 from inspect_ai.log._edit import ProvenanceData, invalidate_samples
 from inspect_ai.log._file import (
@@ -1723,3 +1724,58 @@ def test_eval_set_retry_immediate(retry_immediate: bool | None) -> None:
             errored_sample,
             errored_sample,
         ]
+
+
+def test_carried_forward_samples_remain_condensed() -> None:
+    """Regression: eval_set retry must re-condense carried-forward samples.
+
+    Sample 1 fails on attempt 1 (re-run on attempt 2); sample 2 succeeds
+    on attempt 1 and is carried forward.
+    """
+    seen: set[int] = set()
+
+    @solver
+    def fail_once_on_sample_1() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 1 and state.sample_id not in seen:
+                seen.add(state.sample_id)
+                raise ValueError("first attempt for sample 1")
+            return state
+
+        return solve
+
+    with tempfile.TemporaryDirectory() as log_dir:
+        success, _ = eval_set(
+            tasks=Task(
+                dataset=[
+                    Sample(id=1, input="Say hello", target="hello"),
+                    Sample(id=2, input="Say hello", target="hello"),
+                ],
+                solver=[fail_once_on_sample_1(), generate()],
+                scorer=includes(),
+            ),
+            log_dir=log_dir,
+            retry_attempts=2,
+            retry_wait=0.1,
+            retry_immediate=True,
+            model="mockllm/model",
+        )
+        assert success
+
+        all_logs = list_eval_logs(log_dir)
+        assert len(all_logs) == 1
+        latest = all_logs[0]
+
+        # Read raw JSON from the zip — read_eval_log_sample would
+        # decondense on read and hide the bug.
+        with zipfile.ZipFile(local_path(latest.name)) as zf:
+            sample_members = [n for n in zf.namelist() if n.startswith("samples/")]
+            assert "samples/2_epoch_1.json" in sample_members, (
+                f"sample 2 was not carried forward; found {sample_members}"
+            )
+            for member in sample_members:
+                data = json.loads(zf.read(member))
+                assert data.get("events_data") is not None, (
+                    f"{member} in {latest.name} was written decondensed; "
+                    f"carry-forward path must run condense_sample()"
+                )
