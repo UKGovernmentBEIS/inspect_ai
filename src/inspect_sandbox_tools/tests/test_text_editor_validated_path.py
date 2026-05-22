@@ -13,8 +13,12 @@ from inspect_sandbox_tools._util.common_types import ToolException
 def _set_history_path(monkeypatch: pytest.MonkeyPatch, history_path: Path) -> None:
     monkeypatch.setattr(text_editor_module, "DEFAULT_HISTORY_PATH", str(history_path))
     # DEFAULT_HISTORY_PATH is bound into these defaults at function definition time.
-    monkeypatch.setattr(text_editor_module._load_history, "__defaults__", (str(history_path),))
-    monkeypatch.setattr(text_editor_module._save_history, "__defaults__", (str(history_path),))
+    monkeypatch.setattr(
+        text_editor_module._load_history, "__defaults__", (str(history_path),)
+    )
+    monkeypatch.setattr(
+        text_editor_module._save_history, "__defaults__", (str(history_path),)
+    )
 
 
 def test_validated_path_rejects_too_long_filename() -> None:
