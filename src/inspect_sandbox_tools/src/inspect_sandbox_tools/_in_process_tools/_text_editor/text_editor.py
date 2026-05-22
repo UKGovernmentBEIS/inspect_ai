@@ -270,14 +270,12 @@ def _save_history(history: HistoryType, file_path: str = DEFAULT_HISTORY_PATH) -
         _trim_history(history)
         _atomic_pickle_dump(history, file_path)
     except Exception as e:
-        # Leave any temp file behind; edit success matters more than cleanup in
-        # this rare history-save failure path.
         logger.warning(f"Discarding text_editor history at {file_path} due to: {e}")
         _discard_history(file_path)
 
 
 def _atomic_pickle_dump(history: HistoryType, file_path: str) -> None:
-    """Write history via atomic replace so errors cannot leave a partial pickle."""
+    """Write history via atomic replace so errors/timeouts cannot leave a partial pickle."""
     path = Path(file_path)
     with tempfile.NamedTemporaryFile(
         "wb", dir=path.parent, prefix=f".{path.name}.", delete=False
@@ -297,6 +295,8 @@ def _load_history(file_path: str = DEFAULT_HISTORY_PATH) -> HistoryType:
         # First edit in this sandbox: no undo history exists yet.
         return defaultdict(list)
     except Exception as e:
+        # If there's a corrupt history, discard to restart from scratch,
+        # rather than show the agent ToolException every time
         logger.warning(f"Discarding text_editor history at {file_path} due to: {e}")
         _discard_history(file_path)
         return defaultdict(list)
