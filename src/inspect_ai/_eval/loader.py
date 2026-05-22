@@ -120,13 +120,15 @@ def resolve_tasks(
     if isinstance(tasks, Task):
         return as_resolved_tasks([tasks])
     elif isinstance(tasks, list) and isinstance(tasks[0], Task):
-        return as_resolved_tasks(tasks)
+        return as_resolved_tasks([t for t in tasks if isinstance(t, Task)])
 
     # convert TaskInfo to str
     if isinstance(tasks, TaskInfo):
         tasks = [tasks]
     if isinstance(tasks, list) and isinstance(tasks[0], TaskInfo):
-        tasks = [f"{task.file}@{task.name}" for task in tasks]
+        tasks = [
+            f"{task.file}@{task.name}" for task in tasks if isinstance(task, TaskInfo)
+        ]
 
     # handle functions that return tasks (we get their registry name)
     if isinstance(tasks, list) and callable(tasks[0]):
