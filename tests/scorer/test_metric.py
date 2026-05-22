@@ -309,7 +309,9 @@ def test_nested_dict_metrics() -> None:
         assert len(log.results.scores) == 4
         assert log.results.scores[1].name == "one"
         assert len(log.results.scores[1].metrics.values()) == 2
-        assert log.results.scores[1].metrics["key1"].name == "key1"
+        m = log.results.scores[1].metrics["nested_dict_metric_key1"]
+        assert m.name == "nested_dict_metric_key1"
+        assert m.group == "nested_dict_metric"
 
     task = Task(
         dataset=[Sample(input="What is 1 + 1?", target=["2", "2.0", "Two"])],

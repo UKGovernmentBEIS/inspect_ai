@@ -209,8 +209,18 @@ def test_categorical_recompute_round_trip() -> None:
         before = _metrics_snapshot(log)
 
         # all enum members reported (including any zero-counts)
-        assert set(before["_verdict_scorer"]) == {"yes", "no", "unsure"}
-        assert set(before["sab"]) == {"none", "subtle", "overt"}
+        verdict_score = next(
+            s for s in log.results.scores if s.name == "_verdict_scorer"
+        )
+        assert set(verdict_score.metrics) == {"yes", "no", "unsure"}
+        assert all(m.group == "frequency" for m in verdict_score.metrics.values())
+        sab_score = next(s for s in log.results.scores if s.name == "sab")
+        assert set(sab_score.metrics) == {
+            "frequency_none",
+            "frequency_subtle",
+            "frequency_overt",
+        }
+        assert all(m.group == "frequency" for m in sab_score.metrics.values())
 
         # round-trip through disk
         path = os.path.join(log_dir, "roundtrip.eval")
