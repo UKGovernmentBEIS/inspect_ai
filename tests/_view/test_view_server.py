@@ -1547,6 +1547,39 @@ def test_api_log_no_etag_header_for_local(view_client: ViewTestClient) -> None:
     assert "etag" not in resp.headers
 
 
+def test_api_log_info_returns_etag_for_s3(mock_s3: None, tmp_path: Path) -> None:
+    """`get_log_info` should expose the S3 ETag so the client can prime an
+    `If-Match` on the *first* edit. Without this, the new ETag protection
+    is reachable only on the second-and-later edit (the chained-edit
+    fallback), and a save that races a concurrent external edit silently
+    last-writer-wins."""
+    s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_info.eval"
+    _write_eval_log_to_s3(s3_log)
+
+    client = ViewTestClient(tmp_path)
+    try:
+        info = client.request("GET", f"/log-info/{s3_log}")
+        info.raise_for_status()
+        body = info.json()
+        assert isinstance(body.get("etag"), str) and body["etag"]
+        # Should match the ETag the read endpoint returns.
+        read_resp = client.request("GET", f"/logs/{s3_log}")
+        read_resp.raise_for_status()
+        assert body["etag"] == read_resp.headers["etag"]
+    finally:
+        client.close()
+
+
+def test_api_log_info_no_etag_for_local(view_client: ViewTestClient) -> None:
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    write_eval_log(view_client.log_dir, fname)
+    resp = view_client.request("GET", view_client.log_url("log-info", fname))
+    resp.raise_for_status()
+    body = resp.json()
+    # Local filesystem has no ETag concept; the field should be omitted.
+    assert "etag" not in body or body["etag"] is None
+
+
 def test_api_log_edit_s3_returns_new_etag(mock_s3: None, tmp_path: Path) -> None:
     s3_log = "s3://test-bucket/2025-01-01T00-00-00+00-00_etag_edit.eval"
     _write_eval_log_to_s3(s3_log)

@@ -241,17 +241,33 @@ async def apply_log_edits(
 
 
 async def get_log_size(log_file: str) -> int:
+    size, _etag = await _stat_log(log_file)
+    return size
+
+
+async def _stat_log(log_file: str) -> tuple[int, str | None]:
+    """One ``fs.info`` call → ``(size, etag)``.
+
+    ETag is populated for S3 paths (where ``_file_info`` lifts it from the
+    head_object response) and ``None`` elsewhere. Sharing the call lets
+    `get_log_info` surface both fields without a second round-trip.
+    """
     fs = filesystem(log_file)
     if fs.is_async():
         info = fs._file_info(await async_connection(log_file)._info(log_file))
     else:
         info = fs.info(log_file)
-    return info.size
+    return info.size, info.etag
 
 
 class LogInfo(BaseModel):
     size: int
     direct_url: str | None = None
+    # S3 ETag of the log file at the time of this lookup. Used by the
+    # viewer client to prime an `If-Match` header on the first edit so
+    # concurrent-modification protection covers the initial save, not
+    # just chained saves within a session.
+    etag: str | None = None
 
 
 async def get_direct_url(path: str) -> str | None:
@@ -329,16 +345,16 @@ async def get_log_info(
     log_file: str,
     generate_direct_url: bool = False,
 ) -> LogInfo:
-    """Return file size and optionally a direct URL for the log file.
+    """Return file size, optional direct URL, and S3 ETag for the log file.
 
     Args:
         log_file: Path to the log file.
         generate_direct_url: If True and the file is on S3, include a
             presigned URL in the response.
     """
-    size = await get_log_size(log_file)
+    size, etag = await _stat_log(log_file)
     direct_url = await get_direct_url(log_file) if generate_direct_url else None
-    return LogInfo(size=size, direct_url=direct_url)
+    return LogInfo(size=size, direct_url=direct_url, etag=etag)
 
 
 async def delete_log(log_file: str) -> None:
