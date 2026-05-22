@@ -19,15 +19,15 @@ def _category_names(categories: Categories) -> list[str] | None:
     return [str(c) for c in categories]
 
 
-def _require_scalar(values: Sequence[Value]) -> None:
+def _require_scalar(values: Sequence[Value], metric_name: str) -> None:
     for v in values:
         if isinstance(v, Mapping) or (
             isinstance(v, Sequence) and not isinstance(v, str)
         ):
             raise TypeError(
-                f"frequency() received {'dict' if isinstance(v, Mapping) else 'list'}-valued "
+                f"{metric_name} received {'dict' if isinstance(v, Mapping) else 'list'}-valued "
                 f"scores. For dict-valued scorers, declare per-key metrics "
-                f'instead, e.g. @scorer(metrics={{"*": [frequency()]}}).'
+                f'instead, e.g. @scorer(metrics={{"*": [{metric_name}]}}).'
             )
 
 
@@ -89,7 +89,7 @@ def frequency(
 
     def compute(scores: list[SampleScore]) -> dict[str, float]:
         values = [s.score.value for s in scores]
-        _require_scalar(values)
+        _require_scalar(values, "frequency()")
         return _frequencies(values, names, normalize)
 
     return compute
