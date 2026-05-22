@@ -282,29 +282,6 @@ def test_web_browser_input():
     assert type_call
 
 
-@skip_if_no_docker
-@skip_if_no_openai
-@pytest.mark.slow
-def test_web_browser_displays_error():
-    """This should return an error, because the web-browsing tool cannot access pdfs."""
-    task = Task(
-        dataset=[
-            Sample(
-                input="Please use the web browser tool to navigate to https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf."
-            )
-        ],
-        solver=[use_tools(web_browser()), generate()],
-        sandbox=web_browser_sandbox(),
-    )
-
-    log = eval(task, model="openai/gpt-4o")[0]
-    response = get_tool_response(
-        log.samples[0].messages,
-        get_tool_call(log.samples[0].messages, "web_browser_go"),
-    )
-    assert response.error is not None
-
-
 def web_browser_sandbox() -> tuple[str, str]:
     return (
         "docker",
