@@ -794,7 +794,7 @@ def update_metrics_display_fn(
                         task_metrics.append(
                             TaskDisplayMetric(
                                 scorer=score.name,
-                                name=metric.name,
+                                name=key,
                                 value=metric.value,
                                 reducer=score.reducer,
                                 params=metric.params,

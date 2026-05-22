@@ -35,7 +35,7 @@ def eval_log_scores_dict(
                     f"{score.name}_{score.reducer}"
                     if name_counts[score.name] > 1 and score.reducer is not None
                     else score.name
-                ): {metric.name: metric.value for metric in score.metrics.values()}
+                ): {key: metric.value for key, metric in score.metrics.items()}
             }
             for score in log.results.scores
         ]
