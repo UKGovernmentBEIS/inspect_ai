@@ -10,7 +10,6 @@ in ``EvalScorer.value_schema`` and used here to reconstruct synthetic
 
 import functools
 import math
-import re
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from logging import getLogger
@@ -25,24 +24,15 @@ from ._scorer import unique_scorer_name
 logger = getLogger(__name__)
 
 
-_MEMBER_NAME_INVALID = re.compile(r"[^A-Za-z0-9_]")
-
-
-def _member_name(value: str, idx: int) -> str:
-    name = _MEMBER_NAME_INVALID.sub("_", value).upper()
-    if not name or not name[0].isalpha():
-        name = f"M{idx}_{name}" if name else f"M{idx}"
-    return name
-
-
 @functools.cache
 def _categorical_enum(members: tuple[str, ...]) -> type[StrEnum]:
     """Build (and cache) a synthetic StrEnum with the given members.
 
     Cached by member tuple so that all rehydrated values from the same domain
-    share a single type, which ``_infer_categories`` relies on.
+    share a single type, which ``_infer_categories`` relies on. Member names
+    are positional placeholders; only values are ever observed.
     """
-    mapping = {_member_name(m, i): m for i, m in enumerate(members)}
+    mapping = {f"M{i}": m for i, m in enumerate(members)}
     return StrEnum("_Categorical", mapping)  # type: ignore[return-value]
 
 

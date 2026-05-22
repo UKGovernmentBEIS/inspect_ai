@@ -22,7 +22,7 @@ from ._metric import (
     value_to_float,
 )
 from ._metrics.accuracy import accuracy
-from ._metrics.categorical import categorical, category_rate, frequency
+from ._metrics.categorical import categorical, frequency
 from ._metrics.grouped import grouped
 from ._metrics.mean import mean
 from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
@@ -71,7 +71,6 @@ __all__ = [
     "at_least",
     "bootstrap_stderr",
     "categorical",
-    "category_rate",
     "choice",
     "exact",
     "f1",

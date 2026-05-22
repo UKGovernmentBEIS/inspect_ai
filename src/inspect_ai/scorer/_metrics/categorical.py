@@ -19,21 +19,15 @@ def _category_names(categories: Categories) -> list[str] | None:
     return [str(c) for c in categories]
 
 
-def _scalar_label(value: Value) -> str:
-    if isinstance(value, Enum):
-        return str(value.value)
-    return str(value)
-
-
-def _require_scalar(values: Sequence[Value], metric_name: str) -> None:
+def _require_scalar(values: Sequence[Value]) -> None:
     for v in values:
         if isinstance(v, Mapping) or (
             isinstance(v, Sequence) and not isinstance(v, str)
         ):
             raise TypeError(
-                f"{metric_name} received {'dict' if isinstance(v, Mapping) else 'list'}-valued "
+                f"frequency() received {'dict' if isinstance(v, Mapping) else 'list'}-valued "
                 f"scores. For dict-valued scorers, declare per-key metrics "
-                f'instead, e.g. @scorer(metrics={{"*": [{metric_name}]}}).'
+                f'instead, e.g. @scorer(metrics={{"*": [frequency()]}}).'
             )
 
 
@@ -55,7 +49,7 @@ def _frequencies(
 ) -> dict[str, float]:
     if categories is None:
         categories = _infer_categories(values)
-    counts: Counter[str] = Counter(_scalar_label(v) for v in values)
+    counts: Counter[str] = Counter(str(v) for v in values)
     keys = list(dict.fromkeys((*(categories or ()), *counts)))
     total = sum(counts.values())
     denom = float(total) if (normalize and total > 0) else 1.0
@@ -95,34 +89,8 @@ def frequency(
 
     def compute(scores: list[SampleScore]) -> dict[str, float]:
         values = [s.score.value for s in scores]
-        _require_scalar(values, "frequency()")
+        _require_scalar(values)
         return _frequencies(values, names, normalize)
-
-    return compute
-
-
-@metric
-def category_rate(category: str | Enum) -> Metric:
-    r"""Proportion of scored samples falling into one specific category.
-
-    Reported as a single-entry mapping ``{category: rate}`` so that the
-    resulting metric is named after the category in eval results.
-
-    Args:
-       category: The category value to measure.
-
-    Returns:
-       Category-rate metric
-    """
-    target = str(category.value) if isinstance(category, Enum) else str(category)
-
-    def compute(scores: list[SampleScore]) -> dict[str, float]:
-        if not scores:
-            return {target: 0.0}
-        values = [s.score.value for s in scores]
-        _require_scalar(values, "category_rate()")
-        labels = [_scalar_label(v) for v in values]
-        return {target: sum(1 for label in labels if label == target) / len(labels)}
 
     return compute
 
@@ -147,11 +115,9 @@ def categorical(categories: Categories = None) -> list[Metric]:
         @scorer(metrics={"*": categorical()})
         def my_grader() -> Scorer: ...
 
-    When a scorer returns ``StrEnum`` values and no epoch reducer is
-    explicitly configured, epochs are not reduced for that scorer: each
-    epoch's score is treated as an independent observation by ``frequency()``.
-    Use ``Epochs(n, "mode")`` to instead collapse epochs to the modal
-    category per sample.
+    When a scorer returns ``StrEnum`` values, epochs are not reduced for that
+    scorer: each epoch's score is treated as an independent observation by
+    ``frequency()``.
 
     Args:
        categories: The full set of possible categories (typically a

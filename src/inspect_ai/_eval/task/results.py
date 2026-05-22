@@ -7,7 +7,6 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
-from enum import StrEnum
 from typing import Any, Tuple, TypeGuard, cast, get_args, get_origin, get_type_hints
 
 from inspect_ai._util.logger import warn_once
@@ -267,11 +266,13 @@ def resolve_reducer(
     reducers: ScoreReducer | list[ScoreReducer] | None,
     scores: list[SampleScore] | None = None,
 ) -> tuple[list[ScoreReducer], bool]:
+    from inspect_ai.scorer._rehydrate import detect_value_schema
+
     # Categorical (StrEnum-valued) scorers are never epoch-reduced: each
     # epoch's score is fed to metrics (e.g. ``frequency()``) as an independent
     # observation. This takes precedence over any configured reducer because
     # numeric reducers (mean/median) would corrupt the categorical labels.
-    if scores is not None and _has_categorical_values(scores):
+    if scores and detect_value_schema([ss.score for ss in scores]) is not None:
         return ([], False)
     if reducers is None:
         return ([mean_score()], False)
@@ -279,22 +280,6 @@ def resolve_reducer(
         return ([], True)
     else:
         return (reducers if isinstance(reducers, list) else [reducers], True)
-
-
-def _has_categorical_values(scores: list[SampleScore]) -> bool:
-    """Whether this scorer emits StrEnum-valued (categorical) scores."""
-    for ss in scores:
-        v = ss.score.value
-        if isinstance(v, float) and math.isnan(v):
-            continue
-        if isinstance(v, StrEnum):
-            return True
-        if isinstance(v, Mapping):
-            return any(isinstance(x, StrEnum) for x in v.values())
-        if isinstance(v, Sequence) and not isinstance(v, str):
-            return any(isinstance(x, StrEnum) for x in v)
-        return False
-    return False
 
 
 def split_metrics(
