@@ -173,7 +173,7 @@ silently saving as a string.
 
 One server-side gotcha that needed fixing: the no-op filter inside
 `edit_eval_log` previously used `current_metadata.get(k) != v`, which
-mis-classified "adding a new key whose value is `None`" as a no-op (because
+misclassified "adding a new key whose value is `None`" as a no-op (because
 `dict.get` returns `None` for absent keys). The filter now tests key
 presence separately so null-valued additions land in `log.metadata`.
 
