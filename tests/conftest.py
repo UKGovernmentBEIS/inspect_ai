@@ -70,6 +70,11 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "api: mark test as requiring API access")
     config.addinivalue_line("markers", "flaky: mark test as flaky/unreliable")
     os.environ["INSPECT_EVAL_LOG_MODEL_API"] = "1"
+    # Dummy provider keys so tests that only construct a client (not call the
+    # API) work without real credentials. Real keys (when present) win via
+    # setdefault. api-marked tests are gated behind --runapi and skip when the
+    # real key is absent, so a dummy here doesn't enable accidental API calls.
+    os.environ.setdefault("ANTHROPIC_API_KEY", "sk-test-dummy")
 
 
 def pytest_collection_modifyitems(config, items):

@@ -155,7 +155,7 @@ def tool(
     name: str | None = None,
     viewer: ToolCallViewer | None = None,
     model_input: ToolCallModelInput | None = None,
-    parallel: bool = True,
+    parallel: bool | None = None,
     prompt: str | None = None,
 ) -> Callable[[Callable[P, Tool]], Callable[P, Tool]]: ...
 
@@ -166,7 +166,7 @@ def tool(
     name: str | None = None,
     viewer: ToolCallViewer | None = None,
     model_input: ToolCallModelInput | None = None,
-    parallel: bool = True,
+    parallel: bool | None = None,
     prompt: str | None = None,
 ) -> Callable[P, Tool] | Callable[[Callable[P, Tool]], Callable[P, Tool]]:
     r"""Decorator for registering tools.
@@ -178,7 +178,10 @@ def tool(
             will be used as the name of the tool.
         viewer: Provide a custom view of tool call and context.
         model_input: Provide a custom function for playing back tool results as model input.
-        parallel: Does this tool support parallel execution? (defaults to `True`).
+        parallel: Can this tool execute concurrently with other tool calls in
+            the same assistant message? Defaults to `False` (opt-in). Set
+            `True` only after auditing the tool for concurrent-safety (no
+            shared `Store`/sandbox mutations, no order-dependent side effects).
         prompt: Deprecated (provide all descriptive information about
             the tool within the tool function's doc comment)
 
@@ -222,7 +225,7 @@ def tool(
             # capture it and use it as defaults
             from inspect_ai.tool._tool_def import tool_registry_info
 
-            tool_parallel = parallel
+            tool_parallel: bool = parallel is True
             tool_viewer = viewer
             tool_model_input = model_input
             tool_options: dict[str, object] | None = None
@@ -230,7 +233,12 @@ def tool(
                 _, _, reg_parallel, reg_viewer, reg_model_input, options = (
                     tool_registry_info(tool)
                 )
-                tool_parallel = parallel and reg_parallel
+                # An unspecified outer (None) inherits the inner tool's
+                # declaration; an explicit outer value overrides.
+                if parallel is None:
+                    tool_parallel = reg_parallel
+                else:
+                    tool_parallel = parallel
                 tool_viewer = viewer or reg_viewer
                 tool_model_input = model_input or reg_model_input
                 tool_options = options

@@ -10,6 +10,7 @@ import pytest
 
 from inspect_ai.util._checkpoint import (
     CheckpointConfig,
+    Manual,
     TimeInterval,
     TurnInterval,
 )
@@ -50,7 +51,7 @@ def test_time_shorthand(spec: str, expected: timedelta) -> None:
 
 def test_manual_literal() -> None:
     cfg = _parse("manual")
-    assert cfg.trigger == "manual"
+    assert isinstance(cfg.trigger, Manual)
 
 
 def test_bad_turn_value() -> None:
@@ -87,7 +88,7 @@ def test_yaml_file_manual_trigger(tmp_path: Path) -> None:
     path = tmp_path / "ckpt.yaml"
     path.write_text("trigger: manual\n")
     cfg = _parse(str(path))
-    assert cfg.trigger == "manual"
+    assert isinstance(cfg.trigger, Manual)
 
 
 def test_yaml_file_time_trigger_with_suffix(tmp_path: Path) -> None:

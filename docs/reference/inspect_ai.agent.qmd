@@ -39,6 +39,12 @@ description: Agent scaffolds and protocol.
 ### remove_tools
 ### MessageFilter
 
+## Intervention
+
+### acp_session
+### AcpSession
+### TurnCancelled
+
 ## Protocol
 
 ### Agent
