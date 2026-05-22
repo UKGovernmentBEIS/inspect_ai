@@ -13,7 +13,6 @@ from inspect_ai.scorer import (
     Scorer,
     Target,
     categorical,
-    category_rate,
     frequency,
     scorer,
 )
@@ -80,16 +79,6 @@ def test_frequency_rejects_dict_scores() -> None:
 def test_frequency_rejects_list_scores() -> None:
     with pytest.raises(TypeError, match="list-valued"):
         frequency()([ss([Verdict.YES, Verdict.NO])])
-
-
-def test_category_rate_named_by_category() -> None:
-    result = category_rate(Verdict.YES)([ss(Verdict.YES), ss(Verdict.NO)])
-    assert result == {"yes": 0.5}
-
-
-def test_category_rate_rejects_dict_scores() -> None:
-    with pytest.raises(TypeError, match="dict-valued"):
-        category_rate("yes")([ss({"k": "yes"})])
 
 
 def test_categorical_resolves_enum_to_list() -> None:
