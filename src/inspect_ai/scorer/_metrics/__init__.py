@@ -1,4 +1,5 @@
 from .accuracy import accuracy
+from .categorical import categorical, category_rate, frequency
 from .grouped import grouped
 from .mean import mean
 from .perplexity import perplexity_per_seq, perplexity_per_token
@@ -6,6 +7,9 @@ from .std import bootstrap_stderr, std, stderr, var
 
 __all__ = [
     "accuracy",
+    "categorical",
+    "category_rate",
+    "frequency",
     "mean",
     "grouped",
     "perplexity_per_token",

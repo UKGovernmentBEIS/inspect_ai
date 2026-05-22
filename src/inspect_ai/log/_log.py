@@ -823,6 +823,22 @@ class EvalMetricDefinition(BaseModel):
     options: dict[str, Any] | None = Field(default=None)
 
 
+class CategoricalSchema(BaseModel):
+    """Value schema for categorical (StrEnum-valued) scores."""
+
+    type: Literal["categorical"] = "categorical"
+
+    categories: list[str]
+    """Full set of category labels this scorer may emit."""
+
+
+ValueSchema = CategoricalSchema
+"""Describes the shape/domain of a scorer's ``Score.value``.
+
+Currently only ``CategoricalSchema`` is defined; this is a discriminated union
+intended to grow further variants (ordinal, numeric range, multi-label, ...)."""
+
+
 class EvalScorer(BaseModel):
     name: str
     """Scorer name"""
@@ -835,6 +851,9 @@ class EvalScorer(BaseModel):
         | dict[str, list[EvalMetricDefinition]]
         | None
     ) = Field(default=None)
+
+    value_schema: ValueSchema | dict[str, ValueSchema] | None = Field(default=None)
+    """Schema describing the shape/domain of this scorer's score values."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Scorer metadata"""

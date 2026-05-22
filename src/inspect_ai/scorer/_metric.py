@@ -1,5 +1,6 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from enum import StrEnum
 from logging import getLogger
 from typing import (
     Any,
@@ -14,6 +15,7 @@ from typing import (
 )
 
 from pydantic import BaseModel, Field
+from pydantic.json_schema import SkipJsonSchema
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.metadata import MT, metadata_as
@@ -45,15 +47,22 @@ NOANSWER = "N"
 """Value to assign for no answer or refusal to answer."""
 
 
+_Scalar = SkipJsonSchema[StrEnum] | str | int | float | bool
+
 Value = Union[
-    str | int | float | bool,
-    Sequence[str | int | float | bool],
-    Mapping[str, str | int | float | bool | None],
+    _Scalar,
+    Sequence[_Scalar],
+    Mapping[str, _Scalar | None],
 ]
 """Value provided by a score.
 
 Use the methods of `Score` to easily treat
 the `Value` as a simple scalar of various types.
+
+``StrEnum`` is accepted so that categorical scorers can return enum members
+directly; the enum class is preserved in-process (enabling metrics like
+``frequency()`` to infer the full category set) but serialises as a plain
+string and is excluded from the JSON schema.
 """
 
 UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
