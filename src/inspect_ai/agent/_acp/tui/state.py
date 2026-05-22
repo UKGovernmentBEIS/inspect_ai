@@ -337,6 +337,22 @@ class ToolCallState:
     cards with this flag set so ``^L`` advances to the next eligible
     tool.
     """
+    was_parallel: bool = False
+    """Sticky tag: True once this tool has overlapped with another
+    in-progress tool at any point in its lifecycle.
+
+    Set by :meth:`SessionState._tag_parallel_batch` whenever ≥2 tools
+    are simultaneously eligible-in-progress (in_progress, not pending
+    approval, not cancel-requested) — both the existing and the newly
+    arriving tools get tagged together. Never cleared.
+
+    Drives the deferred-body parallel-tools gate in
+    :class:`TranscriptWidget._compute_defer_body`: a tool keeps its
+    body held back until every tagged batch member has reached a
+    terminal status, so the last in-flight tool of a 3-call batch
+    doesn't suddenly reveal its call-view mid-flight when the
+    second-to-last sibling completes.
+    """
 
     @property
     def is_terminal(self) -> bool:
@@ -1449,6 +1465,11 @@ class SessionState:
         elif isinstance(update, AgentPlanUpdate):
             changed = self._consume_plan_update(update)
         if changed:
+            # Tag the parallel batch BEFORE notifying so subscribers
+            # (notably ``TranscriptWidget._compute_defer_body``) see
+            # the freshly-tagged ``was_parallel`` flags on the same
+            # refresh pass that sees the new tool state.
+            self._tag_parallel_batch()
             # Stamp the running-window timestamp BEFORE notifying so
             # subscribers (notably the header pill) see the freshest
             # ``has_active_work`` and the quiescence window in sync.
@@ -1460,6 +1481,34 @@ class SessionState:
             if was_active or self.has_active_work:
                 self._last_running_at = self._now()
             self._notify()
+
+    def _tag_parallel_batch(self) -> None:
+        """Sticky-mark every eligible in-progress tool as ``was_parallel``.
+
+        Whenever ≥2 tools are simultaneously eligible-in-progress
+        (in_progress, not pending approval, not cancel-requested),
+        every such tool gets ``was_parallel = True``. The tag is
+        sticky — never cleared — so it survives the tool reaching a
+        terminal status and continues to gate the deferred-body
+        reveal until the whole batch settles.
+
+        Eligibility mirrors :meth:`has_other_active_tools`: a tool
+        awaiting operator approval doesn't count as parallel work
+        (the operator is the gating actor, not another tool), and a
+        cancel-requested tool is on its way out and shouldn't keep
+        the batch alive.
+        """
+        eligible = [
+            tc
+            for tc in self._tool_calls_by_id.values()
+            if tc.status == "in_progress"
+            and tc.pending_approval is None
+            and not tc.cancel_requested
+        ]
+        if len(eligible) < 2:
+            return
+        for tc in eligible:
+            tc.was_parallel = True
 
     def consume_inspect_event(self, event: dict[str, Any]) -> None:
         """Route an ``inspect/event`` raw transcript payload.
@@ -2574,6 +2623,32 @@ class SessionState:
         """
         ids = self.cancel_tool_call_ids
         return ids[0] if ids else None
+
+    def has_other_active_tools(self, exclude_tool_call_id: str) -> bool:
+        """True if any tool other than ``exclude_tool_call_id`` is actively running.
+
+        Mirrors the eligibility predicate used by
+        :attr:`cancel_tool_call_ids` but excludes one specific tool
+        (the caller, asking "is anyone else still running?"). Used by
+        :class:`TranscriptWidget` to decide whether a completed
+        ``ToolCallWidget`` should reveal its body or hold for siblings:
+        under parallel tool calls, streaming completed results in
+        while peers are still running pulls the eye away from the
+        cards the operator is actively tracking.
+
+        Pending-approval tools are excluded because the operator may
+        need to see siblings' results to inform the approval decision.
+        Cancel-requested tools are excluded because the operator has
+        already chosen an exit for that tool; results shouldn't be
+        gated waiting on the cancel to land.
+        """
+        return any(
+            tc.tool_call_id != exclude_tool_call_id
+            and tc.status == "in_progress"
+            and tc.pending_approval is None
+            and not tc.cancel_requested
+            for tc in self._tool_calls_by_id.values()
+        )
 
     @property
     def plan_done_count(self) -> int:
