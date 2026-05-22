@@ -188,35 +188,39 @@ class TranscriptWidget(VerticalScroll):
         """Whether ``item``'s body should be held back this refresh.
 
         Gate fires while ``item`` is part of an unresolved parallel
-        batch: ``item.was_parallel`` is set AND some batch member is
-        still in_progress. Covers BOTH the call-view (input preview,
-        e.g. the bash command line, the ``lookup ACME`` markdown a
-        custom viewer emits at call time) and the terminal result body
-        — under parallel execution we want every card collapsed to its
-        single-line header so no one tool juts out and pulls the eye
-        off the in-flight set.
+        batch: ``item.parallel_batch_id`` is set AND some other member
+        of *that same batch* is still in_progress. Covers BOTH the
+        call-view (input preview, e.g. the bash command line, the
+        ``lookup ACME`` markdown a custom viewer emits at call time)
+        and the terminal result body — under parallel execution we
+        want every card collapsed to its single-line header so no one
+        tool juts out and pulls the eye off the in-flight set.
 
-        ``was_parallel`` is sticky: once a tool has overlapped with
-        another in-progress tool it stays tagged until session end. So
+        ``parallel_batch_id`` is sticky: once a tool has been tagged
+        with a batch id it keeps it for the rest of the session. So
         the last tool of a 3-call batch stays deferred even when its
         siblings have finished but it is still itself running — its
-        own in_progress status keeps the gate active. The reveal fires
-        all-at-once when the last batch member transitions to
-        terminal: that refresh flips ``defer_body`` to False for every
-        held card in one pass, mounting bodies in declared order.
+        own in_progress status, with its batch id, keeps the gate
+        active. The reveal fires all-at-once when the last batch
+        member transitions to terminal: that refresh flips
+        ``defer_body`` to False for every held card in one pass,
+        mounting bodies in declared order.
 
-        A solo tool never gets tagged ``was_parallel`` and never
-        defers — same fast-path as before the gate existed. And a new
-        solo tool starting AFTER an old parallel batch has finished
-        also never gets tagged: the old batch's tools stay revealed
-        (their batch is settled) and the new one shows immediately.
+        Scoping by batch id (rather than a session-wide "any tagged
+        tool still in-progress" sweep) means a later parallel batch
+        does NOT pull an earlier, already-settled batch's bodies back
+        into deferral.
+
+        A solo tool never gets tagged with a batch id and never
+        defers — same fast-path as before the gate existed.
         """
         if not isinstance(item, ToolCallState):
             return False
-        if not item.was_parallel:
+        if item.parallel_batch_id is None:
             return False
         return any(
-            tc.was_parallel and tc.status == "in_progress"
+            tc.parallel_batch_id == item.parallel_batch_id
+            and tc.status == "in_progress"
             for tc in state._tool_calls_by_id.values()
         )
 

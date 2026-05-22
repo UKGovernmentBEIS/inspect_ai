@@ -233,7 +233,7 @@ react(..., tools=[web_surfer(instance=uuid())])
 ```
 
 ::: {.callout-important appearance="simple"}
-Note that stateful tools should generally not be marked as safe for [parallel execution](#parallel-execution), as their state cannot be safely read and written from multiple concurrent callers.
+Note that stateful tools should generally not be marked as safe for [parallel execution](#sec-parallel-execution), as their state cannot be safely read and written from multiple concurrent callers.
 :::
 
 ## Tool Choice

@@ -314,7 +314,16 @@ class ToolCallWidget(Widget):
         When the gate flips back to False (the last sibling settled),
         this method gets called again and the standard diff path
         mounts the held-back content.
+
+        Defensive False→True transition: if a body was already mounted
+        (e.g. the call-view was visible at start, then a sibling tool
+        landed and formed a parallel batch), tear the mounted body
+        down and reset the mounted sigs to ``[]``. The next un-defer
+        pass then takes the simple append-only path. Without this
+        clear, the stale body would stay visible while the gate said
+        to hide it.
         """
+        was_deferred = self._mounted_defer_body
         self._state = state
         self._defer_body = defer_body
 
@@ -322,12 +331,15 @@ class ToolCallWidget(Widget):
         self._update_header_if_changed()
         self._update_approval_area_if_changed()
 
-        # Body deferred: leave whatever is currently mounted in place
-        # (typically nothing). ``_mounted_item_sigs`` stays at its last
-        # value — usually ``[]`` because deferral kicks in before any
-        # body is mounted — so the next un-defer pass sees a delta and
-        # rebuilds wholesale.
         if self._defer_body:
+            if not was_deferred:
+                try:
+                    body = self.query_one(".body", Vertical)
+                    for child in list(body.children):
+                        child.remove()
+                except NoMatches:
+                    pass
+                self._mounted_item_sigs = []
             return
 
         if not self._body_changed():

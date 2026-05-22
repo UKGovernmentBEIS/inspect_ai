@@ -1,7 +1,7 @@
 ## Unreleased
 
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
-- Parallel [tool execution](https://inspect.aisi.org.uk/tools-custom.html#sec-parallel-execution) execute tool calls in parallel when their tool declares `@tool(parallel=True)`. Builtin tools that are stateless are now registered with `parallel=True`.
+- Parallel [tool execution](https://inspect.aisi.org.uk/tools-custom.html#sec-parallel-execution) executes tool calls in parallel when their tool declares `@tool(parallel=True)`. Builtin tools that are atomic per call (e.g. `bash`, `python`, `memory`, `read_file`, `web_search`) are now registered with `parallel=True`.
 - Reasoning: `--reasoning-effort` now works uniformly across Claude 3.7–4.5 and Gemini 2.5. Inspect automatically bridges effort to a `budget_tokens` / `thinking_budget` value using a fixed table (minimal=2048, low=4096, medium=10000, high=16000, xhigh/max=32000). Previously these models silently ignored `reasoning_effort`.
 - Reasoning: Clamp extended effort values (`minimal` / `xhigh` / `max`) to the `low` / `medium` / `high` tier accepted by upstream APIs for Groq, Ollama, and SageMaker.
 - Reasoning: OpenRouter — clamp `max` effort to `xhigh` before forwarding (OpenRouter does not accept `max`).

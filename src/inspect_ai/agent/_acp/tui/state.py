@@ -337,21 +337,24 @@ class ToolCallState:
     cards with this flag set so ``^L`` advances to the next eligible
     tool.
     """
-    was_parallel: bool = False
-    """Sticky tag: True once this tool has overlapped with another
-    in-progress tool at any point in its lifecycle.
+    parallel_batch_id: int | None = None
+    """Sticky id of the parallel batch this tool joined, or None for solo tools.
 
     Set by :meth:`SessionState._tag_parallel_batch` whenever ≥2 tools
     are simultaneously eligible-in-progress (in_progress, not pending
     approval, not cancel-requested) — both the existing and the newly
-    arriving tools get tagged together. Never cleared.
+    arriving tools get tagged with a shared id. A new tool that starts
+    while another already-tagged tool is still running inherits that
+    tool's batch id; a new batch (no overlap with any tagged
+    in-progress tool) allocates a fresh id. Never cleared.
 
     Drives the deferred-body parallel-tools gate in
     :class:`TranscriptWidget._compute_defer_body`: a tool keeps its
-    body held back until every tagged batch member has reached a
-    terminal status, so the last in-flight tool of a 3-call batch
-    doesn't suddenly reveal its call-view mid-flight when the
-    second-to-last sibling completes.
+    body held back until every member of *its own* batch has reached
+    a terminal status. Scoping by batch id (rather than a global
+    "any parallel tool still running" sweep) prevents a later batch
+    from re-deferring the bodies of an earlier, already-settled
+    batch's tools.
     """
 
     @property
@@ -852,6 +855,12 @@ class SessionState:
         # Bounded by events-per-sample which is small (handfuls per
         # sample), so we don't cap it.
         self._seen_inspect_event_uuids: set[str] = set()
+        # Monotonic counter that allocates a fresh `parallel_batch_id`
+        # the first time a new set of overlapping tools is tagged
+        # (see :meth:`_tag_parallel_batch`). Bare counter is enough —
+        # ids only need to be unique within a session, never compared
+        # across sessions.
+        self._next_parallel_batch_id: int = 1
         self._subscribers: list[Callable[[], None]] = []
 
     # ------------------------------------------------------------------
@@ -1467,7 +1476,7 @@ class SessionState:
         if changed:
             # Tag the parallel batch BEFORE notifying so subscribers
             # (notably ``TranscriptWidget._compute_defer_body``) see
-            # the freshly-tagged ``was_parallel`` flags on the same
+            # the freshly-assigned ``parallel_batch_id`` on the same
             # refresh pass that sees the new tool state.
             self._tag_parallel_batch()
             # Stamp the running-window timestamp BEFORE notifying so
@@ -1483,14 +1492,16 @@ class SessionState:
             self._notify()
 
     def _tag_parallel_batch(self) -> None:
-        """Sticky-mark every eligible in-progress tool as ``was_parallel``.
+        """Sticky-assign a ``parallel_batch_id`` to every eligible in-progress tool.
 
         Whenever ≥2 tools are simultaneously eligible-in-progress
         (in_progress, not pending approval, not cancel-requested),
-        every such tool gets ``was_parallel = True``. The tag is
-        sticky — never cleared — so it survives the tool reaching a
-        terminal status and continues to gate the deferred-body
-        reveal until the whole batch settles.
+        every such tool gets a ``parallel_batch_id``. Tools that join
+        an already-tagged group inherit that group's id; an entirely
+        new overlap (no eligible tool currently carries an id)
+        allocates a fresh one. Ids are sticky — never cleared — so
+        they survive the tool reaching a terminal status and
+        continue to scope the deferred-body reveal to its own batch.
 
         Eligibility mirrors :meth:`has_other_active_tools`: a tool
         awaiting operator approval doesn't count as parallel work
@@ -1507,8 +1518,24 @@ class SessionState:
         ]
         if len(eligible) < 2:
             return
+        # Inherit any existing batch id present among the eligible
+        # tools; otherwise allocate a new one. This keeps a tool that
+        # arrives mid-batch in the same batch as its in-flight peers,
+        # but starts a fresh batch when none of the current overlap
+        # has been tagged yet.
+        existing_id = next(
+            (
+                tc.parallel_batch_id
+                for tc in eligible
+                if tc.parallel_batch_id is not None
+            ),
+            None,
+        )
+        if existing_id is None:
+            existing_id = self._next_parallel_batch_id
+            self._next_parallel_batch_id += 1
         for tc in eligible:
-            tc.was_parallel = True
+            tc.parallel_batch_id = existing_id
 
     def consume_inspect_event(self, event: dict[str, Any]) -> None:
         """Route an ``inspect/event`` raw transcript payload.

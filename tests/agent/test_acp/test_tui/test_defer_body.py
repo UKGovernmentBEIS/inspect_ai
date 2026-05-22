@@ -308,9 +308,13 @@ async def test_last_in_flight_tool_does_not_reveal_call_view_early() -> None:
         _push_tool_start(screen, "tc-C", call_view_text="lookup ACME")
         await pilot.pause()
 
-        # All three started as a parallel batch — all tagged.
-        for tcid in ("tc-A", "tc-B", "tc-C"):
-            assert screen._state._tool_calls_by_id[tcid].was_parallel is True
+        # All three started as a parallel batch — all tagged with the
+        # same batch id.
+        batch_ids = {
+            screen._state._tool_calls_by_id[tcid].parallel_batch_id
+            for tcid in ("tc-A", "tc-B", "tc-C")
+        }
+        assert batch_ids == {1}
 
         # A finishes (B and C still running). Everyone defers.
         _push_tool_complete_with_content(screen, "tc-A", "A-result-payload")
@@ -331,7 +335,8 @@ async def test_last_in_flight_tool_does_not_reveal_call_view_early() -> None:
             "bodies of its now-terminal siblings A and B."
         )
         assert "lookup ACME" not in _body_text(c_widget)
-        # A and B (terminal, was_parallel) are also still held.
+        # A and B (terminal, tagged with the same batch id) are also
+        # still held.
         assert _widget_for(screen, "tc-A")._defer_body is True
         assert _widget_for(screen, "tc-B")._defer_body is True
 
@@ -359,7 +364,7 @@ async def test_last_in_flight_tool_does_not_reveal_call_view_early() -> None:
 async def test_solo_tool_after_completed_batch_shows_immediately() -> None:
     """A fresh solo tool starting after a parallel batch never defers.
 
-    Sanity check that the sticky ``was_parallel`` tag on old terminal
+    Sanity check that the sticky ``parallel_batch_id`` on old terminal
     tools doesn't bleed into a later solo tool's gating. The old batch
     is settled; the new tool is its own thing.
     """
@@ -383,15 +388,161 @@ async def test_solo_tool_after_completed_batch_shows_immediately() -> None:
         _push_tool_start(screen, "tc-solo", call_view_text="solo-call-view")
         await pilot.pause()
 
-        # The solo tool's was_parallel must stay False — no other
+        # The solo tool's parallel_batch_id must stay None — no other
         # in-progress tool when it started.
         solo_state = screen._state._tool_calls_by_id["tc-solo"]
-        assert solo_state.was_parallel is False
+        assert solo_state.parallel_batch_id is None
         solo_widget = _widget_for(screen, "tc-solo")
         assert solo_widget._defer_body is False
         assert "solo-call-view" in _body_text(solo_widget)
         # And the old batch's bodies are NOT pulled back into deferral
-        # by the solo tool's in_progress status (its was_parallel is
-        # False, so the "any batch member in_progress" sweep skips it).
+        # by the solo tool's in_progress status (its parallel_batch_id
+        # is None, so it isn't in any batch).
         assert "A-result" in _body_text(_widget_for(screen, "tc-A"))
         assert "B-result" in _body_text(_widget_for(screen, "tc-B"))
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_new_parallel_batch_does_not_re_defer_settled_earlier_batch() -> None:
+    """Starting a fresh parallel batch must not pull settled batches back into deferral.
+
+    Regression: the deferred-body gate used to sweep the whole session
+    for any "parallel" tool still in_progress. With a sticky boolean
+    flag, a later batch's in-flight members re-asserted the gate for
+    every tool from any earlier batch, hiding their already-revealed
+    bodies again. Scoping the gate by ``parallel_batch_id`` keeps
+    settled batches settled.
+    """
+    rows = [_row()]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        screen = await _open_session_screen(pilot, rows)
+
+        # Batch 1: A and B run in parallel, then both complete.
+        _push_tool_start(screen, "tc-A")
+        _push_tool_start(screen, "tc-B")
+        await pilot.pause()
+        _push_tool_complete_with_content(screen, "tc-A", "A-result-payload")
+        _push_tool_complete_with_content(screen, "tc-B", "B-result-payload")
+        await pilot.pause()
+        assert "A-result-payload" in _body_text(_widget_for(screen, "tc-A"))
+        assert "B-result-payload" in _body_text(_widget_for(screen, "tc-B"))
+
+        # Batch 2: C and D start (a fresh parallel batch). The bug:
+        # the gate sees C and D in_progress and "any batch member
+        # in_progress" hits True, so A and B's _defer_body flips back
+        # to True and the widget early-return leaves stale bodies.
+        # Fixed: the gate is scoped to each tool's own batch id, so
+        # A and B stay revealed.
+        _push_tool_start(screen, "tc-C", call_view_text="C-call-view")
+        _push_tool_start(screen, "tc-D", call_view_text="D-call-view")
+        await pilot.pause()
+
+        a_state = screen._state._tool_calls_by_id["tc-A"]
+        b_state = screen._state._tool_calls_by_id["tc-B"]
+        c_state = screen._state._tool_calls_by_id["tc-C"]
+        d_state = screen._state._tool_calls_by_id["tc-D"]
+
+        # Two distinct batches.
+        assert a_state.parallel_batch_id == b_state.parallel_batch_id
+        assert c_state.parallel_batch_id == d_state.parallel_batch_id
+        assert a_state.parallel_batch_id != c_state.parallel_batch_id
+
+        # A and B (terminal, settled batch) stay revealed.
+        a_widget = _widget_for(screen, "tc-A")
+        b_widget = _widget_for(screen, "tc-B")
+        assert a_widget._defer_body is False, (
+            "settled batch 1 must NOT be re-deferred by an unrelated "
+            "batch 2 starting later"
+        )
+        assert b_widget._defer_body is False
+        assert "A-result-payload" in _body_text(a_widget)
+        assert "B-result-payload" in _body_text(b_widget)
+
+        # C and D (active batch) stay deferred until their batch
+        # resolves — same gate as batch 1's own in-flight phase.
+        assert _widget_for(screen, "tc-C")._defer_body is True
+        assert _widget_for(screen, "tc-D")._defer_body is True
+
+        # Resolve batch 2.
+        _push_tool_complete_with_content(screen, "tc-C", "C-result-payload")
+        await pilot.pause()
+        _push_tool_complete_with_content(screen, "tc-D", "D-result-payload")
+        await pilot.pause()
+        for tcid in ("tc-A", "tc-B", "tc-C", "tc-D"):
+            assert _widget_for(screen, tcid)._defer_body is False
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_tool_joining_active_batch_inherits_existing_batch_id() -> None:
+    """A new tool starting while a batch is in flight joins that batch.
+
+    Catches a regression where a fresh batch id would be allocated
+    whenever ``_tag_parallel_batch`` re-ran with a different set of
+    eligible tools. The newcomer must inherit any existing id present
+    among current eligible peers.
+    """
+    rows = [_row()]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        screen = await _open_session_screen(pilot, rows)
+        # A and B start first — fresh batch id allocated.
+        _push_tool_start(screen, "tc-A")
+        _push_tool_start(screen, "tc-B")
+        await pilot.pause()
+        original_id = screen._state._tool_calls_by_id["tc-A"].parallel_batch_id
+        assert original_id is not None
+        assert screen._state._tool_calls_by_id["tc-B"].parallel_batch_id == original_id
+
+        # C starts while A and B are still in flight — joins their batch.
+        _push_tool_start(screen, "tc-C")
+        await pilot.pause()
+        assert (
+            screen._state._tool_calls_by_id["tc-C"].parallel_batch_id == original_id
+        ), "newcomer must inherit the existing batch id, not allocate a new one"
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_defer_body_flip_after_mount_clears_stale_body() -> None:
+    """A tool that mounts its call-view solo, then joins a batch, must hide it.
+
+    Defensive case for the deferred-body gate transitioning False→True
+    after a body was already mounted: tool starts solo with a call-view
+    body (no batch yet → not deferred → body mounts), then a second
+    tool arrives and forms a parallel batch. The first tool's
+    ``_compute_defer_body`` flips True, ``update_state`` is called
+    with ``defer_body=True``, and the widget must tear down the
+    already-mounted body — not leave it visible against the deferred
+    gate.
+    """
+    rows = [_row()]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        screen = await _open_session_screen(pilot, rows)
+
+        # tc-A starts solo with a visible call-view body.
+        _push_tool_start(screen, "tc-A", call_view_text="A-call-view")
+        await pilot.pause()
+        a_widget = _widget_for(screen, "tc-A")
+        assert a_widget._defer_body is False
+        assert "A-call-view" in _body_text(a_widget)
+
+        # tc-B arrives → A and B form a parallel batch → defer kicks in.
+        _push_tool_start(screen, "tc-B")
+        await pilot.pause()
+        a_widget = _widget_for(screen, "tc-A")
+        assert a_widget._defer_body is True
+        # Bug B: without the False→True teardown, "A-call-view" would
+        # remain visible. With the fix, the mounted body is cleared.
+        assert "A-call-view" not in _body_text(a_widget), (
+            "defer-on transition must clear the previously-mounted body"
+        )
