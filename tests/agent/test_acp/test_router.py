@@ -811,8 +811,32 @@ def test_descriptive_title_per_known_tool() -> None:
     # Planning / thinking — bare name reads fine.
     assert _descriptive_title(_ev("think")) == "think"
     assert _descriptive_title(_ev("todo_write")) == "todo_write"
-    # Unknown tools — fall back to function name.
-    assert _descriptive_title(_ev("my_custom_tool", foo="bar")) == "my_custom_tool"
+    # Unknown tools — first string-valued argument feeds the dim
+    # second half of the TUI's title split (see _header_text in
+    # tui/widgets/tool_call.py), so user-defined tools get a
+    # distinguishable card preview without registering a viewer.
+    assert (
+        _descriptive_title(_ev("my_custom_tool", city="London", seconds=2.0))
+        == "my_custom_tool London"
+    )
+    # Non-string args before the first string arg are skipped.
+    assert (
+        _descriptive_title(_ev("my_custom_tool", count=5, name="alice"))
+        == "my_custom_tool alice"
+    )
+    # No string args → bare function name (current behaviour preserved).
+    assert _descriptive_title(_ev("my_custom_tool", count=5)) == "my_custom_tool"
+    assert _descriptive_title(_ev("my_custom_tool")) == "my_custom_tool"
+    # Empty / whitespace-only string args are skipped — wouldn't add signal.
+    assert (
+        _descriptive_title(_ev("my_custom_tool", first="", second="real value"))
+        == "my_custom_tool real value"
+    )
+    # Long string args truncate via _short_summary.
+    long = "x" * 200
+    title = _descriptive_title(_ev("my_custom_tool", payload=long))
+    assert title.startswith("my_custom_tool ")
+    assert "…" in title
 
 
 # ---------------------------------------------------------------------------
@@ -1720,7 +1744,10 @@ async def test_router_publishes_for_react_against_mockllm() -> None:
         for i in items:
             if isinstance(i.update, ToolCallProgress):
                 progress_statuses.append(i.update.status)
-        assert "echo" in start_titles, (
+        # Title may include a first-string-arg suffix (e.g. "echo hi")
+        # from descriptive_title's generic fallback — match on the
+        # function-name prefix, not exact equality.
+        assert any(t == "echo" or t.startswith("echo ") for t in start_titles), (
             f"expected an echo ToolCallStart; got start_titles={start_titles}"
         )
         # Each tool call should also progress through to completion.
@@ -1785,8 +1812,10 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
             if isinstance(s.update, ToolCallStart):
                 titles.append(s.update.title)
         # We expect the outer "inner_agent" tool call (visible) and possibly
-        # "submit" but no sub-agent-internal tool calls.
-        assert "inner_agent" in titles
+        # "submit" but no sub-agent-internal tool calls. The title may
+        # include a first-string-arg suffix (e.g. "inner_agent do stuff")
+        # from descriptive_title's generic fallback — match the prefix.
+        assert any(t == "inner_agent" or t.startswith("inner_agent ") for t in titles)
         # Nothing with a "sub_" prefix or similar should appear; this is a
         # negative assertion guarding sub-agent leakage.
         for t in titles:
