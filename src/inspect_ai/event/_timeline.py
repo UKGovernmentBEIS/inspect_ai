@@ -25,6 +25,9 @@ from inspect_ai.model import (
     ChatMessageSystem,
     ChatMessageTool,
     ChatMessageUser,
+    ModelCost,
+    compute_model_cost,
+    get_model_info,
 )
 
 from ._anchor import AnchorEvent
@@ -77,6 +80,37 @@ def _sum_tokens(
         Total token count from all nodes.
     """
     return sum(node.total_tokens() for node in nodes)
+
+
+def _sum_costs(
+    nodes: Sequence[TimelineEvent | TimelineSpan],
+    model_costs: dict[str, ModelCost] | None,
+) -> float:
+    """Sum per-call costs across all nodes.
+
+    Args:
+        nodes: Sequence of nodes to sum.
+        model_costs: Optional model-name → ModelCost lookup forwarded to
+            descendants for the retrospective fallback.
+
+    Returns:
+        Total cost in dollars from all nodes.
+    """
+    return sum(node.total_cost(model_costs=model_costs) for node in nodes)
+
+
+def _resolve_model_cost(
+    model: str, model_costs: dict[str, ModelCost] | None
+) -> ModelCost | None:
+    """Look up ModelCost for a model: explicit dict first, then get_model_info()."""
+    if model_costs is not None:
+        cost = model_costs.get(model)
+        if cost is not None:
+            return cost
+    info = get_model_info(model)
+    if info is not None:
+        return info.cost
+    return None
 
 
 class TimelineEvent(BaseModel):
@@ -134,6 +168,30 @@ class TimelineEvent(BaseModel):
                 output_tokens = usage.output_tokens or 0
                 return input_tokens + cache_read + cache_write + output_tokens
         return 0
+
+    def total_cost(self, model_costs: dict[str, ModelCost] | None = None) -> float:
+        """Cost from this event (ModelEvent only).
+
+        Uses ``ModelUsage.total_cost`` when populated at eval time. Falls
+        back to ``compute_model_cost()`` with a model-name lookup —
+        ``model_costs`` first, then ``get_model_info()``. Returns 0.0 for
+        non-ModelEvents or when no cost data is available.
+
+        Args:
+            model_costs: Optional model-name → ModelCost mapping for the
+                retrospective fallback.
+        """
+        if not isinstance(self.event, ModelEvent):
+            return 0.0
+        usage = self.event.output.usage
+        if usage is None:
+            return 0.0
+        if usage.total_cost is not None:
+            return usage.total_cost
+        cost = _resolve_model_cost(self.event.model, model_costs)
+        if cost is None:
+            return 0.0
+        return compute_model_cost(cost, usage)
 
     def idle_time(self) -> float:
         """Seconds of idle time (always 0 for a single event)."""
@@ -263,6 +321,38 @@ class TimelineSpan(BaseModel):
         """
         items = self._content_and_branches() if include_branches else self.content
         return _sum_tokens(items)
+
+    def total_cost(
+        self,
+        include_branches: bool = True,
+        model_costs: dict[str, ModelCost] | None = None,
+    ) -> float:
+        """Sum of per-call costs across the subtree (and optionally branches).
+
+        For each ``ModelEvent`` descendant, uses ``ModelUsage.total_cost``
+        when present (populated at eval time if the model's pricing was
+        known). When absent, falls back to ``compute_model_cost()`` using a
+        model-name lookup — ``model_costs`` if provided, then
+        ``get_model_info()``. Calls where no ``ModelCost`` is found
+        contribute 0.
+
+        Use the fallback to compute cost retrospectively from eval logs
+        written before pricing was tracked for the model.
+
+        Per-provider caveat: some providers expose only per-call cost (not
+        per-token pricing). Retrospective computation works for the common
+        per-token case; per-call-only models contribute 0 unless their
+        ``ModelUsage.total_cost`` was already populated at eval time.
+
+        Args:
+            include_branches: Include branches in cost calculation.
+            model_costs: Optional model-name → ModelCost mapping for the
+                retrospective fallback. Falls through to
+                ``get_model_info()`` if a model is not in the mapping (or
+                the mapping is None).
+        """
+        items = self._content_and_branches() if include_branches else self.content
+        return _sum_costs(items, model_costs)
 
     def idle_time(self, include_branches: bool = True) -> float:
         """Seconds of idle time within this span (and optionally branches).
