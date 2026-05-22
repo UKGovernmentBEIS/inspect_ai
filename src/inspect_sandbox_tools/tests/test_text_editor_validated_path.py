@@ -10,6 +10,13 @@ from inspect_sandbox_tools._in_process_tools._text_editor.text_editor import (
 from inspect_sandbox_tools._util.common_types import ToolException
 
 
+def _set_history_path(monkeypatch: pytest.MonkeyPatch, history_path: Path) -> None:
+    monkeypatch.setattr(text_editor_module, "DEFAULT_HISTORY_PATH", str(history_path))
+    # DEFAULT_HISTORY_PATH is bound into these defaults at function definition time.
+    monkeypatch.setattr(text_editor_module._load_history, "__defaults__", (str(history_path),))
+    monkeypatch.setattr(text_editor_module._save_history, "__defaults__", (str(history_path),))
+
+
 def test_validated_path_rejects_too_long_filename() -> None:
     """Pathological long path from the model must raise ToolException, not OSError.
 
@@ -26,7 +33,7 @@ async def test_str_replace_recovers_from_truncated_history(
 ) -> None:
     history_path = tmp_path / "history.pkl"
     history_path.write_bytes(b"\x80\x04")
-    monkeypatch.setattr(text_editor_module, "DEFAULT_HISTORY_PATH", str(history_path))
+    _set_history_path(monkeypatch, history_path)
 
     target = tmp_path / "target.txt"
     target.write_text("before\n")
@@ -44,7 +51,7 @@ async def test_str_replace_continues_when_history_save_fails(
     caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     history_path = tmp_path / "history.pkl"
-    monkeypatch.setattr(text_editor_module, "DEFAULT_HISTORY_PATH", str(history_path))
+    _set_history_path(monkeypatch, history_path)
 
     def fail_dump(*_args: object, **_kwargs: object) -> None:
         raise RuntimeError("boom")
@@ -66,7 +73,7 @@ def test_history_retains_last_ten_entries_per_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     history_path = tmp_path / "history.pkl"
-    monkeypatch.setattr(text_editor_module, "DEFAULT_HISTORY_PATH", str(history_path))
+    _set_history_path(monkeypatch, history_path)
 
     target = (tmp_path / "target.txt").resolve()
     other_target = (tmp_path / "other.txt").resolve()
@@ -84,7 +91,7 @@ async def test_undo_edit_reports_retained_history_limit(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     history_path = tmp_path / "history.pkl"
-    monkeypatch.setattr(text_editor_module, "DEFAULT_HISTORY_PATH", str(history_path))
+    _set_history_path(monkeypatch, history_path)
 
     target = tmp_path / "target.txt"
     target.write_text("current")

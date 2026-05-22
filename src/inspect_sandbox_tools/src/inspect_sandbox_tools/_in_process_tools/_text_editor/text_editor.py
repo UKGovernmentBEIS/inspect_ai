@@ -265,8 +265,7 @@ def _trim_history(history: HistoryType) -> None:
             del history[path]
 
 
-def _save_history(history: HistoryType, file_path: str | None = None) -> None:
-    file_path = file_path or DEFAULT_HISTORY_PATH
+def _save_history(history: HistoryType, file_path: str = DEFAULT_HISTORY_PATH) -> None:
     try:
         _trim_history(history)
         _atomic_pickle_dump(history, file_path)
@@ -289,8 +288,7 @@ def _atomic_pickle_dump(history: HistoryType, file_path: str) -> None:
     os.replace(f.name, file_path)
 
 
-def _load_history(file_path: str | None = None) -> HistoryType:
-    file_path = file_path or DEFAULT_HISTORY_PATH
+def _load_history(file_path: str = DEFAULT_HISTORY_PATH) -> HistoryType:
     try:
         with open(file_path, "rb") as f:
             history = pickle.load(f)
