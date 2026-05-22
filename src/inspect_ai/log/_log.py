@@ -672,6 +672,12 @@ class EvalMetric(BaseModel):
     name: str
     """Metric name."""
 
+    group: str | None = Field(default=None)
+    """Group name when this metric is one of several values produced by a
+    single metric function (e.g. one category from ``frequency()``). Metrics
+    sharing a ``group`` within an ``EvalScore`` should be displayed together;
+    ``name`` is then the leaf label within the group."""
+
     value: int | float
     """Metric value."""
 

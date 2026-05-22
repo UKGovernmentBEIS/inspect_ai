@@ -326,9 +326,8 @@ def scorer_for_metrics(
     # metrics["pkgname/accuracy"])
     list_metrics: dict[str, EvalMetric] = {}
     for metric in metrics:
-        key = metrics_unique_key(
-            registry_unqualified_name(metric), list(list_metrics.keys())
-        )
+        group = registry_unqualified_name(metric)
+        key = metrics_unique_key(group, list(list_metrics.keys()))
         params = registry_params(metric)
         # process metric values
         if len(sample_scores_with_values) > 0:
@@ -344,7 +343,7 @@ def scorer_for_metrics(
                 if value is not None:
                     name = metrics_unique_key(metric_key, list(list_metrics.keys()))
                     list_metrics[name] = EvalMetric(
-                        name=name, value=float(value), params=params
+                        name=name, group=group, value=float(value), params=params
                     )
 
         # If the metric value is a list, turn each element in the list
@@ -358,7 +357,7 @@ def scorer_for_metrics(
                     )
 
                     list_metrics[name] = EvalMetric(
-                        name=name, value=float(value), params=params
+                        name=name, group=group, value=float(value), params=params
                     )
 
         # the metric is a float, str, or int
@@ -456,17 +455,24 @@ def scorers_from_metric_dict(
 
             # convert the value to a float (either by expanding the dict or array)
             # or by casting to a float
+            group = registry_unqualified_name(target_metric)
             if isinstance(value, dict):
                 for key, val in value.items():
-                    name = metrics_unique_key(key, list(result_metrics.keys()))
+                    name = f"{metric_name}_{key}"
                     result_metrics[name] = EvalMetric(
-                        name=name, value=cast(float, val), params=metric_params
+                        name=name,
+                        group=group,
+                        value=cast(float, val),
+                        params=metric_params,
                     )
             elif isinstance(value, list):
                 for idx, item in enumerate(value):
                     name = f"{metric_name}_{idx}"
                     result_metrics[name] = EvalMetric(
-                        name=name, value=cast(float, item), params=metric_params
+                        name=name,
+                        group=group,
+                        value=cast(float, item),
+                        params=metric_params,
                     )
             else:
                 result_metrics[metric_name] = EvalMetric(
