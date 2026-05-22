@@ -268,13 +268,13 @@ def resolve_reducer(
 ) -> tuple[list[ScoreReducer], bool]:
     from inspect_ai.scorer._rehydrate import detect_value_schema
 
-    # Categorical (StrEnum-valued) scorers are never epoch-reduced: each
-    # epoch's score is fed to metrics (e.g. ``frequency()``) as an independent
-    # observation. This takes precedence over any configured reducer because
-    # numeric reducers (mean/median) would corrupt the categorical labels.
-    if scores and detect_value_schema([ss.score for ss in scores]) is not None:
-        return ([], False)
     if reducers is None:
+        # No reducer explicitly configured: categorical (StrEnum-valued)
+        # scorers skip reduction so each epoch's score is fed to metrics
+        # (e.g. ``frequency()``) as an independent observation; numeric
+        # scorers default to ``mean``.
+        if scores and detect_value_schema([ss.score for ss in scores]) is not None:
+            return ([], False)
         return ([mean_score()], False)
     elif isinstance(reducers, list) and len(reducers) == 0:
         return ([], True)

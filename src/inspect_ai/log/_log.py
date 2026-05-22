@@ -61,7 +61,6 @@ SCORER_PLACEHOLDER = "88F74D2C"
 
 class EvalConfigDefaults(TypedDict):
     epochs: int
-    epochs_reducer: list[str]
     fail_on_error: bool
     continue_on_fail: bool
     score_on_error: bool
@@ -75,7 +74,6 @@ class EvalConfigDefaults(TypedDict):
 def eval_config_defaults() -> EvalConfigDefaults:
     return {
         "epochs": 1,
-        "epochs_reducer": ["mean"],
         "fail_on_error": True,
         "continue_on_fail": False,
         "score_on_error": False,
