@@ -77,6 +77,7 @@ description: Model interface and providers.
 ### get_model_info
 ### set_model_info
 ### set_model_cost
+### compute_model_cost
 ### ModelInfo
 ### ModelCost
 ### model_roles

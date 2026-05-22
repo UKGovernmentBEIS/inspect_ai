@@ -66,6 +66,7 @@ from ._model import (
     ModelAPI,
     ModelName,
     RetryDecision,
+    compute_model_cost,
     get_model,
     model_roles,
 )
@@ -163,6 +164,7 @@ __all__ = [
     "cache_path",
     "cache_prune",
     "cache_size",
+    "compute_model_cost",
     "get_model",
     "get_model_info",
     "set_model_cost",
