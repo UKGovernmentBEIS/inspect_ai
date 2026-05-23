@@ -13,14 +13,15 @@ Possible values:
 """
 
 
-InputEvent = Literal["posted", "answered", "cancelled"]
-"""Lifecycle event reported to input notifiers.
+@dataclass
+class InputRequest:
+    """A structured question posted to the user via `request_input`."""
 
-Possible values:
-  "posted": The question has just been shown to the user.
-  "answered": The user has submitted an answer.
-  "cancelled": The question was withdrawn before an answer was provided.
-"""
+    message: str
+    """The prompt shown to the user."""
+
+    schema: ElicitationSchema
+    """Schema describing the answer fields."""
 
 
 @dataclass
@@ -38,14 +39,17 @@ class InputResult:
 class InputNotification:
     """Payload delivered to input notifiers when a question is posted."""
 
-    event: InputEvent
-    """Lifecycle event being notified."""
+    action: Literal["posted", "answered", "cancelled"]
+    """Lifecycle action being notified.
 
-    message: str
-    """The prompt that was shown to the user."""
+    Possible values:
+      "posted": The question has just been shown to the user.
+      "answered": The user has submitted an answer.
+      "cancelled": The question was withdrawn before an answer was provided.
+    """
 
-    schema: ElicitationSchema
-    """Schema describing the answer fields."""
+    request: InputRequest
+    """The question being notified about."""
 
     sample_id: str
     """Identifier of the active sample (empty string when called outside an eval scope)."""
@@ -57,13 +61,12 @@ class InputNotification:
     """Caller-supplied passthrough for handler↔notifier correlation."""
 
 
-InputHandler = Callable[[str, ElicitationSchema], Awaitable[InputResult | None]]
+InputHandler = Callable[[InputRequest], Awaitable[InputResult | None]]
 """Async callable that collects an answer for an `ask_user` interaction.
 
-Receives the prompt message and an `ElicitationSchema` describing the
-expected answer fields. Returns an `InputResult` if the handler took
-responsibility for the question, or `None` to defer to the built-in
-handler selection (console / panel / ACP).
+Receives an `InputRequest` carrying the prompt and answer schema. Returns
+an `InputResult` if the handler took responsibility for the question, or
+`None` to defer to the built-in handler selection (console / panel / ACP).
 """
 
 

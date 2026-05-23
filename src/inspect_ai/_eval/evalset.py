@@ -39,6 +39,7 @@ from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
+from inspect_ai.input import InputConfig, InputConfigSpec
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
 from inspect_ai.log._file import (
@@ -124,6 +125,7 @@ def eval_set(
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    ask_user: str | InputConfigSpec | InputConfig | None = None,
     score: bool = True,
     score_display: bool | None = None,
     log_level: str | None = None,
@@ -214,6 +216,11 @@ def eval_set(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        ask_user: Configuration for the `ask_user` tool's input handler
+            and notifiers. Either a registered handler name, a path to an
+            input config file (YAML/JSON), an `InputConfigSpec`, or an
+            already-resolved `InputConfig`. Defaults to the built-in console
+            handler with no notifiers.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
         log_level: Level for logging to the console: "debug", "http", "sandbox",
@@ -324,6 +331,7 @@ def eval_set(
             trace=trace,
             display=display,
             approval=approval,
+            ask_user=ask_user,
             log_level=log_level,
             log_level_transcript=log_level_transcript,
             log_dir=log_dir,
@@ -486,6 +494,7 @@ def eval_set(
             approval,
             sandbox,
             sample_shuffle,
+            ask_user=ask_user,
         )
 
         # fail with a legible error if no tasks were found (matches `eval`)

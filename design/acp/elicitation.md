@@ -21,7 +21,7 @@ Both are registry-backed (`@input_handler` / `@input_notifier`), configured at t
 ## Concepts and types
 
 ```python
-# src/inspect_ai/util/_input/_types.py
+# src/inspect_ai/input/_types.py
 from acp.schema import ElicitationSchema  # imported, not re-exported
 
 @dataclass
@@ -47,7 +47,7 @@ A handler returns `None` to mean "I can't / won't handle this — fall through".
 
 ## Components and files
 
-### 1. Routing core — new module `src/inspect_ai/util/_input/`
+### 1. Routing core — new module `src/inspect_ai/input/`
 
 Mirrors `src/inspect_ai/approval/_human/`. Files:
 
@@ -167,7 +167,7 @@ eval(
 
 Resolved config is stashed in a context-var (`_active_input_config`) similarly to how approval state is propagated today, so `request_input()` can read it from anywhere.
 
-### 5. Registry decorators — `src/inspect_ai/util/_input/registry.py`
+### 5. Registry decorators — `src/inspect_ai/input/registry.py`
 
 Same factory shape as `@approver` (see `approval/_approver.py`):
 
@@ -236,7 +236,7 @@ We deliberately don't extend `InputEvent` or invent a new event type in v1 — t
 
 ## Verification
 
-- **Unit tests** in `tests/util/test_input.py`:
+- **Unit tests** in `tests/input/test_input.py`:
   - schema validation; accept/decline/cancel mapping
   - custom-handler-then-builtin fallthrough on `None` and on timeout
   - notifier fan-out runs in parallel and survives per-notifier exceptions
@@ -281,12 +281,12 @@ Independent testability is the second constraint. Phase 1 ships protocols and th
 Lands the in-process plumbing with mock handlers in tests; no real handler bodies, no tool, no ACP touch points yet.
 
 **Files created:**
-- `src/inspect_ai/util/_input/__init__.py` — package re-exports.
-- `src/inspect_ai/util/_input/_types.py` — `InputResult`, `InputNotification` dataclasses; `InputHandler` / `InputNotifier` Callable type aliases.
-- `src/inspect_ai/util/_input/_config.py` — `InputConfig` dataclass + `_active_input_config` ContextVar + `active_input_config()` accessor.
-- `src/inspect_ai/util/_input/registry.py` — `@input_handler` / `@input_notifier` decorators (factory pattern mirroring `@approver`).
-- `src/inspect_ai/util/_input/request.py` — `request_input()` orchestrator (anyio task group; per-notifier `coro_log_exceptions` + `move_on_after`; custom handler with timeout falling through to a `_dispatch_builtin` stub that raises `NotImplementedError`).
-- `tests/util/test_input.py` — orchestrator tests against mock handlers.
+- `src/inspect_ai/input/__init__.py` — package re-exports.
+- `src/inspect_ai/input/_types.py` — `InputResult`, `InputNotification` dataclasses; `InputHandler` / `InputNotifier` Callable type aliases.
+- `src/inspect_ai/input/_config.py` — `InputConfig` dataclass + `_active_input_config` ContextVar + `active_input_config()` accessor.
+- `src/inspect_ai/input/registry.py` — `@input_handler` / `@input_notifier` decorators (factory pattern mirroring `@approver`).
+- `src/inspect_ai/input/request.py` — `request_input()` orchestrator (anyio task group; per-notifier `coro_log_exceptions` + `move_on_after`; custom handler with timeout falling through to a `_dispatch_builtin` stub that raises `NotImplementedError`).
+- `tests/input/test_input.py` — orchestrator tests against mock handlers.
 
 **What lands:**
 - Types and the ContextVar-backed config (defaults: no custom handler, no notifiers, handler timeout 600s, notifier timeout 30s).
@@ -309,18 +309,18 @@ Lands the in-process plumbing with mock handlers in tests; no real handler bodie
 - ContextVar isolation between concurrent `request_input` calls in overlapping scopes.
 - All tests pass under both asyncio and trio (the anyio backends).
 
-Verification: `pytest tests/util/test_input.py -v`; `mypy --exclude tests/test_package src/inspect_ai/util/_input tests/util/test_input.py` clean; `ruff format` / `ruff check --fix` clean.
+Verification: `pytest tests/input/test_input.py -v`; `mypy --exclude tests/test_package src/inspect_ai/input tests/input/test_input.py` clean; `ruff format` / `ruff check --fix` clean.
 
 ### Phase 2: Console-fallback handler
 
 Lands the simplest concrete handler — walks an `ElicitationSchema` via `input_screen()` + Rich prompts. After Phase 2 `_dispatch_builtin` always picks console.
 
 **Files created:**
-- `src/inspect_ai/util/_input/console.py` — `console_handler(message, schema) -> InputResult`. Renders each schema property via the appropriate Rich helper (`Prompt.ask` / `Confirm.ask` / `IntPrompt.ask` / `FloatPrompt.ask`; multi-select via numbered list + comma-input). Treats `KeyboardInterrupt` → `cancelled`; user enters `:decline` → `declined`. All input inside one `input_screen()` so `InputEvent` records automatically.
-- `src/inspect_ai/util/_input/builtin.py` — `_dispatch_builtin(message, schema)` selects console (only tier available so far).
+- `src/inspect_ai/input/console.py` — `console_handler(message, schema) -> InputResult`. Renders each schema property via the appropriate Rich helper (`Prompt.ask` / `Confirm.ask` / `IntPrompt.ask` / `FloatPrompt.ask`; multi-select via numbered list + comma-input). Treats `KeyboardInterrupt` → `cancelled`; user enters `:decline` → `declined`. All input inside one `input_screen()` so `InputEvent` records automatically.
+- `src/inspect_ai/input/builtin.py` — `_dispatch_builtin(message, schema)` selects console (only tier available so far).
 
 **Files modified:**
-- `src/inspect_ai/util/_input/request.py` — uses the real `_dispatch_builtin`.
+- `src/inspect_ai/input/request.py` — uses the real `_dispatch_builtin`.
 
 **Tests:**
 - Each `ElicitationSchema` property type (string / number / integer / boolean / multi-select) parsed correctly from user input.
@@ -330,7 +330,7 @@ Lands the simplest concrete handler — walks an `ElicitationSchema` via `input_
 - `KeyboardInterrupt` returns `cancelled`.
 - `InputEvent` recorded on the transcript (capture via `transcript()._event` monkeypatch — [[feedback_warnings_testing]]).
 
-Verification: `pytest tests/util/test_input.py tests/util/test_input_console.py`; manual smoke: run an eval with `--display rich` and an agent that synthesizes an `ask_user` call.
+Verification: `pytest tests/input/test_input.py tests/input/test_input_console.py`; manual smoke: run an eval with `--display rich` and an agent that synthesizes an `ask_user` call.
 
 ### Phase 3: `ask_user` tool + eval-level config + public API
 
@@ -362,12 +362,12 @@ Verification: `pytest tests/tool/test_ask_user.py tests/agent/test_react_ask_use
 Adds the rich in-process UX: a dynamic "Question" tab on the full Textual display.
 
 **Files created:**
-- `src/inspect_ai/util/_input/manager.py` — `HumanQuestionManager` (parallel to `HumanApprovalManager` at `approval/_human/manager.py:28-92`): pending-question queue, future-based completion, withdrawal on cancel.
-- `src/inspect_ai/util/_input/panel.py` — `QuestionInputPanel(InputPanel)`. Renders form fields dynamically from `ElicitationSchema` (Textual `Input` for strings/numbers, `Checkbox` for booleans, `SelectionList` for multi-select). Submit / Decline buttons.
-- `tests/util/test_input_panel.py` — Textual headless harness tests.
+- `src/inspect_ai/input/manager.py` — `HumanQuestionManager` (parallel to `HumanApprovalManager` at `approval/_human/manager.py:28-92`): pending-question queue, future-based completion, withdrawal on cancel.
+- `src/inspect_ai/input/panel.py` — `QuestionInputPanel(InputPanel)`. Renders form fields dynamically from `ElicitationSchema` (Textual `Input` for strings/numbers, `Checkbox` for booleans, `SelectionList` for multi-select). Submit / Decline buttons.
+- `tests/input/test_input_panel.py` — Textual headless harness tests.
 
 **Files modified:**
-- `src/inspect_ai/util/_input/builtin.py` — `_dispatch_builtin` now tries panel first; falls through to console on `NotImplementedError` (matches today's approval pattern at `approval/_human/approver.py:25-52`).
+- `src/inspect_ai/input/builtin.py` — `_dispatch_builtin` now tries panel first; falls through to console on `NotImplementedError` (matches today's approval pattern at `approval/_human/approver.py:25-52`).
 
 **Tests:**
 - Per-field-type rendering on the panel.
@@ -376,7 +376,7 @@ Adds the rich in-process UX: a dynamic "Question" tab on the full Textual displa
 - Withdraw (sample cancellation while waiting) → `cancelled`.
 - `_dispatch_builtin` selects panel when Textual display is active; falls to console under rich/plain.
 
-Verification: `pytest tests/util/test_input_panel.py`; manual smoke: `inspect eval ... --display full` and confirm the Question tab appears and the answer round-trips.
+Verification: `pytest tests/input/test_input_panel.py`; manual smoke: `inspect eval ... --display full` and confirm the Question tab appears and the answer round-trips.
 
 ### Phase 5: ACP elicitation transport — capability, connection method, registry
 
@@ -406,11 +406,11 @@ Verification: `pytest tests/agent/test_acp/test_elicitation.py`; `mypy --exclude
 Plugs Phase 5's transport into Phase 1's orchestrator via a new built-in handler.
 
 **Files created:**
-- `src/inspect_ai/util/_input/acp.py` — `acp_handler(message, schema) -> InputResult | None`. Checks `current_acp_transport().has_elicitation_clients()`; if False returns `None`. Otherwise builds a `CreateFormElicitationRequest` (form mode, session scope, `requestedSchema` set), dispatches via the transport's elicitation registry driver chain, maps the response to `InputResult`.
+- `src/inspect_ai/input/acp.py` — `acp_handler(message, schema) -> InputResult | None`. Checks `current_acp_transport().has_elicitation_clients()`; if False returns `None`. Otherwise builds a `CreateFormElicitationRequest` (form mode, session scope, `requestedSchema` set), dispatches via the transport's elicitation registry driver chain, maps the response to `InputResult`.
 - `tests/agent/test_acp/test_elicitation_e2e.py` — end-to-end over a real AF_UNIX socket with a stub elicitation-capable client (pattern: see existing `test_approval.py` E2E test).
 
 **Files modified:**
-- `src/inspect_ai/util/_input/builtin.py` — `_dispatch_builtin` order now: ACP → panel → console. ACP handler returns `None` (no clients) → fall to panel → `NotImplementedError` (no Textual) → fall to console.
+- `src/inspect_ai/input/builtin.py` — `_dispatch_builtin` order now: ACP → panel → console. ACP handler returns `None` (no clients) → fall to panel → `NotImplementedError` (no Textual) → fall to console.
 
 **Tests:**
 - ACP attached → selection picks ACP, panel/console not invoked.
@@ -432,7 +432,7 @@ Documentation, an example of a third-party handler/notifier, and the final live 
 **Verification:**
 - Run the Slack example end-to-end against a real Slack workspace.
 - Run `inspect eval ... --acp-server` with Zed; confirm form rendering and submit flow.
-- `pytest tests/agent/test_acp/ tests/util/test_input* tests/tool/test_ask_user.py` — full suite green.
+- `pytest tests/agent/test_acp/ tests/input/test_input* tests/tool/test_ask_user.py` — full suite green.
 
 ### Phase risk and dependency table
 

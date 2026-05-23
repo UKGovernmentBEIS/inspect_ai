@@ -25,6 +25,7 @@ from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
+from inspect_ai.input import InputConfigSpec
 from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEdit
 from inspect_ai.model import (
     ChatMessage,
@@ -109,6 +110,9 @@ class EvalConfig(BaseModel):
 
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
+
+    ask_user: InputConfigSpec | None = Field(default=None)
+    """Configuration for the `ask_user` tool's input handler and notifiers."""
 
     fail_on_error: bool | float | None = Field(default=None)
     """Fail eval when sample errors occur.

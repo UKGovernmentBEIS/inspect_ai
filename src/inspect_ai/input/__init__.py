@@ -1,15 +1,15 @@
 from ._config import (
     InputConfig,
-    active_input_config,
-    init_input_config,
-    input_config,
+    InputConfigSpec,
+    InputHandlerSpec,
+    InputNotifierSpec,
 )
 from ._types import (
-    InputEvent,
     InputHandler,
     InputNotification,
     InputNotifier,
     InputOutcome,
+    InputRequest,
     InputResult,
 )
 from .registry import input_handler, input_notifier
@@ -17,15 +17,15 @@ from .request import request_input
 
 __all__ = [
     "InputConfig",
-    "InputEvent",
+    "InputConfigSpec",
     "InputHandler",
+    "InputHandlerSpec",
     "InputNotification",
     "InputNotifier",
+    "InputNotifierSpec",
     "InputOutcome",
+    "InputRequest",
     "InputResult",
-    "active_input_config",
-    "init_input_config",
-    "input_config",
     "input_handler",
     "input_notifier",
     "request_input",

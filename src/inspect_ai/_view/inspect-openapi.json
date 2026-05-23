@@ -2262,6 +2262,16 @@
               }
             ]
           },
+          "ask_user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InputConfigSpec"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "continue_on_fail": {
             "anyOf": [
               {
@@ -5481,14 +5491,93 @@
         "title": "InfoEvent",
         "type": "object"
       },
+      "InputConfigSpec": {
+        "description": "Declarative input config (YAML/JSON-parseable, registry-name based).\n\nResolved into an `InputConfig` via `resolve_input_config` (which\ninstantiates each named handler/notifier from the registry) and logged\nback on `EvalConfig.ask_user` for retries.",
+        "properties": {
+          "input_handler": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InputHandlerSpec"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "input_handler_timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Handler Timeout"
+          },
+          "input_notifiers": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/InputNotifierSpec"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Notifiers"
+          },
+          "notifier_timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notifier Timeout"
+          }
+        },
+        "title": "InputConfigSpec",
+        "type": "object"
+      },
       "InputEvent": {
         "description": "Input screen interaction.",
         "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
           "event": {
             "const": "input",
             "default": "input",
             "title": "Event",
             "type": "string"
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/InputField"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fields"
           },
           "input": {
             "title": "Input",
@@ -5497,6 +5586,17 @@
           "input_ansi": {
             "title": "Input Ansi",
             "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
           },
           "metadata": {
             "anyOf": [
@@ -5509,6 +5609,22 @@
               }
             ],
             "title": "Metadata"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "accepted",
+                  "declined",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
           },
           "pending": {
             "anyOf": [
@@ -5560,6 +5676,83 @@
           "input_ansi"
         ],
         "title": "InputEvent",
+        "type": "object"
+      },
+      "InputField": {
+        "description": "One field of an `ask_user` request.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "integer",
+              "number",
+              "boolean",
+              "array"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "InputField",
+        "type": "object"
+      },
+      "InputHandlerSpec": {
+        "description": "Declarative spec for a registered input handler.",
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "args"
+        ],
+        "title": "InputHandlerSpec",
+        "type": "object"
+      },
+      "InputNotifierSpec": {
+        "description": "Declarative spec for a registered input notifier.",
+        "properties": {
+          "args": {
+            "additionalProperties": true,
+            "title": "Args",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "args"
+        ],
+        "title": "InputNotifierSpec",
         "type": "object"
       },
       "InterruptEvent": {

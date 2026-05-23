@@ -1,0 +1,29 @@
+---
+reference: inspect_ai.input
+description: Structured `ask_user` interactions, handlers, and notifiers.
+---
+
+## Functions
+
+### request_input
+
+## Types
+
+### InputConfig
+### InputRequest
+### InputResult
+### InputNotification
+### InputHandler
+### InputNotifier
+### InputOutcome
+
+## Config
+
+### InputConfigSpec
+### InputHandlerSpec
+### InputNotifierSpec
+
+## Decorators
+
+### input_handler
+### input_notifier

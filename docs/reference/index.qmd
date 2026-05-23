@@ -12,6 +12,7 @@ title: Reference
 | [inspect_ai.dataset](inspect_ai.dataset.qmd) | Reading samples from datasets. |
 | [inspect_ai.event](inspect_ai.event.qmd) | Transcript events. |
 | [inspect_ai.hooks](inspect_ai.hooks.qmd) | Hook into Inspect lifecycle events. |
+| [inspect_ai.input](inspect_ai.input.qmd) | Structured `ask_user` interactions, handlers, and notifiers. |
 | [inspect_ai.log](inspect_ai.log.qmd) | List, read, write, and analyse logs. |
 | [inspect_ai.model](inspect_ai.model.qmd) | Model interface and providers. |
 | [inspect_ai](inspect_ai.qmd) | Tasks, evaluation, and scoring. |

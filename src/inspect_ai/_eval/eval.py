@@ -50,6 +50,12 @@ from inspect_ai.approval._policy import (
     approval_policies_from_config,
     config_from_approval_policies,
 )
+from inspect_ai.input import InputConfig, InputConfigSpec
+from inspect_ai.input._config import (
+    config_from_input_config,
+    init_input_config,
+    resolve_input_config,
+)
 from inspect_ai.log import EvalConfig, EvalLog, EvalLogInfo
 from inspect_ai.log._file import read_eval_log_async
 from inspect_ai.log._recorders import create_recorder_for_format
@@ -106,6 +112,7 @@ def eval(
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    ask_user: str | InputConfigSpec | InputConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
@@ -182,6 +189,11 @@ def eval(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        ask_user: Configuration for the `ask_user` tool's input handler
+            and notifiers. Either a registered handler name, a path to an
+            input config file (YAML/JSON), an `InputConfigSpec`, or an
+            already-resolved `InputConfig`. Defaults to the built-in console
+            handler with no notifiers.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -280,6 +292,7 @@ def eval(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                ask_user=ask_user,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
@@ -364,6 +377,7 @@ async def eval_async(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    ask_user: str | InputConfigSpec | InputConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
@@ -430,6 +444,11 @@ async def eval_async(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        ask_user: Configuration for the `ask_user` tool's input handler
+            and notifiers. Either a registered handler name, a path to an
+            input config file (YAML/JSON), an `InputConfigSpec`, or an
+            already-resolved `InputConfig`. Defaults to the built-in console
+            handler with no notifiers.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -511,6 +530,7 @@ async def eval_async(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                ask_user=ask_user,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
@@ -587,6 +607,7 @@ async def _eval_async_inner(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    ask_user: str | InputConfigSpec | InputConfig | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
@@ -684,6 +705,7 @@ async def _eval_async_inner(
             sandbox,
             sample_shuffle,
             checkpoint,
+            ask_user,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -773,6 +795,7 @@ async def _eval_async_inner(
             if epochs_reducer is not None
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
+            ask_user=config_from_input_config(resolve_input_config(ask_user)),
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
@@ -1313,6 +1336,9 @@ async def eval_retry_async(
             else None
         )
         approval = eval_log.eval.config.approval
+        ask_user: str | InputConfigSpec | InputConfig | None = (
+            eval_log.eval.config.ask_user
+        )
         message_limit = eval_log.eval.config.message_limit
         token_limit = eval_log.eval.config.token_limit
         time_limit = eval_log.eval.config.time_limit
@@ -1436,6 +1462,7 @@ async def eval_retry_async(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                ask_user=ask_user,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
@@ -1530,6 +1557,7 @@ def eval_resolve_tasks(
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
+    ask_user: str | InputConfigSpec | InputConfig | None = None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
@@ -1559,6 +1587,9 @@ def eval_resolve_tasks(
     if isinstance(approval, str | ApprovalPolicyConfig):
         approval = approval_policies_from_config(approval)
     init_tool_approval(approval)
+
+    # install input handler / notifiers for the eval scope
+    init_input_config(resolve_input_config(ask_user))
 
     # return tasks and approval
     return resolved_tasks, approval

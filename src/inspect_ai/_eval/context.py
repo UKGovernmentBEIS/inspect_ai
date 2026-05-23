@@ -6,6 +6,8 @@ from inspect_ai._util.logger import init_logger
 from inspect_ai.approval._apply import have_tool_approval, init_tool_approval
 from inspect_ai.approval._human.manager import init_human_approval_manager
 from inspect_ai.approval._policy import ApprovalPolicy
+from inspect_ai.input import InputConfig
+from inspect_ai.input._config import have_input_config, init_input_config
 from inspect_ai.log._refusal import init_refusal_tracking
 from inspect_ai.log._samples import init_active_samples
 from inspect_ai.model import GenerateConfig, Model
@@ -58,7 +60,12 @@ def init_task_context(
     model_roles: dict[str, Model] | None = None,
     config: GenerateConfig = GenerateConfig(),
     approval: list[ApprovalPolicy] | None = None,
+    ask_user: InputConfig | None = None,
 ) -> None:
     init_model_context(model, model_roles, config)
     if not have_tool_approval():
         init_tool_approval(approval)
+    # Eval-level ask_user (installed by eval_resolve_tasks) takes precedence;
+    # only fall back to the task-level config when no eval-level was set.
+    if not have_input_config():
+        init_input_config(ask_user)

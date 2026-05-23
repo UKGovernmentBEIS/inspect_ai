@@ -44,6 +44,7 @@ from ._tool_def import ToolDef
 from ._tool_info import ToolInfo
 from ._tool_params import ToolParam, ToolParams
 from ._tool_with import tool_with
+from ._tools._ask_user import ask_user
 from ._tools._bash_session import bash_session
 from ._tools._code_execution import CodeExecutionProviders, code_execution
 from ._tools._computer import computer
@@ -61,6 +62,7 @@ from ._tools._web_browser import web_browser
 from ._tools._web_search import WebSearchProviders, web_search
 
 __all__ = [
+    "ask_user",
     "bash",
     "bash_session",
     "code_execution",

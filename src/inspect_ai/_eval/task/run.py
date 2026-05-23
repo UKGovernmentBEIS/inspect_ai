@@ -260,6 +260,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         model_roles,
         generate_config,
         options.task.approval,
+        options.task.ask_user,
     )
 
     # track stats, results, and log

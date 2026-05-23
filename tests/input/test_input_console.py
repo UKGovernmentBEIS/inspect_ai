@@ -17,8 +17,9 @@ from acp.schema import (
 from rich.console import Console
 from rich.prompt import Prompt
 
-from inspect_ai.util._input import console as console_module
-from inspect_ai.util._input.console import (
+from inspect_ai.input import InputRequest
+from inspect_ai.input import console as console_module
+from inspect_ai.input.console import (
     DECLINE_TOKEN,
     _ask_schema,
     console_handler,
@@ -411,7 +412,7 @@ async def test_keyboard_interrupt_returns_cancelled(
         properties={"name": ElicitationStringPropertySchema(type="string")},
         required=["name"],
     )
-    result = await console_handler("hi", schema)
+    result = await console_handler(InputRequest(message="hi", schema=schema))
     assert result.outcome == "cancelled"
 
 

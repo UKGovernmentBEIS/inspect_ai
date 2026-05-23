@@ -19,7 +19,7 @@ from rich.prompt import Prompt
 
 from inspect_ai.util._console import input_screen
 
-from ._types import InputResult
+from ._types import InputRequest, InputResult
 
 DECLINE_TOKEN = ":decline"
 
@@ -39,7 +39,7 @@ class _Declined(Exception):
 _OMIT = object()  # sentinel: optional property left blank
 
 
-async def console_handler(message: str, schema: ElicitationSchema) -> InputResult:
+async def console_handler(request: InputRequest) -> InputResult:
     """Built-in console handler for `request_input`.
 
     Walks the schema property-by-property using Rich prompts. Returns
@@ -48,7 +48,7 @@ async def console_handler(message: str, schema: ElicitationSchema) -> InputResul
     """
     try:
         with _ask_console() as console:
-            return _ask_schema(message, schema, console)
+            return _ask_schema(request.message, request.schema, console)
     except KeyboardInterrupt:
         return InputResult(outcome="cancelled")
 
@@ -61,7 +61,9 @@ def _ask_console() -> Iterator[Console]:
     from inspect_ai._display.core.active import _active_task_screen
 
     if _active_task_screen.get(None) is not None:
-        with input_screen() as console:
+        # request_input emits the structured InputEvent itself; opt out of
+        # input_screen's text-dump emission to avoid double-logging.
+        with input_screen(record_event=False) as console:
             yield console
     else:
         yield rich.get_console()
