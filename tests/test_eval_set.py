@@ -1738,7 +1738,7 @@ def test_carried_forward_samples_remain_condensed() -> None:
     def fail_once_on_sample_1() -> Solver:
         async def solve(state: TaskState, generate: Generate) -> TaskState:
             if state.sample_id == 1 and state.sample_id not in seen:
-                seen.add(state.sample_id)
+                seen.add(int(state.sample_id))
                 raise ValueError("first attempt for sample 1")
             return state
 
