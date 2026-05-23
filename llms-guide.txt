@@ -8312,14 +8312,6 @@ deepagent(
 
 # Agent Intervention – Inspect
 
-> **NOTE:**
->
-> The agent intervention feature described below is available only in the development version of Inspect. To install the development version:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 Agent intervention lets you observe a running agent, interrupt it, and redirect it with follow-up messages. Every intervention is recorded in the transcript, so the log faithfully captures both the agent’s work and any operator actions.
@@ -11270,14 +11262,6 @@ For each method there is a documented set of errors that are raised: these are *
 See the documentation on [Sandbox Environments](./sandboxing.html.md) for additional details.
 
 ## Parallel Execution
-
-> **NOTE:**
->
-> The parallel tool execution feature described below is available only in the development version of Inspect. To install the development version:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 Models often emit several tool calls in a single assistant turn. By default Inspect executes those calls serially in declared order. Tools that have no shared mutable state (no sandbox interaction, no shared [Store](./reference/inspect_ai.util.html.md#store) writes, no order-dependent side effects) can opt in to running concurrently with their siblings via `@tool(parallel=True)`:
 

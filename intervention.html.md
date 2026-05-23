@@ -1,13 +1,5 @@
 # Agent Intervention – Inspect
 
-> **NOTE:**
->
-> The agent intervention feature described below is available only in the development version of Inspect. To install the development version:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 Agent intervention lets you observe a running agent, interrupt it, and redirect it with follow-up messages. Every intervention is recorded in the transcript, so the log faithfully captures both the agent’s work and any operator actions.

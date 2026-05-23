@@ -260,14 +260,6 @@ See the documentation on [Sandbox Environments](./sandboxing.html.md) for additi
 
 ## Parallel Execution
 
-> **NOTE:**
->
-> The parallel tool execution feature described below is available only in the development version of Inspect. To install the development version:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 Models often emit several tool calls in a single assistant turn. By default Inspect executes those calls serially in declared order. Tools that have no shared mutable state (no sandbox interaction, no shared [Store](./reference/inspect_ai.util.html.md#store) writes, no order-dependent side effects) can opt in to running concurrently with their siblings via `@tool(parallel=True)`:
 
 ``` python
