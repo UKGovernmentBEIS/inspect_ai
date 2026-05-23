@@ -6,9 +6,9 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
-<meta name="description" content="Manage sandbox environments.">
+<meta name="description" content="Structured ask_user interactions, handlers, and notifiers.">
 
-<title>inspect_sandbox – Inspect</title>
+<title>inspect_ai.input – Inspect</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -24,6 +24,41 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -34,8 +69,8 @@ ul.task-list li input[type="checkbox"] {
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../reference/inspect_score.html" rel="next">
-<link href="../reference/inspect_log.html" rel="prev">
+<link href="../reference/inspect_ai.input.qmd#request_input" rel="next">
+<link href="../reference/inspect_ai.hooks.qmd#taskstart" rel="prev">
 <link href="../favicon.svg" rel="icon" type="image/svg+xml">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -74,9 +109,6 @@ ul.task-list li input[type="checkbox"] {
     "search-label": "Search"
   }
 }</script>
-<link rel="alternate" type="text/markdown" title="LLM-readable docs index" href="../llms.txt">
-<link rel="alternate" type="text/markdown" title="LLM-readable docs (full)" href="../llms-full.txt">
-<link rel="alternate" type="text/markdown" title="LLM-readable docs (user guide)" href="../llms-guide.txt">
 
 
 <meta property="og:title" content="Inspect">
@@ -152,7 +184,7 @@ ul.task-list li input[type="checkbox"] {
       <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
         <i class="bi bi-layout-text-sidebar-reverse"></i>
       </button>
-        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_cache.html">CLI Commands</a></li><li class="breadcrumb-item"><a href="../reference/inspect_sandbox.html">inspect sandbox</a></li></ol></nav>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.input.html">inspect_ai.input</a></li></ol></nav>
         <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
         </a>
     </div>
@@ -1093,13 +1125,102 @@ ul.task-list li input[type="checkbox"] {
   </li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a href="../reference/inspect_ai.log.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">inspect_ai.log</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <a href="../reference/inspect_ai.input.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">inspect_ai.input</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#request_input" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">request_input</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#inputconfig" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputConfig</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#inputrequest" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputRequest</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#inputresult" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputResult</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#inputnotification" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputNotification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#inputhandler" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputHandler</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#inputnotifier" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputNotifier</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#inputoutcome" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputOutcome</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#inputconfigspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputConfigSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#inputhandlerspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputHandlerSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#inputnotifierspec" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">InputNotifierSpec</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#input_handler" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">input_handler</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../reference/inspect_ai.input.html#input_notifier" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">input_notifier</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a href="../reference/inspect_ai.log.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">inspect_ai.log</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.log.html#list_eval_logs" class="sidebar-item-text sidebar-link">
@@ -1430,11 +1551,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.model.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.model</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.model.html#get_model" class="sidebar-item-text sidebar-link">
@@ -1897,11 +2018,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.html#eval" class="sidebar-item-text sidebar-link">
@@ -1986,11 +2107,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.scorer.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.scorer</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.scorer.html#match" class="sidebar-item-text sidebar-link">
@@ -2231,11 +2352,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.solver.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.solver</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.solver.html#generate" class="sidebar-item-text sidebar-link">
@@ -2338,11 +2459,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.tool.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.tool</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.tool.html#web_search" class="sidebar-item-text sidebar-link">
@@ -2619,11 +2740,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_ai.util.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect_ai.util</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth2 ">  
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth2 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_ai.util.html#store" class="sidebar-item-text sidebar-link">
@@ -3040,11 +3161,11 @@ ul.task-list li input[type="checkbox"] {
       <div class="sidebar-item-container"> 
             <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">CLI Commands</span></a>
-          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="../reference/inspect_cache.html" class="sidebar-item-text sidebar-link">
@@ -3089,7 +3210,7 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="../reference/inspect_sandbox.html" class="sidebar-item-text sidebar-link active">
+  <a href="../reference/inspect_sandbox.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">inspect sandbox</span></a>
   </div>
 </li>
@@ -3123,21 +3244,45 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#inspect-sandbox-cleanup" id="toc-inspect-sandbox-cleanup" class="nav-link active" data-scroll-target="#inspect-sandbox-cleanup">inspect sandbox cleanup</a></li>
+  <li><a href="#functions" id="toc-functions" class="nav-link active" data-scroll-target="#functions">Functions</a>
+  <ul class="collapse">
+  <li><a href="#request_input" id="toc-request_input" class="nav-link" data-scroll-target="#request_input">request_input</a></li>
+  </ul></li>
+  <li><a href="#types" id="toc-types" class="nav-link" data-scroll-target="#types">Types</a>
+  <ul class="collapse">
+  <li><a href="#inputconfig" id="toc-inputconfig" class="nav-link" data-scroll-target="#inputconfig">InputConfig</a></li>
+  <li><a href="#inputrequest" id="toc-inputrequest" class="nav-link" data-scroll-target="#inputrequest">InputRequest</a></li>
+  <li><a href="#inputresult" id="toc-inputresult" class="nav-link" data-scroll-target="#inputresult">InputResult</a></li>
+  <li><a href="#inputnotification" id="toc-inputnotification" class="nav-link" data-scroll-target="#inputnotification">InputNotification</a></li>
+  <li><a href="#inputhandler" id="toc-inputhandler" class="nav-link" data-scroll-target="#inputhandler">InputHandler</a></li>
+  <li><a href="#inputnotifier" id="toc-inputnotifier" class="nav-link" data-scroll-target="#inputnotifier">InputNotifier</a></li>
+  <li><a href="#inputoutcome" id="toc-inputoutcome" class="nav-link" data-scroll-target="#inputoutcome">InputOutcome</a></li>
+  </ul></li>
+  <li><a href="#config" id="toc-config" class="nav-link" data-scroll-target="#config">Config</a>
+  <ul class="collapse">
+  <li><a href="#inputconfigspec" id="toc-inputconfigspec" class="nav-link" data-scroll-target="#inputconfigspec">InputConfigSpec</a></li>
+  <li><a href="#inputhandlerspec" id="toc-inputhandlerspec" class="nav-link" data-scroll-target="#inputhandlerspec">InputHandlerSpec</a></li>
+  <li><a href="#inputnotifierspec" id="toc-inputnotifierspec" class="nav-link" data-scroll-target="#inputnotifierspec">InputNotifierSpec</a></li>
+  </ul></li>
+  <li><a href="#decorators" id="toc-decorators" class="nav-link" data-scroll-target="#decorators">Decorators</a>
+  <ul class="collapse">
+  <li><a href="#input_handler" id="toc-input_handler" class="nav-link" data-scroll-target="#input_handler">input_handler</a></li>
+  <li><a href="#input_notifier" id="toc-input_notifier" class="nav-link" data-scroll-target="#input_notifier">input_notifier</a></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
 
-<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_cache.html">CLI Commands</a></li><li class="breadcrumb-item"><a href="../reference/inspect_sandbox.html">inspect sandbox</a></li></ol></nav>
+<header id="title-block-header" class="quarto-title-block default"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../reference/inspect_ai.agent.html">Python API</a></li><li class="breadcrumb-item"><a href="../reference/inspect_ai.input.html">inspect_ai.input</a></li></ol></nav>
 <div class="quarto-title">
-<h1 class="title">inspect sandbox</h1>
+<h1 class="title">inspect_ai.input</h1>
 </div>
 
 <div>
   <div class="description">
-    Manage sandbox environments.
+    Structured <code>ask_user</code> interactions, handlers, and notifiers.
   </div>
 </div>
 
@@ -3154,64 +3299,298 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
+<section id="functions" class="level2">
+<h2 class="anchored" data-anchor-id="functions">Functions</h2>
+<section id="request_input" class="level3">
+<h3 class="anchored" data-anchor-id="request_input">request_input</h3>
+<p>Ask the user a structured question and wait for an answer.</p>
+<p>Runs configured notifiers in parallel with the answer-collecting handler. A custom handler (if configured) runs first with a timeout; on <code>None</code> or timeout, dispatches to the built-in handler selection (console / panel / ACP, depending on runtime context).</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/request.py#L16">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> request_input(</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="op">*</span>,</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    message: <span class="bu">str</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    schema: ElicitationSchema,</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    metadata: <span class="bu">dict</span>[<span class="bu">str</span>, Any] <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>) <span class="op">-&gt;</span> InputResult</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<dl>
+<dt><code class="ref-definition">message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Prompt shown to the user.</p>
+</dd>
+<dt><code class="ref-definition">schema</code> <span class="element-type"><span class="element-type-name">ElicitationSchema</span></span></dt>
+<dd>
+<p>ACP <code>ElicitationSchema</code> describing the answer fields.</p>
+</dd>
+<dt><code class="ref-definition">metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Free-form passthrough for handler↔︎notifier correlation.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="types" class="level2">
+<h2 class="anchored" data-anchor-id="types">Types</h2>
+<section id="inputconfig" class="level3">
+<h3 class="anchored" data-anchor-id="inputconfig">InputConfig</h3>
+<p>Resolved input subsystem configuration for an eval run.</p>
+<p>Carries the handler that collects answers, the notifiers that alert the user (and any other listeners) when a question is posted, and the timeouts that bound each. Construct directly with already-resolved callables, or build from an <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.input.html#inputconfigspec">InputConfigSpec</a></span> via <code>resolve_input_config</code>.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/_config.py#L17">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InputConfig</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">input_handler</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.input.html#inputhandler">InputHandler</a></span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Handler that collects an answer; <code>None</code> falls back to the built-in handler.</p>
+</dd>
+<dt><code class="ref-definition">input_handler_timeout</code> <span class="element-type"><span class="element-type-name">float</span></span></dt>
+<dd>
+<p>Seconds to wait for the custom handler before falling back to the built-in handler.</p>
+</dd>
+<dt><code class="ref-definition">input_notifiers</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.input.html#inputnotifier">InputNotifier</a></span>]</span></dt>
+<dd>
+<p>Fire-and-forget notifiers run in parallel with the handler.</p>
+</dd>
+<dt><code class="ref-definition">notifier_timeout</code> <span class="element-type"><span class="element-type-name">float</span></span></dt>
+<dd>
+<p>Per-notifier timeout in seconds; notifiers exceeding it are cancelled silently.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="inputrequest" class="level3">
+<h3 class="anchored" data-anchor-id="inputrequest">InputRequest</h3>
+<p>A structured question posted to the user via <code>request_input</code>.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/_types.py#L16">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InputRequest</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">message</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>The prompt shown to the user.</p>
+</dd>
+<dt><code class="ref-definition">schema</code> <span class="element-type"><span class="element-type-name">ElicitationSchema</span></span></dt>
+<dd>
+<p>Schema describing the answer fields.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="inputresult" class="level3">
+<h3 class="anchored" data-anchor-id="inputresult">InputResult</h3>
+<p>Result returned from an <code>ask_user</code> interaction.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/_types.py#L27">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InputResult</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">outcome</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.input.html#inputoutcome">InputOutcome</a></span></span></dt>
+<dd>
+<p>How the interaction concluded.</p>
+</dd>
+<dt><code class="ref-definition">content</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>The user’s answer (keyed by <code>ElicitationSchema</code> property name) when <code>outcome == "accepted"</code>; otherwise <code>None</code>.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="inputnotification" class="level3">
+<h3 class="anchored" data-anchor-id="inputnotification">InputNotification</h3>
+<p>Payload delivered to input notifiers when a question is posted.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/_types.py#L38">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InputNotification</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">action</code> <span class="element-type"><span class="element-type-name">Literal</span>['posted', 'answered', 'cancelled']</span></dt>
+<dd>
+<p>Lifecycle action being notified.</p>
+<p>Possible values: “posted”: The question has just been shown to the user. “answered”: The user has submitted an answer. “cancelled”: The question was withdrawn before an answer was provided.</p>
+</dd>
+<dt><code class="ref-definition">request</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.input.html#inputrequest">InputRequest</a></span></span></dt>
+<dd>
+<p>The question being notified about.</p>
+</dd>
+<dt><code class="ref-definition">sample_id</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Identifier of the active sample (empty string when called outside an eval scope).</p>
+</dd>
+<dt><code class="ref-definition">task_name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Name of the active task (empty string when called outside an eval scope).</p>
+</dd>
+<dt><code class="ref-definition">metadata</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Caller-supplied passthrough for handler↔︎notifier correlation.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="inputhandler" class="level3">
+<h3 class="anchored" data-anchor-id="inputhandler">InputHandler</h3>
+<p>Async callable that collects an answer for an <code>ask_user</code> interaction.</p>
+<p>Receives an <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.input.html#inputrequest">InputRequest</a></span> carrying the prompt and answer schema. Returns an <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.input.html#inputresult">InputResult</a></span> if the handler took responsibility for the question, or <code>None</code> to defer to the built-in handler selection (console / panel / ACP).</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/_types.py#L64">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>InputHandler <span class="op">=</span> Callable[[InputRequest], Awaitable[InputResult <span class="op">|</span> <span class="va">None</span>]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="inputnotifier" class="level3">
+<h3 class="anchored" data-anchor-id="inputnotifier">InputNotifier</h3>
+<p>Async callable invoked to alert the user that a question is waiting.</p>
+<p>Notifiers run in parallel with the handler and are fire-and-forget: exceptions are logged and swallowed, and per-notifier timeouts apply.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/_types.py#L73">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>InputNotifier <span class="op">=</span> Callable[[InputNotification], Awaitable[<span class="va">None</span>]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="inputoutcome" class="level3">
+<h3 class="anchored" data-anchor-id="inputoutcome">InputOutcome</h3>
+<p>Outcome of an <code>ask_user</code> interaction.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/_types.py#L6">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>InputOutcome <span class="op">=</span> Literal[<span class="st">"accepted"</span>, <span class="st">"declined"</span>, <span class="st">"cancelled"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
+<section id="config" class="level2">
+<h2 class="anchored" data-anchor-id="config">Config</h2>
+<section id="inputconfigspec" class="level3">
+<h3 class="anchored" data-anchor-id="inputconfigspec">InputConfigSpec</h3>
+<p>Declarative input config (YAML/JSON-parseable, registry-name based).</p>
+<p>Resolved into an <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.input.html#inputconfig">InputConfig</a></span> via <code>resolve_input_config</code> (which instantiates each named handler/notifier from the registry) and logged back on <code>EvalConfig.input_config</code> for retries.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/_config.py#L87">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InputConfigSpec(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">input_handler</code> <span class="element-type"><span class="element-type-name"><a href="../reference/inspect_ai.input.html#inputhandlerspec">InputHandlerSpec</a></span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Handler to install for the run.</p>
+</dd>
+<dt><code class="ref-definition">input_handler_timeout</code> <span class="element-type"><span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Override for <code>InputConfig.input_handler_timeout</code>.</p>
+</dd>
+<dt><code class="ref-definition">input_notifiers</code> <span class="element-type">list[<span class="element-type-name"><a href="../reference/inspect_ai.input.html#inputnotifierspec">InputNotifierSpec</a></span>] | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Notifiers to install for the run.</p>
+</dd>
+<dt><code class="ref-definition">notifier_timeout</code> <span class="element-type"><span class="element-type-name">float</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Override for <code>InputConfig.notifier_timeout</code>.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="inputhandlerspec" class="level3">
+<h3 class="anchored" data-anchor-id="inputhandlerspec">InputHandlerSpec</h3>
+<p>Declarative spec for a registered input handler.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/_config.py#L67">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InputHandlerSpec(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Registered handler name.</p>
+</dd>
+<dt><code class="ref-definition">args</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dd>
+<p>Keyword arguments forwarded to the handler factory.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="inputnotifierspec" class="level3">
+<h3 class="anchored" data-anchor-id="inputnotifierspec">InputNotifierSpec</h3>
+<p>Declarative spec for a registered input notifier.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/_config.py#L77">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> InputNotifierSpec(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section class="level4">
+<h4 class="anchored" data-anchor-id="">Attributes</h4>
+<dl>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span></span></dt>
+<dd>
+<p>Registered notifier name.</p>
+</dd>
+<dt><code class="ref-definition">args</code> <span class="element-type">dict[<span class="element-type-name">str</span>, <span class="element-type-name">Any</span>]</span></dt>
+<dd>
+<p>Keyword arguments forwarded to the notifier factory.</p>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+<section id="decorators" class="level2">
+<h2 class="anchored" data-anchor-id="decorators">Decorators</h2>
+<section id="input_handler" class="level3">
+<h3 class="anchored" data-anchor-id="input_handler">input_handler</h3>
+<p>Decorator for registering input handlers.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/registry.py#L29">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> input_handler(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<dl>
+<dt><code class="ref-definition">*args</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
+<dd>
+<p>Function returning <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.input.html#inputhandler">InputHandler</a></span> targeted by plain handler decorator without attributes (e.g.&nbsp;<code>@input_handler</code>)</p>
+</dd>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Optional name for handler. If the decorator has no name argument then the name of the function will be used to automatically assign a name.</p>
+</dd>
+<dt><code class="ref-definition">**attribs</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
+<dd>
+<p>Additional handler attributes.</p>
+</dd>
+</dl>
+</section>
+<section id="input_notifier" class="level3">
+<h3 class="anchored" data-anchor-id="input_notifier">input_notifier</h3>
+<p>Decorator for registering input notifiers.</p>
+<div class="source-link">
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/f76620cb8622b379c6f17ccd98d323d3c99ae00b/src/inspect_ai/input/registry.py#L94">Source</a>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> input_notifier(<span class="op">*</span>args: Any, name: <span class="bu">str</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>, <span class="op">**</span>attribs: Any) <span class="op">-&gt;</span> Any</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<dl>
+<dt><code class="ref-definition">*args</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
+<dd>
+<p>Function returning <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.input.html#inputnotifier">InputNotifier</a></span> targeted by plain notifier decorator without attributes (e.g.&nbsp;<code>@input_notifier</code>)</p>
+</dd>
+<dt><code class="ref-definition">name</code> <span class="element-type"><span class="element-type-name">str</span> | <span class="element-type-name">None</span></span></dt>
+<dd>
+<p>Optional name for notifier. If the decorator has no name argument then the name of the function will be used to automatically assign a name.</p>
+</dd>
+<dt><code class="ref-definition">**attribs</code> <span class="element-type"><span class="element-type-name">Any</span></span></dt>
+<dd>
+<p>Additional notifier attributes.</p>
+</dd>
+</dl>
 
 
-<p>Manage Sandbox Environments.</p>
-<p>Learn more about sandboxing at <a href="https://inspect.aisi.org.uk/sandboxing.html" class="uri">https://inspect.aisi.org.uk/sandboxing.html</a>.</p>
-<section id="usage" class="level4">
-<h4 class="anchored" data-anchor-id="usage">Usage</h4>
-<pre class="text"><code>inspect sandbox [OPTIONS] COMMAND [ARGS]...</code></pre>
-</section>
-<section id="subcommands" class="level4">
-<h4 class="anchored" data-anchor-id="subcommands">Subcommands</h4>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 35%">
-<col style="width: 65%">
-</colgroup>
-<tbody>
-<tr class="odd">
-<td><a href="#inspect-sandbox-cleanup">cleanup</a></td>
-<td>Cleanup Sandbox Environments.</td>
-</tr>
-</tbody>
-</table>
-</section>
-<section id="inspect-sandbox-cleanup" class="level2" data-toc-label="cleanup">
-<h2 data-toc-label="cleanup" class="anchored" data-anchor-id="inspect-sandbox-cleanup">inspect sandbox cleanup</h2>
-<p>Cleanup Sandbox Environments.</p>
-<p>TYPE specifies the sandbox environment type (e.g.&nbsp;‘docker’)</p>
-<p>Pass an ENVIRONMENT_ID to cleanup only a single environment (otherwise all environments will be cleaned up).</p>
-<section id="usage-1" class="level4">
-<h4 class="anchored" data-anchor-id="usage-1">Usage</h4>
-<pre class="text"><code>inspect sandbox cleanup [OPTIONS] TYPE [ENVIRONMENT_ID]</code></pre>
-</section>
-<section id="options" class="level4">
-<h4 class="anchored" data-anchor-id="options">Options</h4>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 25%">
-<col style="width: 15%">
-<col style="width: 50%">
-<col style="width: 10%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Name</th>
-<th>Type</th>
-<th>Description</th>
-<th>Default</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>--help</code></td>
-<td>boolean</td>
-<td>Show this message and exit.</td>
-<td><code>False</code></td>
-</tr>
-</tbody>
-</table>
 </section>
 </section>
 
@@ -3730,13 +4109,13 @@ document.addEventListener("DOMContentLoaded", function () {
   </script>
 <nav class="page-navigation">
   <div class="nav-page nav-page-previous">
-      <a href="../reference/inspect_log.html" class="pagination-link" aria-label="inspect log">
-        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">inspect log</span>
+      <a href="../reference/inspect_ai.hooks.html#taskstart" class="pagination-link" aria-label="TaskStart">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">TaskStart</span>
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../reference/inspect_score.html" class="pagination-link" aria-label="inspect score">
-        <span class="nav-page-text">inspect score</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../reference/inspect_ai.input.html#request_input" class="pagination-link" aria-label="request_input">
+        <span class="nav-page-text">request_input</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

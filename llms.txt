@@ -83,3 +83,11 @@
 - [inspect_ai.solver](https://inspect.aisi.org.uk/reference/inspect_ai.solver.html.md): Prompting and elicitation.
 - [inspect_ai.tool](https://inspect.aisi.org.uk/reference/inspect_ai.tool.html.md): Built-in and custom tool functions.
 - [inspect_ai.util](https://inspect.aisi.org.uk/reference/inspect_ai.util.html.md): Miscellaneous utility functions.
+
+## Extensions
+
+- [Inspect Extensions](https://inspect.aisi.org.uk/extensions/index.html.md)
+
+## Evals
+
+- [Evals](https://inspect.aisi.org.uk/evals/index.html.md)
