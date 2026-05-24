@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Sequence, Set
+from typing import Awaitable, Callable, Sequence, Set
 
 from shortuuid import uuid
 
@@ -19,6 +19,16 @@ from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_info import ToolInfo
 
+SpanIdResolver = Callable[[list[ChatMessage]], Awaitable[str | None]]
+"""Resolver that returns the span_id a bridge request belongs to.
+
+Receives the input messages list (post message-id application). Returns the
+span_id to associate with the model call's emitted ``ModelEvent``, or ``None``
+to leave ``current_span_id()`` unchanged. Used by external orchestrators that
+manage agent-span lifecycles outside the bridge (e.g. driven by a side-channel
+event stream) and need each bridge model call attributed to the right span.
+"""
+
 
 class AgentBridge:
     """Agent bridge."""
@@ -31,12 +41,14 @@ class AgentBridge:
         compaction: CompactionStrategy | None = None,
         model: str | None = None,
         model_aliases: dict[str, str | Model] | None = None,
+        span_id_resolver: SpanIdResolver | None = None,
     ) -> None:
         self.state = state
         self.filter = filter
         self.retry_refusals = retry_refusals
         self.model = model
         self.model_aliases: dict[str, str | Model] = model_aliases or {}
+        self.span_id_resolver = span_id_resolver
         self._compaction = compaction
         self._compaction_prefix = state.messages.copy()
         self._compact: Compact | None = None
@@ -50,6 +62,15 @@ class AgentBridge:
     """Filter for bridge model generation.
 
     A filter may substitute for the default model generation by returning a ModelOutput or return None to allow default processing to continue.
+    """
+
+    span_id_resolver: SpanIdResolver | None
+    """Optional resolver that returns the span_id each bridge model call belongs to.
+
+    Called once per `bridge_generate()` invocation with the input messages.
+    The returned span_id is propagated to `current_span_id()` for the
+    duration of `model.generate()` so the emitted `ModelEvent` carries it.
+    See `SpanIdResolver` for details.
     """
 
     model: str | None

@@ -6,6 +6,7 @@ from typing import AsyncIterator
 import anyio
 from shortuuid import uuid
 
+from inspect_ai.agent._bridge.types import SpanIdResolver
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter, Model
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -47,6 +48,7 @@ async def sandbox_agent_bridge(
     web_search: WebSearchProviders | None = None,
     code_execution: CodeExecutionProviders | None = None,
     bridged_tools: Sequence[BridgedToolsSpec] | None = None,
+    span_id_resolver: SpanIdResolver | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -90,6 +92,13 @@ async def sandbox_agent_bridge(
             makes the specified tools available to the agent. The resolved
             MCPServerConfigStdio objects to pass to CLI agents are available via
             bridge.mcp_server_configs.
+        span_id_resolver: Optional async callable that returns the span_id
+            for each incoming bridge request. Called with the request's input
+            messages; the returned span_id is propagated to `current_span_id()`
+            for the duration of the underlying `model.generate()`, so the
+            emitted `ModelEvent` is attributed to that span. Use this to
+            associate bridge model events with externally-managed agent spans
+            (e.g. spans driven by a side-channel event stream).
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -122,6 +131,7 @@ async def sandbox_agent_bridge(
                 port=port,
                 model=model,
                 model_aliases=model_aliases,
+                span_id_resolver=span_id_resolver,
             )
 
             # register bridged tools with the bridge

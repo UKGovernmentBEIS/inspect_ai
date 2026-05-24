@@ -11,7 +11,7 @@ from pydantic_core import to_json
 
 from inspect_ai._util._async import is_callable_coroutine
 from inspect_ai.agent._agent import Agent, AgentState, agent
-from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.types import AgentBridge, SpanIdResolver
 from inspect_ai.log._samples import sample_active
 from inspect_ai.model._compaction.types import CompactionStrategy
 from inspect_ai.model._model import GenerateFilter, get_model
@@ -90,6 +90,7 @@ async def agent_bridge(
     compaction: CompactionStrategy | None = None,
     web_search: WebSearchProviders | None = None,
     code_execution: CodeExecutionProviders | None = None,
+    span_id_resolver: SpanIdResolver | None = None,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
@@ -121,6 +122,13 @@ async def agent_bridge(
           Anthropic, Google, and Grok). If the provider does not support
           native code execution then the bash() tool will be provided
           (note that this requires a sandbox by declared for the task).
+       span_id_resolver: Optional async callable that returns the span_id
+          for each incoming bridge request. Called with the request's input
+          messages; the returned span_id is propagated to `current_span_id()`
+          for the duration of the underlying `model.generate()`, so the
+          emitted `ModelEvent` is attributed to that span. Use this to
+          associate bridge model events with externally-managed agent spans
+          (e.g. spans driven by a side-channel event stream).
     """
     # ensure one time init
     init_bridge_request_patch()
@@ -133,7 +141,13 @@ async def agent_bridge(
     state = state or AgentState(messages=[])
 
     # create the bridge
-    bridge = AgentBridge(state, filter, retry_refusals, compaction)
+    bridge = AgentBridge(
+        state,
+        filter,
+        retry_refusals,
+        compaction,
+        span_id_resolver=span_id_resolver,
+    )
 
     # set the patch config for this context and child coroutines
     token = _patch_config.set(

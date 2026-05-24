@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI: Backfill required 'query' field when service only provides 'queries'.
+- Agent Bridge: Add `span_id_resolver` callback for providing parent span ids for model generations.
 
 ## 0.3.225 (23 May 2026)
 

@@ -119,6 +119,28 @@ def current_span_id() -> str | None:
 
 
 @contextlib.contextmanager
+def use_span_id(span_id: str | None) -> Iterator[None]:
+    """Associate events emitted inside the context with an existing span_id.
+
+    Unlike `span()`, this does not emit `SpanBeginEvent`/`SpanEndEvent` — it
+    only sets `current_span_id()` for the duration of the context. Useful when
+    the span's begin/end are emitted elsewhere (e.g. driven by an external
+    event stream) but events emitted inside this scope should still report
+    that span as their parent.
+
+    Passing `None` is a no-op.
+    """
+    if span_id is None:
+        yield
+        return
+    token = _current_span_id.set(span_id)
+    try:
+        yield
+    finally:
+        _current_span_id.reset(token)
+
+
+@contextlib.contextmanager
 def span_id_provider(provider: SpanIdProvider | None) -> Iterator[None]:
     """Set the span-ID provider for the duration of the context.
 

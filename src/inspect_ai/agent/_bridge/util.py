@@ -25,6 +25,7 @@ from inspect_ai.tool._tools._web_search._web_search import (
     WebSearchProviders,
     _normalize_config,
 )
+from inspect_ai.util._span import use_span_id
 
 _filter_type_cache: dict[int, bool] = {}
 
@@ -115,14 +116,20 @@ async def bridge_generate(
                 # Update the inputs that will be used for generation
                 input_messages, tools, tool_choice, config = result
 
-        # Run the generation if the filter didn't
+        # Run the generation if the filter didn't. Resolve the span this
+        # call belongs to (if the bridge has a resolver) and propagate it
+        # to current_span_id() so the auto-emitted ModelEvent captures it.
         if output is None:
-            output = await model.generate(
-                input=input_messages,
-                tool_choice=tool_choice,
-                tools=tools,
-                config=config,
-            )
+            span_id: str | None = None
+            if bridge.span_id_resolver is not None:
+                span_id = await bridge.span_id_resolver(input_messages)
+            with use_span_id(span_id):
+                output = await model.generate(
+                    input=input_messages,
+                    tool_choice=tool_choice,
+                    tools=tools,
+                    config=config,
+                )
 
         # Update the compaction baseline with the actual input token
         # count from the generate call (most accurate source of truth)
