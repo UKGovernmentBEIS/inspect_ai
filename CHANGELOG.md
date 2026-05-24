@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.225 (23 May 2026)
 
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
 - Parallel [tool execution](https://inspect.aisi.org.uk/tools-custom.html#sec-parallel-execution) executes tool calls in parallel when their tool declares `@tool(parallel=True)`. Builtin tools that are atomic per call (e.g. `bash`, `python`, `memory`, `read_file`, `web_search`) are now registered with `parallel=True`.
@@ -12,6 +12,7 @@
 - Model API: Create separate connection limit pools per model (improving concurrency under adaptive connections).
 - Eval Set: Re-condense carried-forward samples on retry.
 - Scoring: Use scorers_info instead of scorers for functions that recompute metrics.
+- Scanning: Compatibility with Inspect Scout 0.4.37.
 - Async: `run_coroutine()` (and the sync log/analysis helpers built on it) now honour `INSPECT_ASYNC_BACKEND=trio` when called with no running event loop, rather than always using asyncio.
 - Bugfix: Resolve message/call pool references in DB-buffer recovery.
 
