@@ -35,7 +35,9 @@ def ask_user() -> Tool:
 
         Top-level: `{"type": "object", "properties": {...}, "required": [...]}`.
         Each property declares one form field. Use the smallest set that
-        answers your question — long forms get abandoned.
+        answers your question — long forms get abandoned. The conversational
+        prompt lives on `message` (above); per-field guidance lives in each
+        property's `title` and `description`.
 
         Property types: `"string"`, `"integer"`, `"number"`, `"boolean"`, `"array"`.
 

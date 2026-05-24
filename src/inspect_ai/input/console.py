@@ -1,7 +1,6 @@
-import re
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any, Union
+from typing import Any
 
 import rich
 from acp.schema import (
@@ -11,8 +10,6 @@ from acp.schema import (
     ElicitationNumberPropertySchema,
     ElicitationSchema,
     ElicitationStringPropertySchema,
-    TitledMultiSelectItems,
-    UntitledMultiSelectItems,
 )
 from rich.console import Console
 from rich.prompt import Prompt
@@ -20,16 +17,18 @@ from rich.prompt import Prompt
 from inspect_ai.util._console import input_screen
 
 from ._types import InputRequest, InputResult
+from ._validate import (
+    PropertySchema,
+    multiselect_options,
+    string_choice_labels,
+    string_choices,
+    validate_integer,
+    validate_multiselect,
+    validate_number,
+    validate_string,
+)
 
 DECLINE_TOKEN = ":decline"
-
-PropertySchema = Union[
-    ElicitationStringPropertySchema,
-    ElicitationIntegerPropertySchema,
-    ElicitationNumberPropertySchema,
-    ElicitationBooleanPropertySchema,
-    ElicitationMultiSelectPropertySchema,
-]
 
 
 class _Declined(Exception):
@@ -127,17 +126,18 @@ def _ask_string(
     if prop.format:
         console.print(f"[dim](format: {prop.format})[/dim]")
 
-    # Build the choice list (if any) and print options. We do NOT pass
-    # `choices=` to Prompt.ask, because Rich would reject `:decline` before
-    # we get a chance to handle it.
-    choices: list[str] | None = None
-    if prop.enum is not None:
-        choices = list(prop.enum)
-        console.print(f"[dim]options: {', '.join(choices)}[/dim]")
-    elif prop.one_of is not None:
-        for opt in prop.one_of:
-            console.print(f"  [cyan]{opt.const}[/cyan]: {opt.title}")
-        choices = [opt.const for opt in prop.one_of]
+    # Print options for bounded-choice strings; we deliberately do NOT pass
+    # `choices=` to Prompt.ask because Rich would reject `:decline` before we
+    # get a chance to handle it.
+    labels = string_choice_labels(prop)
+    if labels is not None:
+        if prop.one_of is not None:
+            for const, title in labels:
+                console.print(f"  [cyan]{const}[/cyan]: {title}")
+        else:
+            console.print(
+                f"[dim]options: {', '.join(string_choices(prop) or [])}[/dim]"
+            )
 
     while True:
         value = Prompt.ask(
@@ -154,20 +154,11 @@ def _ask_string(
                 continue
             return _OMIT
 
-        if choices is not None and value not in choices:
-            console.print(f"[red]Please choose one of: {', '.join(choices)}.[/red]")
+        accepted, error = validate_string(prop, value)
+        if error is not None:
+            console.print(f"[red]{error}[/red]")
             continue
-        if prop.min_length is not None and len(value) < prop.min_length:
-            console.print(f"[red]Must be at least {prop.min_length} characters.[/red]")
-            continue
-        if prop.max_length is not None and len(value) > prop.max_length:
-            console.print(f"[red]Must be at most {prop.max_length} characters.[/red]")
-            continue
-        if prop.pattern is not None and not re.fullmatch(prop.pattern, value):
-            console.print(f"[red]Must match pattern: {prop.pattern}[/red]")
-            continue
-
-        return value
+        return accepted
 
 
 def _ask_integer(
@@ -176,7 +167,7 @@ def _ask_integer(
     required: bool,
     console: Console,
 ) -> Any:
-    return _ask_numeric(label, prop, required, console, int)
+    return _ask_numeric(label, prop, required, console)
 
 
 def _ask_number(
@@ -185,7 +176,7 @@ def _ask_number(
     required: bool,
     console: Console,
 ) -> Any:
-    return _ask_numeric(label, prop, required, console, float)
+    return _ask_numeric(label, prop, required, console)
 
 
 def _ask_numeric(
@@ -193,10 +184,9 @@ def _ask_numeric(
     prop: ElicitationIntegerPropertySchema | ElicitationNumberPropertySchema,
     required: bool,
     console: Console,
-    cast: Any,
 ) -> Any:
     # Ask as a string so we can detect blank (optional → omit) and `:decline`,
-    # then validate with the appropriate Python cast and the schema's range.
+    # then dispatch to the type-appropriate validator.
     minimum = prop.minimum
     maximum = prop.maximum
     if minimum is not None or maximum is not None:
@@ -222,20 +212,15 @@ def _ask_numeric(
                 continue
             return _OMIT
 
-        try:
-            value = cast(raw)
-        except ValueError:
-            console.print(f"[red]Please enter a valid {cast.__name__}.[/red]")
+        result: Any
+        if isinstance(prop, ElicitationIntegerPropertySchema):
+            result, error = validate_integer(prop, raw)
+        else:
+            result, error = validate_number(prop, raw)
+        if error is not None:
+            console.print(f"[red]{error}[/red]")
             continue
-
-        if minimum is not None and value < minimum:
-            console.print(f"[red]Must be >= {minimum}.[/red]")
-            continue
-        if maximum is not None and value > maximum:
-            console.print(f"[red]Must be <= {maximum}.[/red]")
-            continue
-
-        return value
+        return result
 
 
 def _ask_boolean(
@@ -278,15 +263,7 @@ def _ask_multiselect(
     required: bool,
     console: Console,
 ) -> Any:
-    options: list[tuple[str, str]] = []  # (const, display_label)
-    if isinstance(prop.items, TitledMultiSelectItems):
-        for opt in prop.items.any_of:
-            options.append((opt.const, opt.title))
-    elif isinstance(prop.items, UntitledMultiSelectItems):
-        for v in prop.items.enum:
-            options.append((v, v))
-    else:
-        raise ValueError(f"Unsupported multi-select items: {type(prop.items).__name__}")
+    options = multiselect_options(prop)
 
     for i, (const, title) in enumerate(options, start=1):
         if const == title:
@@ -349,11 +326,9 @@ def _ask_multiselect(
                 seen.add(i)
                 unique_indices.append(i)
 
-        if min_items is not None and len(unique_indices) < min_items:
-            console.print(f"[red]Select at least {min_items}.[/red]")
+        values = [options[i - 1][0] for i in unique_indices]
+        accepted, error = validate_multiselect(prop, values)
+        if error is not None:
+            console.print(f"[red]{error}[/red]")
             continue
-        if max_items is not None and len(unique_indices) > max_items:
-            console.print(f"[red]Select at most {max_items}.[/red]")
-            continue
-
-        return [options[i - 1][0] for i in unique_indices]
+        return accepted

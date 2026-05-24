@@ -8,6 +8,7 @@ from inspect_ai.approval._human.manager import init_human_approval_manager
 from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.input import InputConfig
 from inspect_ai.input._config import have_input_config, init_input_config
+from inspect_ai.input.manager import init_human_question_manager
 from inspect_ai.log._refusal import init_refusal_tracking
 from inspect_ai.log._samples import init_active_samples
 from inspect_ai.model import GenerateConfig, Model
@@ -41,6 +42,7 @@ def init_eval_context(
     init_refusal_tracking(log_refusals)
     init_active_samples()
     init_human_approval_manager()
+    init_human_question_manager()
     set_background_task_group(task_group)
 
 
