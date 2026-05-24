@@ -73,6 +73,17 @@ async def bridge_generate(
     retries up to bridge.retry_refusals times, with inputs reset to original values for
     each retry to ensure clean state.
     """
+    # Resolve span_id from the ORIGINAL request — before compaction or
+    # filter can mutate input_messages. The agent context doesn't change
+    # across retries within a single bridge_generate() call, so resolve
+    # once and apply throughout the loop. Without this, a compaction that
+    # rewrites input[0] or a filter that replaces the message list breaks
+    # the resolver's correlation and bounded-transcript mode can't repair
+    # the resulting ModelEvent.span_id.
+    span_id: str | None = None
+    if bridge.span_id_resolver is not None:
+        span_id = await bridge.span_id_resolver(input)
+
     # get compaction function and run compaction once before retry loop
     compact = bridge.compaction(tools, model)
     if compact is not None:
@@ -95,35 +106,35 @@ async def bridge_generate(
         tool_choice = original_tool_choice
         config = original_config
 
-        # Apply filter if we have it (can either return output or alternate inputs)
-        output: ModelOutput | None = None
-        if bridge.filter:
-            tool_info = [
-                parse_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
-                for tool in tools
-            ]
-            if _is_model_filter(bridge.filter):
-                result = await bridge.filter(
-                    model, input_messages, tool_info, tool_choice, config
-                )
-            else:
-                result = await bridge.filter(
-                    model.name, input_messages, tool_info, tool_choice, config
-                )
-            if isinstance(result, ModelOutput):
-                output = result
-            elif isinstance(result, GenerateInput):
-                # Update the inputs that will be used for generation
-                input_messages, tools, tool_choice, config = result
+        # Both the filter call and the default generation run inside the
+        # resolved span context: a filter that performs its own model
+        # generation (returning a ModelOutput) would otherwise emit a
+        # ModelEvent on the outer span instead of the resolved one.
+        with use_span_id(span_id):
+            # Apply filter if we have it (can either return output or
+            # alternate inputs)
+            output: ModelOutput | None = None
+            if bridge.filter:
+                tool_info = [
+                    parse_tool_info(tool) if not isinstance(tool, ToolInfo) else tool
+                    for tool in tools
+                ]
+                if _is_model_filter(bridge.filter):
+                    result = await bridge.filter(
+                        model, input_messages, tool_info, tool_choice, config
+                    )
+                else:
+                    result = await bridge.filter(
+                        model.name, input_messages, tool_info, tool_choice, config
+                    )
+                if isinstance(result, ModelOutput):
+                    output = result
+                elif isinstance(result, GenerateInput):
+                    # Update the inputs that will be used for generation
+                    input_messages, tools, tool_choice, config = result
 
-        # Run the generation if the filter didn't. Resolve the span this
-        # call belongs to (if the bridge has a resolver) and propagate it
-        # to current_span_id() so the auto-emitted ModelEvent captures it.
-        if output is None:
-            span_id: str | None = None
-            if bridge.span_id_resolver is not None:
-                span_id = await bridge.span_id_resolver(input_messages)
-            with use_span_id(span_id):
+            # Run the generation if the filter didn't.
+            if output is None:
                 output = await model.generate(
                     input=input_messages,
                     tool_choice=tool_choice,
