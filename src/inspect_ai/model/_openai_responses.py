@@ -1022,6 +1022,15 @@ def parse_web_search_action(arguments: str) -> dict[str, Any]:
 
         # Check if this is a valid OpenAI action (correct type + required fields)
         if _is_valid_openai_web_search_action(filtered):
+            # Newer search responses omit the deprecated singular `query`
+            # and only populate `queries`. The SDK still declares `query`
+            # as required, so backfill from `queries[0]` to keep strict
+            # construction (e.g. `ResponseFunctionWebSearch(...)`) happy.
+            # `queries` is preserved alongside so no parallel-search data
+            # is lost.
+            if filtered.get("type") == "search" and "query" not in filtered:
+                queries = filtered.get("queries") or []
+                filtered["query"] = queries[0] if queries else ""
             return filtered
 
         # Not an OpenAI-formatted action - create a conforming search action

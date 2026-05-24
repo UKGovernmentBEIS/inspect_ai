@@ -1,3 +1,7 @@
+## Unreleased
+
+- OpenAI: Backfill required 'query' field when service only provides 'queries'.
+
 ## 0.3.225 (23 May 2026)
 
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
