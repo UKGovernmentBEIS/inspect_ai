@@ -122,6 +122,12 @@ class OpenAICompatibleAPI(ModelAPI):
         if not isinstance(responses_phase, bool):
             raise ValueError("responses_phase must be a bool")
         self.responses_phase: bool = responses_phase
+
+        use_max_completion_tokens = model_args.pop("use_max_completion_tokens", False)
+        if not isinstance(use_max_completion_tokens, bool):
+            raise ValueError("use_max_completion_tokens must be a bool")
+        self.use_max_completion_tokens: bool = use_max_completion_tokens
+
         if self.emulate_tools and self.responses_api:
             raise ValueError(
                 "emulate_tools is not compatible with using the responses_api"
@@ -349,17 +355,17 @@ class OpenAICompatibleAPI(ModelAPI):
         return JSON_SCHEMA_EXTENDED_FIELDS
 
     def completion_params(self, config: GenerateConfig, tools: bool) -> dict[str, Any]:
+        service_model = self.service_model_name()
         params = openai_completion_params(
-            model=self.service_model_name(),
+            model=service_model,
             config=config,
             tools=tools,
             schema_exclude=self.schema_exclude_fields,
         )
 
         if (
-            needs_max_completion_tokens(self.service_model_name())
-            and "max_tokens" in params
-        ):
+            self.use_max_completion_tokens or needs_max_completion_tokens(service_model)
+        ) and "max_tokens" in params:
             params["max_completion_tokens"] = params.pop("max_tokens")
 
         return params

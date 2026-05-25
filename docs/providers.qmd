@@ -1282,6 +1282,14 @@ Or using the `eval()` function:
 eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_tools=False))
 ```
 
+### `max_completion_tokens` {#max-completion-tokens-openai-compatible}
+
+Some OpenAI-compatible providers require `max_completion_tokens` (and reject `max_tokens`) even when they use non-standard model names that Inspect can't reliably detect. You can force Inspect to send `max_completion_tokens` (Chat Completions API only; ignored when using `responses_api=true`) by passing the `use_max_completion_tokens` model arg:
+
+``` bash
+inspect eval my_task.py --model openai-api/<provider>/<model> -M use_max_completion_tokens=true
+```
+
 ### Streaming {#streaming-openai-compatible}
 
 You can enable the use of the streaming with the `openai-api` provider by passing the `stream` model arg. For example:
