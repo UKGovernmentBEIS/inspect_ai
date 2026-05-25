@@ -7,7 +7,7 @@ import anyio
 from shortuuid import uuid
 
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, Model
+from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_tools
@@ -47,6 +47,7 @@ async def sandbox_agent_bridge(
     web_search: WebSearchProviders | None = None,
     code_execution: CodeExecutionProviders | None = None,
     bridged_tools: Sequence[BridgedToolsSpec] | None = None,
+    model_event_sink: ModelEventSink | None = None,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -90,6 +91,10 @@ async def sandbox_agent_bridge(
             makes the specified tools available to the agent. The resolved
             MCPServerConfigStdio objects to pass to CLI agents are available via
             bridge.mcp_server_configs.
+        model_event_sink: Optional sink that takes ownership of `ModelEvent`
+            emission for calls routed through the bridge. When set, the bridge
+            installs it around `model.generate()` so the sink decides when and
+            under which span each event is emitted to the transcript.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -122,6 +127,7 @@ async def sandbox_agent_bridge(
                 port=port,
                 model=model,
                 model_aliases=model_aliases,
+                model_event_sink=model_event_sink,
             )
 
             # register bridged tools with the bridge
