@@ -1,3 +1,4 @@
+import json
 import re
 from copy import deepcopy
 from typing import (
@@ -54,6 +55,10 @@ JSONType = Literal["string", "integer", "number", "boolean", "array", "object", 
 
 def jsonable_python(x: Any) -> Any:
     return to_jsonable_python(x, exclude_none=True, fallback=lambda _x: None)
+
+
+def json_dump(x: Any) -> str:
+    return json.dumps(jsonable_python(x)) + "\n"
 
 
 def jsonable_dict(x: Any) -> dict[str, JsonValue]:

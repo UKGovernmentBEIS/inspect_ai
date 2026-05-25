@@ -8,6 +8,7 @@ from inspect_ai._util.file import (
     basename,
     cleanup_s3_sessions,
     filesystem,
+    s3_filesystem_cache_diagnostics,
     strip_trailing_sep,
     to_uri,
 )
@@ -119,6 +120,18 @@ async def test_cleanup_s3_sessions_no_instances() -> None:
         mock_s3fs._cache = {}
         await cleanup_s3_sessions()
         mock_s3fs.clear_instance_cache.assert_not_called()
+
+
+def test_s3_filesystem_cache_diagnostics_reports_cache() -> None:
+    with patch("s3fs.S3FileSystem") as mock_s3fs:
+        mock_s3fs._cache = {"key": object()}
+
+        diagnostics = s3_filesystem_cache_diagnostics()
+
+    assert diagnostics is not None
+    assert diagnostics["cache_size"] == 1
+    assert diagnostics["cache_type"] == "dict"
+    assert diagnostics["thread_name"] == "MainThread"
 
 
 async def test_cleanup_s3_sessions_closes_creator() -> None:

@@ -258,6 +258,37 @@ def test_pending_sync_respects_log_shared_interval(
     assert sync_times[1] - sync_times[0] >= throttle_interval * 0.9
 
 
+def test_sync_worker_thread_identity_is_reused(
+    shared_db: SampleBufferDatabase,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_call = threading.Event()
+    second_call = threading.Event()
+    sync_threads: list[threading.Thread] = []
+    recorder = SyncRecorder()
+
+    def recording_sync(
+        db: SampleBufferDatabase,
+        filestore: SampleBufferFilestore,
+    ) -> None:
+        sync_threads.append(threading.current_thread())
+        if recorder.next_call() == 1:
+            first_call.set()
+        else:
+            second_call.set()
+
+    monkeypatch.setattr(database_module, "sync_to_filestore", recording_sync)
+
+    _request_sync(shared_db, "first")
+    _assert_event(first_call, "first sync did not run")
+
+    _request_sync(shared_db, "second")
+    _assert_event(second_call, "second sync did not run")
+
+    assert len(sync_threads) == 2
+    assert sync_threads[0] is sync_threads[1]
+
+
 def test_sync_exception_does_not_prevent_later_sync(
     shared_db: SampleBufferDatabase,
     monkeypatch: pytest.MonkeyPatch,
@@ -277,13 +308,15 @@ def test_sync_exception_does_not_prevent_later_sync(
 
     _request_sync(shared_db, "first")
     _wait_until(
-        lambda: recorder.calls >= 1 and shared_db._sync_thread is None,
-        "sync worker did not recover after exception",
+        lambda: recorder.calls >= 1 and shared_db._sync_thread is not None,
+        "sync worker did not remain available after exception",
     )
+    first_thread = shared_db._sync_thread
 
     _request_sync(shared_db, "second")
 
     _assert_event(second_call, "second sync did not run")
+    assert shared_db._sync_thread is first_thread
 
 
 def test_sync_request_pending_when_thread_reference_exists_but_not_alive(

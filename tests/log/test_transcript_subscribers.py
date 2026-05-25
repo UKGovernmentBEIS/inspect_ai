@@ -1,10 +1,3 @@
-"""Tests for the additive `Transcript._add_subscriber` API.
-
-Independent of ACP: ``_add_subscriber`` is general-purpose multi-cast
-plumbing used by the Phase 6 router and (potentially) future hooks /
-tooling consumers.
-"""
-
 from inspect_ai.event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._transcript import Transcript
@@ -15,7 +8,6 @@ def _info(data: str) -> InfoEvent:
 
 
 def _info_data(events: list[Event]) -> list[str]:
-    """Project a list of (Info)Events to their string `data` for assertion."""
     out: list[str] = []
     for e in events:
         assert isinstance(e, InfoEvent)
@@ -25,7 +17,6 @@ def _info_data(events: list[Event]) -> list[str]:
 
 
 def test_add_subscriber_receives_events_in_order() -> None:
-    """Subscriber receives events in the order they were appended."""
     tr = Transcript()
     received: list[Event] = []
     tr._add_subscriber(received.append)
@@ -38,7 +29,6 @@ def test_add_subscriber_receives_events_in_order() -> None:
 
 
 def test_add_subscriber_multi_cast_to_two_subscribers() -> None:
-    """Two subscribers added in turn both receive every event."""
     tr = Transcript()
     a: list[Event] = []
     b: list[Event] = []
@@ -53,7 +43,6 @@ def test_add_subscriber_multi_cast_to_two_subscribers() -> None:
 
 
 def test_add_subscriber_coexists_with_legacy_subscribe() -> None:
-    """The legacy single-slot ``_subscribe`` and ``_add_subscriber`` both fire."""
     tr = Transcript()
     legacy: list[Event] = []
     additive: list[Event] = []
@@ -67,7 +56,6 @@ def test_add_subscriber_coexists_with_legacy_subscribe() -> None:
 
 
 def test_unsubscribe_handle_stops_delivery() -> None:
-    """The returned unsubscribe callable removes the subscriber."""
     tr = Transcript()
     received: list[Event] = []
     unsubscribe = tr._add_subscriber(received.append)
@@ -78,12 +66,10 @@ def test_unsubscribe_handle_stops_delivery() -> None:
 
     assert _info_data(received) == ["before"]
 
-    # Double-unsubscribe must be a no-op.
     unsubscribe()
 
 
 def test_subscriber_exception_does_not_block_other_subscribers() -> None:
-    """A raising subscriber is logged but does not block siblings or the loop."""
     tr = Transcript()
     received: list[Event] = []
 
@@ -93,7 +79,25 @@ def test_subscriber_exception_does_not_block_other_subscribers() -> None:
     tr._add_subscriber(raises)
     tr._add_subscriber(received.append)
 
-    # _event itself must not raise even though `raises` does.
     tr._event(_info("survivor"))
 
     assert _info_data(received) == ["survivor"]
+
+
+def test_reentrant_event_reaches_other_subscribers_once() -> None:
+    tr = Transcript()
+    first_seen: list[Event] = []
+    second_seen: list[Event] = []
+
+    def reentrant(event: Event) -> None:
+        first_seen.append(event)
+        if isinstance(event, InfoEvent) and event.data == "outer":
+            tr._event(_info("inner"))
+
+    tr._add_subscriber(reentrant)
+    tr._add_subscriber(second_seen.append)
+
+    tr._event(_info("outer"))
+
+    assert _info_data(first_seen) == ["outer"]
+    assert _info_data(second_seen) == ["inner", "outer"]

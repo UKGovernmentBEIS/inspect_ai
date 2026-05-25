@@ -1,5 +1,4 @@
 import contextlib
-from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from datetime import datetime, timezone
 from logging import getLogger
@@ -26,7 +25,7 @@ from anyio.abc import TaskGroup
 from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
-from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
+from inspect_ai.util._checkpoint.checkpointer import CheckpointerSetup, ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
@@ -56,7 +55,7 @@ class ActiveSample:
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
-        checkpointer: AbstractAsyncContextManager[Checkpointer],
+        checkpointer: CheckpointerSetup,
         eval_id: str,
         eval_set_id: str | None = None,
         run_id: str | None = None,
@@ -283,6 +282,7 @@ async def active_sample(
                         "ActiveSample on_complete hook raised",
                         exc_info=True,
                     )
+        active.checkpointer.close()
         active.complete()
         _active_samples.remove(active)
         _sample_active.set(None)

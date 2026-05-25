@@ -263,9 +263,9 @@ class _TranscriptCapture:
     def snapshot(self) -> Sequence[Any]:
         if self._captured is None:
             return []
-        # list() the events sequence so callers iterating concurrently
-        # with new ``_event`` appends don't see size changes mid-iteration.
-        return list(self._captured.events)[self._attach_index :]
+        # Slice the transcript view directly so bounded/provider-backed
+        # transcripts can read only the suffix since attach.
+        return self._captured.events[self._attach_index :]
 
 
 class _CancelSnapshot:

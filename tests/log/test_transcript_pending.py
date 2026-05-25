@@ -83,19 +83,14 @@ def test_non_pending_event_does_not_enter_sidecar() -> None:
     assert list(t.pending_events) == []
 
 
-def test_event_without_uuid_skipped() -> None:
-    """Events whose uuid is None can't be deduped; skip the sidecar.
-
-    ``BaseEvent.model_post_init`` auto-generates a uuid for live events,
-    so this case only arises during deserialization (or if a future
-    event-type opts out of uuid generation). The guard exists in
-    ``_update_pending`` for safety; this asserts it holds.
-    """
+def test_event_without_uuid_is_assigned_key() -> None:
+    """UUID-less events are normalized before pending bookkeeping."""
     t = Transcript()
     ev = _tool_event(id="tc-1", uuid="uuid-1", pending=True)
     ev.uuid = None
     t._event(ev)
-    assert list(t.pending_events) == []
+    assert ev.uuid is not None
+    assert list(t.pending_events) == [ev]
 
 
 def test_hydration_from_constructor_events_populates_sidecar() -> None:
@@ -110,6 +105,17 @@ def test_hydration_from_constructor_events_populates_sidecar() -> None:
     info = InfoEvent(source=None, data={"k": "v"})
     t = Transcript(events=[done, pending, info])
     assert [e.uuid for e in t.pending_events] == ["uuid-pending"]
+
+
+def test_constructor_does_not_mutate_uuidless_seed_events() -> None:
+    ev = _tool_event(id="tc-1", uuid="uuid-1", pending=True)
+    ev.uuid = None
+
+    t = Transcript(events=[ev])
+
+    assert ev.uuid is None
+    assert list(t.pending_events)[0] is not ev
+    assert list(t.pending_events)[0].uuid is not None
 
 
 def test_pending_and_non_pending_interleaved() -> None:

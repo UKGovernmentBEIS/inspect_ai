@@ -10,7 +10,7 @@ from inspect_ai.agent import Agent, AgentState, agent, as_solver, as_tool
 from inspect_ai.agent._handoff import handoff
 from inspect_ai.agent._run import run
 from inspect_ai.event._span import SpanBeginEvent
-from inspect_ai.log._transcript import transcript
+from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model._call_tools import execute_tools
 from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._model import get_model
@@ -379,6 +379,7 @@ def test_agent_as_solver_respects_sample_limits() -> None:
 
 @pytest.mark.anyio
 async def test_agent_run():
+    init_transcript(Transcript())
     state = await run(web_surfer(), "This is the input", max_searches=22)
     assert state.output.completion == "22"
     assert any(
@@ -389,6 +390,7 @@ async def test_agent_run():
 
 @pytest.mark.anyio
 async def test_agent_run_with_name_param():
+    init_transcript(Transcript())
     await run(web_surfer(), "This is the input", name="my-agent", max_searches=22)
 
     assert any(

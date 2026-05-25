@@ -1,10 +1,12 @@
 import tempfile
 from pathlib import Path
+from typing import IO, cast
 
 import pytest
 
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.log._recorders.buffer import filestore as filestore_module
 from inspect_ai.log._recorders.buffer.database import (
     SampleBufferDatabase,
     sync_to_filestore,
@@ -217,3 +219,44 @@ def test_sync_incremental(
     # Confirm filestore returns all 4 events
     sample_data = filestore.get_sample_data("inc", 1)
     assert sample_data is not None
+
+
+def test_sync_writes_segment_members_in_bounded_chunks(
+    db_and_filestore: tuple[SampleBufferDatabase, SampleBufferFilestore],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, filestore = db_and_filestore
+    monkeypatch.setattr(filestore_module, "_SEGMENT_WRITE_CHUNK_SIZE", 128)
+
+    sample = EvalSampleSummary(id="chunked", epoch=1, input="foo", target="bar")
+    db.start_sample(sample)
+    db.log_events(
+        [SampleEvent(id="chunked", epoch=1, event=InfoEvent(data="x" * 1024))]
+    )
+
+    sync_to_filestore(db, filestore)
+
+    sample_data = filestore.get_sample_data("chunked", 1)
+    assert sample_data is not None
+    assert len(sample_data.events) == 1
+    event_data = sample_data.events[0].event["data"]
+    assert isinstance(event_data, str)
+    assert event_data.startswith("attachment://")
+    assert len(sample_data.attachments) == 1
+    assert sample_data.attachments[0].content == "x" * 1024
+
+
+def test_chunked_writer_bounds_individual_writes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    writes: list[bytes] = []
+
+    class Member:
+        def write(self, data: bytes) -> int:
+            writes.append(data)
+            return len(data)
+
+    monkeypatch.setattr(filestore_module, "_SEGMENT_WRITE_CHUNK_SIZE", 4)
+    filestore_module._write_chunked(cast(IO[bytes], Member()), b"0123456789")
+
+    assert writes == [b"0123", b"4567", b"89"]

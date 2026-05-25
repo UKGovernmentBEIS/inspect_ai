@@ -103,6 +103,12 @@ class _HostHydrationResult:
     call_pool: list[JsonValue] = field(default_factory=list)
     """From ``events_data.json[calls]`` — seeds the dedup pool."""
 
+    attachments: dict[str, str] = field(default_factory=dict)
+    """From ``attachments.json`` — pushed into the live transcript on resume."""
+
+    store: dict[str, Any] = field(default_factory=dict)
+    """From ``store.json`` — pushed into the live sample state on resume."""
+
 
 @dataclass
 class HydrationResult:
@@ -260,12 +266,13 @@ async def _hydrate_host(
     sample_checkpoints_dir = str(Path(host_repo).parent)
     result = await anyio.to_thread.run_sync(
         partial(
-            _load_and_push_host_state,
+            _load_host_state,
             sample_working_dir,
             sample_checkpoints_dir,
             latest_committed_id,
         )
     )
+    result = _push_host_state(result, sample_checkpoints_dir, latest_committed_id)
     _debug(
         f"[hydrate.host] resume done: "
         f"events={len(result.condensed_events)} "
@@ -441,26 +448,12 @@ def _fs_copy_repo(
     _debug(f"[hydrate.copy] {label} repo: {src} -> {new_repo} ({file_count} files)")
 
 
-def _load_and_push_host_state(
+def _load_host_state(
     sample_working_dir: str,
     sample_checkpoints_dir: str,
     latest_committed_id: int | None,
 ) -> _HostHydrationResult:
-    """Read the restored host context and push framework state.
-
-    Loads via :mod:`host_context`, pushes events/attachments/store into
-    the live ``Transcript`` and ``Store`` (so the agent's continued run
-    sees the cumulative history), and returns the parts the agent-facing
-    :class:`_EnteredCheckpointer` needs at construction:
-
-    - ``agent_state`` — for ``track()`` to return persisted values.
-    - ``condensed_events``, ``msg_pool``, ``call_pool`` — seeds for the
-      checkpointer's pools so the next fire writes a cumulative snapshot.
-
-    Validates the loaded events against expected resume invariants
-    (checkpoint span structure, sidecar parity) so a broken resume
-    fails loudly here rather than cascading into the agent loop.
-    """
+    """Read restored host context and prepare it for loop-thread hydration."""
     ctx = host_context.read(local_path(sample_working_dir))
 
     _debug(
@@ -496,25 +489,32 @@ def _load_and_push_host_state(
     # mechanics.
     pushed_events = _wrap_prior_run(rehydrated_events)
 
-    # Push framework-owned state into the live transcript + store so the
-    # agent's continued run appends to (rather than replaces) the prior
-    # history. Direct mutation of the internal lists bypasses
-    # ``_process_event`` — the events are already in their condensed,
-    # attachment-ref form and must not be reprocessed. The persisted
-    # `condensed_events` is already span-only (the writer's accumulator
-    # only ever captured events from the first `span_begin: checkpoint`
-    # onward), and the prior-session wrap we just added is balanced.
+    return _HostHydrationResult(
+        agent_state=ctx.agent_state,
+        condensed_events=pushed_events,
+        msg_pool=ctx.msg_pool,
+        call_pool=ctx.call_pool,
+        attachments=ctx.attachments,
+        store=ctx.store,
+    )
+
+
+def _push_host_state(
+    result: _HostHydrationResult,
+    sample_checkpoints_dir: str,
+    latest_committed_id: int | None,
+) -> _HostHydrationResult:
+    """Push loaded host state into loop-owned Transcript and Store."""
     ts = transcript()
     pre = [_event_label(e) for e in ts._events]
-    restored = [_event_label(e) for e in pushed_events]
+    restored = [_event_label(e) for e in result.condensed_events]
     _debug(f"[hydrate.host] pre-hydration transcript.events (n={len(pre)}): {pre}")
     _debug(f"[hydrate.host] restored events to push (n={len(restored)}): {restored}")
-    ts._events.extend(pushed_events)
-    ts._attachments.update(ctx.attachments)
+    ts._extend_restored_events(result.condensed_events, result.attachments)
     state = sample_state()
     if state is None:
         raise RuntimeError("_hydrate_host: no active sample state to populate Store")
-    for key, value in ctx.store.items():
+    for key, value in result.store.items():
         state.store.set(key, value)
     _debug(
         f"[hydrate.host] pushed: transcript.events={len(ts._events)} "
@@ -522,14 +522,10 @@ def _load_and_push_host_state(
         f"store_keys={len(list(state.store.keys()))}"
     )
 
-    _validate_resume_state(pushed_events, sample_checkpoints_dir, latest_committed_id)
-
-    return _HostHydrationResult(
-        agent_state=ctx.agent_state,
-        condensed_events=pushed_events,
-        msg_pool=ctx.msg_pool,
-        call_pool=ctx.call_pool,
+    _validate_resume_state(
+        result.condensed_events, sample_checkpoints_dir, latest_committed_id
     )
+    return result
 
 
 def _wrap_prior_run(events: list[Event]) -> list[Event]:

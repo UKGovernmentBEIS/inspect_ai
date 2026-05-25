@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import string
+import threading
 import unicodedata
 from contextlib import contextmanager
 from copy import deepcopy
@@ -182,6 +183,16 @@ class FileSystem:
 
     def touch(self, path: str) -> None:
         self.fs.touch(path)
+
+    def open(
+        self,
+        path: str,
+        mode: OpenTextMode | OpenBinaryMode,
+        encoding: str = "utf-8",
+    ) -> Any:
+        if "b" in mode:
+            return self.fs.open(path, mode=mode)
+        return self.fs.open(path, mode=mode, encoding=encoding)
 
     def rm(
         self, path: str, recursive: bool = False, maxdepth: int | None = None
@@ -579,6 +590,26 @@ async def cleanup_s3_sessions() -> None:
                 "Cleaned up %d cached S3FileSystem instance(s)",
                 len(instances),
             )
+
+
+def s3_filesystem_cache_diagnostics() -> dict[str, int | str] | None:
+    """Return lightweight S3FileSystem cache diagnostics if s3fs is loaded."""
+    import sys
+
+    if "s3fs" not in sys.modules:
+        return None
+
+    from s3fs import S3FileSystem  # type: ignore
+
+    cache = getattr(S3FileSystem, "_cache", None)
+    if cache is None:
+        return None
+    return {
+        "cache_size": len(cache),
+        "cache_type": type(cache).__name__,
+        "thread_id": threading.get_ident(),
+        "thread_name": threading.current_thread().name,
+    }
 
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
