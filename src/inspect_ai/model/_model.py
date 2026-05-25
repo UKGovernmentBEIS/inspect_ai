@@ -16,8 +16,10 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
+    Iterator,
     Literal,
     NamedTuple,
+    Protocol,
     Sequence,
     Type,
     TypeAlias,
@@ -25,6 +27,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
+    from inspect_ai.event._model import ModelEvent
     from inspect_ai.tool import ToolInfo
 
 import anyio
@@ -1413,7 +1416,8 @@ class Model:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.log._transcript import transcript
 
-        # create event and add it to the transcript
+        # create event and add it to the transcript (or hand off to the
+        # installed model-event sink, if any)
         model = str(self)
         event = ModelEvent(
             model=model,
@@ -1427,7 +1431,11 @@ class Model:
             call=call,
             pending=output is None,
         )
-        transcript()._event(event)
+        sink = _model_event_sink.get()
+        if sink is None:
+            transcript()._event(event)
+        else:
+            sink.on_pending(event)
 
         # callable that can be used to update the interaction w/ output
         def complete(
@@ -1477,7 +1485,10 @@ class Model:
                     event.call.response = as_error_response(str(result))
 
             event.pending = None
-            transcript()._event_updated(event)
+            if sink is None:
+                transcript()._event_updated(event)
+            else:
+                sink.on_complete(event)
 
         # if we have output then complete it now
         if output:
@@ -2180,6 +2191,47 @@ def model_roles() -> dict[str, Model]:
 active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
 _model_roles: ContextVar[dict[str, Model]] = ContextVar("model_roles", default={})
+
+
+class ModelEventSink(Protocol):
+    """Recipient of `ModelEvent` emissions when installed via `use_model_event_sink`.
+
+    When a sink is active, `_record_model_interaction` routes the event to the
+    sink instead of emitting it to the transcript directly. The sink can decide
+    *when* and *under which span* the event ultimately reaches the transcript.
+
+    All other `_record_model_interaction` behavior (call recording, usage
+    accounting, retry handling, the active-model-event context) is unaffected.
+    """
+
+    def on_pending(self, event: "ModelEvent") -> None:
+        """Called immediately after the pending event is constructed (before generation)."""
+        ...
+
+    def on_complete(self, event: "ModelEvent") -> None:
+        """Called after generation completes (output / error / call populated, `pending=None`)."""
+        ...
+
+
+_model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
+    "_model_event_sink", default=None
+)
+
+
+@contextlib.contextmanager
+def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
+    """Route `ModelEvent` emissions to *sink* for the duration of the block.
+
+    Passing `None` is a no-op (transcript emission continues as usual).
+    """
+    if sink is None:
+        yield
+        return
+    token = _model_event_sink.set(sink)
+    try:
+        yield
+    finally:
+        _model_event_sink.reset(token)
 
 
 # shared contexts for asyncio tasks

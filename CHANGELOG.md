@@ -1,3 +1,8 @@
+## 0.3.226 (25 May 2026)
+
+- OpenAI: Backfill required 'query' field when service only provides 'queries'.
+- Agent Bridge: Add `model_event_sink` option for bridge to control order of model event emission (used to nest model events properly in agent spans).
+
 ## 0.3.225 (23 May 2026)
 
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
