@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -19,11 +19,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from test_helpers.transcript import FakeTranscriptHistoryProvider
 
 from inspect_ai.event._event import Event
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
-from inspect_ai.log import expand_events
+from inspect_ai.log import Transcript, expand_events
+from inspect_ai.log._transcript import init_transcript, transcript
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -31,6 +33,7 @@ from inspect_ai.model._chat_message import (
     ChatMessageUser,
 )
 from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.util._checkpoint import (
     Manual,
@@ -39,7 +42,9 @@ from inspect_ai.util._checkpoint import (
     TurnInterval,
     checkpointer,
 )
+from inspect_ai.util._checkpoint._transcript_store import CheckpointTranscriptStore
 from inspect_ai.util._checkpoint._triggers import CheckpointTriggerKind
+from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_impl import (
     _CheckpointerSetup,
     _EnteredCheckpointer,
@@ -88,26 +93,14 @@ class _Dirs:
 
 @contextmanager
 def _patch_sample_runtime(events: list[object]) -> Iterator[None]:
-    """Patch sample_state() and transcript() for tests that drive _fire.
-
-    `_CheckpointerSetup._fire` reads ``sample_state().store`` and
-    ``transcript().events`` directly from ContextVars. Tests that
-    construct `_CheckpointerSetup` outside a real sample run need stand-ins.
-
-    ``events`` is the externally-owned event-collection list — the fake
-    transcript's ``events`` attribute and ``_event`` callable both wire
-    to it so tests can inspect emit behavior.
-    """
+    """Patch sample_state() and transcript() for tests that drive _fire."""
     from types import SimpleNamespace
 
     from inspect_ai.util._store import Store
 
     fake_state = SimpleNamespace(store=Store())
-    fake_transcript = SimpleNamespace(
-        events=events,
-        attachments={},
-        _event=events.append,
-    )
+    fake_transcript = Transcript(bounded=False)
+    fake_transcript._subscribe(events.append)
     with (
         patch(
             "inspect_ai.util._checkpoint.checkpointer_impl.sample_state",
@@ -131,6 +124,13 @@ def dirs(tmp_path: Path) -> Iterator[_Dirs]:
     d = _Dirs(checkpoints=str(checkpoints), working=str(working))
     with _patch_sample_runtime(d.events):
         yield d
+
+
+@pytest.fixture(autouse=True)
+def _isolate_transcript() -> Iterator[None]:
+    init_transcript(Transcript(bounded=False))
+    yield
+    init_transcript(Transcript(bounded=False))
 
 
 class _CountingCheckpointer(_EnteredCheckpointer):
@@ -164,11 +164,8 @@ def _counting(config: ResolvedCheckpointConfig, dirs: _Dirs) -> _CountingCheckpo
         config=config,
         hydration=_fake_hydration(dirs.checkpoints, dirs.working),
         resume_checkpoint=None,
+        reset_transcript_store=True,
     )
-    # Policy tests drive `tick()`/`checkpoint()` without going through
-    # `span_session()`, so the first-span lazy init for `_events_consumed`
-    # never fires. Seed it here so `_write_host_context` can slice.
-    cp._events_consumed = 0
     return cp
 
 
@@ -323,6 +320,44 @@ async def test_fire_emits_checkpoint_event(dirs: _Dirs) -> None:
     # restic the stub values from `_CountingCheckpointer._backup_host`
     # round-trip.
     assert first.host.snapshot_id.startswith("fake-snap-")
+
+
+async def test_fire_includes_events_emitted_before_checkpointer_construction(
+    dirs: _Dirs,
+) -> None:
+    preexisting = InfoEvent(data="before-checkpointer")
+    active_transcript = transcript()
+    active_transcript._event(preexisting)
+
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+        return_value=active_transcript,
+    ):
+        cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
+        await cp.checkpoint()
+
+    events = json.loads((Path(dirs.working) / "events.json").read_text())
+    assert events[0]["uuid"] == preexisting.uuid
+    assert events[0]["data"] == "before-checkpointer"
+
+
+async def test_fire_reopens_checkpoint_span_after_failure(dirs: _Dirs) -> None:
+    cp = _counting(ResolvedCheckpointConfig(trigger=Manual()), dirs)
+    assert cp._current_span_cm is None
+    await cp._open_next_span()
+    open_before = cp._current_span_cm
+    assert open_before is not None
+
+    async def fail_write_host_context(*_args: object) -> None:
+        raise RuntimeError("write failed")
+
+    with patch.object(cp, "_write_host_context", side_effect=fail_write_host_context):
+        with pytest.raises(RuntimeError, match="write failed"):
+            await cp.checkpoint()
+
+    assert cp._current_span_cm is not None
+    assert cp._current_span_cm is not open_before
+    await cp._close_current_span()
 
 
 def test_synthesize_trailing_checkpoint_event(tmp_path: Path) -> None:
@@ -516,24 +551,6 @@ async def test_fire_writes_sample_json_and_sidecars(
 # === _write_host_context: condensed events round-trip =======================
 
 
-def _wrap_in_checkpoint_span(checkpoint_id: int, events: list[Event]) -> list[Event]:
-    """Wrap a list of events in `span_begin/span_end` of type "checkpoint".
-
-    `_write_host_context`'s filter (`_filter_persisted_events`) keeps only
-    events inside checkpoint / prior_run spans + CheckpointEvents. Tests
-    that drive `_write_host_context` directly with raw events need to
-    bracket them so they survive the filter.
-    """
-    span_id = f"test-ckpt-{checkpoint_id}"
-    return [
-        SpanBeginEvent(
-            id=span_id, name=f"checkpoint {checkpoint_id}", type="checkpoint"
-        ),
-        *events,
-        SpanEndEvent(id=span_id),
-    ]
-
-
 async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> None:
     """Pooled ModelEvent inputs round-trip via expand_events; pool < total slots."""
     msg_sys: ChatMessage = ChatMessageSystem(content="sys")
@@ -554,16 +571,12 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
         )
 
     # Each ModelEvent carries the full prior history — 2 + 4 + 5 = 11 input
-    # slots across 5 unique messages. Wrapped in a checkpoint span so the
-    # write_host_context filter keeps them.
-    events: list[Event] = _wrap_in_checkpoint_span(
-        1,
-        [
-            _model_event([msg_sys, msg_u1]),
-            _model_event([msg_sys, msg_u1, msg_a1, msg_u2]),
-            _model_event(messages),
-        ],
-    )
+    # slots across 5 unique messages.
+    events: list[Event] = [
+        _model_event([msg_sys, msg_u1]),
+        _model_event([msg_sys, msg_u1, msg_a1, msg_u2]),
+        _model_event(messages),
+    ]
 
     work = tmp_path / "work"
     work.mkdir()
@@ -571,9 +584,11 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
         resume_checkpoint=None,
+        reset_transcript_store=True,
     )
-    cp._events_consumed = 0
-    await cp._write_host_context(str(work), events, {}, Store())
+    for event in events:
+        cp._track_transcript_event(event)
+    await cp._write_host_context(str(work), Store())
 
     assert (work / "events.json").is_file()
     assert (work / "events_data.json").is_file()
@@ -599,13 +614,10 @@ def _make_cp(**kwargs: object) -> _EnteredCheckpointer:
         "config": ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         "hydration": _fake_hydration(str(base / "ckpts"), str(base / "work")),
         "resume_checkpoint": None,
+        "reset_transcript_store": True,
     }
     defaults.update(kwargs)
     cp = _EnteredCheckpointer(**defaults)  # type: ignore[arg-type]
-    # In real use, `_events_consumed` is set lazily by the first
-    # `_open_next_span()` call. Tests bypass that by driving
-    # `_write_host_context` directly, so seed the precondition here.
-    cp._events_consumed = 0
     return cp
 
 
@@ -623,21 +635,29 @@ def test_track_duplicate_key_raises(tmp_path: Path) -> None:
         cp.track("attempt_count", lambda: 2, 0)
 
 
-async def test_track_single_key_writes_file(tmp_path: Path) -> None:
-    """Registered callback's return value lands in agent_state.json."""
+async def _write_agent_state(
+    tmp_path: Path, cp: _EnteredCheckpointer
+) -> dict[str, object] | None:
     work = tmp_path / "work"
     work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    agent_state = work / "agent_state.json"
+    if not agent_state.exists():
+        return None
+    return json.loads(agent_state.read_text())
+
+
+async def test_track_single_key_writes_file(tmp_path: Path) -> None:
+    """Registered callback's return value lands in agent_state.json."""
     cp = _make_cp()
     value = 3
     cp.track("attempt_count", lambda: value, 0)
-    await cp._write_host_context(str(work), [], {}, Store())
-    assert json.loads((work / "agent_state.json").read_text()) == {"attempt_count": 3}
+
+    assert await _write_agent_state(tmp_path, cp) == {"attempt_count": 3}
 
 
 async def test_track_messages_via_track(tmp_path: Path) -> None:
     """Messages persist via `track('messages', ...)` — Pydantic model lists serialize."""
-    work = tmp_path / "work"
-    work.mkdir()
     cp = _make_cp()
     messages: list[ChatMessage] = [
         ChatMessageSystem(content="sys"),
@@ -649,23 +669,23 @@ async def test_track_messages_via_track(tmp_path: Path) -> None:
         messages,
         value_type=list[ChatMessage],
     )
-    await cp._write_host_context(str(work), [], {}, Store())
 
-    state = json.loads((work / "agent_state.json").read_text())
+    state = await _write_agent_state(tmp_path, cp)
+    assert state is not None
     assert "messages" in state
-    assert [m["role"] for m in state["messages"]] == ["system", "user"]
-    assert [m["content"] for m in state["messages"]] == ["sys", "hi"]
+    messages_state = state["messages"]
+    assert isinstance(messages_state, list)
+    assert [m["role"] for m in messages_state] == ["system", "user"]
+    assert [m["content"] for m in messages_state] == ["sys", "hi"]
 
 
 async def test_track_multiple_keys_merge(tmp_path: Path) -> None:
     """Multiple registered keys merge into one top-level dict."""
-    work = tmp_path / "work"
-    work.mkdir()
     cp = _make_cp()
     cp.track("attempt_count", lambda: 3, 0)
     cp.track("phase", lambda: "explore", "")
-    await cp._write_host_context(str(work), [], {}, Store())
-    assert json.loads((work / "agent_state.json").read_text()) == {
+
+    assert await _write_agent_state(tmp_path, cp) == {
         "attempt_count": 3,
         "phase": "explore",
     }
@@ -673,11 +693,9 @@ async def test_track_multiple_keys_merge(tmp_path: Path) -> None:
 
 async def test_track_not_registered_no_file(tmp_path: Path) -> None:
     """Without any callback, agent_state.json is not written."""
-    work = tmp_path / "work"
-    work.mkdir()
     cp = _make_cp()
-    await cp._write_host_context(str(work), [], {}, Store())
-    assert not (work / "agent_state.json").exists()
+
+    assert await _write_agent_state(tmp_path, cp) is None
 
 
 def test_track_noop_session() -> None:
@@ -692,8 +710,6 @@ def test_is_resuming_noop_false() -> None:
 
 
 def test_is_resuming_reflects_resume_checkpoint() -> None:
-    from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
-
     assert _make_cp().is_resuming is False
     assert (
         _make_cp(
@@ -786,8 +802,9 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             init_sandbox.assert_awaited_once()
 
 
-async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
-    """transcript.attachments survives the checkpoint as attachments.json."""
+async def test_write_host_context_exports_transcript_store_attachments(
+    tmp_path: Path,
+) -> None:
     attachments = {"abc123": "data:image/png;base64,iVBORw0", "def456": "long-text"}
 
     work = tmp_path / "work"
@@ -796,9 +813,10 @@ async def test_write_host_context_persists_attachments(tmp_path: Path) -> None:
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
         resume_checkpoint=None,
+        reset_transcript_store=True,
     )
-    cp._events_consumed = 0
-    await cp._write_host_context(str(work), [], attachments, Store())
+    cp._transcript_store.merge_attachments(attachments)
+    await cp._write_host_context(str(work), Store())
 
     assert json.loads((work / "attachments.json").read_text()) == attachments
 
@@ -820,20 +838,12 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
             output=ModelOutput(),
         )
 
-    # Each fire's events wrapped in a checkpoint span so the
-    # write_host_context filter keeps them.
-    fire1_events: list[Event] = _wrap_in_checkpoint_span(
-        1,
-        [
-            _model_event([msg_sys, msg_u1]),
-            _model_event([msg_sys, msg_u1, msg_a1]),
-        ],
-    )
-    # Fire 2 cumulatively contains fire 1's events + a new checkpoint span
-    # with one more model event. The two prior events stay condensed-as-is.
+    fire1_events: list[Event] = [
+        _model_event([msg_sys, msg_u1]),
+        _model_event([msg_sys, msg_u1, msg_a1]),
+    ]
     fire2_events: list[Event] = [
-        *fire1_events,
-        *_wrap_in_checkpoint_span(2, [_model_event([msg_sys, msg_u1, msg_a1, msg_u2])]),
+        _model_event([msg_sys, msg_u1, msg_a1, msg_u2]),
     ]
 
     work = tmp_path / "work"
@@ -842,28 +852,26 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
         resume_checkpoint=None,
+        reset_transcript_store=True,
     )
-    cp._events_consumed = 0
-
-    await cp._write_host_context(str(work), fire1_events, {}, Store())
+    for event in fire1_events:
+        cp._track_transcript_event(event)
+    await cp._write_host_context(str(work), Store())
     pool_after_1 = json.loads((work / "events_data.json").read_text())["messages"]
     events_after_1 = json.loads((work / "events.json").read_text())
     assert len(pool_after_1) == 3  # sys, u1, a1
-    # Fire 1's persisted events: [span_begin_1, model_1, model_2, span_end_1].
-    assert len(events_after_1) == 4
-    assert cp._events_consumed == len(fire1_events)
+    assert len(events_after_1) == 2
 
-    await cp._write_host_context(str(work), fire2_events, {}, Store())
+    for event in fire2_events:
+        cp._track_transcript_event(event)
+    await cp._write_host_context(str(work), Store())
     pool_after_2 = json.loads((work / "events_data.json").read_text())["messages"]
     events_after_2 = json.loads((work / "events.json").read_text())
     # Append-only: pool grew by exactly one (u2); first 3 entries unchanged.
     assert pool_after_2[:3] == pool_after_1
     assert len(pool_after_2) == 4
-    # Events grew by 3 (span_begin_2 + model_3 + span_end_2 = checkpoint 2's
-    # wrap); the first 4 are byte-identical to fire 1's persisted output.
-    assert events_after_2[:4] == events_after_1
-    assert len(events_after_2) == 7
-    assert cp._events_consumed == len(fire2_events)
+    assert events_after_2[:2] == events_after_1
+    assert len(events_after_2) == 3
 
     # Full round-trip still works on the cumulative output.
     expanded = expand_events(
@@ -872,3 +880,531 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
     )
     model_events = [e for e in expanded if isinstance(e, ModelEvent)]
     assert [len(e.input) for e in model_events] == [2, 3, 4]
+
+
+def test_track_consumes_hydrated_agent_state() -> None:
+    hydration = _fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work")
+    hydration.host.agent_state = {"phase": "resume", "other": "kept"}
+    cp = _make_cp(hydration=hydration)
+
+    assert cp.track("phase", lambda: "fresh", "fresh") == "resume"
+
+    assert "phase" not in cp._agent_state
+    assert cp._agent_state == {"other": "kept"}
+
+
+def test_seed_transcript_store_uses_history_provider_for_truncated_transcript(
+    tmp_path: Path,
+) -> None:
+    provider_events = [
+        InfoEvent(uuid=f"provider-event-{index}", data=f"from-provider-{index}")
+        for index in range(3)
+    ]
+    provider = FakeTranscriptHistoryProvider(provider_events)
+    fake_transcript = Transcript(
+        bounded=True,
+        resident_tail=1,
+        history_provider=provider,
+    )
+    for event in provider_events:
+        fake_transcript._event(event)
+    assert fake_transcript.resident_events_truncated is True
+
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+        return_value=fake_transcript,
+    ):
+        cp = _make_cp(
+            hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work")),
+        )
+
+    work = tmp_path / "snapshot"
+    work.mkdir()
+    cp._transcript_store.export_snapshot_files(work, store_json={}, agent_state=None)
+    cp.close()
+
+    events = json.loads((work / "events.json").read_text())
+    assert [event["data"] for event in events] == [
+        "from-provider-0",
+        "from-provider-1",
+        "from-provider-2",
+    ]
+
+
+def test_checkpointer_closes_store_when_transcript_seed_fails(tmp_path: Path) -> None:
+    fake_transcript = Transcript(bounded=True, resident_tail=0)
+    fake_transcript._event(InfoEvent(data="evicted"))
+    assert fake_transcript.resident_events_truncated is True
+
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+        return_value=fake_transcript,
+    ):
+        with pytest.raises(RuntimeError, match="Cannot seed checkpoint events"):
+            _make_cp(
+                hydration=_fake_hydration("/tmp/cp-test/ckpts", str(tmp_path / "work")),
+            )
+
+
+async def test_checkpointer_setup_resets_transcript_store_after_seed_failure(
+    tmp_path: Path,
+) -> None:
+    work = tmp_path / "work"
+    checkpoints = tmp_path / "ckpts"
+    work.mkdir()
+    checkpoints.mkdir()
+    fake_transcript = Transcript(bounded=False)
+    fake_transcript._event(InfoEvent(uuid="seeded", data="seeded"))
+    hydration = _fake_hydration(str(checkpoints), str(work))
+    calls = 0
+
+    def fail_once_merge_event(self: CheckpointTranscriptStore, *args: object) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            original_merge_event(self, *args)  # type: ignore[arg-type]
+            raise RuntimeError("seed failed")
+        original_merge_event(self, *args)  # type: ignore[arg-type]
+
+    original_merge_event = CheckpointTranscriptStore.merge_event
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        log_location=str(tmp_path / "t.eval"),
+        sample_id="s",
+        epoch=0,
+    )
+
+    with (
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+            return_value=hydration,
+        ),
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+            return_value=fake_transcript,
+        ),
+        patch.object(CheckpointTranscriptStore, "merge_event", fail_once_merge_event),
+    ):
+        with pytest.raises(RuntimeError, match="seed failed"):
+            await setup.__aenter__()
+
+        cp = await setup.__aenter__()
+        assert isinstance(cp, _EnteredCheckpointer)
+        snapshot = tmp_path / "snapshot"
+        snapshot.mkdir()
+        await cp._write_host_context(str(snapshot), Store())
+        setup.close()
+
+    events = json.loads((snapshot / "events.json").read_text())
+    assert [event["data"] for event in events] == ["seeded"]
+
+
+async def test_fire_retains_attachment_from_evicted_event(
+    tmp_path: Path,
+) -> None:
+    transcript = Transcript(bounded=True, resident_tail=1, log_model_api=True)
+    cp = _make_cp(
+        hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
+    )
+    payload = "evicted payload" * 100
+    evicted = ModelEvent(
+        uuid="evicted",
+        model="mockllm/model",
+        input=[ChatMessageUser(content="question")],
+        tools=[],
+        tool_choice="none",
+        config=GenerateConfig(),
+        output=ModelOutput.from_content("mockllm/model", "answer"),
+    )
+    evicted.call = ModelCall.create(
+        {"messages": [{"role": "user", "content": payload}]}, None
+    )
+
+    with patch(
+        "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+        return_value=transcript,
+    ):
+        transcript._subscribe(cp._track_transcript_event)
+        transcript._event(evicted)
+        transcript._event(InfoEvent(data="resident"))
+
+    assert transcript.resident_events == [transcript.last_event]
+    assert transcript.attachments == {}
+
+    work = tmp_path / "snapshot"
+    work.mkdir()
+    await cp._write_host_context(str(work), Store())
+    cp.close()
+
+    attachments = json.loads((work / "attachments.json").read_text())
+    assert payload in attachments.values()
+
+
+async def test_checkpointer_setup_close_unsubscribes_and_closes_store(
+    tmp_path: Path,
+) -> None:
+    callbacks: list[Callable[[Event], None]] = []
+
+    def subscribe(callback: Callable[[Event], None]) -> Callable[[], None]:
+        callbacks.append(callback)
+
+        def unsubscribe() -> None:
+            callbacks.remove(callback)
+
+        return unsubscribe
+
+    from types import SimpleNamespace
+
+    fake_transcript = SimpleNamespace(
+        attachments={},
+        resident_events=[],
+        resident_events_truncated=False,
+        full_history_available=True,
+        _subscribe=subscribe,
+    )
+
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        log_location=str(tmp_path / "t.eval"),
+        sample_id="s",
+        epoch=0,
+    )
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
+    Path(hydration.sample_checkpoints_dir).mkdir(parents=True)
+    Path(hydration.sample_working_dir).mkdir(parents=True)
+
+    with (
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+            return_value=hydration,
+        ),
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+            return_value=fake_transcript,
+        ),
+    ):
+        async with setup as cp:
+            assert isinstance(cp, _EnteredCheckpointer)
+            assert len(callbacks) == 1
+        assert len(callbacks) == 1
+
+        async with setup as cp2:
+            assert cp2 is cp
+            assert len(callbacks) == 1
+
+        setup.close()
+        assert callbacks == []
+        assert setup._cached is None
+        setup.close()
+
+
+async def test_checkpointer_setup_reconstruct_preserves_transcript_store(
+    tmp_path: Path,
+) -> None:
+    from types import SimpleNamespace
+
+    callbacks: list[Callable[[Event], None]] = []
+
+    def subscribe(callback: Callable[[Event], None]) -> Callable[[], None]:
+        callbacks.append(callback)
+
+        def unsubscribe() -> None:
+            callbacks.remove(callback)
+
+        return unsubscribe
+
+    fake_transcript = SimpleNamespace(
+        attachments={},
+        resident_events=[],
+        resident_events_truncated=False,
+        full_history_available=True,
+        _subscribe=subscribe,
+    )
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
+    Path(hydration.sample_checkpoints_dir).mkdir(parents=True)
+    Path(hydration.sample_working_dir).mkdir(parents=True)
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        log_location=str(tmp_path / "t.eval"),
+        sample_id="s",
+        epoch=0,
+    )
+
+    with (
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+            return_value=hydration,
+        ),
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+            return_value=fake_transcript,
+        ),
+    ):
+        async with setup as first:
+            assert isinstance(first, _EnteredCheckpointer)
+            first._track_transcript_event(InfoEvent(data="first"))
+
+        async with setup as second:
+            assert isinstance(second, _EnteredCheckpointer)
+            second._track_transcript_event(InfoEvent(data="second"))
+            work = tmp_path / "snapshot"
+            work.mkdir()
+            await second._write_host_context(str(work), Store())
+
+    events = json.loads((work / "events.json").read_text())
+    assert [event["data"] for event in events] == ["first", "second"]
+
+
+async def test_resume_resets_restored_transcript_store_before_seeding(
+    tmp_path: Path,
+) -> None:
+    from types import SimpleNamespace
+
+    callbacks: list[Callable[[Event], None]] = []
+
+    def subscribe(callback: Callable[[Event], None]) -> Callable[[], None]:
+        callbacks.append(callback)
+        return lambda: callbacks.remove(callback)
+
+    work = tmp_path / "work"
+    work.mkdir()
+    restored_store = CheckpointTranscriptStore(
+        work / "checkpoint_transcript.sqlite", reset=True
+    )
+    restored_store.merge_event(InfoEvent(data="orphan"), lambda _: None)
+    restored_store.close()
+
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(work))
+    hydration.host.condensed_events = [InfoEvent(data="committed")]
+    fake_transcript = SimpleNamespace(
+        attachments={},
+        resident_events=[],
+        resident_events_truncated=False,
+        full_history_available=True,
+        _subscribe=subscribe,
+    )
+    setup = _CheckpointerSetup(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        log_location=str(tmp_path / "t.eval"),
+        sample_id="s",
+        epoch=0,
+        resume_checkpoint=ResumeCheckpoint(
+            sample_checkpoints_dir=str(tmp_path / "prior-ckpts")
+        ),
+    )
+
+    with (
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.hydrate",
+            return_value=hydration,
+        ),
+        patch(
+            "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+            return_value=fake_transcript,
+        ),
+    ):
+        cp = await setup.__aenter__()
+        assert isinstance(cp, _EnteredCheckpointer)
+        cp._track_transcript_event(InfoEvent(data="new"))
+        snapshot = tmp_path / "snapshot"
+        snapshot.mkdir()
+        await cp._write_host_context(str(snapshot), Store())
+        setup.close()
+
+    events = json.loads((snapshot / "events.json").read_text())
+    assert [event["data"] for event in events] == ["committed", "new"]
+
+
+def test_resume_seed_skips_restored_resident_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    restored = InfoEvent(uuid="restored", data="committed")
+    fake_transcript = Transcript([restored], bounded=False)
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
+    hydration.host.condensed_events = [restored]
+
+    monkeypatch.setattr(
+        "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+        lambda: fake_transcript,
+    )
+
+    cp = _EnteredCheckpointer(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        hydration=hydration,
+        resume_checkpoint=ResumeCheckpoint(
+            sample_checkpoints_dir=str(tmp_path / "old")
+        ),
+        reset_transcript_store=True,
+    )
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    cp._transcript_store.export_snapshot_files(
+        snapshot, store_json={}, agent_state=None
+    )
+    cp.close()
+
+    events = json.loads((snapshot / "events.json").read_text())
+    assert [event["uuid"] for event in events] == ["restored"]
+    assert [event["data"] for event in events] == ["committed"]
+
+
+async def test_resume_seed_preserves_message_pool_positions(tmp_path: Path) -> None:
+    msg_sys: ChatMessage = ChatMessageSystem(content="sys")
+    msg_u1: ChatMessage = ChatMessageUser(content="q1")
+    msg_a1: ChatMessage = ChatMessageAssistant(content="a1")
+    msg_u2: ChatMessage = ChatMessageUser(content="q2")
+
+    def _model_event(input_msgs: list[ChatMessage]) -> ModelEvent:
+        return ModelEvent(
+            model="test",
+            input=input_msgs,
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=ModelOutput(),
+        )
+
+    first_work = tmp_path / "first"
+    first_work.mkdir()
+    first_cp = _EnteredCheckpointer(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "state1")),
+        resume_checkpoint=None,
+        reset_transcript_store=True,
+    )
+    first_cp._track_transcript_event(_model_event([msg_sys, msg_u1, msg_a1]))
+    await first_cp._write_host_context(str(first_work), Store())
+
+    from inspect_ai.util._checkpoint._layout import host_context
+
+    first_context = host_context.read(str(first_work))
+    assert len(first_context.condensed_events) == 1
+
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "state2"))
+    hydration.host.condensed_events = first_context.condensed_events
+    hydration.host.msg_pool = first_context.msg_pool
+    hydration.host.call_pool = first_context.call_pool
+    resumed_cp = _EnteredCheckpointer(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        hydration=hydration,
+        resume_checkpoint=None,
+        reset_transcript_store=True,
+    )
+
+    resumed_work = tmp_path / "resumed"
+    resumed_work.mkdir()
+    resumed_cp._track_transcript_event(_model_event([msg_u2]))
+    await resumed_cp._write_host_context(str(resumed_work), Store())
+
+    resumed_data = json.loads((resumed_work / "events_data.json").read_text())
+    assert len(resumed_data["messages"]) == 4
+    expanded = expand_events(
+        (resumed_work / "events.json").read_text(),
+        (resumed_work / "events_data.json").read_text(),
+    )
+    model_events = [event for event in expanded if isinstance(event, ModelEvent)]
+    assert [len(event.input) for event in model_events] == [3, 1]
+    assert [message.content for message in model_events[0].input] == ["sys", "q1", "a1"]
+    assert [message.content for message in model_events[1].input] == ["q2"]
+
+
+async def test_resume_materializes_pooled_model_event_and_seeds_transcript(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    msg_sys: ChatMessage = ChatMessageSystem(content="sys")
+    msg_user: ChatMessage = ChatMessageUser(content="question")
+    call_request = {"messages": [{"role": "user", "content": "question"}]}
+    restored = ModelEvent(
+        uuid="restored-model",
+        model="test",
+        input=[msg_sys, msg_user],
+        tools=[],
+        tool_choice="auto",
+        config=GenerateConfig(),
+        output=ModelOutput(),
+        call=ModelCall.create(call_request, None),
+    )
+
+    first_work = tmp_path / "first"
+    first_work.mkdir()
+    first_cp = _EnteredCheckpointer(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "state1")),
+        resume_checkpoint=None,
+        reset_transcript_store=True,
+    )
+    first_cp._track_transcript_event(restored)
+    await first_cp._write_host_context(str(first_work), Store())
+    first_cp.close()
+
+    from inspect_ai.util._checkpoint._layout import host_context
+
+    first_context = host_context.read(str(first_work))
+    assert len(first_context.condensed_events) == 1
+    condensed = first_context.condensed_events[0]
+    assert isinstance(condensed, ModelEvent)
+    assert condensed.input_refs is not None
+    assert condensed.call is not None
+    assert condensed.call.call_refs is not None
+
+    fake_transcript = Transcript(bounded=True, resident_tail=10, log_model_api=True)
+    seeded_events: list[Event] = []
+    fake_transcript._subscribe(seeded_events.append)
+    monkeypatch.setattr(
+        "inspect_ai.util._checkpoint.hydrate.transcript",
+        lambda: fake_transcript,
+    )
+    monkeypatch.setattr(
+        "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
+        lambda: fake_transcript,
+    )
+    monkeypatch.setattr(
+        "inspect_ai.util._checkpoint.hydrate.sample_state",
+        lambda: type("FakeState", (), {"store": Store()})(),
+    )
+
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "state2"))
+    hydration.host.condensed_events = first_context.condensed_events
+    hydration.host.msg_pool = first_context.msg_pool
+    hydration.host.call_pool = first_context.call_pool
+
+    from inspect_ai.util._checkpoint.hydrate import _push_host_state
+
+    _push_host_state(hydration.host, str(tmp_path / "ckpts"), None)
+    assert seeded_events == fake_transcript.resident_events
+    seeded_model = seeded_events[0]
+    assert isinstance(seeded_model, ModelEvent)
+    assert seeded_model.input_refs is None
+    assert [message.content for message in seeded_model.input] == ["sys", "question"]
+    assert seeded_model.call is not None
+    assert seeded_model.call.call_refs is None
+    assert seeded_model.call.request == call_request
+
+    resumed_cp = _EnteredCheckpointer(
+        config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
+        hydration=hydration,
+        resume_checkpoint=ResumeCheckpoint(
+            sample_checkpoints_dir=str(tmp_path / "prior")
+        ),
+        reset_transcript_store=True,
+    )
+
+    resumed_work = tmp_path / "resumed"
+    resumed_work.mkdir()
+    resumed_cp._track_transcript_event(InfoEvent(uuid="after-resume", data="new"))
+    await resumed_cp._write_host_context(str(resumed_work), Store())
+    resumed_cp.close()
+
+    expanded = expand_events(
+        (resumed_work / "events.json").read_text(),
+        (resumed_work / "events_data.json").read_text(),
+    )
+    assert [event.uuid for event in expanded] == ["restored-model", "after-resume"]
+    expanded_model = expanded[0]
+    assert isinstance(expanded_model, ModelEvent)
+    assert [message.content for message in expanded_model.input] == [
+        "sys",
+        "question",
+    ]
+    assert expanded_model.call is not None
+    assert expanded_model.call.request == call_request

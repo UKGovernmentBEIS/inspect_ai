@@ -9,6 +9,8 @@ from inspect_ai._display.core.display import TaskDisplayMetric
 from ..._log import EvalSampleSummary
 
 if TYPE_CHECKING:
+    from inspect_ai.util._checkpoint._transcript_store import CheckpointTranscriptStore
+
     from .history import SampleHistory
 
 JsonData: TypeAlias = dict[str, JsonValue]
@@ -130,6 +132,13 @@ class SampleBuffer(abc.ABC):
     @abc.abstractmethod
     def sample_event_count(self, id: str | int, epoch: int) -> int:
         """Return the number of distinct events recorded for a sample."""
+        ...
+
+    @abc.abstractmethod
+    def import_checkpoint_events(
+        self, id: str | int, epoch: int, transcript_store: "CheckpointTranscriptStore"
+    ) -> int:
+        """Import a sample's full event history into a checkpoint transcript store."""
         ...
 
     @abc.abstractmethod

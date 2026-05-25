@@ -134,6 +134,21 @@ class Checkpointer(Protocol):
         ...
 
 
+class CheckpointerSetup(Protocol):
+    """Per-sample setup object stored on ActiveSample.
+
+    Enters to yield the agent-facing :class:`Checkpointer` and closes any
+    cached resources at sample teardown. ``close()`` is intentionally here,
+    not on ``Checkpointer``, so agents don't see lifecycle concerns.
+    """
+
+    async def __aenter__(self) -> Checkpointer: ...
+
+    async def __aexit__(self, *exc: object) -> None: ...
+
+    def close(self) -> None: ...
+
+
 @contextlib.asynccontextmanager
 async def checkpointer() -> AsyncIterator[Checkpointer]:
     """Enter the checkpointer bound to the active sample.

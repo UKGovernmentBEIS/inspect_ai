@@ -10,7 +10,7 @@ from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection, OperationalError
-from typing import Callable, Iterable, Iterator, Literal
+from typing import TYPE_CHECKING, Callable, Iterable, Iterator, Literal, cast
 
 import psutil
 from pydantic import BaseModel, JsonValue
@@ -66,6 +66,9 @@ from .types import (
 
 logger = getLogger(__name__)
 SYNC_CLEANUP_TIMEOUT = 30
+
+if TYPE_CHECKING:
+    from inspect_ai.util._checkpoint._transcript_store import CheckpointTranscriptStore
 
 
 class TaskData(BaseModel):
@@ -521,6 +524,89 @@ class SampleBufferDatabase(SampleBuffer):
                 except Exception:
                     conn.rollback()
                     raise
+
+    def import_checkpoint_events(
+        self, id: str | int, epoch: int, transcript_store: "CheckpointTranscriptStore"
+    ) -> int:
+        seed_count = 0
+        with self._acquire_sample_read_lease(id, epoch):
+            with self._get_connection() as conn:
+                conn.execute("BEGIN")
+                try:
+                    pool_attachment_refs: set[str] = set()
+                    message_pos_map: dict[int, int] = {}
+                    for pos, message_entry in enumerate(
+                        self._get_message_pool(conn, id, epoch)
+                    ):
+                        message_pos_map[pos] = (
+                            transcript_store.merge_message_pool_entry(
+                                message_entry.msg_id, message_entry.data
+                            )
+                        )
+                        pool_attachment_refs.update(
+                            transcript_store.attachment_refs_from_json(
+                                message_entry.data
+                            )
+                        )
+                    call_pos_map: dict[int, int] = {}
+                    for pos, call_entry in enumerate(
+                        self._get_call_pool(conn, id, epoch)
+                    ):
+                        call_pos_map[pos] = transcript_store.merge_call_pool_entry(
+                            call_entry.hash, call_entry.data
+                        )
+                        pool_attachment_refs.update(
+                            transcript_store.attachment_refs_from_json(call_entry.data)
+                        )
+
+                    def attachment_lookup(hash: str) -> str | None:
+                        row = conn.execute(
+                            """
+                            SELECT content FROM attachments
+                            WHERE sample_id = ? AND sample_epoch = ? AND hash = ?
+                            """,
+                            [str(id), epoch, hash],
+                        ).fetchone()
+                        return None if row is None else str(row["content"])
+
+                    transcript_store.merge_attachment_refs(
+                        pool_attachment_refs, attachment_lookup
+                    )
+                    for row in self._get_events(conn, id, epoch, latest_only=True):
+                        transcript_store.merge_condensed_event(
+                            row.event_id,
+                            self._remap_pool_refs(
+                                row.event, message_pos_map, call_pos_map
+                            ),
+                            attachment_lookup,
+                        )
+                        seed_count += 1
+                    conn.commit()
+                    return seed_count
+                except Exception:
+                    conn.rollback()
+                    raise
+
+    @staticmethod
+    def _remap_pool_refs(
+        event: JsonData, message_pos_map: dict[int, int], call_pos_map: dict[int, int]
+    ) -> JsonData:
+        """Rewrite a condensed event's pool refs after importing its pool entries."""
+        remapped = dict(event)
+        input_refs = remapped.get("input_refs")
+        if isinstance(input_refs, list):
+            remapped["input_refs"] = cast(
+                JsonValue, _remap_refs(input_refs, message_pos_map)
+            )
+        call = remapped.get("call")
+        if isinstance(call, dict):
+            call_refs = call.get("call_refs")
+            if isinstance(call_refs, list):
+                remapped["call"] = {
+                    **call,
+                    "call_refs": cast(JsonValue, _remap_refs(call_refs, call_pos_map)),
+                }
+        return remapped
 
     @contextmanager
     def open_sample_history_tail(

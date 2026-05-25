@@ -350,6 +350,12 @@ class SampleBufferFilestore(SampleBuffer):
         raise NotImplementedError("Sample history is only available for buffer DBs")
 
     @override
+    def import_checkpoint_events(
+        self, id: str | int, epoch: int, transcript_store: object
+    ) -> int:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
+
+    @override
     def open_sample_history_tail(
         self,
         id: str | int,
