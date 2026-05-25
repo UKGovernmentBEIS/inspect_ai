@@ -23,6 +23,7 @@ from ._metric import (
 )
 from ._metrics.accuracy import accuracy
 from ._metrics.grouped import grouped
+from ._metrics.krippendorff import krippendorff_alpha
 from ._metrics.mean import mean
 from ._metrics.perplexity import perplexity_per_seq, perplexity_per_token
 from ._metrics.std import bootstrap_stderr, std, stderr, var
@@ -74,6 +75,7 @@ __all__ = [
     "f1",
     "grouped",
     "includes",
+    "krippendorff_alpha",
     "match",
     "math",
     "max_score",
