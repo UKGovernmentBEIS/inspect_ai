@@ -319,7 +319,7 @@ async def test_broken_subscriber_does_not_block_others() -> None:
     """One subscriber raising must not prevent siblings from firing.
 
     Mirrors the resilience contract on
-    ``Transcript._add_subscriber`` — the producer's task continues
+    ``Transcript._subscribe`` — the producer's task continues
     even if a downstream listener is broken.
     """
 
