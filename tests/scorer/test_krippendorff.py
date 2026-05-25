@@ -1,10 +1,17 @@
-import logging
 import math
+from unittest.mock import patch
 
 import pytest
 
 from inspect_ai.scorer import Score, krippendorff_alpha, value_to_float
 from inspect_ai.scorer._metric import SampleScore
+
+
+def _nominal_warning_emitted(mock_logger) -> bool:
+    return any(
+        call.args and "nominal level applied to numeric data" in call.args[0]
+        for call in mock_logger.warning.call_args_list
+    )
 
 
 def _sample_scores(units):
@@ -146,37 +153,25 @@ def test_krippendorff_ordinal_text_without_to_float_raises():
 # ---------------------------------------------------------------------------
 
 
-def test_krippendorff_nominal_on_numeric_warns(caplog):
+def test_krippendorff_nominal_on_numeric_warns():
     alpha = krippendorff_alpha()
-    with caplog.at_level(
-        logging.WARNING, logger="inspect_ai.scorer._metrics.krippendorff"
-    ):
+    with patch("inspect_ai.scorer._metrics.krippendorff.logger") as mock_logger:
         alpha(_sample_scores([[1, 1], [3, 3], [5, 5]]))
-    assert any(
-        "nominal level applied to numeric data" in r.message for r in caplog.records
-    )
+    assert _nominal_warning_emitted(mock_logger)
 
 
-def test_krippendorff_nominal_on_binary_does_not_warn(caplog):
+def test_krippendorff_nominal_on_binary_does_not_warn():
     alpha = krippendorff_alpha()
-    with caplog.at_level(
-        logging.WARNING, logger="inspect_ai.scorer._metrics.krippendorff"
-    ):
+    with patch("inspect_ai.scorer._metrics.krippendorff.logger") as mock_logger:
         alpha(_sample_scores([[0, 1], [1, 1], [0, 0]]))
-    assert not any(
-        "nominal level applied to numeric data" in r.message for r in caplog.records
-    )
+    assert not _nominal_warning_emitted(mock_logger)
 
 
-def test_krippendorff_nominal_on_strings_does_not_warn(caplog):
+def test_krippendorff_nominal_on_strings_does_not_warn():
     alpha = krippendorff_alpha()
-    with caplog.at_level(
-        logging.WARNING, logger="inspect_ai.scorer._metrics.krippendorff"
-    ):
+    with patch("inspect_ai.scorer._metrics.krippendorff.logger") as mock_logger:
         alpha(_sample_scores([["a", "a"], ["b", "b"], ["c", "c"]]))
-    assert not any(
-        "nominal level applied to numeric data" in r.message for r in caplog.records
-    )
+    assert not _nominal_warning_emitted(mock_logger)
 
 
 def test_krippendorff_invalid_level_raises():
