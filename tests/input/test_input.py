@@ -106,7 +106,8 @@ async def test_empty_config_dispatches_to_console_handler(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # With no custom handler configured, request_input falls through to
-    # _dispatch_builtin, which now routes to console_handler.
+    # _dispatch_builtin. With no ACP session bound (default) and no
+    # Textual panel, dispatch falls through to console_handler.
     sentinel = InputResult(outcome="accepted", content={"from": "console"})
     called = 0
 
@@ -122,6 +123,59 @@ async def test_empty_config_dispatches_to_console_handler(
     result = await request_input(message="hello", schema=SCHEMA)
     assert result is sentinel
     assert called == 1
+
+
+async def test_dispatch_builtin_prefers_acp_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When acp_handler returns a result, panel/console are not invoked.
+
+    Pins the ACP-first selection order added in Phase 6a. If acp_handler
+    returns ``None`` (no live ACP session), dispatch continues to fall
+    through to panel/console — covered by the surrounding tests.
+    """
+    from inspect_ai.input import acp as acp_module
+    from inspect_ai.input import console as console_module
+
+    acp_sentinel = InputResult(outcome="accepted", content={"from": "acp"})
+    console_called = 0
+
+    async def fake_acp_handler(request: InputRequest) -> InputResult | None:
+        return acp_sentinel
+
+    async def fake_console_handler(request: InputRequest) -> InputResult:
+        nonlocal console_called
+        console_called += 1
+        return InputResult(outcome="accepted", content={"from": "console"})
+
+    monkeypatch.setattr(acp_module, "acp_handler", fake_acp_handler)
+    monkeypatch.setattr(console_module, "console_handler", fake_console_handler)
+
+    result = await request_input(message="hello", schema=SCHEMA)
+    assert result is acp_sentinel
+    assert console_called == 0
+
+
+async def test_dispatch_builtin_falls_through_when_acp_returns_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """When acp_handler returns None, dispatch continues to panel/console."""
+    from inspect_ai.input import acp as acp_module
+    from inspect_ai.input import console as console_module
+
+    console_sentinel = InputResult(outcome="accepted", content={"from": "console"})
+
+    async def fake_acp_handler(request: InputRequest) -> InputResult | None:
+        return None
+
+    async def fake_console_handler(request: InputRequest) -> InputResult:
+        return console_sentinel
+
+    monkeypatch.setattr(acp_module, "acp_handler", fake_acp_handler)
+    monkeypatch.setattr(console_module, "console_handler", fake_console_handler)
+
+    result = await request_input(message="hello", schema=SCHEMA)
+    assert result is console_sentinel
 
 
 # -- orchestrator: custom handler outcomes --------------------------------

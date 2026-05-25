@@ -16,7 +16,19 @@ Both are registry-backed (`@input_handler` / `@input_notifier`), configured at t
 - **Wire protocol on the ACP side:** ACP 0.10.0's new `elicitation/create` request (marked UNSTABLE upstream — accepted per [[project_acp_no_installed_clients]]). Capability-gated via `ElicitationCapabilities.form` in the client's `initialize`.
 - **Author-facing API:** a model-callable `ask_user` tool. The model picks when to ask; the answer comes back as a structured tool result. No agent-loop changes.
 - **Question shape:** structured forms from day one — we use ACP's `ElicitationSchema` and property-schema Pydantic types directly (imported from `acp.schema`) rather than inventing a parallel hierarchy or re-exporting.
-- **Handler model:** *not* a generalized chain. At runtime there is at most one custom handler (user-configured) plus one auto-selected built-in. The built-in selection is deterministic from runtime context (ACP attached → acp; full Textual display → panel; else → console). Existing approval code at `approval/_human/approver.py:25-52` already does this — we reuse the pattern but expose it through the new handler/notifier abstraction.
+- **Handler model:** *not* a generalized chain. At runtime there is at most one custom handler (user-configured) plus one auto-selected built-in. The built-in selection is deterministic from runtime context — see "Routing policy" below.
+
+## Routing policy
+
+Built-in handler selection is governed by whether the eval has booted an `AcpServer` that is currently accepting external clients (i.e. `--acp-server` is active):
+
+- **`--acp-server` NOT active.** The ACP handler short-circuits with `None` and the dispatcher falls through to the Textual panel and then the console — same priority order Phase 4 / Phase 2 established. This is the "stand-alone eval" mode; the operator works at the terminal where the eval runs.
+
+- **`--acp-server` IS active.** `ACP is the human channel.` All `ask_user` and `approver: human` interactions route exclusively through attached ACP clients. The in-proc Textual panel and console handlers are bypassed entirely. If no client is connected when an interaction fires, the eval parks on the registry's attach event until one attaches — *no silent fallback*. The notification-driven workflow depends on this: an operator who reaches the form by clicking a Slack ping (etc.) must not race the panel for the resolution.
+
+This is a one-way commit. There is no per-interaction or per-eval opt-out; the meaning of `--acp-server` is "ACP is the human channel for this eval." If the operator never attaches a client, the eval blocks indefinitely on the first interaction — which is the right semantic for a notification-driven workflow. The operator cancels the sample if they give up.
+
+The mechanism is a module-level `acp_server_accepting_clients()` accessor (`src/inspect_ai/agent/_acp/server.py`) backed by a `ContextVar` that the `acp_server(...)` context manager flips on for the bound-server lifetime and off when the server stops. Routing shims in `src/inspect_ai/input/acp.py` and `src/inspect_ai/approval/_human/acp.py` consult the accessor at their public entry; the inner driver-chain loop unconditionally parks on chain exhaustion regardless of attach history. The flag is deliberately separate from "is the current transport a `LiveAcpTransport`": the Live transport is opened per-sample regardless of `--acp-server` (sub-agent reachability needs the in-process pub/sub plumbing), and nested `acp_session()` blocks install a `NoOp` shadow that would mis-route human-in-the-loop traffic. Both shims also resolve the routing target via `sample_active().acp_transport` (the outermost Live, pinned at sample startup) rather than the ContextVar — sub-agent isolation is for *event publishing*, not human channels.
 
 ## Concepts and types
 
@@ -57,7 +69,7 @@ Mirrors `src/inspect_ai/approval/_human/`. Files:
 - **`manager.py`** — `HumanQuestionManager` (parallel to `HumanApprovalManager` at `approval/_human/manager.py:28-92`): in-process queue of pending questions for the Textual panel handler.
 - **`panel.py`** — `QuestionInputPanel(InputPanel)` (parallel to `ApprovalInputPanel` at `approval/_human/panel.py:52-103`). Renders form fields dynamically from `ElicitationSchema`: Textual `Input` for strings/numbers, `Checkbox` for booleans, `SelectionList` for multi-select. Submit / Decline buttons.
 - **`console.py`** — console-fallback handler. Walks schema properties using `input_screen()` (`util/_console.py:13-41`) + Rich's `Prompt.ask` / `Confirm.ask` / `IntPrompt.ask`.
-- **`acp.py`** — ACP-handler wrapper. Calls `current_acp_transport().request_elicitation(...)` if available and at least one elicitation-capable client is attached; returns `None` if neither precondition holds.
+- **`acp.py`** — ACP-handler wrapper. Routes via `sample_active().acp_transport.request_elicitation(...)` (the outermost `LiveAcpTransport`, pinned at sample startup — see "Routing policy" for why this is NOT `current_acp_transport()`). Gated on `acp_server_accepting_clients()`: returns `None` when `--acp-server` is not active so the dispatcher falls through to panel / console. When the server IS active, parks until an elicitation-capable client attaches — no silent fallback.
 - **`registry.py`** — `@input_handler` and `@input_notifier` decorators. Follow the existing `@approver` pattern (registry name + factory function returning the actual callable).
 
 `request.py` looks roughly like:
@@ -114,7 +126,7 @@ Touch points (all parallel to existing approval code):
 - **`connection.py`** — add `request_elicitation(request: CreateFormElicitationRequest) -> ElicitationResponse` next to `request_permission()` (~`connection.py:889-955`). Implementation: `await self._connection.send_request("elicitation/create", params)`. Parse the response action (`accept` / `decline` / `cancel`). Also: capture `ElicitationCapabilities` out of the `initialize` request and store on `ConnectionState` alongside the existing flags (`client_renders_plan`, `raw_events_subscription`).
 - **`transport.py`** — add `ElicitationClient` protocol mirroring `ApproverClient` at `transport.py:69-115`.
 - **`transport_live.py`** — add `_ElicitationClientRegistry` modeled on `_ApproverClientRegistry` (`transport_live.py:437-`). Same driver-chain-with-fallback semantics: when an attached client disconnects mid-request, retry on the next.
-- The ACP-handler in `_input/acp.py` (above) checks `current_acp_transport().has_elicitation_clients()` and bails if none.
+- The ACP-handler in `_input/acp.py` (above) gates on `acp_server_accepting_clients()` and routes via `sample_active().acp_transport`'s elicitation driver chain. Under exclusive routing it parks on `subscribe_elicitation_attach` when the chain is empty rather than bailing — see "Routing policy".
 
 Elicitation lives on the transport, not on `AgentChannel`. The channel carries items *into* the agent loop (operator messages, cancel signals); elicitation is an agent→operator request that flows out via the same low-level path as `session/request_permission`. The two pieces of plumbing exist independently on the transport — the channel substrate is orthogonal to this design.
 
@@ -406,17 +418,19 @@ Verification: `pytest tests/agent/test_acp/test_elicitation.py`; `mypy --exclude
 Plugs Phase 5's transport into Phase 1's orchestrator via a new built-in handler.
 
 **Files created:**
-- `src/inspect_ai/input/acp.py` — `acp_handler(message, schema) -> InputResult | None`. Checks `current_acp_transport().has_elicitation_clients()`; if False returns `None`. Otherwise builds a `CreateFormElicitationRequest` (form mode, session scope, `requestedSchema` set), dispatches via the transport's elicitation registry driver chain, maps the response to `InputResult`.
+- `src/inspect_ai/input/acp.py` — `acp_handler(request) -> InputResult | None`. Gates on `acp_server_accepting_clients()` (the `acp_server(...)` context manager's ContextVar flag); when off, returns `None` so the dispatcher falls through. When on, resolves the routing target via `sample_active().acp_transport` (the outermost `LiveAcpTransport`, NOT `current_acp_transport()` — see "Routing policy"), builds an `ElicitationRequest` (message + session_id + requestedSchema), dispatches through the transport's elicitation driver chain, parks on `subscribe_elicitation_attach` if no client is attached, and maps the response to `InputResult`.
 - `tests/agent/test_acp/test_elicitation_e2e.py` — end-to-end over a real AF_UNIX socket with a stub elicitation-capable client (pattern: see existing `test_approval.py` E2E test).
 
 **Files modified:**
-- `src/inspect_ai/input/builtin.py` — `_dispatch_builtin` order now: ACP → panel → console. ACP handler returns `None` (no clients) → fall to panel → `NotImplementedError` (no Textual) → fall to console.
+- `src/inspect_ai/input/builtin.py` — `_dispatch_builtin` order now: ACP → panel → console. ACP handler returns `None` when `--acp-server` is not active (no `AcpServer` accepting external clients), falling through to panel → `NotImplementedError` (no Textual) → console. When `--acp-server` IS active the handler routes exclusively via ACP — no fallthrough on missing clients; the shim parks until one attaches.
 
 **Tests:**
-- ACP attached → selection picks ACP, panel/console not invoked.
-- ACP not attached (no clients) → selection skips ACP, picks panel or console per display.
-- ACP attached but client lacks `elicitation.form` capability → skipped; falls through.
+- `--acp-server` active + client attached → selection picks ACP, panel/console not invoked.
+- `--acp-server` active + no client attached → shim parks on attach event (no fallthrough — regression of the notification-driven race).
+- `--acp-server` not active → handler returns `None`, dispatcher falls through to panel or console per display.
+- ACP attached but client lacks `elicitation.form` capability → request skipped over in the driver chain.
 - End-to-end over socket: agent calls `ask_user`, stub client receives `elicitation/create`, returns accept → tool result reaches the model.
+- End-to-end attach-after-fire: `ask_user` fires BEFORE any client attaches; result still routes via ACP once the client connects.
 
 Verification: `pytest tests/agent/test_acp/test_elicitation*`; manual smoke against Zed (or a stub) via `inspect acp --stdio` confirming the form renders client-side and the answer round-trips.
 

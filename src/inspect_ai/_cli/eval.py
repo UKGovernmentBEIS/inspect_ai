@@ -379,7 +379,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "default AF_UNIX socket; pass an integer to bind a TCP loopback "
             "port (e.g. `--acp-server=4444`); pass `host:port` to bind on a "
             "specific interface (e.g. `--acp-server=0.0.0.0:4444`); pass a "
-            "filesystem path for a custom UNIX socket."
+            "filesystem path for a custom UNIX socket. When this flag is set, "
+            "all human-in-the-loop interactions (`approver: human` and the "
+            "`ask_user` tool) route exclusively through attached ACP clients; "
+            "the in-proc Textual panel and console handlers are bypassed. If "
+            "no client is connected when an interaction fires, the eval parks "
+            "until one attaches."
         ),
         envvar="INSPECT_EVAL_ACP_SERVER",
     )

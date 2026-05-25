@@ -42,6 +42,10 @@ from .widgets import (
 from .widgets.approval_bar import _ApprovalBar
 from .widgets.cancel_sample import _BUTTON_ID_PREFIX as _CANCEL_BUTTON_ID_PREFIX
 from .widgets.cancel_sample import _CancelSampleBar
+from .widgets.elicitation_card import (
+    ElicitationDecisionRequested,
+    _ElicitationCard,
+)
 from .widgets.plan import PlanOverlayScreen
 from .widgets.tool_call import _BUTTON_ID_PREFIX, ApprovalDecisionRequested
 
@@ -333,11 +337,60 @@ class SessionScreen(Screen[None]):
             return
         header.set_usage(self._state.usage)
         transcript.refresh_from(self._state)
+        self._apply_elicitation_card(transcript)
         # ``_apply_lifecycle`` calls ``refresh_bindings`` itself so the
         # ``^p plan`` footer hint flips on the same tick the strip
         # becomes visible (and so the bare-letter gates re-evaluate
         # when the cancel bar shows / hides).
         self._apply_lifecycle()
+
+    def _apply_elicitation_card(self, transcript: TranscriptWidget) -> None:
+        """Mount / unmount the inline elicitation card based on state.
+
+        Single source of truth is :attr:`SessionState.pending_elicitation`.
+        When set we mount an :class:`_ElicitationCard` right after the
+        transcript so it reads as inline conversational chrome (above
+        the plan strip + composer). When cleared we remove the card —
+        the answer (or decline / cancel) has been routed back over the
+        wire and the tool result will land in the transcript through
+        the normal ``ToolCallProgress`` flow.
+
+        Mounts at most one card; idempotent re-application
+        (subscriber fires per-state-change) is a no-op while the
+        already-mounted card matches the current pending.
+        """
+        existing = self._elicitation_card_or_none()
+        pending = self._state.pending_elicitation
+        if pending is None:
+            if existing is not None:
+                existing.remove()
+            return
+        # If a card is already mounted for THE SAME pending object,
+        # leave it alone — re-mounting would steal focus and reset form
+        # state. If the card belongs to a stale pending (a second
+        # ``ask_user`` arrived before the prior card unmounted —
+        # ``consume_elicitation_request`` cancels the prior pending and
+        # installs the new one in a single notify), remove the stale
+        # card so we can mount the fresh one. Identity comparison
+        # (``is`` not ``==``) — pending objects can structurally match
+        # by coincidence but the JSON-RPC handler only resolves the
+        # specific instance currently parked in state.
+        if existing is not None:
+            if existing.pending is pending:
+                return
+            existing.remove()
+        card = _ElicitationCard.from_pending(pending)
+        # Mount right after the transcript so the card flows visually
+        # below the most recent transcript item and above the plan
+        # strip / composer. ``after=`` makes Textual insert into the
+        # parent container at the correct ordinal position.
+        self.query_one("Vertical").mount(card, after=transcript)
+
+    def _elicitation_card_or_none(self) -> _ElicitationCard | None:
+        try:
+            return self.query_one(_ElicitationCard)
+        except NoMatches:
+            return None
 
     def check_action(self, action: str, _parameters: tuple[object, ...]) -> bool | None:
         """Hide the ``^p plan`` footer hint when there's nothing to show.
@@ -547,6 +600,21 @@ class SessionScreen(Screen[None]):
     # ------------------------------------------------------------------
     # Actions
     # ------------------------------------------------------------------
+
+    def on_elicitation_decision_requested(
+        self, message: ElicitationDecisionRequested
+    ) -> None:
+        """Resolve the pending elicitation bubbled up from the inline card.
+
+        The card's Submit / Decline button posts this message; we land
+        it here and call :meth:`SessionState.resolve_elicitation`,
+        which fires the ``PendingElicitation.event`` the client-side
+        JSON-RPC handler is parked on. That handler then writes the
+        response back over the wire and the next state-change tick
+        unmounts the card via :meth:`_apply_elicitation_card`.
+        """
+        self._state.resolve_elicitation(action=message.action, content=message.content)
+        message.stop()
 
     def on_approval_decision_requested(
         self, message: ApprovalDecisionRequested
