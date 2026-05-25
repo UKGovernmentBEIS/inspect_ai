@@ -736,6 +736,16 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
     Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the `num_samples` option).
 
+-   `krippendorff_alpha()`
+
+    Krippendorff's α coefficient of inter-rater agreement across multiple judges or scorers. Each sample's `Score.value` must be a sequence of per-judge ratings (one element per judge); the metric computes α across all samples. Pick the measurement scale that matches your ratings:
+
+    -   `level="nominal"` (default) — unordered categories (e.g. correct/incorrect labels or category IDs). Any difference counts as a full disagreement.
+    -   `level="ordinal"` — ordered categories with unequal gaps (e.g. 1–5 Likert ratings). Distance is weighted by the marginal frequency of intermediate ranks (Krippendorff 2007).
+    -   `level="interval"` — numbers on an equal-interval scale. Distance is the squared numeric difference.
+
+    For ordinal or interval levels, non-numeric ratings require a `to_float` mapping; pass `to_float=value_to_float()` to map `CORRECT`/`INCORRECT`/`PARTIAL`/`NOANSWER` strings to 1/0/0.5/0, or supply your own ordering for text categories. With two judges, nominal α reduces to behaviour similar to Cohen's κ.
+
 ### Metric Grouping
 
 The `grouped()` function applies a given metric to subgroups of samples defined by a key in sample `metadata`, creating a separate metric for each group along with an `"all"` metric that aggregates across all samples or groups. Each sample must have a value for whatever key is used for grouping.
@@ -793,6 +803,39 @@ def gpqa():
 ```
 
 The `metrics` passed to the `Task` override the default metrics of the `choice()` scorer.
+
+### Multi-Judge Reliability
+
+`krippendorff_alpha()` measures agreement *across* the judges who scored each sample, so it needs `Score.value` to be a list of per-judge ratings rather than a single aggregated value. The built-in `multi_scorer()` reducers (`"mean"`, `"mode"`, etc.) collapse multiple judges to a single value, which discards the per-judge information α needs. Pair `multi_scorer()` with a small custom reducer that preserves the list:
+
+``` python
+from inspect_ai.scorer import (
+    Score,
+    ScoreReducer,
+    krippendorff_alpha,
+    multi_scorer,
+    score_reducer,
+)
+
+@score_reducer
+def collect() -> ScoreReducer:
+    def reduce(scores: list[Score]) -> Score:
+        return Score(value=[s.value for s in scores])
+    return reduce
+
+@task
+def judge_reliability():
+    return Task(
+        ...,
+        scorer=multi_scorer(
+            scorers=[judge1, judge2, judge3],
+            reducer=collect(),
+        ),
+        metrics=[krippendorff_alpha(level="ordinal")],
+    )
+```
+
+Each sample's `Score.value` is now `[judge1_rating, judge2_rating, judge3_rating]`, which `krippendorff_alpha()` aggregates across samples to compute α. Pick `level="nominal"` for unordered category labels, `level="ordinal"` for Likert-style ratings, or `level="interval"` for continuous scores; see the metric's docstring for details.
 
 ### Custom Metrics
 

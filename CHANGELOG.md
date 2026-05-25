@@ -1,3 +1,7 @@
+## Unreleased
+
+- Scoring: Add `krippendorff_alpha()` metric for inter-rater agreement across multiple judges, with nominal / ordinal / interval measurement scales.
+
 ## 0.3.226 (25 May 2026)
 
 - OpenAI: Backfill required 'query' field when service only provides 'queries'.
