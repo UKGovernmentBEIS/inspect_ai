@@ -232,17 +232,26 @@ expand from one source rather than re-typing the list."""
 
 
 def test_client_capabilities_advertises_plan_rendering_and_event_subscription() -> None:
-    """Unit check: the constant ships ``inspect.plan_rendering`` + raw-event subscription.
+    """Unit check: the constant ships ``inspect.plan_rendering`` + raw-event subscription + ``elicitation.form``.
 
     Both ``_list_for_target`` and ``attach_session`` send this dict
     verbatim in their ``initialize`` request, so a single
     structure-level assertion covers both code paths.
+
+    ``elicitation.form`` lives at the top level (not under
+    ``_meta``) because it's a standard ACP capability — empty
+    object is the spec's marker shape for
+    ``ElicitationFormCapabilities``. Without advertising it the
+    server-side Phase 5 capability gate leaves us off the
+    elicitation registry and ``ask_user`` falls through to the
+    in-proc panel / console handlers.
     """
     assert CLIENT_CAPABILITIES == {
+        "elicitation": {"form": {}},
         "_meta": {
             "inspect.plan_rendering": True,
             "inspect.raw_events": _EXPECTED_RAW_EVENTS,
-        }
+        },
     }
 
 

@@ -25,6 +25,7 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.content import Content
 from textual.strip import Strip
 from textual.style import Style
+from textual.widget import Widget
 from textual.widgets import Checkbox, Input, Select, SelectionList, Static
 from textual.widgets.selection_list import Selection
 from typing_extensions import override
@@ -38,6 +39,14 @@ from inspect_ai.input._validate import (
     validate_number,
     validate_string,
 )
+
+# Canonical "required but empty" error string returned by FieldRow's
+# per-type collect helpers. Extracted as a module constant so
+# :meth:`FieldRow.is_empty_required` can match against it without
+# duplicating the control-by-control "is the input blank?" walk.
+# Keep the string itself in sync with the literals used inside
+# ``FieldRow._collect_string`` / ``_collect_integer`` / ``_collect_number``.
+_REQUIRED_ERROR = "This field is required."
 
 
 class _CleanCheckbox(Checkbox):
@@ -223,6 +232,35 @@ class ElicitationForm(VerticalScroll):
         if self._fields:
             self._fields[0].focus_control()
 
+    def focus_next_empty_required(self, *, after: Widget) -> bool:
+        """Focus the next empty-required field after the one owning ``after``.
+
+        ``after`` is typically the :class:`Input` widget that
+        emitted :class:`Input.Submitted` (Enter on the focused
+        input). The control widgets the form composes — ``Input``,
+        ``Select``, ``Checkbox``, ``SelectionList`` — are yielded
+        directly from :meth:`FieldRow._compose_control`, so
+        ``after.parent`` is the owning :class:`FieldRow`.
+
+        Returns:
+            ``True`` if focus moved to a later empty-required
+            field; ``False`` if no such field exists, in which case
+            the caller should submit (or otherwise advance past
+            the form). Also returns ``False`` if ``after`` isn't
+            recognised as one of this form's controls — defensive,
+            so a stray bubbled :class:`Input.Submitted` from
+            outside the form doesn't crash the dispatch.
+        """
+        owner = after.parent
+        if not isinstance(owner, FieldRow) or owner not in self._fields:
+            return False
+        start = self._fields.index(owner) + 1
+        for row in self._fields[start:]:
+            if row.is_empty_required():
+                row.focus_control()
+                return True
+        return False
+
 
 _OMIT = object()
 
@@ -303,6 +341,23 @@ class FieldRow(Vertical):
                 child.focus()
                 return
 
+    def is_empty_required(self) -> bool:
+        """``True`` iff this field is required and currently blank.
+
+        Drives the "advance to next empty required" Enter-key
+        behaviour in :meth:`ElicitationForm.focus_next_empty_required`.
+        Piggybacks on :meth:`collect` rather than re-walking the
+        per-type controls so the predicate stays in sync with the
+        canonical "blank" check that drives validation errors.
+        Non-required fields always return ``False`` — pressing
+        Enter past an empty optional field is fine, the form will
+        treat it as ``_OMIT`` on submit.
+        """
+        if not self._required:
+            return False
+        _, error = self.collect()
+        return error == _REQUIRED_ERROR
+
     def collect(self) -> tuple[Any, str | None]:
         """Parse and validate this field's current input.
 
@@ -330,7 +385,7 @@ class FieldRow(Vertical):
             select = self.query_one(Select)
             if select.is_blank():
                 if self._required:
-                    return None, "This field is required."
+                    return None, _REQUIRED_ERROR
                 return _OMIT, None
             return select.value, None
 
@@ -338,7 +393,7 @@ class FieldRow(Vertical):
         raw = input_widget.value
         if not raw:
             if self._required:
-                return None, "This field is required."
+                return None, _REQUIRED_ERROR
             return _OMIT, None
         return validate_string(prop, raw)
 
@@ -348,7 +403,7 @@ class FieldRow(Vertical):
         raw = self.query_one(Input).value.strip()
         if not raw:
             if self._required:
-                return None, "This field is required."
+                return None, _REQUIRED_ERROR
             return _OMIT, None
         return validate_integer(prop, raw)
 
@@ -358,7 +413,7 @@ class FieldRow(Vertical):
         raw = self.query_one(Input).value.strip()
         if not raw:
             if self._required:
-                return None, "This field is required."
+                return None, _REQUIRED_ERROR
             return _OMIT, None
         return validate_number(prop, raw)
 

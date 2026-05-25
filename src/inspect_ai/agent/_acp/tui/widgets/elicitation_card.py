@@ -1,35 +1,32 @@
-"""Inline elicitation card — Phase 6a minimal version.
+"""Inline elicitation card.
 
 Rendered into the session screen while
 :attr:`~inspect_ai.agent._acp.tui.state.SessionState.pending_elicitation`
 is set; unmounts as soon as the operator resolves it (or one of the
-session cancel paths drops it). Bare-minimum widget: a bold header
-showing the elicitation's prompt, the shared
-:class:`~inspect_ai._util.textual.form.ElicitationForm` body, and a
-Submit / Decline button row.
+session cancel paths drops it).
 
-Phase 6b will extract a reusable ``InlineRequestCard`` primitive
-(approval + cancel migrate onto it); for now this widget is
-elicitation-specific so we ship the wire path end-to-end without
-locking in an abstraction that we haven't yet validated against
-the other request kinds.
+The card extends the shared :class:`InlineRequestCard` primitive
+(see :mod:`.inline_request_card`) — the outer bordered Vertical,
+bold header, body, and compact-button actions row all come from
+there. This file only fills in the elicitation-kind body
+(:class:`ElicitationForm`) and the Submit / Decline action pair.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from acp.schema import ElicitationSchema
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical
 from textual.message import Message
-from textual.widgets import Button, Static
+from textual.widgets import Button, Input
 
 from inspect_ai._util.textual.form import ElicitationForm
 from inspect_ai.agent._acp.tui.state import (
     ElicitationAction,
     PendingElicitation,
 )
+
+from .inline_request_card import InlineRequestCard
 
 
 class ElicitationDecisionRequested(Message):
@@ -55,7 +52,7 @@ class ElicitationDecisionRequested(Message):
         self.content = content
 
 
-class _ElicitationCard(Vertical):
+class _ElicitationCard(InlineRequestCard):
     """Inline form card rendered while an elicitation is pending.
 
     The screen mounts at most one of these (the agent loop issues
@@ -68,26 +65,26 @@ class _ElicitationCard(Vertical):
     _DECLINE_ID = "decline-elicitation"
 
     DEFAULT_CSS = """
-    _ElicitationCard {
-        height: auto;
-        margin: 1 2 1 2;
-        padding: 1 1 0 1;
-        border: tall $accent 55%;
-    }
-    _ElicitationCard .elicitation-prompt {
-        text-style: bold;
-        margin-bottom: 1;
-    }
     _ElicitationCard ElicitationForm {
         height: auto;
         max-height: 16;
     }
-    _ElicitationCard #elicitation-actions {
-        height: auto;
-        margin-top: 1;
+    /* Two sources contribute to the visible gap between the form
+     * and the buttons: ElicitationForm's per-field
+     * ``FieldRow { margin-bottom: 1 }`` (which fires even on the
+     * last row, since the form was designed for multi-field
+     * dialogs) and the base class's
+     * ``#request-actions { margin-top: 1 }``. With a typical
+     * single-question schema both fire and the result reads as a
+     * stray 2-row hole. Zero both out here — approval / cancel
+     * cards have no body and still need the actions breathing
+     * room, so the override is scoped to ``_ElicitationCard`` and
+     * does not leak. */
+    _ElicitationCard FieldRow:last-of-type {
+        margin-bottom: 0;
     }
-    _ElicitationCard #elicitation-actions Button {
-        margin-right: 1;
+    _ElicitationCard #request-actions {
+        margin-top: 0;
     }
     """
 
@@ -95,25 +92,17 @@ class _ElicitationCard(Vertical):
         self,
         *,
         message: str,
-        schema: ElicitationSchema,
+        schema: Any,
     ) -> None:
         super().__init__()
         self._message = message
         self._schema = schema
-        # Held for ``on_mount`` so focus lands on the first field — same
-        # rationale as ``QuestionInputPanel.on_questions_changed`` (focus
-        # on Submit would let Space submit an empty form).
+        # Held for ``on_mount`` so focus lands on the first form field
+        # — the base's first-focusable walk would land on the
+        # ElicitationForm's first input anyway, but going through
+        # ``ElicitationForm.focus_first`` is more deliberate (it
+        # knows how to skip over decorative widgets inside the form).
         self._form: ElicitationForm | None = None
-        # Identity of the ``PendingElicitation`` this card represents,
-        # set by :meth:`from_pending`. The session screen's apply-loop
-        # compares this against ``state.pending_elicitation`` and
-        # remounts when they diverge — covers the case where a second
-        # ``ask_user`` arrives before the prior card has unmounted
-        # (without this, the screen would keep the stale prompt /
-        # schema mounted while submissions resolved the new pending).
-        # ``None`` for cards built directly via the constructor (unit
-        # tests); production code always goes through ``from_pending``.
-        self.pending: PendingElicitation | None = None
 
     @classmethod
     def from_pending(cls, pending: PendingElicitation) -> "_ElicitationCard":
@@ -121,37 +110,97 @@ class _ElicitationCard(Vertical):
 
         Convenience for the session screen so the mount site doesn't
         have to know the card's constructor shape. Pins the
-        :class:`PendingElicitation` identity on the card so the screen
+        :class:`PendingElicitation` identity on the card's
+        :attr:`request` slot (base-class attribute) so the screen
         can detect a stale match and replace.
         """
         card = cls(message=pending.message, schema=pending.requested_schema)
-        card.pending = pending
+        card.request = pending
         return card
 
-    def compose(self) -> ComposeResult:
-        yield Static(self._message, classes="elicitation-prompt", markup=False)
+    @property
+    def pending(self) -> PendingElicitation | None:
+        """Back-compat accessor for the parked elicitation identity.
+
+        New code should read ``card.request`` directly (the base
+        class slot); this property exists so tests written against
+        the Phase 6a name keep passing without churn. Returns
+        whatever was set via :meth:`from_pending`.
+        """
+        if isinstance(self.request, PendingElicitation):
+            return self.request
+        return None
+
+    @property
+    def header_text(self) -> str:
+        return self._message
+
+    def compose_body(self) -> ComposeResult:
         form = ElicitationForm(self._schema)
         self._form = form
         yield form
-        with Horizontal(id="elicitation-actions"):
-            yield Button(
-                "Submit",
-                id=self._SUBMIT_ID,
-                variant="primary",
-                tooltip="Submit the answer.",
-            )
-            yield Button(
-                "Decline",
-                id=self._DECLINE_ID,
-                tooltip="Decline to answer.",
-            )
+
+    def compose_actions(self) -> ComposeResult:
+        yield Button(
+            "Submit",
+            id=self._SUBMIT_ID,
+            variant="primary",
+            compact=True,
+            tooltip="Submit the answer.",
+        )
+        yield Button(
+            "Decline",
+            id=self._DECLINE_ID,
+            compact=True,
+            tooltip="Decline to answer.",
+        )
 
     def on_mount(self) -> None:
-        # Focus the first form field — see QuestionInputPanel for the
-        # rationale (focus on Submit would let an early Space activate
-        # the button and submit an empty form).
+        # Override the base's first-focusable walk: go through
+        # ``ElicitationForm.focus_first`` so we land on a real form
+        # input even if the form starts with decorative widgets.
+        #
+        # Defer one refresh cycle: at on_mount time the form's
+        # FieldRow children have been yielded and their direct
+        # children (Input / Select / etc.) appear in the widget
+        # tree, but layout hasn't run yet and Textual's
+        # ``focus()`` is a no-op against a widget that isn't yet
+        # part of a laid-out screen. ``call_after_refresh`` runs
+        # the call after the next refresh pass, when the whole
+        # subtree is live and focusable. Mirrors the
+        # "Approval / cancel auto-focus a button on mount" UX —
+        # the elicitation flavour just targets the first form
+        # input rather than the first button.
         if self._form is not None:
-            self._form.focus_first()
+            self.call_after_refresh(self._form.focus_first)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Enter on a form Input → advance to next empty required, or submit.
+
+        Textual's :class:`Input` consumes Enter and emits
+        :class:`Input.Submitted`, stopping the keypress event
+        before the screen-level ``Binding("enter", action_submit)``
+        runs. So this handler is the canonical Enter dispatch
+        while the elicitation card has focus on a form input —
+        no need for a screen-level priority binding.
+
+        Multi-field UX (chose "advance, then submit"):
+
+        - If a later required field is still empty, focus it and
+          do NOT submit. Operators can fill multi-field forms by
+          typing + Enter through each row, the same Tab-then-Enter
+          flow they expect from web forms.
+        - Otherwise (all required fields filled, or this is the
+          only field), call :meth:`_submit` — the same path the
+          Submit button click takes. Validation errors short-
+          circuit submit and surface inline.
+        """
+        event.stop()
+        form = self._form
+        if form is None:
+            return
+        if not form.focus_next_empty_required(after=event.input):
+            self._submit()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         # Stop here so the screen doesn't see a generic Button.Pressed —
