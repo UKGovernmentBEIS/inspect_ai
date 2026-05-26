@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import logging
+import os
 from copy import deepcopy
 from pathlib import Path
 from typing import (
@@ -13,6 +15,7 @@ from typing import (
     Literal,
     Sequence,
     Tuple,
+    cast,
 )
 
 if TYPE_CHECKING:
@@ -23,8 +26,16 @@ import anyio
 from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
 from inspect_ai._eval.loader import load_file_tasks, scorer_from_spec
+from inspect_ai._eval.task.sandbox import (
+    TaskSandboxEnvironment,
+    resolve_sandbox,
+    sandboxenv_context,
+)
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
+from inspect_ai._util.environ import environ_vars
+from inspect_ai._util.error import exception_message
+from inspect_ai._util.path import chdir
 from inspect_ai._util.platform import platform_init, running_in_notebook
 from inspect_ai._util.registry import (
     has_registry_params,
@@ -33,6 +44,7 @@ from inspect_ai._util.registry import (
     registry_params,
     registry_unqualified_name,
 )
+from inspect_ai.dataset import Sample
 from inspect_ai.event._event import Event
 from inspect_ai.event._score import ScoreEvent
 from inspect_ai.event._tree import (
@@ -47,6 +59,7 @@ from inspect_ai.log import (
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalMetricDefinition, EvalSample
 from inspect_ai.log._resolve import rebind_sample_timelines
+from inspect_ai.log._samples import active_sample
 from inspect_ai.log._score import _find_scorers_span
 from inspect_ai.log._transcript import Transcript, init_transcript, transcript
 from inspect_ai.model import ModelName
@@ -68,6 +81,14 @@ from inspect_ai.util._display import (
     display_type_initialized,
     init_display_type,
 )
+from inspect_ai.util._sandbox.context import sandbox_connections
+from inspect_ai.util._sandbox.environment import (
+    SandboxEnvironmentConfigType,
+    TaskCleanup,
+    TaskInit,
+    TaskInitEnvironment,
+)
+from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
 from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME, span
 from inspect_ai.util._store import init_subtask_store
 
@@ -75,6 +96,7 @@ from .task.log import resolve_eval_scorers
 from .task.results import ScorerInfo, eval_results
 
 ScoreAction = Literal["append", "overwrite"]
+logger = logging.getLogger(__name__)
 
 
 def score(
@@ -209,6 +231,138 @@ def _get_updated_events(
     return list(event_sequence(sample_event_tree))
 
 
+def _sandbox_cleanup(log: EvalLog) -> bool:
+    return (
+        log.eval.config.sandbox_cleanup
+        if log.eval.config.sandbox_cleanup is not None
+        else True
+    )
+
+
+def _score_task_run_dir(log: EvalLog) -> str:
+    if log.eval.task_file:
+        return Path(log.eval.task_file).absolute().parent.as_posix()
+    else:
+        return os.getcwd()
+
+
+def _sample_for_sandbox_context(sample: EvalSample) -> Sample:
+    return Sample(
+        id=sample.id,
+        input=sample.input,
+        choices=sample.choices,
+        target=sample.target,
+        metadata=sample.metadata,
+        sandbox=sample.sandbox,
+        setup=sample.setup,
+    )
+
+
+def _log_uses_sandbox(log: EvalLog) -> bool:
+    return log.eval.sandbox is not None or any(
+        sample.sandbox is not None for sample in log.samples or []
+    )
+
+
+@contextlib.asynccontextmanager
+async def _score_sandbox_task_context(
+    log: EvalLog,
+    samples: Callable[[int], AsyncContextManager[EvalSample]],
+    total_samples: int,
+) -> AsyncGenerator[None, None]:
+    if not _log_uses_sandbox(log):
+        yield
+        return
+
+    run_dir = _score_task_run_dir(log)
+    sandboxenvs: set[TaskSandboxEnvironment] = set()
+    for idx_sample in range(total_samples):
+        async with samples(idx_sample) as sample:
+            sandbox_sample = _sample_for_sandbox_context(sample)
+            sandbox = await resolve_sandbox(log.eval.sandbox, sandbox_sample)
+            if sandbox is not None:
+                sandboxenv_type = registry_find_sandboxenv(sandbox.type)
+                task_init_environment = cast(
+                    TaskInitEnvironment,
+                    getattr(sandboxenv_type, "task_init_environment"),
+                )
+                env = await task_init_environment(sandbox.config, sample.metadata or {})
+                sandboxenvs.add(
+                    TaskSandboxEnvironment(
+                        sandbox=sandbox,
+                        run_dir=run_dir,
+                        env=tuple(sorted(env.items())),
+                    )
+                )
+
+    cleanups: list[tuple[TaskCleanup, SandboxEnvironmentConfigType | None, str]] = []
+    cleanup = _sandbox_cleanup(log)
+    with display_manager().suspend_task_app():
+        for sandboxenv in sandboxenvs:
+            sandboxenv_type = registry_find_sandboxenv(sandboxenv.sandbox.type)
+            task_init = cast(TaskInit, getattr(sandboxenv_type, "task_init"))
+            with chdir(sandboxenv.run_dir), environ_vars(dict(sandboxenv.env)):
+                await task_init("startup", sandboxenv.sandbox.config)
+
+            task_cleanup = cast(TaskCleanup, getattr(sandboxenv_type, "task_cleanup"))
+            cleanups.append(
+                (task_cleanup, sandboxenv.sandbox.config, sandboxenv.run_dir)
+            )
+
+    try:
+        yield
+    finally:
+        with anyio.CancelScope(shield=True):
+            for cleanup_fn, config, task_run_dir in cleanups:
+                try:
+                    with chdir(task_run_dir):
+                        await cleanup_fn("shutdown", config, cleanup)
+                except BaseException as ex:
+                    logger.warning(
+                        "Error occurred shutting down sandbox environments: "
+                        f"{exception_message(ex)}"
+                    )
+
+
+@contextlib.asynccontextmanager
+async def _score_sample_sandbox_context(
+    log: EvalLog, sample: EvalSample
+) -> AsyncGenerator[None, None]:
+    if log.eval.sandbox is None and sample.sandbox is None:
+        yield
+        return
+
+    sandbox_sample = _sample_for_sandbox_context(sample)
+    sample_uuid = sample.uuid if sample.uuid is not None else str(sample.id)
+    async with active_sample(
+        task=log.eval.task,
+        log_location=log.location or "",
+        model=log.eval.model,
+        sample=sandbox_sample,
+        epoch=sample.epoch,
+        message_limit=log.eval.config.message_limit,
+        token_limit=log.eval.config.token_limit,
+        cost_limit=log.eval.config.cost_limit,
+        time_limit=log.eval.config.time_limit,
+        working_limit=log.eval.config.working_limit,
+        fails_on_error=bool(log.eval.config.fail_on_error),
+        transcript=transcript(),
+        eval_id=log.eval.eval_id,
+        eval_set_id=log.eval.eval_set_id,
+        run_id=log.eval.run_id,
+        sample_uuid=sample_uuid,
+    ) as active:
+        async with sandboxenv_context(
+            log.eval.task,
+            log.eval.sandbox,
+            log.eval.config.max_sandboxes,
+            _sandbox_cleanup(log),
+            sandbox_sample,
+        ):
+            active.sandboxes = await sandbox_connections()
+            yield
+
+
 async def score_async(
     log: EvalLog,
     scorers: "Scorers",
@@ -328,12 +482,13 @@ async def score_async(
                 scorer_names = names
             p.update(1)
 
-        await tg_collect(
-            (
-                functools.partial(_score_sample, idx_sample)
-                for idx_sample in range(total_samples)
+        async with _score_sandbox_task_context(log, samples, total_samples):
+            await tg_collect(
+                (
+                    functools.partial(_score_sample, idx_sample)
+                    for idx_sample in range(total_samples)
+                )
             )
-        )
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
         # that will be taken care of in eval_results). For append, the new scorer
@@ -442,40 +597,41 @@ async def _run_score_task(
 
     results: dict[str, SampleScore] = {}
     scorer_names: list[str] = []
-    async with span(name=SCORERS_SPAN_NAME):
-        for scorer in scorers:
-            scorer_name = unique_scorer_name(
-                scorer, list({*existing_score_names, *results})
-            )
-            scorer_names.append(scorer_name)
-            async with span(name=scorer_name, type=SCORER_SPAN_TYPE):
-                score_result = await scorer(state, target)
-                if scorer_name in state.scores:
-                    raise RuntimeError(
-                        f"Scorer {scorer_name} has modified state.scores"
-                    )
-                if score_result is not None:
-                    state.scores[scorer_name] = score_result
-
-                    transcript()._event(
-                        ScoreEvent(
-                            score=score_result,
-                            target=target.target,
-                            scorer=scorer_name,
-                            scorer_args=registry_params(scorer)
-                            if has_registry_params(scorer)
-                            else None,
-                            model_usage=resolved_sample.model_usage or None,
-                            role_usage=resolved_sample.role_usage or None,
+    async with _score_sample_sandbox_context(log_header, resolved_sample):
+        async with span(name=SCORERS_SPAN_NAME):
+            for scorer in scorers:
+                scorer_name = unique_scorer_name(
+                    scorer, list({*existing_score_names, *results})
+                )
+                scorer_names.append(scorer_name)
+                async with span(name=scorer_name, type=SCORER_SPAN_TYPE):
+                    score_result = await scorer(state, target)
+                    if scorer_name in state.scores:
+                        raise RuntimeError(
+                            f"Scorer {scorer_name} has modified state.scores"
                         )
-                    )
+                    if score_result is not None:
+                        state.scores[scorer_name] = score_result
 
-                    results[scorer_name] = SampleScore(
-                        score=score_result,
-                        sample_id=state.sample_id,
-                        sample_metadata=state.metadata,
-                        scorer=registry_unqualified_name(scorer),
-                    )
+                        transcript()._event(
+                            ScoreEvent(
+                                score=score_result,
+                                target=target.target,
+                                scorer=scorer_name,
+                                scorer_args=registry_params(scorer)
+                                if has_registry_params(scorer)
+                                else None,
+                                model_usage=resolved_sample.model_usage or None,
+                                role_usage=resolved_sample.role_usage or None,
+                            )
+                        )
+
+                        results[scorer_name] = SampleScore(
+                            score=score_result,
+                            sample_id=state.sample_id,
+                            sample_metadata=state.metadata,
+                            scorer=registry_unqualified_name(scorer),
+                        )
 
     # slice off only the newly added events
     new_events = transcript().events[len(resolved_sample.events) :]
