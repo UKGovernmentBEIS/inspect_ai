@@ -1,4 +1,5 @@
 import json
+from collections.abc import Mapping
 from logging import getLogger
 from typing import Any, cast
 
@@ -33,6 +34,10 @@ from .._generate_config import GenerateConfig
 from .openai_compatible import OpenAICompatibleAPI
 
 OPENROUTER_API_KEY = "OPENROUTER_API_KEY"
+OPENROUTER_APP_ATTRIBUTION_HEADERS = {
+    "HTTP-Referer": "https://inspect.aisi.org.uk/",
+    "X-OpenRouter-Title": "Inspect AI",
+}
 
 logger = getLogger(__name__)
 
@@ -67,6 +72,21 @@ class OpenRouterError(Exception):
             if "metadata" in self.response
             else ""
         )
+
+
+def _apply_app_attribution_headers(model_args: dict[str, Any]) -> None:
+    default_headers = model_args.get("default_headers")
+    if default_headers is None:
+        model_args["default_headers"] = OPENROUTER_APP_ATTRIBUTION_HEADERS.copy()
+        return
+
+    if not isinstance(default_headers, Mapping):
+        raise PrerequisiteError("default_headers must be a mapping")
+
+    merged_headers = OPENROUTER_APP_ATTRIBUTION_HEADERS | dict(default_headers)
+    if "X-Title" in default_headers and "X-OpenRouter-Title" not in default_headers:
+        merged_headers.pop("X-OpenRouter-Title", None)
+    model_args["default_headers"] = merged_headers
 
 
 class OpenRouterAPI(OpenAICompatibleAPI):
@@ -121,6 +141,14 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         if self.reasoning_enabled is not None:
             if not isinstance(self.reasoning_enabled, bool):
                 raise PrerequisiteError("reasoning_enabled must be a boolean")
+
+        self.app_attribution = collect_model_arg("app_attribution")
+        if self.app_attribution is None:
+            self.app_attribution = True
+        if not isinstance(self.app_attribution, bool):
+            raise PrerequisiteError("app_attribution must be a boolean")
+        if self.app_attribution:
+            _apply_app_attribution_headers(model_args)
 
         # call super
         super().__init__(

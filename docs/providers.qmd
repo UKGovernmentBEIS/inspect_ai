@@ -1308,8 +1308,11 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 | [`provider`](https://openrouter.ai/docs/features/provider-routing) | `-M "provider={ 'quantizations': ['int8'] }"` |
 | [`transforms`](https://openrouter.ai/docs/features/message-transforms) | `-M "transforms=['middle-out']"` |
 | [`reasoning_enabled`](https://openrouter.ai/docs/use-cases/reasoning-tokens) | `-M "reasoning_enabled=false"` |
+| [`app_attribution`](https://openrouter.ai/docs/app-attribution) | `-M app_attribution=false` |
 
 : {tbl-colwidths=\[20,85\]}
+
+Inspect sends OpenRouter [app attribution](https://openrouter.ai/docs/app-attribution) headers by default (`HTTP-Referer: https://inspect.aisi.org.uk/` and `X-OpenRouter-Title: Inspect AI`). To attribute requests to your own application, pass `default_headers` as a model arg; user-supplied headers override Inspect's defaults. To disable the default attribution headers entirely, set `app_attribution=false`.
 
 In addition, [Tool Emulation](#tool-emulation-openai) is available for models that don't yet support tool calling in their API.
 
