@@ -187,6 +187,66 @@ You can pass a different continuation message, or alternatively pass an `AgentCo
   - `AgentState`: Agent loop continues and the agent state is updated to the returned value.
 
 
+## Controlling Loop Depth
+
+There are two common ways to keep a ReAct agent from working longer than you want:
+
+1.  Let an outer workflow control turn-taking by disabling the submit tool.
+
+2.  Keep the submit tool, but bound the loop with `on_continue` and sample limits.
+
+For fixed-turn conversations, such as a client agent talking to a customer-service agent, `submit=False` is often the simplest option. With no submit tool, `react()` returns when the model stops calling tools, so the outer workflow can decide when the next agent gets a turn:
+
+``` python
+from inspect_ai.agent import AgentState, react, run
+from inspect_ai.model import ChatMessageUser
+
+client = react(
+    prompt="You are an airline customer. Answer one question at a time.",
+    submit=False,
+)
+service = react(
+    prompt="You are a customer-service agent. Ask one concise follow-up.",
+    submit=False,
+)
+
+state = AgentState(
+    messages=[
+        ChatMessageUser(
+            content="Hello, I have a baggage check-in question about my flight."
+        )
+    ]
+)
+
+for _ in range(2):
+    state = await run(service, state)
+    state = await run(client, state)
+```
+
+Use the default submit tool when the agent should decide when it has completed the task. In that mode, you can use `on_continue` to stop after a bounded number of agent turns or to send a more specific continuation message:
+
+``` python
+from inspect_ai.agent import AgentState, react
+
+
+async def stop_after_two_turns(state: AgentState) -> bool | str:
+    assistant_turns = sum(
+        1 for message in state.messages if message.role == "assistant"
+    )
+    if assistant_turns >= 2:
+        return False
+    return "Ask one concise follow-up question, then wait for the client."
+
+
+service = react(
+    prompt="You are a customer-service agent. Submit when the exchange is complete.",
+    on_continue=stop_after_two_turns,
+)
+```
+
+For hard safety bounds, also set [message, token, or time limits](setting-limits.qmd#sample-limits) at the task level or apply scoped limits when invoking an agent with `run()`.
+
+
 ## Submit Tool
 
 As described above, the `react()` agent uses a special `submit()` tool internally to enable the model to signal explicitly when it is complete and has an answer. The use of a `submit()` tool has a couple of benefits:
