@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Text Editor Tool: Cap undo history to 10 and no longer consider failures in undo history file operations fatal.
+- Inspect View: Add UI for editing log tags and metadata, with author/reason provenance recorded in `log_updates`. S3-backed logs use `If-Match` ETag protection against concurrent modification.
 
 ## 0.3.226 (25 May 2026)
 
@@ -23,7 +24,6 @@
 - Scoring: Use scorers_info instead of scorers for functions that recompute metrics.
 - Scanning: Compatibility with Inspect Scout 0.4.37.
 - Async: `run_coroutine()` (and the sync log/analysis helpers built on it) now honour `INSPECT_ASYNC_BACKEND=trio` when called with no running event loop, rather than always using asyncio.
-- Inspect View: Add UI for editing log tags and metadata, with author/reason provenance recorded in `log_updates`. S3-backed logs use `If-Match` ETag protection against concurrent modification.
 - Bugfix: Resolve message/call pool references in DB-buffer recovery.
 
 ## 0.3.224 (20 May 2026)
