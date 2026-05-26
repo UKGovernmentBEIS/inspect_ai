@@ -1,12 +1,40 @@
+import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 import anyio
 import pytest
 
 from inspect_ai._util._async import tg_collect
 from inspect_ai.util._limit import (
+    UNBOUNDED_MESSAGE_WARNING_THRESHOLD,
     LimitExceededError,
     check_message_limit,
     message_limit,
 )
+
+
+@contextmanager
+def _capture_limit_warnings() -> Iterator[list[str]]:
+    messages: list[str] = []
+
+    class CaptureHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            messages.append(record.getMessage())
+
+    logger = logging.getLogger("inspect_ai.util._limit")
+    handler = CaptureHandler(level=logging.WARNING)
+    previous_level = logger.level
+    previous_propagate = logger.propagate
+    logger.addHandler(handler)
+    logger.setLevel(logging.WARNING)
+    logger.propagate = False
+    try:
+        yield messages
+    finally:
+        logger.removeHandler(handler)
+        logger.setLevel(previous_level)
+        logger.propagate = previous_propagate
 
 
 def test_validates_limit_parameter() -> None:
@@ -17,6 +45,40 @@ def test_validates_limit_parameter() -> None:
 def test_can_create_with_none_limit() -> None:
     with message_limit(None):
         check_message_limit(10, raise_for_equal=False)
+
+
+def test_warns_once_when_none_limit_reaches_high_message_count() -> None:
+    with _capture_limit_warnings() as warning_messages:
+        with message_limit(None):
+            check_message_limit(
+                UNBOUNDED_MESSAGE_WARNING_THRESHOLD - 1,
+                raise_for_equal=False,
+            )
+            check_message_limit(
+                UNBOUNDED_MESSAGE_WARNING_THRESHOLD,
+                raise_for_equal=False,
+            )
+            check_message_limit(
+                UNBOUNDED_MESSAGE_WARNING_THRESHOLD + 1,
+                raise_for_equal=False,
+            )
+
+    assert warning_messages == [
+        "Message count has reached 1,000 with no message_limit set. "
+        "This can cause unbounded generation loops and unexpected API costs; "
+        "set message_limit=... to bound the conversation."
+    ]
+
+
+def test_does_not_warn_when_finite_limit_is_set() -> None:
+    with _capture_limit_warnings() as warning_messages:
+        with message_limit(UNBOUNDED_MESSAGE_WARNING_THRESHOLD + 1):
+            check_message_limit(
+                UNBOUNDED_MESSAGE_WARNING_THRESHOLD,
+                raise_for_equal=False,
+            )
+
+    assert not warning_messages
 
 
 def test_can_create_with_zero_limit() -> None:

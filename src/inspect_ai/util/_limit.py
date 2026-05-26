@@ -36,6 +36,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 TNode = TypeVar("TNode", bound="_Node")
 
+UNBOUNDED_MESSAGE_WARNING_THRESHOLD = 1_000
+
 
 class LimitExceededError(Exception):
     """Exception raised when a limit is exceeded.
@@ -1274,6 +1276,7 @@ class _MessageLimit(Limit, _Node):
         super().__init__()
         self._validate_message_limit(limit)
         self._limit = limit
+        self._unbounded_warning_issued = False
 
     def __enter__(self) -> Limit:
         super()._check_reuse()
@@ -1322,6 +1325,7 @@ class _MessageLimit(Limit, _Node):
         from inspect_ai.log._transcript import transcript
 
         if self.limit is None:
+            self._warn_if_unbounded(count)
             return
         if count > self.limit or (raise_for_equal and count == self.limit):
             reached_or_exceeded = "reached" if count == self.limit else "exceeded"
@@ -1341,6 +1345,19 @@ class _MessageLimit(Limit, _Node):
             raise ValueError(
                 f"Message limit value must be a non-negative integer or None: {value}"
             )
+
+    def _warn_if_unbounded(self, count: int) -> None:
+        if (
+            not self._unbounded_warning_issued
+            and count >= UNBOUNDED_MESSAGE_WARNING_THRESHOLD
+        ):
+            logger.warning(
+                "Message count has reached %s with no message_limit set. "
+                "This can cause unbounded generation loops and unexpected API costs; "
+                "set message_limit=... to bound the conversation.",
+                f"{UNBOUNDED_MESSAGE_WARNING_THRESHOLD:,}",
+            )
+            self._unbounded_warning_issued = True
 
 
 class _TimeLimit(Limit, _Node):
