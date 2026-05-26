@@ -27,7 +27,7 @@ from pydantic import BaseModel, JsonValue, TypeAdapter
 from inspect_ai._util._async import tg_collect
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.event._event import Event
-from inspect_ai.log._pool import (
+from inspect_ai.event._pool import (
     _build_call_index,
     _build_msg_index,
     condense_model_event_calls,
