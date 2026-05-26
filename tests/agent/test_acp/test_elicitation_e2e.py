@@ -9,7 +9,7 @@ Mirrors the approval E2E block at the bottom of
 3. Connects a hand-rolled JSON-RPC client that advertises
    ``elicitation.form`` capability and answers ``elicitation/create``
    requests with a configurable response.
-4. Drives :func:`inspect_ai.input.acp.acp_handler` from the "agent
+4. Drives :func:`inspect_ai.util._input.acp.acp_handler` from the "agent
    side" and asserts the wire payload + the response → InputResult
    round-trip.
 
@@ -37,8 +37,8 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
-from inspect_ai.input._types import InputRequest
-from inspect_ai.input.acp import acp_handler
+from inspect_ai.util import InputRequest
+from inspect_ai.util._input.acp import acp_handler
 
 # ---------------------------------------------------------------------------
 # Harness

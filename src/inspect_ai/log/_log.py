@@ -25,7 +25,6 @@ from inspect_ai._util.metadata import MT, metadata_as
 from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
 from inspect_ai.event._timeline import Timeline
-from inspect_ai.input import InputConfigSpec
 from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEdit
 from inspect_ai.model import (
     ChatMessage,
@@ -111,8 +110,12 @@ class EvalConfig(BaseModel):
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
 
-    ask_user: InputConfigSpec | None = Field(default=None)
-    """Configuration for the `ask_user` tool's input handler and notifiers."""
+    notification: bool | str | None = Field(default=None)
+    """Notification routing for human-in-the-loop interactions.
+
+    `True` means notifications are enabled via the `INSPECT_EVAL_NOTIFICATION`
+    environment variable; a string is a path to an Apprise YAML/text config
+    file. URLs are never stored here to keep secrets out of eval logs."""
 
     fail_on_error: bool | float | None = Field(default=None)
     """Fail eval when sample errors occur.

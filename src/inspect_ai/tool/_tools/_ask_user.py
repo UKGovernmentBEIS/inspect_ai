@@ -4,7 +4,7 @@ from acp.schema import ElicitationSchema
 from pydantic import ValidationError
 
 from inspect_ai._util.json import to_json_str_safe
-from inspect_ai.input import request_input
+from inspect_ai.util import request_input
 
 from .._tool import Tool, ToolError, tool
 

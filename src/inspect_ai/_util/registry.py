@@ -39,8 +39,6 @@ RegistryType = Literal[
     "agent",
     "approver",
     "hooks",
-    "input_handler",
-    "input_notifier",
     "metric",
     "modelapi",
     "plan",
@@ -304,18 +302,6 @@ def registry_create(type: Literal["task"], name: str, **kwargs: Any) -> Task: ..
 
 @overload
 def registry_create(type: Literal["tool"], name: str, **kwargs: Any) -> Tool: ...
-
-
-@overload
-def registry_create(
-    type: Literal["input_handler"], name: str, **kwargs: Any
-) -> Any: ...
-
-
-@overload
-def registry_create(
-    type: Literal["input_notifier"], name: str, **kwargs: Any
-) -> Any: ...
 
 
 @overload

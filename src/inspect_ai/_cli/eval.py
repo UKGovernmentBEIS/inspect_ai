@@ -134,6 +134,23 @@ BATCH_HELP = "Batch requests together to reduce API calls when using a model tha
 CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for default (every 5 turns), --checkpoint=turn:N / time:Ns/m/h/d / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
 
 
+def _notification_callback(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> bool | str | None:
+    """Resolve `--notification`: bare flag -> True, path -> str, absent -> None."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return value if isinstance(value, bool) else None
+    if value == "__bare__":
+        return True
+    if value.lower() in ("true", "yes", "1"):
+        return True
+    if value.lower() in ("false", "no", "0"):
+        return None
+    return value
+
+
 def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     """Click decorator: scanner CLI options shared by `eval` / `eval-set` / `eval-retry`."""
 
@@ -340,10 +357,23 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Config file for tool call approval.",
     )
     @click.option(
-        "--ask-user",
-        type=str,
-        envvar="INSPECT_EVAL_ASK_USER",
-        help="Registered input handler name or path to an input config file (YAML/JSON) for the ask_user tool.",
+        "--notification",
+        "notification",
+        is_flag=False,
+        flag_value="__bare__",
+        default=None,
+        callback=_notification_callback,
+        help=(
+            "Send out-of-band notifications when a human-in-the-loop "
+            "interaction (`ask_user` or human approval) is posted. Bare "
+            "`--notification` reads URL(s) from the "
+            "`INSPECT_EVAL_NOTIFICATION` environment variable (a single "
+            "Apprise URL, a comma-separated list, or a path to an Apprise "
+            "config file). `--notification <path>` reads from an Apprise "
+            "YAML/text config file. URLs are not accepted directly on the "
+            "command line so secrets never end up in shell history. "
+            "Requires `pip install apprise`."
+        ),
     )
     @click.option(
         "--sandbox",
@@ -915,7 +945,7 @@ def _eval_command_impl(
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
-    ask_user: str | None,
+    notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
@@ -1031,7 +1061,7 @@ def _eval_command_impl(
         metadata=metadata,
         trace=trace,
         approval=approval,
-        ask_user=ask_user,
+        notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         checkpoint=checkpoint,
@@ -1153,7 +1183,7 @@ def eval_set_command(
     solver: str | None,
     trace: bool | None,
     approval: str | None,
-    ask_user: str | None,
+    notification: bool | str | None,
     model: str | None,
     model_base_url: str | None,
     m: tuple[str, ...] | None,
@@ -1303,7 +1333,7 @@ def eval_set_command(
         metadata=metadata,
         trace=trace,
         approval=approval,
-        ask_user=ask_user,
+        notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         checkpoint=checkpoint,
@@ -1547,7 +1577,7 @@ def eval_exec(
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
-    ask_user: str | None,
+    notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
@@ -1720,7 +1750,7 @@ def eval_exec(
             metadata=eval_metadata,
             trace=trace,
             approval=approval,
-            ask_user=ask_user,
+            notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
             checkpoint=parse_checkpoint(checkpoint),

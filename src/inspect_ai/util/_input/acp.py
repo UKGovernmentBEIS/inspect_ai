@@ -5,7 +5,7 @@ external clients), ``request_input`` routes the prompt through ACP's
 ``elicitation/create`` rather than opening the in-proc Textual panel
 or console handler. When ``--acp-server`` is NOT active this module's
 entry point returns ``None`` and the caller
-(:func:`inspect_ai.input.builtin._dispatch_builtin`) falls through to
+(:func:`inspect_ai.util._input.builtin._dispatch_builtin`) falls through to
 the existing panel / console flow.
 
 Exclusive routing: under ``--acp-server`` the shim *parks* (does not

@@ -38,7 +38,6 @@ description: Miscellaneous utility functions.
 ### display_counter
 ### display_type
 ### DisplayType
-### input_screen
 
 ## Utilities
 
@@ -71,6 +70,14 @@ description: Miscellaneous utility functions.
 ### ExecStdout
 ### ExecStderr
 ### ExecCompleted
+
+## Intervention
+
+### notify
+### request_input
+### InputRequest
+### InputResult
+### InputResult
 
 ## Registry
 

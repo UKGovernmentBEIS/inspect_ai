@@ -29,8 +29,6 @@ from inspect_ai.approval._policy import (
     approval_policies_from_config,
 )
 from inspect_ai.dataset import Dataset, MemoryDataset, Sample
-from inspect_ai.input import InputConfig, InputConfigSpec
-from inspect_ai.input._config import resolve_input_config
 from inspect_ai.log import EvalLog, EvalLogInfo
 from inspect_ai.model import GenerateConfig
 from inspect_ai.model._model import Model
@@ -82,7 +80,6 @@ class Task:
         sandbox: SandboxEnvironmentType | None = None,
         checkpoint: CheckpointConfig | None = None,
         approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
-        ask_user: str | InputConfigSpec | InputConfig | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         continue_on_fail: bool | None = None,
@@ -121,11 +118,6 @@ class Task:
                 `checkpoint`.
             approval: Tool use approval policies.
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
-            ask_user: Configuration for the `ask_user` tool's input handler
-                and notifiers. Either a registered handler name, a path to an
-                input config file (YAML/JSON), an `InputConfigSpec`, or an
-                already-resolved `InputConfig`. Defaults to the built-in
-                console handler with no notifiers.
             epochs: Epochs to repeat samples for and optional score
                 reducer function(s) used to combine sample scores (defaults to "mean")
             fail_on_error: `True` to fail on first sample error
@@ -193,7 +185,6 @@ class Task:
         self.sandbox = resolve_sandbox_environment(sandbox)
         self.checkpoint = checkpoint
         self.approval = resolve_approval(approval)
-        self.ask_user = resolve_input_config(ask_user)
         epochs = resolve_epochs(epochs)
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
@@ -270,7 +261,6 @@ def task_with(
     | list[ApprovalPolicy]
     | None
     | NotGiven = NOT_GIVEN,
-    ask_user: str | InputConfigSpec | InputConfig | None | NotGiven = NOT_GIVEN,
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
@@ -312,11 +302,6 @@ def task_with(
             `checkpoint`.
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
-        ask_user: Configuration for the `ask_user` tool's input handler
-            and notifiers. Either a registered handler name, a path to an
-            input config file (YAML/JSON), an `InputConfigSpec`, or an
-            already-resolved `InputConfig`. Defaults to the built-in
-            console handler with no notifiers.
         epochs: Epochs to repeat samples for and optional score
             reducer function(s) used to combine sample scores (defaults to "mean")
         fail_on_error: `True` to fail on first sample error
@@ -375,8 +360,6 @@ def task_with(
         task.checkpoint = checkpoint
     if not isinstance(approval, NotGiven):
         task.approval = resolve_approval(approval)
-    if not isinstance(ask_user, NotGiven):
-        task.ask_user = resolve_input_config(ask_user)
     if not isinstance(epochs, NotGiven):
         epochs = resolve_epochs(epochs)
         task.epochs = epochs.epochs if epochs else None

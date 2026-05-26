@@ -17,9 +17,9 @@ from acp.schema import (
 from rich.console import Console
 from rich.prompt import Prompt
 
-from inspect_ai.input import InputRequest
-from inspect_ai.input import console as console_module
-from inspect_ai.input.console import (
+from inspect_ai.util import InputRequest
+from inspect_ai.util._input import console as console_module
+from inspect_ai.util._input.console import (
     DECLINE_TOKEN,
     _ask_schema,
     console_handler,

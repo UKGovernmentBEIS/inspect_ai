@@ -5,9 +5,13 @@ code-annotations: select
 
 ## Overview
 
-Agent intervention lets you observe a running agent, interrupt it, and redirect it with follow-up messages. Every intervention is recorded in the transcript, so the log faithfully captures both the agent's work and any operator actions.
+Agent intervention features support creating evaluations with a human in the loop, better modeling how agents accomplish tasks in real world settings. Intervention can be initialized from either the human or agent side:
 
-`react()` and `deepagent()` support intervention out of the box. [Custom agents](#adding-acp-to-an-agent) can opt in with a small change to their turn loop.
+1. Human operators can connect to running sessions, interrupt agents, and redirect them with follow-up messages.
+
+2. Agents can solicit help from humans by asking questions and sending notifications.
+
+Every intervention is recorded in the transcript, so the log faithfully captures both the agent's work and any actions taken by the human operator. `react()` and `deepagent()` support intervention out of the box. [Custom agents](#adding-acp-to-an-agent) can opt in with a small change to their turn loop.
 
 ## Interactive Agent Client
 
@@ -43,6 +47,7 @@ Other keybindings:
 
 - **Ctrl+S** switches to another running sample.
 
+
 ### Intervention Logging
 
 Interrupts and operator messages are recorded in the Inspect log:
@@ -70,6 +75,129 @@ inspect acp --server 127.0.0.1:4545
 ```
 
 You can also bind to a non-loopback interface with `--acp-server 0.0.0.0:4545`, but only on a trusted network, as anyone who can reach the port can drive the agent.
+
+### Intervention Clients
+
+While the ACP client described above is the preferred way to manage agent intervention, all of the intervention features also work with the standard Inspect full task display. Each call to `eval()` establishes which client it will use for intervention using the `--acp-server` option:
+
+```bash
+# manage intervention using ACP client
+inspect eval terminal_bench_2 --acp-server
+
+# manage intervention using standard task display
+inspect eval terminal_bench_2 
+```
+
+The ACP client is recommended because it is more feature rich, works with `--display plain` and other non-interactive display modes, and can be remoted over HTTP.
+
+## Questions and Notifications
+
+In some cases you may want agents to initiate intervention. You can do this by providing agents with the `ask_user()` and/or `notify_user()` tools.
+
+### Ask User Tool
+
+The `ask_user()` tool enables models to request structured information from users. It uses the the [ACP Elicitation](https://agentclientprotocol.com/rfds/elicitation) standard, which provides for a vareity of field types (text, boolean, enum, etc.).
+
+For example, here we add `ask_user()` to a `react()` agent:
+
+``` python
+from inspect_ai.agent import agent, react
+from inspect_ai.tool import ask_user, bash, text_editor
+
+@agent
+def ctf_agent():
+    return react(
+        description="Expert at completing cybersecurity challenges.",
+        prompt="You are an expert at CTF challenges.",
+        tools=[bash(), text_editor(), ask_user()]
+    )
+```
+
+If you are monitoring several sessions where agents may ask questions, use the main session display to monitor for pending questions:
+
+![](images/acp-pending.png){.border}
+
+In addition, the next section describes how to configure notifications so that you can be aware of questions as they are asked. 
+
+### Notifications
+
+Notifications fire whenever a human-in-the-loop interaction is posted (the `ask_user()` tool and tool-approval prompts). Inspect uses [Apprise](https://appriseit.com) to route notifications, which you can install with:
+
+``` bash
+pip install apprise
+```
+
+Apprise supports dozens of notifification types including Slack, desktop, SMS, email, and many other services. Learn more at <https://appriseit.com/services/>.
+
+Notifications are opt-in per eval. Notification URLs usually contain secrets, so neither the Python API nor the CLI accepts URL strings directly. Set them in the `INSPECT_EVAL_NOTIFICATION` environment variable, or pass a path to an Apprise config file. This keeps URLs out of source code, shell history, and eval logs.
+
+Set the environment variable in your `.env` file:
+
+``` bash
+# single URL
+INSPECT_EVAL_NOTIFICATION="slack://TokenA/TokenB/TokenC/#agent-help"
+
+# multiple URLs (comma-separated)
+INSPECT_EVAL_NOTIFICATION="macosx://,slack://TokenA/TokenB/TokenC/#agent-help"
+
+# or point at an Apprise config file
+INSPECT_EVAL_NOTIFICATION="/path/to/apprise.yml"
+```
+
+Then enable notifications for the eval. Using the CLI:
+
+``` bash
+inspect eval ctf_challenge --notification
+```
+
+Or using Python:
+
+``` python
+eval(task, model="openai/gpt-5", notification=True)
+```
+
+You can also point at an Apprise config file directly, with no environment variable required:
+
+``` python
+eval(task, model="openai/gpt-5", notification="/path/to/apprise.yml")
+```
+
+``` bash
+inspect eval ctf_challenge --notification /path/to/apprise.yml
+```
+
+::: {.callout-important}
+Apprise config files often carry secrets so should never be checked in to version control.
+:::
+
+
+#### Notify User Tool
+
+If you want the agent to be able to raise notifications to the user, you can also provide it with a `notify_user()` tool. For example:
+
+``` python
+from inspect_ai.agent import agent, react
+from inspect_ai.tool import ask_user, notify_user, bash, text_editor
+
+@agent
+def ctf_agent():
+    return react(
+        ...,
+        tools=[bash(), text_editor(), ask_user(), notify_user()]
+    )
+```
+
+#### Notify from Code
+
+You can also build scaffold driven notification into your custom agents by calling the `notify()` function. For example:
+
+```python
+from inspect_ai.util import notify
+
+async def my_step(state):
+    if state.output.stop_reason == "model_length":
+        await notify("Model context length exceeded.")
+```
 
 ## Adding ACP to an Agent
 
@@ -124,43 +252,10 @@ async def execute(state: AgentState) -> AgentState:
 
 4. `after_cancel` synthesizes a `ChatMessageTool` with `error.type="cancelled"` for any in-flight tool calls (so the next turn sees a clean tool_call / tool_result pair) and appends the operator's follow-up message.
 
-Notes:
 
-- Custom solvers and agents without this code still run normally. They just don't appear in the `inspect acp` picker.
+## Writing an ACP Client
 
-- Sub-agents invoked via `handoff()`, `as_tool()`, or `deepagent()` open their own channel but are not bound to the ACP transport. Only the outermost agent in a sample is ACP-controllable; sub-agent activity collapses to a single tool call in the operator's view.
-
-- Hard sample cancels (limits, eval shutdown) propagate as `CancelledError` and unwind the agent normally. `ch.turn_scope()` distinguishes the two: only producer-driven interrupts raise `AgentInterrupted`.
-
-
-## Using Other ACP Clients
-
-Any client that speaks the [Agent Client Protocol](https://agentclientprotocol.com) can attach to a running eval, including editors with built-in ACP support (such as [Zed](https://zed.dev)) or a custom built client.
-
-### Standard Clients
-
-ACP clients launch the agent as a subprocess and exchange JSON-RPC frames over its stdio. Inspect provides `inspect acp --stdio` as the bridge: the editor spawns it, and it forwards messages between the editor's stdio and a running eval's ACP socket.
-
-To use Inspect from Zed, add an entry like this to your `settings.json`:
-
-```json
-{
-  "agent_servers": {
-    "Inspect": {
-      "command": "inspect",
-      "args": ["acp", "--stdio"]
-    }
-  }
-}
-```
-
-The bridge auto-discovers the most recently started local eval running with `--acp-server`. If multiple evals are running it picks the newest and lists the others on stderr (visible in the editor's debug pane). To target a specific eval, pass `--eval-id <id>`; for an explicit transport, pass `--socket <path-or-host:port>`.
-
-Editors get the same intervention surface as `inspect acp`: pick among running samples, interrupt turns, send follow-up messages, and respond to approval prompts. Editors with native plan rendering display `update_plan` and `todo_write` calls as their own plan widgets.
-
-### Writing a Client
-
-Custom clients speak ACP directly over the eval's socket. Inspect implements the full standard ACP surface plus a handful of extensions; a client that uses only standard methods works without modification.
+Any client that speaks the [Agent Client Protocol](https://agentclientprotocol.com) can attach to a running eval. Custom clients speak ACP directly over the eval's socket. Inspect implements the full standard ACP surface plus a handful of extensions; a client that uses only standard methods works without modification.
 
 The standard surface is documented at [agentclientprotocol.com](https://agentclientprotocol.com). The methods Inspect expects:
 
@@ -202,7 +297,7 @@ Clients with a dedicated plan UI indicate this at `initialize` by setting `inspe
 }
 ```
 
-Inspect then translates `update_plan` and `todo_write` tool calls into `AgentPlanUpdate` notifications, which the client renders in its plan widget. With `elicitation.form` advertised, the agent's `ask_user` tool dispatches `elicitation/create` to the attached client and renders the operator's response back to the model as a structured tool result; without it, `ask_user` falls back to the in-proc Textual panel.
+Inspect then translates `update_plan` and `todo_write` tool calls into `AgentPlanUpdate` notifications, which the client renders in its plan widget. With `elicitation.form` advertised, the agent's `ask_user` tool dispatches `elicitation/create` to the attached client and renders the operator's response back to the model as a structured tool result. Without it, the `ask_user` prompt parks the sample until a client that declares `elicitation.form` attaches — under `--acp-server`, ACP is the exclusive human channel, with no silent fallback to the in-proc panel or console.
 
 The full set of extensions and metadata keys is defined in [inspect_ext.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/agent/_acp/inspect_ext.py).
 

@@ -52,6 +52,7 @@ from ._tools._execute import bash, python
 from ._tools._grep import grep
 from ._tools._list_files import list_files
 from ._tools._memory import memory
+from ._tools._notify_user import notify_user
 from ._tools._read_file import read_file
 from ._tools._skill import Skill, SkillInfo, install_skills, read_skills, skill
 from ._tools._text_editor import text_editor
@@ -71,6 +72,7 @@ __all__ = [
     "grep",
     "list_files",
     "memory",
+    "notify_user",
     "python",
     "read_file",
     "web_browser",

@@ -4,10 +4,10 @@ from typing import Any
 import pytest
 from acp.schema import ElicitationSchema
 
-from inspect_ai.input import InputResult
-from inspect_ai.input import request as request_module
 from inspect_ai.tool import ToolError, ask_user
 from inspect_ai.tool._tool_def import tool_def_fields
+from inspect_ai.util import InputResult
+from inspect_ai.util._input import request as request_module
 
 
 def _schema() -> dict[str, Any]:
@@ -29,7 +29,7 @@ async def test_accepted_returns_json_string(
         return InputResult(outcome="accepted", content=content)
 
     monkeypatch.setattr(request_module, "request_input", fake_request_input)
-    # The tool imports request_input by name from inspect_ai.input, so
+    # The tool imports request_input by name from inspect_ai.util, so
     # patch that binding too.
     import inspect_ai.tool._tools._ask_user as ask_user_module
 

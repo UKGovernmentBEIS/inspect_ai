@@ -30,7 +30,7 @@ from textual.widgets import Checkbox, Input, Select, SelectionList, Static
 from textual.widgets.selection_list import Selection
 from typing_extensions import override
 
-from inspect_ai.input._validate import (
+from inspect_ai.util._input._validate import (
     PropertySchema,
     multiselect_options,
     string_choice_labels,

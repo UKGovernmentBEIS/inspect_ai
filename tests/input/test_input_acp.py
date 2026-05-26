@@ -4,7 +4,7 @@ Mirrors the structure of ``tests/agent/test_acp/test_approval.py``
 one-for-one — same single-driver-with-fallback semantics, same
 park-and-retry on empty chain, same hard-contract on the public
 entry. The shim under test is
-:mod:`inspect_ai.input.acp`; the registry plumbing it consumes is
+:mod:`inspect_ai.util._input.acp`; the registry plumbing it consumes is
 covered by Phase 5's ``test_elicitation.py``.
 """
 
@@ -25,8 +25,8 @@ from acp.schema import (
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp.transport import ElicitationRequest
-from inspect_ai.input._types import InputRequest
-from inspect_ai.input.acp import (
+from inspect_ai.util import InputRequest
+from inspect_ai.util._input.acp import (
     _request_from_driver_with_fallback,
     _result_from_response,
     acp_handler,
@@ -417,7 +417,7 @@ def acp_server_running(monkeypatch):
     fall-through path.
     """
     monkeypatch.setattr(
-        "inspect_ai.input.acp.acp_server_accepting_clients", lambda: True
+        "inspect_ai.util._input.acp.acp_server_accepting_clients", lambda: True
     )
 
 
@@ -617,7 +617,7 @@ async def test_entry_returns_none_when_shim_guard_suppresses(
         raise RuntimeError("unexpected shim bug")
 
     monkeypatch.setattr(
-        "inspect_ai.input.acp._request_from_driver_with_fallback", _explode
+        "inspect_ai.util._input.acp._request_from_driver_with_fallback", _explode
     )
     result = await acp_handler(_input_request())
     assert result is None

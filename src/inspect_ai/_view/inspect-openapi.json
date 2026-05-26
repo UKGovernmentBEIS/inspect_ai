@@ -2262,16 +2262,6 @@
               }
             ]
           },
-          "ask_user": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/InputConfigSpec"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "continue_on_fail": {
             "anyOf": [
               {
@@ -2488,6 +2478,20 @@
               }
             ],
             "title": "Message Limit"
+          },
+          "notification": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification"
           },
           "retry_on_error": {
             "anyOf": [
@@ -5491,59 +5495,6 @@
         "title": "InfoEvent",
         "type": "object"
       },
-      "InputConfigSpec": {
-        "description": "Declarative input config (YAML/JSON-parseable, registry-name based).\n\nResolved into an `InputConfig` via `resolve_input_config` (which\ninstantiates each named handler/notifier from the registry) and logged\nback on `EvalConfig.ask_user` for retries.",
-        "properties": {
-          "input_handler": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/InputHandlerSpec"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "input_handler_timeout": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Input Handler Timeout"
-          },
-          "input_notifiers": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/InputNotifierSpec"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Input Notifiers"
-          },
-          "notifier_timeout": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notifier Timeout"
-          }
-        },
-        "title": "InputConfigSpec",
-        "type": "object"
-      },
       "InputEvent": {
         "description": "Input screen interaction.",
         "properties": {
@@ -5713,46 +5664,6 @@
           "type"
         ],
         "title": "InputField",
-        "type": "object"
-      },
-      "InputHandlerSpec": {
-        "description": "Declarative spec for a registered input handler.",
-        "properties": {
-          "args": {
-            "additionalProperties": true,
-            "title": "Args",
-            "type": "object"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "args"
-        ],
-        "title": "InputHandlerSpec",
-        "type": "object"
-      },
-      "InputNotifierSpec": {
-        "description": "Declarative spec for a registered input notifier.",
-        "properties": {
-          "args": {
-            "additionalProperties": true,
-            "title": "Args",
-            "type": "object"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "args"
-        ],
-        "title": "InputNotifierSpec",
         "type": "object"
       },
       "InterruptEvent": {

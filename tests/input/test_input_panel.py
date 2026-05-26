@@ -28,13 +28,13 @@ from textual.app import App, ComposeResult
 from textual.widgets import Checkbox, Input, Select, SelectionList
 
 from inspect_ai._util.textual.form import ElicitationForm
-from inspect_ai.input._types import InputRequest, InputResult
-from inspect_ai.input.manager import (
+from inspect_ai.util import InputRequest, InputResult
+from inspect_ai.util._input.manager import (
     HumanQuestionManager,
     PendingQuestionRequest,
     init_human_question_manager,
 )
-from inspect_ai.input.panel import (
+from inspect_ai.util._input.panel import (
     QuestionInputPanel,
     QuestionRequestActions,
     QuestionRequestBody,
@@ -421,7 +421,7 @@ async def test_panel_submit_resolves_with_accepted() -> None:
     import anyio
 
     init_human_question_manager()
-    from inspect_ai.input.manager import human_question_manager
+    from inspect_ai.util._input.manager import human_question_manager
 
     manager = human_question_manager()
     holder: dict[str, InputResult] = {}
@@ -459,7 +459,7 @@ async def test_panel_decline_resolves_with_declined() -> None:
     import anyio
 
     init_human_question_manager()
-    from inspect_ai.input.manager import human_question_manager
+    from inspect_ai.util._input.manager import human_question_manager
 
     manager = human_question_manager()
     holder: dict[str, InputResult] = {}
@@ -490,7 +490,7 @@ async def test_panel_decline_resolves_with_declined() -> None:
 @pytest.mark.anyio
 async def test_panel_invalid_submit_keeps_panel_open_with_errors() -> None:
     init_human_question_manager()
-    from inspect_ai.input.manager import human_question_manager
+    from inspect_ai.util._input.manager import human_question_manager
 
     manager = human_question_manager()
 
@@ -519,7 +519,7 @@ async def test_panel_invalid_submit_keeps_panel_open_with_errors() -> None:
 @pytest.mark.anyio
 async def test_panel_visibility_tracks_queue() -> None:
     init_human_question_manager()
-    from inspect_ai.input.manager import human_question_manager
+    from inspect_ai.util._input.manager import human_question_manager
 
     manager = human_question_manager()
 
@@ -545,7 +545,7 @@ async def test_panel_visibility_tracks_queue() -> None:
 @pytest.mark.anyio
 async def test_panel_queue_counter_reflects_pending_count() -> None:
     init_human_question_manager()
-    from inspect_ai.input.manager import human_question_manager
+    from inspect_ai.util._input.manager import human_question_manager
 
     manager = human_question_manager()
 
@@ -574,8 +574,8 @@ async def test_dispatch_falls_through_to_console_without_task_screen() -> None:
         called.append(req)
         return InputResult(outcome="accepted", content={"name": "from-console"})
 
-    import inspect_ai.input.builtin as builtin_module
-    import inspect_ai.input.console as console_module
+    import inspect_ai.util._input.builtin as builtin_module
+    import inspect_ai.util._input.console as console_module
 
     original = console_module.console_handler
     console_module.console_handler = fake_console  # type: ignore[assignment]
