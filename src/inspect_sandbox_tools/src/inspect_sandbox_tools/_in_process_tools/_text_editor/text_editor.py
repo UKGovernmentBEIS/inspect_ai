@@ -283,7 +283,7 @@ def _atomic_pickle_dump(history: HistoryType, file_path: str) -> None:
             pickle.dump(history, f)
             f.flush()
             os.fsync(f.fileno())
-            os.replace(tmp_path, file_path)
+        os.replace(tmp_path, file_path)
     except BaseException:
         os.unlink(tmp_path)
         raise
