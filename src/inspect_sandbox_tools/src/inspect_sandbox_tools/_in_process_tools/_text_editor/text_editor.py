@@ -277,13 +277,16 @@ def _save_history(history: HistoryType, file_path: str = DEFAULT_HISTORY_PATH) -
 def _atomic_pickle_dump(history: HistoryType, file_path: str) -> None:
     """Write history via atomic replace so errors/timeouts cannot leave a partial pickle."""
     path = Path(file_path)
-    with tempfile.NamedTemporaryFile(
-        "wb", dir=path.parent, prefix=f".{path.name}.", delete=False
-    ) as f:
-        pickle.dump(history, f)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(f.name, file_path)
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            pickle.dump(history, f)
+            f.flush()
+            os.fsync(f.fileno())
+            os.replace(tmp_path, file_path)
+    except BaseException:
+        os.unlink(tmp_path)
+        raise
 
 
 def _load_history(file_path: str = DEFAULT_HISTORY_PATH) -> HistoryType:
