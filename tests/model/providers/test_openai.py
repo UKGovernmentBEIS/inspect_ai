@@ -14,6 +14,7 @@ from inspect_ai.model import (
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
 from inspect_ai.model._openai import openai_completion_params
+from inspect_ai.model._providers.openai import OpenAIAPI
 
 
 @pytest.mark.anyio
@@ -60,6 +61,82 @@ def test_openai_completion_params_extra_body_not_mutated() -> None:
             "metadata": {"source": "test"},
             "reasoning": {"effort": "low"},
         }
+
+
+def test_azure_openai_ad_token_forwards_headers_without_managed_identity(
+    monkeypatch, mocker
+) -> None:
+    _clear_openai_auth_env(monkeypatch)
+    resolve_azure_token_provider = mocker.patch(
+        "inspect_ai.model._providers.openai.resolve_azure_token_provider",
+        side_effect=AssertionError("managed identity should not be resolved"),
+    )
+    azure_client = mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
+    http_client = mocker.Mock(is_closed=False)
+
+    api = OpenAIAPI(
+        "azure/gpt-4o",
+        base_url="https://example.openai.azure.com",
+        azure_ad_token="entra-token",
+        default_headers={"projectID": "project-123"},
+        http_client=http_client,
+    )
+
+    resolve_azure_token_provider.assert_not_called()
+    azure_client.assert_called_once()
+    kwargs = azure_client.call_args.kwargs
+    assert api.api_key is None
+    assert api.token_provider is None
+    assert kwargs["api_key"] is None
+    assert kwargs["azure_ad_token_provider"] is None
+    assert kwargs["azure_ad_token"] == "entra-token"
+    assert kwargs["default_headers"] == {"projectID": "project-123"}
+    assert kwargs["azure_endpoint"] == "https://example.openai.azure.com"
+    assert kwargs["http_client"] is http_client
+
+
+def test_azure_openai_ad_token_provider_does_not_duplicate_sdk_arg(
+    monkeypatch, mocker
+) -> None:
+    _clear_openai_auth_env(monkeypatch)
+    resolve_azure_token_provider = mocker.patch(
+        "inspect_ai.model._providers.openai.resolve_azure_token_provider",
+        side_effect=AssertionError("managed identity should not be resolved"),
+    )
+    azure_client = mocker.patch("inspect_ai.model._providers.openai.AsyncAzureOpenAI")
+    http_client = mocker.Mock(is_closed=False)
+
+    def token_provider() -> str:
+        return "entra-token"
+
+    api = OpenAIAPI(
+        "azure/gpt-4o",
+        base_url="https://example.openai.azure.com",
+        azure_ad_token_provider=token_provider,
+        http_client=http_client,
+    )
+
+    resolve_azure_token_provider.assert_not_called()
+    azure_client.assert_called_once()
+    kwargs = azure_client.call_args.kwargs
+    assert api.api_key is None
+    assert api.token_provider is token_provider
+    assert "azure_ad_token_provider" not in api.model_args
+    assert kwargs["api_key"] is None
+    assert kwargs["azure_ad_token_provider"] is token_provider
+    assert kwargs["azure_endpoint"] == "https://example.openai.azure.com"
+
+
+def _clear_openai_auth_env(monkeypatch) -> None:
+    for name in [
+        "OPENAI_API_KEY",
+        "AZUREAI_OPENAI_API_KEY",
+        "AZURE_OPENAI_API_KEY",
+        "AZUREAI_OPENAI_BASE_URL",
+        "AZURE_OPENAI_BASE_URL",
+        "AZURE_OPENAI_ENDPOINT",
+    ]:
+        monkeypatch.delenv(name, raising=False)
 
 
 @skip_if_no_openai
