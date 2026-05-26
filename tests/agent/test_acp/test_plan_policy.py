@@ -142,26 +142,53 @@ async def test_missing_client_info_and_meta_does_not_flag() -> None:
 
 
 async def test_raw_events_opt_in() -> None:
-    """`_meta[inspect.raw_events] = true` flips raw_events_enabled."""
+    """``_meta[inspect.raw_events] = ["*"]`` resolves to a glob subscription."""
     h = _handler()
     await h.initialize(
         protocol_version=1,
-        client_capabilities=_client_capabilities({"inspect.raw_events": True}),
+        client_capabilities=_client_capabilities({"inspect.raw_events": ["*"]}),
         client_info=None,
     )
-    assert h.state.raw_events_enabled is True
+    sub = h.state.raw_events_subscription
+    assert sub is not None
+    assert "*" in sub
+
+
+async def test_raw_events_named_subscription() -> None:
+    """A list of named event types is stored verbatim as a frozenset."""
+    h = _handler()
+    await h.initialize(
+        protocol_version=1,
+        client_capabilities=_client_capabilities(
+            {"inspect.raw_events": ["score", "interrupt"]}
+        ),
+        client_info=None,
+    )
+    sub = h.state.raw_events_subscription
+    assert sub == frozenset({"score", "interrupt"})
 
 
 async def test_raw_events_default_off() -> None:
-    """Without the _meta opt-in, raw events stay off."""
+    """Without the _meta opt-in, no subscription."""
     h = _handler()
     await h.initialize(
         protocol_version=1,
         client_capabilities=_client_capabilities(),
         client_info=_client_info("zed"),
     )
-    # zed flips the plan flag but NOT the raw flag.
-    assert h.state.raw_events_enabled is False
+    # zed flips the plan flag but NOT the raw subscription.
+    assert h.state.raw_events_subscription is None
+
+
+async def test_raw_events_legacy_bool_treated_as_malformed() -> None:
+    """The pre-Phase 5 ``true`` form decodes as ``None`` + warning."""
+    h = _handler()
+    await h.initialize(
+        protocol_version=1,
+        client_capabilities=_client_capabilities({"inspect.raw_events": True}),
+        client_info=None,
+    )
+    assert h.state.raw_events_subscription is None
 
 
 # ---------------------------------------------------------------------------

@@ -1428,3 +1428,819 @@ def test_plan_entries_decoupled_from_payload_list() -> None:
     assert state.plan_entries is not None
     assert len(state.plan_entries) == 1
     assert state.plan_entries[0].content == "x"
+
+
+# ---------------------------------------------------------------------------
+# Approval handshake (consume_approval_request / resolve_approval)
+# ---------------------------------------------------------------------------
+
+
+def _pending(req, event=None):
+    """Build a PendingApproval; defaults the event to a fresh asyncio.Event."""
+    import asyncio
+
+    from inspect_ai.agent._acp.tui.state import PendingApproval
+
+    return PendingApproval(request=req, event=event or asyncio.Event())
+
+
+def _permission_request(
+    tool_call_id: str = "tc-1",
+    *,
+    title: str = "bash ls",
+    options: list[tuple[str, str]] | None = None,
+):
+    """Build a RequestPermissionRequest with the given options."""
+    from acp.schema import (
+        ContentToolCallContent,
+        PermissionOption,
+        RequestPermissionRequest,
+        TextContentBlock,
+        ToolCallUpdate,
+    )
+
+    opts_pairs = options or [("approve", "allow_once"), ("reject", "reject_once")]
+    perm_options = [
+        PermissionOption(
+            option_id=oid,
+            name=oid.capitalize(),
+            kind=kind,  # type: ignore[arg-type]
+        )
+        for oid, kind in opts_pairs
+    ]
+    tc = ToolCallUpdate(
+        tool_call_id=tool_call_id,
+        title=title,
+        status="pending",
+        raw_input={"command": "ls"},
+        content=[
+            ContentToolCallContent(
+                type="content",
+                content=TextContentBlock(type="text", text=f"**{title}**"),
+            )
+        ],
+    )
+    return RequestPermissionRequest(
+        session_id="sid", tool_call=tc, options=perm_options
+    )
+
+
+def test_consume_approval_request_synthesizes_card_when_none_exists() -> None:
+    """Permission request arriving before ToolCallStart creates the card."""
+    state = SessionState()
+    req = _permission_request("tc-new", title="bash ls")
+    state.consume_approval_request(_pending(req))
+
+    assert "tc-new" in state._tool_calls_by_id
+    tc = state._tool_calls_by_id["tc-new"]
+    assert tc.title == "bash ls"
+    assert tc.raw_input == {"command": "ls"}
+    assert tc.status == "pending"
+    assert tc.pending_approval is not None
+    assert tc.pending_approval.request is req
+    # Card appended to display order.
+    assert state.items[-1] is tc
+
+
+def test_mark_interrupted_notifies_once_no_idle_flicker() -> None:
+    """Subscribers see one notification (``interrupted``), not a flicker through ``idle``.
+
+    Pinned regression: the prior implementation called
+    ``resolve_approval`` per pending approval BEFORE flipping
+    ``_interrupted``. Each per-approval call fired ``_notify()``
+    with an intermediate state where the pending was cleared but
+    ``_interrupted`` was still ``False``, so subscribers'
+    ``state.lifecycle`` reading would fall through to ``idle`` for
+    one observation before the final flip to ``interrupted``. The
+    fix batches all mutations through ``_clear_pending_approvals``
+    (no notify) and fires a single ``_notify()`` at the end.
+    """
+    import asyncio
+
+    state = SessionState()
+    req = _permission_request("tc-1")
+    state.consume_approval_request(_pending(req, asyncio.Event()))
+
+    observed: list[str] = []
+    state.subscribe(lambda: observed.append(state.lifecycle))
+
+    state.mark_interrupted()
+
+    # Exactly one observation, of the final lifecycle. The buggy
+    # version produced ``["idle", "interrupted"]``.
+    assert observed == ["interrupted"]
+
+
+def test_mark_complete_notifies_once_no_intermediate_flicker() -> None:
+    """Same single-notification contract on the ``complete`` path."""
+    import asyncio
+
+    state = SessionState()
+    # Multiple pendings so the prior per-resolve-notify pattern
+    # would fire N+1 times (N per approval + the trailing one).
+    for i in range(3):
+        req = _permission_request(f"tc-{i}")
+        state.consume_approval_request(_pending(req, asyncio.Event()))
+
+    observed: list[str] = []
+    state.subscribe(lambda: observed.append(state.lifecycle))
+
+    state.mark_complete()
+
+    # Single notification of the final lifecycle.
+    assert observed == ["complete"]
+
+
+def test_mark_interrupted_resolves_pending_approvals_as_cancelled() -> None:
+    """Esc during a pending approval clears the section and wakes the handler.
+
+    Pinned regression: ``has_active_work`` returns True while an
+    approval-synthesized card is in flight (``status="pending"``
+    counts as in-flight), so the screen's ``action_interrupt``
+    path runs ``mark_interrupted``. Before the fix, that path only
+    marked tool calls as failed — it didn't clear
+    ``pending_approval``, so the JSON-RPC handler stayed parked on
+    ``PendingApproval.event`` forever and the inline section's
+    action buttons stayed visible on a card the operator just
+    told us to abandon.
+    """
+    import asyncio
+
+    state = SessionState()
+    req = _permission_request("tc-interrupted")
+    event = asyncio.Event()
+    state.consume_approval_request(_pending(req, event))
+
+    state.mark_interrupted()
+
+    tc = state._tool_calls_by_id["tc-interrupted"]
+    assert tc.pending_approval is None
+    assert tc.last_approval_decision == "cancelled"
+    # The parked JSON-RPC handler must wake so it can return a
+    # DeniedOutcome (and the receive-loop task doesn't leak).
+    assert event.is_set()
+
+
+def test_mark_complete_resolves_pending_approvals_as_cancelled() -> None:
+    """Disconnect / completion clears any in-flight approvals from the postmortem.
+
+    Pinned regression: the client-side JSON-RPC handler's
+    cancellation path sets ``pending.event`` but only touches the
+    ``PendingApproval`` flags, not the state slot. Without this
+    fix, the post-disconnect read-only transcript kept showing the
+    inline approval buttons on a dead session.
+    """
+    import asyncio
+
+    state = SessionState()
+    req = _permission_request("tc-pending")
+    event = asyncio.Event()
+    state.consume_approval_request(_pending(req, event))
+    # Capture into a local each time so mypy doesn't narrow
+    # ``state.lifecycle`` based on the prior assert.
+    lc_before: str = state.lifecycle
+    assert lc_before == "approval"
+
+    state.mark_complete()
+
+    tc = state._tool_calls_by_id["tc-pending"]
+    assert tc.pending_approval is None
+    assert tc.last_approval_decision == "cancelled"
+    # The handler parked on this event needs to wake so it can
+    # exit; otherwise the receive-loop task would leak on the
+    # client side.
+    assert event.is_set()
+    lc_after: str = state.lifecycle
+    assert lc_after == "complete"
+
+
+def test_mark_complete_marks_in_flight_tools_failed() -> None:
+    """A sample that completes (e.g. via an error) must stop showing tool spinners.
+
+    Regression: when an ErrorEvent terminated the sample without a
+    server-side cleanup, any in-flight ToolCallStart left the card
+    spinning forever in the postmortem view.
+    """
+    clock = _FakeClock(start=2000.0)
+    state = SessionState(now=clock)
+    state.consume(_tool_start("tc-live"))
+    assert state.tools_in_flight == 1
+
+    clock.t = 2010.0
+    state.mark_complete()
+
+    assert state.tools_in_flight == 0
+    tc = state._tool_calls_by_id["tc-live"]
+    assert tc.status == "failed"
+    assert tc.end_time == 2010.0
+    assert state.lifecycle == "complete"
+
+
+def test_mark_complete_drops_empty_pending_message_group() -> None:
+    """An empty in-flight assistant group must vanish when the sample completes.
+
+    Regression: a model-event-pending marker that opened a placeholder
+    group before any content arrived kept the streaming spinner mounted
+    in the postmortem view when the sample ended (e.g. via an error
+    during generation).
+    """
+    from inspect_ai.agent._acp.inspect_ext import MODEL_EVENT_PENDING_META_KEY
+
+    state = SessionState()
+    # Pending marker with no content opens an empty placeholder group.
+    chunk = AgentMessageChunk(
+        session_update="agent_message_chunk",
+        content=TextContentBlock(type="text", text=""),
+        message_id="m-1",
+        field_meta={MODEL_EVENT_PENDING_META_KEY: True},
+    )
+    state.consume(SessionNotification(session_id="sid", update=chunk))
+    assert "m-1" in state._pending_message_ids
+    assert state._messages_by_id["m-1"].pending is True
+
+    state.mark_complete()
+
+    # Empty pending groups are dropped (they were placeholders).
+    assert "m-1" not in state._messages_by_id
+    assert "m-1" not in state._pending_message_ids
+    assert state.lifecycle == "complete"
+
+
+def test_mark_complete_with_no_pending_approvals_still_notifies() -> None:
+    """Sticky-complete transition fires the subscriber even with nothing to clear."""
+    state = SessionState()
+    fired = [0]
+    state.subscribe(lambda: fired.__setitem__(0, fired[0] + 1))
+
+    state.mark_complete()
+    assert fired[0] == 1
+    assert state.lifecycle == "complete"
+
+
+def test_synthesized_card_has_empty_content_so_blocks_dont_duplicate() -> None:
+    """Synthesized card does NOT copy request content blocks into tc.content.
+
+    Pinned regression: when the approval section reads from
+    ``pending_approval.request.tool_call.content`` and the body's
+    ``_compose_body`` reads from ``tc.content``, copying the same
+    blocks into ``tc.content`` made them render twice on the card
+    (the operator saw assistant message + view halves duplicated
+    above and below the action buttons). The synthesizer keeps
+    ``content=None`` so the body stays empty until the real
+    ``ToolCallStart`` arrives with the tool's actual input view.
+    """
+    state = SessionState()
+    req = _permission_request("tc-dup", title="bash ls")
+    state.consume_approval_request(_pending(req))
+
+    tc = state._tool_calls_by_id["tc-dup"]
+    assert tc.content is None
+    # Sanity: the request still carries the content blocks — only
+    # the synthesizer doesn't copy them. The inline approval
+    # section is what renders them.
+    assert tc.pending_approval is not None
+    assert tc.pending_approval.request.tool_call.content
+
+
+def test_consume_approval_then_tool_start_merges_into_existing_card() -> None:
+    """ToolCallStart for an existing approval-synthesized card merges fields."""
+    import asyncio
+
+    state = SessionState()
+    req = _permission_request("tc-merge", title="bash ls")
+    event = asyncio.Event()
+    state.consume_approval_request(_pending(req, event))
+
+    state.consume(_tool_start("tc-merge", title="bash ls -la", status="in_progress"))
+    tc = state._tool_calls_by_id["tc-merge"]
+    # Title from the start update wins (replace-on-present).
+    assert tc.title == "bash ls -la"
+    # pending_approval is preserved through the merge — the
+    # ToolCallStart updates title/content/kind but leaves the
+    # approval slot alone. Under single-driver semantics, the
+    # approval was issued to THIS client; nothing in the merge
+    # path should pre-empt the operator's decision.
+    assert tc.pending_approval is not None
+    # Only one card in items (no duplicate from start).
+    assert sum(1 for it in state.items if isinstance(it, ToolCallState)) == 1
+
+
+def test_tool_start_then_approval_attaches_to_existing_card() -> None:
+    """ToolCallStart first, then permission request — approval lands on the card."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1", title="bash ls", status="pending"))
+    req = _permission_request("tc-1", title="bash ls")
+    state.consume_approval_request(_pending(req))
+
+    tc = state._tool_calls_by_id["tc-1"]
+    assert tc.pending_approval is not None
+    assert tc.pending_approval.request is req
+    # Still one card.
+    assert sum(1 for it in state.items if isinstance(it, ToolCallState)) == 1
+
+
+def test_resolve_approval_with_option_id_records_approved_label() -> None:
+    """``approve`` optionId (allow_once kind) → ``approved`` label."""
+    import asyncio
+
+    state = SessionState()
+    req = _permission_request("tc-1")
+    event = asyncio.Event()
+    state.consume_approval_request(_pending(req, event))
+
+    state.resolve_approval("tc-1", option_id="approve")
+
+    tc = state._tool_calls_by_id["tc-1"]
+    assert tc.pending_approval is None
+    assert tc.last_approval_decision == "approved"
+    assert event.is_set()
+
+
+def test_resolve_approval_with_reject_option_records_denied_label() -> None:
+    state = SessionState()
+    req = _permission_request("tc-1")
+    state.consume_approval_request(_pending(req))
+
+    state.resolve_approval("tc-1", option_id="reject")
+
+    tc = state._tool_calls_by_id["tc-1"]
+    assert tc.last_approval_decision == "denied"
+
+
+def test_resolve_approval_cancelled_records_cancelled_label() -> None:
+    """Handler cancellation (screen unmount) → ``cancelled`` label."""
+    state = SessionState()
+    req = _permission_request("tc-1")
+    state.consume_approval_request(_pending(req))
+
+    state.resolve_approval("tc-1", cancelled=True)
+
+    tc = state._tool_calls_by_id["tc-1"]
+    assert tc.pending_approval is None
+    assert tc.last_approval_decision == "cancelled"
+
+
+def test_resolve_approval_is_idempotent() -> None:
+    """Re-resolving an already-resolved approval is a no-op (double-click safety)."""
+    state = SessionState()
+    req = _permission_request("tc-1")
+    state.consume_approval_request(_pending(req))
+    state.resolve_approval("tc-1", option_id="approve")
+
+    # Re-resolving doesn't overwrite the prior decision label.
+    state.resolve_approval("tc-1", option_id="reject")
+
+    tc = state._tool_calls_by_id["tc-1"]
+    assert tc.last_approval_decision == "approved"
+
+
+def test_resolve_approval_unknown_tool_call_id_is_noop() -> None:
+    """Resolving an unknown id silently no-ops (handler-side race safety)."""
+    state = SessionState()
+    # No error, no state mutation.
+    state.resolve_approval("nope", option_id="approve")
+    assert "nope" not in state._tool_calls_by_id
+
+
+def test_lifecycle_approval_beats_running() -> None:
+    """When a tool call is awaiting approval, lifecycle is ``approval``."""
+    state = SessionState()
+    # Synthesize active work (a running tool call) — would normally → ``running``.
+    state.consume(_tool_start("tc-busy", status="in_progress"))
+    # Capture into a local each time so mypy doesn't narrow
+    # ``state.lifecycle`` based on the prior assert.
+    lc1: str = state.lifecycle
+    assert lc1 == "running"
+
+    # Now add a pending approval on a separate tool call.
+    req = _permission_request("tc-approve")
+    state.consume_approval_request(_pending(req))
+    lc2: str = state.lifecycle
+    assert lc2 == "approval"
+
+    # Resolve → back to ``running`` because the busy tool is still in flight.
+    state.resolve_approval("tc-approve", option_id="approve")
+    lc3: str = state.lifecycle
+    assert lc3 == "running"
+
+
+def test_lifecycle_complete_beats_approval() -> None:
+    """A terminated session should NEVER pop back to approval."""
+    state = SessionState()
+    req = _permission_request("tc-1")
+    state.consume_approval_request(_pending(req))
+    state.mark_complete()
+    assert state.lifecycle == "complete"
+
+
+def test_lifecycle_scoring_after_outer_scoring_boundary() -> None:
+    """The outer ``scorers`` span boundary flips lifecycle to ``scoring``.
+
+    Once the agent loop has finished and the scoring phase begins, the
+    pill should read ``scoring`` so the operator sees a distinct phase
+    instead of an idle / quiescent-running state. The server-side prompt
+    handler rejects further messages once the agent has parked, so the
+    pill needs to reflect that input is no longer live.
+    """
+    state = SessionState()
+    state.consume_inspect_event(
+        {
+            "event": "span_begin",
+            "id": "span-outer",
+            "name": "scorers",
+            "type": "scorers",
+        }
+    )
+    assert state.lifecycle == "scoring"
+
+
+def test_lifecycle_complete_beats_scoring() -> None:
+    """A terminated session wins over the scoring latch.
+
+    Scoring is a transient post-agent phase; ``complete`` is the
+    terminal lifecycle. The session_ended notification flips
+    ``_complete`` and the pill should immediately read ``complete``
+    even though ``_scoring_started`` is still latched True.
+    """
+    state = SessionState()
+    state.consume_inspect_event(
+        {
+            "event": "span_begin",
+            "id": "span-outer",
+            "name": "scorers",
+            "type": "scorers",
+        }
+    )
+    state.mark_complete()
+    assert state.lifecycle == "complete"
+
+
+def test_lifecycle_approval_beats_scoring() -> None:
+    """Approval blocks even mid-scoring: the operator is the holdup.
+
+    Scoring's per-sample scorers can themselves issue
+    ``request_permission`` calls (e.g. a model-graded scorer that
+    needs operator sign-off on a tool action). When that happens the
+    pill should pivot to ``approval`` so the operator knows the
+    scoring phase is paused waiting on them, not just chugging along.
+    """
+    state = SessionState()
+    state.consume_inspect_event(
+        {
+            "event": "span_begin",
+            "id": "span-outer",
+            "name": "scorers",
+            "type": "scorers",
+        }
+    )
+    req = _permission_request("tc-1")
+    state.consume_approval_request(_pending(req))
+    assert state.lifecycle == "approval"
+
+
+def test_lifecycle_scoring_beats_running_quiescence_tail() -> None:
+    """Scoring wins over the ``running`` quiescence tail.
+
+    Without explicit priority, the post-agent state (no active work,
+    fresh ``_last_running_at`` from the last in-flight signal) could
+    have fallen back into the quiescence-tail ``running`` branch and
+    masked the scoring phase. Scoring is a distinct, more informative
+    phase than warm-running, and the pill should surface it.
+    """
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_pending_signal("m1"))
+    state.consume(_agent_chunk("done", message_id="m1"))
+    # Still within the quiescence tail. Capture into a local each
+    # time so mypy doesn't narrow ``state.lifecycle`` based on the
+    # prior assert.
+    lc1: str = state.lifecycle
+    assert lc1 == "running"
+    state.consume_inspect_event(
+        {
+            "event": "span_begin",
+            "id": "span-outer",
+            "name": "scorers",
+            "type": "scorers",
+        }
+    )
+    lc2: str = state.lifecycle
+    assert lc2 == "scoring"
+
+
+def test_consume_approval_request_notifies_subscribers() -> None:
+    """State change fires the subscriber so the screen can re-render."""
+    state = SessionState()
+    fired = [0]
+
+    def _cb() -> None:
+        fired[0] += 1
+
+    state.subscribe(_cb)
+    state.consume_approval_request(_pending(_permission_request()))
+    assert fired[0] == 1
+
+
+def test_resolve_approval_notifies_subscribers() -> None:
+    state = SessionState()
+    state.consume_approval_request(_pending(_permission_request()))
+    fired = [0]
+
+    def _cb() -> None:
+        fired[0] += 1
+
+    state.subscribe(_cb)
+    state.resolve_approval("tc-1", option_id="approve")
+    assert fired[0] == 1
+
+
+def test_decision_label_modify_maps_to_approved() -> None:
+    """``modify`` (approve-with-modification) is treated as the ``approved`` label.
+
+    Pinned so the ``_APPROVE_OPTION_IDS`` set in state.py stays in
+    sync with the server's ``_KIND_BY_DECISION`` mapping in the
+    approval shim (both treat ``modify`` as the allow half).
+    """
+    state = SessionState()
+    state.consume_approval_request(_pending(_permission_request("tc-1")))
+    state.resolve_approval("tc-1", option_id="modify")
+
+    tc = state._tool_calls_by_id["tc-1"]
+    assert tc.last_approval_decision == "approved"
+
+
+def test_decision_label_unknown_option_id_defaults_to_denied() -> None:
+    """Defensive: unknown option_id (misbehaving client) → ``denied``."""
+    state = SessionState()
+    state.consume_approval_request(_pending(_permission_request("tc-1")))
+    state.resolve_approval("tc-1", option_id="not_a_real_option")
+
+    tc = state._tool_calls_by_id["tc-1"]
+    assert tc.last_approval_decision == "denied"
+
+
+def test_current_pending_approval_returns_none_with_no_pending() -> None:
+    """Accessor returns ``None`` when no tool call has a pending approval."""
+    state = SessionState()
+    assert state.current_pending_approval() is None
+    assert state.current_pending_tool_call_id() is None
+
+
+def test_current_pending_approval_returns_the_pending_one() -> None:
+    """Accessor returns the ``PendingApproval`` + its tool_call_id when one is pending.
+
+    Used by :class:`_ApprovalBar` to know which approval to render
+    in the composer-area bar.
+    """
+    state = SessionState()
+    req = _permission_request("tc-1")
+    pending = _pending(req)
+    state.consume_approval_request(pending)
+
+    assert state.current_pending_approval() is pending
+    assert state.current_pending_tool_call_id() == "tc-1"
+
+
+def test_current_pending_approval_returns_first_when_multiple_pending() -> None:
+    """Parallel tool calls can each be pending; the bar handles one at a time.
+
+    Returns the FIRST pending in insertion order — matching the
+    visual transcript order so the bar advances top-to-bottom as the
+    operator resolves each.
+    """
+    state = SessionState()
+    req1 = _permission_request("tc-1", title="ls")
+    req2 = _permission_request("tc-2", title="cat /etc/passwd")
+    pending1 = _pending(req1)
+    pending2 = _pending(req2)
+    state.consume_approval_request(pending1)
+    state.consume_approval_request(pending2)
+
+    assert state.current_pending_approval() is pending1
+    assert state.current_pending_tool_call_id() == "tc-1"
+
+    # Resolve first → second advances.
+    state.resolve_approval("tc-1", option_id="approve")
+    assert state.current_pending_approval() is pending2
+    assert state.current_pending_tool_call_id() == "tc-2"
+
+
+# ---------------------------------------------------------------------------
+# Cancel-tool-call accessor (cancel_tool_call_id) + mark_cancel_requested
+# ---------------------------------------------------------------------------
+
+
+def test_cancel_tool_call_id_is_none_when_no_tools_in_flight() -> None:
+    state = SessionState()
+    assert state.cancel_tool_call_id is None
+    state.consume(_tool_start("tc-1"))
+    state.consume(_tool_progress("tc-1", status="completed"))
+    assert state.cancel_tool_call_id is None
+
+
+def test_cancel_tool_call_id_returns_only_in_flight_tool() -> None:
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    assert state.cancel_tool_call_id == "tc-1"
+
+
+def test_cancel_tool_call_ids_returns_all_eligible_oldest_first() -> None:
+    """With multiple in-flight tools, the accessor lists all of them.
+
+    Order is ``start_time`` ascending so the cancelling-state
+    transitions on-screen reflect oldest-first; semantically any
+    order is correct because each fires an independent RPC.
+    """
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_tool_start("tc-older"))
+    clock.advance(1.0)
+    state.consume(_tool_start("tc-newer"))
+    assert state.cancel_tool_call_ids == ["tc-older", "tc-newer"]
+    # The convenience accessor returns the first id from the list
+    # (used by check_action to gate footer-hint visibility).
+    assert state.cancel_tool_call_id == "tc-older"
+
+
+def test_cancel_tool_call_id_filters_pending_approval_tools() -> None:
+    """A tool awaiting an operator approval decision is not a ^L target.
+
+    The approval bar's reject / terminate is the right exit there;
+    duplicating cancel via ^L would be ambiguous.
+    """
+    import asyncio
+
+    state = SessionState()
+    req = _permission_request("tc-approval")
+    state.consume_approval_request(_pending(req, asyncio.Event()))
+    # Synthesized card status is "pending", so without the
+    # pending_approval filter the accessor would happily return it.
+    assert state.cancel_tool_call_ids == []
+    assert state.cancel_tool_call_id is None
+
+
+def test_cancel_tool_call_ids_skips_already_cancel_requested_tools() -> None:
+    """``cancel_requested`` tools are excluded so a follow-up ^L is a no-op."""
+    clock = _FakeClock()
+    state = SessionState(now=clock)
+    state.consume(_tool_start("tc-older"))
+    clock.advance(1.0)
+    state.consume(_tool_start("tc-newer"))
+    assert state.cancel_tool_call_ids == ["tc-older", "tc-newer"]
+
+    assert state.mark_cancel_requested("tc-older") is True
+    assert state.cancel_tool_call_ids == ["tc-newer"]
+
+    assert state.mark_cancel_requested("tc-newer") is True
+    assert state.cancel_tool_call_ids == []
+    assert state.cancel_tool_call_id is None
+
+
+def test_mark_cancel_requested_flips_flag_and_notifies() -> None:
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+
+    observed: list[bool] = []
+    state.subscribe(
+        lambda: observed.append(state._tool_calls_by_id["tc-1"].cancel_requested)
+    )
+
+    assert state.mark_cancel_requested("tc-1") is True
+    assert observed == [True]
+    assert state._tool_calls_by_id["tc-1"].cancel_requested is True
+
+
+def test_mark_cancel_requested_is_idempotent() -> None:
+    """Re-requesting cancel on the same tool is a no-op (no notify, no fire)."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+
+    assert state.mark_cancel_requested("tc-1") is True
+
+    observed: list[None] = []
+    state.subscribe(lambda: observed.append(None))
+
+    # Second call returns False and does not notify.
+    assert state.mark_cancel_requested("tc-1") is False
+    assert observed == []
+
+
+def test_mark_cancel_requested_returns_false_for_unknown_tool() -> None:
+    state = SessionState()
+    assert state.mark_cancel_requested("tc-nonexistent") is False
+
+
+def test_mark_cancel_requested_returns_false_for_terminal_tool() -> None:
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    state.consume(_tool_progress("tc-1", status="completed"))
+    assert state.mark_cancel_requested("tc-1") is False
+
+
+def test_mark_cancel_requested_returns_false_during_pending_approval() -> None:
+    """The approval bar owns the "stop this tool" affordance while pending."""
+    import asyncio
+
+    state = SessionState()
+    req = _permission_request("tc-approval")
+    state.consume_approval_request(_pending(req, asyncio.Event()))
+    assert state.mark_cancel_requested("tc-approval") is False
+    assert state._tool_calls_by_id["tc-approval"].cancel_requested is False
+
+
+def test_clear_cancel_requested_undoes_flag_and_notifies() -> None:
+    """Clearing the flag restores eligibility + fires one notification."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    assert state.mark_cancel_requested("tc-1") is True
+    # Cancel-requested tools fall out of the accessor's eligibility set.
+    assert state.cancel_tool_call_id is None
+
+    observed: list[None] = []
+    state.subscribe(lambda: observed.append(None))
+
+    assert state.clear_cancel_requested("tc-1") is True
+    assert observed == [None]
+    assert state._tool_calls_by_id["tc-1"].cancel_requested is False
+    # Eligibility restored — ^L can target the tool again.
+    assert state.cancel_tool_call_id == "tc-1"
+
+
+def test_clear_cancel_requested_is_noop_when_flag_not_set() -> None:
+    """No notify, no mutation when the tool isn't flagged."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+
+    observed: list[None] = []
+    state.subscribe(lambda: observed.append(None))
+
+    assert state.clear_cancel_requested("tc-1") is False
+    assert observed == []
+
+
+def test_clear_cancel_requested_unknown_tool_is_noop() -> None:
+    state = SessionState()
+    assert state.clear_cancel_requested("tc-nonexistent") is False
+
+
+# ---------------------------------------------------------------------------
+# has_other_active_tools — TranscriptWidget's "should I defer this completed
+# tool's body?" predicate. True iff some OTHER tool is actively running.
+# ---------------------------------------------------------------------------
+
+
+def test_has_other_active_tools_empty_state() -> None:
+    state = SessionState()
+    assert state.has_other_active_tools("tc-1") is False
+
+
+def test_has_other_active_tools_excludes_self() -> None:
+    """A tool can't be its own sibling — the only in-flight tool gets revealed."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    assert state.has_other_active_tools("tc-1") is False
+
+
+def test_has_other_active_tools_true_when_sibling_in_progress() -> None:
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    state.consume(_tool_start("tc-2"))
+    # tc-1 just completed; tc-2 still running → hold tc-1's body.
+    assert state.has_other_active_tools("tc-1") is True
+    # Symmetric.
+    assert state.has_other_active_tools("tc-2") is True
+
+
+def test_has_other_active_tools_false_when_other_is_terminal() -> None:
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    state.consume(_tool_start("tc-2"))
+    state.consume(_tool_progress("tc-2", status="completed"))
+    # tc-1 finishing while tc-2 already terminal → nothing to wait for.
+    assert state.has_other_active_tools("tc-1") is False
+
+
+def test_has_other_active_tools_excludes_pending_approval() -> None:
+    """A tool waiting on operator approval shouldn't keep peers' results hidden.
+
+    The operator may need the peer's body to inform their approval
+    decision. Mirrors the same exclusion in ``cancel_tool_call_ids``.
+    """
+    import asyncio
+
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    req = _permission_request("tc-approval")
+    state.consume_approval_request(_pending(req, asyncio.Event()))
+    # tc-1 completes; tc-approval is awaiting approval → don't hold tc-1.
+    assert state.has_other_active_tools("tc-1") is False
+
+
+def test_has_other_active_tools_excludes_cancel_requested() -> None:
+    """A tool the operator has already cancelled isn't a tracking concern."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    state.consume(_tool_start("tc-2"))
+    assert state.mark_cancel_requested("tc-2") is True
+    # tc-1 completes; tc-2 cancel-requested → don't hold tc-1.
+    assert state.has_other_active_tools("tc-1") is False

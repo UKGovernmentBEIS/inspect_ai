@@ -34,7 +34,11 @@ from acp.agent.router import build_agent_router
 from acp.connection import Connection
 from acp.interfaces import Agent
 
-from inspect_ai.agent._acp._guards import NORMAL_DISCONNECT_EXC
+from inspect_ai.agent._acp._config import ACP_STREAM_BUFFER_LIMIT
+from inspect_ai.agent._acp._guards import (
+    NORMAL_DISCONNECT_EXC,
+    install_acp_disconnect_log_filter,
+)
 from inspect_ai.agent._acp.connection import ConnectionHandler
 from inspect_ai.agent._acp.discovery import (
     cleanup_stale_discovery_files,
@@ -70,21 +74,31 @@ class AcpServer:
         self._port: int | None = None
         self._discovery_path: Path | None = None
         # Live connections, keyed by their ``Connection`` instance and
-        # mapped to the underlying ``StreamWriter`` so ``stop()`` can
-        # force-close the transport.
+        # mapped to ``(writer, handler)`` so ``stop()`` can:
         #
-        # We MUST track writers separately: we build each ``Connection``
-        # with ``listening=False`` (we drive ``main_loop`` ourselves in
-        # ``_on_connection``), which means the receive task is NOT
-        # registered with the connection's task supervisor. So
-        # ``Connection.close()`` won't cancel the in-flight
-        # ``reader.readline()`` — it just stops the dispatcher/sender
-        # and rejects outgoing requests. Without an explicit transport
-        # close at shutdown the receive loop sits forever on
-        # ``readline()``, the per-connection ``_on_connection`` task
-        # never completes, and ``Server.wait_closed()`` blocks the
-        # entire eval process from exiting until the peer disconnects.
-        self._connections: dict[Connection, asyncio.StreamWriter] = {}
+        # 1. Drive each handler's graceful shutdown (drain forwarders
+        #    → send ``inspect/session_ended`` → detach approver client)
+        #    BEFORE closing the underlying connection, so the
+        #    forwarder's last notification doesn't race the conn
+        #    teardown and arrive as ``ConnectionError("Connection
+        #    closed")`` (the symptom: client never sees the lifecycle
+        #    pill flip to ``complete`` on eval end).
+        # 2. Force-close the transport — the writer is tracked
+        #    separately because we build each ``Connection`` with
+        #    ``listening=False`` (we drive ``main_loop`` ourselves in
+        #    ``_on_connection``), which means the receive task is NOT
+        #    registered with the connection's task supervisor. So
+        #    ``Connection.close()`` won't cancel the in-flight
+        #    ``reader.readline()`` — it just stops the dispatcher /
+        #    sender and rejects outgoing requests. Without an explicit
+        #    transport close at shutdown the receive loop sits forever
+        #    on ``readline()``, the per-connection ``_on_connection``
+        #    task never completes, and ``Server.wait_closed()`` blocks
+        #    the entire eval process from exiting until the peer
+        #    disconnects.
+        self._connections: dict[
+            Connection, tuple[asyncio.StreamWriter, ConnectionHandler]
+        ] = {}
 
     @property
     def socket_path(self) -> Path | None:
@@ -131,6 +145,13 @@ class AcpServer:
                 "is asyncio-only. Either unset INSPECT_ASYNC_BACKEND (default "
                 "asyncio) or omit --acp-server."
             )
+
+        # Suppress upstream ``acp`` library tracebacks for routine peer
+        # disconnects (BrokenPipe etc.) — see ``_guards`` for the
+        # filter's rationale. Idempotent + global; installed here
+        # because this is the earliest "we're actually running an ACP
+        # server" entry point.
+        install_acp_disconnect_log_filter()
 
         # Clean up any stale discovery files / orphan sockets from
         # processes that crashed without unregistering.
@@ -197,9 +218,13 @@ class AcpServer:
                     "is not a socket. Pick a different path or remove it first."
                 )
             path.unlink()
+        # ``limit`` is the StreamReader buffer size for accepted
+        # connections — see ACP_STREAM_BUFFER_LIMIT for why we override
+        # asyncio's 64 KiB default.
         self._server = await asyncio.start_unix_server(
             self._on_connection,
             path=str(path),
+            limit=ACP_STREAM_BUFFER_LIMIT,
         )
         self._socket_path = path
 
@@ -208,6 +233,7 @@ class AcpServer:
             self._on_connection,
             host=host,
             port=port,
+            limit=ACP_STREAM_BUFFER_LIMIT,
         )
         # Resolve the actual bound port (in case the caller passed 0
         # for an ephemeral port).
@@ -220,59 +246,90 @@ class AcpServer:
 
     async def stop(self) -> None:
         """Stop accepting, close all connections, remove socket + discovery file."""
-        # Stop accepting new connections — but do NOT await
-        # ``wait_closed()`` yet. On Python 3.12+, ``wait_closed()``
-        # blocks until every active connection drains, so it must run
-        # AFTER we've closed the per-connection handlers below.
-        if self._server is not None:
-            self._server.close()
+        try:
+            # Stop accepting new connections — but do NOT await
+            # ``wait_closed()`` yet. On Python 3.12+, ``wait_closed()``
+            # blocks until every active connection drains, so it must run
+            # AFTER we've closed the per-connection handlers below.
+            if self._server is not None:
+                self._server.close()
 
-        # Close all live connections. Each Connection has an internal
-        # receive task; close() shuts it down cleanly — EXCEPT for the
-        # ``reader.readline()`` blocked in ``_receive_loop``, which
-        # ``Connection.close()`` does not interrupt (we constructed
-        # with ``listening=False``; see the ``_connections`` field
-        # comment). Force-close the writer afterwards so the underlying
-        # transport tears down and ``readline()`` returns EOF — only
-        # then does the per-connection ``_on_connection`` task exit
-        # and ``Server.wait_closed()`` below can complete.
-        for conn, writer in list(self._connections.items()):
-            try:
-                await conn.close()
-            except Exception:
-                logger.exception("Error closing ACP connection")
-            try:
-                writer.close()
-            except Exception:
-                pass
-        self._connections.clear()
+            # Phase 1: graceful per-handler shutdown BEFORE closing
+            # connections. ``handler.shutdown()`` drains in-flight
+            # forwarders (with the bounded grace window in
+            # :meth:`Forwarders.stop`), which gives the semantic
+            # forwarder a chance to send ``inspect/session_ended``
+            # while the connection is still alive. On the
+            # end-of-eval path :meth:`LiveAcpTransport.finalize` has
+            # already closed pubsub by the time we get here, so the
+            # forwarder is racing to send that final notification —
+            # closing the connection first (pre-Phase-7-hardening
+            # behaviour) deterministically aborted that send with
+            # ``ConnectionError("Connection closed")`` and left the
+            # client stuck on the ``running`` lifecycle pill.
+            #
+            # Best-effort: a handler shutdown failure here means we
+            # log and proceed to forcibly tear down anyway — better
+            # to surface the error than to hang shutdown waiting for
+            # cleanup that won't complete.
+            for _conn, (_writer, handler) in list(self._connections.items()):
+                try:
+                    await handler.shutdown(graceful=True)
+                except Exception:
+                    logger.exception(
+                        "Error during graceful ACP handler shutdown; proceeding to close"
+                    )
 
-        # Now safe to await ``wait_closed`` — there are no live
-        # connections keeping it pinned open.
-        if self._server is not None:
-            try:
-                await self._server.wait_closed()
-            except Exception:
-                logger.exception("Error closing ACP server socket")
-            self._server = None
+            # Phase 2: close the underlying connections + transports.
+            # Each Connection has an internal receive task; close() shuts
+            # it down cleanly — EXCEPT for the ``reader.readline()``
+            # blocked in ``_receive_loop``, which ``Connection.close()``
+            # does not interrupt (we constructed with ``listening=False``;
+            # see the ``_connections`` field comment). Force-close the
+            # writer afterwards so the underlying transport tears down
+            # and ``readline()`` returns EOF — only then does the
+            # per-connection ``_on_connection`` task exit and
+            # ``Server.wait_closed()`` below can complete.
+            for conn, (writer, _handler) in list(self._connections.items()):
+                try:
+                    await conn.close()
+                except Exception:
+                    logger.exception("Error closing ACP connection")
+                try:
+                    writer.close()
+                except Exception:
+                    pass
+            self._connections.clear()
 
-        # Remove the AF_UNIX socket node (TCP doesn't leave anything behind).
-        if self._socket_path is not None:
-            try:
-                self._socket_path.unlink(missing_ok=True)
-            except OSError:
-                logger.exception(
-                    "Error removing ACP socket file: %s", self._socket_path
-                )
+            # Now safe to await ``wait_closed`` — there are no live
+            # connections keeping it pinned open.
+            if self._server is not None:
+                try:
+                    await self._server.wait_closed()
+                except Exception:
+                    logger.exception("Error closing ACP server socket")
+                self._server = None
+        finally:
+            # Always run filesystem cleanup, even if the awaits above
+            # raised CancelledError (e.g. KeyboardInterrupt during eval
+            # shutdown). The next-start sweep would eventually reclaim
+            # stale files, but tightening the in-process invariant
+            # avoids leaving artefacts behind across the shutdown gap.
+            if self._socket_path is not None:
+                try:
+                    self._socket_path.unlink(missing_ok=True)
+                except OSError:
+                    logger.exception(
+                        "Error removing ACP socket file: %s", self._socket_path
+                    )
 
-        # Remove the discovery file.
-        if self._discovery_path is not None:
-            try:
-                self._discovery_path.unlink(missing_ok=True)
-            except OSError:
-                logger.exception(
-                    "Error removing ACP discovery file: %s", self._discovery_path
-                )
+            if self._discovery_path is not None:
+                try:
+                    self._discovery_path.unlink(missing_ok=True)
+                except OSError:
+                    logger.exception(
+                        "Error removing ACP discovery file: %s", self._discovery_path
+                    )
 
     async def _on_connection(
         self,
@@ -311,7 +368,7 @@ class AcpServer:
         # Attach the connection back-reference so handlers can push
         # `session/update` notifications via `conn.send_notification`.
         handler.connection = conn
-        self._connections[conn] = writer
+        self._connections[conn] = (writer, handler)
         try:
             await conn.main_loop()
         except NORMAL_DISCONNECT_EXC as exc:
@@ -341,6 +398,16 @@ class AcpServer:
             await handler.shutdown()
             try:
                 await conn.close()
+            except NORMAL_DISCONNECT_EXC as exc:
+                # The peer already went away (matches the main_loop
+                # NORMAL_DISCONNECT_EXC branch above). ``conn.close()``
+                # tries to flush the sender, which surfaces the same
+                # BrokenPipe a second time. Log at DEBUG so disconnect
+                # produces no ERROR noise on the eval console.
+                logger.debug(
+                    "ACP connection close after disconnect (%s)",
+                    type(exc).__name__,
+                )
             except Exception:
                 logger.exception("Error closing ACP connection after main loop")
             self._connections.pop(conn, None)

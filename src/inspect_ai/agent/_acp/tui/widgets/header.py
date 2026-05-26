@@ -22,6 +22,8 @@ from typing import Literal
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.css.query import NoMatches
+from textual.events import Click
+from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Static
 
@@ -29,18 +31,29 @@ from ..client import SessionRow
 from ..state import UsageState
 from ._formatting import format_tokens
 
-Lifecycle = Literal["idle", "running", "interrupted", "complete"]
+Lifecycle = Literal["idle", "running", "scoring", "interrupted", "approval", "complete"]
 
 _LIFECYCLE_TEXT: dict[Lifecycle, str] = {
     # Glyphs picked so the *shape* alone carries state even before
     # colour registers: filled dot for live, slashed circle for
-    # halted, check for done. Colour styling lives in the CSS rules
-    # on ``#lifecycle-indicator.<state>``. Idle has no text — the
-    # pill goes invisible via the ``.idle`` rule so the chrome stays
-    # quiet when nothing is happening.
+    # halted, check for done, warning triangle for "agent is blocked
+    # on you". Colour styling lives in the CSS rules on
+    # ``#lifecycle-indicator.<state>``. Idle has no text — the pill
+    # goes invisible via the ``.idle`` rule so the chrome stays quiet
+    # when nothing is happening.
     "idle": "",
     "running": "● running",
+    # ``scoring`` reads as "still working but in a different phase" —
+    # the agent loop is done and the post-agent scoring pass is the
+    # foreground activity. Same dot glyph as ``running`` so it doesn't
+    # read as a halt; distinct colour signals it as a different phase.
+    "scoring": "● scoring",
     "interrupted": "⊘ interrupted",
+    # ``approval`` reads as more urgent than ``running`` (the agent is
+    # specifically waiting on the operator) — same warning colour as
+    # ``interrupted`` since both are "an operator should look at this
+    # now" states.
+    "approval": "⚠ awaiting approval",
     "complete": "✓ complete",
 }
 
@@ -60,12 +73,18 @@ def _short_task_name(name: str) -> str:
 
 
 class AppHeaderWidget(Widget):
-    """Slim tinted header — ``inspect acp`` only.
+    """Slim tinted header — ``inspect acp`` + transport target.
 
     Used by the picker (no session-specific meta to show yet) so the
     chrome reads as part of the same family as the session screen's
     header. Shares the visual treatment with :class:`SessionHeaderWidget`
     via duplicated CSS — kept small + standalone for clarity.
+
+    ``server`` is the ``--server`` CLI flag value (host:port or unix
+    path) or ``None`` for local auto-discovery. Rendered as a dim
+    suffix after the title so the operator can tell at a glance which
+    transport they're attached to (``inspect acp · local`` vs
+    ``inspect acp · 127.0.0.1:4545``).
     """
 
     DEFAULT_CSS = """
@@ -75,19 +94,39 @@ class AppHeaderWidget(Widget):
         background: $foreground 5%;
         margin-bottom: 1;
     }
+    AppHeaderWidget Horizontal { height: 1; }
     AppHeaderWidget .app-title {
         width: auto;
         color: $accent;
         text-style: bold;
+        padding-right: 1;
+    }
+    AppHeaderWidget .target {
+        width: auto;
+        color: $text-muted;
     }
     """
 
+    def __init__(self, *, server: str | None = None) -> None:
+        super().__init__()
+        self._server = server
+
     def compose(self) -> ComposeResult:
-        yield Static("inspect acp", classes="app-title", markup=False)
+        with Horizontal():
+            yield Static("inspect acp", classes="app-title", markup=False)
+            yield Static(f"· {self._server or 'local'}", classes="target", markup=False)
 
 
 class SessionHeaderWidget(Widget):
-    """One-row header — app name + meta identifiers + connection indicator."""
+    """One-row header — app name + meta identifiers + lifecycle pill."""
+
+    class BackToPicker(Message):
+        """Posted when the operator clicks the ``inspect acp`` title.
+
+        Handled by :class:`SessionScreen` as a synonym for ``^S switch
+        sample`` — returns the operator to the picker without
+        requiring them to remember the keybinding.
+        """
 
     DEFAULT_CSS = """
     SessionHeaderWidget {
@@ -107,12 +146,29 @@ class SessionHeaderWidget(Widget):
         text-style: bold;
         padding-right: 3;
     }
+    /* Hover treatment mirrors ``FooterKey:hover`` — the footer
+     * commands shift their background on hover to telegraph
+     * clickability; the title gets the same affordance for
+     * consistency. ``$block-hover-background`` is the same token
+     * Textual's ``FooterKey`` uses. */
+    SessionHeaderWidget .app-title:hover {
+        background: $block-hover-background;
+    }
     SessionHeaderWidget .meta {
         width: 1fr;
     }
     SessionHeaderWidget #lifecycle-indicator { width: auto; }
     SessionHeaderWidget #lifecycle-indicator.running { color: $success; }
+    /* Scoring shares the blue ``$primary`` family with ``complete`` to
+     * signal it as a post-agent phase, but distinct from the green
+     * ``running`` and orange ``warning`` colours so the operator can
+     * tell at a glance "we're past the agent loop now". */
+    SessionHeaderWidget #lifecycle-indicator.scoring { color: $primary; }
     SessionHeaderWidget #lifecycle-indicator.interrupted { color: $warning; }
+    /* Approval shares the warning colour with ``interrupted`` — both
+     * are "operator attention needed" states and we want one visual
+     * vocabulary for them. The glyph + text distinguish the cause. */
+    SessionHeaderWidget #lifecycle-indicator.approval { color: $warning; }
     /* ``$primary`` is the blue brand token in Textual's default
      * dark theme; ``$accent`` rendered orange in practice and
      * clashed with the ``$warning``-orange interrupted state. */
@@ -128,7 +184,12 @@ class SessionHeaderWidget(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal():
-            yield Static("inspect acp", classes="app-title", markup=False)
+            yield Static(
+                "inspect acp",
+                classes="app-title",
+                id="app-title",
+                markup=False,
+            )
             yield Static(
                 self._meta_markup(), classes="meta", id="meta-text", markup=True
             )
@@ -160,6 +221,11 @@ class SessionHeaderWidget(Widget):
             f"[dim]sample:[/dim] {row.sample_id}/{row.epoch}",
             f"[dim]agent:[/dim] {agent}",
         ]
+        # Messages sits immediately before tokens so the two running
+        # metrics read as a pair (matches the picker table column order).
+        messages = self._messages_markup()
+        if messages:
+            parts.append(messages)
         tokens = self._tokens_markup()
         if tokens:
             parts.append(tokens)
@@ -174,6 +240,29 @@ class SessionHeaderWidget(Widget):
             return ""
         return f"[dim]tokens[/dim] {format_tokens(u.used)}"
 
+    def _messages_markup(self) -> str:
+        # Same K/M abbreviation as tokens so the two adjacent metrics
+        # line up visually. Suppressed entirely when no usage tick has
+        # arrived yet — the chip would otherwise render an em-dash
+        # before the first model event, which reads as "broken" rather
+        # than "no data yet."
+        u = self._usage
+        if u is None:
+            return ""
+        return f"[dim]messages[/dim] {format_tokens(u.messages)}"
+
+    def on_click(self, event: Click) -> None:
+        """Treat a click on the ``inspect acp`` title as ^S switch sample.
+
+        The header sits in the click path for the title Static; we
+        match on the control's id so a click on the meta row or the
+        lifecycle pill is left untouched.
+        """
+        if event.control is None or event.control.id != "app-title":
+            return
+        event.stop()
+        self.post_message(self.BackToPicker())
+
     def set_lifecycle(self, state: Lifecycle) -> None:
         """Reflect the latest turn lifecycle on the upper-right pill.
 
@@ -185,7 +274,14 @@ class SessionHeaderWidget(Widget):
             pill = self.query_one("#lifecycle-indicator", Static)
         except NoMatches:
             return
-        for cls in ("idle", "running", "interrupted", "complete"):
+        for cls in (
+            "idle",
+            "running",
+            "scoring",
+            "interrupted",
+            "approval",
+            "complete",
+        ):
             pill.remove_class(cls)
         pill.update(_LIFECYCLE_TEXT[state])
         pill.add_class(state)

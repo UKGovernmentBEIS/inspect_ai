@@ -12,9 +12,12 @@ from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.inspect_ext import (
     PICKER_META_KEY,
     build_picker_notification,
+    sample_listing_meta_dict,
 )
 from inspect_ai.agent._acp.picker import (
     PickerTarget,
+    SampleListing,
+    list_all_samples,
     list_picker_targets,
     resolve_selection,
 )
@@ -32,14 +35,26 @@ def _make_sample(
     session_id: str | None,
     agent_name: str | None = None,
     started: float | None = None,
+    fails_on_error: bool = True,
+    is_attachable: bool | None = None,
 ) -> Any:
     """Build a stub ActiveSample-shaped object for the picker.
 
     Bare-minimum attributes the picker reads: ``task``, ``sample.id``,
-    ``epoch``, ``acp_session`` (with ``.session_id``), ``agent_name``,
-    ``started``. Using a plain object instead of a real ActiveSample
-    keeps the test independent of the ActiveSample constructor's larger
-    field surface.
+    ``epoch``, ``acp_transport`` (with ``.session_id`` and
+    ``.is_attachable``), ``agent_name``, ``started``, ``fails_on_error``.
+    Using a plain object instead of a real ActiveSample keeps the test
+    independent of the ActiveSample constructor's larger field surface.
+
+    ``is_attachable`` defaults to True for any non-``None`` session_id
+    other than the noop sentinel, matching the production semantics:
+    real bound live sessions are attachable; the noop placeholder is
+    not. Tests can override explicitly to simulate pre-binding /
+    post-agent windows.
+
+    Default ``fails_on_error=True`` mirrors what the eval harness
+    produces from the default ``EvalConfig.fail_on_error=None``
+    (which collapses to True in ``ActiveSample.fails_on_error``).
     """
     sample = MagicMock()
     sample.id = sample_id
@@ -50,12 +65,17 @@ def _make_sample(
     active.epoch = epoch
     active.agent_name = agent_name
     active.started = started
+    active.fails_on_error = fails_on_error
     if session_id is None:
-        active.acp_session = None
+        active.acp_transport = None
     else:
         session = MagicMock()
         session.session_id = session_id
-        active.acp_session = session
+        if is_attachable is None:
+            session.is_attachable = session_id != "noop"
+        else:
+            session.is_attachable = is_attachable
+        active.acp_transport = session
     return active
 
 
@@ -82,6 +102,69 @@ def test_list_picker_targets_skips_noop_sessions(monkeypatch) -> None:
 
     targets = list_picker_targets()
     assert [t.session_id for t in targets] == ["uuid-real"]
+
+
+def test_list_picker_targets_hides_unbound_transports(monkeypatch) -> None:
+    """Pre-binding window: transport exists but no channel has bound yet.
+
+    A sample has been set up (transport created) but the agent loop
+    has not yet opened ``agent_channel()``. ``is_attachable`` is False
+    until the first bind; the picker must hide the transport so
+    operators don't connect and have prompts silently dropped.
+    """
+    samples = [
+        _make_sample(
+            task="t-pending",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-unbound",
+            is_attachable=False,
+        ),
+        _make_sample(task="t-bound", sample_id="s", epoch=0, session_id="uuid-bound"),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    targets = list_picker_targets()
+    assert [t.session_id for t in targets] == ["uuid-bound"]
+
+
+def test_list_picker_targets_hides_completed_transports(monkeypatch) -> None:
+    """Post-agent scoring window: agent loop exited, transport finalizing.
+
+    After ``__aexit__``, the transport sets ``agent_completed=True`` and
+    parks itself for the scoring window. The picker must hide it — new
+    clients can't drive a finished agent.
+    """
+    samples = [
+        _make_sample(
+            task="t-scoring",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-completed",
+            is_attachable=False,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    assert list_picker_targets() == []
+
+
+def test_list_picker_targets_shows_bound_transport(monkeypatch) -> None:
+    """Happy path: react() running with a bound channel — picker shows it."""
+    samples = [
+        _make_sample(
+            task="t",
+            sample_id="s",
+            epoch=0,
+            session_id="uuid-live",
+            is_attachable=True,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    targets = list_picker_targets()
+    assert len(targets) == 1
+    assert targets[0].session_id == "uuid-live"
 
 
 def test_list_picker_targets_stringifies_int_sample_id(monkeypatch) -> None:
@@ -175,7 +258,9 @@ def test_build_picker_notification_carries_structured_meta() -> None:
             "epoch": 0,
             "agentName": None,
             "startedAt": None,
+            "totalMessages": 0,
             "totalTokens": 0,
+            "failsOnError": False,
         },
         {
             "sessionId": "uuid-b",
@@ -184,7 +269,9 @@ def test_build_picker_notification_carries_structured_meta() -> None:
             "epoch": 3,
             "agentName": None,
             "startedAt": None,
+            "totalMessages": 0,
             "totalTokens": 0,
+            "failsOnError": False,
         },
     ]
 
@@ -225,6 +312,63 @@ def test_list_picker_targets_propagates_agent_name_and_started(monkeypatch) -> N
     targets = list_picker_targets()
     assert targets[0].agent_name == "react"
     assert targets[0].started_at == 1_700_000_000.0
+
+
+def test_picker_fails_on_error_mirrors_active_sample(monkeypatch) -> None:
+    """``PickerTarget.fails_on_error`` mirrors ``ActiveSample.fails_on_error``.
+
+    The picker reads the already-collapsed boolean rather than the
+    raw config value so the ACP TUI's ``[e] error`` visibility lines
+    up exactly with the in-proc ``--display full`` rule
+    (``cancel_with_error.display = not sample.fails_on_error``).
+    Fractional / integer-count configs that collapse to ``True`` in
+    ``ActiveSample.fails_on_error`` will hide ``[e] error`` here too.
+    """
+    samples = [
+        _make_sample(
+            task="t",
+            sample_id="s1",
+            epoch=0,
+            session_id="u1",
+            fails_on_error=True,
+        ),
+        _make_sample(
+            task="t",
+            sample_id="s2",
+            epoch=0,
+            session_id="u2",
+            fails_on_error=False,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    targets = list_picker_targets()
+    assert [t.session_id for t in targets] == ["u1", "u2"]
+    assert targets[0].fails_on_error is True  # hide [e] error
+    assert targets[1].fails_on_error is False  # show [e] error
+
+
+def test_build_picker_notification_meta_includes_fails_on_error() -> None:
+    """``failsOnError`` rides in the structured ``_meta`` payload.
+
+    Drives delivery to the TUI on both attach paths: direct-attach via
+    ``session/load`` reads it from the binding-confirmation; picker-
+    attach reads it from the parallel ``inspect/list_sessions``
+    response (built from the same ``picker_target_meta_dict``).
+    """
+    targets = [
+        PickerTarget(
+            session_id="uuid-x",
+            task="t",
+            sample_id="s",
+            epoch=0,
+            fails_on_error=True,
+        )
+    ]
+    notif = build_picker_notification("control", targets)
+    assert notif.field_meta is not None
+    entry = notif.field_meta[PICKER_META_KEY][0]
+    assert entry["failsOnError"] is True
 
 
 def test_list_picker_targets_propagates_total_tokens(monkeypatch) -> None:
@@ -354,6 +498,171 @@ def test_resolve_selection_malformed_input_returns_none(garbage: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# list_all_samples — superset enumeration for the Inspect TUI
+# ---------------------------------------------------------------------------
+
+
+def test_list_all_samples_includes_non_acp_samples(monkeypatch) -> None:
+    """ACP-claimed AND non-claimed samples both appear; sessionId reflects status."""
+    samples = [
+        _make_sample(task="t1", sample_id="s1", epoch=0, session_id="uuid-a"),
+        _make_sample(task="t2", sample_id="s2", epoch=0, session_id=None),
+        _make_sample(task="t3", sample_id="s3", epoch=0, session_id="uuid-c"),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listings = list_all_samples()
+    assert [(listing.sample_id, listing.session_id) for listing in listings] == [
+        ("s1", "uuid-a"),
+        ("s2", None),
+        ("s3", "uuid-c"),
+    ]
+
+
+def test_list_all_samples_treats_noop_session_as_non_acp(monkeypatch) -> None:
+    """The ``noop`` sentinel surfaces as ``session_id=None`` (pre-claim placeholder)."""
+    samples = [
+        _make_sample(task="t1", sample_id="s1", epoch=0, session_id="noop"),
+        _make_sample(task="t2", sample_id="s2", epoch=0, session_id="uuid-real"),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listings = list_all_samples()
+    assert listings[0].session_id is None
+    assert listings[1].session_id == "uuid-real"
+
+
+def test_list_all_samples_stringifies_sample_id(monkeypatch) -> None:
+    """Sample.id may be int or None — mirror ``list_picker_targets`` exactly."""
+    samples = [
+        _make_sample(task="t", sample_id=42, epoch=0, session_id="uuid"),
+        _make_sample(task="t", sample_id=None, epoch=0, session_id=None),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listings = list_all_samples()
+    assert listings[0].sample_id == "42"
+    assert listings[1].sample_id == ""
+
+
+def test_list_all_samples_propagates_fields(monkeypatch) -> None:
+    """Field mapping mirrors ``list_picker_targets`` for the shared fields."""
+    sample = _make_sample(
+        task="t",
+        sample_id="s",
+        epoch=2,
+        session_id="uuid-x",
+        agent_name="react",
+        started=1_700_000_000.0,
+        fails_on_error=True,
+    )
+    sample.total_tokens = 99_999
+    monkeypatch.setattr(picker, "active_samples", lambda: [sample])
+
+    listing = list_all_samples()[0]
+    assert listing.task == "t"
+    assert listing.epoch == 2
+    assert listing.session_id == "uuid-x"
+    assert listing.agent_name == "react"
+    assert listing.started_at == 1_700_000_000.0
+    assert listing.fails_on_error is True
+    assert listing.total_tokens == 99_999
+
+
+def test_list_all_samples_strips_agent_name_for_non_acp(monkeypatch) -> None:
+    """Non-ACP samples surface as ``agent_name=None`` regardless of the solver name.
+
+    The column header reads ``acp agent``; surfacing a solver name on
+    a non-ACP row would be misleading (there's no attachable ACP
+    agent behind that name). Keeps the wire payload consistent with
+    the TUI's display, which always shows ``—`` for non-ACP rows.
+    """
+    samples = [
+        # Non-ACP sample with a solver name — name must be stripped.
+        _make_sample(
+            task="t1",
+            sample_id="s1",
+            epoch=0,
+            session_id=None,
+            agent_name="some_solver",
+        ),
+        # Noop sentinel counts as non-ACP — also stripped.
+        _make_sample(
+            task="t2",
+            sample_id="s2",
+            epoch=0,
+            session_id="noop",
+            agent_name="react",
+        ),
+        # ACP-claimed sample keeps its name.
+        _make_sample(
+            task="t3",
+            sample_id="s3",
+            epoch=0,
+            session_id="uuid-real",
+            agent_name="react",
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listings = list_all_samples()
+    assert [(listing.session_id, listing.agent_name) for listing in listings] == [
+        (None, None),
+        (None, None),
+        ("uuid-real", "react"),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# sample_listing_meta_dict — wire shape
+# ---------------------------------------------------------------------------
+
+
+def test_sample_listing_meta_dict_emits_camelcase_with_session_id() -> None:
+    """ACP-claimed listing carries ``sessionId`` (uuid)."""
+    listing = SampleListing(
+        session_id="uuid-x",
+        task="t",
+        sample_id="s",
+        epoch=0,
+        agent_name="react",
+        started_at=1_700_000_000.0,
+        total_messages=42,
+        total_tokens=12_345,
+        fails_on_error=True,
+    )
+    assert sample_listing_meta_dict(listing) == {
+        "sessionId": "uuid-x",
+        "task": "t",
+        "sampleId": "s",
+        "epoch": 0,
+        "agentName": "react",
+        "startedAt": 1_700_000_000.0,
+        "totalMessages": 42,
+        "totalTokens": 12_345,
+        "failsOnError": True,
+    }
+
+
+def test_sample_listing_meta_dict_session_id_null_for_non_acp() -> None:
+    """Non-claimed listing emits ``sessionId: None`` — the discriminator the TUI keys on."""
+    listing = SampleListing(
+        session_id=None,
+        task="t",
+        sample_id="s",
+        epoch=0,
+    )
+    payload = sample_listing_meta_dict(listing)
+    assert payload["sessionId"] is None
+    # Other fields still present with defaults — keeps the wire shape stable.
+    assert payload["agentName"] is None
+    assert payload["startedAt"] is None
+    assert payload["totalMessages"] == 0
+    assert payload["totalTokens"] == 0
+    assert payload["failsOnError"] is False
+
+
 def test_notification_serializes_meta_under_underscore_meta_alias() -> None:
     """When the notification is dumped to JSON the `_meta` alias is used.
 
@@ -378,6 +687,8 @@ def test_notification_serializes_meta_under_underscore_meta_alias() -> None:
             "epoch": 0,
             "agentName": None,
             "startedAt": None,
+            "totalMessages": 0,
             "totalTokens": 0,
+            "failsOnError": False,
         },
     ]

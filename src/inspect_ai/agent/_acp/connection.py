@@ -48,9 +48,11 @@ from inspect_ai.agent._acp.inspect_ext import (
     build_picker_notification,
     detect_capabilities,
     picker_target_meta_dict,
+    sample_listing_meta_dict,
 )
 from inspect_ai.agent._acp.picker import (
     PickerTarget,
+    list_all_samples,
     list_picker_targets,
     resolve_selection,
 )
@@ -58,7 +60,7 @@ from inspect_ai.agent._acp.session_router import Forwarders
 from inspect_ai.model._chat_message import ChatMessageUser
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp.session import AcpSession
+    from inspect_ai.agent._acp.transport import AcpTransport
     from inspect_ai.log._samples import ActiveSample
 
 logger = getLogger(__name__)
@@ -99,7 +101,7 @@ class Bound:
     """Connection is bound to a target session; forwarding is active.
 
     ``wire_session_id`` is what the client sees. ``target_session_id``
-    is the internal ``LiveAcpSession.session_id`` we forward to. In
+    is the internal ``LiveAcpTransport.session_id`` we forward to. In
     the auto-bind / direct-load paths these are equal; on the picker
     selection path the wire id is the synthetic control id and the
     target id is the chosen sample — the design contract is that the
@@ -140,7 +142,12 @@ class ConnectionState:
     # decide whether to substitute AgentPlanUpdate for plan-tool
     # notifications and whether to also forward raw transcript events.
     client_renders_plan: bool = False
-    raw_events_enabled: bool = False
+    # Raw-event subscription: ``None`` means the client did not opt in;
+    # otherwise a frozenset of event-type names (possibly including the
+    # ``"*"`` glob via :data:`inspect_ext.RAW_EVENTS_GLOB`) the
+    # forwarder filters against. Decoded by
+    # :func:`inspect_ext.detect_capabilities`.
+    raw_events_subscription: frozenset[str] | None = None
 
     @property
     def wire_session_id(self) -> str | None:
@@ -200,14 +207,14 @@ class ConnectionHandler:
         """Standard ACP handshake. Negotiate protocol version + advertise capabilities.
 
         Also captures client-capability flags (``client_renders_plan``,
-        ``raw_events_enabled``) so the per-connection forwarder can
+        ``raw_events_subscription``) so the per-connection forwarder can
         switch behavior per client.
         """
         # Capture client-capability flags. See ``detect_capabilities``
         # for the allowlist + ``_meta`` opt-in logic.
         (
             self.state.client_renders_plan,
-            self.state.raw_events_enabled,
+            self.state.raw_events_subscription,
         ) = detect_capabilities(client_info, client_capabilities)
 
         return InitializeResponse(
@@ -333,6 +340,35 @@ class ConnectionHandler:
                             "target_session_id": target_id,
                         }
                     )
+                if not target.is_attachable:
+                    # The target's transport is alive but has no bound
+                    # agent loop to receive this prompt. Two states
+                    # collapse here:
+                    #
+                    # - ``agent_completed`` — react() has exited and
+                    #   the transport is parked for the scoring window;
+                    # - no bound channel — react() between consecutive
+                    #   invocations (the inter-react gap in the same
+                    #   sample), or a non-channel custom agent.
+                    #
+                    # Pre-fix, the message was silently discarded by
+                    # ``LiveAcpTransport.submit_user_message``'s
+                    # ``_ref is None`` guard. Surface a real error so
+                    # the client (TUI / editor) can drop the binding
+                    # instead of pretending it landed. Detail the
+                    # specific sub-state so clients can render a
+                    # tailored message.
+                    reason = (
+                        "session is scoring"
+                        if target.agent_completed
+                        else "session not currently attachable"
+                    )
+                    raise RequestError.invalid_request(
+                        {
+                            "reason": reason,
+                            "target_session_id": target_id,
+                        }
+                    )
                 text = _translate_prompt_blocks(prompt)
                 msg = ChatMessageUser(content=text, source="operator")
                 target.submit_user_message(msg)
@@ -369,6 +405,17 @@ class ConnectionHandler:
                 if target is None:
                     # Bound target has already finished; nothing to cancel.
                     return None
+                if not target.is_attachable:
+                    # No bound agent loop right now (post-agent scoring
+                    # window, or between consecutive react() invocations
+                    # in the same sample). Recording an InterruptEvent
+                    # here would falsely suggest an active turn was
+                    # interrupted; flipping ``interrupt_pending`` would
+                    # leave the TUI / Inspect-aware clients showing a
+                    # prompt-mode indicator forever since no agent will
+                    # consume the resolution. Notifications can't return
+                    # errors, so silently drop.
+                    return None
                 target.cancel_current_turn()
             case PickerMode() | Unbound():
                 # Picker mode or unbound — a cancel here is meaningless;
@@ -386,7 +433,7 @@ class ConnectionHandler:
         Returns the same per-target shape that ``session/new``'s picker
         notification carries under ``_meta[PICKER_META_KEY]``, plus a
         convenience ``target`` field with the slash-delimited spec that
-        :meth:`inspect_new_session` accepts. Clients that already know
+        :meth:`inspect_attach` accepts. Clients that already know
         the protocol can use this to skip the round-trip through
         ``session/new`` + picker notification + ``_meta`` parsing.
 
@@ -405,7 +452,26 @@ class ConnectionHandler:
             ]
         }
 
-    async def inspect_new_session(
+    async def inspect_list_samples(self) -> dict[str, Any]:
+        """Enumerate ALL active samples — ACP-claimed and not.
+
+        Superset of :meth:`inspect_list_sessions`: includes samples
+        whose agent has not claimed ACP (no ``before_turn`` call yet,
+        or no ACP-aware scaffold). ACP-claimed entries carry the live
+        ``sessionId``; non-claimed entries set ``sessionId`` to
+        ``None``. The Inspect TUI consumes this so non-ACP samples
+        appear in the picker as dimmed + unselectable-on-attach rows
+        — the operator sees "the eval is running but I can't drive it"
+        rather than an empty picker.
+
+        Standard ACP clients (Zed et al.) continue to use
+        ``inspect/list_sessions`` (or the in-channel picker via
+        ``session/new``) which stays filtered to attachable targets.
+        """
+        listings = list_all_samples()
+        return {"samples": [sample_listing_meta_dict(listing) for listing in listings]}
+
+    async def inspect_attach(
         self,
         cwd: str,  # unused but kept for shape parity with session/new
         target: str,
@@ -466,12 +532,14 @@ class ConnectionHandler:
         ``action`` selects the post-cancel outcome:
 
         - ``"score"`` — run the scorer on whatever work landed.
-        - ``"error"`` — mark the sample errored. Gated to match the
-          TUI's button-visibility: accepted only when the sample is
-          NOT already configured to ``fails_on_error`` (in that case
-          the manual error action is moot — the sample would error
-          on its own; only the score action is meaningful from a
-          client's perspective).
+        - ``"error"`` — mark the sample errored. Gated to mirror the
+          in-proc ``--display full`` TUI's
+          ``cancel_with_error.display = not sample.fails_on_error``
+          rule: rejected whenever ``ActiveSample.fails_on_error`` is
+          ``True`` (which collapses ``True`` / ``None`` /
+          fractional / integer-count configs together — the sample
+          will surface an error of its own accord, so a manual
+          ``error`` action would just race the auto-fail).
 
         Distinct from ``session/cancel``, which interrupts the current
         turn but lets the agent loop recover. This method is terminal:
@@ -491,10 +559,20 @@ class ConnectionHandler:
                 {
                     "reason": (
                         "action='error' not permitted when sample is "
-                        "configured fails_on_error=True (use action='score')"
+                        "configured to fail on errors "
+                        "(fails_on_error=True — use action='score')"
                     )
                 }
             )
+        # ``sample.interrupt(action)`` fires the registered
+        # ``on_interrupt`` hook before the task-group cancel — for an
+        # ACP-bound sample that routes to
+        # ``LiveAcpTransport.cancel_current_turn``, which clears
+        # in-flight ``ModelEvent.pending=True`` (otherwise anyio's
+        # hard cancel bypasses the normal completion paths and the
+        # TUI's assistant chip spins past the scoring chips). The
+        # coupling lives on ``ActiveSample`` so timeouts and limit
+        # exceededs get the same cleanup, not just ACP cancels.
         sample.interrupt(action)
         return {}
 
@@ -839,7 +917,7 @@ class ConnectionHandler:
         """Send ``session/request_permission`` to this client and await response.
 
         Implements the :class:`ApproverClient` protocol. The
-        ``LiveAcpSession`` registers this handler when the connection
+        ``LiveAcpTransport`` registers this handler when the connection
         binds (via :class:`Forwarders`); the configured
         ``human_approver`` calls this method (via the
         ``approval/_human/acp.py`` driver-fallback chain) when a tool
@@ -885,12 +963,28 @@ class ConnectionHandler:
         # the session id it actually knows. Skip the copy when they
         # already match (auto-bind / direct-loadSession fast-path).
         if binding.wire_session_id != request.session_id:
-            request = request.model_copy(
-                update={"session_id": binding.wire_session_id}
-            )
+            request = request.model_copy(update={"session_id": binding.wire_session_id})
         payload = request.model_dump(mode="json", by_alias=True, exclude_none=True)
         raw = await self.connection.send_request("session/request_permission", payload)
         return RequestPermissionResponse.model_validate(raw)
+
+    async def drain_notifications(self) -> None:
+        """Wait until pending ``session/update`` notifications have been sent.
+
+        Implements the :class:`ApproverClient` drain barrier by
+        delegating to the per-bind :class:`Forwarders`. Safe no-op
+        when there's no active binding (pre-bind, post-disconnect,
+        between picker rebinds) — there's no forwarder to drain.
+
+        Called by the approval shim immediately before
+        :meth:`request_permission` so the operator's connection
+        delivers the model's accompanying ``agent_message_chunk``
+        BEFORE the approval card lands. See ``Forwarders.drain`` for
+        the ordering rationale.
+        """
+        if self._forwarders is None:
+            return
+        await self._forwarders.drain()
 
     # ------------------------------------------------------------------
     # Bind / unbind orchestration
@@ -942,11 +1036,35 @@ class ConnectionHandler:
         )
         await self._forwarders.start(target)
 
-    async def _stop_forwarders(self) -> None:
-        """Tear down the current bind's forwarders, if any. Idempotent."""
-        if self._forwarders is not None:
-            await self._forwarders.stop()
-            self._forwarders = None
+    async def _stop_forwarders(self, *, graceful: bool = False) -> None:
+        """Tear down the current bind's forwarders, if any. Idempotent.
+
+        ``graceful=True`` is passed through to :meth:`Forwarders.stop`
+        from :meth:`shutdown` when the server is winding down — gives
+        the semantic forwarder a chance to send
+        ``inspect/session_ended`` before the connection is closed.
+        All other callers (rebind, picker re-entry, post-prompt
+        cleanup) pass ``False`` so the teardown is immediate.
+
+        **Reentrancy guard**: take the local reference and clear
+        ``self._forwarders`` BEFORE awaiting ``forwarders.stop`` so
+        concurrent callers (e.g. ``AcpServer.stop`` racing the
+        per-connection ``_on_connection`` finally block when the
+        peer also closed) see ``None`` and no-op rather than
+        re-entering ``Forwarders.stop`` on the same instance.
+        Without this, the second caller would proceed past the
+        ``self._semantic_task is not None`` guard inside
+        ``Forwarders.stop``, suspend on its own await, and the first
+        caller's completion would nullify ``self._semantic_task`` —
+        producing ``AttributeError: 'NoneType' object has no
+        attribute 'done'`` when the second caller resumed past its
+        await and checked the task again.
+        """
+        forwarders = self._forwarders
+        if forwarders is None:
+            return
+        self._forwarders = None
+        await forwarders.stop(graceful=graceful)
 
     async def _post_bind_setup(self, target: PickerTarget, gen: int) -> None:
         """Deferred post-response binding work: acquires lock, checks generation.
@@ -981,9 +1099,35 @@ class ConnectionHandler:
         lock for its whole body, so the deferred / locked split
         avoids re-entry) and via ``_post_bind_setup`` for the
         deferred newSession / loadSession paths.
+
+        After forwarders are up we promote ourselves to the active
+        approver-driver for the bound session, THEN wake any parked
+        approval shim via ``notify_approver_attach``. Every path
+        through here (``session/load``, ``session/new`` auto-bind,
+        picker selection) is a deliberate "this client is now
+        driving" signal, parallel to the ``session/prompt`` promotion
+        at the bound-mode prompt handler.
+
+        Ordering matters: promote-then-notify ensures a parked shim
+        re-snapshots a driver chain that already has THIS connection
+        at position 0, so the re-issued approval routes here rather
+        than to a stale first-attached client. The notification fires
+        ONLY here (not from the registry's ``attach``), so subscribers
+        wake after replay completes and the forwarder is live — no
+        race where the operator sees an approval card before the
+        conversation context replays.
+
+        Silently no-ops if the live session disappeared between
+        ``_start_forwarders`` and now (e.g. sample finished); also
+        no-ops if we aren't a registered approver client, which can
+        happen if forwarder startup raised partway through.
         """
         await self._notify_binding(target)
         await self._start_forwarders(target.session_id)
+        live = _find_live_session(target.session_id)
+        if live is not None:
+            live.mark_active_approver_client(self)
+            live.notify_approver_attach(self)
 
     async def _send_notification_if_current(self, notification: Any, gen: int) -> None:
         """Send a ``session/update`` only if the bind generation still matches.
@@ -1043,20 +1187,33 @@ class ConnectionHandler:
         if exc is not None:
             logger.exception("Deferred post-response send failed", exc_info=exc)
 
-    async def shutdown(self) -> None:
+    async def shutdown(self, *, graceful: bool = False) -> None:
         """Connection-close cleanup: cancel deferred sends, stop forwarders.
 
-        Called from the server's ``_on_connection`` finally block after
-        ``conn.main_loop`` returns. Deferred post-response sends are
-        cancelled (the writer is about to close, so any pending write
-        would either fail or race the close); forwarders are then
-        torn down via the existing per-bind shutdown path.
+        Called from two paths:
+
+        - The server's ``_on_connection`` finally block (after
+          ``conn.main_loop`` returns on peer disconnect) — uses the
+          default ``graceful=False``. The peer is gone; there's
+          nothing to send to.
+        - :meth:`AcpServer.stop` (end-of-eval teardown) — passes
+          ``graceful=True`` so the semantic forwarder can finish
+          sending ``inspect/session_ended`` while the connection is
+          still alive. Without this the client never sees the
+          lifecycle pill flip to ``complete`` on eval end (the
+          forwarder's send hits ``ConnectionError("Connection
+          closed")`` because :meth:`AcpServer.stop` previously called
+          ``conn.close()`` before this path got a chance to run).
+
+        Deferred post-response sends are always cancelled — the
+        writer is about to close, so any pending write would either
+        fail or race the close.
         """
         for task in list(self._pending_after_response):
             task.cancel()
         if self._pending_after_response:
             await asyncio.gather(*self._pending_after_response, return_exceptions=True)
-        await self._stop_forwarders()
+        await self._stop_forwarders(graceful=graceful)
 
 
 # ---------------------------------------------------------------------------
@@ -1107,8 +1264,8 @@ def _translate_prompt_blocks(prompt_blocks: list[Any]) -> str:
     return "".join(parts)
 
 
-def _find_live_session(session_id: str) -> "AcpSession | None":
-    """Look up a live :class:`AcpSession` by sessionId.
+def _find_live_session(session_id: str) -> "AcpTransport | None":
+    """Look up a live :class:`AcpTransport` by sessionId.
 
     Walks :func:`inspect_ai.log._samples.active_samples` for a sample
     whose ``acp_session.session_id`` matches. Returns ``None`` if
@@ -1118,7 +1275,7 @@ def _find_live_session(session_id: str) -> "AcpSession | None":
     from inspect_ai.log._samples import active_samples
 
     for sample in active_samples():
-        sess = sample.acp_session
+        sess = sample.acp_transport
         if sess is not None and sess.session_id == session_id:
             return sess
     return None
@@ -1135,7 +1292,7 @@ def _find_active_sample(session_id: str) -> "ActiveSample | None":
     from inspect_ai.log._samples import active_samples
 
     for sample in active_samples():
-        sess = sample.acp_session
+        sess = sample.acp_transport
         if sess is not None and sess.session_id == session_id:
             return sample
     return None

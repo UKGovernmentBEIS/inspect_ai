@@ -16,8 +16,10 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Callable,
+    Iterator,
     Literal,
     NamedTuple,
+    Protocol,
     Sequence,
     Type,
     TypeAlias,
@@ -25,6 +27,7 @@ from typing import (
 )
 
 if TYPE_CHECKING:
+    from inspect_ai.event._model import ModelEvent
     from inspect_ai.tool import ToolInfo
 
 import anyio
@@ -83,7 +86,6 @@ from inspect_ai.util._limit import (
 from ._cache import CacheEntry, CachePolicy, cache_fetch, cache_store, epoch
 from ._call_tools import (
     copy_tools_info,
-    disable_parallel_tools,
     execute_tools,
     prepare_tools,
     snapshot_tools_for_event,
@@ -702,10 +704,6 @@ class Model:
             if config.max_tokens is None:
                 config.max_tokens = self.api.max_tokens()
 
-        # disable parallel tool calls if requested by any of our tools
-        if disable_parallel_tools(tools):
-            config.parallel_tool_calls = False
-
         # normalize input to chat
         if isinstance(input, str):
             input = [ChatMessageUser(content=input)]
@@ -1113,11 +1111,19 @@ class Model:
                 try:
                     assert isinstance(event, ModelEvent)
                     # Local import to avoid an import cycle (agent → model → agent).
-                    from inspect_ai.agent._acp import current_acp_session
+                    from inspect_ai.agent._channel import null_execution_observer
+                    from inspect_ai.log._samples import sample_active
+
+                    _sample = sample_active()
+                    _observer = (
+                        _sample.execution_observer
+                        if _sample is not None
+                        else null_execution_observer()
+                    )
 
                     with (
                         track_active_model_event(event),
-                        current_acp_session().track_model_event(event),
+                        _observer.track_model_event(event),
                     ):
                         with timeout_cm:
                             result = await self.api.generate(
@@ -1410,7 +1416,8 @@ class Model:
         from inspect_ai.event._model import ModelEvent
         from inspect_ai.log._transcript import transcript
 
-        # create event and add it to the transcript
+        # create event and add it to the transcript (or hand off to the
+        # installed model-event sink, if any)
         model = str(self)
         event = ModelEvent(
             model=model,
@@ -1424,13 +1431,17 @@ class Model:
             call=call,
             pending=output is None,
         )
-        transcript()._event(event)
+        sink = _model_event_sink.get()
+        if sink is None:
+            transcript()._event(event)
+        else:
+            sink.on_pending(event)
 
         # callable that can be used to update the interaction w/ output
         def complete(
             result: ModelOutput | Exception, updated_call: ModelCall | None
         ) -> None:
-            # Note on operator-cancel: ``AcpSession.cancel_current_turn``
+            # Note on operator-cancel: ``AcpTransport.cancel_current_turn``
             # stamps ``event.error = OPERATOR_CANCEL_ERROR`` on the
             # in-flight event. The model API can still return inside the
             # cancellation propagation window; we deliberately let the
@@ -1474,7 +1485,10 @@ class Model:
                     event.call.response = as_error_response(str(result))
 
             event.pending = None
-            transcript()._event_updated(event)
+            if sink is None:
+                transcript()._event_updated(event)
+            else:
+                sink.on_complete(event)
 
         # if we have output then complete it now
         if output:
@@ -1639,6 +1653,10 @@ def get_model(
     if role is not None:
         model_for_role = model_roles().get(role, None)
         if model_for_role is not None:
+            if config.model_dump(exclude_none=True):
+                model_for_role = copy(model_for_role)
+                model_for_role.config = config.merge(model_for_role.config)
+                model_for_role._set_role(role)
             return model_for_role
 
         # raise if required and not found
@@ -2173,6 +2191,47 @@ def model_roles() -> dict[str, Model]:
 active_model_context_var: ContextVar[Model | None] = ContextVar("active_model")
 
 _model_roles: ContextVar[dict[str, Model]] = ContextVar("model_roles", default={})
+
+
+class ModelEventSink(Protocol):
+    """Recipient of `ModelEvent` emissions when installed via `use_model_event_sink`.
+
+    When a sink is active, `_record_model_interaction` routes the event to the
+    sink instead of emitting it to the transcript directly. The sink can decide
+    *when* and *under which span* the event ultimately reaches the transcript.
+
+    All other `_record_model_interaction` behavior (call recording, usage
+    accounting, retry handling, the active-model-event context) is unaffected.
+    """
+
+    def on_pending(self, event: "ModelEvent") -> None:
+        """Called immediately after the pending event is constructed (before generation)."""
+        ...
+
+    def on_complete(self, event: "ModelEvent") -> None:
+        """Called after generation completes (output / error / call populated, `pending=None`)."""
+        ...
+
+
+_model_event_sink: ContextVar[ModelEventSink | None] = ContextVar(
+    "_model_event_sink", default=None
+)
+
+
+@contextlib.contextmanager
+def use_model_event_sink(sink: ModelEventSink | None) -> Iterator[None]:
+    """Route `ModelEvent` emissions to *sink* for the duration of the block.
+
+    Passing `None` is a no-op (transcript emission continues as usual).
+    """
+    if sink is None:
+        yield
+        return
+    token = _model_event_sink.set(sink)
+    try:
+        yield
+    finally:
+        _model_event_sink.reset(token)
 
 
 # shared contexts for asyncio tasks

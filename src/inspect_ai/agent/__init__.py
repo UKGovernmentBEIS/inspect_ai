@@ -1,6 +1,5 @@
 from inspect_ai.tool._mcp._tools_bridge import BridgedToolsSpec
 
-from ._acp import AcpSession, TurnCancelled, acp_session
 from ._agent import Agent, AgentState, agent, agent_with, is_agent
 from ._as_solver import as_solver
 from ._as_tool import as_tool
@@ -8,6 +7,11 @@ from ._bridge.bridge import agent_bridge, bridge
 from ._bridge.sandbox.bridge import sandbox_agent_bridge
 from ._bridge.sandbox.types import SandboxAgentBridge
 from ._bridge.types import AgentBridge
+from ._channel import (
+    AgentChannel,
+    AgentInterrupted,
+    agent_channel,
+)
 from ._deepagent import Subagent, deepagent, general, plan, research, subagent
 from ._filter import MessageFilter, content_only, last_message, remove_tools
 from ._handoff import handoff
@@ -53,7 +57,8 @@ __all__ = [
     "research",
     "plan",
     "general",
-    "AcpSession",
-    "acp_session",
-    "TurnCancelled",
+    # Agent channel (source-agnostic intervention substrate)
+    "AgentChannel",
+    "AgentInterrupted",
+    "agent_channel",
 ]

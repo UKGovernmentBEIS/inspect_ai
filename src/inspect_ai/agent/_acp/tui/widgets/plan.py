@@ -70,6 +70,22 @@ time; the value lives here as a single constant so the strip and
 overlay header stay in lock-step.
 """
 
+_PLAN_SURFACE_BG = "#3d362a"
+"""Background tint shared by the strip, overlay titlebar, and overlay rows.
+
+Warm dark grey in the same family as ``_PLAN_LABEL_COLOR`` — picks
+up just enough of the amber's hue to feel like a single elevated
+plan surface rather than a neutral panel sitting next to a warm
+label. Defined as a literal hex (rather than a ``$foreground X%``
+blend) because foreground is a neutral near-white and no opacity
+applied to a neutral colour can produce a warm tint.
+
+All three plan surfaces (strip, overlay header, overlay rows)
+share this value so the popup reads as the strip "opening upward"
+into the transcript area. Keep them in lock-step — diverging the
+values reintroduces the seam the uniform tint is designed to hide.
+"""
+
 _OVERLAY_DISMISS = "x"
 """Trailing affordance on the overlay header — click to dismiss."""
 
@@ -89,30 +105,31 @@ class PlanStripWidget(Widget):
     spec's "no clutter for non-planning agents" requirement.
     """
 
-    DEFAULT_CSS = """
-    PlanStripWidget {
+    DEFAULT_CSS = f"""
+    PlanStripWidget {{
         height: 1;
         margin: 0 2;
         padding: 0 1;
-        /* Same tint as the overlay's body + titlebar — visually
-         * unifies the collapsed strip with the expanded popup. A
-         * ``$foreground X%`` blend (rather than the opaque
-         * code-block slate) keeps the plan chrome distinct when the
-         * popup overlays a code block; an identical opaque colour
-         * would make their boundaries disappear into each other. */
-        background: $foreground 20%;
-    }
-    PlanStripWidget.-hidden { display: none; }
-    PlanStripWidget Horizontal { height: 1; }
+        /* Shared warm dark tint (see ``_PLAN_SURFACE_BG``) — visually
+         * unifies the collapsed strip with the expanded popup's
+         * titlebar and rows. A literal hex (rather than the opaque
+         * code-block slate or a neutral ``$foreground X%`` blend)
+         * keeps the plan chrome distinct when the popup overlays a
+         * code block AND picks up the amber family of the ``plan``
+         * label so the surface reads as one cohesive band. */
+        background: {_PLAN_SURFACE_BG};
+    }}
+    PlanStripWidget.-hidden {{ display: none; }}
+    PlanStripWidget Horizontal {{ height: 1; }}
     /* Left "plan [✓ 2/5] current: …" stretches; trailing chevron is
      * fixed-width and right-docked so the truncation absorbs the
      * length variation. */
-    PlanStripWidget #plan-strip-body { width: 1fr; }
-    PlanStripWidget #plan-strip-chevron {
+    PlanStripWidget #plan-strip-body {{ width: 1fr; }}
+    PlanStripWidget #plan-strip-chevron {{
         width: 2;
         color: $foreground 40%;
         content-align: right middle;
-    }
+    }}
     """
 
     def __init__(self, state: SessionState) -> None:
@@ -273,7 +290,7 @@ class PlanOverlayScreen(ModalScreen[None]):
          * like the strip simply opened upward. */
         height: 1;
         padding: 0 1;
-        background: $foreground 20%;
+        background: {_PLAN_SURFACE_BG};
     }}
     PlanOverlayScreen #plan-overlay-header-label {{ width: 1fr; }}
     PlanOverlayScreen #plan-overlay-dismiss {{
@@ -293,7 +310,7 @@ class PlanOverlayScreen(ModalScreen[None]):
          * comment for the layering rationale. The rows region still
          * needs an opaque-ish background so the transcript behind
          * the modal doesn't bleed through behind the task list. */
-        background: $foreground 20%;
+        background: {_PLAN_SURFACE_BG};
         /* No vertical padding: the titlebar band above (its own
          * background) is the visual separator from the rows below,
          * and the card ends flush with the last row. Horizontal

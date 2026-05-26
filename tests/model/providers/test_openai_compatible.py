@@ -1,3 +1,5 @@
+from typing import Any
+
 import httpx
 import pytest
 from openai import APIStatusError
@@ -63,6 +65,40 @@ def test_strict_tools_default_true() -> None:
 
     tools = api.tools_to_openai([ToolInfo(name="test_tool", description="Test tool")])
     assert tools[0]["function"]["strict"] is True
+
+
+async def test_responses_phase_model_arg(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test responses_phase is an openai-api model arg, not an SDK arg."""
+    captured: dict[str, Any] = {}
+
+    async def mock_generate_responses(**kwargs: Any) -> ModelOutput:
+        captured.update(kwargs)
+        return ModelOutput.from_content(model="gpt-5", content="ok")
+
+    monkeypatch.setattr(
+        "inspect_ai.model._providers.openai_compatible.generate_responses",
+        mock_generate_responses,
+    )
+    api = OpenAICompatibleAPI(
+        model_name="openai-api/openai/gpt-5",
+        api_key="test",
+        base_url="https://example.com",
+        responses_api=True,
+        responses_phase=True,
+    )
+    try:
+        assert api.responses_phase is True
+        assert "responses_phase" not in api.model_args
+
+        await api.generate(
+            input=[ChatMessageUser(content="hi")],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+        )
+        assert captured["synthesize_phase"] is True
+    finally:
+        await api.aclose()
 
 
 @skip_if_no_openai

@@ -6,8 +6,9 @@ import shutil
 from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from types import TracebackType
-from typing import Any, BinaryIO, Callable, Coroutine, TypeVar, cast
+from typing import Any, AsyncIterator, BinaryIO, Callable, Coroutine, TypeVar, cast
 from urllib.parse import urlparse
 
 import anyio
@@ -165,6 +166,32 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         else:
             return filesystem(filename).info(filename)
 
+    async def exists(self, filename: str) -> bool:
+        """Return True if `filename` exists, False otherwise."""
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            if current_async_backend() == "asyncio":
+                from botocore.exceptions import ClientError
+
+                try:
+                    await (await self.s3_client_async()).head_object(
+                        Bucket=bucket, Key=key
+                    )
+                    return True
+                except ClientError as e:
+                    if e.response.get("Error", {}).get("Code") in (
+                        "404",
+                        "NoSuchKey",
+                        "NotFound",
+                    ):
+                        return False
+                    raise
+            return await anyio.to_thread.run_sync(
+                s3_exists, self.s3_client(), bucket, key
+            )
+        else:
+            return filesystem(filename).exists(filename)
+
     async def read_file(self, filename: str) -> bytes:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
@@ -308,6 +335,140 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             ) as f:
                 shutil.copyfileobj(source, f, length=_STREAMING_COPY_BUFSIZE)
 
+    async def get_file(self, remote: str, local: str) -> None:
+        """Download `remote` to local path `local`."""
+        if is_s3_filename(remote):
+            bucket, key = s3_bucket_and_key(remote)
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                await client.download_file(Bucket=bucket, Key=key, Filename=local)
+            else:
+                await anyio.to_thread.run_sync(
+                    s3_get_file, self.s3_client(), bucket, key, local
+                )
+        else:
+            filesystem(remote).get_file(remote, local)
+
+    async def iter_files(
+        self, base: str, pattern: str = "*", *, recursive: bool = False
+    ) -> AsyncIterator[str]:
+        """Yield URIs of files under `base`.
+
+        Matching is fnmatch-on-basename (case-sensitive). When `recursive`
+        is False, only direct children of `base` are considered; otherwise
+        any file at any depth under `base` is considered.
+
+        The `pattern` argument matches the basename only; it must not
+        contain `/`.
+        """
+        if is_s3_filename(base):
+            bucket, prefix = s3_bucket_and_key(base)
+            prefix = prefix.rstrip("/") + "/" if prefix else ""
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                paginator = client.get_paginator("list_objects_v2")
+                kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
+                if not recursive:
+                    kwargs["Delimiter"] = "/"
+                async for page in paginator.paginate(**kwargs):
+                    for obj in page.get("Contents", []):
+                        key = obj["Key"]
+                        if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
+                            yield f"s3://{bucket}/{key}"
+            else:
+                results = await anyio.to_thread.run_sync(
+                    s3_iter_files,
+                    self.s3_client(),
+                    bucket,
+                    prefix,
+                    pattern,
+                    recursive,
+                )
+                for r in results:
+                    yield r
+        else:
+            fs = filesystem(base).fs
+            if recursive:
+                paths = fs.find(base)
+                if isinstance(paths, dict):
+                    paths = list(paths.keys())
+                for path in paths:
+                    if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
+                        yield path
+            else:
+                for entry in fs.ls(base, detail=True):
+                    if entry["type"] == "file":
+                        name = entry["name"]
+                        if fnmatchcase(name.rsplit("/", 1)[-1], pattern):
+                            yield name
+
+    async def iter_dirs(
+        self, base: str, pattern: str = "*", *, recursive: bool = False
+    ) -> AsyncIterator[str]:
+        """Yield URIs (ending in `/`) of directory-like entries under `base`.
+
+        Matching is fnmatch-on-terminal-name (case-sensitive). When
+        `recursive` is False, only direct subdirectories of `base` are
+        considered; otherwise matching directories at any depth are
+        yielded once (deduplicated).
+
+        The `pattern` argument matches the terminal name only; it must
+        not contain `/`.
+        """
+        if is_s3_filename(base):
+            bucket, prefix = s3_bucket_and_key(base)
+            prefix = prefix.rstrip("/") + "/" if prefix else ""
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                paginator = client.get_paginator("list_objects_v2")
+                if not recursive:
+                    async for page in paginator.paginate(
+                        Bucket=bucket, Prefix=prefix, Delimiter="/"
+                    ):
+                        for cp in page.get("CommonPrefixes", []):
+                            cp_key = cp["Prefix"]
+                            name = cp_key.rstrip("/").rsplit("/", 1)[-1]
+                            if fnmatchcase(name, pattern):
+                                yield f"s3://{bucket}/{cp_key}"
+                else:
+                    base_depth = len(prefix.rstrip("/").split("/")) if prefix else 0
+                    seen: set[str] = set()
+                    async for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                        for obj in page.get("Contents", []):
+                            key = obj["Key"]
+                            parts = key.split("/")
+                            for i in range(base_depth, len(parts) - 1):
+                                if fnmatchcase(parts[i], pattern):
+                                    dir_path = "/".join(parts[: i + 1])
+                                    if dir_path not in seen:
+                                        seen.add(dir_path)
+                                        yield f"s3://{bucket}/{dir_path}/"
+            else:
+                results = await anyio.to_thread.run_sync(
+                    s3_iter_dirs,
+                    self.s3_client(),
+                    bucket,
+                    prefix,
+                    pattern,
+                    recursive,
+                )
+                for r in results:
+                    yield r
+        else:
+            fs = filesystem(base).fs
+            if not recursive:
+                for entry in fs.ls(base, detail=True):
+                    if entry["type"] == "directory":
+                        name = entry["name"]
+                        terminal = name.rstrip("/").rsplit("/", 1)[-1]
+                        if fnmatchcase(terminal, pattern):
+                            yield name.rstrip("/") + "/"
+            else:
+                for dirpath, dirnames, _ in fs.walk(base):
+                    for dirname in dirnames:
+                        if fnmatchcase(dirname, pattern):
+                            yield f"{dirpath.rstrip('/')}/{dirname}/"
+
     @override
     async def __aenter__(self) -> "AsyncFilesystem":
         existing = _current_async_fs.get()
@@ -441,6 +602,66 @@ def s3_write_file_streaming(s3: Any, bucket: str, key: str, source: BinaryIO) ->
     s3.upload_fileobj(
         Fileobj=source, Bucket=bucket, Key=key, Config=_s3_transfer_config()
     )
+
+
+def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:
+    s3.download_file(Bucket=bucket, Key=key, Filename=filename)
+
+
+def s3_iter_files(
+    s3: Any, bucket: str, prefix: str, pattern: str, recursive: bool
+) -> list[str]:
+    paginator = s3.get_paginator("list_objects_v2")
+    kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
+    if not recursive:
+        kwargs["Delimiter"] = "/"
+    results: list[str] = []
+    for page in paginator.paginate(**kwargs):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
+                results.append(f"s3://{bucket}/{key}")
+    return results
+
+
+def s3_iter_dirs(
+    s3: Any, bucket: str, prefix: str, pattern: str, recursive: bool
+) -> list[str]:
+    paginator = s3.get_paginator("list_objects_v2")
+    results: list[str] = []
+    if not recursive:
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"):
+            for cp in page.get("CommonPrefixes", []):
+                cp_key = cp["Prefix"]
+                name = cp_key.rstrip("/").rsplit("/", 1)[-1]
+                if fnmatchcase(name, pattern):
+                    results.append(f"s3://{bucket}/{cp_key}")
+    else:
+        base_depth = len(prefix.rstrip("/").split("/")) if prefix else 0
+        seen: set[str] = set()
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                parts = key.split("/")
+                for i in range(base_depth, len(parts) - 1):
+                    if fnmatchcase(parts[i], pattern):
+                        dir_path = "/".join(parts[: i + 1])
+                        if dir_path not in seen:
+                            seen.add(dir_path)
+                            results.append(f"s3://{bucket}/{dir_path}/")
+    return results
+
+
+def s3_exists(s3: Any, bucket: str, key: str) -> bool:
+    from botocore.exceptions import ClientError
+
+    try:
+        s3.head_object(Bucket=bucket, Key=key)
+        return True
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+            return False
+        raise
 
 
 def s3_bucket_and_key(filename: str) -> tuple[str, str]:

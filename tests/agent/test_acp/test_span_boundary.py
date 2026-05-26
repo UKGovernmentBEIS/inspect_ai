@@ -11,11 +11,14 @@ from typing import Any
 from inspect_ai.agent import Agent, AgentState, agent, as_solver, handoff, react, run
 from inspect_ai.agent._as_tool import as_tool
 from inspect_ai.event import SpanBeginEvent
+from inspect_ai.log._samples import _sample_active as samples_var
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import ChatMessageUser, get_model
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.solver._task_state import TaskState
 from inspect_ai.util._span import AGENT_SPAN_TYPE
+
+from ._capture import acp_test_active_sample
 
 
 def _agent_span_names(transcript: Transcript) -> list[str]:
@@ -52,10 +55,12 @@ async def test_run_emits_agent_boundary_span() -> None:
     """``agent.run(agent, ...)`` opens a single ``type="agent"`` span."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         await run(_leaf_agent(), input="hello")
         assert _agent_span_names(transcript) == ["leaf_agent"]
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -63,6 +68,7 @@ async def test_as_solver_emits_agent_boundary_span() -> None:
     """``as_solver(agent)`` invocation opens a ``type="agent"`` span."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         solver = as_solver(_leaf_agent())
         state = TaskState(
@@ -79,6 +85,7 @@ async def test_as_solver_emits_agent_boundary_span() -> None:
         await solver(state, _no_op_generate)  # type: ignore[arg-type]
         assert _agent_span_names(transcript) == ["leaf_agent"]
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -94,6 +101,7 @@ async def test_react_with_as_tool_subagent_emits_two_boundary_spans() -> None:
     """
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
 
         @agent(name="sub_agent", description="A sub-agent used as a tool.")
@@ -133,6 +141,7 @@ async def test_react_with_as_tool_subagent_emits_two_boundary_spans() -> None:
             f"expected ≥2 boundary spans (parent + sub-agent); got names={names}"
         )
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -146,6 +155,7 @@ async def test_handoff_invocation_emits_agent_boundary_span() -> None:
     """
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
 
         @agent(
@@ -182,6 +192,7 @@ async def test_handoff_invocation_emits_agent_boundary_span() -> None:
             f"handoff sub-agent boundary span missing; got names={names}"
         )
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -197,6 +208,7 @@ async def test_top_level_react_emits_agent_boundary_span() -> None:
     """
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample_tok = samples_var.set(acp_test_active_sample(transcript))
     try:
         model = get_model(
             "mockllm/model",
@@ -213,6 +225,7 @@ async def test_top_level_react_emits_agent_boundary_span() -> None:
             f"top-level react boundary span missing; got names={names}"
         )
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 

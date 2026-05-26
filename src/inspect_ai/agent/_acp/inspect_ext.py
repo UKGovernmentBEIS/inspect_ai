@@ -36,7 +36,7 @@ from __future__ import annotations
 import asyncio
 import math
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, Callable, Literal
+from typing import TYPE_CHECKING, Any, Callable, Final, Literal
 
 import anyio
 from acp.exceptions import RequestError
@@ -50,8 +50,8 @@ if TYPE_CHECKING:
     from acp.schema import SessionNotification
 
     from inspect_ai.agent._acp.connection import ConnectionHandler, ConnectionState
-    from inspect_ai.agent._acp.picker import PickerTarget
-    from inspect_ai.agent._acp.session import AcpSession
+    from inspect_ai.agent._acp.picker import PickerTarget, SampleListing
+    from inspect_ai.agent._acp.transport import AcpTransport
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.model._chat_message import ChatMessageSystem, ChatMessageUser
 
@@ -66,6 +66,12 @@ logger = getLogger(__name__)
 # who don't recognize the keys ignore them).
 PLAN_RENDERING_META_KEY = "inspect.plan_rendering"
 RAW_EVENTS_META_KEY = "inspect.raw_events"
+
+# Sentinel value inside a ``RAW_EVENTS_META_KEY`` subscription list
+# meaning "forward every event type" (the all-events glob). Kept as a
+# uniform list-of-strings shape so the forwarder's membership check
+# never needs to special-case a different type.
+RAW_EVENTS_GLOB: Final = "*"
 
 # Picker payload. Carried on the ``session/update`` notification that
 # pushes the multi-target picker; clients with first-class picker UI
@@ -86,6 +92,27 @@ MODEL_EVENT_UUID_META_KEY = "inspect.model_event_uuid"
 MODEL_EVENT_PENDING_META_KEY = "inspect.model_event_pending"
 MODEL_EVENT_COMPLETE_META_KEY = "inspect.model_event_complete"
 
+# Stamped on the OUTER ``SessionNotification.field_meta`` for every
+# notification emitted by the per-bind replay-on-attach path
+# (:meth:`Forwarders._run_replay`). Tells the client "this is a replay
+# of a snapshot event, not live forwarding" so it can dedup against
+# chunks it has already processed for the same message_id (server
+# always replays the full snapshot tail per the bind contract — on a
+# RECONNECT the client has already rendered most of those chunks).
+# Live forwarding never sets this marker. Clients that don't know
+# the key just process the notification normally (some doubling of
+# already-rendered text on reconnect; harmless on first attach).
+REPLAY_META_KEY = "inspect.replay"
+
+# Stamped on the OUTER ``SessionNotification.field_meta`` of every
+# ``UsageUpdate`` notification — carries the sample's running
+# ``ActiveSample.total_messages`` count alongside the standard
+# ACP ``used`` / ``size`` token fields. ACP's ``UsageUpdate`` schema has
+# no first-class message-count field, so the Inspect TUI reads this key
+# off the outer notification to drive the header's ``messages`` chip on
+# the same tick as ``tokens``.
+TOTAL_MESSAGES_META_KEY = "inspect.total_messages"
+
 
 # ---------------------------------------------------------------------------
 # inspect/* JSON-RPC methods (non-standard)
@@ -100,10 +127,17 @@ INSPECT_EVENT_METHOD = "inspect/event"
 # Clients that don't know about them simply don't call them.
 INSPECT_CANCEL_SAMPLE_METHOD = "inspect/cancel_sample"
 INSPECT_CANCEL_TOOL_CALL_METHOD = "inspect/cancel_tool_call"
-INSPECT_NEW_SESSION_METHOD = "inspect/new_session"
+INSPECT_ATTACH_METHOD = "inspect/attach"
 INSPECT_LIST_SESSIONS_METHOD = "inspect/list_sessions"
+# Enumerates ALL active samples (ACP-claimed and not). ACP-claimed
+# entries carry the live ``sessionId``; non-ACP entries omit it. The
+# Inspect TUI uses this to surface non-ACP samples in the picker
+# (dimmed + unselectable-on-attach) so operators can see when an eval
+# is running but its agent isn't ACP-aware. ``inspect/list_sessions``
+# remains the ACP-only enumeration for standard ACP clients.
+INSPECT_LIST_SAMPLES_METHOD = "inspect/list_samples"
 
-# Server → client notification: the bound LiveAcpSession has exited
+# Server → client notification: the bound LiveAcpTransport has exited
 # on the server side (sample's react loop returned). Fired by the
 # per-bind semantic forwarder when its subscriber stream sees clean
 # EOF — gives the client a positive "this session is done" signal
@@ -162,7 +196,7 @@ class CancelToolCallParams(BaseModel):
 
 
 class NewSessionParams(BaseModel):
-    """Pydantic param model for :data:`INSPECT_NEW_SESSION_METHOD`.
+    """Pydantic param model for :data:`INSPECT_ATTACH_METHOD`.
 
     Inspect-aware clients (the TUI, editors that already know which
     sample to attach to) pass the ``task/sample_id/epoch`` triple
@@ -182,6 +216,10 @@ class NewSessionParams(BaseModel):
 
 class ListSessionsParams(BaseModel):
     """Pydantic param model for :data:`INSPECT_LIST_SESSIONS_METHOD` (no params)."""
+
+
+class ListSamplesParams(BaseModel):
+    """Pydantic param model for :data:`INSPECT_LIST_SAMPLES_METHOD` (no params)."""
 
 
 def wrap_action_handler(func: Any, model: type[BaseModel]) -> Any:
@@ -259,8 +297,8 @@ def register_inspect_routes(router: MessageRouter, handler: ConnectionHandler) -
     )
     router.add_route(
         Route(
-            method=INSPECT_NEW_SESSION_METHOD,
-            func=wrap_action_handler(handler.inspect_new_session, NewSessionParams),
+            method=INSPECT_ATTACH_METHOD,
+            func=wrap_action_handler(handler.inspect_attach, NewSessionParams),
             kind="request",
         )
     )
@@ -268,6 +306,13 @@ def register_inspect_routes(router: MessageRouter, handler: ConnectionHandler) -
         Route(
             method=INSPECT_LIST_SESSIONS_METHOD,
             func=wrap_action_handler(handler.inspect_list_sessions, ListSessionsParams),
+            kind="request",
+        )
+    )
+    router.add_route(
+        Route(
+            method=INSPECT_LIST_SAMPLES_METHOD,
+            func=wrap_action_handler(handler.inspect_list_samples, ListSamplesParams),
             kind="request",
         )
     )
@@ -281,21 +326,33 @@ def register_inspect_routes(router: MessageRouter, handler: ConnectionHandler) -
 def detect_capabilities(
     client_info: Any,
     client_capabilities: Any,
-) -> tuple[bool, bool]:
+) -> tuple[bool, frozenset[str] | None]:
     """Decide whether this client opts into Inspect extensions.
 
-    Returns ``(client_renders_plan, raw_events_enabled)``. Two sources
-    are consulted for each flag:
+    Returns ``(client_renders_plan, raw_events_subscription)``.
 
-    - ``client_info.name`` (case-insensitive) against the
-      :data:`PLAN_RENDERING_CLIENTS` allowlist — known editors with
-      first-class Plan UI.
-    - ``client_capabilities._meta`` for the explicit opt-in keys
-      :data:`PLAN_RENDERING_META_KEY` / :data:`RAW_EVENTS_META_KEY`.
+    - ``client_renders_plan``: Two sources are consulted —
+      ``client_info.name`` (case-insensitive) against the
+      :data:`PLAN_RENDERING_CLIENTS` allowlist (known editors with
+      first-class Plan UI), and ``client_capabilities._meta`` for the
+      explicit opt-in key :data:`PLAN_RENDERING_META_KEY`. Either
+      source flips it on.
+    - ``raw_events_subscription``: ``frozenset[str] | None`` decoded
+      from ``_meta[RAW_EVENTS_META_KEY]``:
 
-    Either source flips the flag on; both default off. Called by
-    :meth:`ConnectionHandler.initialize` and the result is frozen on
-    :class:`ConnectionState` for the connection lifetime.
+      - Missing / empty list ``[]`` → ``None`` (no subscription).
+      - List containing :data:`RAW_EVENTS_GLOB` (``"*"``) → glob; all
+        events forwarded (yields a frozenset containing the glob
+        sentinel — the forwarder's membership check treats it
+        uniformly).
+      - List of named event types (``["score"]``, ``["score", "error"]``)
+        → frozenset of those names.
+      - Anything else (legacy bool, malformed shapes) → ``None`` + a
+        one-shot warning, matching the existing pattern for malformed
+        ``_meta``.
+
+    Called by :meth:`ConnectionHandler.initialize` and the result is
+    frozen on :class:`ConnectionState` for the connection lifetime.
     """
     name = client_info.name.lower() if client_info is not None else ""
     meta: dict[str, Any] = {}
@@ -304,8 +361,41 @@ def detect_capabilities(
     client_renders_plan = name in PLAN_RENDERING_CLIENTS or bool(
         meta.get(PLAN_RENDERING_META_KEY)
     )
-    raw_events_enabled = bool(meta.get(RAW_EVENTS_META_KEY))
-    return client_renders_plan, raw_events_enabled
+    raw_events_subscription = _decode_raw_events_subscription(
+        meta.get(RAW_EVENTS_META_KEY, None)
+    )
+    return client_renders_plan, raw_events_subscription
+
+
+def _decode_raw_events_subscription(
+    raw: Any,
+) -> frozenset[str] | None:
+    """Decode a ``RAW_EVENTS_META_KEY`` value into a subscription set.
+
+    Returns ``None`` when there's no subscription. Returns a non-empty
+    ``frozenset[str]`` containing event-type names (and possibly
+    :data:`RAW_EVENTS_GLOB`) otherwise.
+    """
+    if raw is None:
+        return None
+    if isinstance(raw, list):
+        if not raw:
+            return None
+        if all(isinstance(item, str) for item in raw):
+            return frozenset(raw)
+        logger.warning(
+            "ACP initialize: malformed %s (expected list[str]); "
+            "no raw events will be forwarded",
+            RAW_EVENTS_META_KEY,
+        )
+        return None
+    logger.warning(
+        "ACP initialize: %s must be a list of event-type strings "
+        "(got %s); no raw events will be forwarded",
+        RAW_EVENTS_META_KEY,
+        type(raw).__name__,
+    )
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -422,14 +512,43 @@ class RawEventForwarder:
     pre-condensation state.
     """
 
-    def __init__(self, connection: Connection) -> None:
+    def __init__(
+        self,
+        connection: Connection,
+        *,
+        subscription: frozenset[str],
+    ) -> None:
         self._connection = connection
+        # Subscription is always non-empty by the time the forwarder is
+        # constructed — empty / ``None`` upstream skips construction
+        # entirely. Membership check accepts the ``"*"`` glob sentinel
+        # as "all events" so callers don't need a separate flag.
+        self._subscription = subscription
         self._send: Any = None
         self._recv: Any = None
         self._task: asyncio.Task[None] | None = None
         self._unsubscribe: Callable[[], None] | None = None
+        # Drain-barrier accounting — mirrors the semantic forwarder's
+        # pattern in ``Forwarders._run_semantic_forwarder``. Needed so
+        # the semantic forwarder's EOF path can await
+        # ``raw_forwarder.drain()`` BEFORE sending ``inspect/session_ended``,
+        # ensuring late raw events (notably ``ScoreEvent`` /
+        # ``SampleLimitEvent`` emitted during the post-agent scoring
+        # phase) reach the wire before the lifecycle terminator. Without
+        # this barrier the raw firehose can race the session_ended
+        # notification and the client may flip the lifecycle pill to
+        # ``complete`` before consuming the trailing scoring events,
+        # which then appear retroactively (or get dropped, depending on
+        # the consumer's post-complete policy).
+        self._notifications_sent: int = 0
+        self._sent_event: anyio.Event = anyio.Event()
+        self._processing_item: bool = False
 
-    def attach(self, target: AcpSession) -> None:
+    def _matches(self, event_type: str) -> bool:
+        """True iff the forwarder should forward an event of ``event_type``."""
+        return RAW_EVENTS_GLOB in self._subscription or event_type in self._subscription
+
+    def attach(self, target: AcpTransport) -> None:
         """Create the bridge stream + subscribe to the target's transcript."""
         self._send, self._recv = anyio.create_memory_object_stream[Any](
             max_buffer_size=math.inf
@@ -459,15 +578,33 @@ class RawEventForwarder:
         """
         events = snapshot[-max_events:]
         for event in events:
-            payload: Any = None
-            with acp_guard("ACP raw replay: event failed to serialize; skipping") as g:
-                payload = event.model_dump(
-                    mode="json", by_alias=True, exclude_none=True
-                )
-            if g.failed:
-                continue
-            # Send failures escape to the caller's outer ``acp_send_guard``.
-            await self._connection.send_notification(INSPECT_EVENT_METHOD, payload)
+            await self.replay_event(event)
+
+    async def replay_event(self, event: Any) -> None:
+        """Serialize + send one event as ``inspect/event``. No-op if filtered.
+
+        Per-event entry point for the interleaved replay path in
+        :meth:`Forwarders._run_replay`, where raw and semantic events
+        are dispatched in source-transcript order rather than as two
+        separate passes — keeping score chips, tool cards, and
+        message groups in the same chronological order on the wire
+        they had in the underlying transcript. Calling this from a
+        per-event walk preserves wire ordering across the two streams.
+
+        Same per-event error boundary as :meth:`replay`: serialization
+        failures log + skip; send failures propagate to the caller's
+        ``acp_send_guard``.
+        """
+        event_type = getattr(event, "event", None)
+        if not isinstance(event_type, str) or not self._matches(event_type):
+            return
+        payload: Any = None
+        with acp_guard("ACP raw replay: event failed to serialize; skipping") as g:
+            payload = event.model_dump(mode="json", by_alias=True, exclude_none=True)
+        if g.failed:
+            return
+        # Send failures escape to the caller's outer ``acp_send_guard``.
+        await self._connection.send_notification(INSPECT_EVENT_METHOD, payload)
 
     def start(self, target_session_id: str) -> None:
         """Launch the background drain task. Call after :meth:`replay`."""
@@ -512,8 +649,15 @@ class RawEventForwarder:
         than in the task body. Non-blocking via ``send_nowait``; a dead
         send half is dropped silently (the cleanup runs first on
         disconnect, so a closed stream here is an expected race).
+
+        Filter BEFORE serialization: the pre-condensation guarantee
+        doesn't need to pay the model_dump cost for events the client
+        isn't subscribed to.
         """
         if self._send is None:
+            return
+        event_type = getattr(event, "event", None)
+        if not isinstance(event_type, str) or not self._matches(event_type):
             return
         try:
             payload = event.model_dump(mode="json", by_alias=True, exclude_none=True)
@@ -544,14 +688,65 @@ class RawEventForwarder:
         """
         with acp_send_guard("ACP raw forwarder: stream iteration failed") as outer:
             async for payload in recv_stream:
-                with acp_send_guard("ACP raw forwarder: send failed") as inner:
-                    await self._connection.send_notification(
-                        INSPECT_EVENT_METHOD, payload
-                    )
-                if inner.should_exit:
-                    return
+                # Mark the in-flight window so ``drain`` accounts for
+                # this item even though it's no longer in the stream's
+                # ``current_buffer_used`` (we've already pulled it).
+                # Cleared in the same try/finally that bumps the
+                # counter.
+                self._processing_item = True
+                try:
+                    with acp_send_guard("ACP raw forwarder: send failed") as inner:
+                        await self._connection.send_notification(
+                            INSPECT_EVENT_METHOD, payload
+                        )
+                    if inner.should_exit:
+                        return
+                finally:
+                    # Bump whether or not the send succeeded — draining
+                    # is "this buffered item has been processed", not
+                    # "the wire accepted it". A failed send means we're
+                    # about to exit anyway; waiters bail via the
+                    # ``_task.done()`` guard in :meth:`drain`.
+                    self._notifications_sent += 1
+                    self._processing_item = False
+                    self._sent_event.set()
+                    self._sent_event = anyio.Event()
         if outer.should_exit:
             return
+
+    async def drain(self) -> None:
+        """Block until the forwarder has processed all currently-buffered items.
+
+        Called by the semantic forwarder's EOF path before sending
+        ``inspect/session_ended`` so late raw events (notably
+        ``ScoreEvent`` and ``SampleLimitEvent`` emitted during the
+        post-agent scoring phase, which arrive on the raw firehose
+        but have no semantic counterpart) reach the wire before the
+        lifecycle terminator.
+
+        Semantics: yield until every item sitting in the bridge
+        stream's buffer AT CALL TIME has been processed. Items
+        published AFTER this call need not be ordered before the
+        caller's next send. Safe no-op when the forwarder isn't
+        running (pre-start, post-stop, or task already exited).
+        """
+        if self._recv is None or self._task is None or self._task.done():
+            return
+        try:
+            buffered = self._recv.statistics().current_buffer_used
+        except Exception:
+            # If statistics() ever changes shape under us, fail open —
+            # better to skip the barrier than to hang teardown.
+            return
+        in_flight = 1 if self._processing_item else 0
+        pending_to_process = buffered + in_flight
+        if pending_to_process == 0:
+            return
+        target = self._notifications_sent + pending_to_process
+        while self._notifications_sent < target:
+            if self._task.done():
+                return
+            await self._sent_event.wait()
 
 
 # ---------------------------------------------------------------------------
@@ -573,7 +768,30 @@ def picker_target_meta_dict(target: PickerTarget) -> dict[str, Any]:
         "epoch": target.epoch,
         "agentName": target.agent_name,
         "startedAt": target.started_at,
+        "totalMessages": target.total_messages,
         "totalTokens": target.total_tokens,
+        "failsOnError": target.fails_on_error,
+    }
+
+
+def sample_listing_meta_dict(listing: SampleListing) -> dict[str, Any]:
+    """Canonical camelCase wire shape for an :data:`INSPECT_LIST_SAMPLES_METHOD` entry.
+
+    ``sessionId`` is set only when the sample's agent has claimed an
+    ACP session (called ``before_turn`` at least once). Non-ACP samples
+    emit ``sessionId: null`` — the discriminator the Inspect TUI uses
+    to render those rows as dimmed + unselectable-on-attach.
+    """
+    return {
+        "sessionId": listing.session_id,
+        "task": listing.task,
+        "sampleId": listing.sample_id,
+        "epoch": listing.epoch,
+        "agentName": listing.agent_name,
+        "startedAt": listing.started_at,
+        "totalMessages": listing.total_messages,
+        "totalTokens": listing.total_tokens,
+        "failsOnError": listing.fails_on_error,
     }
 
 

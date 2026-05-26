@@ -79,7 +79,13 @@ def format_tokens(n: int) -> str:
     a literal ``1234567`` is hard to scan in a narrow column. One
     decimal for under-10 values (``1.2K``, ``9.9M``); whole numbers
     above that. Trailing ``.0`` trimmed so ``1000`` reads as ``1K``.
+
+    Zero collapses to ``—`` (em-dash) so the picker doesn't show a
+    bare ``0`` for samples that haven't generated any model output
+    yet — visually distinguishes "no data" from "small but non-zero".
     """
+    if n == 0:
+        return "—"
     if n < 1_000:
         return str(n)
     for unit, suffix in ((1_000_000_000, "B"), (1_000_000, "M"), (1_000, "K")):

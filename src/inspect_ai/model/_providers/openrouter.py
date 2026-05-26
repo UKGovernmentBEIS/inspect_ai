@@ -218,10 +218,25 @@ class OpenRouterAPI(OpenAICompatibleAPI):
     async def messages_to_openai(
         self, input: list[ChatMessage]
     ) -> list[ChatCompletionMessageParam]:
+        # For Gemini-family models, do not replay stored reasoning_details
+        # back to OpenRouter. Gemini's openai-compat translation produces
+        # reasoning_details whose `id` field is missing or stale relative to
+        # the new tool_calls[].id on sequential function-call retries; the
+        # upstream Gemini provider then rejects with HTTP 200 + body
+        # {code:400, message:"Provider returned error"} (raw upstream error:
+        # "function call ... missing a thought_signature"). Falling through
+        # to the `<think>` tag path keeps assistant CoT visible to the model
+        # without triggering signature validation. Non-Gemini providers
+        # (Anthropic / Grok / OpenAI reasoning models) retain reasoning
+        # replay since they require it for correct CoT continuation.
+        _strip_reasoning_details = "gemini" in self.model_name.lower()
+
         # convert reasoning_details to an extra body parameter
         def handle_reasoning_details(
             content: ContentReasoning,
         ) -> dict[str, JsonValue] | str:
+            if _strip_reasoning_details:
+                return reasoning_to_think_tag(content)
             details = reasoning_to_openrouter_reasoning_details(content)
             if details is not None:
                 return details
@@ -323,9 +338,15 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             or self.reasoning_enabled is not None
         ):
             reasoning = dict()
-            # openrouter supports one of max_tokens or effort, prefer effort
+            # openrouter supports one of max_tokens or effort, prefer effort.
+            # OpenRouter accepts minimal/low/medium/high/xhigh (per
+            # https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)
+            # but not `max`; map it to `xhigh` (their highest tier, ratio 0.95).
             if config.reasoning_effort is not None:
-                reasoning["effort"] = config.reasoning_effort
+                effort: str = config.reasoning_effort
+                if effort == "max":
+                    effort = "xhigh"
+                reasoning["effort"] = effort
                 if config.reasoning_tokens is not None:
                     warn_once(
                         logger,

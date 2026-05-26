@@ -298,10 +298,16 @@ class TogetherRESTAPI(ModelAPI):
             return ex.response.status_code == 401
         return False
 
-    # cloudflare enforces rate limits by model for each account
     @override
     def connection_key(self) -> str:
-        return f"{self.api_key}"
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.api_key}:{self.model_name}"
 
     # Together uses a default of 512 so we bump it up
     @override

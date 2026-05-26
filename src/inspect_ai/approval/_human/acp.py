@@ -43,7 +43,7 @@ even though the orchestration is asyncio.
 from __future__ import annotations
 
 from logging import getLogger
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Callable, Protocol, cast
 
 import anyio
 from acp.schema import (
@@ -66,9 +66,29 @@ from .._approval import Approval, ApprovalDecision
 if TYPE_CHECKING:
     from acp.schema import ContentToolCallContent
 
-    from inspect_ai.agent._acp.session import ApproverClient
+    from inspect_ai.agent._acp.transport import ApproverClient
+    from inspect_ai.tool._tool_call import ToolCallContent
 
 logger = getLogger(__name__)
+
+
+class _ApprovalRoutingSession(Protocol):
+    """Narrowed view of ``AcpTransport`` for the approval shim.
+
+    Only the three primitives the shim actually uses: the driver-chain
+    snapshot, the one-way "has ever attached" bit, and the attach
+    subscription. Narrowed (rather than parameterising on the full
+    :class:`~inspect_ai.agent._acp.transport.AcpTransport`) so tests can
+    pass a minimal stub without implementing the full session surface.
+    """
+
+    def approver_driver_chain(self) -> list["ApproverClient"]: ...
+
+    def has_ever_had_approver_client(self) -> bool: ...
+
+    def subscribe_approver_attach(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]: ...
 
 
 # Stable mapping from the configured ``human_approver`` choices to
@@ -149,35 +169,101 @@ def _approval_from_response(
     )
 
 
-def _assistant_message_block(message: str) -> "ContentToolCallContent | None":
-    """Wrap the assistant's accompanying message as a content block.
+def _format_view_content_as_markdown(
+    view_content: "ToolCallContent",
+) -> "ToolCallContent":
+    """Bake title heading + format hint into the markdown text.
 
-    The in-proc panel renders the model's text under an
-    ``**Assistant**`` header before the view (see
-    ``render_tool_approval`` in ``approval/_human/util.py``). Without
-    this, the editor sees only the tool call shape and misses the
-    "why" the agent gave — under-contextualized for a real approval
-    decision. Mirror the in-proc layout in markdown so the editor's
-    card renders the same heading + body the panel does.
+    The result has ``format="markdown"`` and ``content`` that
+    includes a bold title heading (if ``view_content.title`` is set)
+    and — for non-markdown source — a fenced code block around the
+    body so whitespace / indentation are preserved by any markdown
+    renderer.
 
-    Returns ``None`` for an empty / whitespace-only message so we
-    don't pad the request with an empty block.
+    This is what lets the inline approval section (in the TUI) and
+    any other ACP client (Zed etc.) render the same visual structure
+    as the in-proc ``ApprovalPanel``'s ``render_tool_approval``
+    output (bold per-half titles, code fencing for plain text)
+    without needing any non-standard ``_meta`` markers on the wire.
+    """
+    from inspect_ai.tool._tool_call import ToolCallContent
+
+    parts: list[str] = []
+    if view_content.title:
+        parts.append(f"**{view_content.title}**")
+        parts.append("")  # blank line between heading and body
+    if view_content.format == "markdown":
+        parts.append(view_content.content)
+    else:
+        # Fence plain text so the renderer treats it as preformatted
+        # (preserves indentation; avoids markdown reinterpretation).
+        # Pick a fence longer than any backtick run in the content so
+        # text containing literal ``` (e.g. a viewer dumping help
+        # output, or a tool printing markdown source) doesn't break
+        # out of the fence and render as live markdown.
+        fence = _safe_code_fence(view_content.content)
+        parts.append(fence)
+        parts.append(view_content.content)
+        parts.append(fence)
+    return ToolCallContent(
+        title=None,
+        format="markdown",
+        content="\n".join(parts),
+    )
+
+
+def _safe_code_fence(content: str) -> str:
+    """Return a backtick fence longer than any backtick run in ``content``.
+
+    CommonMark / GFM rule: a fenced code block opened with N
+    backticks closes at the next line whose fence has at least N
+    backticks. Pick ``max_run + 1`` so the close fence we emit
+    can't be matched by anything embedded in the content.
+
+    Minimum length 3 — keeps standard plaintext (no backticks at
+    all) wrapped in the familiar ``` fence.
+    """
+    max_run = 0
+    cur_run = 0
+    for ch in content:
+        if ch == "`":
+            cur_run += 1
+            if cur_run > max_run:
+                max_run = cur_run
+        else:
+            cur_run = 0
+    return "`" * max(3, max_run + 1)
+
+
+def _separator_block() -> "ContentToolCallContent":
+    """A ``---`` markdown horizontal-rule block.
+
+    Inserted between ``view.context`` and ``view.call`` when both
+    are present so the rendered card mirrors the in-proc panel's
+    ``Rule(characters="․")`` separator (``render_tool_approval`` in
+    ``approval/_human/util.py``). Any markdown renderer draws this
+    as a horizontal line; no protocol extension required.
+
+    Body is just ``"---"`` — no surrounding newlines. Each
+    ``ContentToolCallContent`` block is rendered as its own
+    structural unit by every ACP client we target (each goes into
+    a separate widget on our TUI, a separate Markdown block in
+    Zed), so the rule is already on a line by itself. Leading /
+    trailing newlines here would render as redundant blank rows
+    on top of the inline section's per-block margin, doubling the
+    vertical gap around the divider.
     """
     from acp.schema import ContentToolCallContent, TextContentBlock
 
-    trimmed = message.strip()
-    if not trimmed:
-        return None
     return ContentToolCallContent(
         type="content",
-        content=TextContentBlock(type="text", text=f"**Assistant**\n\n{trimmed}"),
+        content=TextContentBlock(type="text", text="---"),
     )
 
 
 def _build_request(
     *,
     session_id: str,
-    message: str,
     call: ToolCall,
     view: ToolCallView,
     choices: list[ApprovalDecision],
@@ -192,21 +278,26 @@ def _build_request(
     :func:`content_blocks_from_view` so the approval prompt and the
     live tool-call rendering stay visually consistent in editors.
 
-    Content layout (matches the in-proc panel via
-    ``approval/_human/util.py:render_tool_approval``):
+    Content layout — diverges from the in-proc
+    ``ApprovalPanel`` / ``render_tool_approval`` in NOT including
+    the model's accompanying message text. That text already streams
+    to the client as a normal ``agent_message_chunk`` notification
+    and renders as an assistant chip in the conversation immediately
+    above the tool-call card (the approval shim's drain barrier
+    guarantees it arrives BEFORE the permission request); embedding
+    it AGAIN inside the approval card would duplicate the same text
+    a few rows apart. The panel needs to be self-contained because
+    it's a separate UI surface; the inline approval card lives in
+    the transcript flow where the assistant chip is right there.
 
-    1. **Assistant message** — the model's text accompanying the
-       tool call (the "why"). Prepended so the operator sees it
-       above the view, same order as the in-proc panel.
-    2. **View context** (if any) — current tool state from a
+    1. **View context** (if any) — current tool state from a
        previous step.
-    3. **View call** — what the agent wants to do next.
+    2. **View call** — what the agent wants to do next.
 
     The view halves are passed through ``substitute_tool_call_content``
     first so any ``{{param}}`` placeholders in a custom viewer
-    resolve to actual argument values — matches the panel's
-    rendering and prevents the editor card from showing literal
-    ``{{command}}`` / ``{{path}}`` placeholders.
+    resolve to actual argument values — prevents the editor card
+    from showing literal ``{{command}}`` / ``{{path}}`` placeholders.
     """
     # Deferred imports to avoid an import cycle through
     # ``inspect_ai.agent._acp.tool_content`` → ``inspect_ai.log._transcript``
@@ -236,22 +327,38 @@ def _build_request(
     )
 
     content_blocks: list[Any] = []
-    # 1. Assistant message — prepended so the operator sees the
-    # model's reasoning above the tool-call view, matching the
-    # in-proc panel's ordering.
-    msg_block = _assistant_message_block(message)
-    if msg_block is not None:
-        content_blocks.append(msg_block)
-    # 2. View context (if any).
-    if substituted_context is not None:
-        from_ctx = content_blocks_from_view(substituted_context)
-        if from_ctx:
-            content_blocks.extend(from_ctx)
-    # 3. View call.
-    if substituted_call is not None:
-        from_call = content_blocks_from_view(substituted_call)
-        if from_call:
-            content_blocks.extend(from_call)
+    # The model's accompanying message (the "why" the agent gave
+    # for this tool call) is deliberately NOT included in the
+    # approval request. It already flows to the client as a normal
+    # ``agent_message_chunk`` notification — rendered as an
+    # assistant chip in the conversation stream immediately above
+    # the tool-call card. Embedding it again inside the approval
+    # card just duplicated the same text a few rows apart. Diverges
+    # from the in-proc ``ApprovalPanel`` (which is a separate
+    # surface and needs to be self-contained) — see the comment in
+    # ``_build_request`` below.
+    # 1. View context (if any). Title baked into the markdown via
+    # _format_view_content_as_markdown so any renderer shows it as
+    # a bold heading.
+    context_blocks = (
+        content_blocks_from_view(_format_view_content_as_markdown(substituted_context))
+        if substituted_context is not None
+        else None
+    )
+    call_blocks = (
+        content_blocks_from_view(_format_view_content_as_markdown(substituted_call))
+        if substituted_call is not None
+        else None
+    )
+    if context_blocks:
+        content_blocks.extend(context_blocks)
+    # Markdown rule between context and call mirrors the in-proc
+    # panel's Rule separator (render_tool_approval in
+    # approval/_human/util.py).
+    if context_blocks and call_blocks:
+        content_blocks.append(_separator_block())
+    if call_blocks:
+        content_blocks.extend(call_blocks)
 
     tool_call = ToolCallUpdate(
         tool_call_id=call.id,
@@ -273,54 +380,137 @@ def _build_request(
 
 
 async def _request_from_driver_with_fallback(
-    clients_in_order: list[ApproverClient],
+    session: _ApprovalRoutingSession,
     request: RequestPermissionRequest,
     choices: list[ApprovalDecision],
 ) -> Approval | None:
-    """Send ``request`` to the driver; fall through to the next on failure.
+    """Send ``request`` to the driver; park-and-retry on chain exhaustion.
 
-    ``clients_in_order`` is the session's driver chain (driver first,
-    other attached clients in attach order). Single-driver semantics
-    replaced the previous broadcast/race model because ACP has no
-    protocol-level cancel for outbound requests — broadcasting left
-    losing editors with a stale permission card forever. Routing to
-    one client at a time means the operator only sees the prompt on
-    the client they're actually using.
+    Routing model: single-driver, with a fallback chain. ACP has no
+    protocol-level cancel for outbound requests, so broadcasting to N
+    clients leaves the losers' editors showing a stale permission card
+    forever (whatever they click later is silently discarded). Picking
+    one driver keeps the UX coherent.
 
-    Fallback shape: if the driver's request raises (typically
-    ``ConnectionError`` on mid-prompt disconnect, or any other
-    transport-level failure), move on to the next client in the
-    chain. Cancellation (``CancelledError`` from sample-level cancel)
-    propagates to the caller; we don't catch it.
+    Behavior (per iteration):
 
-    Returns ``None`` when every client in the chain raised — caller
-    falls back to the in-proc panel / console flow.
+    1. **Subscribe FIRST** to the next-attach event, so any attach
+       that races our snapshot/dispatch lands on a live subscriber
+       (and ``anyio.Event.set`` makes the subsequent ``event.wait``
+       return immediately). Critical: doing this AFTER the snapshot
+       creates a window where an attach fires with no subscriber and
+       we park forever despite a live client being present.
+    2. Snapshot the driver chain. If empty AND no ACP client has ever
+       attached to this session (``--acp-server`` + TTY case where no
+       operator ran ``inspect acp`` yet), return ``None`` so the caller
+       falls back to the in-proc panel.
+    3. Otherwise, try each client in chain order. Drain notifications
+       first (best-effort ordering barrier), then ``request_permission``.
+       On success, return the approval. On per-client failure, try
+       the next.
+    4. If every client in the snapshot raised (operator switched
+       away mid-approval) — or the chain was empty-but-ever-attached
+       — park on the attach event we subscribed in step 1. The fresh
+       client is fully bound, promoted, AND ready (replay completed)
+       before the notify fires — see ``_post_bind_setup_locked`` and
+       ``LiveAcpTransport.notify_approver_attach``.
+    5. Cancellation (sample-level cancel, Esc-interrupt) unwinds via
+       ``anyio.Event.wait`` cleanly — no try/except on the cancel exc.
+
+    Why re-snapshot rather than reuse: by the time the wait returns,
+    the freshly-attached client has already been promoted to position
+    0 of the chain. Re-querying ``approver_driver_chain()`` picks them
+    up automatically. Spurious wake-ups (client attaches then
+    disconnects before we reach it) are harmless — the ``for`` loop
+    sees no surviving client, raises, and we loop back to the wait.
+
+    Re-issue safety: ``RequestPermissionRequest`` has no mutable
+    per-send state, so the same ``request`` object can be sent to
+    multiple clients across retries.
 
     "Wait forever for a response" matches the in-proc human approver:
-    if the driver is connected but the operator is afk, the eval
-    blocks. That's the explicit design decision in the original
-    Phase 14 doc; not changed here.
+    if the operator is afk (or absent entirely), the sample blocks
+    until they show up or the sample is cancelled. Explicit design
+    decision in the Phase 14 doc; unchanged here.
     """
-    if not clients_in_order:
-        return None
     cancel_exc = anyio.get_cancelled_exc_class()
-    for client in clients_in_order:
+    while True:
+        # Subscribe BEFORE snapshotting / dispatching so an attach
+        # that lands during the dispatch attempt still sets the
+        # event we wait on below. ``anyio.Event.set`` is idempotent;
+        # if attach fires before ``event.wait``, the wait returns
+        # immediately and we re-iterate.
+        event = anyio.Event()
+        unsub = session.subscribe_approver_attach(event.set)
         try:
-            response = await client.request_permission(request)
-        except cancel_exc:
-            raise
-        except Exception as exc:
-            # Transport failure or other client-side error. Try the
-            # next client in the fallback chain. If this was the
-            # only one we'll return None at the end.
-            logger.debug(
-                "ACP approval request failed for client %r; trying next: %s",
-                client,
-                exc,
-            )
-            continue
-        return _approval_from_response(response, choices)
-    return None
+            clients_in_order = session.approver_driver_chain()
+            if not clients_in_order:
+                if not session.has_ever_had_approver_client():
+                    # No ACP client has ever attached for this session.
+                    # ``--acp-server`` + TTY with no operator: fall
+                    # back to the in-proc panel rather than parking
+                    # forever.
+                    return None
+                # Empty chain but operator was here at some point —
+                # they disconnected. Fall through to the wait below.
+            else:
+                for client in clients_in_order:
+                    # Drain pending ``session/update`` notifications
+                    # BEFORE the request goes out, so the operator sees
+                    # the model's accompanying ``agent_message_chunk``
+                    # (the "why" the agent gave) above the approval
+                    # card rather than AFTER it (or never, if they
+                    # decide before the chunk arrives). Notifications
+                    # travel via the in-process pub/sub bus +
+                    # per-connection forwarder task, while
+                    # ``request_permission`` calls ``conn.send_request``
+                    # directly on the agent task — without this barrier
+                    # the request can win the race to the wire and the
+                    # operator decides with no narration context. See
+                    # the ``Forwarders.drain`` docstring for the
+                    # ordering mechanics.
+                    #
+                    # Drain is BEST-EFFORT ordering, NOT a gate on
+                    # whether the request goes out. If drain itself
+                    # raises a non-cancel exception, log + proceed with
+                    # the request — otherwise a drain bug would
+                    # silently skip the driver and route the approval
+                    # to a fallback client, which is a worse failure
+                    # mode than slightly-out-of-order notifications.
+                    try:
+                        await client.drain_notifications()
+                    except cancel_exc:
+                        raise
+                    except Exception as drain_exc:
+                        logger.warning(
+                            "ACP approval drain_notifications failed for "
+                            "client %r; proceeding with request anyway: %s",
+                            client,
+                            drain_exc,
+                        )
+                    try:
+                        response = await client.request_permission(request)
+                    except cancel_exc:
+                        raise
+                    except Exception as exc:
+                        # Transport failure or other client-side error.
+                        # Try the next client in the fallback chain.
+                        logger.debug(
+                            "ACP approval request failed for client %r; "
+                            "trying next: %s",
+                            client,
+                            exc,
+                        )
+                        continue
+                    else:
+                        # Successful dispatch — finally below unsubscribes.
+                        return _approval_from_response(response, choices)
+            # Either empty-but-ever-attached, or every client raised.
+            # Park until a fresh attach lands (or returns immediately
+            # if an attach raced us between subscribe and now).
+            await event.wait()
+        finally:
+            unsub()
 
 
 async def request_human_approval_via_acp(
@@ -342,11 +532,17 @@ async def request_human_approval_via_acp(
           existing in-proc panel / console human-approval flow in any
           of those cases.
 
-    The ``message`` argument is the assistant text accompanying the
-    tool call (the model's reasoning for what it wants to do). The
-    in-proc panel renders it under an ``**Assistant**`` header
-    above the view; the ACP request prepends an equivalent
-    markdown block so the operator sees the same context.
+    The ``message`` argument (the assistant text accompanying the
+    tool call) is accepted for signature parity with the in-proc
+    ``panel_approval`` / ``console_approval`` paths, but the ACP
+    flow deliberately does NOT forward it on the wire — the same
+    text already streams to attached clients as a normal
+    ``agent_message_chunk`` notification (rendered as an assistant
+    chip in the conversation above the tool-call card). The drain
+    barrier in :func:`_request_from_driver_with_fallback` ensures
+    the chunk lands BEFORE the permission request so the operator
+    sees the "why" above the approval card. See the
+    :func:`_build_request` docstring for the full rationale.
 
     Hard contract: never propagates a non-cancellation exception to
     the caller. This shim runs synchronously inside
@@ -357,6 +553,7 @@ async def request_human_approval_via_acp(
     ``CancelledError`` propagates naturally via :func:`acp_guard`'s
     BaseException semantics — sample-level cancel still works.
     """
+    del message  # accepted for signature parity; see docstring above
     with acp_guard(
         "ACP approval routing raised; falling back to in-proc approval flow"
     ):
@@ -365,19 +562,22 @@ async def request_human_approval_via_acp(
         from inspect_ai.log._samples import sample_active
 
         sample = sample_active()
-        if sample is None or sample.acp_session is None:
+        if sample is None or sample.acp_transport is None:
             return None
-        session = sample.acp_session
-        if not session.has_approver_clients():
+        session = sample.acp_transport
+        # Use "has ever attached" rather than "has currently attached":
+        # in --acp-server + TTY mode an operator may attach via
+        # ``inspect acp``, trigger an approval, then disconnect. The
+        # wait-and-retry loop inside ``_request_from_driver_with_fallback``
+        # parks until they (or another client) re-attach. Falling back
+        # to the panel only kicks in when no operator has EVER connected.
+        if not session.has_ever_had_approver_client():
             return None
         request = _build_request(
             session_id=session.session_id,
-            message=message,
             call=call,
             view=view,
             choices=choices,
         )
-        return await _request_from_driver_with_fallback(
-            session.approver_driver_chain(), request, choices
-        )
+        return await _request_from_driver_with_fallback(session, request, choices)
     return None

@@ -147,9 +147,19 @@ def test_bare_command_invokes_tui_runner(short_data_dir: Path, monkeypatch) -> N
     """
     captured: dict[str, object] = {}
 
-    async def _fake_run_tui(*, eval_id: str | None, server: str | None) -> None:
+    async def _fake_run_tui(
+        *,
+        eval_id: str | None,
+        server: str | None,
+        task_id: str | None = None,
+        sample_id: str | None = None,
+        epoch: int | None = None,
+    ) -> None:
         captured["eval_id"] = eval_id
         captured["server"] = server
+        captured["task_id"] = task_id
+        captured["sample_id"] = sample_id
+        captured["epoch"] = epoch
 
     monkeypatch.setattr(
         "inspect_ai.agent._acp.tui.run_tui",
@@ -159,7 +169,13 @@ def test_bare_command_invokes_tui_runner(short_data_dir: Path, monkeypatch) -> N
     runner = CliRunner()
     result = runner.invoke(acp_command, ["--eval-id=foo"], standalone_mode=False)
     assert result.exception is None or result.exit_code == 0
-    assert captured == {"eval_id": "foo", "server": None}
+    assert captured == {
+        "eval_id": "foo",
+        "server": None,
+        "task_id": None,
+        "sample_id": None,
+        "epoch": None,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -313,6 +329,92 @@ def test_stdio_single_eval_no_pick_notice(short_data_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Triple-filter flags (--task-id / --sample-id / --epoch)
+# ---------------------------------------------------------------------------
+
+
+def test_stdio_partial_triple_rejected_missing_two(short_data_dir: Path) -> None:
+    """``--stdio --task-id foo`` (alone) → exit 2 naming the missing flags."""
+    runner = CliRunner()
+    result = runner.invoke(
+        acp_command, ["--stdio", "--task-id=foo"], standalone_mode=False
+    )
+    assert result.return_value == 2
+    assert "--sample-id" in result.stderr
+    assert "--epoch" in result.stderr
+    assert "--task-id" not in result.stderr.split("Missing:")[1].split(".")[0]
+
+
+def test_stdio_partial_triple_rejected_missing_epoch(short_data_dir: Path) -> None:
+    """``--stdio --task-id foo --sample-id bar`` → exit 2 naming --epoch only."""
+    runner = CliRunner()
+    result = runner.invoke(
+        acp_command,
+        ["--stdio", "--task-id=foo", "--sample-id=bar"],
+        standalone_mode=False,
+    )
+    assert result.return_value == 2
+    # Only --epoch should be flagged as missing.
+    assert "--epoch" in result.stderr
+    missing_chunk = result.stderr.split("Missing:")[1].split(".")[0]
+    assert "--task-id" not in missing_chunk
+    assert "--sample-id" not in missing_chunk
+
+
+def test_tui_partial_triple_accepted(short_data_dir: Path, monkeypatch) -> None:
+    """TUI mode accepts any combination of the triple flags (mutex is stdio-only)."""
+    captured: dict[str, object] = {}
+
+    async def _fake_run_tui(
+        *,
+        eval_id: str | None,
+        server: str | None,
+        task_id: str | None = None,
+        sample_id: str | None = None,
+        epoch: int | None = None,
+    ) -> None:
+        captured["task_id"] = task_id
+        captured["sample_id"] = sample_id
+        captured["epoch"] = epoch
+
+    monkeypatch.setattr("inspect_ai.agent._acp.tui.run_tui", _fake_run_tui)
+    runner = CliRunner()
+    # Only --task-id provided — accepted in TUI mode (no --stdio).
+    result = runner.invoke(acp_command, ["--task-id=foo"], standalone_mode=False)
+    assert result.exception is None or result.exit_code == 0
+    assert captured == {"task_id": "foo", "sample_id": None, "epoch": None}
+
+
+def test_stdio_full_triple_preflight_unreachable_socket(short_data_dir: Path) -> None:
+    """``--stdio`` + complete triple + unreachable socket → exit 2 on preflight.
+
+    The preflight runs BEFORE the bridge starts; on connect failure it
+    surfaces a clean diagnostic rather than letting the editor see a
+    half-open bridge.
+    """
+    _write_discovery(
+        short_data_dir,
+        pid=100001,
+        eval_id="real",
+        socket_path="/tmp/acp_does_not_exist.sock",
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        acp_command,
+        [
+            "--stdio",
+            "--task-id=t",
+            "--sample-id=s",
+            "--epoch=0",
+        ],
+        standalone_mode=False,
+    )
+    assert isinstance(result.exception, SystemExit)
+    assert result.exception.code == 2
+    assert "/tmp/acp_does_not_exist.sock" in result.stderr
+
+
+# ---------------------------------------------------------------------------
 # --help content
 # ---------------------------------------------------------------------------
 
@@ -324,3 +426,6 @@ def test_help_lists_all_flags() -> None:
     assert "--stdio" in result.output
     assert "--eval-id" in result.output
     assert "--server" in result.output
+    assert "--task-id" in result.output
+    assert "--sample-id" in result.output
+    assert "--epoch" in result.output

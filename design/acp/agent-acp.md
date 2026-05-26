@@ -799,8 +799,24 @@ strings only matter at the picker step.
 
 ## Open questions
 
-1. **Replay on attach** — replay last N messages (configurable), eliding
-   large tool call payloads. Pick the default N and elision threshold.
+1. ~~**Replay on attach**~~ — *resolved during the Phase 6 (TUI
+   connection resilience) work.* `REPLAY_MAX_EVENTS = 100` shipped
+   from Phase 10 stays as the cap (post-filter, applied independently
+   to the semantic and raw streams). **No elision**: event payloads
+   are naturally bounded by model context windows (assistant messages,
+   tool results the model consumes are all capped); Inspect's own
+   `tool_output_max_chars` (default 16 KiB) keeps semantic
+   `tool_call` notifications small in normal use; the 64 MiB stream
+   buffer raised in Phase 5 handles outliers like swe-bench scorer
+   explanations. At LAN/loopback speeds wire transfer of even
+   multi-MB replay payloads is fine. A server-side per-client
+   high-water mark was also explicitly rejected — the server stamps
+   a single `REPLAY_META_KEY = "inspect.replay"` marker on the outer
+   `SessionNotification.field_meta` of replayed notifications, and
+   the client-side chunk-replay-reset + raw-event-uuid dedup in
+   `tui/state.py` (Phase 6) uses that marker to handle
+   duplicate-delivery correctness across all chunk kinds without
+   adding per-connection state on the server.
 
 2. ~~**Driver claim mechanics in multi-attach**~~ — *resolved during the
    Phase 14 single-driver revision.* Implicit (last `session/prompt`
@@ -953,12 +969,12 @@ The core cancel/inject machinery on `AcpSession`. No `react()` integration — e
 **What landed:**
 - `TurnCancelled(Exception)` — distinct from `CancelledError`. Raised on scope exit only when the cancel was client-driven (via `cancel_current_turn`). Sample-level `CancelledError` propagates through unchanged.
 - `acp.turn_scope()` — sync `@contextmanager` wrapping an `anyio.CancelScope`. Resets `_pending_turn_cancel` and `_cancelled_tool_call_ids` at entry; on exit, raises `TurnCancelled` iff `scope.cancelled_caught and _pending_turn_cancel`. Discriminator works because anyio's inner scope only catches cancels targeted at it; outer-scope cancels propagate unswallowed.
-- `acp.before_turn(state)` — drains queued user messages. Blocks only on the *first call* and only if `state.messages` has no `ChatMessageUser` yet — covers the "no dataset prompt, operator types the first message" case. Subsequent calls drain non-blockingly. Uses an `anyio.Event` reset-after-wait pattern (copied from `_util/future.py`).
-- `acp.after_cancel()` — returns synthetic `ChatMessageTool(error=ToolCallError(type="cancelled", ...))` for every cancelled tool call followed by drained operator user messages. Blocks until at least one user message is available. Returned list is ready to extend onto `state.messages`.
+- `acp.before_turn(state)` — drains queued user messages. Blocks only on the *first call* and only if `state.messages` has no `ChatMessageUser` yet — covers the "no dataset prompt, operator types the first message" case. Subsequent calls drain non-blockingly. Uses an `anyio.Event` reset-after-wait pattern (copied from `_util/future.py`). When the drain yields N operator messages, they are coalesced into a single merged `ChatMessageUser` via `_coalesce_operator_messages` before being returned (see "Coalesce on drain" below).
+- `acp.after_cancel()` — returns synthetic `ChatMessageTool(error=ToolCallError(type="cancelled", ...))` for every cancelled tool call followed by drained operator user messages. Blocks until at least one user message is available. Returned list is ready to extend onto `state.messages`. Drained operator messages are coalesced the same way `before_turn`'s are; repair tool messages are not.
 - `acp.submit_user_message(msg)` — normalizes provenance (always sets `source="operator"` via `model_copy`, even if the caller passed `source=None` or `source="input"`) so the canonical Phase 2 provenance marker is applied uniformly; queues and signals the event. The caller's original instance is not mutated.
 - `acp.cancel_current_turn()` — fire-and-forget. Snapshots in-flight state (active tool calls > `_active_model_event` > "between_turns"), emits `InterruptEvent(source="user_cancel", ...)` via Phase 2's `record_interrupt_event`, and cancels the turn scope if one is active.
 - `acp.track_tool_call(tool_call_id)` — sync `@contextmanager` that pushes/pops onto the in-flight tool list. Phase 4 wires it into `_call_tools.py`; Phase 3 tests use it directly to simulate "a tool is mid-flight". Because nested-agent tool calls go to the no-op session (Phase 1's shadowing rule), only top-level tool calls land here — exactly what the ACP-visible interrupt record needs.
-- `acp.track_model_event(event)` — sibling `@contextmanager` storing the in-flight `ModelEvent` **on the session** (save/restore semantics for nesting). Phase 4 will wrap each model generation in it. Critical: the previous design read from the existing `_active_model_event` ContextVar, which is task-local and invisible to a cancelling transport task running in a sibling task — so cancels would have been mis-recorded as `between_turns`. Storing on the session ensures the cancelling task sees the right value.
+- `acp.track_model_event(event)` — sibling `@contextmanager` storing the in-flight `ModelEvent` **on the session** (save/restore semantics for nesting). Phase 4 will wrap each model generation in it. Critical: the previous design read from the existing `_active_model_event` ContextVar, which is task-local and invisible to a cancelling transport task running in a sibling task — so cancels would have been miss-recorded as `between_turns`. Storing on the session ensures the cancelling task sees the right value.
 - `NoOpAcpSession` — no-op implementations of every Phase 3 method. `cancel_current_turn()` deliberately does **not** call `record_interrupt_event` (sub-agents must not emit cancel events into the top-level transcript).
 
 **Design decisions during implementation:**
@@ -966,6 +982,8 @@ The core cancel/inject machinery on `AcpSession`. No `react()` integration — e
 - Multi-tool-call cancel: `InterruptEvent.interrupted_tool_call_id` records only the *first* in-flight id (schema is a single string); `after_cancel()` synthesizes repair messages for *all* in-flight tool calls so `state.messages` stays consistent. Acceptable v1 tradeoff per the design doc — schema can be widened later (forward-compatible).
 - Cancel between turns (no active scope): the `InterruptEvent` is still recorded; the scope-cancel call is skipped; queued messages survive for the next `before_turn`. Tested explicitly.
 - `"cancelled"` value added to `ToolCallError.type` Literal — same forward-compatible additive pattern Phase 2 used for `source="operator"`; triggered the standard schema + TS regen flow.
+
+**Coalesce on drain (follow-up):** when the operator queues 2+ messages between turn boundaries, the original drain emitted N separate `ChatMessageUser(source="operator")` items into `state.messages`. The agent loop's `.extend()` then produced a degenerate conversation shape (multiple user turns in a row before the next assistant turn) — provider responses to that shape are unpredictable. The `_coalesce_operator_messages` helper merges consecutive operator-source drained messages into a single `ChatMessageUser` with `\n\n`-joined text (or a flattened content list when any message is multi-modal). Called from both `before_turn` and `after_cancel` (around `_drain` / `drain_blocking`) so every caller benefits without each having to remember to merge. The merge is conditional on `len > 1` AND all-operator-source — single-message and mixed-source drains pass through untouched. Per-message `.id` and `.metadata` collapse into the merged message's single fresh id; downstream `event_mapping._map_input_messages` dedup keys on message id, so one merged message ⇒ one `UserMessageChunk` emitted to clients. This is the conversation-shape contract every ACP client (TUI, Zed, anything else) benefits from. The TUI Phase 3 client-side display mirrors the merge as a "single growing ephemeral that appends new text on each send-while-busy" (see `agent-acp-tui.md`'s Phase 3 section).
 
 **Test coverage (21 tests, all pass under asyncio + trio):**
 1. `turn_scope` exits cleanly with no cancel.
@@ -1507,7 +1525,8 @@ The server runs a generic ACP client (e.g. Zed) end-to-end via standard methods 
 | Extension | Standard alternative | Non-Inspect client UX |
 |---|---|---|
 | `inspect/list_sessions` request | `session/new` → in-channel picker `session/update` carrying targets in the text body | Picker works fully; targets parsed from text instead of structured `_meta` |
-| `inspect/new_session` request (direct-bind by `task/sample_id/epoch`) | `session/load(<known sessionId>)` after a prior enumeration | Standard clients use `session/new` + picker selection; direct-bind is a TUI shortcut |
+| `inspect/list_samples` request (superset enumeration — includes non-ACP samples with `sessionId: null`) | None — `list_sessions` already covers the attachable subset | Standard clients use `list_sessions` (or `session/new` + picker); non-ACP samples don't matter to them because there's nothing to attach to |
+| `inspect/attach` request (direct-bind by `task/sample_id/epoch`) | `session/load(<known sessionId>)` after a prior enumeration | Standard clients use `session/new` + picker selection; direct-bind is a TUI shortcut |
 | `inspect/cancel_sample` (terminal kill with score/error disposition) | None — ACP has no terminal sample-cancel | Standard clients can `session/cancel` the current turn, but cannot terminally kill a sample |
 | `inspect/cancel_tool_call` (per-tool-call scope cancel) | None — ACP `session/cancel` is per-turn only | Standard clients can only cancel the whole turn |
 | `inspect/event` notification (raw transcript firehose) | None — opt-in via `clientCapabilities._meta["inspect.raw_events"]` | Off by default; non-opted clients see the standard semantic `session/update` stream only |

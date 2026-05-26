@@ -25,7 +25,11 @@ from test_helpers.utils import skip_if_trio
 from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.discovery import TargetAddress
 from inspect_ai.agent._acp.server import acp_server
-from inspect_ai.agent._acp.stdio import bridge_stdio
+from inspect_ai.agent._acp.stdio import (
+    TripleResolutionError,
+    bridge_stdio,
+    preflight_resolve_triple,
+)
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript
 
@@ -195,7 +199,7 @@ def _stub_active_sample(
     sample.transcript = transcript or Transcript()
     sess = MagicMock()
     sess.session_id = target_session_id
-    sample.acp_session = sess
+    sample.acp_transport = sess
     return sample
 
 
@@ -207,13 +211,25 @@ def _register_via_picker_and_samples(monkeypatch, samples: list[Any]) -> None:
 async def _drive_bridge_until_eof(
     io: _MockStdio,
     target: TargetAddress,
+    *,
+    rewrite_session_new_to_attach: str | None = None,
 ) -> asyncio.Task[None]:
     """Start ``bridge_stdio`` as a background task; return the handle.
 
     Tests are responsible for closing ``io.stdin`` (or the server) so
     the bridge eventually exits and the task completes.
+
+    Pass ``rewrite_session_new_to_attach`` to exercise the
+    ``--task-id/--sample-id/--epoch`` direct-attach rewrite mode.
     """
-    task = asyncio.create_task(bridge_stdio(io.stdin_reader, io.stdout_writer, target))
+    task = asyncio.create_task(
+        bridge_stdio(
+            io.stdin_reader,
+            io.stdout_writer,
+            target,
+            rewrite_session_new_to_attach=rewrite_session_new_to_attach,
+        )
+    )
     # Give the bridge a moment to open the socket before tests start
     # pumping data through. Without this the first stdin_send_frame
     # can race the socket open and feed the connection before it
@@ -484,6 +500,281 @@ async def test_framing_integrity_multiline_content(
             # an escaped ``\\n`` per JSON encoding, not a literal
             # newline that would have split the frame.
             assert "result" in resp
+        finally:
+            io.stdin_close()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(task, timeout=2.0)
+
+
+# ---------------------------------------------------------------------------
+# Triple-filter preflight + bridge rewrite (--task-id / --sample-id / --epoch)
+# ---------------------------------------------------------------------------
+
+
+def _make_full_sample(
+    *,
+    task: str,
+    sample_id: str,
+    epoch: int,
+    session_id: str,
+) -> Any:
+    """Build a fully-populated ActiveSample stand-in for picker enumeration.
+
+    Like :func:`_stub_active_sample` but ALSO sets every field
+    ``list_picker_targets`` and the ``inspect/list_sessions`` serializer
+    read — leaving any of them as a MagicMock would auto-wrap on
+    attribute access and break JSON encoding, silently hanging the
+    server in a background task. See the comment in
+    ``test_server_dispatch.py::_make_sample`` for the full story.
+    """
+    inner_sample = MagicMock()
+    inner_sample.id = sample_id
+    active = MagicMock()
+    active.task = task
+    active.sample = inner_sample
+    active.epoch = epoch
+    active.agent_name = None
+    active.started = None
+    active.total_messages = 0
+    active.total_tokens = 0
+    active.fails_on_error = False
+    active.transcript = Transcript()
+    sess = MagicMock()
+    sess.session_id = session_id
+    active.acp_transport = sess
+    return active
+
+
+@skip_if_trio
+@unix_only
+async def test_preflight_resolve_triple_matches_live_session(
+    short_data_dir: Path, monkeypatch
+) -> None:
+    """Preflight succeeds when the triple matches a live picker target."""
+    sample = _make_full_sample(
+        task="tA", sample_id="sA", epoch=0, session_id="uuid-pf-ok"
+    )
+    _register_via_picker_and_samples(monkeypatch, [sample])
+    async with acp_server(eval_id="bridge-pf-ok", transport=True) as server:
+        assert server is not None and server.socket_path is not None
+        target = TargetAddress(socket_path=server.socket_path)
+        # No exception → preflight passed.
+        await preflight_resolve_triple(target, "tA/sA/0")
+
+
+@skip_if_trio
+@unix_only
+async def test_preflight_resolve_triple_raises_when_no_match(
+    short_data_dir: Path, monkeypatch
+) -> None:
+    """Preflight raises TripleResolutionError with the available list on miss."""
+    sample = _make_full_sample(
+        task="real", sample_id="sR", epoch=0, session_id="uuid-pf-other"
+    )
+    _register_via_picker_and_samples(monkeypatch, [sample])
+    async with acp_server(eval_id="bridge-pf-miss", transport=True) as server:
+        assert server is not None and server.socket_path is not None
+        target = TargetAddress(socket_path=server.socket_path)
+        with pytest.raises(TripleResolutionError) as exc_info:
+            await preflight_resolve_triple(target, "ghost/sG/9")
+        msg = str(exc_info.value)
+        assert "ghost/sG/9" in msg
+        assert "real/sR/0" in msg
+
+
+@skip_if_trio
+@unix_only
+async def test_session_new_rewritten_to_inspect_attach(
+    short_data_dir: Path, monkeypatch
+) -> None:
+    """In rewrite mode, the editor's session/new arrives as inspect/attach.
+
+    The response carries the matched target's canonical sessionId in the
+    standard NewSessionResponse shape — the editor sees a normal
+    session/new response and is none the wiser that we redirected it.
+    """
+    sample = _stub_active_sample(target_session_id="uuid-rewrite")
+    sample.task = "tR"
+    sample.sample.id = "sR"
+    sample.epoch = 3
+    sample.fails_on_error = False
+    _register_via_picker_and_samples(monkeypatch, [sample])
+    async with acp_server(eval_id="bridge-rewrite", transport=True) as server:
+        assert server is not None and server.socket_path is not None
+        target = TargetAddress(socket_path=server.socket_path)
+        io = _MockStdio()
+        task = await _drive_bridge_until_eof(
+            io, target, rewrite_session_new_to_attach="tR/sR/3"
+        )
+        try:
+            io.stdin_send_frame(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": 1,
+                        "clientInfo": {"name": "test", "version": "0"},
+                    },
+                }
+            )
+            await io.stdout_read_response(1)
+            io.stdin_send_frame(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "session/new",
+                    "params": {"cwd": "/tmp", "mcpServers": []},
+                }
+            )
+            resp = await io.stdout_read_response(2)
+            assert "result" in resp, resp
+            # The canonical sessionId from the matched sample appears in
+            # the response — proves the rewrite landed at the server as
+            # an inspect/attach (a true session/new would either auto-bind
+            # to this single sample and return its id too, but the
+            # binding-confirmation notification's _meta names the target
+            # which is what really pins the rewrite).
+            assert resp["result"]["sessionId"] == "uuid-rewrite"
+        finally:
+            io.stdin_close()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(task, timeout=2.0)
+
+
+@skip_if_trio
+@unix_only
+async def test_session_load_passes_through_in_rewrite_mode(
+    short_data_dir: Path, monkeypatch
+) -> None:
+    """A session/load arriving before any session/new is NOT rewritten.
+
+    Pins the safety property that the rewrite only fires on session/new;
+    a client that already knows the sessionId and uses session/load
+    should not be redirected.
+    """
+    sample = _stub_active_sample(target_session_id="uuid-load")
+    sample.task = "tL"
+    sample.sample.id = "sL"
+    sample.epoch = 0
+    sample.fails_on_error = False
+    _register_via_picker_and_samples(monkeypatch, [sample])
+    async with acp_server(eval_id="bridge-load-pt", transport=True) as server:
+        assert server is not None and server.socket_path is not None
+        target = TargetAddress(socket_path=server.socket_path)
+        io = _MockStdio()
+        task = await _drive_bridge_until_eof(
+            io, target, rewrite_session_new_to_attach="tL/sL/0"
+        )
+        try:
+            io.stdin_send_frame(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": 1,
+                        "clientInfo": {"name": "test", "version": "0"},
+                    },
+                }
+            )
+            await io.stdout_read_response(1)
+            io.stdin_send_frame(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "session/load",
+                    "params": {
+                        "cwd": "/tmp",
+                        "mcpServers": [],
+                        "sessionId": "uuid-load",
+                    },
+                }
+            )
+            # session/load returns LoadSessionResponse (no sessionId in body) —
+            # if the rewrite incorrectly fired, the response shape would
+            # be NewSessionResponse with a sessionId field instead.
+            resp = await io.stdout_read_response(2)
+            assert "result" in resp, resp
+            assert "sessionId" not in resp["result"]
+        finally:
+            io.stdin_close()
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(task, timeout=2.0)
+
+
+@skip_if_trio
+@unix_only
+async def test_only_first_session_new_is_rewritten(
+    short_data_dir: Path, monkeypatch
+) -> None:
+    """Subsequent session/new requests after the first pass through unchanged.
+
+    Pins the "rewrite the FIRST one only" semantic so a future
+    refactor doesn't accidentally start rewriting every session/new
+    silently — which would be surprising if a user actually wanted the
+    picker after the initial direct attach.
+    """
+    sample_a = _stub_active_sample(target_session_id="uuid-only-a")
+    sample_a.task = "tFirst"
+    sample_a.sample.id = "sFirst"
+    sample_a.epoch = 0
+    sample_a.fails_on_error = False
+    # Second sample to make the server's session/new path enter picker mode
+    # for the SECOND request (multiple targets = picker, not auto-bind).
+    sample_b = _stub_active_sample(target_session_id="uuid-only-b")
+    sample_b.task = "tSecond"
+    sample_b.sample.id = "sSecond"
+    sample_b.epoch = 0
+    sample_b.fails_on_error = False
+    _register_via_picker_and_samples(monkeypatch, [sample_a, sample_b])
+    async with acp_server(eval_id="bridge-twice", transport=True) as server:
+        assert server is not None and server.socket_path is not None
+        target = TargetAddress(socket_path=server.socket_path)
+        io = _MockStdio()
+        task = await _drive_bridge_until_eof(
+            io, target, rewrite_session_new_to_attach="tFirst/sFirst/0"
+        )
+        try:
+            io.stdin_send_frame(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": 1,
+                        "clientInfo": {"name": "test", "version": "0"},
+                    },
+                }
+            )
+            await io.stdout_read_response(1)
+            # First session/new — gets rewritten to inspect/attach.
+            io.stdin_send_frame(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "session/new",
+                    "params": {"cwd": "/tmp", "mcpServers": []},
+                }
+            )
+            first_resp = await io.stdout_read_response(2)
+            assert first_resp["result"]["sessionId"] == "uuid-only-a"
+            # Second session/new — passes through. With 2 targets the
+            # server enters picker mode and mints a synthetic control id
+            # that is NEITHER of the target uuids.
+            io.stdin_send_frame(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "session/new",
+                    "params": {"cwd": "/tmp", "mcpServers": []},
+                }
+            )
+            second_resp = await io.stdout_read_response(3)
+            assert second_resp["result"]["sessionId"] not in (
+                "uuid-only-a",
+                "uuid-only-b",
+            )
         finally:
             io.stdin_close()
             with contextlib.suppress(Exception):

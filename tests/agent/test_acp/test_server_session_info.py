@@ -21,7 +21,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.server import acp_server
-from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.log._transcript import Transcript
 
 
@@ -66,7 +66,8 @@ def _make_active_sample(
     active.agent_name = None
     active.started = None
     active.total_tokens = 0
-    active.acp_session = acp_session
+    active.fails_on_error = True
+    active.acp_transport = acp_session
     return active
 
 
@@ -81,8 +82,9 @@ def register_target(monkeypatch):
     return _register
 
 
-def _make_live_session_with_transcript() -> LiveAcpSession:
-    session = LiveAcpSession()
+def _make_live_session_with_transcript() -> LiveAcpTransport:
+    session = LiveAcpTransport()
+    session._attachable_override = True
     session._transcript = Transcript()
     return session
 

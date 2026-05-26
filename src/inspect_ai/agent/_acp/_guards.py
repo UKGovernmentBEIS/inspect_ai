@@ -5,7 +5,7 @@ patterns recur often enough across the package that they live as
 shared context managers:
 
 1. :func:`acp_guard` — **"log a warning and suppress"**. Used in
-   :class:`LiveAcpSession` methods, the approval shim, and any other
+   :class:`LiveAcpTransport` methods, the approval shim, and any other
    site that wants "if this fails, log and degrade quietly." Two
    calling shapes:
 
@@ -33,6 +33,7 @@ Both CMs are sync; the body inside the ``with`` may ``await`` freely.
 from __future__ import annotations
 
 import contextlib
+import logging
 from dataclasses import dataclass
 from logging import getLogger
 from typing import Iterator
@@ -60,6 +61,82 @@ NORMAL_DISCONNECT_EXC: tuple[type[BaseException], ...] = (
     anyio.BrokenResourceError,
     anyio.ClosedResourceError,
 )
+
+
+# ---------------------------------------------------------------------------
+# Upstream-disconnect-traceback filter
+# ---------------------------------------------------------------------------
+
+# Messages the upstream ``acp`` library emits via ``logging.exception``
+# on the root logger when its receive / send / main loops hit an
+# exception. They fire on EVERY routine peer disconnect (the loops
+# don't distinguish between "real failure" and "the socket closed
+# normally"), so the user-facing eval console gets two or three
+# full tracebacks per disconnect even though nothing actually went
+# wrong. The filter below demotes these specific messages to no-op
+# when the underlying exception is in :data:`NORMAL_DISCONNECT_EXC`.
+#
+# Match by exact message string (matching the upstream source):
+#   acp/connection.py:120 — "Connection main loop failed"
+#   acp/connection.py:264 — "Receive loop failed"
+#   acp/task/sender.py:67 — "Send loop failed"
+_ACP_DISCONNECT_LOG_MESSAGES: frozenset[str] = frozenset(
+    {
+        "Connection main loop failed",
+        "Receive loop failed",
+        "Send loop failed",
+    }
+)
+
+
+class _AcpDisconnectFilter(logging.Filter):
+    """Drop upstream ``acp`` library tracebacks for routine disconnects.
+
+    The library uses ``logging.exception(...)`` (root logger) inside
+    its loop teardown paths. We can't change that without forking the
+    library, so we filter it out here when — and only when — the
+    record's exception info is a normal-disconnect type. Real failures
+    (unexpected exceptions, encoding errors, anything outside
+    :data:`NORMAL_DISCONNECT_EXC`) still propagate untouched.
+
+    Installed by :func:`install_acp_disconnect_log_filter` at ACP
+    server startup (idempotent — re-install is a no-op).
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        # Cheap message check first — most records on the root logger
+        # are unrelated, and ``getMessage`` does a % format that we
+        # don't want to pay for every log call.
+        if record.msg not in _ACP_DISCONNECT_LOG_MESSAGES:
+            return True
+        # Exception info is a (type, value, tb) tuple when present.
+        # ``logging.exception`` always populates it, but be defensive
+        # — a future upstream change to use ``logger.error`` without
+        # ``exc_info`` should not crash the filter.
+        exc_info = record.exc_info
+        if exc_info is None or exc_info[1] is None:
+            return True
+        return not isinstance(exc_info[1], NORMAL_DISCONNECT_EXC)
+
+
+_FILTER_INSTANCE: _AcpDisconnectFilter | None = None
+
+
+def install_acp_disconnect_log_filter() -> None:
+    """Attach :class:`_AcpDisconnectFilter` to the root logger (idempotent).
+
+    Called from the inspect-side ACP server entry point so the filter
+    is in place by the time any peer-disconnect-driven traceback can
+    fire. Idempotent because Python loggers don't deduplicate filter
+    attachments; without this guard a long-running process that
+    re-enters the entry point (test runs, multiple servers) would
+    stack identical filters.
+    """
+    global _FILTER_INSTANCE
+    if _FILTER_INSTANCE is not None:
+        return
+    _FILTER_INSTANCE = _AcpDisconnectFilter()
+    logging.getLogger().addFilter(_FILTER_INSTANCE)
 
 
 # ---------------------------------------------------------------------------

@@ -33,7 +33,9 @@ from inspect_ai.log._samples import active_samples
 
 __all__ = [
     "PickerTarget",
+    "SampleListing",
     "list_picker_targets",
+    "list_all_samples",
     "resolve_selection",
 ]
 
@@ -43,7 +45,7 @@ class PickerTarget:
     """A single attachable ACP session target."""
 
     session_id: str
-    """The target ``LiveAcpSession.session_id`` (uuid)."""
+    """The target ``LiveAcpTransport.session_id`` (uuid)."""
 
     task: str
     """Task name (e.g. ``"my_task"``)."""
@@ -68,24 +70,46 @@ class PickerTarget:
     before the sample's ``start()`` is called. Drives the picker's
     ``running`` column."""
 
+    total_messages: int = 0
+    """Running total messages for the sample (from
+    :attr:`inspect_ai.log._samples.ActiveSample.total_messages`). Drives
+    the picker's ``messages`` column; refreshed on rescan."""
+
     total_tokens: int = 0
     """Running total tokens for the sample (from
     :attr:`inspect_ai.log._samples.ActiveSample.total_tokens`). Drives
     the picker's ``tokens`` column; refreshed on rescan."""
 
+    fails_on_error: bool = False
+    """Mirror of :attr:`ActiveSample.fails_on_error`.
+
+    Drives the cancel-sample bar's ``[e] error`` visibility: hidden
+    when this is ``True`` (operator marking it errored is moot — the
+    sample would error on its own), shown when ``False``. Matches the
+    in-proc ``--display full`` TUI's rule
+    (``cancel_with_error.display = not sample.fails_on_error``) so
+    both display modes stay in lockstep — fractional thresholds and
+    integer counts collapse to ``True`` here just as they do in
+    ``--display full``.
+
+    Snapshot at enumeration; never mutates."""
+
 
 def list_picker_targets() -> list[PickerTarget]:
-    """Snapshot active samples that have claimed ACP.
+    """Snapshot active samples whose transport is currently attachable.
 
     Filters :func:`inspect_ai.log._samples.active_samples` to those
-    whose ``acp_session`` is set to a non-noop live session — i.e.
-    agents that have called ``before_turn`` at least once and
-    therefore have a real ``LiveAcpSession.session_id``.
+    whose ``acp_transport`` reports :attr:`AcpTransport.is_attachable`
+    — i.e. a channel is bound and the agent loop is still live. Skips
+    the pre-binding window (sample started, agent_channel not yet
+    opened), the post-agent scoring window, and non-channel agents
+    that never bind. Operators only see sessions they can actually
+    drive.
     """
     targets: list[PickerTarget] = []
     for sample in active_samples():
-        session = sample.acp_session
-        if session is None or session.session_id == "noop":
+        session = sample.acp_transport
+        if session is None or not session.is_attachable:
             continue
         targets.append(
             PickerTarget(
@@ -95,10 +119,86 @@ def list_picker_targets() -> list[PickerTarget]:
                 epoch=sample.epoch,
                 agent_name=sample.agent_name,
                 started_at=sample.started,
+                total_messages=sample.total_messages,
                 total_tokens=sample.total_tokens,
+                # Mirror ActiveSample.fails_on_error verbatim so the
+                # ACP TUI's [e] error visibility matches --display
+                # full's `cancel_with_error.display = not
+                # sample.fails_on_error` rule exactly.
+                fails_on_error=sample.fails_on_error,
             )
         )
     return targets
+
+
+@dataclass(frozen=True)
+class SampleListing:
+    """One entry in the ``inspect/list_samples`` enumeration.
+
+    Same field set as :class:`PickerTarget` but ``session_id`` is
+    optional — ``None`` when the sample's agent has not claimed ACP
+    (no call to ``before_turn`` yet, or no ACP-aware scaffold at all).
+    The Inspect TUI consumes this enumeration to surface non-ACP
+    samples in the picker so operators can see "the eval is running
+    but I can't drive it from here" instead of an empty list.
+    """
+
+    session_id: str | None
+    """Live ``LiveAcpTransport.session_id`` (uuid) for ACP-claimed
+    samples; ``None`` when the sample has no ACP session or only the
+    pre-claim noop placeholder."""
+
+    task: str
+    sample_id: str
+    epoch: int
+    agent_name: str | None = None
+    started_at: float | None = None
+    total_messages: int = 0
+    total_tokens: int = 0
+    fails_on_error: bool = False
+
+
+def list_all_samples() -> list[SampleListing]:
+    """Snapshot ALL active samples — ACP-claimed and not.
+
+    Walks :func:`inspect_ai.log._samples.active_samples` unfiltered.
+    ACP-claimed entries (agent has called ``before_turn`` at least
+    once) carry the live ``session_id``; non-claimed entries — those
+    with no ``acp_session`` or only the noop sentinel — surface as
+    ``session_id=None`` so the TUI can render them as non-attachable.
+
+    ``agent_name`` is omitted (``None``) for non-ACP entries — the
+    column reads ``acp agent`` and a non-ACP sample by definition has
+    no attachable ACP agent, so surfacing its solver name there
+    would be misleading. The TUI's display layer already shows ``—``
+    for non-ACP rows; this keeps the wire payload consistent with
+    that intent.
+
+    Sample-id stringification mirrors :func:`list_picker_targets`.
+    """
+    listings: list[SampleListing] = []
+    for sample in active_samples():
+        session = sample.acp_transport
+        if session is None or not session.is_attachable:
+            session_id: str | None = None
+            agent_name: str | None = None
+        else:
+            session_id = session.session_id
+            agent_name = sample.agent_name
+        listings.append(
+            SampleListing(
+                session_id=session_id,
+                task=sample.task,
+                sample_id=str(sample.sample.id) if sample.sample.id is not None else "",
+                epoch=sample.epoch,
+                agent_name=agent_name,
+                started_at=sample.started,
+                total_messages=sample.total_messages,
+                total_tokens=sample.total_tokens,
+                fails_on_error=sample.fails_on_error,
+            )
+        )
+    return listings
 
 
 def resolve_selection(

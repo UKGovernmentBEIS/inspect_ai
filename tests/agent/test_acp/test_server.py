@@ -14,6 +14,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+import anyio
 import pytest
 from test_helpers.utils import skip_if_trio
 
@@ -497,7 +498,7 @@ async def test_server_stop_unblocks_connected_clients(short_data_dir: Path) -> N
     port = _free_port()
     reader_client = writer_client = None
     try:
-        async with asyncio.timeout(10.0):
+        with anyio.fail_after(10.0):
             async with acp_server(eval_id="evt-stop", transport=port) as server:
                 assert server is not None
                 # Open a real client connection and HOLD IT OPEN —

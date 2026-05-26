@@ -18,7 +18,7 @@ from typing import Any, cast
 import pytest
 from test_helpers.utils import skip_if_trio
 from textual.binding import Binding
-from textual.widgets import Input, Static
+from textual.widgets import Static, TextArea
 
 from inspect_ai.agent._acp.tui.app import InspectAcpApp
 from inspect_ai.agent._acp.tui.client import SessionRow
@@ -137,6 +137,32 @@ async def test_composer_has_top_margin_for_separation_from_transcript(
 
 @skip_if_trio
 @pytest.mark.anyio
+async def test_composer_text_area_grows_but_caps_height(
+    sample_rows: list[SessionRow],
+) -> None:
+    """The multi-line composer should grow without taking over the transcript."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+        composer = app.screen.query_one("#composer", TextArea)
+        height = composer.styles.height
+        min_height = composer.styles.min_height
+        max_height = composer.styles.max_height
+        assert height is not None and min_height is not None and max_height is not None
+        assert height.is_auto
+        assert min_height.value == 1
+        assert max_height.value == 8
+
+
+@skip_if_trio
+@pytest.mark.anyio
 async def test_session_screen_switch_sample_returns_to_picker(
     sample_rows: list[SessionRow],
 ) -> None:
@@ -217,7 +243,7 @@ async def test_session_screen_binds_enter_and_escape(
     assert "enter" in by_key
     assert by_key["enter"].action == "submit"
     assert by_key["enter"].show is True
-    assert by_key["enter"].priority is True
+    assert by_key["enter"].priority is False
     assert "escape" in by_key
     assert by_key["escape"].action == "interrupt"
     assert by_key["escape"].show is True
@@ -231,9 +257,8 @@ async def test_session_screen_binds_shift_enter_to_newline(
 ) -> None:
     r"""⇧↵ newline must surface in the Footer with a ``\n``-inserting action.
 
-    The single-line ``Input`` doesn't render the newline locally, but
-    the character lives in ``Input.value`` and ships on submit. This
-    pins the binding so the footer hint matches what the action does.
+    The composer is a ``TextArea`` now, so the inserted newline is
+    visible locally and ships as part of the submitted prompt.
     """
     by_key = _bindings_by_key()
     assert "shift+enter" in by_key
@@ -241,6 +266,19 @@ async def test_session_screen_binds_shift_enter_to_newline(
     assert by_key["shift+enter"].show is True
     assert by_key["shift+enter"].key_display == "⇧↵"
     assert by_key["shift+enter"].priority is True
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_session_screen_binds_ctrl_j_to_hidden_newline_fallback(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Ctrl+J is a hidden newline fallback for terminals without Shift+Enter."""
+    by_key = _bindings_by_key()
+    assert "ctrl+j" in by_key
+    assert by_key["ctrl+j"].action == "newline"
+    assert by_key["ctrl+j"].show is False
+    assert by_key["ctrl+j"].priority is True
 
 
 @skip_if_trio
@@ -259,17 +297,85 @@ async def test_action_newline_inserts_literal_newline_into_composer(
             if isinstance(app.screen, SessionScreen):
                 break
         assert isinstance(app.screen, SessionScreen)
-        composer = app.screen.query_one("#composer", Input)
-        composer.value = "line one"
-        composer.cursor_position = len(composer.value)
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = "line one"
+        composer.move_cursor((0, len(composer.text)))
         app.screen.action_newline()
         await pilot.pause()
-        assert composer.value == "line one\n"
+        assert composer.text == "line one\n"
         # And no requests were sent — the newline is composer-local.
         # ``FakeConnection.requests`` records ``(method, params)``
         # tuples, so an empty list is the precise invariant.
         conn = cast(Any, app.screen._session.connection)
         assert conn.requests == []
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_composer_enter_converts_terminal_shift_enter_backslash_to_newline(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Mac Terminal-style Shift+Enter should be handled in TextArea._on_key."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = "line one\\"
+        composer.move_cursor((0, len(composer.text)))
+        composer.focus()
+        await pilot.pause()
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert composer.text == "line one\n"
+        conn = cast(Any, app.screen._session.connection)
+        assert conn.requests == []
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_composer_enter_submits_from_text_area_key_handler(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Plain Enter in the focused composer submits via ComposerTextArea."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = "please continue"
+        composer.move_cursor((0, len(composer.text)))
+        composer.focus()
+        await pilot.pause()
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        conn = cast(Any, app.screen._session.connection)
+        assert conn.requests == [
+            (
+                "session/prompt",
+                {
+                    "sessionId": sample_rows[0].session_id,
+                    "prompt": [{"type": "text", "text": "please continue"}],
+                },
+            )
+        ]
+        assert composer.text == ""
 
 
 @skip_if_trio
@@ -287,10 +393,10 @@ async def test_action_submit_sends_prompt_and_clears_composer(
             if isinstance(app.screen, SessionScreen):
                 break
         assert isinstance(app.screen, SessionScreen)
-        composer = app.screen.query_one("#composer", Input)
+        composer = app.screen.query_one("#composer", TextArea)
         # Composer must be enabled — Phase 3 makes it interactive.
         assert composer.disabled is False
-        composer.value = "  please continue  "
+        composer.text = "  please continue  "
         await app.screen.action_submit()
         await pilot.pause()
         conn = cast(Any, app.screen._session.connection)
@@ -303,7 +409,115 @@ async def test_action_submit_sends_prompt_and_clears_composer(
                 },
             )
         ]
-        assert composer.value == ""
+        assert composer.text == ""
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_submit_with_focused_button_delegates_to_button(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Enter on a focused approval Button fires Button.Pressed, not the composer send.
+
+    Pinned regression for the Tab+Enter approval path: if the screen
+    submit action lands while an approval option has focus, it must
+    activate the option rather than submit the composer's draft.
+    Fix: detect the focused-Button case in ``action_submit`` and
+    forward to ``Button.action_press`` — scoped to APPROVAL buttons
+    (id prefix ``approve-opt-``) so unrelated buttons added later
+    don't get programmatic-pressed.
+    """
+    from textual.widgets import Button
+
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # Mount a focusable Button using the APPROVAL id prefix
+        # (``approve-opt-…``) so the delegation guard recognises it.
+        # Composer carries a draft so we can prove action_submit
+        # does NOT submit it when an approval button has focus.
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = "this draft must not be sent"
+        pressed: list[Button] = []
+
+        class _SpyButton(Button):
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                pressed.append(event.button)
+
+        spy = _SpyButton("approve", id="approve-opt-spy")
+        await app.screen.mount(spy)
+        spy.focus()
+        await pilot.pause()
+        assert app.screen.focused is spy
+
+        await app.screen.action_submit()
+        await pilot.pause()
+
+        # The button fired its Pressed event.
+        assert pressed == [spy]
+        # The composer's draft was NOT submitted to the server.
+        conn = cast(Any, app.screen._session.connection)
+        assert conn.requests == []
+        # And the draft is still in the composer (not cleared).
+        assert composer.text == "this draft must not be sent"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_submit_with_focused_non_approval_button_does_not_delegate(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Delegation is scoped to ``approve-opt-`` buttons; others go through composer path.
+
+    Pinned because the earlier revision delegated to ANY focused
+    Button, which would silently fire a programmatic press on a
+    future non-approval button (confirm-disconnect dialog, error
+    recovery, etc.) when the operator hit Enter in the composer
+    context. Scoped delegation prevents that surprise.
+    """
+    from textual.widgets import Button
+
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = "please continue"
+        pressed: list[Button] = []
+
+        class _SpyButton(Button):
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                pressed.append(event.button)
+
+        # Non-approval id — delegation must NOT fire here.
+        spy = _SpyButton("OK", id="some-other-button")
+        await app.screen.mount(spy)
+        spy.focus()
+        await pilot.pause()
+
+        await app.screen.action_submit()
+        await pilot.pause()
+
+        # The button was NOT programmatically pressed.
+        assert pressed == []
+        # The composer's draft WAS submitted (composer path took over).
+        conn = cast(Any, app.screen._session.connection)
+        assert conn.requests and conn.requests[0][0] == "session/prompt"
 
 
 @skip_if_trio
@@ -322,8 +536,8 @@ async def test_action_submit_with_empty_composer_is_noop(
             if isinstance(app.screen, SessionScreen):
                 break
         assert isinstance(app.screen, SessionScreen)
-        composer = app.screen.query_one("#composer", Input)
-        composer.value = "   "
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = "   "
         await app.screen.action_submit()
         await pilot.pause()
         conn = cast(Any, app.screen._session.connection)
@@ -346,13 +560,13 @@ async def test_action_interrupt_clears_draft_when_composer_nonempty(
             if isinstance(app.screen, SessionScreen):
                 break
         assert isinstance(app.screen, SessionScreen)
-        composer = app.screen.query_one("#composer", Input)
-        composer.value = "draft text"
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = "draft text"
         await app.screen.action_interrupt()
         await pilot.pause()
         conn = cast(Any, app.screen._session.connection)
         assert conn.notifications == []
-        assert composer.value == ""
+        assert composer.text == ""
 
 
 @skip_if_trio
@@ -378,8 +592,8 @@ async def test_action_interrupt_sends_cancel_when_agent_working(
             if isinstance(app.screen, SessionScreen):
                 break
         assert isinstance(app.screen, SessionScreen)
-        composer = app.screen.query_one("#composer", Input)
-        composer.value = ""
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = ""
         # Force the status into GENERATING by injecting a pending
         # message id — the property reads from this set first.
         app.screen.state._pending_message_ids.add("pending-msg")
@@ -425,8 +639,8 @@ async def test_action_interrupt_is_noop_when_awaiting_input(
             if isinstance(app.screen, SessionScreen):
                 break
         assert isinstance(app.screen, SessionScreen)
-        composer = app.screen.query_one("#composer", Input)
-        composer.value = ""
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = ""
         assert app.screen.state.status == StatusState.AWAITING_INPUT
         await app.screen.action_interrupt()
         await pilot.pause()
@@ -461,8 +675,8 @@ async def test_action_interrupt_is_noop_during_quiescence_tail(
             if isinstance(app.screen, SessionScreen):
                 break
         assert isinstance(app.screen, SessionScreen)
-        composer = app.screen.query_one("#composer", Input)
-        composer.value = ""
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = ""
         # Simulate the quiescence-tail state directly: chunk activity
         # within the quiescence window, but no pending event and no
         # tools in flight.
@@ -534,8 +748,8 @@ async def test_session_screen_lifecycle_pill_flips_to_running(
         pill = app.screen.query_one("#lifecycle-indicator", Static)
         assert "running" in str(pill.content)
         assert pill.has_class("running")
-        composer = app.screen.query_one("#composer", Input)
-        assert "esc to interrupt" in composer.placeholder
+        composer = app.screen.query_one("#composer", TextArea)
+        assert "esc to interrupt" in str(composer.placeholder)
 
 
 @skip_if_trio
@@ -570,8 +784,8 @@ async def test_session_screen_lifecycle_pill_flips_to_interrupted(
         pill = app.screen.query_one("#lifecycle-indicator", Static)
         assert "interrupted" in str(pill.content)
         assert pill.has_class("interrupted")
-        composer = app.screen.query_one("#composer", Input)
-        assert "esc to interrupt" not in composer.placeholder
+        composer = app.screen.query_one("#composer", TextArea)
+        assert "esc to interrupt" not in str(composer.placeholder)
 
 
 @skip_if_trio
@@ -626,7 +840,7 @@ async def test_peer_disconnect_marks_complete_and_closes_session(
         # Screen is still mounted (no auto-pop) so the operator can
         # read the transcript.
         # Composer goes read-only with the completion placeholder.
-        composer = app.screen.query_one("#composer", Input)
+        composer = app.screen.query_one("#composer", TextArea)
         assert composer.disabled is True
         assert composer.placeholder == "sample complete"
 
@@ -657,16 +871,16 @@ async def test_action_submit_is_noop_when_session_complete(
         # the disconnect path so we isolate the submit-guard.
         app.screen.state.mark_complete()
         await pilot.pause()
-        composer = app.screen.query_one("#composer", Input)
+        composer = app.screen.query_one("#composer", TextArea)
         # Bypass the disabled flag in the test by writing directly to
-        # value (an Input.disabled wouldn't block programmatic writes).
-        composer.value = "anything"
+        # text (a TextArea.disabled wouldn't block programmatic writes).
+        composer.text = "anything"
         await app.screen.action_submit()
         await pilot.pause()
         conn = cast(Any, cast(Any, app.screen)._session.connection)
         assert conn.requests == []
-        # And the composer value is preserved — we didn't clear it.
-        assert composer.value == "anything"
+        # And the composer text is preserved — we didn't clear it.
+        assert composer.text == "anything"
 
 
 @skip_if_trio
@@ -694,10 +908,379 @@ async def test_action_newline_is_noop_when_session_complete(
         assert isinstance(app.screen, SessionScreen)
         app.screen.state.mark_complete()
         await pilot.pause()
-        composer = app.screen.query_one("#composer", Input)
+        composer = app.screen.query_one("#composer", TextArea)
         # Pre-seed a value we can verify wasn't mutated.
-        composer.value = "draft"
-        composer.cursor_position = len(composer.value)
+        composer.text = "draft"
+        composer.move_cursor((0, len(composer.text)))
         app.screen.action_newline()
         await pilot.pause()
-        assert composer.value == "draft"
+        assert composer.text == "draft"
+
+
+def _bar_pending_request(tool_call_id: str = "tc-1", *, title: str = "bash ls"):
+    """Build a pending RequestPermissionRequest for action_approval_decide tests."""
+    from acp.schema import (
+        PermissionOption,
+        RequestPermissionRequest,
+        ToolCallUpdate,
+    )
+
+    return RequestPermissionRequest(
+        session_id="sid",
+        tool_call=ToolCallUpdate(
+            tool_call_id=tool_call_id,
+            title=title,
+            status="pending",
+            raw_input={"command": "ls"},
+        ),
+        options=[
+            PermissionOption(option_id="approve", name="Approve", kind="allow_once"),
+            PermissionOption(option_id="reject", name="Reject", kind="reject_once"),
+            PermissionOption(
+                option_id="terminate", name="Terminate", kind="reject_always"
+            ),
+        ],
+    )
+
+
+def _bar_pending(req: Any) -> Any:
+    """Build a PendingApproval for action_approval_decide tests.
+
+    Returns ``Any`` so mypy doesn't get tangled in the optional
+    typing chain when the same value flows through
+    ``ToolCallState.pending_approval`` (``PendingApproval | None``).
+    """
+    import asyncio
+
+    from inspect_ai.agent._acp.tui.state import PendingApproval
+
+    return PendingApproval(request=req, event=asyncio.Event())
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_pressing_a_resolves_approve_via_screen_binding(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Pressing bare ``a`` while approval is pending fires the screen binding.
+
+    Pins the live-use regression where the bar appeared, the first
+    action got mounted, but pressing ``a`` did nothing until the
+    operator clicked into the bar — symptom of either focus
+    stranded on the now-hidden composer ``TextArea`` (which would
+    eat the keystroke) or the action mount sequence racing with
+    ``first.focus()`` so the screen's ``priority=True`` binding
+    didn't reach ``check_action`` cleanly.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # Reproduce live use: the composer TextArea has focus when the
+        # approval arrives (typical case — operator was typing or just
+        # finished a message). The TextArea gets hidden when lifecycle
+        # flips to ``approval``, but Textual's focus might stay
+        # stranded on it.
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.focus()
+        await pilot.pause()
+        assert app.screen.focused is composer
+
+        pending = _bar_pending(_bar_pending_request("tc-1"))
+        app.screen.state.consume_approval_request(pending)
+        await pilot.pause()
+
+        # Press the bare letter — no click first.
+        await pilot.press("a")
+        await pilot.pause()
+
+        tc = app.screen.state._tool_calls_by_id["tc-1"]
+        assert tc.pending_approval is None, (
+            f"Expected `a` keystroke to resolve the pending approval; "
+            f"instead it's still pending. focused={app.screen.focused!r}, "
+            f"composer.display={composer.display!r}, "
+            f"composer.text={composer.text!r}"
+        )
+        assert tc.last_approval_decision == "approved"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_approval_decide_resolves_pending_approval(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Bare ``a`` (action_approval_decide('approve')) routes through state.resolve_approval."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        pending = _bar_pending(_bar_pending_request("tc-1"))
+        app.screen.state.consume_approval_request(pending)
+        await pilot.pause()
+        assert app.screen.state.lifecycle == "approval"
+
+        app.screen.action_approval_decide("approve")
+        await pilot.pause()
+
+        tc = app.screen.state._tool_calls_by_id["tc-1"]
+        assert tc.pending_approval is None
+        assert tc.last_approval_decision == "approved"
+        assert pending.event.is_set()
+        assert pending.chosen_option_id == "approve"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_approval_decide_noop_outside_approval_lifecycle(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Belt-and-braces: action_approval_decide is a no-op when no approval is pending.
+
+    ``check_action`` already gates the binding so it never fires
+    outside ``approval`` lifecycle — but the action itself
+    re-checks defensively so a direct call (test / future caller)
+    can't accidentally resolve nothing.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+        # No pending approval → lifecycle is not "approval".
+        assert app.screen.state.lifecycle != "approval"
+
+        # Should not raise; should not mutate any state.
+        app.screen.action_approval_decide("approve")
+        await pilot.pause()
+
+        assert app.screen.state._tool_calls_by_id == {}
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_approval_decide_noop_when_option_not_in_request(
+    sample_rows: list[SessionRow],
+) -> None:
+    """``human_approver(choices=[...])`` can omit options — pressing them is a no-op.
+
+    Example: a request configured with only ``approve`` / ``reject``
+    doesn't accept ``terminate``. Pressing ``t`` in that case
+    should NOT silently resolve as approved or denied — it should
+    do nothing so the operator can press a real option.
+    """
+    from acp.schema import (
+        PermissionOption,
+        RequestPermissionRequest,
+        ToolCallUpdate,
+    )
+
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # Request with only approve + reject — no terminate.
+        req = RequestPermissionRequest(
+            session_id="sid",
+            tool_call=ToolCallUpdate(tool_call_id="tc-1", title="ls", status="pending"),
+            options=[
+                PermissionOption(
+                    option_id="approve", name="Approve", kind="allow_once"
+                ),
+                PermissionOption(option_id="reject", name="Reject", kind="reject_once"),
+            ],
+        )
+        pending = _bar_pending(req)
+        app.screen.state.consume_approval_request(pending)
+        await pilot.pause()
+
+        app.screen.action_approval_decide("terminate")
+        await pilot.pause()
+
+        # Pending unchanged — the decision didn't land.
+        assert not pending.event.is_set()
+        tc = app.screen.state._tool_calls_by_id["tc-1"]
+        assert tc.pending_approval is pending
+        assert tc.last_approval_decision is None
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_check_action_gates_prompt_letter_outside_approval(
+    sample_rows: list[SessionRow],
+) -> None:
+    """``check_action('prompt_letter', ...)`` returns False outside approval mode.
+
+    The approval bar's bare-letter shortcuts (``a`` / ``r`` / ``e`` /
+    ``t`` / ``m``) are registered through the shared ``prompt_letter``
+    dispatcher so they share Textual's binding table with the cancel
+    bar's ``s`` / ``e``. Without the gate, typing ``r`` into the
+    composer would fire the reject action instead of inserting the
+    letter.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # No approval pending → gate must close.
+        assert app.screen.check_action("prompt_letter", ("a",)) is False
+
+        # Approval pending → gate opens.
+        app.screen.state.consume_approval_request(
+            _bar_pending(_bar_pending_request("tc-1"))
+        )
+        await pilot.pause()
+        assert app.screen.check_action("prompt_letter", ("a",)) is True
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_composer_text_area_hidden_during_approval_lifecycle(
+    sample_rows: list[SessionRow],
+) -> None:
+    """``_apply_lifecycle`` hides the composer TextArea so the approval bar takes the row."""
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+        composer = app.screen.query_one("#composer", TextArea)
+        # Default: visible.
+        assert composer.display
+
+        # Pending approval → hidden.
+        app.screen.state.consume_approval_request(
+            _bar_pending(_bar_pending_request("tc-1"))
+        )
+        await pilot.pause()
+        assert not composer.display
+
+        # Resolved → visible again.
+        app.screen.state.resolve_approval("tc-1", option_id="approve")
+        await pilot.pause()
+        assert composer.display
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_submit_noop_during_approval_with_stranded_focus(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Enter must not ship the hidden composer's draft while approval is pending.
+
+    Pinned regression: the composer TextArea is ``display: none`` during
+    approval but its ``text`` is intact. With focus on a non-approval
+    widget (transcript, plan strip, or stranded on the now-hidden
+    TextArea itself), Enter's ``priority=True`` binding would otherwise
+    drop into the composer-submit path and send the invisible draft
+    to the agent while the agent is parked awaiting permission.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        # Seed a draft, then enter approval lifecycle.
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = "draft that must NOT ship"
+        app.screen.state.consume_approval_request(
+            _bar_pending(_bar_pending_request("tc-1"))
+        )
+        await pilot.pause()
+        # Force focus onto the screen itself (not the bar's action) so
+        # the action-press delegation path doesn't apply.
+        app.screen.focus()
+        await pilot.pause()
+
+        await app.screen.action_submit()
+        await pilot.pause()
+
+        conn = cast(Any, app.screen._session.connection)
+        assert conn.requests == [], (
+            f"Composer text was shipped while approval was pending: {conn.requests}"
+        )
+        # Draft preserved (not cleared by a stray submit).
+        assert composer.text == "draft that must NOT ship"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_action_newline_noop_during_approval(
+    sample_rows: list[SessionRow],
+) -> None:
+    r"""⇧↵ must not smuggle a literal newline into the hidden composer.
+
+    Pinned regression: the TextArea is hidden during approval but its
+    ``text`` survives. Without a lifecycle guard, ⇧↵ (``priority=True``)
+    would insert ``\n`` into the invisible draft, which would then
+    ship on the next non-approval submit.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        app.screen._on_select(sample_rows[0])  # type: ignore[attr-defined]
+        for _ in range(20):
+            await pilot.pause()
+            if isinstance(app.screen, SessionScreen):
+                break
+        assert isinstance(app.screen, SessionScreen)
+
+        composer = app.screen.query_one("#composer", TextArea)
+        composer.text = "draft"
+        composer.move_cursor((0, len(composer.text)))
+        app.screen.state.consume_approval_request(
+            _bar_pending(_bar_pending_request("tc-1"))
+        )
+        await pilot.pause()
+
+        app.screen.action_newline()
+        await pilot.pause()
+
+        assert composer.text == "draft", (
+            f"Expected newline insertion to be a no-op in approval lifecycle; "
+            f"composer.text={composer.text!r}"
+        )

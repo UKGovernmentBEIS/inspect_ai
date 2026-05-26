@@ -1,12 +1,23 @@
 import contextlib
+from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Iterator, Literal
+from logging import getLogger
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    AsyncGenerator,
+    Awaitable,
+    Callable,
+    Iterator,
+    Literal,
+)
 
 if TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-    from inspect_ai.agent._acp.session import AcpSession
+    from inspect_ai.agent._acp.transport import AcpTransport
+    from inspect_ai.agent._channel import ExecutionObserver
     from inspect_ai.hooks._hooks import SampleEvent
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
 
@@ -15,13 +26,17 @@ from anyio.abc import TaskGroup
 from shortuuid import uuid
 
 from inspect_ai.dataset._dataset import Sample
-from inspect_ai.util._checkpoint.config import CheckpointConfig
+from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
+from inspect_ai.util._checkpoint.checkpointer_factory import create_checkpointer
+from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._limit import LimitExceededError
 from inspect_ai.util._sandbox import SandboxConnection
 from inspect_ai.util._sandbox.context import sandbox_connections
 
 from ..event._model import ModelEvent
 from ._transcript import Transcript
+
+logger = getLogger(__name__)
 
 
 class ActiveSample:
@@ -41,10 +56,10 @@ class ActiveSample:
         fails_on_error: bool,
         transcript: Transcript,
         sandboxes: dict[str, SandboxConnection],
-        checkpoint: CheckpointConfig | None = None,
+        checkpointer: AbstractAsyncContextManager[Checkpointer],
+        eval_id: str,
         eval_set_id: str | None = None,
         run_id: str | None = None,
-        eval_id: str | None = None,
         agent_name: str | None = None,
     ) -> None:
         self.id = uuid()
@@ -67,7 +82,7 @@ class ActiveSample:
         self.total_cost: float | None = None
         self.transcript = transcript
         self.sandboxes = sandboxes
-        self.checkpoint = checkpoint
+        self.checkpointer = checkpointer
         self.eval_set_id = eval_set_id
         self.run_id = run_id
         self.eval_id = eval_id
@@ -78,10 +93,41 @@ class ActiveSample:
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
         self.event_done: anyio.Event | None = None
         # Live ACP session for this sample, if any. Set by
-        # `LiveAcpSession.__aenter__` on entry; cleared at `__aexit__`.
+        # `LiveAcpTransport.__aenter__` on entry; cleared at `__aexit__`.
         # The Inspect TUI reads this to decide whether to render the
         # Interrupt button and to dispatch session/cancel + session/prompt.
-        self.acp_session: "AcpSession | None" = None
+        self.acp_transport: "AcpTransport | None" = None
+        # In-flight tool/model tracking observer for this sample.
+        # Defaults to a no-op singleton; an intervention producer (the
+        # ACP transport today, future supervisors) installs itself here
+        # to record `InterruptEvent` cross-references when it cancels.
+        # The model/tool layers wrap each top-level tool execution and
+        # each model generation in the observer's `track_*` context
+        # manager, so the producer always has the necessary provenance
+        # available at cancel time.
+        from inspect_ai.agent._channel import null_execution_observer
+
+        self.execution_observer: "ExecutionObserver" = null_execution_observer()
+        # Lifecycle callbacks owned by whoever bound to this sample
+        # (in practice, the live ACP session). Kept here rather than
+        # in the ACP layer so the eval primitive doesn't have to
+        # import or call into ACP — it just fires the registered hook
+        # if present. `on_complete` runs after scoring + logging
+        # finish; `on_interrupt` runs inside `interrupt()` /
+        # `limit_exceeded()` before the task-group cancel propagates,
+        # giving the binder a chance to clean up in-flight state that
+        # anyio's hard cancel would otherwise bypass (notably the
+        # `pending=True` flag on an in-flight `ModelEvent`).
+        # `on_interrupt` receives a cause discriminator so the binder
+        # records the right provenance — `"user_cancel"` for operator-
+        # driven `interrupt()`, `"limit"` for `limit_exceeded()`,
+        # `"system"` reserved for eval-shutdown paths. The values
+        # mirror :attr:`InterruptEvent.source` so the binder can
+        # forward straight through.
+        self.on_complete: Callable[[], Awaitable[None]] | None = None
+        self.on_interrupt: (
+            Callable[[Literal["user_cancel", "limit", "system"]], None] | None
+        ) = None
 
     def start(self, tg: TaskGroup) -> None:
         self.started = datetime.now(timezone.utc).timestamp()
@@ -108,6 +154,7 @@ class ActiveSample:
             raise RuntimeError(
                 "Attempted to interrupt sample without enclosing task group."
             )
+        self._fire_on_interrupt("user_cancel")
         self.tg.cancel_scope.cancel()
 
     def limit_exceeded(self, error: LimitExceededError) -> None:
@@ -116,7 +163,32 @@ class ActiveSample:
             raise RuntimeError(
                 "Attempted to interrupt sample for limit without enclosing task group."
             )
+        self._fire_on_interrupt("limit")
         self.tg.cancel_scope.cancel()
+
+    def _fire_on_interrupt(
+        self, cause: Literal["user_cancel", "limit", "system"]
+    ) -> None:
+        """Fire the registered ``on_interrupt`` hook, swallowing failures.
+
+        The hook (set by whoever bound to this sample — in practice the
+        live ACP session) cleans up in-flight state that anyio's hard
+        cancel would otherwise bypass. ``cause`` lets the binder
+        record the right provenance (e.g. an `InterruptEvent` with
+        ``source="limit"`` for a token-limit hit, not ``"user_cancel"``).
+        A failure inside the hook must not prevent the task-group
+        cancel from firing, so we log and keep going. Sync because the
+        cancel path is sync.
+        """
+        if self.on_interrupt is None:
+            return
+        try:
+            self.on_interrupt(cause)
+        except Exception:
+            logger.warning(
+                "ActiveSample on_interrupt hook raised; continuing with cancel",
+                exc_info=True,
+            )
 
     @property
     def interrupt_action(self) -> Literal["score", "error"] | None:
@@ -146,12 +218,15 @@ async def active_sample(
     working_limit: int | None,
     fails_on_error: bool,
     transcript: Transcript,
-    checkpoint: CheckpointConfig | None = None,
+    eval_id: str,
+    checkpoint: ResolvedCheckpointConfig | None = None,
+    resume_checkpoint: ResumeCheckpoint | None = None,
     eval_set_id: str | None = None,
     run_id: str | None = None,
-    eval_id: str | None = None,
     agent_name: str | None = None,
 ) -> AsyncGenerator[ActiveSample, None]:
+    if sample.id is None:
+        raise ValueError("active_sample requires sample.id to be set")
     # create the sample
     active = ActiveSample(
         task=task,
@@ -167,7 +242,13 @@ async def active_sample(
         sandboxes=await sandbox_connections(),
         fails_on_error=fails_on_error,
         transcript=transcript,
-        checkpoint=checkpoint,
+        checkpointer=create_checkpointer(
+            config=checkpoint,
+            log_location=log_location,
+            sample_id=sample.id,
+            epoch=epoch,
+            resume_checkpoint=resume_checkpoint,
+        ),
         eval_set_id=eval_set_id,
         run_id=run_id,
         eval_id=eval_id,
@@ -176,9 +257,32 @@ async def active_sample(
 
     _active_samples.append(active)
     _sample_active.set(active)
+    # Open the ACP session for this sample's lifetime. The session is the
+    # ACP-specific transport layer (pub/sub, approver registry, transcript
+    # snapshot, etc.); it produces into whatever agent_channel() is bound to
+    # via maybe_bind/unbind. Local import to avoid a module-load-time cycle
+    # (log → agent._acp → … → log).
+    from inspect_ai.agent._acp.transport import acp_session
+
     try:
-        yield active
+        async with acp_session():
+            yield active
     finally:
+        # Single "the sample is fully done" hook for whoever bound to
+        # this sample. By the time we get here scoring + logging have
+        # run and the task runner's ``emit_sample_end`` has fired, so
+        # any registered binder (in practice the live ACP session)
+        # can do its deferred teardown safely. Shielded so a
+        # cancellation during teardown doesn't skip it.
+        if active.on_complete is not None:
+            with anyio.CancelScope(shield=True):
+                try:
+                    await active.on_complete()
+                except Exception:
+                    logger.warning(
+                        "ActiveSample on_complete hook raised",
+                        exc_info=True,
+                    )
         active.complete()
         _active_samples.remove(active)
         _sample_active.set(None)

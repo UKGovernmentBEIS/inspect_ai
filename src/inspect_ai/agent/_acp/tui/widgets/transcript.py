@@ -14,9 +14,11 @@ from textual.containers import VerticalScroll
 from textual.timer import Timer
 from textual.widget import Widget
 
-from ..state import MessageGroup, SessionState, ToolCallState
+from ..state import EventChip, MessageGroup, ScoreChip, SessionState, ToolCallState
 from ._fingerprint import tool_state_fingerprint
+from .event_chip import EventChipWidget
 from .message import MessageWidget
+from .score import ScoreChipWidget
 from .tool_call import ToolCallWidget
 
 _SCROLL_DEBOUNCE_SECONDS = 0.08
@@ -133,23 +135,31 @@ class TranscriptWidget(VerticalScroll):
         for item in state.items:
             key = self._key_for(item)
             seen_keys.add(key)
+            # ``defer_body``: terminal tool cards hold their body while
+            # any sibling is still actively running. Without this gate,
+            # parallel tool calls would stream completed results in one
+            # at a time, pulling the operator's eye away from the
+            # cards that are still pending. Computed per-item so the
+            # transition of *another* tool to terminal causes this
+            # item's fingerprint to flip → re-render → un-defer.
+            defer_body = self._compute_defer_body(item, state)
             entry = self._entries.get(key)
             if entry is None:
-                widget = self._build_widget(item, state)
-                self._entries[key] = (widget, self._fingerprint(item))
+                widget = self._build_widget(item, state, defer_body=defer_body)
+                self._entries[key] = (widget, self._fingerprint(item, defer_body))
                 self.mount(widget)
                 content_changed = True
                 continue
             widget, old_fp = entry
-            new_fp = self._fingerprint(item)
+            new_fp = self._fingerprint(item, defer_body)
             if isinstance(item, ToolCallState) and isinstance(widget, ToolCallWidget):
                 # Gate on fingerprint change — the comprehensive
-                # tool-call fingerprint (status + content + raw_input)
-                # now catches every visible mutation, so the widget
-                # only re-renders when something actually changed.
-                # Mirrors the message branch below.
+                # tool-call fingerprint (status + content + raw_input
+                # + defer_body) catches every visible mutation, so the
+                # widget only re-renders when something actually
+                # changed. Mirrors the message branch below.
                 if old_fp != new_fp:
-                    widget.update_state(item)
+                    widget.update_state(item, defer_body=defer_body)
                     self._entries[key] = (widget, new_fp)
                     content_changed = True
             elif isinstance(item, MessageGroup) and isinstance(widget, MessageWidget):
@@ -169,6 +179,50 @@ class TranscriptWidget(VerticalScroll):
 
         if content_changed and at_bottom:
             self._schedule_scroll_to_end()
+
+    @staticmethod
+    def _compute_defer_body(
+        item: MessageGroup | ToolCallState | ScoreChip | EventChip,
+        state: SessionState,
+    ) -> bool:
+        """Whether ``item``'s body should be held back this refresh.
+
+        Gate fires while ``item`` is part of an unresolved parallel
+        batch: ``item.parallel_batch_id`` is set AND some other member
+        of *that same batch* is still in_progress. Covers BOTH the
+        call-view (input preview, e.g. the bash command line, the
+        ``lookup ACME`` markdown a custom viewer emits at call time)
+        and the terminal result body — under parallel execution we
+        want every card collapsed to its single-line header so no one
+        tool juts out and pulls the eye off the in-flight set.
+
+        ``parallel_batch_id`` is sticky: once a tool has been tagged
+        with a batch id it keeps it for the rest of the session. So
+        the last tool of a 3-call batch stays deferred even when its
+        siblings have finished but it is still itself running — its
+        own in_progress status, with its batch id, keeps the gate
+        active. The reveal fires all-at-once when the last batch
+        member transitions to terminal: that refresh flips
+        ``defer_body`` to False for every held card in one pass,
+        mounting bodies in declared order.
+
+        Scoping by batch id (rather than a session-wide "any tagged
+        tool still in-progress" sweep) means a later parallel batch
+        does NOT pull an earlier, already-settled batch's bodies back
+        into deferral.
+
+        A solo tool never gets tagged with a batch id and never
+        defers — same fast-path as before the gate existed.
+        """
+        if not isinstance(item, ToolCallState):
+            return False
+        if item.parallel_batch_id is None:
+            return False
+        return any(
+            tc.parallel_batch_id == item.parallel_batch_id
+            and tc.status == "in_progress"
+            for tc in state._tool_calls_by_id.values()
+        )
 
     def _schedule_scroll_to_end(self) -> None:
         """Coalesce rapid content changes into one debounced animated scroll.
@@ -251,27 +305,52 @@ class TranscriptWidget(VerticalScroll):
         self._start_animated_scroll()
 
     @staticmethod
-    def _fingerprint(item: MessageGroup | ToolCallState) -> object:
+    def _fingerprint(
+        item: MessageGroup | ToolCallState | ScoreChip | EventChip,
+        defer_body: bool = False,
+    ) -> object:
         if isinstance(item, MessageGroup):
             return _message_fingerprint(item)
-        # Use the comprehensive tool-call fingerprint (status + title
-        # + kind + content + raw_input) — not just status — so the
-        # auto-scroll decision tracks live-tail tool output. Streaming
-        # output that grows while status stays ``in_progress`` would
-        # otherwise update the card silently without scrolling.
-        return tool_state_fingerprint(item)
+        if isinstance(item, ScoreChip):
+            # Score chips are immutable once mounted — the fingerprint
+            # only needs to identify the chip, not detect changes.
+            return item.chip_id
+        if isinstance(item, EventChip):
+            # Event chips are likewise immutable once mounted (no
+            # streaming update path for SampleLimit/Error/Compaction/
+            # Info events — each fires once and terminates).
+            return item.chip_id
+        # Comprehensive tool-call fingerprint (status + title + kind +
+        # content + raw_input) — not just status — so the auto-scroll
+        # decision tracks live-tail tool output. ``defer_body`` rides
+        # along so a flip of the deferral gate (caused by a *sibling*
+        # tool transitioning to terminal) is seen as a change here and
+        # routes through ``update_state`` to mount the held-back body.
+        return (tool_state_fingerprint(item), defer_body)
 
     def _build_widget(
-        self, item: MessageGroup | ToolCallState, state: SessionState
+        self,
+        item: MessageGroup | ToolCallState | ScoreChip | EventChip,
+        state: SessionState,
+        *,
+        defer_body: bool = False,
     ) -> Widget:
         if isinstance(item, MessageGroup):
             return MessageWidget(item, current_model=state.current_model)
-        return ToolCallWidget(item)
+        if isinstance(item, ScoreChip):
+            return ScoreChipWidget(item)
+        if isinstance(item, EventChip):
+            return EventChipWidget(item)
+        return ToolCallWidget(item, defer_body=defer_body)
 
     @staticmethod
-    def _key_for(item: MessageGroup | ToolCallState) -> str:
+    def _key_for(item: MessageGroup | ToolCallState | ScoreChip | EventChip) -> str:
         if isinstance(item, MessageGroup):
             return f"msg:{item.message_id}"
+        if isinstance(item, ScoreChip):
+            return f"score:{item.chip_id}"
+        if isinstance(item, EventChip):
+            return f"event:{item.chip_id}"
         return f"tool:{item.tool_call_id}"
 
     def _is_at_bottom(self) -> bool:
@@ -303,4 +382,6 @@ class TranscriptWidget(VerticalScroll):
             if isinstance(widget, ToolCallWidget):
                 widget.tick_duration()
             elif isinstance(widget, MessageWidget):
+                widget.tick_spinner()
+            elif isinstance(widget, ScoreChipWidget):
                 widget.tick_spinner()

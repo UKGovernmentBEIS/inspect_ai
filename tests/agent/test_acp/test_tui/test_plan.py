@@ -265,6 +265,47 @@ async def test_plan_strip_appears_on_plan_update() -> None:
 @skip_if_trio
 @pytest.mark.slow
 @pytest.mark.anyio
+async def test_plan_strip_hides_when_scoring_phase_begins() -> None:
+    """Outer ``span(name="scorers")`` event hides the plan strip.
+
+    Agent loop is done by the time the scoring boundary fires —
+    leaving the plan visible during scoring reads as "still working
+    on it" even though we've moved on to scoring. The state-level
+    clearing is covered in ``test_scoring.py``; this exercises the
+    full path through the widget subscriber so a regression in the
+    re-render or display:none CSS gets caught.
+    """
+    rows = [_sample_row()]
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        screen = await _open_session_screen(pilot, rows)
+        screen.state.consume(_plan_notification(_entry("step 1", "completed")))
+        await pilot.pause()
+        strip = screen.query_one(PlanStripWidget)
+        assert not strip.has_class("-hidden"), (
+            "precondition: plan should be visible before scoring starts"
+        )
+        # Fire the outer scoring boundary via the same client-side route
+        # the server's ``inspect/event`` notification would land in.
+        # ``util._span.span`` defaults ``type`` to ``name`` when the
+        # caller omits it — so the wire payload for ``span(name=
+        # "scorers")`` carries ``type="scorers"`` (not ``None``).
+        screen.state.consume_inspect_event(
+            {
+                "event": "span_begin",
+                "id": "s-out",
+                "name": "scorers",
+                "type": "scorers",
+            }
+        )
+        await pilot.pause()
+        assert strip.has_class("-hidden"), "scoring boundary should hide the plan strip"
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
 async def test_ctrl_p_toggles_plan_overlay() -> None:
     """``^p`` while a plan exists pushes the overlay; pressing it again pops."""
     rows = [_sample_row()]

@@ -118,6 +118,10 @@ class OpenAICompatibleAPI(ModelAPI):
         self.emulate_tools = emulate_tools
         self.responses_api = responses_api
         self.responses_store = responses_store
+        responses_phase = model_args.pop("responses_phase", False)
+        if not isinstance(responses_phase, bool):
+            raise ValueError("responses_phase must be a bool")
+        self.responses_phase: bool = responses_phase
         if self.emulate_tools and self.responses_api:
             raise ValueError(
                 "emulate_tools is not compatible with using the responses_api"
@@ -188,7 +192,7 @@ class OpenAICompatibleAPI(ModelAPI):
                 prompt_cache_retention=NOT_GIVEN,
                 safety_identifier=NOT_GIVEN,
                 responses_store=self.responses_store,
-                synthesize_phase=False,
+                synthesize_phase=self.responses_phase,
                 model_info=ModelInfo(),
                 batcher=None,
                 handle_bad_request=self.handle_bad_request,
@@ -319,8 +323,14 @@ class OpenAICompatibleAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        """Scope for enforcing max_connections (could also use endpoint)."""
-        return str(self.api_key)
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.api_key}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:

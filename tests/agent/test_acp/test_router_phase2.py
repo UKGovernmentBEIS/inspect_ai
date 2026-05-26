@@ -35,11 +35,11 @@ from inspect_ai.agent._acp.event_mapping import (
     _AcpEventRouter,
     _model_event_message_id,
 )
-from inspect_ai.agent._acp.session_live import LiveAcpSession
 from inspect_ai.agent._acp.tool_content import (
     _TOOL_KIND_BY_NAME,
     _tool_kind_for,
 )
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, _transcript
@@ -64,12 +64,14 @@ set_model_info(
 )
 
 
-def _new_session() -> LiveAcpSession:
-    return LiveAcpSession()
+def _new_session() -> LiveAcpTransport:
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    return session
 
 
 def _attach_router(
-    session: LiveAcpSession,
+    session: LiveAcpTransport,
 ) -> tuple[_AcpEventRouter, list[SessionNotification]]:
     published: list[SessionNotification] = []
     session.publish = published.append  # type: ignore[method-assign,assignment]

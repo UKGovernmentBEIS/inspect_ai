@@ -30,7 +30,7 @@ from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._input import InputEvent
 from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._logger import LoggerEvent
-from inspect_ai.event._model import OPERATOR_CANCEL_ERROR, ModelEvent
+from inspect_ai.event._model import CANCEL_ERRORS, ModelEvent
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
 from inspect_ai.event._score import ScoreEvent
@@ -237,11 +237,10 @@ def render_interrupt_event(event: InterruptEvent) -> EventDisplay:
 
 
 def render_model_event(event: ModelEvent) -> EventDisplay | None:
-    # Hide operator-cancelled model events entirely. The user explicitly
-    # interrupted this work; the adjacent InterruptEvent communicates
-    # what happened, and the cancelled call has no assistant output to
-    # show.
-    if event.error == OPERATOR_CANCEL_ERROR:
+    # Hide cancelled model events entirely (operator / limit / system).
+    # The adjacent InterruptEvent communicates the cause; the cancelled
+    # call has no useful assistant output to show.
+    if event.error in CANCEL_ERRORS:
         return None
 
     content: list[RenderableType] = []

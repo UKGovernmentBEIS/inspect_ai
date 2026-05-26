@@ -79,7 +79,9 @@ def _make_sample(
     session_id: str | None,
     agent_name: str | None = None,
     started: float | None = None,
+    total_messages: int = 0,
     total_tokens: int = 0,
+    fails_on_error: bool = True,
 ) -> Any:
     sample = MagicMock()
     sample.id = sample_id
@@ -87,21 +89,32 @@ def _make_sample(
     active.task = task
     active.sample = sample
     active.epoch = epoch
-    # Explicit None on the new fields so MagicMock doesn't auto-wrap
-    # them and break JSON serialization downstream. ``total_tokens`` is
-    # read by ``list_picker_targets`` and serialised over the wire by
-    # both the picker meta and ``inspect/list_sessions`` — must be a
-    # real int, not a MagicMock, or the server crashes silently in a
-    # background task and the request hangs forever.
+    # Explicit values on the fields read by ``list_picker_targets`` so
+    # MagicMock doesn't auto-wrap them and break JSON serialization
+    # downstream. ``total_messages`` / ``total_tokens`` / ``fails_on_error``
+    # are serialised over the wire by both the picker meta and
+    # ``inspect/list_sessions`` — must be real Python values, not
+    # MagicMocks, or the server crashes silently in a background task
+    # and the request hangs forever. Default ``fails_on_error=True``
+    # mirrors what the eval harness produces from the default
+    # ``EvalConfig.fail_on_error=None`` (None collapses to True in
+    # ``ActiveSample.fails_on_error``).
     active.agent_name = agent_name
     active.started = started
+    active.total_messages = total_messages
     active.total_tokens = total_tokens
+    active.fails_on_error = fails_on_error
     if session_id is None:
-        active.acp_session = None
+        active.acp_transport = None
     else:
         session = MagicMock()
         session.session_id = session_id
-        active.acp_session = session
+        # Match production semantics: noop placeholder is not attachable,
+        # real bound sessions are. Without this the MagicMock's
+        # auto-generated ``is_attachable`` is truthy, and the picker's
+        # ``is_attachable`` filter doesn't strip the noop sentinel.
+        session.is_attachable = session_id != "noop"
+        active.acp_transport = session
     return active
 
 
@@ -522,8 +535,10 @@ async def test_forwarders_uses_immutable_wire_session_id(
     CAPTURED wire id, not the new one.
 
     Pinned by capturing the ``wire`` arg passed to
-    ``replay_transcript`` and asserting it's the constructor value
-    rather than the post-mutation ``state.wire_session_id``.
+    ``ReplayTranscriptor`` (the per-event semantic mapper introduced
+    by the interleaved-replay change) and asserting it's the
+    constructor value rather than the post-mutation
+    ``state.wire_session_id``.
     """
     handler = ConnectionHandler()
     handler.connection = MagicMock()
@@ -539,28 +554,32 @@ async def test_forwarders_uses_immutable_wire_session_id(
         wire_session_id="wire-A",
     )
 
-    # Stub raw forwarder that mutates state.wire_session_id mid-replay
-    # via a binding swap. With the captured-wire fix, this MUST NOT
-    # affect the semantic phase's wire id.
+    # Stub raw forwarder whose per-event replay mutates
+    # state.wire_session_id via a binding swap. With the captured-wire
+    # fix, this MUST NOT affect the semantic transcriptor's wire id
+    # (already constructed at the top of _run_replay).
     racing_raw = MagicMock()
 
-    async def _racing_replay(*_a: Any, **_kw: Any) -> None:
+    async def _racing_replay_event(*_a: Any, **_kw: Any) -> None:
         handler.state.binding = Bound(
             wire_session_id="wire-B", target_session_id="target-B"
         )
 
-    racing_raw.replay = _racing_replay
+    racing_raw.replay_event = _racing_replay_event
     forwarders._raw_forwarder = racing_raw
 
     captured_wire: list[str] = []
 
-    def _capture_replay_transcript(events: Any, wire: str, **_kw: Any) -> Any:
-        captured_wire.append(wire)
-        return iter([])
+    class _CapturingTranscriptor:
+        def __init__(self, wire: str, *, filter_subagents: bool = True) -> None:
+            captured_wire.append(wire)
+
+        def process(self, _event: Any) -> list[Any]:
+            return []
 
     monkeypatch.setattr(
-        "inspect_ai.agent._acp.session_router.replay_transcript",
-        _capture_replay_transcript,
+        "inspect_ai.agent._acp.session_router.ReplayTranscriptor",
+        _CapturingTranscriptor,
     )
     monkeypatch.setattr(
         "inspect_ai.agent._acp.session_router._filter_subagent_events",
@@ -570,9 +589,136 @@ async def test_forwarders_uses_immutable_wire_session_id(
     await forwarders._run_replay([MagicMock()])
 
     assert captured_wire == ["wire-A"], (
-        f"replay_transcript must receive the wire id captured in the "
+        f"ReplayTranscriptor must receive the wire id captured in the "
         f"Forwarders constructor (wire-A), not the post-mutation "
         f"state value (wire-B); got {captured_wire}"
+    )
+
+
+async def test_run_replay_interleaves_raw_and_semantic_in_transcript_order() -> None:
+    """Late-attach replay: raw and semantic dispatch in source order, not two passes.
+
+    Pins the fix for the chip-ordering bug. Before this change,
+    ``_run_replay`` ran raw first (all ``inspect/event`` notifications)
+    then semantic (all ``session/update`` notifications), so a late
+    attach after the scoring phase started would render score chips
+    ABOVE the replayed conversation. With interleaved dispatch, the
+    wire ordering matches the underlying transcript ordering — score
+    chips land at their natural position relative to the
+    message-group notifications they followed.
+
+    Test feeds a snapshot of [agent_msg, scorer_span_begin,
+    score_event, span_end] and asserts the wire receives them in
+    that order, not [scorer_span_begin, score_event, span_end,
+    agent_msg].
+    """
+    from inspect_ai.agent._acp.inspect_ext import (
+        INSPECT_EVENT_METHOD,
+        RAW_EVENTS_GLOB,
+        RawEventForwarder,
+    )
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.event._score import ScoreEvent
+    from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.model._chat_message import ChatMessageAssistant
+    from inspect_ai.model._generate_config import GenerateConfig
+    from inspect_ai.model._model_output import (
+        ChatCompletionChoice,
+        ModelOutput,
+    )
+    from inspect_ai.scorer._metric import Score
+
+    # Wire ordering capture: record (method, payload-marker) per call.
+    captured: list[tuple[str, str]] = []
+
+    class _CapturingConn:
+        async def send_notification(self, method: str, payload: dict[str, Any]) -> None:
+            # For raw events, the marker is the event-type discriminator.
+            # For semantic, it's the session-update kind so we can tell
+            # message chunks apart from the inspect-event firehose.
+            if method == INSPECT_EVENT_METHOD:
+                marker = payload.get("event") or "?"
+            else:
+                # session/update wraps a SessionNotification — extract
+                # the update kind from the inner ``update.sessionUpdate``
+                # field (camelCase on the wire via by_alias=True).
+                upd = payload.get("update") or {}
+                marker = upd.get("sessionUpdate") or "?"
+            captured.append((method, str(marker)))
+
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-x", target_session_id="target-x"
+    )
+
+    forwarders = Forwarders(
+        handler.state,
+        _CapturingConn(),  # type: ignore[arg-type]
+        handler,
+        target_session_id="target-x",
+        wire_session_id="wire-x",
+    )
+    # Subscribe to the full firehose so every event also goes raw.
+    forwarders._raw_forwarder = RawEventForwarder(
+        _CapturingConn(),  # type: ignore[arg-type]
+        subscription=frozenset({RAW_EVENTS_GLOB}),
+    )
+    # Reuse the same capturing connection so the test sees ALL
+    # outbound calls (raw + semantic) in one ordered list.
+    forwarders._raw_forwarder._connection = forwarders._connection
+
+    # Build a snapshot: agent message, scoring boundary, score event,
+    # scorer span end. The model event needs a non-empty completion
+    # so the semantic mapper actually emits an agent message chunk.
+    output = ModelOutput(
+        model="m",
+        choices=[
+            ChatCompletionChoice(
+                message=ChatMessageAssistant(content="hello"),
+                stop_reason="stop",
+            )
+        ],
+    )
+    snapshot: list[Any] = [
+        ModelEvent(
+            model="m",
+            input=[],
+            tools=[],
+            tool_choice="auto",
+            config=GenerateConfig(),
+            output=output,
+        ),
+        SpanBeginEvent(id="span-s", parent_id=None, name="scorer-x", type="scorer"),
+        ScoreEvent(score=Score(value="C", explanation="ok"), scorer="scorer-x"),
+        SpanEndEvent(id="span-s"),
+    ]
+
+    status = await forwarders._run_replay(snapshot)
+    assert not status.should_exit
+
+    # Extract the markers in arrival order — raw + semantic mixed.
+    markers = [m for _method, m in captured]
+    # The model event produces agent-message chunk(s) semantically,
+    # and is itself raw "model"-typed. The span_begin / span_end /
+    # score are raw-only (no semantic equivalent). What we care
+    # about: the agent_message_chunk must arrive BEFORE the
+    # score-event raw payload, since the underlying transcript
+    # ordering puts ModelEvent first.
+    msg_idx = next(
+        (i for i, m in enumerate(markers) if m == "agent_message_chunk"),
+        None,
+    )
+    score_idx = next(
+        (i for i, m in enumerate(markers) if m == "score"),
+        None,
+    )
+    assert msg_idx is not None, (
+        f"semantic agent_message_chunk should be in capture; got {markers}"
+    )
+    assert score_idx is not None, f"raw score event should be in capture; got {markers}"
+    assert msg_idx < score_idx, (
+        f"agent_message_chunk (i={msg_idx}) must arrive BEFORE the raw "
+        f"score event (i={score_idx}) — interleaved order; got {markers}"
     )
 
 
@@ -998,7 +1144,7 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
             sessions = resp["result"]["sessions"]
             assert len(sessions) == 2
             # Per-entry shape matches the existing PICKER_META_KEY entries
-            # plus a convenience 'target' field for inspect/new_session.
+            # plus a convenience 'target' field for inspect/attach.
             for sess, expected in zip(
                 sessions,
                 [
@@ -1009,7 +1155,9 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
                         "epoch": 0,
                         "agentName": None,
                         "startedAt": None,
+                        "totalMessages": 0,
                         "totalTokens": 0,
+                        "failsOnError": True,
                         "target": "t1/s1/0",
                     },
                     {
@@ -1019,7 +1167,9 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
                         "epoch": 1,
                         "agentName": None,
                         "startedAt": None,
+                        "totalMessages": 0,
                         "totalTokens": 0,
+                        "failsOnError": True,
                         "target": "t2/s2/1",
                     },
                 ],
@@ -1102,8 +1252,102 @@ async def test_inspect_list_sessions_accepts_null_params(
 
 
 # ---------------------------------------------------------------------------
-# inspect/new_session — direct bind via task/sample_id/epoch tuple,
-# skipping the picker. Inspect-aware clients (Phase 15 TUI, editors
+# inspect/list_samples — superset enumeration (includes non-ACP samples)
+# consumed by the Inspect TUI to surface samples whose agent hasn't
+# claimed ACP. Standard ACP clients (Zed) continue to use list_sessions.
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_samples_returns_acp_and_non_acp(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Both ACP-claimed and non-claimed samples appear; ``sessionId`` discriminates."""
+    stub_targets(
+        [
+            _make_sample(task="t1", sample_id="s1", epoch=0, session_id="uuid-a"),
+            _make_sample(task="t2", sample_id="s2", epoch=0, session_id=None),
+            _make_sample(task="t3", sample_id="s3", epoch=1, session_id="noop"),
+        ]
+    )
+    async with acp_server(eval_id="evt-samp", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request("inspect/list_samples", {})
+            assert "result" in resp, resp
+            samples = resp["result"]["samples"]
+            assert len(samples) == 3
+            # ACP-claimed: uuid present.
+            assert samples[0]["sessionId"] == "uuid-a"
+            assert samples[0]["sampleId"] == "s1"
+            # Non-claimed: sessionId is None.
+            assert samples[1]["sessionId"] is None
+            assert samples[1]["sampleId"] == "s2"
+            # Noop sentinel collapses to non-claimed (pre-claim placeholder).
+            assert samples[2]["sessionId"] is None
+            assert samples[2]["sampleId"] == "s3"
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_samples_empty_when_no_samples(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Zero active samples → empty list (not an error)."""
+    stub_targets([])
+    async with acp_server(eval_id="evt-samp-empty", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request("inspect/list_samples", {})
+            assert resp["result"] == {"samples": []}
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_samples_does_not_require_binding(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """Method works on a fresh connection — discovery doesn't require a prior bind."""
+    stub_targets([_make_sample(task="t", sample_id="s", epoch=0, session_id=None)])
+    async with acp_server(eval_id="evt-samp-fresh", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request("inspect/list_samples", {})
+            assert "result" in resp, resp
+            assert len(resp["result"]["samples"]) == 1
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_inspect_list_samples_accepts_null_params(
+    short_data_dir: Path, stub_targets
+) -> None:
+    """``params: null`` is treated as ``{}`` (mirrors list_sessions)."""
+    stub_targets([_make_sample(task="t", sample_id="s", epoch=0, session_id="uuid")])
+    async with acp_server(eval_id="evt-samp-noparams", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            resp = await client.request("inspect/list_samples", None)
+            assert "result" in resp, resp
+            assert len(resp["result"]["samples"]) == 1
+        finally:
+            await client.close()
+
+
+# ---------------------------------------------------------------------------
+# inspect/attach — direct bind via task/sample_id/epoch tuple,
+# skipping the picker. Inspect-aware clients (the TUI, editors
 # that already know which sample to attach to) use this to avoid the
 # "browse and pick" round-trip when they have the identifier from a
 # prior session.
@@ -1112,7 +1356,7 @@ async def test_inspect_list_sessions_accepts_null_params(
 
 @skip_if_trio
 @unix_only
-async def test_inspect_new_session_direct_target_auto_binds(
+async def test_inspect_attach_direct_target_auto_binds(
     short_data_dir: Path, stub_targets
 ) -> None:
     """target=task/sample/epoch matches an active sample → immediate bind."""
@@ -1127,7 +1371,7 @@ async def test_inspect_new_session_direct_target_auto_binds(
         client = await _connect(server)
         try:
             resp = await client.request(
-                "inspect/new_session",
+                "inspect/attach",
                 {"cwd": "/tmp", "mcpServers": [], "target": "t2/s2/1"},
             )
             assert "result" in resp, resp
@@ -1145,7 +1389,7 @@ async def test_inspect_new_session_direct_target_auto_binds(
 
 @skip_if_trio
 @unix_only
-async def test_inspect_new_session_target_with_no_match_errors(
+async def test_inspect_attach_target_with_no_match_errors(
     short_data_dir: Path, stub_targets
 ) -> None:
     """Unknown target → invalid_params with the available list.
@@ -1163,7 +1407,7 @@ async def test_inspect_new_session_target_with_no_match_errors(
         client = await _connect(server)
         try:
             resp = await client.request(
-                "inspect/new_session",
+                "inspect/attach",
                 {"cwd": "/tmp", "mcpServers": [], "target": "ghost/sX/9"},
             )
             assert "error" in resp, resp
@@ -1180,7 +1424,7 @@ async def test_inspect_new_session_target_with_no_match_errors(
 
 @skip_if_trio
 @unix_only
-async def test_inspect_new_session_malformed_target_errors(
+async def test_inspect_attach_malformed_target_errors(
     short_data_dir: Path, stub_targets
 ) -> None:
     """Target without 3 slash-separated parts → invalid_params at parse time.
@@ -1196,7 +1440,7 @@ async def test_inspect_new_session_malformed_target_errors(
         try:
             for bad in ("noslashes", "only/one", "epoch/not/integer"):
                 resp = await client.request(
-                    "inspect/new_session",
+                    "inspect/attach",
                     {"cwd": "/tmp", "mcpServers": [], "target": bad},
                 )
                 assert "error" in resp, (bad, resp)
@@ -1207,7 +1451,7 @@ async def test_inspect_new_session_malformed_target_errors(
 
 @skip_if_trio
 @unix_only
-async def test_inspect_new_session_target_with_empty_sample_id(
+async def test_inspect_attach_target_with_empty_sample_id(
     short_data_dir: Path, stub_targets
 ) -> None:
     """Sample with no explicit id (``sample.id is None``) stringifies to ``""``.
@@ -1224,7 +1468,7 @@ async def test_inspect_new_session_target_with_empty_sample_id(
         client = await _connect(server)
         try:
             resp = await client.request(
-                "inspect/new_session",
+                "inspect/attach",
                 {"cwd": "/tmp", "mcpServers": [], "target": "t//0"},
             )
             assert "result" in resp, resp
@@ -1450,7 +1694,7 @@ async def test_bound_mode_prompt_with_unreachable_target_returns_internal_error(
     which does NOT plug into the registry the forwarder reads, so
     targets are present at picker time but unreachable at forward
     time — surfaces as ``internal_error`` with a clear reason. Real
-    forwarding to a live ``LiveAcpSession`` is exercised in
+    forwarding to a live ``LiveAcpTransport`` is exercised in
     ``test_server_forwarding.py``.
     """
     stub_targets(

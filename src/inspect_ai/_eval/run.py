@@ -40,6 +40,9 @@ from inspect_ai.scorer._reducer import ScoreReducer, reducer_log_names
 from inspect_ai.scorer._reducer.registry import validate_reducer
 from inspect_ai.scorer._scorer import as_scorer_spec
 from inspect_ai.solver._solver import Solver, SolverSpec
+from inspect_ai.util._checkpoint._layout import (
+    eval_checkpoints_dir_from_config,
+)
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentConfigType,
     SandboxEnvironmentSpec,
@@ -696,7 +699,14 @@ async def run_task_retry_attempts(
                         suffix=None,
                     )
                     sample_source = eval_log_sample_source(
-                        result, failed_log_info, task_options.task.dataset
+                        result,
+                        failed_log_info,
+                        task_options.task.dataset,
+                        eval_checkpoints_dir_from_config(
+                            task_options.logger.location,
+                            task_options.checkpoint,
+                            task_options.eval_checkpoint,
+                        ),
                     )
 
                     # reinit logger for a fresh eval entry

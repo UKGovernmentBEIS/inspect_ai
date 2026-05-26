@@ -475,7 +475,8 @@ async def test_message_widget_has_bottom_margin_between_items() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_renders_bullet_and_title() -> None:
+async def test_tool_call_renders_spinner_and_title_and_duration() -> None:
+    """Header layout: <glyph> <name> <args> · <duration>."""
     state = ToolCallState(
         tool_call_id="tc-1",
         title="read /etc/hosts",
@@ -487,12 +488,12 @@ async def test_tool_call_renders_bullet_and_title() -> None:
         await pilot.pause()
         w = app.query_one(ToolCallWidget)
         header = w.query_one(".header", Static)
-        # Header is markup-rendered: coloured bullet, tool name bold,
-        # args dim. Render to plain text so we can assert on what the
-        # user actually sees.
+        # Header is markup-rendered: spinner glyph in cyan, tool name
+        # bold, args dim, duration as `· Ns` dim suffix.
         rendered = header.render_str(str(header.content)).plain
-        assert rendered.startswith("• ")
         assert "read /etc/hosts" in rendered
+        # Trailing duration suffix (dim, dot-separated).
+        assert "· 0" in rendered
         # And the raw markup distinguishes name from args.
         raw = str(header.content)
         assert "[bold]read[/bold]" in raw
@@ -501,7 +502,8 @@ async def test_tool_call_renders_bullet_and_title() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_header_omits_dim_when_no_args() -> None:
+async def test_tool_call_header_omits_dim_args_when_no_args() -> None:
+    """No args → no dim ``[dim]<args>[/]`` segment, but timer dim still present."""
     state = ToolCallState(
         tool_call_id="tc-1",
         title="update_plan",
@@ -514,7 +516,9 @@ async def test_tool_call_header_omits_dim_when_no_args() -> None:
         w = app.query_one(ToolCallWidget)
         raw = str(w.query_one(".header", Static).content)
         assert "[bold]update_plan[/bold]" in raw
-        assert "[dim]" not in raw
+        # The dim duration suffix still mounts — no args, but the
+        # ``· Ns`` timer is always present on in-flight chips.
+        assert "[dim]· 0" in raw
 
 
 @skip_if_trio
@@ -650,31 +654,32 @@ async def test_tool_call_tick_advances_in_flight_duration() -> None:
     """Reviewer P3: in-flight tools must visibly tick without a state mutation.
 
     SessionScreen's periodic timer calls ``tick_duration`` on each
-    in-flight card so the elapsed value advances; once terminal, the
-    method short-circuits to avoid DOM churn.
+    in-flight card so the spinner + elapsed value in the header
+    advance; once terminal, the method short-circuits to avoid DOM
+    churn.
     """
     state = ToolCallState(tool_call_id="tc-1", title="bash", status="in_progress")
     app = _harness(lambda: ToolCallWidget(state))
     async with app.run_test() as pilot:
         await pilot.pause()
         w = app.query_one(ToolCallWidget)
-        first_footer = str(w.query_one(".footer", Static).content)
+        first_header = str(w.query_one(".header", Static).content)
         # Force the elapsed value forward by rewinding start_time.
         state.start_time -= 5.0
         w.tick_duration()
         await pilot.pause()
-        second_footer = str(w.query_one(".footer", Static).content)
-        assert first_footer != second_footer
+        second_header = str(w.query_one(".header", Static).content)
+        assert first_header != second_header
         # Once terminal, tick_duration is a no-op (final duration stays).
         state.status = "completed"
         state.end_time = state.start_time + 5.0
         w.update_state(state)
         await pilot.pause()
-        terminal_footer = str(w.query_one(".footer", Static).content)
+        terminal_header = str(w.query_one(".header", Static).content)
         state.end_time = state.start_time + 999.0  # would change duration
         w.tick_duration()
         await pilot.pause()
-        assert str(w.query_one(".footer", Static).content) == terminal_footer
+        assert str(w.query_one(".header", Static).content) == terminal_header
 
 
 @skip_if_trio
@@ -785,6 +790,92 @@ async def test_session_header_strips_first_path_segment_from_task() -> None:
         meta = _chip_plain(app.query_one("#meta-text", Static))
         assert "task: terminal_bench_2_0" in meta
         assert "inspect_harbor" not in meta
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_session_header_title_click_posts_back_to_picker() -> None:
+    """Clicking ``inspect acp`` on the session header posts BackToPicker.
+
+    Handled by ``SessionScreen.on_session_header_widget_back_to_picker``
+    as a synonym for ``^S switch sample`` — the operator gets a
+    discoverable way back to the picker without remembering the
+    keybinding.
+    """
+    from pathlib import Path
+
+    from inspect_ai.agent._acp.discovery import TargetAddress
+    from inspect_ai.agent._acp.tui.client import SessionRow
+    from inspect_ai.agent._acp.tui.widgets.header import SessionHeaderWidget
+
+    row = SessionRow(
+        eval_id="e1",
+        session_id="sess-1",
+        task="suite/task",
+        sample_id="s1",
+        epoch=1,
+        agent_name="react",
+        started_at=0.0,
+        target=TargetAddress(socket_path=Path("/tmp/test.sock")),
+    )
+
+    received: list[SessionHeaderWidget.BackToPicker] = []
+
+    class _CapturingApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield SessionHeaderWidget(row)
+
+        def on_session_header_widget_back_to_picker(
+            self, event: SessionHeaderWidget.BackToPicker
+        ) -> None:
+            received.append(event)
+
+    app = _CapturingApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.click("#app-title")
+        await pilot.pause()
+    assert len(received) == 1
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_session_header_meta_click_does_not_post_back_to_picker() -> None:
+    """Only the ``inspect acp`` title triggers BackToPicker — not the meta row."""
+    from pathlib import Path
+
+    from inspect_ai.agent._acp.discovery import TargetAddress
+    from inspect_ai.agent._acp.tui.client import SessionRow
+    from inspect_ai.agent._acp.tui.widgets.header import SessionHeaderWidget
+
+    row = SessionRow(
+        eval_id="e1",
+        session_id="sess-1",
+        task="suite/task",
+        sample_id="s1",
+        epoch=1,
+        agent_name="react",
+        started_at=0.0,
+        target=TargetAddress(socket_path=Path("/tmp/test.sock")),
+    )
+
+    received: list[SessionHeaderWidget.BackToPicker] = []
+
+    class _CapturingApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield SessionHeaderWidget(row)
+
+        def on_session_header_widget_back_to_picker(
+            self, event: SessionHeaderWidget.BackToPicker
+        ) -> None:
+            received.append(event)
+
+    app = _CapturingApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await pilot.click("#meta-text")
+        await pilot.pause()
+    assert received == []
 
 
 @skip_if_trio
@@ -1248,24 +1339,66 @@ async def test_message_widget_does_not_mount_segment_spacers() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_header_has_blank_row_below_title() -> None:
+async def test_tool_call_header_has_blank_row_below_title_when_body_has_content() -> (
+    None
+):
     """Header reserves a 1-row gap before the first body item.
 
     Without it the code block / plan / output sits flush against the
     title, which reads as one continuous block rather than "title,
-    then body".
+    then body". The padding is conditional on the body actually
+    having content — empty bodies (in-flight, pre-result) get the
+    ``.empty-body`` class which zeros this padding so it doesn't
+    stack with the widget's own ``padding-bottom: 1`` and produce an
+    extra blank row above the next transcript item.
     """
+    from acp.schema import ContentToolCallContent, TextContentBlock
+
     state = ToolCallState(
         tool_call_id="tc-1",
         title="read /etc/hosts",
         kind="read",
         status="in_progress",
+        content=[
+            ContentToolCallContent(
+                type="content",
+                content=TextContentBlock(type="text", text="file contents go here"),
+            )
+        ],
     )
     app = _harness(lambda: ToolCallWidget(state))
     async with app.run_test() as pilot:
         await pilot.pause()
-        header = app.query_one(ToolCallWidget).query_one(".header", Static)
+        widget = app.query_one(ToolCallWidget)
+        assert not widget.has_class("empty-body")
+        header = widget.query_one(".header", Static)
         assert header.styles.padding.bottom == 1
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_header_drops_bottom_padding_when_body_empty() -> None:
+    """In-flight card with no body / no approval zeros the header padding.
+
+    The header's ``padding-bottom: 1`` and the widget's own
+    ``padding-bottom: 1`` would otherwise stack into a 2-row trailing
+    gap above the next transcript item — visible as an extra blank
+    row between the tool card and whatever follows while the tool is
+    still running.
+    """
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash sleep 5",
+        kind="execute",
+        status="in_progress",
+    )
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        widget = app.query_one(ToolCallWidget)
+        assert widget.has_class("empty-body")
+        header = widget.query_one(".header", Static)
+        assert header.styles.padding.bottom == 0
 
 
 @skip_if_trio
@@ -1293,8 +1426,8 @@ async def test_tool_call_body_is_indented_under_tool_name() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_footer_is_indented_under_tool_name() -> None:
-    """Footer also indents under the tool name so the whole row reads as one column."""
+async def test_tool_call_has_no_footer_row() -> None:
+    """No ``.footer`` Static — status + duration moved to the header."""
     state = ToolCallState(
         tool_call_id="tc-1",
         title="bash ls",
@@ -1304,14 +1437,13 @@ async def test_tool_call_footer_is_indented_under_tool_name() -> None:
     app = _harness(lambda: ToolCallWidget(state))
     async with app.run_test() as pilot:
         await pilot.pause()
-        footer = app.query_one(ToolCallWidget).query_one(".footer", Static)
-        assert footer.styles.padding.left == 2
+        assert not list(app.query_one(ToolCallWidget).query(".footer"))
 
 
 @skip_if_trio
 @pytest.mark.anyio
 async def test_tool_call_has_no_border() -> None:
-    """No card border — status is carried by the footer glyph alone.
+    """No card border — status is carried by the header glyph alone.
 
     Pins the visual decision that tool calls share the message
     widget's flush layout rather than being chrome-wrapped cards.
@@ -1337,13 +1469,15 @@ async def test_tool_call_has_no_border() -> None:
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_header_uses_tool_bullet_color() -> None:
-    """Bullet in the header carries ``_TOOL_BULLET_COLOR`` markup.
+async def test_tool_call_in_flight_glyph_renders_uncoloured() -> None:
+    """In-flight spinner renders in the default text colour, not a coloured wrap.
 
-    Pins the palette decision so a future tweak is intentional.
+    Quiet chrome: only the failure state gets a coloured wrap (red ✗)
+    so errors pop against the rest of the transcript. The in-flight
+    spinner and the completed ⚙ ride in the default text colour to
+    keep the row reading as plain conversation rather than as a
+    coloured-accent chip.
     """
-    from inspect_ai.agent._acp.tui.widgets.tool_call import _TOOL_BULLET_COLOR
-
     state = ToolCallState(
         tool_call_id="tc-1",
         title="bash ls",
@@ -1354,12 +1488,35 @@ async def test_tool_call_header_uses_tool_bullet_color() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         raw = str(app.query_one(ToolCallWidget).query_one(".header", Static).content)
-        assert f"[{_TOOL_BULLET_COLOR}]•[/]" in raw
+        # No colour wrap around the spinner — the only coloured spans
+        # in the header are ``[bold]`` (tool name) and ``[dim]`` (args
+        # + duration suffix).
+        assert "[#" not in raw
+        assert "[$error]" not in raw
 
 
 @skip_if_trio
 @pytest.mark.anyio
-async def test_tool_call_footer_does_not_repeat_esc_to_interrupt_hint() -> None:
+async def test_tool_call_failed_glyph_uses_error_colour() -> None:
+    """Failed ✗ renders with the ``$error`` token wrap so errors stand out."""
+    state = ToolCallState(
+        tool_call_id="tc-1",
+        title="bash false",
+        kind="execute",
+        status="failed",
+        end_time=10.0,
+    )
+    state.start_time = 5.0
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        raw = str(app.query_one(ToolCallWidget).query_one(".header", Static).content)
+        assert "[$error]✗[/]" in raw
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_call_header_does_not_repeat_esc_to_interrupt_hint() -> None:
     """The cancel hint lives in the composer placeholder, not per-tool.
 
     Pins the single-source-of-truth decision: while
@@ -1376,8 +1533,8 @@ async def test_tool_call_footer_does_not_repeat_esc_to_interrupt_hint() -> None:
     app = _harness(lambda: ToolCallWidget(state))
     async with app.run_test() as pilot:
         await pilot.pause()
-        footer = app.query_one(ToolCallWidget).query_one(".footer", Static)
-        assert "esc to interrupt" not in str(footer.content)
+        header = app.query_one(ToolCallWidget).query_one(".header", Static)
+        assert "esc to interrupt" not in str(header.content)
 
 
 @skip_if_trio
@@ -1425,6 +1582,591 @@ async def test_completed_assistant_chip_drops_retry_and_elapsed() -> None:
         # And no elapsed marker either — the "· " dot-separator should
         # only appear before the model name.
         assert rendered.count("·") == 1
+
+
+# ---------------------------------------------------------------------------
+# Inline approval section
+# ---------------------------------------------------------------------------
+
+
+def _approval_request(
+    tool_call_id: str = "tc-1",
+    *,
+    title: str = "bash ls",
+    options: list[tuple[str, str]] | None = None,
+    content_blocks=None,
+):
+    """Build a RequestPermissionRequest for pilot tests."""
+    from acp.schema import (
+        ContentToolCallContent,
+        PermissionOption,
+        RequestPermissionRequest,
+        TextContentBlock,
+        ToolCallUpdate,
+    )
+
+    opts_pairs = options or [("approve", "allow_once"), ("reject", "reject_once")]
+    perm_options = [
+        PermissionOption(
+            option_id=oid,
+            name=oid.capitalize(),
+            kind=kind,  # type: ignore[arg-type]
+        )
+        for oid, kind in opts_pairs
+    ]
+    if content_blocks is None:
+        content_blocks = [
+            ContentToolCallContent(
+                type="content",
+                content=TextContentBlock(type="text", text="**Assistant**\n\nrun ls"),
+            ),
+        ]
+    tc = ToolCallUpdate(
+        tool_call_id=tool_call_id,
+        title=title,
+        status="pending",
+        raw_input={"command": "ls"},
+        content=content_blocks,
+    )
+    return RequestPermissionRequest(
+        session_id="sid", tool_call=tc, options=perm_options
+    )
+
+
+def _pending_approval(req, event=None):
+    import asyncio
+
+    from inspect_ai.agent._acp.tui.state import PendingApproval
+
+    return PendingApproval(request=req, event=event or asyncio.Event())
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_content_renders_diff_content_variant() -> None:
+    """A ``FileEditToolCallContent`` block in the request renders as a diff."""
+    from acp.schema import FileEditToolCallContent
+
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalContent
+
+    diff = FileEditToolCallContent(
+        type="diff",
+        path="/tmp/a.txt",
+        old_text="alpha\nbeta",
+        new_text="gamma\ndelta",
+    )
+    req = _approval_request(content_blocks=[diff])
+    state = ToolCallState(tool_call_id="tc-1", title="edit", status="pending")
+    state.pending_approval = _pending_approval(req)
+
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        section = app.query_one(_ApprovalContent)
+        old_lines = [str(s.content) for s in section.query(".diff-old")]
+        new_lines = [str(s.content) for s in section.query(".diff-new")]
+        headers = [str(s.content) for s in section.query(".diff-header")]
+        # Confirm diff renderer was invoked — not a stringified blob.
+        assert any("alpha" in line for line in old_lines)
+        assert any("gamma" in line for line in new_lines)
+        assert any("/tmp/a.txt" in h for h in headers)
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_content_renders_terminal_content_variant() -> None:
+    """A ``TerminalToolCallContent`` block in the request renders as terminal placeholder."""
+    from acp.schema import TerminalToolCallContent
+
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalContent
+
+    term = TerminalToolCallContent(type="terminal", terminal_id="t-42")
+    req = _approval_request(content_blocks=[term])
+    state = ToolCallState(tool_call_id="tc-1", title="bash", status="pending")
+    state.pending_approval = _pending_approval(req)
+
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        section = app.query_one(_ApprovalContent)
+        body_text = " ".join(str(s.content) for s in section.query(".body-content"))
+        assert "[terminal: t-42]" in body_text
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_decision_appears_on_header_after_resolve() -> None:
+    """After resolve_approval, the content section unmounts and the decision suffixes the header.
+
+    Compact layout: the post-resolution decision (``approved by
+    you`` / ``denied by you`` / ``cancelled``) appears inline on
+    the same row as the tool's status glyph + duration. Saves a
+    row vs. a separate summary line, and groups "what happened
+    with this tool call" (it ran AND who approved it) in one
+    anchor.
+    """
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _ApprovalContent
+
+    state = ToolCallState(tool_call_id="tc-1", title="bash", status="pending")
+    state.pending_approval = _pending_approval(_approval_request())
+
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        widget = app.query_one(ToolCallWidget)
+        # Content section mounted while pending.
+        assert len(widget.query(_ApprovalContent)) == 1
+        # Header has NO decision suffix yet.
+        header_before = str(widget.query_one(".header", Static).content)
+        assert "approved by you" not in header_before
+        assert "denied" not in header_before
+
+        # Mutate state and re-apply (mirrors what SessionScreen does
+        # after state.resolve_approval).
+        state.pending_approval = None
+        state.last_approval_decision = "approved"
+        widget.update_state(state)
+        await pilot.pause()
+
+        # Content section gone.
+        assert len(widget.query(_ApprovalContent)) == 0
+        # No separate summary widget either — decision lives on the
+        # header now.
+        assert len(widget.query(".decision-summary")) == 0
+        # Decision suffix renders on the header row.
+        header_after = str(widget.query_one(".header", Static).content)
+        assert "approved by you" in header_after
+
+
+def test_fingerprint_changes_when_pending_approval_is_set() -> None:
+    """Setting ``pending_approval`` flips the tool fingerprint.
+
+    Pinned regression: without including approval state in the
+    fingerprint, the TranscriptWidget's mounted-snapshot gate
+    skips ``update_state()`` when ONLY approval state changes —
+    leaving the inline approval section unmounted on a card that
+    received a permission request between status updates.
+    """
+    from inspect_ai.agent._acp.tui.state import ToolCallState
+    from inspect_ai.agent._acp.tui.widgets._fingerprint import (
+        tool_state_fingerprint,
+    )
+
+    tc = ToolCallState(tool_call_id="tc-1", title="bash", status="in_progress")
+    before = tool_state_fingerprint(tc)
+
+    # Mimic the wire shape consume_approval_request would attach.
+    tc.pending_approval = _pending_approval(_approval_request())
+    after = tool_state_fingerprint(tc)
+    assert before != after
+
+
+def test_fingerprint_changes_when_pending_clears_to_decided() -> None:
+    """Clearing ``pending_approval`` + setting ``last_approval_decision`` flips the fingerprint.
+
+    Without this, the operator's button click would resolve the
+    state but the card would never re-render — buttons stay
+    visible until some other state change (status/content) happens
+    to invalidate the snapshot.
+    """
+    from inspect_ai.agent._acp.tui.state import ToolCallState
+    from inspect_ai.agent._acp.tui.widgets._fingerprint import (
+        tool_state_fingerprint,
+    )
+
+    tc = ToolCallState(tool_call_id="tc-1", title="bash", status="in_progress")
+    tc.pending_approval = _pending_approval(_approval_request())
+    pending_sig = tool_state_fingerprint(tc)
+
+    tc.pending_approval = None
+    tc.last_approval_decision = "approved"
+    resolved_sig = tool_state_fingerprint(tc)
+    assert pending_sig != resolved_sig
+
+
+def test_fingerprint_changes_between_different_decisions() -> None:
+    """Different post-resolution decision labels yield distinct fingerprints.
+
+    The footer's coloured decision suffix is user-visible — a
+    transition from ``approved`` to ``denied`` (e.g. via a
+    follow-up tool call's resolve path) must invalidate the
+    snapshot so the suffix re-renders.
+    """
+    from inspect_ai.agent._acp.tui.state import ToolCallState
+    from inspect_ai.agent._acp.tui.widgets._fingerprint import (
+        tool_state_fingerprint,
+    )
+
+    tc = ToolCallState(tool_call_id="tc-1", title="bash", status="completed")
+    tc.last_approval_decision = "approved"
+    approved_sig = tool_state_fingerprint(tc)
+    tc.last_approval_decision = "denied"
+    denied_sig = tool_state_fingerprint(tc)
+    assert approved_sig != denied_sig
+
+
+def test_is_separator_block_matches_producer_shape() -> None:
+    """``_is_separator_block`` recognises the exact wire shape ``_separator_block`` emits.
+
+    Pinned because the recogniser drives a CSS-class choice that
+    tightens the spacing around the rule. If the producer changes
+    the separator's text and the recogniser doesn't follow, the
+    rule reverts to the wide-margin wrapper and the operator sees
+    a double-spaced divider.
+    """
+    from acp.schema import ContentToolCallContent, TextContentBlock
+
+    from inspect_ai.agent._acp.tui.widgets.tool_call import _is_separator_block
+
+    # The exact shape emitted by ``approval/_human/acp.py:_separator_block``.
+    sep = ContentToolCallContent(
+        type="content",
+        content=TextContentBlock(type="text", text="---"),
+    )
+    assert _is_separator_block(sep) is True
+
+    # Tolerant of surrounding whitespace too — defensive against
+    # historical / future producers that wrap with \n.
+    sep_with_ws = ContentToolCallContent(
+        type="content",
+        content=TextContentBlock(type="text", text="\n---\n"),
+    )
+    assert _is_separator_block(sep_with_ws) is True
+
+    # Non-separator content blocks return False.
+    normal = ContentToolCallContent(
+        type="content",
+        content=TextContentBlock(type="text", text="**Assistant**\n\nhello"),
+    )
+    assert _is_separator_block(normal) is False
+
+    # Diff / terminal variants are never separators.
+    from acp.schema import FileEditToolCallContent
+
+    diff = FileEditToolCallContent(
+        type="diff", path="/tmp/a.txt", old_text="x", new_text="y"
+    )
+    assert _is_separator_block(diff) is False
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_area_sizes_to_content_not_remaining_space() -> None:
+    """``#approval-area`` Vertical takes its content's height, not ``1fr``.
+
+    Pinned regression: Textual's ``Vertical`` defaults to ``height: 1fr``
+    (fills available space). Without an explicit ``height: auto`` on the
+    approval-area wrapper, the area claimed the rest of the card's
+    available vertical space, pushing the tool's body content down
+    past a giant empty gap.
+
+    Asserted with slack: a few rows for child margins is fine, but
+    egregious expansion (the 1fr-fills-screen bug) is not.
+    """
+    from textual.containers import Vertical
+
+    # Resolved state — approval area is EMPTY (decision lives on
+    # the footer now). With the 1fr bug the area would still claim
+    # the rest of the screen even with no children; with the fix
+    # it collapses to zero rows.
+    state_done = ToolCallState(
+        tool_call_id="tc-done", title="bash", status="in_progress"
+    )
+    state_done.last_approval_decision = "approved"
+    app = _harness(lambda: ToolCallWidget(state_done))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        area = app.query_one("#approval-area", Vertical)
+        # Hard ceiling: a couple of rows max. The 1fr-runaway bug
+        # would put us at 20+.
+        assert area.region.height <= 2, (
+            f"#approval-area height ({area.region.height}) is way "
+            f"larger than its empty content — the Vertical's 1fr "
+            f"default is back."
+        )
+
+    # Pending state — approval section is mounted. Content here is
+    # naturally taller (intro + content blocks + buttons), but the
+    # area should still match what the section actually renders, not
+    # expand beyond it. Slack accounts for the section's own
+    # margin-bottom.
+    state_pending = ToolCallState(
+        tool_call_id="tc-pend", title="bash", status="pending"
+    )
+    state_pending.pending_approval = _pending_approval(_approval_request())
+    app = _harness(lambda: ToolCallWidget(state_pending))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        area = app.query_one("#approval-area", Vertical)
+        content_height = sum(child.region.height for child in area.children)
+        # Slack of 3 rows for any margins (margin-bottom on the
+        # section + any wrapper padding); a 1fr runaway would
+        # exceed this by an order of magnitude.
+        assert area.region.height <= content_height + 3, (
+            f"#approval-area height ({area.region.height}) exceeds "
+            f"its content height ({content_height}) by more than the "
+            f"margin slack — the Vertical's 1fr default is back."
+        )
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_tool_card_has_approval_css_class_while_pending() -> None:
+    """The ``.approval`` CSS class is added to the card while pending_approval is set."""
+    state = ToolCallState(tool_call_id="tc-1", title="bash", status="pending")
+    state.pending_approval = _pending_approval(_approval_request())
+
+    app = _harness(lambda: ToolCallWidget(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        widget = app.query_one(ToolCallWidget)
+        assert "approval" in widget.classes
+
+        # Mutate state → class removed.
+        state.pending_approval = None
+        state.last_approval_decision = "approved"
+        widget.update_state(state)
+        await pilot.pause()
+        assert "approval" not in widget.classes
+
+
+# ---------------------------------------------------------------------------
+# Composer-area approval bar (_ApprovalBar)
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_hidden_when_no_pending() -> None:
+    """Bar carries the ``-hidden`` class when no approval is pending."""
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+
+    state = SessionState()
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        assert "-hidden" in bar.classes
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_visible_when_pending_arrives() -> None:
+    """``consume_approval_request`` makes the bar visible via its subscription."""
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+
+    state = SessionState()
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        assert "-hidden" in bar.classes
+
+        state.consume_approval_request(_pending_approval(_approval_request()))
+        await pilot.pause()
+        assert "-hidden" not in bar.classes
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_mounts_action_per_option() -> None:
+    """One ``_PromptOption`` per option with the standard ``approve-opt-<id>`` ids."""
+    from inspect_ai.agent._acp.tui.widgets._prompt import _PromptOption
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+
+    state = SessionState()
+    state.consume_approval_request(
+        _pending_approval(
+            _approval_request(
+                options=[
+                    ("approve", "allow_once"),
+                    ("reject", "reject_once"),
+                    ("terminate", "reject_always"),
+                ],
+            )
+        )
+    )
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        ids = [a.id for a in bar.query(_PromptOption)]
+        assert ids == [
+            "approve-opt-approve",
+            "approve-opt-reject",
+            "approve-opt-terminate",
+        ]
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_first_action_is_focused_on_mount() -> None:
+    """First action focused so Tab+Enter works without a click."""
+    from inspect_ai.agent._acp.tui.widgets._prompt import _PromptOption
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+
+    state = SessionState()
+    state.consume_approval_request(_pending_approval(_approval_request()))
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        first = bar.query(_PromptOption).first()
+        assert first is not None
+        # Textual's focus chain may not have transferred yet under
+        # the test event loop — accept either the widget's own focus
+        # flag or the app-level focused pointer.
+        assert first.has_focus or app.focused is first
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_clicking_action_posts_decision_message() -> None:
+    """Pilot-click on Approve → ``ApprovalDecisionRequested`` bubbles up; state resolves."""
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+    from inspect_ai.agent._acp.tui.widgets.tool_call import ApprovalDecisionRequested
+
+    state = SessionState()
+    pending = _pending_approval(_approval_request())
+    state.consume_approval_request(pending)
+    tc = state._tool_calls_by_id["tc-1"]
+
+    received: list[ApprovalDecisionRequested] = []
+
+    class _ActionHostApp(App[None]):
+        def compose(self) -> ComposeResult:
+            yield _ApprovalBar(state)
+
+        def on_approval_decision_requested(
+            self, message: ApprovalDecisionRequested
+        ) -> None:
+            received.append(message)
+            state.resolve_approval(message.tool_call_id, option_id=message.option_id)
+            message.stop()
+
+    app = _ActionHostApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        await pilot.click(bar.query_one("#approve-opt-approve"))
+        await pilot.pause()
+
+    assert len(received) == 1
+    assert received[0].option_id == "approve"
+    assert received[0].tool_call_id == "tc-1"
+    assert tc.pending_approval is None
+    assert tc.last_approval_decision == "approved"
+    assert pending.event.is_set()
+    assert pending.chosen_option_id == "approve"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_hides_after_resolve() -> None:
+    """Resolving the pending approval re-hides the bar via the state subscription."""
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+
+    state = SessionState()
+    state.consume_approval_request(_pending_approval(_approval_request()))
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        assert "-hidden" not in bar.classes
+
+        state.resolve_approval("tc-1", option_id="approve")
+        await pilot.pause()
+        assert "-hidden" in bar.classes
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_pins_mounted_request_id() -> None:
+    """The bar pins ``_mounted_request_id`` to the tool_call_id at mount time.
+
+    Pinned because the bar previously dispatched via
+    ``current_pending_tool_call_id()`` at handler time, which races
+    when parallel approvals queue up: a click on the FIRST approval
+    could resolve as if it applied to the SECOND if the first cleared
+    between click capture and message dispatch. Now the bar carries
+    its own ``_mounted_request_id`` for the same purpose.
+    """
+    from inspect_ai.agent._acp.tui.widgets._prompt import _PromptOption
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+
+    state = SessionState()
+    state.consume_approval_request(_pending_approval(_approval_request("tc-1")))
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        # The bar pins the request id it mounted options for; presses
+        # validate against this rather than chasing a live state lookup.
+        assert bar._mounted_request_id == "tc-1"
+        option = bar.query_one("#approve-opt-approve", _PromptOption)
+        # The Pressed message built by action_press carries the option's
+        # action_id (option_id) — the bar combines it with the pinned
+        # tool_call_id when translating to ApprovalDecisionRequested.
+        msg = _PromptOption.Pressed(option.action_id)
+        assert msg.action_id == "approve"
+
+
+@skip_if_trio
+@pytest.mark.anyio
+async def test_approval_bar_drops_stale_press_for_resolved_tool_call() -> None:
+    """The bar's handler must drop a press whose mounted id no longer matches.
+
+    Pinned because a queued click / Enter that lands after the first
+    approval already resolved would otherwise apply to the NEXT
+    pending approval (different tool_call_id) — silently approving
+    something the operator never clicked on.
+
+    Validation point: ``on_prompt_option_pressed`` compares the bar's
+    ``_mounted_request_id`` to ``state.current_pending_tool_call_id()``
+    and short-circuits before posting an
+    :class:`ApprovalDecisionRequested`. We exercise that gate by
+    spying on ``post_message`` so we don't depend on the message bus
+    plumbing for the assertion.
+    """
+    from inspect_ai.agent._acp.tui.widgets._prompt import _PromptOption
+    from inspect_ai.agent._acp.tui.widgets.approval_bar import _ApprovalBar
+    from inspect_ai.agent._acp.tui.widgets.tool_call import ApprovalDecisionRequested
+
+    state = SessionState()
+    state.consume_approval_request(_pending_approval(_approval_request("tc-1")))
+
+    app = _harness(lambda: _ApprovalBar(state))
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        bar = app.query_one(_ApprovalBar)
+        assert bar._mounted_request_id == "tc-1"
+
+        # Resolve tc-1 out of band (e.g. a fast keystroke or a second
+        # client's response). The bar's refresh will clear
+        # ``_mounted_request_id`` along with the options.
+        state.resolve_approval("tc-1", option_id="approve")
+        await pilot.pause()
+        assert state.current_pending_tool_call_id() is None
+        assert bar._mounted_request_id is None
+
+        # Spy on post_message so we can assert the handler does NOT
+        # fan out an ApprovalDecisionRequested for the stale press.
+        posted: list[object] = []
+        original_post = bar.post_message
+
+        def _spy(message: object) -> bool:
+            posted.append(message)
+            return original_post(message)
+
+        bar.post_message = _spy
+
+        bar.on_prompt_option_pressed(_PromptOption.Pressed("approve"))
+
+        # The handler must early-return without posting anything.
+        decisions = [m for m in posted if isinstance(m, ApprovalDecisionRequested)]
+        assert decisions == [], (
+            f"Stale press for resolved tc-1 was not dropped; posted={decisions!r}"
+        )
 
 
 @skip_if_trio

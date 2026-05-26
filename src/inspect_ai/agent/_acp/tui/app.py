@@ -71,6 +71,9 @@ class InspectAcpApp(App[None]):
         *,
         eval_id: str | None,
         server: str | None,
+        task_id: str | None = None,
+        sample_id: str | None = None,
+        epoch: int | None = None,
         client: Any = None,
     ) -> None:
         """Construct the app.
@@ -81,18 +84,25 @@ class InspectAcpApp(App[None]):
         real module. Typed ``Any`` because the injection is duck-
         typed; the module is passed as an object rather than a
         Protocol-shaped value.
+
+        ``task_id`` / ``sample_id`` / ``epoch`` are the optional
+        direct-attach filter from the CLI. Any combination is allowed;
+        when the resulting filter narrows to exactly one row,
+        :meth:`on_mount` skips the picker and attaches directly.
         """
         super().__init__()
         self._eval_id = eval_id
         self._server = server
+        self._task_id = task_id
+        self._sample_id = sample_id
+        self._epoch = epoch
         self._client: Any = client if client is not None else _client
         self._attached: AttachedSession | None = None
-        # When the user passed ``--server <addr>``, surface the address
-        # in the title bar so it's obvious which remote the TUI is
-        # pointed at. The default ``inspect acp`` covers the local-
-        # discovery case where there's nothing useful to add.
-        if server is not None:
-            self.title = f"inspect acp · {server}"
+        # Title bar always names the transport. ``local`` covers the
+        # auto-discovery case (any number of running evals on this
+        # machine); ``<server>`` echoes the explicit ``--server``
+        # address so it's obvious which remote the TUI is pointed at.
+        self.title = f"inspect acp · {server or 'local'}"
 
     async def on_mount(self) -> None:
         try:
@@ -106,7 +116,41 @@ class InspectAcpApp(App[None]):
             return
 
         rows = await self._enumerate()
+        # Triple-filter auto-attach: if the user provided any combination
+        # of --task-id / --sample-id / --epoch AND the filter narrowed to
+        # exactly one ATTACHABLE row, skip the picker entirely. Zero
+        # matches falls through to the picker with an empty-state notice;
+        # multiple matches falls through to a filtered picker the user
+        # can pick from. A single non-ACP match (``session_id is None``)
+        # ALSO falls through to the picker — auto-attaching would call
+        # ``attach_session`` with no live session_id, which raises; the
+        # picker shows the dimmed row + the intervention toast on
+        # activation, which is the actionable surface for that case.
+        if (
+            self._triple_filter_active()
+            and len(rows) == 1
+            and rows[0].session_id is not None
+        ):
+            self._on_picker_select(rows[0])
+            return
         self._push_picker(rows)
+
+    def _triple_filter_active(self) -> bool:
+        return (
+            self._task_id is not None
+            or self._sample_id is not None
+            or self._epoch is not None
+        )
+
+    def _triple_filter_description(self) -> str:
+        parts: list[str] = []
+        if self._task_id is not None:
+            parts.append(f"task={self._task_id}")
+        if self._sample_id is not None:
+            parts.append(f"sample={self._sample_id}")
+        if self._epoch is not None:
+            parts.append(f"epoch={self._epoch}")
+        return " ".join(parts)
 
     async def _enumerate(self) -> list[SessionRow]:
         """Resolve addresses + enumerate sessions; safe to call repeatedly.
@@ -123,6 +167,9 @@ class InspectAcpApp(App[None]):
             rows: list[SessionRow] = await self._client.enumerate_sessions(
                 addresses,
                 eval_id_filter=self._eval_id,
+                task_filter=self._task_id,
+                sample_id_filter=self._sample_id,
+                epoch_filter=self._epoch,
             )
             return rows
         except Exception as exc:
@@ -167,12 +214,19 @@ class InspectAcpApp(App[None]):
         return [(e.eval_id, e.target) for e in discovered]
 
     def _push_picker(self, rows: list[SessionRow]) -> None:
+        empty_notice: str | None = None
+        if not rows and self._triple_filter_active():
+            empty_notice = (
+                f"No running session matches the requested triple "
+                f"({self._triple_filter_description()})."
+            )
         self.push_screen(
             PickerScreen(
                 rows=rows,
                 server_override=self._server,
                 on_select=self._on_picker_select,
                 rescan=self._enumerate,
+                empty_notice=empty_notice,
             )
         )
 
@@ -184,13 +238,36 @@ class InspectAcpApp(App[None]):
 
     async def _attach_and_show(self, row: SessionRow) -> None:
         state = SessionState()
+
+        def _notify(message: str, severity: str) -> None:
+            # Thin adapter so the client's reconnect coordinator can
+            # call Textual's ``app.notify`` without importing Textual.
+            # The severity strings match Textual's ``SeverityLevel``
+            # ("information" / "warning" / "error") 1:1.
+            self.notify(message, severity=severity)  # type: ignore[arg-type]
+
         try:
             # Pass state.consume directly: the client's notification
             # route fires it from the reader task, which runs on the
             # same asyncio loop as Textual so widget refreshes happen
-            # synchronously without a thread hop.
+            # synchronously without a thread hop. Same routing for
+            # ``session/request_permission`` — the request handler
+            # calls ``consume_approval_request`` with a fresh
+            # ``PendingApproval``; the screen's button-press handler
+            # later calls ``resolve_approval`` to fire the response.
+            #
+            # ``state`` + ``notify`` are needed by the reconnect
+            # coordinator: it flips ``state.disconnected`` /
+            # ``state.complete`` on lifecycle transitions and emits
+            # toasts for the "disconnected Nm" / "Reconnected" /
+            # "Sample ended during disconnect" UX.
             session = await self._client.attach_session(
-                row, on_session_update=state.consume
+                row,
+                state=state,
+                on_session_update=state.consume,
+                on_request_permission=state.consume_approval_request,
+                on_inspect_event=state.consume_inspect_event,
+                notify=_notify,
             )
         except Exception as exc:
             self.notify(f"failed to attach: {exc}", severity="error")
@@ -236,7 +313,20 @@ def _parse_target(value: str) -> TargetAddress:
     return TargetAddress(socket_path=Path(value))
 
 
-async def run_tui(*, eval_id: str | None, server: str | None) -> None:
+async def run_tui(
+    *,
+    eval_id: str | None,
+    server: str | None,
+    task_id: str | None = None,
+    sample_id: str | None = None,
+    epoch: int | None = None,
+) -> None:
     """Entry point called by the CLI when ``--stdio`` is omitted."""
-    app = InspectAcpApp(eval_id=eval_id, server=server)
+    app = InspectAcpApp(
+        eval_id=eval_id,
+        server=server,
+        task_id=task_id,
+        sample_id=sample_id,
+        epoch=epoch,
+    )
     await app.run_async()

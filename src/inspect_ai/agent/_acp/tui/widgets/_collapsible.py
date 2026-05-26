@@ -19,6 +19,7 @@ from textual.widgets import Static
 
 from inspect_ai._util.text import truncate_lines
 
+from ._scroll import schedule_scroll_to_end_if_at_bottom
 from .markdown import StyledMarkdown
 
 
@@ -85,6 +86,9 @@ class CollapsibleContent(Widget):
             self.query_one("#cc-note", Static).remove()
         except NoMatches:
             pass
+        # Auto-scroll to keep the newly-expanded content visible if the
+        # operator was at the bottom of the transcript before clicking.
+        schedule_scroll_to_end_if_at_bottom(self)
 
     def replace_text(self, text: str) -> None:
         """Replace the underlying text in place — for streaming tail growth.

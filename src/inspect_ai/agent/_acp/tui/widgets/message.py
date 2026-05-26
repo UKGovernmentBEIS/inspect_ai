@@ -34,6 +34,7 @@ from textual.widgets import Static
 from ..state import MessageGroup, Segment
 from ._collapsible import CollapsibleContent
 from ._formatting import SPINNER_FRAMES, format_duration
+from ._scroll import schedule_scroll_to_end_if_at_bottom
 from .markdown import StyledMarkdown
 
 _MESSAGE_TEXT_MAX_LINES = 12
@@ -53,8 +54,13 @@ affordance ``CollapsibleContent`` provides.
 # — backgrounds were redundant once that landed and were removed to
 # quiet the transcript. Hex values are brand tints, not theme tokens;
 # if a light theme arrives this dict is the lift-and-shift point.
+#
+# Distinct hue per role so the operator can scan the transcript
+# without reading the role word — system gets a paler yellow than
+# user (which uses ``#e0af68`` amber) so the two don't collide,
+# while still reading as "yellow" at a glance.
 _PALETTE: dict[str, str] = {
-    "system": "#7aa2f7",
+    "system": "#e6dc7a",
     "user": "#e0af68",
     "operator": "#bb9af7",
     "assistant": "#7aa2f7",
@@ -124,6 +130,10 @@ class _ReasoningBlock(Widget):
         # rather than something you copy out, so making the operator
         # rescroll to hide them again would be friction.
         self.toggle_class("collapsed")
+        # Auto-scroll if the operator was at the bottom — reasoning
+        # bodies can be many rows; without this an expand near the
+        # bottom would leave the new content below the fold.
+        schedule_scroll_to_end_if_at_bottom(self)
 
     def set_text(self, text: str) -> None:
         """Replace the reasoning body text in place.
@@ -159,6 +169,14 @@ class MessageWidget(Widget):
         padding-left: 2;
     }
     MessageWidget .segment-text { height: auto; }
+    /* Queued ephemerals (client-side echo of a not-yet-drained send):
+     * render the body in the muted token so the row reads as "not yet
+     * real" at a glance. Pairs with the ``user · queued`` chip
+     * suffix. See :attr:`state.MessageGroup.is_queued`. */
+    MessageWidget .queued-body {
+        color: $text-muted;
+        height: auto;
+    }
     """
 
     def __init__(
@@ -210,10 +228,19 @@ class MessageWidget(Widget):
         if self._group.role == "system":
             return f"[{fg}]•[/] [bold {fg}]system[/]"
         if self._group.role == "user":
-            source = self._group.user_source
             base = f"[bold {fg}]user[/]"
-            if source:
-                base = f"{base} [dim]· {source}[/dim]"
+            # Queued ephemerals get a dedicated ``queued`` suffix in
+            # lieu of the normal ``· operator`` provenance — the chip
+            # is the only place the "not yet drained" status surfaces
+            # on the chip row itself (the dim body carries the rest of
+            # the signal). On the real chunk's arrival the ephemeral
+            # is replaced by a fresh widget rendering the canonical
+            # ``user · operator``, so this branch never re-runs for
+            # the same group.
+            if self._group.is_queued:
+                base = f"{base} [dim]· queued[/dim]"
+            elif self._group.user_source:
+                base = f"{base} [dim]· {self._group.user_source}[/dim]"
             return f"[{fg}]•[/] {base}"
         # Assistant: prefer the group's own model attribution; fall back
         # to the session's current model when the chunk had no
@@ -347,7 +374,20 @@ class MessageWidget(Widget):
         if not children:
             return
         last_widget = children[-1]
-        if seg.kind == "text" and isinstance(last_widget, CollapsibleContent):
+        if (
+            seg.kind == "text"
+            and self._group.is_queued
+            and isinstance(last_widget, Static)
+        ):
+            # Queued ephemerals render as a plain dim ``Static`` (not
+            # ``CollapsibleContent`` — see ``_compose_segment``); the
+            # ``isinstance(CollapsibleContent)`` branch below would miss
+            # them and leave the visible text frozen at the first send
+            # even though state has grown via subsequent append-on-
+            # existing enqueues. Update the Static in place so the dim
+            # row mirrors the merged text the model will receive.
+            last_widget.update(seg.text)
+        elif seg.kind == "text" and isinstance(last_widget, CollapsibleContent):
             # Streaming chunks land here — replace_text re-runs the
             # truncate-or-expand decision in place so a growing
             # response gains its "… N more lines" affordance the
@@ -373,6 +413,17 @@ class MessageWidget(Widget):
     def _compose_segment(self, seg: Segment) -> ComposeResult:
         if seg.kind == "reasoning":
             yield _ReasoningBlock(seg.text)
+            return
+        # Queued ephemerals bypass the Markdown / CollapsibleContent
+        # pipeline: operator composer text is single-line, plain, and
+        # short (no fences / lists / long bodies to expand), and a
+        # plain dim Static reliably honours the muted token where
+        # Markdown's own styles would otherwise override the cascade.
+        # The widget is unmounted whole when the real chunk arrives
+        # (different message_id ⇒ different TranscriptWidget key), so
+        # this rendering only ever applies to the ephemeral lifetime.
+        if self._group.is_queued:
+            yield Static(seg.text, classes="queued-body", markup=False)
             return
         # Text via CollapsibleContent so long responses get the
         # ``… N more lines`` expander instead of pushing the

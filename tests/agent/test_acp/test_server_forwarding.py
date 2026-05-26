@@ -1,7 +1,7 @@
 """Phase 10 integration tests for the per-connection forwarder.
 
 Exercises the full inbound/outbound forwarding pipeline against a
-real :class:`LiveAcpSession` registered as an active sample.
+real :class:`LiveAcpTransport` registered as an active sample.
 ``_find_live_session`` (in ``_server``) walks the ``active_samples()``
 list — these tests patch that list so the forwarder can resolve a
 target. Notifications go over a real AF_UNIX loopback socket and
@@ -37,9 +37,10 @@ from acp.helpers import (
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
+from inspect_ai.agent._acp.inspect_ext import REPLAY_META_KEY
 from inspect_ai.agent._acp.server import acp_server
-from inspect_ai.agent._acp.session_live import LiveAcpSession
 from inspect_ai.agent._acp.session_router import REPLAY_MAX_EVENTS
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript
@@ -98,7 +99,8 @@ def _make_active_sample(
     active.agent_name = None
     active.started = None
     active.total_tokens = 0
-    active.acp_session = acp_session
+    active.fails_on_error = True
+    active.acp_transport = acp_session
     return active
 
 
@@ -212,15 +214,16 @@ async def _connect(server: Any) -> _RpcClient:
     return _RpcClient(reader, writer)
 
 
-def _make_live_session_with_transcript() -> tuple[LiveAcpSession, Transcript]:
-    """Build a LiveAcpSession with a real Transcript wired up.
+def _make_live_session_with_transcript() -> tuple[LiveAcpTransport, Transcript]:
+    """Build a LiveAcpTransport with a real Transcript wired up.
 
     Bypasses ``__aenter__`` (which would also try to attach the Phase
     6 router via ``transcript()`` and register on the active sample).
     For Phase 10 forwarder tests we want the session and its
     transcript without any extra coupling.
     """
-    session = LiveAcpSession()
+    session = LiveAcpTransport()
+    session._attachable_override = True
     tr = Transcript()
     session._transcript = tr
     return session, tr
@@ -303,13 +306,16 @@ async def test_session_prompt_forwards_to_submit_user_message(
 async def test_session_prompt_marks_connection_as_active_driver(
     short_data_dir: Path, register_target
 ) -> None:
-    """A bound `session/prompt` also promotes the connection to active approver-driver.
+    """`session/new` auto-bind AND `session/prompt` both promote the connection.
 
     Pinned because the single-driver approval semantic depends on
-    this: the most-recently-prompted client wins the next
-    ``session/request_permission``. If the connection handler
-    skipped ``mark_active_approver_client``, the chain would always
-    fall back to first-attached and operator intent would be lost.
+    this: each deliberate operator action (bind via session/new or
+    session/load, prompt via session/prompt) makes that connection
+    the active approver-driver. Without the bind-time promotion, a
+    re-attaching operator would not pick up an in-flight approval
+    that was orphaned by a previous client disconnect — see
+    ``_request_from_driver_with_fallback`` for the wait-and-retry
+    side.
     """
     session, _tr = _make_live_session_with_transcript()
     mark_calls: list[Any] = []
@@ -331,6 +337,13 @@ async def test_session_prompt_marks_connection_as_active_driver(
             target_id = resp["result"]["sessionId"]
             await _drain_bind_preamble(client)
 
+            # session/new auto-bind has already promoted the connection
+            # once via _post_bind_setup_locked.
+            from inspect_ai.agent._acp.connection import ConnectionHandler
+
+            assert len(mark_calls) == 1
+            assert isinstance(mark_calls[0], ConnectionHandler)
+
             await client.request(
                 "session/prompt",
                 {
@@ -339,12 +352,55 @@ async def test_session_prompt_marks_connection_as_active_driver(
                 },
             )
 
-            # Exactly one mark — the connection promoted itself.
-            assert len(mark_calls) == 1
-            # The promoted client is the ConnectionHandler (it
-            # implements ApproverClient via its `request_permission`).
+            # session/prompt promotes again — same connection.
+            assert len(mark_calls) == 2
+            assert mark_calls[1] is mark_calls[0]
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_session_load_marks_connection_as_active_driver(
+    short_data_dir: Path, register_target
+) -> None:
+    """`session/load` promotes the loading connection to active approver-driver.
+
+    This is the "re-attach grabs the stick" behavior: an operator
+    re-attaching to a running session becomes the active driver so
+    any in-flight approval that was orphaned when the previous
+    client disconnected is re-issued to them. Without this
+    promotion, the approval would route to the original
+    first-attached client (which may be gone) and the operator
+    would never see it.
+    """
+    session, _tr = _make_live_session_with_transcript()
+    mark_calls: list[Any] = []
+    session.mark_active_approver_client = (  # type: ignore[method-assign]
+        lambda client: mark_calls.append(client)
+    )
+
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    async with acp_server(eval_id="evt-load-mark", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            await client.request(
+                "session/load",
+                {
+                    "cwd": "/tmp",
+                    "mcpServers": [],
+                    "sessionId": session.session_id,
+                },
+            )
+            await _drain_bind_preamble(client)
+
             from inspect_ai.agent._acp.connection import ConnectionHandler
 
+            assert len(mark_calls) == 1
             assert isinstance(mark_calls[0], ConnectionHandler)
         finally:
             await client.close()
@@ -358,7 +414,7 @@ async def test_session_cancel_notification_forwards_to_cancel_current_turn(
     """A bound `session/cancel` notification calls cancel_current_turn."""
     session, _tr = _make_live_session_with_transcript()
     cancel_calls: list[None] = []
-    session.cancel_current_turn = lambda: cancel_calls.append(None)  # type: ignore[method-assign]
+    session.cancel_current_turn = lambda cause="user_cancel": cancel_calls.append(None)  # type: ignore[method-assign]
 
     register_target(
         _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
@@ -597,6 +653,164 @@ async def test_forwarder_detaches_subscriber_on_disconnect(
         assert len(session._subscribers) == 0
 
 
+@skip_if_trio
+@unix_only
+async def test_server_stop_lets_in_flight_session_ended_reach_client(
+    short_data_dir: Path, register_target
+) -> None:
+    """Regression: ``inspect/session_ended`` must reach the client on eval end.
+
+    Previously :meth:`AcpServer.stop` called ``conn.close()`` before
+    the per-connection forwarders had a chance to finish their EOF
+    cleanup. The semantic forwarder's last act — sending
+    ``inspect/session_ended`` after ``LiveAcpTransport.finalize`` closes
+    pubsub — would then hit ``ConnectionError("Connection closed")``
+    and the client would never see the lifecycle pill flip to
+    ``complete``.
+
+    The fix has two halves: :meth:`AcpServer.stop` now calls
+    ``handler.shutdown(graceful=True)`` BEFORE ``conn.close()``, and
+    ``Forwarders.stop(graceful=True)`` gives the semantic task a
+    brief grace window to finish its cleanup branch naturally before
+    falling through to ``cancel``. This test simulates the exact
+    eval-end scenario and asserts the client received the
+    notification end-to-end.
+    """
+    session, _tr = _make_live_session_with_transcript()
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    notifications: list[dict[str, Any]] = []
+    async with acp_server(eval_id="evt-end", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(client)
+
+            # Collect any notifications the forwarder sends while the
+            # connection is still open. We exit ``acp_server`` below
+            # which calls ``AcpServer.stop()``; the bug would be that
+            # ``inspect/session_ended`` never lands here.
+            async def _collect() -> None:
+                try:
+                    while True:
+                        notifications.append(
+                            await client.next_notification(timeout=2.0)
+                        )
+                except (asyncio.TimeoutError, Exception):
+                    return
+
+            collector = asyncio.create_task(_collect())
+            # Simulate ``LiveAcpTransport.finalize()`` closing pubsub
+            # — the trigger for the forwarder's EOF cleanup branch.
+            # NO sleep here: we want to exercise the exact race the
+            # production fix targets. Closing pubsub then immediately
+            # falling out of the ``async with acp_server`` mirrors
+            # the eval-end sequence: ``active_sample.__aexit__``
+            # finalizes the session, control unwinds to the eval
+            # body's return, which exits ``acp_server`` and triggers
+            # ``AcpServer.stop()``. The forwarder is still mid-cleanup
+            # when ``stop()`` runs — without the graceful handler
+            # shutdown the ``inspect/session_ended`` send hits
+            # ``ConnectionError("Connection closed")``.
+            session._pubsub.close_all()
+        finally:
+            # Don't close the client yet — we want the server-side
+            # shutdown to drive the lifecycle, exactly as it does on
+            # eval completion.
+            pass
+    # ``acp_server`` context exited → ``AcpServer.stop()`` ran.
+    # Stop the collector and confirm session_ended landed.
+    collector.cancel()
+    try:
+        await collector
+    except (asyncio.CancelledError, Exception):
+        pass
+    try:
+        await client.close()
+    except Exception:
+        pass
+    methods = [n.get("method") for n in notifications]
+    assert "inspect/session_ended" in methods, (
+        f"client never received inspect/session_ended; got methods={methods}"
+    )
+
+
+@skip_if_trio
+@unix_only
+async def test_server_stop_with_open_client_logs_no_handler_shutdown_errors(
+    short_data_dir: Path, register_target, monkeypatch
+) -> None:
+    """Regression: concurrent ``handler.shutdown`` calls don't crash on race.
+
+    ``AcpServer.stop`` calls ``handler.shutdown(graceful=True)`` while
+    the per-connection ``_on_connection`` finally is racing to call
+    ``handler.shutdown()`` from the disconnect path (close-on-stop
+    triggers the main_loop exit before the graceful shutdown's
+    forwarder-drain await completes). Without the reentrancy guard
+    in ``ConnectionHandler._stop_forwarders`` both paths enter
+    ``Forwarders.stop`` on the same instance: one suspends after the
+    initial ``self._semantic_task is not None`` guard, the other
+    nulls ``self._semantic_task`` mid-await, and the first wakes up
+    to ``AttributeError: 'NoneType' object has no attribute 'done'``.
+    The error is caught by the per-handler ``except Exception`` in
+    ``AcpServer.stop`` but logged at ERROR — silent enough to slip
+    past tests-passing but loud enough to spam every eval shutdown.
+
+    Asserts the "Error during graceful ACP handler shutdown"
+    log line is never emitted.
+    """
+    from inspect_ai.agent._acp import server as server_module
+
+    errors: list[tuple[str, tuple[Any, ...]]] = []
+
+    def capture(msg: str, *args: Any, **kwargs: Any) -> None:
+        errors.append((msg, args))
+
+    monkeypatch.setattr(server_module.logger, "exception", capture)
+
+    session, _tr = _make_live_session_with_transcript()
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    # Multiple bound connections widen the race window. The
+    # close-then-immediately-exit pattern mirrors how production tests
+    # tear down (no asyncio.sleep between ``client.close()`` and the
+    # ``async with acp_server`` exit), which is exactly when the
+    # server-side ``_on_connection`` finally is still in flight when
+    # ``AcpServer.stop`` starts its graceful loop.
+    async with acp_server(eval_id="evt-race", transport=True) as server:
+        assert server is not None
+        clients = [await _connect(server) for _ in range(4)]
+        for c in clients:
+            await _initialize(c)
+            await c.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(c)
+        # Close all clients FIRST so each connection's ``_on_connection``
+        # finally fires; do NOT sleep before exiting the context so the
+        # server-side cleanup is mid-flight when ``AcpServer.stop`` runs.
+        for c in clients:
+            try:
+                await c.close()
+            except Exception:
+                pass
+    # ``async with`` exited → ``AcpServer.stop`` ran concurrently with
+    # the lingering ``_on_connection`` cleanups. Without the
+    # reentrancy guard in ``ConnectionHandler._stop_forwarders`` this
+    # produces "Error during graceful ACP handler shutdown" from the
+    # ``AttributeError: 'NoneType' object has no attribute 'done'``
+    # raised inside ``Forwarders.stop``.
+    handler_shutdown_errors = [
+        msg for msg, _ in errors if "graceful ACP handler shutdown" in msg
+    ]
+    assert not handler_shutdown_errors, (
+        f"unexpected handler-shutdown errors during server stop: "
+        f"{handler_shutdown_errors}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Replay-on-attach
 # ---------------------------------------------------------------------------
@@ -732,6 +946,77 @@ async def test_replay_applies_plan_policy(
 
 @skip_if_trio
 @unix_only
+async def test_replay_notifications_carry_replay_meta_marker(
+    short_data_dir: Path, register_target
+) -> None:
+    """Replay-on-attach stamps ``inspect.replay`` on outer ``_meta``.
+
+    The client uses this marker to dedup against chunks it has
+    already rendered (per-message_id reset on first replay chunk).
+    Live forwarding must NOT stamp it — that's the next test.
+    """
+    session, tr = _make_live_session_with_transcript()
+    tr._event(_model_event_with_text("historical-1"))
+    tr._event(_model_event_with_text("historical-2"))
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    async with acp_server(eval_id="evt-replay-marker", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(client)
+            for _ in range(2):
+                notif = await client.next_notification()
+                meta = notif["params"].get("_meta") or {}
+                assert meta.get(REPLAY_META_KEY) is True, (
+                    f"replay notification missing marker: {notif}"
+                )
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
+async def test_live_forwarding_does_not_stamp_replay_meta(
+    short_data_dir: Path, register_target
+) -> None:
+    """Live notifications must NOT carry the replay marker.
+
+    The client treats marked chunks as replay and resets segments on
+    first sight per message_id — applying that to live forwarding
+    would lose content.
+    """
+    session, _tr = _make_live_session_with_transcript()
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    async with acp_server(eval_id="evt-live-no-marker", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client)
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(client)
+            # Empty transcript → no replay → publish a live notification.
+            session.publish(
+                session_notification(
+                    session.session_id, update_agent_message(text_block("live-1"))
+                )
+            )
+            notif = await client.next_notification()
+            meta = notif["params"].get("_meta") or {}
+            assert REPLAY_META_KEY not in meta, (
+                f"live notification unexpectedly carries replay marker: {notif}"
+            )
+        finally:
+            await client.close()
+
+
+@skip_if_trio
+@unix_only
 async def test_replay_then_live_ordering(short_data_dir: Path, register_target) -> None:
     """Replayed notifications arrive before live ones published after bind."""
     session, tr = _make_live_session_with_transcript()
@@ -779,7 +1064,7 @@ async def test_picker_selection_live_forwarding_uses_wire_session_id(
     """After picker selection, live notifications arrive keyed to the wire id.
 
     The Phase 6 router publishes ``SessionNotification`` keyed to the
-    target's ``LiveAcpSession.session_id``. After a picker selection
+    target's ``LiveAcpTransport.session_id``. After a picker selection
     the connection's wire id is the synthetic control id minted at
     ``session/new`` time — it differs from the chosen target's id.
     The forwarder must rewrite the outbound notification's session_id
@@ -1155,7 +1440,7 @@ async def test_plan_policy_stash_cleared_on_rebind(
 async def test_session_ended_notification_fires_when_live_session_exits(
     short_data_dir: Path, register_target
 ) -> None:
-    """Bound LiveAcpSession exit fires ``inspect/session_ended`` on the wire.
+    """Bound LiveAcpTransport exit fires ``inspect/session_ended`` on the wire.
 
     Even though the underlying transport stays open (the connection
     is reusable for picking another sample via the picker), the
@@ -1176,7 +1461,7 @@ async def test_session_ended_notification_fires_when_live_session_exits(
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
             await _drain_bind_preamble(client)
 
-            # Simulate the LiveAcpSession exiting: close all subscriber
+            # Simulate the LiveAcpTransport exiting: close all subscriber
             # streams. The semantic forwarder sees EOF on its
             # subscriber stream, fires the session_ended notification,
             # then exits naturally.
@@ -1185,7 +1470,7 @@ async def test_session_ended_notification_fires_when_live_session_exits(
             notif = await client.next_notification()
             assert notif["method"] == "inspect/session_ended"
             # The wire session id is whatever the bind handed us — for
-            # the auto/load paths it equals the LiveAcpSession's id;
+            # the auto/load paths it equals the LiveAcpTransport's id;
             # for picker selection it's the synthetic control id. We
             # just need a non-empty string so the client's identity
             # guard can match.
@@ -1193,3 +1478,356 @@ async def test_session_ended_notification_fires_when_live_session_exits(
             assert notif["params"]["sessionId"]
         finally:
             await client.close()
+
+
+# ---------------------------------------------------------------------------
+# Phase 5: score events forwarded post-agent reach a subscribed client
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+@unix_only
+async def test_score_event_post_agent_reaches_subscribed_client(
+    short_data_dir: Path, register_target
+) -> None:
+    """End-to-end: a client subscribed to ``["score"]`` sees ``inspect/event``.
+
+    Pinned because this is the load-bearing combination of Phase 5's
+    server-side split-phase teardown (router + pubsub stay alive
+    past the agent's exit) and the subscription filter — without both,
+    the score event would either never be emitted (router torn down
+    too early) or would be filtered out (no opt-in subscription).
+    Here we just emit a score event live on the bound session's
+    transcript and assert it arrives.
+    """
+    from inspect_ai.event._score import ScoreEvent
+    from inspect_ai.scorer._metric import Score
+
+    session, tr = _make_live_session_with_transcript()
+    register_target(
+        _make_active_sample(task="t", sample_id="s", epoch=0, acp_session=session)
+    )
+    async with acp_server(eval_id="evt-score-e2e", transport=True) as server:
+        assert server is not None
+        client = await _connect(server)
+        try:
+            await _initialize(client, meta={"inspect.raw_events": ["score"]})
+            await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
+            await _drain_bind_preamble(client)
+
+            tr._event(
+                ScoreEvent(
+                    score=Score(value="C", explanation="exact match"),
+                    scorer="exact-match",
+                )
+            )
+
+            # Drain notifications until we find the inspect/event.
+            for _ in range(5):
+                notif = await client.next_notification(timeout=2.0)
+                if notif["method"] == "inspect/event":
+                    assert notif["params"]["event"] == "score"
+                    assert notif["params"]["scorer"] == "exact-match"
+                    assert notif["params"]["score"]["value"] == "C"
+                    break
+            else:
+                raise AssertionError("no inspect/event notification arrived")
+        finally:
+            await client.close()
+
+
+# ---------------------------------------------------------------------------
+# Forwarders.drain — barrier the approval shim uses to flush the bus
+# before sending session/request_permission. Without it the request
+# can race notifications to the wire and arrive before the model's
+# accompanying ``agent_message_chunk``.
+# ---------------------------------------------------------------------------
+
+
+@skip_if_trio
+async def test_forwarders_drain_blocks_until_pending_notifications_sent() -> None:
+    """``Forwarders.drain()`` doesn't return until the bus is empty.
+
+    Setup: a live session + Forwarders + a connection whose
+    ``send_notification`` is gated by an anyio.Event so we can
+    observe drain blocking. Publish N items, call drain in a task,
+    confirm drain is pending while items are still buffered, then
+    release the gate and confirm drain completes after the forwarder
+    has processed every item.
+    """
+    from typing import cast
+    from unittest.mock import AsyncMock
+
+    import anyio
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    # Build a live session for the forwarder to subscribe to.
+    session, _tr = _make_live_session_with_transcript()
+
+    # Gate ``send_notification`` so the forwarder task is blocked
+    # mid-loop while we observe drain behavior.
+    release = anyio.Event()
+    send_calls: list[Any] = []
+
+    async def _gated_send(method: str, payload: dict[str, Any]) -> None:
+        send_calls.append((method, payload))
+        await release.wait()
+
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = _gated_send
+
+    # Forwarders needs a state + an ApproverClient; a bare handler
+    # is enough for both since the test never invokes any handler
+    # methods (just the drain primitive on Forwarders).
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-x", target_session_id=session.session_id
+    )
+
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-x",
+    )
+    await forwarders.start(session)
+    try:
+        # Drop the bind preamble (Forwarders.start sends one
+        # session-info notification synchronously during start).
+        # ``_gated_send`` is blocked on ``release`` though — so the
+        # preamble is sitting in the call list waiting. Account for
+        # it in our drain target.
+        preamble_count = len(send_calls)
+
+        # Publish three semantic notifications via the session's
+        # pub/sub. They land in the forwarder's subscriber stream.
+        from acp.helpers import session_notification, text_block, update_agent_message
+
+        for i in range(3):
+            notif = session_notification(
+                session.session_id,
+                update_agent_message(text_block(f"chunk {i}")),
+            )
+            session.publish(notif)
+
+        # Deterministic gate: wait until the forwarder has actually
+        # entered ``_gated_send`` for at least one published item
+        # (i.e. send_calls grew past the preamble). This replaces
+        # the prior heuristic ``for _ in range(5): await sleep(0)``
+        # which assumed a fixed number of yields was enough for the
+        # forwarder task to be scheduled and consume from the
+        # stream — flake-prone under CI load.
+        deadline = asyncio.get_event_loop().time() + 1.0
+        while len(send_calls) <= preamble_count:
+            if asyncio.get_event_loop().time() > deadline:
+                raise AssertionError(
+                    "forwarder did not start processing published items within 1s"
+                )
+            await asyncio.sleep(0)
+
+        # Drain starts: it should block because the forwarder is
+        # parked inside ``_gated_send`` (we just verified it entered
+        # the gate) and items are still buffered.
+        drain_task = asyncio.create_task(forwarders.drain())
+        # Yield once to let drain enter its wait loop, then verify
+        # it's still pending.
+        await asyncio.sleep(0)
+        assert not drain_task.done(), (
+            "drain returned while notifications were still buffered"
+        )
+
+        # Release the gate — forwarder catches up.
+        release.set()
+
+        # Drain completes once the forwarder has processed every
+        # item it had buffered when drain was invoked.
+        await asyncio.wait_for(drain_task, timeout=1.0)
+
+        # The forwarder must have called send_notification at least
+        # ``preamble + 3`` times (everything that was queued before
+        # drain returned). The exact count can be higher if the
+        # forwarder pulled additional items from the bus post-drain,
+        # but we asserted the lower bound.
+        cast(Any, fake_conn)  # silence unused-import-ish noise
+        assert len(send_calls) >= preamble_count + 3
+    finally:
+        # Make sure the gate is open so any in-flight sends complete
+        # before stop() awaits the task.
+        if not release.is_set():
+            release.set()
+        await forwarders.stop()
+
+
+@skip_if_trio
+async def test_forwarders_drain_waits_for_in_flight_item() -> None:
+    """Drain blocks for the item that's already pulled from the stream but not yet sent.
+
+    Pinned regression: previously drain only counted
+    ``current_buffer_used`` + ``_notifications_sent``. An item the
+    forwarder had already pulled (so buffer is empty) but was still
+    transforming / awaiting ``send_notification`` was invisible to
+    both — drain would return at zero while that item was still in
+    flight, defeating the ordering guarantee. The fix adds a
+    ``_processing_item`` flag flipped True at pull-time and
+    cleared in the same try/finally that bumps the counter; drain
+    treats it as +1 pending work.
+    """
+    from unittest.mock import AsyncMock
+
+    import anyio
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    session, _tr = _make_live_session_with_transcript()
+
+    release = anyio.Event()
+    send_calls: list[Any] = []
+
+    async def _gated_send(method: str, payload: dict[str, Any]) -> None:
+        send_calls.append((method, payload))
+        await release.wait()
+
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = _gated_send
+
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-inflight", target_session_id=session.session_id
+    )
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-inflight",
+    )
+    await forwarders.start(session)
+    try:
+        preamble_count = len(send_calls)
+
+        # Publish ONE notification. The forwarder pulls it from the
+        # stream and parks inside ``_gated_send``. At this point:
+        # - current_buffer_used == 0 (item already pulled)
+        # - _notifications_sent unchanged (counter only bumps in
+        #   the finally, which hasn't run yet)
+        # - _processing_item == True (the new flag)
+        from acp.helpers import session_notification, text_block, update_agent_message
+
+        notif = session_notification(
+            session.session_id, update_agent_message(text_block("only-chunk"))
+        )
+        session.publish(notif)
+
+        # Wait until the forwarder has entered the gated send (i.e.
+        # it has pulled the item out of the buffer).
+        deadline = asyncio.get_event_loop().time() + 1.0
+        while len(send_calls) <= preamble_count:
+            if asyncio.get_event_loop().time() > deadline:
+                raise AssertionError("forwarder didn't pull item within 1s")
+            await asyncio.sleep(0)
+
+        # Sanity: the buffer is now empty even though our item
+        # hasn't been sent yet — this is the bug window.
+        assert forwarders._semantic_stream.statistics().current_buffer_used == 0
+        assert forwarders._processing_item is True
+
+        # Drain MUST block here — the in-flight item isn't counted
+        # by current_buffer_used but is still pending.
+        drain_task = asyncio.create_task(forwarders.drain())
+        await asyncio.sleep(0)
+        assert not drain_task.done(), (
+            "drain returned while the in-flight item was still pending"
+        )
+
+        # Release the gate; drain catches up.
+        release.set()
+        await asyncio.wait_for(drain_task, timeout=1.0)
+    finally:
+        if not release.is_set():
+            release.set()
+        await forwarders.stop()
+
+
+@skip_if_trio
+async def test_forwarders_drain_is_noop_when_buffer_empty() -> None:
+    """Drain returns immediately when there are no buffered notifications."""
+    from unittest.mock import AsyncMock
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    session, _tr = _make_live_session_with_transcript()
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = AsyncMock(return_value=None)
+
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-y", target_session_id=session.session_id
+    )
+
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-y",
+    )
+    await forwarders.start(session)
+    try:
+        # Give the start preamble time to flush.
+        for _ in range(5):
+            await asyncio.sleep(0)
+        # Drain on an empty buffer: returns immediately.
+        await asyncio.wait_for(forwarders.drain(), timeout=0.5)
+    finally:
+        await forwarders.stop()
+
+
+@skip_if_trio
+async def test_forwarders_drain_returns_when_forwarder_task_dies() -> None:
+    """Drain doesn't hang forever if the forwarder task exited mid-buffer."""
+    from unittest.mock import AsyncMock
+
+    from inspect_ai.agent._acp.connection import Bound, ConnectionHandler
+    from inspect_ai.agent._acp.session_router import Forwarders
+
+    session, _tr = _make_live_session_with_transcript()
+
+    # send_notification raises on every call → the forwarder's
+    # acp_send_guard sees a send failure on the first item and
+    # exits the loop.
+    async def _always_fail(*_args: Any, **_kwargs: Any) -> None:
+        raise ConnectionError("peer gone")
+
+    fake_conn = AsyncMock()
+    fake_conn.send_notification = _always_fail
+
+    handler = ConnectionHandler()
+    handler.state.binding = Bound(
+        wire_session_id="wire-z", target_session_id=session.session_id
+    )
+
+    forwarders = Forwarders(
+        handler.state,
+        fake_conn,
+        handler,
+        target_session_id=session.session_id,
+        wire_session_id="wire-z",
+    )
+    await forwarders.start(session)
+    try:
+        # Wait for the start preamble + the forwarder task to die.
+        for _ in range(10):
+            await asyncio.sleep(0.01)
+            if forwarders._semantic_task and forwarders._semantic_task.done():
+                break
+
+        # Even if drain captures a non-zero buffered count, it must
+        # not hang once the forwarder is done.
+        await asyncio.wait_for(forwarders.drain(), timeout=0.5)
+    finally:
+        await forwarders.stop()
