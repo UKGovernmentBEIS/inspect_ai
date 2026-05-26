@@ -96,7 +96,7 @@ In some cases you may want agents to initiate intervention. You can do this by p
 
 ### Ask User Tool
 
-The `ask_user()` tool enables models to request structured information from users. It uses the the [ACP Elicitation](https://agentclientprotocol.com/rfds/elicitation) standard, which provides for a vareity of field types (text, boolean, enum, etc.).
+The `ask_user()` tool enables models to request structured information from users. It uses the the [ACP Elicitation](https://agentclientprotocol.com/rfds/elicitation) standard, which provides for a variety of field types (text, boolean, enum, etc.)
 
 For example, here we add `ask_user()` to a `react()` agent:
 
