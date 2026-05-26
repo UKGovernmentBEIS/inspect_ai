@@ -859,6 +859,162 @@ async def test_entry_parks_when_live_with_no_clients(
     assert result.decision == "approve"
 
 
+class _PendingSample:
+    """Stub sample exposing the pending-interaction counter API.
+
+    Mirrors :class:`ActiveSample`'s contract just enough for the
+    routing shim: ``_pending_approvals`` / ``_pending_questions``
+    counters that the shim increments/decrements, and a derived
+    ``pending_interaction`` property the picker reads. Used by tests
+    that exercise the set/clear contract under concurrent waits.
+    """
+
+    def __init__(self) -> None:
+        self._pending_approvals = 0
+        self._pending_questions = 0
+        self.acp_transport: Any = None
+
+    @property
+    def pending_interaction(self) -> str | None:
+        if self._pending_approvals > 0:
+            return "approval"
+        if self._pending_questions > 0:
+            return "question"
+        return None
+
+
+@skip_if_trio
+async def test_entry_marks_pending_interaction_during_park(
+    monkeypatch, acp_server_running
+) -> None:
+    """Sample's ``pending_interaction`` flips to "approval" during the wait.
+
+    The picker reads ``ActiveSample.pending_interaction`` to surface
+    its ``pending`` column and float waiting samples to the top.
+    Pinned regression of the contract: counter ticks up on entry,
+    back to zero in `finally`.
+    """
+    sample = _PendingSample()
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    sample.acp_transport = session
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    shim_task = asyncio.create_task(
+        request_human_approval_via_acp(
+            message="please confirm",
+            call=_make_call(),
+            view=_make_view(),
+            choices=["approve", "reject"],
+        )
+    )
+    # Wait long enough for the entry to set the flag and park on attach.
+    await asyncio.sleep(0.05)
+    assert not shim_task.done()
+    assert sample.pending_interaction == "approval"
+
+    # Resolve so the finally block can run.
+    survivor = _StubClient(response=_selected("approve"))
+    session.attach_approver_client(survivor)
+    session.notify_approver_attach(survivor)
+    result = await shim_task
+    assert result is not None
+    assert result.decision == "approve"
+    # Restored after the await returns.
+    assert sample.pending_interaction is None
+
+
+@skip_if_trio
+async def test_entry_clears_pending_interaction_on_cancellation(
+    monkeypatch, acp_server_running
+) -> None:
+    """Cancellation while parked still clears the pending counter via finally.
+
+    Without the finally, a cancelled / errored shim would leave the
+    sample looking "stuck pending" forever in the picker. Exercises
+    the cancellation path explicitly.
+    """
+    sample = _PendingSample()
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    sample.acp_transport = session
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    shim_task = asyncio.create_task(
+        request_human_approval_via_acp(
+            message="please confirm",
+            call=_make_call(),
+            view=_make_view(),
+            choices=["approve", "reject"],
+        )
+    )
+    await asyncio.sleep(0.05)
+    assert sample.pending_interaction == "approval"
+
+    shim_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await shim_task
+    assert sample.pending_interaction is None
+
+
+@skip_if_trio
+async def test_entry_pending_counter_handles_concurrent_approvals(
+    monkeypatch, acp_server_running
+) -> None:
+    """Two parallel approvals on one sample share the indicator correctly.
+
+    Pinned regression of the concurrency bug: ``parallel=True`` tool
+    calls run concurrently inside one sample (see
+    ``_call_tools.py``), so two approvals can be in-flight at once.
+    A single-slot save/restore would clear the indicator on the
+    first finish while the second is still pending. Counters keep
+    ``pending_interaction == "approval"`` until BOTH waits exit.
+    """
+    sample = _PendingSample()
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    sample.acp_transport = session
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    # Two clients in the chain, each returning when its respective
+    # request lands. Because the shim uses single-driver semantics,
+    # both requests would route through the first client — so we
+    # use a single client that just delays its response. We start
+    # the second request before the first finishes by attaching
+    # the client between the two starts.
+    client = _StubClient(response=_selected("approve"), delay=0.1)
+    session.attach_approver_client(client)
+    session.notify_approver_attach(client)
+
+    # Fire two approvals back-to-back. Both should set their
+    # counters before either finishes.
+    task_a = asyncio.create_task(
+        request_human_approval_via_acp(
+            message="confirm A",
+            call=_make_call(),
+            view=_make_view(),
+            choices=["approve", "reject"],
+        )
+    )
+    task_b = asyncio.create_task(
+        request_human_approval_via_acp(
+            message="confirm B",
+            call=_make_call(),
+            view=_make_view(),
+            choices=["approve", "reject"],
+        )
+    )
+    # Let both enter their respective `try` blocks.
+    await asyncio.sleep(0.02)
+    assert sample._pending_approvals == 2
+    assert sample.pending_interaction == "approval"
+
+    # Resolve both — counter must return to zero.
+    await asyncio.gather(task_a, task_b)
+    assert sample._pending_approvals == 0
+    assert sample.pending_interaction is None
+
+
 @skip_if_trio
 async def test_entry_routes_to_attached_client(
     patch_sample_active, acp_server_running

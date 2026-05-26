@@ -37,6 +37,7 @@ def _make_sample(
     started: float | None = None,
     fails_on_error: bool = True,
     is_attachable: bool | None = None,
+    pending_interaction: str | None = None,
 ) -> Any:
     """Build a stub ActiveSample-shaped object for the picker.
 
@@ -66,6 +67,7 @@ def _make_sample(
     active.agent_name = agent_name
     active.started = started
     active.fails_on_error = fails_on_error
+    active.pending_interaction = pending_interaction
     if session_id is None:
         active.acp_transport = None
     else:
@@ -642,6 +644,7 @@ def test_sample_listing_meta_dict_emits_camelcase_with_session_id() -> None:
         "totalMessages": 42,
         "totalTokens": 12_345,
         "failsOnError": True,
+        "pending": None,
     }
 
 
@@ -661,6 +664,98 @@ def test_sample_listing_meta_dict_session_id_null_for_non_acp() -> None:
     assert payload["totalMessages"] == 0
     assert payload["totalTokens"] == 0
     assert payload["failsOnError"] is False
+
+
+# ---------------------------------------------------------------------------
+# pending_interaction — flows through SampleListing + wire dict
+# ---------------------------------------------------------------------------
+
+
+def test_list_all_samples_carries_pending_interaction(monkeypatch) -> None:
+    """A sample parked on a human request surfaces ``pending`` on its listing.
+
+    Mirrors the routing-shim contract: the ACP approval / input shims
+    set ``ActiveSample.pending_interaction`` while parked; the picker
+    surfaces that value verbatim so the TUI can render the column and
+    sort waiting samples to the top.
+    """
+    samples = [
+        _make_sample(
+            task="t1",
+            sample_id="s1",
+            epoch=0,
+            session_id="uuid-a",
+            pending_interaction="approval",
+        ),
+        _make_sample(
+            task="t2",
+            sample_id="s2",
+            epoch=0,
+            session_id="uuid-b",
+            pending_interaction="question",
+        ),
+        _make_sample(
+            task="t3",
+            sample_id="s3",
+            epoch=0,
+            session_id="uuid-c",
+            pending_interaction=None,
+        ),
+        # Non-ACP rows always surface ``pending=None`` — the in-proc
+        # managers don't mirror onto ``ActiveSample`` in this phase.
+        _make_sample(
+            task="t4",
+            sample_id="s4",
+            epoch=0,
+            session_id=None,
+            pending_interaction=None,
+        ),
+    ]
+    monkeypatch.setattr(picker, "active_samples", lambda: samples)
+
+    listings = list_all_samples()
+    assert [listing.pending for listing in listings] == [
+        "approval",
+        "question",
+        None,
+        None,
+    ]
+
+
+def test_sample_listing_meta_dict_carries_pending_approval() -> None:
+    """``pending="approval"`` surfaces on the wire payload."""
+    listing = SampleListing(
+        session_id="uuid-x",
+        task="t",
+        sample_id="s",
+        epoch=0,
+        pending="approval",
+    )
+    assert sample_listing_meta_dict(listing)["pending"] == "approval"
+
+
+def test_sample_listing_meta_dict_carries_pending_question() -> None:
+    """``pending="question"`` surfaces on the wire payload."""
+    listing = SampleListing(
+        session_id="uuid-x",
+        task="t",
+        sample_id="s",
+        epoch=0,
+        pending="question",
+    )
+    assert sample_listing_meta_dict(listing)["pending"] == "question"
+
+
+def test_sample_listing_default_pending_is_none() -> None:
+    """A listing constructed without ``pending`` defaults to ``None``."""
+    listing = SampleListing(
+        session_id=None,
+        task="t",
+        sample_id="s",
+        epoch=0,
+    )
+    assert listing.pending is None
+    assert sample_listing_meta_dict(listing)["pending"] is None
 
 
 def test_notification_serializes_meta_under_underscore_meta_alias() -> None:

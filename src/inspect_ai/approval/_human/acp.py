@@ -585,5 +585,17 @@ async def request_human_approval_via_acp(
             view=view,
             choices=choices,
         )
-        return await _request_from_driver_with_fallback(session, request, choices)
+        # Mark the sample as parked on a human approval so the ACP
+        # picker can surface a "pending" column. Ref-counted (not a
+        # single-slot save/restore) because `parallel=True` tool calls
+        # run concurrently within one sample, so two approvals can be
+        # in-flight at once; a single-slot restore on the first one to
+        # finish would clear the indicator while the second is still
+        # waiting. Decremented in `finally` so cancellation and
+        # exception paths can't leak a stuck counter.
+        sample._pending_approvals += 1
+        try:
+            return await _request_from_driver_with_fallback(session, request, choices)
+        finally:
+            sample._pending_approvals -= 1
     return None

@@ -173,6 +173,7 @@ The standard surface is documented at [agentclientprotocol.com](https://agentcli
 | `session/cancel` | Interrupt the current turn. |
 | `session/update` | Agent activity notification (messages, tool calls, plans). |
 | `session/request_permission` | Ask the operator to approve a tool call. |
+| `elicitation/create` | Ask the operator a structured question via the `ask_user` tool (form mode; opt-in via `clientCapabilities.elicitation.form`). |
 : {tbl-colwidths=[35,65]}
 
 Inspect-aware clients can opt into richer behavior by declaring capabilities at `initialize` and calling extension methods. Extensions are namespaced `inspect/*` (methods) or `inspect.*` (metadata keys); a standard ACP client ignores them.
@@ -188,11 +189,12 @@ Inspect-aware clients can opt into richer behavior by declaring capabilities at 
 | `inspect/session_ended` | Notification when a sample has completed, so the client can flip its UI to a terminal state without waiting for socket EOF. |
 : {tbl-colwidths=[35,65]}
 
-Clients with a dedicated plan UI indicate this at `initialize` by setting `inspect.plan_rendering` to `true` in their capability `_meta`:
+Clients with a dedicated plan UI indicate this at `initialize` by setting `inspect.plan_rendering` to `true` in their capability `_meta`. Clients that can render structured forms — required to receive `ask_user` prompts — declare ACP's standard `elicitation.form` capability:
 
 ```json
 {
   "clientCapabilities": {
+    "elicitation": { "form": {} },
     "_meta": {
       "inspect.plan_rendering": true
     }
@@ -200,7 +202,7 @@ Clients with a dedicated plan UI indicate this at `initialize` by setting `inspe
 }
 ```
 
-Inspect then translates `update_plan` and `todo_write` tool calls into `AgentPlanUpdate` notifications, which the client renders in its plan widget.
+Inspect then translates `update_plan` and `todo_write` tool calls into `AgentPlanUpdate` notifications, which the client renders in its plan widget. With `elicitation.form` advertised, the agent's `ask_user` tool dispatches `elicitation/create` to the attached client and renders the operator's response back to the model as a structured tool result; without it, `ask_user` falls back to the in-proc Textual panel.
 
 The full set of extensions and metadata keys is defined in [inspect_ext.py](https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/agent/_acp/inspect_ext.py).
 

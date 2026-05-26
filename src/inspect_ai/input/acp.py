@@ -236,6 +236,17 @@ async def acp_handler(request: InputRequest) -> InputResult | None:
             session_id=transport.session_id,
             requested_schema=request.schema,
         )
-        return await _request_from_driver_with_fallback(transport, elicitation_request)
+        # Mark the sample as parked on a human question so the ACP
+        # picker can surface a "pending" column. Ref-counted (not a
+        # single-slot save/restore) because tool calls can run
+        # concurrently within one sample. See the parallel comment in
+        # `approval/_human/acp.py` for the full rationale.
+        sample._pending_questions += 1
+        try:
+            return await _request_from_driver_with_fallback(
+                transport, elicitation_request
+            )
+        finally:
+            sample._pending_questions -= 1
     # acp_guard suppressed an exception — fall through to in-proc.
     return None

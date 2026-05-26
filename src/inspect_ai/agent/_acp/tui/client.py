@@ -185,6 +185,12 @@ class SessionRow:
     field on the ``inspect/list_sessions`` response or binding-
     confirmation ``_meta``."""
 
+    pending: Literal["approval", "question"] | None = None
+    """Set when the sample is parked on a human-in-the-loop request
+    routed through ACP — ``"approval"`` for tool-call permission,
+    ``"question"`` for ``ask_user``. ``None`` otherwise. Drives the
+    picker's ``pending`` column and primary sort tier."""
+
 
 async def enumerate_sessions(
     addresses: list[tuple[str, TargetAddress]],
@@ -287,6 +293,10 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
         # ``sessionId`` is ``None`` for samples whose agent has not
         # claimed ACP. Preserve the None — the picker treats such
         # rows as dimmed + unselectable-on-attach.
+        pending_raw = s.get("pending")
+        pending: Literal["approval", "question"] | None = (
+            pending_raw if pending_raw in ("approval", "question") else None
+        )
         rows.append(
             SessionRow(
                 eval_id=eval_id,
@@ -300,6 +310,7 @@ async def _list_for_target(eval_id: str, target: TargetAddress) -> list[SessionR
                 total_messages=int(s.get("totalMessages") or 0),
                 total_tokens=int(s.get("totalTokens") or 0),
                 fails_on_error=bool(s.get("failsOnError", False)),
+                pending=pending,
             )
         )
     return rows

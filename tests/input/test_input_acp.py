@@ -502,6 +502,80 @@ async def test_entry_parks_when_live_with_no_clients(
     assert result.content == {"answer": "after-attach"}
 
 
+class _PendingSample:
+    """Stub sample exposing the pending-interaction counter API.
+
+    Mirrors the approval test's helper of the same name — see
+    ``tests/agent/test_acp/test_approval.py`` for the full rationale.
+    Tests using this stub exercise the shim's increment/decrement
+    contract under realistic concurrent-wait conditions.
+    """
+
+    def __init__(self) -> None:
+        self._pending_approvals = 0
+        self._pending_questions = 0
+        self.acp_transport: Any = None
+
+    @property
+    def pending_interaction(self) -> str | None:
+        if self._pending_approvals > 0:
+            return "approval"
+        if self._pending_questions > 0:
+            return "question"
+        return None
+
+
+@skip_if_trio
+async def test_entry_marks_pending_interaction_during_park(
+    monkeypatch, acp_server_running
+) -> None:
+    """Sample's ``pending_interaction`` flips to "question" during the wait.
+
+    Mirrors the approval shim's test. The picker reads
+    ``ActiveSample.pending_interaction`` to surface its ``pending``
+    column; under exclusive routing the shim increments the counter
+    on entry and decrements it in ``finally``.
+    """
+    sample = _PendingSample()
+    session = _StubSession([])
+    sample.acp_transport = session
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    shim_task = asyncio.create_task(acp_handler(_input_request()))
+    await asyncio.sleep(0.05)
+    assert not shim_task.done()
+    assert sample.pending_interaction == "question"
+
+    # Resolve so the finally block can run.
+    survivor = _StubClient(response=_accept({"answer": "ok"}))
+    session.clients = [survivor]
+    session.trigger_attach()
+    result = await shim_task
+    assert result is not None
+    assert result.outcome == "accepted"
+    assert sample.pending_interaction is None
+
+
+@skip_if_trio
+async def test_entry_clears_pending_interaction_on_cancellation(
+    monkeypatch, acp_server_running
+) -> None:
+    """Cancellation while parked still clears the pending counter via finally."""
+    sample = _PendingSample()
+    session = _StubSession([])
+    sample.acp_transport = session
+    monkeypatch.setattr("inspect_ai.log._samples.sample_active", lambda: sample)
+
+    shim_task = asyncio.create_task(acp_handler(_input_request()))
+    await asyncio.sleep(0.05)
+    assert sample.pending_interaction == "question"
+
+    shim_task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await shim_task
+    assert sample.pending_interaction is None
+
+
 @skip_if_trio
 async def test_entry_routes_to_attached_client_with_session_id(
     patch_sample_active,

@@ -66,6 +66,12 @@ def _make_active_sample(
     active.total_messages = total_messages
     active.total_tokens = total_tokens
     active.fails_on_error = fails_on_error
+    # ``pending_interaction`` is read by ``list_all_samples`` into
+    # ``SampleListing.pending`` and JSON-serialized. Same MagicMock-
+    # leak hazard as the fields above — must be a real ``None`` /
+    # ``"approval"`` / ``"question"`` for the wire serializer to
+    # round-trip cleanly.
+    active.pending_interaction = None
     sess = MagicMock()
     sess.session_id = session_id
     active.acp_transport = sess
