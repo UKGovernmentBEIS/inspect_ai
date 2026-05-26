@@ -33,10 +33,10 @@ User: "Run my new task against gpt-5 and claude-opus. Cancel anything stalled
 Agent (via Bash):
   inspect eval my_task --model gpt-5         --log-dir ./logs/gpt5   --detach --json
   inspect eval my_task --model claude-opus   --log-dir ./logs/opus   --detach --json
-  inspect ls --json                                                          # watch progress
-  inspect events <id> --since <cursor> --json                                # poll for stalls
-  inspect cancel-sample <eval-id> <sample-id> --action error --dry-run       # check before acting
-  inspect cancel-sample <eval-id> <sample-id> --action error
+  inspect ctl ls --json                                                      # watch progress
+  inspect ctl events <id> --since <cursor> --json                            # poll for stalls
+  inspect ctl cancel-sample <eval-id> <sample-id> --action error --dry-run   # check before acting
+  inspect ctl cancel-sample <eval-id> <sample-id> --action error
   inspect log summary ./logs/gpt5 --json                                     # after completion
   inspect log compare ./logs/gpt5 ./logs/opus --json                         # diff
 ```
@@ -63,19 +63,32 @@ Same surface as scenario 1 — either via the CLI (Bash from a shell script) or 
 
 ### 3. CLI commands to cancel or modify a running eval
 
-Single-purpose human-driven CLI commands:
+Single-purpose human-driven CLI commands, all under the `inspect ctl` subcommand (see "CLI grouping" below):
 
 ```
-inspect ls                              # list running evals
-inspect cancel [<eval-id>]              # cancel an eval (current sample drains; scoring runs)
-inspect cancel --force                  # cancel without draining
-inspect cancel-sample <sample-id>       # delegate to the existing inspect/cancel_sample
-inspect set-limit <eval-id> --time 600  # modify a running eval's per-sample time limit
-inspect drain <eval-id>                 # stop accepting new samples; let in-flight finish
-inspect requeue <eval-id> <sample-id>   # re-add a failed sample to the queue
+inspect ctl ls                              # list running evals
+inspect ctl status <eval-id>                # eval status detail
+inspect ctl events <eval-id> [--since X]    # event stream (push or cursored pull)
+inspect ctl cancel <eval-id> [--force]      # cancel an eval (current sample drains; scoring runs)
+inspect ctl cancel-sample <eval-id> <sid>   # cancel one sample
+inspect ctl drain <eval-id>                 # stop accepting new samples; let in-flight finish
+inspect ctl requeue <eval-id> <sid>         # re-add a failed sample to the queue
+inspect ctl set-limit <eval-id> --time N    # modify a running eval's per-sample time limit
 ```
 
 Each is a thin wrapper — autocomplete-friendly, scriptable, composable with shell tooling. Same operations as the TUI; same operations agents call. The CLI is the canonical surface — humans use it directly; agents use it via Bash.
+
+#### CLI grouping: `inspect ctl`
+
+All live-eval management commands live under a single `inspect ctl` subcommand rather than as flat top-level verbs (`inspect ls`, `inspect cancel`, ...). The choice is deliberate:
+
+- **Conceptual coherence.** Every command in the group operates on a running Inspect process via the control endpoint; they share infrastructure (discovery, auth, lifecycle) and a mental model. That's a real subsystem, not an arbitrary bag of verbs.
+- **Namespace pressure.** Inspect's top-level CLI is already crowded (`eval`, `eval-set`, `eval-retry`, `view`, `log`, `score`, `cache`, `sandbox`, `acp`). Adding 7–8 new verbs there crowds discovery for everyone; grouping under `ctl` keeps the top level uncluttered.
+- **Discoverability.** `inspect ctl --help` is the natural entry point for "what can I do with a running eval?" Both humans and agents read it once and have the whole surface.
+- **Precedent.** `kubectl`, `systemctl`, `journalctl`, `etcdctl` — `ctl` reads as "control" instantly for anyone who's done ops work. The convention is established.
+- **No alias.** `inspect control` does *not* exist as a long-form alias; `inspect ctl` is the only canonical form. Two names introduce documentation drift, "which is canonical?" ambiguity, and grep friction without paying for themselves.
+
+`inspect tui` stays at the top level rather than under `ctl` — it's an *application* (like `inspect view`) that happens to be a control-channel client, not an operation on a running eval.
 
 ### 4. TUI in a separate process from the eval
 
@@ -147,7 +160,7 @@ The conceptual surface, independent of wire protocol. Each operation becomes eit
 
 Four constraints fall out of supporting LLM-driven agents (see "Programmatic / agent consumers" below) that don't apply to TUIs / human CLI:
 
-1. **Every read operation needs a structured (JSON) output form.** Agents parse JSON reliably; agents parse human-formatted tables poorly. CLI commands ship `--json` as a first-class output mode, not an afterthought. The JSON schema is the canonical shape — human-formatted output is a rendering of it. Same shape serves shell-pipeline users (`inspect ls --json | jq ...`) and LLM agents.
+1. **Every read operation needs a structured (JSON) output form.** Agents parse JSON reliably; agents parse human-formatted tables poorly. CLI commands ship `--json` as a first-class output mode, not an afterthought. The JSON schema is the canonical shape — human-formatted output is a rendering of it. Same shape serves shell-pipeline users (`inspect ctl ls --json | jq ...`) and LLM agents.
 2. **Read operations should return summaries by default, with drill-down for detail.** Returning a 200-sample status dump as JSON eats LLM context. The `list samples` shape should default to a summary (status histogram + the N most-recent / longest-running) with a separate `get_sample(id)` for the full picture. Humans paginate / `jq`; agents need the shape to be agent-shaped at the source.
 3. **Events need both push and pull access.** TUIs want push (SSE notification, immediate render). LLM agents want pull (cursored read: "events for eval X since cursor Y") — their runtimes are request/response loops, not subscription loops. The control channel should expose both shapes regardless of which the underlying transport favours; the push shape is the natural one for the wire protocol, the pull shape is a thin server-side buffer + cursor on top.
 4. **Directives should be idempotent and support dry-run.** Agents retry, get confused, and operate on stale state. `requeue_sample` called twice must not double-queue. `cancel_eval` on an already-cancelled eval must return cleanly. Destructive directives should accept a `dry_run` flag that returns "would do X" without doing it, so agents can reason before acting.
@@ -158,7 +171,7 @@ The control channel runs as an **HTTP server embedded directly in the eval proce
 
 ### Why HTTP
 
-- **Excellent CLI ergonomics.** `inspect cancel <id>` is one `httpx` call; shell users can hit endpoints directly with `curl`. Pipe composition works (`inspect ls --json | jq ... | xargs inspect cancel`). Easy to write small monitoring scripts in any language.
+- **Excellent CLI ergonomics.** `inspect ctl cancel <id>` is one `httpx` call; shell users can hit endpoints directly with `curl`. Pipe composition works (`inspect ctl ls --json | jq ... | xargs inspect ctl cancel`). Easy to write small monitoring scripts in any language.
 - **No new dependencies.** FastAPI, uvicorn, and starlette are already hard dependencies in `requirements.txt` (used by the `inspect view` server). Picking HTTP costs zero framework footprint.
 - **Already a pattern in the codebase.** `src/inspect_ai/_view/fastapi_server.py` shows the FastAPI-server-in-Inspect template — including the bits we need: streaming responses, live in-progress reads (`api_pending_samples`, `api_sample_events`), and an OpenAPI generation pipeline (`_view/_openapi.py`). The control channel reuses the same shape.
 - **Universal tooling.** Browsers, Postman, generated OpenAPI clients, HTTP-level proxies / logging / debugging — all off the shelf.
@@ -215,7 +228,7 @@ Destructive endpoints accept `?dry_run=true` to return "would do X" without doin
 |                  |      control endpoint (new)        +-----------------+
 |                  |  <-----------------------------    | inspect tui     |
 |                  |    eval / eval-set management      +-----------------+
-|                  |    (HTTP + SSE)                    | inspect cancel  |
+|                  |    (HTTP + SSE)                    | inspect ctl ... |
 |                  |                                    | (CLI commands)  |
 |                  |                                    +-----------------+
 |                  |                                    | watchdog agent  |
@@ -253,12 +266,12 @@ Both shapes coexist with the per-sample ACP subscriptions — a TUI attached to 
 
 Three exposure paths an external agent (Claude Code, scripted watchdog, custom agent runtime) might use. **Path A is the primary integration story; Path C is a deliberate "only if needed" follow-on.**
 
-**Path A: CLI subprocess with `--json` output (primary).** Any agent that can run shell commands uses `inspect ls --json`, `inspect status <id> --json`, `inspect cancel <id>`, `inspect events <id> --since <cursor> --json` directly. Works with Claude Code's Bash tool, with shell scripts, with any subprocess-capable runtime.
+**Path A: CLI subprocess with `--json` output (primary).** Any agent that can run shell commands uses `inspect ctl ls --json`, `inspect ctl status <id> --json`, `inspect ctl cancel <id>`, `inspect ctl events <id> --since <cursor> --json` directly. Works with Claude Code's Bash tool, with shell scripts, with any subprocess-capable runtime.
 
 Modern LLMs are demonstrably excellent at:
-- Reading `inspect --help` and discovering subcommands.
+- Reading `inspect ctl --help` and discovering subcommands.
 - Parsing JSON output and composing follow-up calls.
-- Pipe composition (`inspect ls --json | jq '.[] | select(.status=="stuck")' | xargs -I{} inspect cancel {}`).
+- Pipe composition (`inspect ctl ls --json | jq '.[] | select(.status=="stuck")' | xargs -I{} inspect ctl cancel {}`).
 
 Concrete benefits over a wrapping layer:
 - **Single source of truth** — no drift between CLI behaviour and a parallel tool surface.
@@ -283,10 +296,10 @@ Most claimed MCP benefits erode under scrutiny against a good CLI:
 | Structured returns | `--json` solves this. |
 | LLM-friendly descriptions | Well-written `--help` and command docstrings work fine. |
 | Server-side cursor state | `--since <cursor>` from the last event the agent saw, or a `~/.config/inspect/cursors/` file. |
-| Per-tool permissions | Claude Code's Bash allowlist (`inspect cancel*` vs `inspect ls`) covers most of the granularity gap. |
-| Tool discovery | `inspect --help` is enumerable; agents read it natively. |
+| Per-tool permissions | Claude Code's Bash allowlist (`inspect ctl cancel*` vs `inspect ctl ls`) covers most of the granularity gap. |
+| Tool discovery | `inspect ctl --help` is enumerable; agents read it natively. |
 
-Costs of building / maintaining an MCP wrapper, on the other hand, are real: extra process to spawn / configure / debug, second surface to keep in lockstep with the CLI, two vocabularies (`inspect_list_evals` vs `inspect ls`) for the same operations, failure modes invisible to the user.
+Costs of building / maintaining an MCP wrapper, on the other hand, are real: extra process to spawn / configure / debug, second surface to keep in lockstep with the CLI, two vocabularies (`inspect_list_evals` vs `inspect ctl ls`) for the same operations, failure modes invisible to the user.
 
 If we ever build it, the JSON output schemas already in place make the MCP wrapper incremental rather than a parallel surface — the schemas are the same artifact.
 
@@ -340,9 +353,9 @@ Each is a small surgical addition to the eval runner; the control channel is the
 Phased plan, with HTTP/H1 as the chosen wire:
 
 1. **`EvalState` aggregate + read-only HTTP endpoint.** Add a lightweight `EvalState` container in the eval runner (queued / in-flight / completed counts, model usage rollup, started_at) updated at sample lifecycle transitions — per-sample state already lives in `ActiveSample` and is always-on. Bind a FastAPI server on AF_UNIX (default) with a TCP fallback flag; write the discovery file. Implement `GET /evals`, `GET /evals/<id>`, `GET /evals/<id>/samples` (summary), `GET /evals/<id>/samples/<sid>`. Loopback-only by default; no auth surface yet.
-2. **`inspect ls` / `inspect status` CLI with `--json` from day one.** Validates discovery + read path end-to-end before adding write paths. JSON output is a first-class mode, not an afterthought — the response schema is the canonical shape and human-formatted output is a rendering of it. This phase makes the CLI usable by both human operators and shell-capable agents (Claude Code via Bash).
-3. **`POST /evals/<id>/cancel` + `inspect cancel` CLI.** First directive. Idempotent and supporting `?dry_run=true` / `--dry-run` from day one.
-4. **Eval event SSE stream + cursored pull endpoint.** Push (SSE) for TUIs at `GET /evals/<id>/events`; pull (cursored JSON) for agents at `GET /evals/<id>/events?since=<cursor>`. CLI helper: `inspect events <id> --since <cursor> --json`. Unlocks watchdog agents.
+2. **`inspect ctl ls` / `inspect ctl status` CLI with `--json` from day one.** Validates discovery + read path end-to-end before adding write paths. JSON output is a first-class mode, not an afterthought — the response schema is the canonical shape and human-formatted output is a rendering of it. This phase makes the CLI usable by both human operators and shell-capable agents (Claude Code via Bash). Establishes the `inspect ctl` subcommand group (`inspect ctl --help` shows the surface from day one).
+3. **`POST /evals/<id>/cancel` + `inspect ctl cancel` CLI.** First directive. Idempotent and supporting `?dry_run=true` / `--dry-run` from day one.
+4. **Eval event SSE stream + cursored pull endpoint.** Push (SSE) for TUIs at `GET /evals/<id>/events`; pull (cursored JSON) for agents at `GET /evals/<id>/events?since=<cursor>`. CLI helper: `inspect ctl events <id> --since <cursor> --json`. Unlocks watchdog agents.
 5. **TUI separation** — `inspect tui` as a standalone client (HTTP client of the control endpoint, plus an ACP client of the ACP socket for per-sample drill-down). Largest piece; depends on the read + event-stream surfaces being in place.
 6. **Modify-limits / drain / requeue.** Bigger eval-runner changes.
 7. **Eval-set scope** — server lifecycle hoisted to the parent process; eval-set-level `EvalSetState` aggregate designed from scratch (doesn't exist today); `GET /eval-sets`, `GET /eval-sets/<id>`, `POST /eval-sets/<id>/cancel`, eval-set event streams.
@@ -363,7 +376,7 @@ The original "obvious" choice given the existing ACP socket also speaks JSON-RPC
 
 **Why we didn't pick it:**
 
-- **CLI ergonomics are poor.** `inspect cancel <id>` needs a JSON-RPC client wrapper; no `curl` story; harder to script ad-hoc.
+- **CLI ergonomics are poor.** `inspect ctl cancel <id>` needs a JSON-RPC client wrapper; no `curl` story; harder to script ad-hoc.
 - **No off-the-shelf tooling.** Browsers can't speak it; no Postman equivalent; cross-language client ecosystem is narrow.
 - **Coupling temptation.** Sharing or echoing the ACP socket's module / process layout makes it easy to drift back into "the control channel is an ACP extension" — exactly the framing we rejected up front.
 - **Doesn't evolve toward a web UI.** A future browser-based dashboard would need a JSON-RPC↔HTTP gateway.
@@ -403,4 +416,4 @@ The control channel is one slice of a broader effort to make Inspect a first-cla
 - **Self-targeting guard hardening.** Open question #8 in this doc — an LLM agent running *inside* an eval shouldn't be able to control its own parent eval. The guard logically belongs in the control channel's bind / authorisation layer, but the broader story (sandbox network egress, capability gating, eval-time vs scaffold-time boundaries) is part of the larger agent-enablement effort.
 - **"Using Inspect from an LLM agent" documentation.** A guide that walks through the full workflow (launch, monitor, manage, inspect, compare, iterate) and points at every relevant CLI command. Lives in `docs/`, not `design/`.
 
-Where this doc's design touches one of those surfaces (eg. the `EvalState` model that powers `inspect ls`), we describe what the control channel does and reference the broader work for the surrounding context.
+Where this doc's design touches one of those surfaces (eg. the `EvalState` model that powers `inspect ctl ls`), we describe what the control channel does and reference the broader work for the surrounding context.
