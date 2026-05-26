@@ -165,8 +165,8 @@ def test_openai_responses_structured_output_pydantic():
 
 @skip_if_no_google
 def test_google_structured_output():
-    check_color_structured_output("google/gemini-3.1-flash-lite-preview")
-    check_nested_pydantic_output("google/gemini-3.1-flash-lite-preview")
+    check_color_structured_output("google/gemini-3.1-flash-lite")
+    check_nested_pydantic_output("google/gemini-3.1-flash-lite")
 
 
 @pytest.mark.flaky
