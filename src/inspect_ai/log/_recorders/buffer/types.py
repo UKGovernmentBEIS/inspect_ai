@@ -1,11 +1,15 @@
 import abc
-from typing import Literal, TypeAlias
+from contextlib import AbstractContextManager
+from typing import TYPE_CHECKING, Literal, TypeAlias
 
 from pydantic import BaseModel, JsonValue
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 
 from ..._log import EvalSampleSummary
+
+if TYPE_CHECKING:
+    from .history import SampleHistory
 
 JsonData: TypeAlias = dict[str, JsonValue]
 
@@ -121,6 +125,40 @@ class SampleBuffer(abc.ABC):
           - `SampleData` with event, attachment, and pool data.
           - None if the database no longer exists
         """
+        ...
+
+    @abc.abstractmethod
+    def sample_event_count(self, id: str | int, epoch: int) -> int:
+        """Return the number of distinct events recorded for a sample."""
+        ...
+
+    @abc.abstractmethod
+    def open_sample_history_tail(
+        self,
+        id: str | int,
+        epoch: int,
+        n: int,
+    ) -> AbstractContextManager["SampleHistory"]:
+        """Open a consistent snapshot of the last ``n`` sample events."""
+        ...
+
+    @abc.abstractmethod
+    def open_sample_history_from(
+        self,
+        id: str | int,
+        epoch: int,
+        start: int,
+    ) -> AbstractContextManager["SampleHistory"]:
+        """Open a consistent sample-history snapshot from ``start`` onward."""
+        ...
+
+    @abc.abstractmethod
+    def open_sample_history(
+        self,
+        id: str | int,
+        epoch: int,
+    ) -> AbstractContextManager["SampleHistory"]:
+        """Open a consistent snapshot of the full sample history."""
         ...
 
     @abc.abstractmethod

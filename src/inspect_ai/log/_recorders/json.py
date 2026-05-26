@@ -30,7 +30,7 @@ from .._log import (
     EvalStatus,
     sort_samples,
 )
-from .._pool import rebind_sample_timelines, resolve_sample_events_data
+from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3_conditional
 from .file import FileRecorder
 
