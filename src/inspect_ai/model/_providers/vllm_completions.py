@@ -51,6 +51,17 @@ class VLLMCompletionsAPI(VLLMAPI):
 
         model = get_model("vllm-completions/EleutherAI/pythia-70m", device=0)
         response = await model.generate(input=[ChatMessageUser(content="Hello")])
+
+    Pre-tokenized prompts (skip the round-trip through string)::
+
+        token_ids = my_custom_tokenizer.encode("Hello")
+        response = await model.generate(
+            input=[ChatMessageUser(content="", metadata={"prompt_token_ids": token_ids})]
+        )
+
+    vLLM's ``/v1/completions`` uses ``list[int]`` prompts verbatim — special
+    tokens are not added regardless of the ``add_special_tokens`` flag, so
+    pre-tokenized prompts pass through exactly as supplied.
     """
 
     @override
@@ -61,11 +72,8 @@ class VLLMCompletionsAPI(VLLMAPI):
         tool_choice: ToolChoice,
         config: GenerateConfig,
     ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
-        await self._ensure_server_started()
-
-        # Extract raw text from input messages.
-        # /v1/completions takes a string prompt — validate that the input
-        # is a single user message (the normal case for perplexity evals
+        # Validate input shape: /v1/completions takes a single prompt, so we
+        # require a single user message (the normal case for perplexity evals
         # where Sample.input is a plain string).
         if len(input) != 1 or input[0].role != "user":
             raise TypeError(
@@ -73,9 +81,34 @@ class VLLMCompletionsAPI(VLLMAPI):
                 "The /v1/completions endpoint sends raw text — multi-message "
                 "or multi-role inputs are not supported. Use Sample(input='text')."
             )
-        prompt = input[0].text
-        if not prompt:
-            raise ValueError("vllm-completions: input message has no text content.")
+
+        # Resolve prompt: pre-tokenized IDs in metadata take precedence over
+        # message text. /v1/completions accepts both `str` and `list[int]`.
+        metadata = input[0].metadata or {}
+        prompt_token_ids = metadata.get("prompt_token_ids")
+        prompt: str | list[int]
+        if prompt_token_ids is not None:
+            if not isinstance(prompt_token_ids, list) or not all(
+                isinstance(t, int) for t in prompt_token_ids
+            ):
+                raise TypeError(
+                    "vllm-completions: metadata['prompt_token_ids'] must be a "
+                    "list[int]."
+                )
+            if not prompt_token_ids:
+                raise ValueError(
+                    "vllm-completions: metadata['prompt_token_ids'] is empty."
+                )
+            prompt = prompt_token_ids
+        else:
+            prompt = input[0].text
+            if not prompt:
+                raise ValueError(
+                    "vllm-completions: input message has no text content "
+                    "and no metadata['prompt_token_ids']."
+                )
+
+        await self._ensure_server_started()
 
         # Build request parameters. Same precedence as the chat completions
         # path (openai_chat_completion_params in _openai.py): user extra_body
