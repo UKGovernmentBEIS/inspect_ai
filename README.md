@@ -8,6 +8,8 @@ To get started with Inspect, please see the documentation at <https://inspect.ai
 
 Inspect also includes a collection of over 200 pre-built evaluations ready to run on any model (learn more at <https://inspect.aisi.org.uk/evals/>).
 
+> Coding agents: a structured index of the docs is published at <https://inspect.aisi.org.uk/llms.txt>. The user guide is concatenated as Markdown at <https://inspect.aisi.org.uk/llms-guide.txt>, and <https://inspect.aisi.org.uk/llms-full.txt> additionally bundles the API and CLI reference. Individual pages are available as Markdown by appending `.md` to the `.html` path (e.g. `/extensions/index.html.md`).
+
 ***
 
 To work on development of Inspect, clone the repository and install with the `-e` flag and `[dev]` optional dependencies:

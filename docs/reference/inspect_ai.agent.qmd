@@ -39,11 +39,11 @@ description: Agent scaffolds and protocol.
 ### remove_tools
 ### MessageFilter
 
-## Intervention
+## Channel
 
-### acp_session
-### AcpSession
-### TurnCancelled
+### agent_channel
+### AgentChannel
+### AgentInterrupted
 
 ## Protocol
 

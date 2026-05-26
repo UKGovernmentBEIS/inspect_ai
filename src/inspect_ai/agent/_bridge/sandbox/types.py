@@ -1,7 +1,7 @@
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.model._compaction.types import CompactionStrategy
-from inspect_ai.model._model import GenerateFilter, Model
+from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
 from inspect_ai.tool import Tool
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
 
@@ -20,6 +20,7 @@ class SandboxAgentBridge(AgentBridge):
         model_aliases: dict[str, str | Model] | None = None,
         mcp_server_configs: list[MCPServerConfigHTTP] | None = None,
         bridged_tools: dict[str, dict[str, Tool]] | None = None,
+        model_event_sink: ModelEventSink | None = None,
     ) -> None:
         super().__init__(
             state,
@@ -28,6 +29,7 @@ class SandboxAgentBridge(AgentBridge):
             compaction,
             model=model,
             model_aliases=model_aliases,
+            model_event_sink=model_event_sink,
         )
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []

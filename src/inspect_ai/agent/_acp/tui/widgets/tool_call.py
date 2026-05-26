@@ -144,9 +144,20 @@ class ToolCallWidget(Widget):
     ToolCallWidget #approval-area { height: auto; }
     """
 
-    def __init__(self, state: ToolCallState) -> None:
+    def __init__(self, state: ToolCallState, *, defer_body: bool = False) -> None:
         super().__init__()
         self._state = state
+        # When True, the body is held back even if ``state.content``
+        # is populated. Set by :class:`TranscriptWidget` whenever ANY
+        # OTHER tool is still actively running — covers both the
+        # in-flight call-view (e.g. the bash command preview, a custom
+        # viewer's input lookup) and the terminal result body. Under
+        # parallel execution every card collapses to its single-line
+        # header so the operator's eye stays on the in-flight set
+        # rather than being pulled to one tool's body that jutted out
+        # past its peers. Reveals all-at-once when the last sibling
+        # settles.
+        self._defer_body = defer_body
         # In-flight spinner frame, advanced by ``tick_duration``. Same
         # cadence as the assistant chip spinner (driven by the
         # SessionScreen's periodic timer).
@@ -158,11 +169,24 @@ class ToolCallWidget(Widget):
         self._mounted_header = self._header_text()
         self._mounted_status = self._state.status
         self._mounted_kind: str = "plan" if self._is_plan_state() else "content"
-        self._mounted_item_sigs: list[tuple[Any, ...]] = self._compute_item_sigs()
+        # When the body is deferred, mounted_item_sigs reflects the
+        # empty body that's actually mounted — NOT the items we're
+        # holding back. The first un-defer pass then sees a delta
+        # vs the (now visible) content and rebuilds wholesale. Without
+        # this, the un-defer transition would see "no changes" and
+        # leave the body empty.
+        self._mounted_item_sigs: list[tuple[Any, ...]] = (
+            [] if self._defer_body else self._compute_item_sigs()
+        )
         # Tracks whether the approval section is currently mounted in
         # the approval-area. Diff against this in update_state to
         # mount/unmount minimally as ``pending_approval`` toggles.
         self._mounted_has_pending: bool = self._state.pending_approval is not None
+        # Mirror of ``_defer_body`` at the last refresh — the empty-body
+        # CSS class is derived from ``_has_visible_body()`` which folds
+        # in defer state, so a defer→un-defer flip with no status change
+        # would otherwise leave a stale ``empty-body`` class on the card.
+        self._mounted_defer_body = self._defer_body
         self._refresh_status_class()
 
     # ------------------------------------------------------------------
@@ -177,8 +201,15 @@ class ToolCallWidget(Widget):
         # ``_update_approval_area_if_changed`` — starts empty.
         with Vertical(id="approval-area"):
             yield from self._compose_approval_area()
+        # Body is gated on ``_defer_body``: when the widget mounts in a
+        # deferred state (e.g. another tool is still running while this
+        # one starts up, or a reconnect / replay landing mid-parallel-
+        # batch), the body Vertical mounts empty; the next
+        # ``update_state`` with ``defer_body=False`` rebuilds it
+        # wholesale.
         with Vertical(classes="body"):
-            yield from self._compose_body()
+            if not self._defer_body:
+                yield from self._compose_body()
 
     def _refresh_status_class(self) -> None:
         for cls in ("in-flight", "completed", "failed"):
@@ -216,9 +247,15 @@ class ToolCallWidget(Widget):
         flight card that hasn't produced any output yet — that's the
         case where the header's ``padding-bottom: 1`` stacks with the
         widget's own bottom padding for a 2-row trailing gap.
+
+        Returns False while ``_defer_body`` is set: even though the
+        underlying state has content, we're not mounting it yet, so the
+        card visually IS an empty-body card (same trailing-gap regime).
         """
         if self._state.pending_approval is not None:
             return True
+        if self._defer_body:
+            return False
         if self._state.content:
             return True
         if self._is_plan_state():
@@ -252,7 +289,7 @@ class ToolCallWidget(Widget):
     # State update — diff mounted vs. incoming and apply minimal patch
     # ------------------------------------------------------------------
 
-    def update_state(self, state: ToolCallState) -> None:
+    def update_state(self, state: ToolCallState, *, defer_body: bool = False) -> None:
         """Re-bind to (possibly mutated) state and apply minimal updates.
 
         Critical for live visual quality: a wholesale-rebuild on every
@@ -268,12 +305,42 @@ class ToolCallWidget(Widget):
           change, pick exactly one of: wholesale rebuild, extend last
           item in place, or append-only mount. Fall back to wholesale
           rebuild when the diff doesn't fit those shapes.
+
+        ``defer_body``: when True, suppress body mounting entirely —
+        the body stays at whatever shape was last mounted (typically
+        empty, since the gate is asserted by ``TranscriptWidget`` from
+        the moment ANY other tool is running in parallel, covering
+        both the call-view preview and the terminal result body).
+        When the gate flips back to False (the last sibling settled),
+        this method gets called again and the standard diff path
+        mounts the held-back content.
+
+        Defensive False→True transition: if a body was already mounted
+        (e.g. the call-view was visible at start, then a sibling tool
+        landed and formed a parallel batch), tear the mounted body
+        down and reset the mounted sigs to ``[]``. The next un-defer
+        pass then takes the simple append-only path. Without this
+        clear, the stale body would stay visible while the gate said
+        to hide it.
         """
+        was_deferred = self._mounted_defer_body
         self._state = state
+        self._defer_body = defer_body
 
         self._update_status_class_if_changed()
         self._update_header_if_changed()
         self._update_approval_area_if_changed()
+
+        if self._defer_body:
+            if not was_deferred:
+                try:
+                    body = self.query_one(".body", Vertical)
+                    for child in list(body.children):
+                        child.remove()
+                except NoMatches:
+                    pass
+                self._mounted_item_sigs = []
+            return
 
         if not self._body_changed():
             return
@@ -305,9 +372,21 @@ class ToolCallWidget(Widget):
     # ------------------------------------------------------------------
 
     def _update_status_class_if_changed(self) -> None:
-        if self._state.status != self._mounted_status:
+        # Either path triggers a class refresh: status drives the
+        # in-flight/completed/failed class, ``_defer_body`` drives
+        # ``empty-body`` via ``_has_visible_body()``. Without the
+        # defer-body branch, a parallel-sibling reveal (status stays
+        # ``completed``, defer flips False) would mount the body but
+        # leave the stale ``empty-body`` class on the card, pinning the
+        # header's bottom padding to zero and visually clipping the
+        # newly-revealed body against the header row.
+        if (
+            self._state.status != self._mounted_status
+            or self._defer_body != self._mounted_defer_body
+        ):
             self._refresh_status_class()
             self._mounted_status = self._state.status
+            self._mounted_defer_body = self._defer_body
 
     def _update_header_if_changed(self) -> None:
         new_header = self._header_text()

@@ -165,6 +165,9 @@ def _resolve_base_scanner(
     # Python file with @scanner-decorated functions (optionally @func)
     file_part = scanner.split("@", 1)[0]
     if file_part.endswith(".py") and Path(file_part).exists():
+        from inspect_ai._eval.task.scan import verify_scout_prerequisites
+
+        verify_scout_prerequisites()
         from inspect_scout._scanner.scanner import scanners_from_file
 
         scanners = scanners_from_file(scanner, args)
@@ -176,6 +179,9 @@ def _resolve_base_scanner(
 
     # Registry reference (e.g. "pkg/scanner_name")
     if "/" in scanner and registry_lookup("scanner", scanner) is not None:
+        from inspect_ai._eval.task.scan import verify_scout_prerequisites
+
+        verify_scout_prerequisites()
         from inspect_scout._scanner.scanner import scanner_create
 
         return [scanner_create(scanner, args)]

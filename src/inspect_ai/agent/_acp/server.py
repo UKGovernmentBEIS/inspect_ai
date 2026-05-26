@@ -260,7 +260,7 @@ class AcpServer:
             # :meth:`Forwarders.stop`), which gives the semantic
             # forwarder a chance to send ``inspect/session_ended``
             # while the connection is still alive. On the
-            # end-of-eval path :meth:`LiveAcpSession.finalize` has
+            # end-of-eval path :meth:`LiveAcpTransport.finalize` has
             # already closed pubsub by the time we get here, so the
             # forwarder is racing to send that final notification —
             # closing the connection first (pre-Phase-7-hardening
