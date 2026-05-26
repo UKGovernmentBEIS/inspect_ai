@@ -206,14 +206,21 @@ class OpenAIAPI(ModelAPI):
         if self.is_bedrock():
             self.aws_region = resolve_bedrock_region(model_args.pop("aws_region", None))
 
-        # resolve api_key, managed identity (Azure), or AWS credentials (Bedrock)
-        self.token_provider = None
+        # resolve api_key, explicit Azure AD auth, managed identity (Azure),
+        # or AWS credentials (Bedrock)
+        self.token_provider = (
+            model_args.pop("azure_ad_token_provider", None) if self.is_azure() else None
+        )
+        has_azure_ad_token = (
+            self.is_azure() and model_args.get("azure_ad_token") is not None
+        )
+        has_azure_ad_auth = has_azure_ad_token or self.token_provider is not None
         if not self.api_key:
             if self.is_azure():
                 self.api_key = resolve_api_key(
                     [AZUREAI_OPENAI_API_KEY, AZURE_OPENAI_API_KEY]
                 )
-                if not self.api_key:
+                if not self.api_key and not has_azure_ad_auth:
                     # try managed identity (Microsoft Entra ID)
                     self.token_provider = resolve_azure_token_provider("OpenAI")
             elif self.is_bedrock():
@@ -228,7 +235,7 @@ class OpenAIAPI(ModelAPI):
             else:
                 self.api_key = os.environ.get(OPENAI_API_KEY, None)
 
-            if not self.api_key and not self.token_provider:
+            if not self.api_key and not self.token_provider and not has_azure_ad_token:
                 raise environment_prerequisite_error(
                     "OpenAI",
                     [
