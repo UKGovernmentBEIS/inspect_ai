@@ -726,8 +726,22 @@ class AnthropicAPI(ModelAPI):
 
         if continuation_required:
             tail_request = dict(request)
+            # Strip `citations` from each content block before echoing
+            # head_message.content back as input. Anthropic's response models
+            # have `extra='allow'`, so web_fetch_tool_result and similar
+            # response blocks carry `citations` fields on the way in but the
+            # API rejects them as "Extra inputs are not permitted" on the
+            # way back out. See `_drop_citations` below.
+            tail_head_content = [
+                _drop_citations(
+                    block.model_dump(exclude_none=True)
+                    if hasattr(block, "model_dump")
+                    else dict(block)
+                )
+                for block in head_message.content
+            ]
             tail_request["messages"] = request["messages"] + [
-                MessageParam(role=head_message.role, content=head_message.content)
+                MessageParam(role=head_message.role, content=tail_head_content)
             ]
             _, tail_model_output = await self._perform_request_and_continuations(
                 tail_request,
@@ -1961,6 +1975,35 @@ def _strip_text_block_citations(block: MessageBlockParam) -> MessageBlockParam:
         block = cast(TextBlockParam | DocumentBlockParam, block.copy())
         del block["citations"]
     return block
+
+
+def _drop_citations(obj: Any) -> Any:
+    """Recursively remove every ``citations`` key from a dict/list structure.
+
+    Anthropic's response models for tool result blocks
+    (``BetaWebFetchToolResultBlock``, ``BetaWebFetchBlock``, ...) are
+    configured with ``extra='allow'``, so any extra fields the API returns
+    — ``citations`` among them, despite not being declared on the model —
+    round-trip through ``model_dump(exclude_none=True)``. When the block is
+    then replayed as input on a subsequent ``/v1/messages`` request, the
+    API rejects the extra field with::
+
+      {"type": "invalid_request_error",
+       "message": "messages.N.content.M.web_fetch_tool_result.citations:
+                   Extra inputs are not permitted"}
+
+    Recursive because the field has been observed at the outer block level
+    AND nested inside ``content`` on successful fetches. Mutates ``obj``
+    in place and returns it for convenience.
+    """
+    if isinstance(obj, dict):
+        obj.pop("citations", None)
+        for v in obj.values():
+            _drop_citations(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            _drop_citations(v)
+    return obj
 
 
 async def assistant_message_blocks(
