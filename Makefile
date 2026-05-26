@@ -20,4 +20,8 @@ check: ruff mypy
 test:
 	pytest
 
+.PHONY: test-parallel
+test-parallel:
+	pytest -n auto
+
 include docs/evals/inspect-evals.mk

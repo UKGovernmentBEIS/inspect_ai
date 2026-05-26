@@ -16,6 +16,7 @@ include-after-body:
 aliases:
   - /examples.html
   - /examples/index.html
+llms-script: llms.py
 ---
 
 ::: {.content-visible when-format="html"}

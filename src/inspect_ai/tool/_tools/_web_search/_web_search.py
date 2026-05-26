@@ -102,7 +102,7 @@ class WebSearchDeprecatedArgs(TypedDict, total=False):
     model: str | None
 
 
-@tool
+@tool(parallel=True)
 def web_search(
     providers: WebSearchProvider
     | WebSearchProviders

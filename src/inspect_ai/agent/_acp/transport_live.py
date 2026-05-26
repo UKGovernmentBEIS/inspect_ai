@@ -1,14 +1,14 @@
-"""Live (active) AcpSession implementation + composed helpers.
+"""Live (active) AcpTransport implementation + composed helpers.
 
-Six helper classes own cohesive slices of ``LiveAcpSession``'s state
+Six helper classes own cohesive slices of ``LiveAcpTransport``'s state
 machine: fan-out subscriber bookkeeping, the user-message queue, the
 interrupt-pending state machine, transcript capture, turn-cancel
-snapshotting, and the approver-client registry. ``LiveAcpSession``
+snapshotting, and the approver-client registry. ``LiveAcpTransport``
 composes these and delegates its Protocol methods through. The split
 exists for cognitive load — each cluster has enough internal detail to
 read more clearly as a named object than as scattered fields.
 
-Sub-agent filtering is a single bool kept inline on ``LiveAcpSession``
+Sub-agent filtering is a single bool kept inline on ``LiveAcpTransport``
 (``_filter_subagent_events``) — not worth its own helper class.
 """
 
@@ -33,26 +33,22 @@ from anyio.streams.memory import (
 )
 from shortuuid import uuid
 
-from inspect_ai._util.content import Content, ContentText
 from inspect_ai.agent._acp._guards import acp_guard
-from inspect_ai.agent._acp.session import (
+from inspect_ai.agent._acp.transport import (
     _SUBSCRIBER_BUFFER_SIZE,
-    AcpSession,
+    AcpTransport,
     AcpUpdate,
     ApproverClient,
-    TurnCancelled,
 )
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import (
-    ChatMessage,
-    ChatMessageAssistant,
-    ChatMessageTool,
     ChatMessageUser,
 )
 from inspect_ai.tool._tool_call import ToolCallError
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
+    from inspect_ai.agent._channel import AgentChannel, AgentRef
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._transcript import Transcript
@@ -61,7 +57,7 @@ logger = getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# LiveAcpSession internal helpers
+# LiveAcpTransport internal helpers
 # ---------------------------------------------------------------------------
 
 
@@ -129,117 +125,6 @@ class _PubSubBus:
         for send, _ in self._subscribers:
             send.close()
         self._subscribers.clear()
-
-
-_COALESCED_OPERATOR_SEPARATOR = "\n\n"
-"""Separator joining text content across coalesced operator messages.
-
-Paragraph break ⇒ markdown-friendly and unambiguous to every model
-(reads as "two distinct paragraphs from the same speaker" rather than
-running the sentences together). See :func:`_coalesce_operator_messages`.
-"""
-
-
-def _coalesce_operator_messages(
-    messages: list[ChatMessageUser],
-) -> list[ChatMessageUser]:
-    r"""Merge consecutive operator-source messages into a single message.
-
-    When the operator queues N sends while the agent is busy, the
-    drained list would otherwise produce N consecutive
-    :class:`ChatMessageUser` turns in ``state.messages``. The model
-    then sees a degenerate conversation shape — multiple user turns
-    before its next assistant turn — that providers handle
-    inconsistently. Coalescing into one merged user message restores
-    standard alternating user/assistant flow.
-
-    Returns the input unchanged in the trivial cases (single message,
-    or any non-operator source mixed in — defensive guard, all callers
-    flow through :meth:`LiveAcpSession.submit_user_message` which
-    normalizes ``source="operator"``).
-
-    Text-only fast path: when every message has ``content: str``, join
-    them with ``\\n\\n``.
-
-    Mixed-modal path: when any message has ``content: list[Content]``,
-    flatten into one content list — string contents become a leading
-    :class:`ContentText` block, list contents contribute their items
-    in arrival order. Preserves all data (no silent drop of images /
-    other non-text blocks).
-
-    Per-message ``.id`` and ``.metadata`` are intentionally lost
-    (replaced by one fresh id + None metadata on the merged message).
-    The downstream :func:`event_mapping._map_input_messages` dedup
-    keys on message id, so one merged message ⇒ one
-    :class:`UserMessageChunk` emitted to clients — exactly what the
-    TUI's single-growing-ephemeral display expects.
-    """
-    if len(messages) <= 1:
-        return messages
-    if not all(m.source == "operator" for m in messages):
-        return messages
-    if all(isinstance(m.content, str) for m in messages):
-        merged_text = _COALESCED_OPERATOR_SEPARATOR.join(
-            m.content for m in messages if isinstance(m.content, str)
-        )
-        return [ChatMessageUser(content=merged_text, source="operator")]
-    blocks: list[Content] = []
-    for m in messages:
-        if isinstance(m.content, str):
-            blocks.append(ContentText(text=m.content))
-        else:
-            blocks.extend(m.content)
-    return [ChatMessageUser(content=blocks, source="operator")]
-
-
-class _UserMessageQueue:
-    """Operator-injected user messages awaiting drain by the agent loop.
-
-    Two drain semantics:
-    - ``drain_initial`` — first ``before_turn`` call; blocks only if
-      ``messages`` has no user content yet (covers the "no dataset
-      prompt, operator types the first message" case). Subsequent
-      ``before_turn`` calls also route through here, drain immediately.
-    - ``drain_blocking`` — ``after_cancel`` call; always blocks until at
-      least one message is queued, then drains.
-
-    The event is recreated after each drain so a stale ``set()`` from
-    a fired-then-drained message doesn't trigger a no-op wake on the
-    next wait.
-    """
-
-    def __init__(self) -> None:
-        self._messages: list[ChatMessageUser] = []
-        self._event = anyio.Event()
-        self._first_drain_handled = False
-
-    def enqueue(self, msg: ChatMessageUser) -> None:
-        self._messages.append(msg)
-        self._event.set()
-
-    async def drain_initial(
-        self, messages: Sequence[ChatMessage]
-    ) -> list[ChatMessageUser]:
-        if not self._first_drain_handled:
-            self._first_drain_handled = True
-            if not any(isinstance(m, ChatMessageUser) for m in messages):
-                while not self._messages:
-                    evt = self._event
-                    await evt.wait()
-        return self._drain()
-
-    async def drain_blocking(self) -> list[ChatMessageUser]:
-        if not self._messages:
-            while not self._messages:
-                evt = self._event
-                await evt.wait()
-        return self._drain()
-
-    def _drain(self) -> list[ChatMessageUser]:
-        drained = list(self._messages)
-        self._messages.clear()
-        self._event = anyio.Event()
-        return drained
 
 
 class _InterruptCoordinator:
@@ -326,7 +211,7 @@ class _TranscriptCapture:
     contexts.
 
     Falls back to ``transcript()`` when ``capture()`` wasn't called —
-    tests construct a bare ``LiveAcpSession`` and set the ContextVar
+    tests construct a bare ``LiveAcpTransport`` and set the ContextVar
     directly, and the fallback supports them.
 
     Also owns ``attach_index``: the transcript event count at the moment
@@ -412,46 +297,25 @@ class _CancelSnapshot:
 
 
 class _TurnCancelMachinery:
-    """Per-turn cancel scope + in-flight tool/model tracking.
+    """In-flight tool/model tracking and ``InterruptEvent`` snapshotting.
 
     Bundles the state that ``cancel_current_turn`` consults when a
     client cancel arrives from a sibling task: which tool call (if any)
-    is mid-execution, which ModelEvent (if any) is mid-generation, and
-    the live ``CancelScope`` to cancel. Also snapshots the in-flight
-    tool ids at cancel time so ``after_cancel`` can synthesize repair
-    messages when no ``state.messages`` is provided.
+    is mid-execution and which ModelEvent (if any) is mid-generation.
+    The cancellation primitive itself lives on the agent's
+    :class:`~inspect_ai.agent.AgentChannel`; this class only owns the
+    ACP-specific telemetry the wire/log layers need.
     """
 
     def __init__(self) -> None:
-        self._turn_cancel_scope: anyio.CancelScope | None = None
-        # Discriminates a client-driven cancel (we cancelled the scope)
-        # from a sample-level cancel propagating from outside.
-        self._pending_turn_cancel: bool = False
         self._in_flight_tool_calls: list[str] = []
         # Tool events keyed by id so cancel can clear ``pending=True``
         # (otherwise the transcript shows cancelled tool rows as
         # in-flight forever).
         self._in_flight_tool_events: dict[str, ToolEvent] = {}
-        # Snapshot at cancel time; ``after_cancel`` consumes when called
-        # without ``state.messages``.
-        self._cancelled_tool_call_ids: list[str] = []
         # In-flight model call. Stored here (not in a ContextVar) so a
         # sibling transport task firing a cancel can read it.
         self._active_model_event: ModelEvent | None = None
-
-    @contextlib.contextmanager
-    def turn_scope(self) -> Iterator[None]:
-        self._pending_turn_cancel = False
-        self._cancelled_tool_call_ids.clear()
-        with anyio.CancelScope() as scope:
-            self._turn_cancel_scope = scope
-            try:
-                yield
-            finally:
-                self._turn_cancel_scope = None
-        if scope.cancelled_caught and self._pending_turn_cancel:
-            self._pending_turn_cancel = False
-            raise TurnCancelled()
 
     @contextlib.contextmanager
     def track_tool_call(
@@ -568,21 +432,6 @@ class _TurnCancelMachinery:
             interrupted_model_event_id=interrupted_model_event_id,
             cancelled_events=cancelled_events,
         )
-
-    def request_cancel(self) -> bool:
-        """Cancel the active turn scope. Returns True iff a turn was active."""
-        if self._turn_cancel_scope is not None:
-            self._pending_turn_cancel = True
-            self._turn_cancel_scope.cancel()
-            return True
-        return False
-
-    @property
-    def cancelled_tool_call_ids(self) -> list[str]:
-        return self._cancelled_tool_call_ids
-
-    def clear_cancelled_tool_ids(self) -> None:
-        self._cancelled_tool_call_ids.clear()
 
 
 class _ApproverClientRegistry:
@@ -793,11 +642,11 @@ class _ApproverClientRegistry:
 
 
 # ---------------------------------------------------------------------------
-# LiveAcpSession
+# LiveAcpTransport
 # ---------------------------------------------------------------------------
 
 
-class LiveAcpSession:
+class LiveAcpTransport:
     """Active ACP session: owns the in-process pub/sub bus.
 
     Installed by :func:`acp_session` as the outermost ACP scope in a
@@ -808,7 +657,6 @@ class LiveAcpSession:
     def __init__(self) -> None:
         self._session_id: str = uuid()
         self._pubsub = _PubSubBus()
-        self._user_messages = _UserMessageQueue()
         self._interrupt = _InterruptCoordinator()
         self._transcript_capture = _TranscriptCapture()
         self._turn_cancel = _TurnCancelMachinery()
@@ -831,13 +679,108 @@ class LiveAcpSession:
         # later (called from ``active_sample().__aexit__``).
         self._agent_completed: bool = False
         self._finalized: bool = False
+        # AgentRef captured at react() entry via :meth:`maybe_bind` so
+        # producer-side intervention (``submit_user_message`` /
+        # ``cancel_current_turn``) routes into the agent's channel.
+        # First-binder-wins per active top-level react; cleared by
+        # :meth:`unbind`; rebindable by a successor react.
+        self._ref: "AgentRef | None" = None
+        # Unsubscribe handle for the channel drain observer registered
+        # during :meth:`maybe_bind`. Stored so :meth:`unbind` can drop
+        # the subscription cleanly; ``None`` when not currently bound.
+        self._unsubscribe_drained: Callable[[], None] | None = None
+        # Test-only override for :attr:`is_attachable`. Production code
+        # leaves this at ``None`` (the property derives from ``_ref`` +
+        # ``_agent_completed``). Test fixtures that hand-wire a session
+        # without going through the real bind flow can set this to
+        # ``True`` to make the picker treat the session as attachable.
+        self._attachable_override: bool | None = None
 
     @property
     def session_id(self) -> str:
         """Opaque, stable identifier minted at construction (shortuuid)."""
         return self._session_id
 
-    async def __aenter__(self) -> AcpSession:
+    @property
+    def ref(self) -> "AgentRef | None":
+        """Currently-bound :class:`AgentRef`, or ``None``."""
+        return self._ref
+
+    @property
+    def is_attachable(self) -> bool:
+        """True iff a channel is bound and the agent loop is still live.
+
+        Returns False (a) before the first :meth:`maybe_bind` (sample
+        setup window) and (b) after :meth:`finalize` has marked the
+        transport agent-completed (scoring window). Either state means
+        the session can't actually drive an agent loop and shouldn't
+        show up in pickers.
+
+        Tests that exercise picker/forwarding behavior without going
+        through the real bind flow can set
+        :attr:`_attachable_override` to True to flag a hand-wired
+        session as attachable. Production paths leave it at the
+        default (``None`` → derived from ``_ref`` + ``_agent_completed``).
+        """
+        if self._attachable_override is not None:
+            return self._attachable_override
+        return self._ref is not None and not self._agent_completed
+
+    def maybe_bind(self, channel: "AgentChannel", ref: "AgentRef") -> bool:
+        """Accept the (channel, ref) pair as the active producer target if none is bound.
+
+        Returns True iff this call became the binder. Subsequent
+        :meth:`maybe_bind` calls return False until :meth:`unbind` clears
+        the slot — this is what makes ACP attach to the top-level react()
+        only: a nested sub-agent's bind attempt sees the outer's ref still
+        present and is rejected.
+
+        On accept, also subscribes to ``channel.subscribe_drained`` so
+        the transport learns when its queued :class:`UserMessage` items
+        reach the consumer. This is what lets ``interrupt_pending``
+        clear correctly when an operator submits BEFORE pressing Esc:
+        the channel drains the queued message inside ``after_cancel``,
+        the subscription fires, and the coordinator's pending flag
+        flips False — observable to the TUI's modal-prompt UI and
+        Inspect-aware ACP clients.
+        """
+        if self._ref is None:
+            self._ref = ref
+            self._unsubscribe_drained = channel.subscribe_drained(
+                self._on_channel_drained
+            )
+            return True
+        return False
+
+    def unbind(self, ref: "AgentRef") -> None:
+        """Clear the bound ref if it matches ``ref`` (identity).
+
+        Sub-agents whose :meth:`maybe_bind` was rejected get a no-op
+        here. The outer react's unbind clears the slot, so a successor
+        react in the same sample can rebind. Also drops the channel
+        drain subscription registered in :meth:`maybe_bind`.
+        """
+        if self._ref is ref:
+            self._ref = None
+            if self._unsubscribe_drained is not None:
+                self._unsubscribe_drained()
+                self._unsubscribe_drained = None
+
+    def _on_channel_drained(self, items: list[Any]) -> None:
+        """Callback fired by the channel after a non-empty drain.
+
+        Resolves a pending interrupt iff the drained items include a
+        :class:`UserMessage` — the operator's redirect message reached
+        the consumer, so the TUI/client modal-prompt indicator should
+        clear. Non-UserMessage drains (e.g. a bare ``Cancel`` item) are
+        ignored.
+        """
+        from inspect_ai.agent._channel import UserMessage as _ChannelUserMessage
+
+        if any(isinstance(it, _ChannelUserMessage) for it in items):
+            self._interrupt.resolve_if_pending()
+
+    async def __aenter__(self) -> AcpTransport:
         """Enter the session scope; attach the event router and return ``self``.
 
         Also registers ``self`` on the current :class:`ActiveSample`
@@ -873,7 +816,7 @@ class LiveAcpSession:
         ):
             active = sample_active()
             if active is not None:
-                prev = active.acp_session
+                prev = active.acp_transport
                 # Predecessor handoff: when a solver runs two agents
                 # consecutively in the same sample, the first agent's
                 # ``__aexit__`` parks its session awaiting ``active_sample``
@@ -885,23 +828,31 @@ class LiveAcpSession:
                 # ``inspect/session_ended``), then bind ourselves.
                 # ``finalize()`` is idempotent so this is safe even if
                 # the predecessor was already finalized via some other
-                # path. Nested sub-agents route through ``NoOpAcpSession``
+                # path. Nested sub-agents route through ``NoOpAcpTransport``
                 # (the factory's shadow rule), never reaching this code.
                 #
-                # The ``isinstance(prev, LiveAcpSession)`` does double
+                # The ``isinstance(prev, LiveAcpTransport)`` does double
                 # duty: it narrows the type for mypy (``finalize`` is on
-                # ``LiveAcpSession``, not the ``AcpSession`` Protocol) and
+                # ``LiveAcpTransport``, not the ``AcpTransport`` Protocol) and
                 # acts as a runtime sanity check. Per the shadow rule
-                # above, a non-self ``prev`` is always a ``LiveAcpSession``
+                # above, a non-self ``prev`` is always a ``LiveAcpTransport``
                 # in practice — but we never want a registration that
                 # silently broke the invariant to crash an eval here.
                 if (
                     prev is not None
                     and prev is not self
-                    and isinstance(prev, LiveAcpSession)
+                    and isinstance(prev, LiveAcpTransport)
                 ):
                     await prev.finalize()
-                active.acp_session = self
+                active.acp_transport = self
+                # Install ourselves as the sample's execution observer.
+                # The model/tool layers (`_call_tools.py`, `_model.py`)
+                # consult `sample.execution_observer.track_*` to record
+                # in-flight tool/model events; ACP needs that data to
+                # populate `InterruptEvent` and clear `pending=True` on
+                # cancelled events. Cleared back to the null default in
+                # :meth:`finalize` under the same identity guard.
+                active.execution_observer = self
                 # Register lifecycle hooks the eval primitive will fire:
                 # ``on_complete`` drives the deferred teardown after
                 # scoring + logging finish; ``on_interrupt`` clears the
@@ -929,13 +880,13 @@ class LiveAcpSession:
           the task runner's scoring + logging block is about to run, and
           we want events from that phase (notably ``ScoreEvent``s) to
           reach attached ACP clients. Keep the router + pubsub +
-          ``ActiveSample.acp_session`` binding alive; clear only the
+          ``ActiveSample.acp_transport`` binding alive; clear only the
           per-turn subscriber registries that would be unsafe to keep
           (interrupt coordinator, approver clients) since the agent loop
           is no longer running to drain them. The eventual full teardown
           runs from :meth:`finalize`, invoked by
           ``active_sample().__aexit__`` after the sample is fully done.
-        - **Unbound** (test code that constructs ``LiveAcpSession()``
+        - **Unbound** (test code that constructs ``LiveAcpTransport()``
           directly without an ActiveSample): full immediate teardown, the
           original single-phase behavior.
 
@@ -947,7 +898,7 @@ class LiveAcpSession:
         from inspect_ai.log._samples import sample_active
 
         active = sample_active()
-        bound = active is not None and active.acp_session is self
+        bound = active is not None and active.acp_transport is self
         if bound:
             # Split-phase: park the session for the scoring window.
             self._agent_completed = True
@@ -963,11 +914,11 @@ class LiveAcpSession:
             return
 
         # Unbound — full immediate teardown. Reached in two cases:
-        # 1. Tests construct ``LiveAcpSession()`` directly without an
+        # 1. Tests construct ``LiveAcpTransport()`` directly without an
         #    enclosing ``active_sample()`` context.
         # 2. Production: the ``acp_guard("ACP session: ActiveSample
         #    registration failed")`` block in ``__aenter__`` caught an
-        #    exception, so ``active.acp_session`` was never assigned and
+        #    exception, so ``active.acp_transport`` was never assigned and
         #    ``bound`` is False. Without this branch a registration
         #    failure would leak the router + pubsub for the rest of the
         #    sample's lifetime (the registration-driven ``on_complete``
@@ -1020,10 +971,15 @@ class LiveAcpSession:
             active = sample_active()
             # `is self` identity guard: don't clear someone else's
             # registration if a successor session has already taken over.
-            if active is not None and active.acp_session is self:
-                active.acp_session = None
+            if active is not None and active.acp_transport is self:
+                active.acp_transport = None
                 active.on_complete = None
                 active.on_interrupt = None
+                # Restore the null observer; subsequent track_* calls on
+                # the (now winding-down) sample are no-ops.
+                from inspect_ai.agent._channel import null_execution_observer
+
+                active.execution_observer = null_execution_observer()
 
     # Property delegations that preserve the field-access surface the
     # router and a handful of tests already depend on. Storage lives in
@@ -1114,192 +1070,36 @@ class LiveAcpSession:
         """
         return self._transcript_capture.snapshot()
 
-    @contextlib.contextmanager
-    def turn_scope(self) -> Iterator[None]:
-        """Wrap one agent turn so a client cancel can interrupt it.
-
-        Opens a fresh anyio ``CancelScope``. If
-        :meth:`cancel_current_turn` is called while this scope is
-        active, the wrapped block raises :class:`TurnCancelled`. A
-        sample-level cancel (outer task group) propagates through
-        unchanged — the inner scope only catches what was targeted
-        at it.
-
-        Loop-only invariant: ``react()`` / ``deepagent()`` exited
-        before we parked; a late call here is a programming bug.
-        No-op rather than assert per the never-crash-the-eval contract.
-        """
-        if self._agent_completed:
-            yield
-            return
-        with self._turn_cancel.turn_scope():
-            yield
-
-    async def before_turn(
-        self, messages: Sequence[ChatMessage]
-    ) -> list[ChatMessageUser]:
-        """Drain queued operator messages and return them.
-
-        On the first call, if ``messages`` has no user content yet,
-        blocks for at least one queued message — covers the "no dataset
-        prompt, operator types the first message" case. Subsequent
-        calls drain immediately.
-
-        Hard contract: never propagates a non-cancellation exception
-        to the caller (the agent's react loop). A bug below degrades
-        to "no operator messages this turn" rather than crashing the
-        eval. ``CancelledError`` propagates naturally via
-        :func:`acp_guard`'s BaseException semantics.
-
-        Loop-only invariant: ``react()`` / ``deepagent()`` exited
-        before we parked; a late call here is a programming bug.
-        No-op rather than assert per the never-crash-the-eval contract.
-        """
-        if self._agent_completed:
-            return []
-        with acp_guard("ACP before_turn raised; returning no operator messages"):
-            drained = await self._user_messages.drain_initial(messages)
-            return _coalesce_operator_messages(drained)
-        return []
-
-    async def after_cancel(
-        self, messages: list[ChatMessage] | None = None
-    ) -> list[ChatMessage]:
-        """Return synthetic tool repair messages + drained user messages.
-
-        The agent loop catches :class:`TurnCancelled` and extends
-        ``state.messages`` with the result of this call. Synthetic
-        :class:`ChatMessageTool` results come first (one per cancelled
-        tool call) so the assistant's pending tool calls have matching
-        responses; the new operator user message(s) come next. Blocks
-        if the user-message queue is empty.
-
-        When ``messages`` is provided (the normal production path), this
-        scans the last assistant message's ``tool_calls`` and synthesizes
-        a repair for every id that doesn't yet have a matching
-        :class:`ChatMessageTool` result. That covers three cases under
-        sequential tool execution: tools that were in flight at cancel,
-        tools that never started because an earlier call was cancelled,
-        and tools whose completed results were lost when
-        ``_execute_tools_impl`` was interrupted before returning. When
-        ``messages`` is ``None`` (unit tests), falls back to
-        ``_cancelled_tool_call_ids`` (snapshotted in
-        :meth:`cancel_current_turn`).
-        """
-        # Loop-only invariant: only reached from the agent's
-        # ``except TurnCancelled`` arm, which can't fire after the loop
-        # has exited. No-op rather than assert per the never-crash-the-
-        # eval contract.
-        if self._agent_completed:
-            return []
-        # Hard contract: never propagates a non-cancellation exception
-        # to the caller. ``CancelledError`` propagates naturally via
-        # :func:`acp_guard`'s BaseException semantics — a sample-level
-        # cancel blocked in ``drain_blocking`` still tears down
-        # correctly.
-        #
-        # Three independently-guarded phases — the partition matters
-        # for state.messages integrity:
-        #
-        # 1. Build repair ``ChatMessageTool`` results for any
-        #    unanswered tool_call ids in the last assistant message.
-        #    If this fails, return ``[]`` — without repairs we can't
-        #    safely return anything (drained operator messages alone
-        #    would leave the assistant's pending tool_calls
-        #    unanswered, and the next ``generate()`` would reject the
-        #    conversation).
-        # 2. Drain the operator message queue. Failure here MUST NOT
-        #    discard the repairs we already built — return them as-is
-        #    so ``state.messages`` stays valid. Worst case the agent
-        #    continues without an operator message, but the
-        #    conversation shape is preserved.
-        # 3. Resolve any pending interrupt notification. Best-effort
-        #    and non-blocking; failure here is purely cosmetic
-        #    (modal-prompt UI staying in pending state).
-        results: list[ChatMessage] = []
-        with acp_guard(
-            "ACP after_cancel: repair construction failed; returning "
-            "empty resume payload (next generate may fail due to "
-            "unanswered tool_calls in state.messages)"
-        ) as repair:
-            if messages is not None:
-                repair_ids = _unanswered_tool_call_ids(messages)
-            else:
-                repair_ids = list(self._turn_cancel.cancelled_tool_call_ids)
-            for tool_call_id in repair_ids:
-                results.append(
-                    ChatMessageTool(
-                        tool_call_id=tool_call_id,
-                        content="Tool call cancelled by user.",
-                        error=ToolCallError(
-                            type="cancelled",
-                            message="Tool call cancelled by user.",
-                        ),
-                    )
-                )
-            self._turn_cancel.clear_cancelled_tool_ids()
-        if repair.failed:
-            return []
-
-        # Drain failure must NOT discard repairs — fall through with
-        # them so state.messages stays valid.
-        with acp_guard(
-            "ACP after_cancel: drain failed; returning repair "
-            "messages without operator input"
-        ):
-            drained = await self._user_messages.drain_blocking()
-            results.extend(_coalesce_operator_messages(drained))
-
-        # The agent has now consumed the resumption text, so the
-        # interrupt is logically resolved — clear the pending flag
-        # and notify prompt-resolved subscribers if they haven't
-        # already been fired. ``submit_user_message`` clears + fires
-        # when the message arrives AFTER the cancel; this branch
-        # covers the other ordering (message queued BEFORE the
-        # cancel, then drained here without ``submit_user_message``
-        # being called post-cancel). Without this, a modal-prompt
-        # client would be stuck in pending state forever after that
-        # sequence.
-        with acp_guard(
-            "ACP after_cancel: resolve_if_pending failed; "
-            "modal-prompt UI may remain in pending state"
-        ):
-            self._interrupt.resolve_if_pending()
-
-        return results
-
     def submit_user_message(self, msg: ChatMessageUser) -> None:
-        """Queue ``msg`` and wake any awaiter blocked on it.
+        """Forward ``msg`` to the bound :class:`AgentChannel` as a producer.
 
-        Normalizes provenance: any message queued through this API is
-        treated as operator-injected, so ``source`` is set to
-        ``"operator"`` if it isn't already. Callers don't have to
-        remember to set it themselves.
+        Normalizes provenance: any message submitted through this API
+        is treated as operator-injected, so ``source`` is set to
+        ``"operator"`` if it isn't already. If an interrupt is pending
+        (``cancel_current_turn`` fired and wasn't yet resolved), clears
+        the pending flag and notifies prompt-resolved subscribers — the
+        in-proc TUI's modal prompt mode and Inspect-aware ACP clients
+        use this to dismiss their prompt UI when a sibling client
+        provides the resumption text.
 
-        If an interrupt is pending (``cancel_current_turn`` fired and
-        wasn't yet resolved), clear the pending flag and notify
-        prompt-resolved subscribers. The in-proc TUI's modal prompt
-        mode and Inspect-aware ACP clients use this to dismiss their
-        prompt UI when a sibling client provides the resumption text.
-
-        Hard contract: never propagates to the caller. The agent task
-        blocks in ``before_turn`` / ``after_cancel`` waiting for
-        messages from this queue; failure here is logged but the
-        message is dropped silently rather than crashing the
-        connection handler (or the TUI input handler) that called us.
-
-        Network-reachable: the TUI Send button or a wire
-        ``session/prompt`` can land any time, including after the agent
-        has parked. Drop silently — no consumer for the queue once the
-        loop is gone.
+        Hard contract: never propagates to the caller. The TUI Send
+        button or a wire ``session/prompt`` can land any time, including
+        after the agent has parked; failure here is logged but the
+        message is dropped silently rather than crashing the connection
+        handler (or the TUI input handler) that called us. Likewise,
+        messages submitted with no channel bound are silently dropped
+        (no consumer to receive them).
         """
         if self._agent_completed:
             return
         with acp_guard("ACP submit_user_message raised; message dropped"):
             if msg.source != "operator":
                 msg = msg.model_copy(update={"source": "operator"})
-            self._user_messages.enqueue(msg)
             self._interrupt.resolve_if_pending()
+            if self._ref is not None:
+                from inspect_ai.agent._channel import UserMessage as _ChannelUserMessage
+
+                self._ref.post(_ChannelUserMessage(message=msg))
 
     @property
     def interrupt_pending(self) -> bool:
@@ -1564,7 +1364,13 @@ class LiveAcpSession:
                 ):
                     tr._event_updated(ev)
 
-            self._turn_cancel.request_cancel()
+            # Drive the cancel through the bound channel: the agent's
+            # ``with ch.turn_scope():`` raises :exc:`AgentInterrupted`,
+            # which react catches, drains, and recovers from.
+            if self._ref is not None:
+                from inspect_ai.agent._channel import Cancel as _ChannelCancel
+
+                self._ref.interrupt(_ChannelCancel(reason=cause))
 
             # Mark the interrupt as pending and notify subscribers so
             # prompt-mode clients (the in-proc TUI; Inspect-aware ACP
@@ -1637,31 +1443,3 @@ class LiveAcpSession:
                 "ACP track_model_event: restore failed; active event may be stale"
             ):
                 self._turn_cancel._active_model_event = prev
-
-
-def _unanswered_tool_call_ids(messages: list[ChatMessage]) -> list[str]:
-    """Return tool_call ids from the last assistant message that lack a result.
-
-    Used by :meth:`LiveAcpSession.after_cancel` to synthesize repair
-    :class:`ChatMessageTool` results for every tool call the assistant
-    issued whose response is missing — covers tools that were in flight,
-    tools that never started because an earlier call was cancelled, and
-    tools whose results were lost when an anyio cancellation interrupted
-    ``_execute_tools_impl`` before it could return.
-    """
-    last_assistant_idx: int | None = None
-    for i in range(len(messages) - 1, -1, -1):
-        if isinstance(messages[i], ChatMessageAssistant):
-            last_assistant_idx = i
-            break
-    if last_assistant_idx is None:
-        return []
-    last_assistant = messages[last_assistant_idx]
-    assert isinstance(last_assistant, ChatMessageAssistant)
-    if not last_assistant.tool_calls:
-        return []
-    answered: set[str] = set()
-    for m in messages[last_assistant_idx + 1 :]:
-        if isinstance(m, ChatMessageTool) and m.tool_call_id:
-            answered.add(m.tool_call_id)
-    return [tc.id for tc in last_assistant.tool_calls if tc.id not in answered]

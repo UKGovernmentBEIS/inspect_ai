@@ -15,7 +15,7 @@ from ._base import BaseEvent
 
 OPERATOR_CANCEL_ERROR = "Cancelled by operator"
 """Sentinel string stamped on ``ModelEvent.error`` when an external
-operator (e.g. ``AcpSession.cancel_current_turn``) cancels an in-flight
+operator (e.g. ``AcpTransport.cancel_current_turn``) cancels an in-flight
 ``generate`` call. Read sites:
 
 - ``inspect_ai.model._model.complete()`` short-circuits its

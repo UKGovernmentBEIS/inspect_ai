@@ -181,6 +181,29 @@
     "model_cards": []
   },
   {
+    "id": "gnucleus_ai_cad_bench",
+    "name": "CAD-Bench",
+    "source": "harbor",
+    "categories": [
+      "Coding",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "gNucleus AI CAD-generation benchmark — 100 parametric FreeCAD tasks.",
+    "paper": "https://www.gnucleus.ai/cad-bench",
+    "code": "inspect_harbor/gnucleus_ai_cad_bench",
+    "contributors": [],
+    "samples": 100,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/gnucleus_ai_cad_bench.html",
+    "model_cards": []
+  },
+  {
     "id": "class_eval",
     "name": "ClassEval",
     "source": "evals",
@@ -1939,7 +1962,7 @@
     "contributors": [
       "bndxn"
     ],
-    "samples": 3,
+    "samples": 34,
     "featured": false,
     "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/assistants/theagentcompany/",
     "model_cards": []
@@ -3511,6 +3534,31 @@
     "model_cards": []
   },
   {
+    "id": "agent_threat_bench",
+    "name": "AgentThreatBench",
+    "source": "evals",
+    "categories": [
+      "Safeguards"
+    ],
+    "tags": [
+      "Agent"
+    ],
+    "kind": "agent",
+    "modalities": [
+      "agent"
+    ],
+    "desc": "Evaluates LLM agents against the OWASP Top 10 for Agentic Applications (2026), measuring both task utility and security resilience across memory poisoning, autonomy hijacking, and data exfiltration scenarios.",
+    "paper": "https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/",
+    "code": "inspect_evals/agent_threat_bench_memory_poison",
+    "contributors": [
+      "vgudur-dev"
+    ],
+    "samples": 10,
+    "featured": false,
+    "url": "https://ukgovernmentbeis.github.io/inspect_evals/evals/safeguards/agent_threat_bench/",
+    "model_cards": []
+  },
+  {
     "id": "anima",
     "name": "ANIMA",
     "source": "evals",
@@ -4929,6 +4977,29 @@
     "samples": 50,
     "featured": false,
     "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/vals_financeagent.html",
+    "model_cards": []
+  },
+  {
+    "id": "harveyai_lab",
+    "name": "Harvey LAB",
+    "source": "harbor",
+    "categories": [
+      "Law",
+      "Professional"
+    ],
+    "tags": [],
+    "kind": "agent",
+    "modalities": [
+      "agent",
+      "sandbox"
+    ],
+    "desc": "Harvey LAB - open-source benchmark for evaluating agents on real legal work.",
+    "paper": "https://github.com/harveyai/harvey-labs",
+    "code": "inspect_harbor/harveyai_lab",
+    "contributors": [],
+    "samples": 1000,
+    "featured": false,
+    "url": "https://meridianlabs-ai.github.io/inspect_harbor/registry/harveyai_lab.html",
     "model_cards": []
   },
   {

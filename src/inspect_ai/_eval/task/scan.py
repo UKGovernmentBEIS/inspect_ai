@@ -21,6 +21,30 @@ from inspect_ai.log._log import EvalSample, EvalSpec
 # can't silently leave historical transcripts unscanned.
 _INSPECT_CONFIG_HASH_KEY = "__inspect_scan_config_hash__"
 
+
+_REQUIRED_SCOUT_VERSION = "0.4.37"
+
+
+def verify_scout_prerequisites() -> None:
+    """Raise `PrerequisiteError` if `inspect_scout` is missing or outdated.
+
+    Scanner support is an optional feature; called at every user-facing
+    entry point that dispatches to scout so the unset / outdated case
+    yields a pip-install message instead of an ImportError from a lazy
+    import (or a confusing AttributeError from a stale version).
+    """
+    try:
+        import inspect_scout  # noqa: F401
+    except ImportError:
+        from inspect_ai._util.error import pip_dependency_error
+
+        raise pip_dependency_error("Scanner support", ["inspect-scout"])
+
+    from inspect_ai._util.version import verify_required_version
+
+    verify_required_version("Scanner support", "inspect-scout", _REQUIRED_SCOUT_VERSION)
+
+
 if TYPE_CHECKING:
     from inspect_scout import Scanner
     from inspect_scout._scanspec import ScanSpec
@@ -110,6 +134,8 @@ class ScannerConfig(BaseModel):
         from inspect_ai._util.file import file as open_fs_file
         from inspect_ai._util.file import filesystem
         from inspect_ai._util.path import pretty_path
+
+        verify_scout_prerequisites()
 
         if not filesystem(path).exists(path):
             raise PrerequisiteError(
@@ -201,7 +227,7 @@ async def scan_init(
             requested=scanner,
             requested_scanners_dict=scanners_dict,
         )
-        _apply_label_updates(recorder, scanner)
+        await _apply_label_updates(recorder, scanner)
         _invalidate_finalized_flag(scan_dir)
         # don't seed samples_completed — the resume-scan short-circuit
         # path calls `mark_completed` for each reused sample, so the
@@ -699,6 +725,7 @@ def scan_context(
     if scanner is None:
         yield
         return
+    verify_scout_prerequisites()
     run_coroutine(scan_init(scanner, scan_id=scan_id, log_dir=log_dir))
     try:
         yield
@@ -937,7 +964,7 @@ def _verify_scanner_config_unchanged(
         )
 
 
-def _apply_label_updates(recorder: Any, scanner: "Scanners | None") -> None:
+async def _apply_label_updates(recorder: Any, scanner: "Scanners | None") -> None:
     """Refresh `name` / `tags` / `metadata` on the on-disk `_scan.json`.
 
     Called after `_verify_scanner_config_unchanged` passes. The fields
@@ -968,7 +995,7 @@ def _apply_label_updates(recorder: Any, scanner: "Scanners | None") -> None:
     recorder._scan_spec = new_spec
     if recorder._scan_buffer is not None:
         recorder._scan_buffer._spec = new_spec
-    recorder._write_scan_spec()
+    await recorder._write_scan_spec()
 
 
 def _scan_config_hash(scanner: "Scanners | None") -> str:

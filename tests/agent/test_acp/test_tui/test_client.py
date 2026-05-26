@@ -68,7 +68,7 @@ def _make_active_sample(
     active.fails_on_error = fails_on_error
     sess = MagicMock()
     sess.session_id = session_id
-    active.acp_session = sess
+    active.acp_transport = sess
     return active
 
 
