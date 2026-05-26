@@ -1,6 +1,6 @@
 from inspect_ai import Task, eval
 from inspect_ai.dataset import MemoryDataset, Sample
-from inspect_ai.scorer import Score, mean
+from inspect_ai.scorer import Score, mean, stderr
 from inspect_ai.solver import Generate, TaskState, solver
 from inspect_ai.solver._solver import Solver
 
@@ -50,6 +50,37 @@ def test_solver_simple_score():
     assert eval_log.results.scores[0].name == "simple"
     assert len(eval_log.results.scores[0].metrics) == 1
     assert eval_log.results.scores[0].metrics["mean"].value == 1.0
+
+
+@solver
+def no_scorer_solver_named_scores() -> Solver:
+    async def run(state: TaskState, generate: Generate) -> TaskState:
+        state.scores = {
+            "duration_of_generate": Score(value=1),
+            "first_token_duration": Score(value=2),
+            "unmatched_duration": Score(value=3),
+        }
+        return state
+
+    return run
+
+
+def test_solver_simple_score_named_metrics():
+    task = Task(
+        dataset=MemoryDataset([Sample(input="")]),
+        solver=no_scorer_solver_named_scores(),
+        metrics={
+            "duration_of_generate": [mean()],
+            "first_token_*": [mean(), stderr()],
+        },
+    )
+
+    eval_log = eval(tasks=task, model="mockllm/model")[0]
+    scores = {score.name: score for score in eval_log.results.scores}
+
+    assert [*scores["duration_of_generate"].metrics] == ["mean"]
+    assert [*scores["first_token_duration"].metrics] == ["mean", "stderr"]
+    assert scores["unmatched_duration"].metrics == {}
 
 
 def test_solver_score_event_scorer_name():
