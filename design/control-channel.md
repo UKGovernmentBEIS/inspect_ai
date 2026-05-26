@@ -348,6 +348,61 @@ Each is a small surgical addition to the eval runner; the control channel is the
 7. **CLI ergonomics for one-of-many.** When more than one eval is running, what's the disambiguation default — error and require `--eval-id`, or pick the newest (matching `inspect acp --stdio`'s behaviour)?
 8. **Self-targeting from an LLM-agent inside an eval.** An LLM-driven agent monitoring an eval might itself be running *inside* an Inspect eval (a meta-solver). Should it be able to control its own parent eval? Probably not by default — worth a "no self-targeting" guard if/when this comes up.
 
+## Implementation notes
+
+Cross-cutting details that apply across all phases.
+
+### Server lifecycle: default on, opt-out
+
+The control endpoint is bound by default whenever `inspect eval` runs. Every running eval benefits from being controllable, and the agent-enablement story falls apart if agents or TUIs can't discover evals launched without a special flag (per-launch opt-in defeats the whole "Claude Code uses Inspect by default" framing).
+
+**Graceful degradation on bind failure.** If the AF_UNIX bind fails (read-only filesystem, restricted sandbox, permissions on `inspect_data_dir`), log a warning and continue without the surface. The eval runs normally; only the control surface is missing. Bind failures are *never* fatal — eval results don't depend on the control channel coming up.
+
+### Flags
+
+Three flags, each doing one thing:
+
+```
+(omitted)                       # control on, default AF_UNIX at <inspect_data_dir>/control/<pid>.sock
+--no-ctl                        # control off
+--ctl-port N                    # control on, force TCP on port N (implies enabled)
+--ctl-socket /path/to.sock      # control on, custom AF_UNIX path (implies enabled)
+```
+
+`--no-ctl` + `--ctl-port` (or `--ctl-socket`) is a configuration error — the flags conflict.
+
+Splitting "whether" from "where" into separate flags (rather than overloading one flag with `bool | int | str` values, as `--acp-server` does) is deliberate: it makes flag intent obvious at a glance and avoids "false" reading as a magic value.
+
+### Environment-variable mirrors
+
+For CI / test isolation, every flag has an env-var equivalent:
+
+```
+INSPECT_CTL=false               # disable globally
+INSPECT_CTL_PORT=N              # force TCP
+INSPECT_CTL_SOCKET=PATH         # force AF_UNIX path
+```
+
+This lets a test runner globally suppress the surface without modifying each `inspect eval` invocation.
+
+### Relationship to `--acp-server`
+
+The control channel defaults **on**; the ACP server defaults **off**. The asymmetry is intentional:
+
+- ACP serves a narrow audience (editor-driven per-sample interaction) — most evals don't need it, so opt-in is right.
+- Control serves every running eval — opt-out is right.
+
+Flag shapes also differ (`--acp-server` uses overloaded values; `--no-ctl` / `--ctl-port` / `--ctl-socket` split into separate flags). Retrofitting `--acp` / `--no-acp` / `--acp-port` to match the newer pattern is plausible later but out of scope here.
+
+### Test-suite cost
+
+Pytest runs that spawn many evals will each try to bind. AF_UNIX is cheap and discovery files self-clean via PID-liveness, but per-eval bind overhead is worth measuring in phase 1. Mitigations if it matters:
+
+- Set `INSPECT_CTL=false` globally for the test session.
+- Make the bind lazy (allocate only when something asks via discovery).
+
+The graceful-fallback policy means worst-case is "test logs have warning lines"; eval correctness is unaffected.
+
 ## Implementation
 
 Phased plan, with HTTP/H1 as the chosen wire:
