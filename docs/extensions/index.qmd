@@ -15,6 +15,7 @@ include-after-body:
       <script type="module" src="./extensions-app.js"></script>
 aliases:
   - /integrations/index.html
+llms-script: llms.py
 execute:
   enabled: true
 ---

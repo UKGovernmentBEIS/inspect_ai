@@ -4,8 +4,9 @@ Two test styles:
 
 - **Unit**: direct router exercise with synthetic events; ``session.publish``
   monkey-patched to a list collector.
-- **Integration**: drive ``react()`` against mockllm under ``acp_session()``
-  with a live subscriber stream, using the Phase 4 capture-via-tool pattern.
+- **Integration**: drive ``react()`` against mockllm with a pre-wired
+  ``LiveAcpTransport`` on the sample and a live subscriber stream, using
+  the Phase 4 capture-via-tool pattern.
 """
 
 from typing import Any, cast
@@ -23,9 +24,8 @@ from acp.schema import (
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent import react
-from inspect_ai.agent._acp import acp_session
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, _tool_call_status
-from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._as_tool import as_tool
 from inspect_ai.event import (
@@ -66,12 +66,14 @@ from ._capture import acp_test_active_sample
 # ---------------------------------------------------------------------------
 
 
-def _new_session() -> LiveAcpSession:
-    return LiveAcpSession()
+def _new_session() -> LiveAcpTransport:
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    return session
 
 
 def _attach_router(
-    session: LiveAcpSession,
+    session: LiveAcpTransport,
 ) -> tuple[_AcpEventRouter, list[SessionNotification]]:
     """Build a router and route its publications into a list collector."""
     published: list[SessionNotification] = []
@@ -1670,7 +1672,7 @@ def test_sub_agent_events_publish_when_filter_disabled() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests — react under acp_session
+# Integration tests — react with per-sample LiveAcpTransport
 # ---------------------------------------------------------------------------
 
 
@@ -1690,10 +1692,11 @@ async def _drain_until_submit(
 
 
 async def test_router_publishes_for_react_against_mockllm() -> None:
-    """End-to-end: react under acp_session emits ModelEvent + ToolEvent notifications."""
+    """End-to-end: react emits ModelEvent + ToolEvent notifications via per-sample transport."""
     transcript = Transcript()
     token = _transcript.set(transcript)
-    sample_tok = samples_var.set(acp_test_active_sample(transcript))
+    sample = acp_test_active_sample(transcript)
+    sample_tok = samples_var.set(sample)
     try:
         # Sequence: turn 1 calls a no-op tool, turn 2 submits "done".
         @tool
@@ -1728,7 +1731,8 @@ async def test_router_publishes_for_react_against_mockllm() -> None:
         model = get_model("mockllm/model", memoize=False, custom_outputs=next_output)
         agent = react(tools=[echo()], model=model)
 
-        async with acp_session() as acp:
+        acp = cast(LiveAcpTransport, sample.acp_transport)
+        async with acp:
             stream = acp.attach()
             async with anyio.create_task_group() as tg:
                 tg.start_soon(lambda: agent(_state()))
@@ -1761,7 +1765,8 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
     """React with as_tool sub-agent: subscriber sees only outer notifications."""
     transcript = Transcript()
     token = _transcript.set(transcript)
-    sample_tok = samples_var.set(acp_test_active_sample(transcript))
+    sample = acp_test_active_sample(transcript)
+    sample_tok = samples_var.set(sample)
     try:
         from inspect_ai.agent._agent import agent as agent_decorator
 
@@ -1796,7 +1801,8 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
         model = get_model("mockllm/model", memoize=False, custom_outputs=next_output)
         agent = react(tools=[as_tool(inner())], model=model)
 
-        async with acp_session() as acp:
+        acp = cast(LiveAcpTransport, sample.acp_transport)
+        async with acp:
             stream = acp.attach()
             async with anyio.create_task_group() as tg:
                 tg.start_soon(lambda: agent(_state()))
@@ -1830,16 +1836,17 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
 async def test_sub_agent_notifications_publish_when_filter_disabled() -> None:
     """With filter disabled, sub-agent ModelEvent chunks reach the subscriber.
 
-    The filter must be disabled on the outer live session BEFORE the
+    The filter must be disabled on the outer live transport BEFORE the
     sub-agent runs (the live router consults the flag on every event).
-    react itself opens an inner ``acp_session()`` that becomes a no-op
-    shadow — so ``current_acp_session()`` from inside react returns the
-    shadow, not the live outer session. We therefore disable filtering
-    on the outer ``acp`` handle directly.
+    The transport pre-wired on the sample is the producer target for the
+    outer react's channel; the sub-agent's nested channel is rejected
+    by ``maybe_bind`` (first-binder-wins) so it doesn't drive the
+    transport. We disable filtering on the pre-wired transport directly.
     """
     transcript = Transcript()
     token = _transcript.set(transcript)
-    sample_tok = samples_var.set(acp_test_active_sample(transcript))
+    sample = acp_test_active_sample(transcript)
+    sample_tok = samples_var.set(sample)
     try:
         from inspect_ai.agent._agent import agent as agent_decorator
 
@@ -1876,8 +1883,9 @@ async def test_sub_agent_notifications_publish_when_filter_disabled() -> None:
         model = get_model("mockllm/model", memoize=False, custom_outputs=next_output)
         agent = react(tools=[as_tool(inner())], model=model)
 
-        async with acp_session() as acp:
-            cast(LiveAcpSession, acp).disable_subagent_filtering()
+        acp = cast(LiveAcpTransport, sample.acp_transport)
+        async with acp:
+            acp.disable_subagent_filtering()
             stream = acp.attach()
             async with anyio.create_task_group() as tg:
                 tg.start_soon(lambda: agent(_state()))

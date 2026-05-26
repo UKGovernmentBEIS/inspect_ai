@@ -2083,7 +2083,7 @@ requires-dist = [
     { name = "httpx" },
     { name = "huggingface-hub", marker = "extra == 'dev'", specifier = ">=1.0.0" },
     { name = "ijson", specifier = ">=3.2.0" },
-    { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.4.34" },
+    { name = "inspect-scout", marker = "extra == 'dev'", specifier = ">=0.4.37" },
     { name = "ipython", marker = "extra == 'dev'" },
     { name = "jsonlines", specifier = ">=3.0.0" },
     { name = "jsonpatch", specifier = ">=1.32" },
@@ -2169,7 +2169,7 @@ dev = [{ name = "inspect-ai", extras = ["dev"] }]
 
 [[package]]
 name = "inspect-scout"
-version = "0.4.34"
+version = "0.4.37"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -2204,9 +2204,9 @@ dependencies = [
     { name = "wrapt" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/af/fd/d86f068f022d5a7be03f0dcda240ad078b803e138f74f554350744cd6b28/inspect_scout-0.4.34.tar.gz", hash = "sha256:05be9766ffe91422c06b40648301b1636c032e5751c4879672fd0731d54a59e8", size = 2521905, upload-time = "2026-05-12T13:22:21.119Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bf/a6/0f30c3543ced243c5c9f890c7c335a42ac019d561302ae9978bd8fdc1d1d/inspect_scout-0.4.37.tar.gz", hash = "sha256:13a96435e0c977f1718b5511bbbaa0c11ee34e56bed3e8b8d9f6a94246bcf8a1", size = 2626696, upload-time = "2026-05-22T20:03:24.114Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0e/f3/4ca0eb335bd41b5ee6bfd34c7a2b7f2fd410cbebcf371d69bf1d83b1d12a/inspect_scout-0.4.34-py3-none-any.whl", hash = "sha256:99fa0110d7d34bef8ba2c2c72f7432b325a439b28d6dae369422f952fff2570c", size = 2636078, upload-time = "2026-05-12T13:22:19.328Z" },
+    { url = "https://files.pythonhosted.org/packages/d6/ea/5496efb7014505413850eae6a3104d1a492e7de3f5766fab4cf17edb259f/inspect_scout-0.4.37-py3-none-any.whl", hash = "sha256:10b471caab9cf297db7c0860c0ac1a69420c94703eea1e369a60b97089c10b2b", size = 2739566, upload-time = "2026-05-22T20:03:21.351Z" },
 ]
 
 [[package]]

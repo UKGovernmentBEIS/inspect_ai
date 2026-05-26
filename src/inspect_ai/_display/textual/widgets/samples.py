@@ -362,7 +362,7 @@ class SampleInfo(Vertical):
         # click can't fire a duplicate cancel_current_turn (which would
         # record a redundant InterruptEvent) before the operator submits.
         interrupt_btn = self.query_one("#interrupt-sample", Button)
-        acp = sample.acp_session if sample is not None else None
+        acp = sample.acp_transport if sample is not None else None
         try:
             in_prompt = self.app.query_one(SampleToolbar).in_prompt_mode
         except NoMatches:
@@ -430,7 +430,7 @@ class SampleInfo(Vertical):
         sample = self._sample
         if sample is None:
             return
-        acp = sample.acp_session
+        acp = sample.acp_transport
         if acp is None or acp.session_id == "noop":
             return
         # Hide the button immediately so a fast double-click can't fire
@@ -438,9 +438,10 @@ class SampleInfo(Vertical):
         # visibility. sync_sample will re-show it once prompt mode exits
         # (and the ACP session is still live).
         event.button.display = False
-        # Fire-and-forget cancel; the agent's react() loop will catch
-        # TurnCancelled inside turn_scope and block in after_cancel
-        # until our prompt submission queues a user message.
+        # Fire-and-forget cancel: the transport forwards via
+        # ``ref.interrupt(Cancel(...))`` to the agent's bound channel
+        # scope, which raises :exc:`AgentInterrupted`; react then drains
+        # any redirect we queue via prompt-mode submission.
         acp.cancel_current_turn()
         # Switch the toolbar (sibling widget) into prompt mode.
         try:
@@ -660,14 +661,14 @@ class SampleToolbar(Horizontal):
         # buttons with an interject Input + Send button. Driven by the
         # Interrupt button on the SampleInfo header.
         self._prompt_mode: bool = False
-        # Subscriptions on the current sample's AcpSession (multi-client
+        # Subscriptions on the current sample's AcpTransport (multi-client
         # interrupt-prompt coordination). When a sibling client triggers
         # the cancel, the interrupted hook fires and we enter prompt
         # mode locally; when a sibling client submits the resumption
         # text, the resolved hook fires and we exit prompt mode without
         # waiting for the user to type in this TUI. Only the in-proc
         # TUI subscribes — generic ACP clients have no modal state to
-        # coordinate. See AcpSession.subscribe_interrupted /
+        # coordinate. See AcpTransport.subscribe_interrupted /
         # subscribe_prompt_resolved.
         self._unsubscribe_interrupted: Callable[[], None] | None = None
         self._unsubscribe_prompt_resolved: Callable[[], None] | None = None
@@ -681,7 +682,7 @@ class SampleToolbar(Horizontal):
         """True while the toolbar is awaiting an interject submission.
 
         SampleInfo reads this to hide the Interrupt button so a repeat
-        click can't fire a second :meth:`AcpSession.cancel_current_turn`
+        click can't fire a second :meth:`AcpTransport.cancel_current_turn`
         (which would record a redundant InterruptEvent) while we're
         already waiting on the operator's reply.
         """
@@ -849,14 +850,14 @@ class SampleToolbar(Horizontal):
         if not clean:
             return
         sample = self.sample
-        if sample is None or sample.acp_session is None:
+        if sample is None or sample.acp_transport is None:
             self._exit_prompt_mode()
             return
-        sample.acp_session.submit_user_message(ChatMessageUser(content=clean))
+        sample.acp_transport.submit_user_message(ChatMessageUser(content=clean))
         self._exit_prompt_mode()
 
     def _sync_interrupt_subscriptions(self, sample: ActiveSample | None) -> None:
-        """Keep our subscriptions aligned with the sample's AcpSession.
+        """Keep our subscriptions aligned with the sample's AcpTransport.
 
         Subscribes to ``subscribe_interrupted`` and
         ``subscribe_prompt_resolved`` on the bound session, capturing
@@ -872,7 +873,7 @@ class SampleToolbar(Horizontal):
         the cancel arrived before the TUI was subscribed (sample
         switch, late attach, reattach window).
         """
-        target_session = sample.acp_session if sample is not None else None
+        target_session = sample.acp_transport if sample is not None else None
         target_id = target_session.session_id if target_session is not None else None
 
         # No change → no work.
@@ -955,12 +956,12 @@ class SampleToolbar(Horizontal):
         if self._prompt_mode:
             return
         sample = self.sample
-        if sample is None or sample.acp_session is None:
+        if sample is None or sample.acp_transport is None:
             return
-        if sample.acp_session.session_id != originating_session_id:
+        if sample.acp_transport.session_id != originating_session_id:
             # Sample switched between event-fire and execution.
             return
-        if not sample.acp_session.interrupt_pending:
+        if not sample.acp_transport.interrupt_pending:
             # Already resolved (e.g. another client submitted the
             # resumption text first, or after_cancel drained a
             # pre-queued message).
@@ -978,9 +979,9 @@ class SampleToolbar(Horizontal):
         if not self._prompt_mode:
             return
         sample = self.sample
-        if sample is None or sample.acp_session is None:
+        if sample is None or sample.acp_transport is None:
             return
-        if sample.acp_session.session_id != originating_session_id:
+        if sample.acp_transport.session_id != originating_session_id:
             return
         self._exit_prompt_mode()
 
@@ -995,12 +996,12 @@ class SampleToolbar(Horizontal):
             sample is None
             or new_sample
             or sample.completed
-            or sample.acp_session is None
+            or sample.acp_transport is None
         ):
             self._exit_prompt_mode()
 
         # Multi-client interrupt-prompt coordination: keep our hook
-        # subscriptions aligned with the sample's current AcpSession so
+        # subscriptions aligned with the sample's current AcpTransport so
         # a cancel triggered by a sibling client (Phase 13 ACP bridge)
         # auto-enters prompt mode locally, and a resumption text
         # submitted by a sibling client auto-exits it.

@@ -5,7 +5,7 @@ patterns recur often enough across the package that they live as
 shared context managers:
 
 1. :func:`acp_guard` — **"log a warning and suppress"**. Used in
-   :class:`LiveAcpSession` methods, the approval shim, and any other
+   :class:`LiveAcpTransport` methods, the approval shim, and any other
    site that wants "if this fails, log and degrade quietly." Two
    calling shapes:
 
