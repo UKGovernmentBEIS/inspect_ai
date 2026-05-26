@@ -1977,6 +1977,77 @@ def _strip_text_block_citations(block: MessageBlockParam) -> MessageBlockParam:
     return block
 
 
+def _resolve_or_synthesize_tool_use(
+    *,
+    tool_use_id: str,
+    pending_tool_uses: dict[str, ServerToolUseBlock],
+    server_store: dict[
+        str, tuple[ServerToolUseBlockParam, Any]
+    ],
+    fallback_tool_name: str,
+) -> tuple[ServerToolUseBlockParam, str, dict[str, Any]]:
+    """Resolve the matching ServerToolUseBlock for an incoming tool_result.
+
+    Three cases, in order:
+
+    1. **Local message** — the tool_use is in ``pending_tool_uses`` (the
+       common case where ``server_tool_use`` and its result block appear
+       in the same assistant turn). Pop and return.
+
+    2. **pause_turn continuation** — when the model uses a server-side
+       tool that pauses mid-execution (e.g. a long web_fetch), the next
+       assistant turn starts with the tool_result block. The tool_use
+       was emitted in the *previous* turn and lives in
+       ``server_store`` (e.g. ``server_web_fetches``) keyed by the same
+       tool_use_id, populated when the prior turn was parsed.
+
+    3. **Synthesized fallback** — if the tool_use is in neither, log a
+       warning and return a minimal ``ServerToolUseBlockParam`` so the
+       sample completes. This handles rare edge cases such as
+       server-side context compaction stripping the original tool_use
+       detail blocks while leaving tool_result references.
+
+    Returns ``(tool_use_param, name, input)`` regardless of the source so
+    callers can use a uniform construction site.
+    """
+    pending = pending_tool_uses.pop(tool_use_id, None)
+    if pending is not None:
+        return (
+            cast(ServerToolUseBlockParam, pending.model_dump(exclude_none=True)),
+            pending.name,
+            pending.input,
+        )
+
+    stored = server_store.get(tool_use_id)
+    if stored is not None:
+        prior_use_param, _ = stored
+        return (
+            prior_use_param,
+            prior_use_param.get("name", fallback_tool_name),
+            prior_use_param.get("input", {}),
+        )
+
+    logger.warning(
+        "anthropic: synthesizing fallback tool_use for orphan %s result "
+        "(id=%r). The matching server_tool_use block was not in the "
+        "current message and was not previously stored in "
+        "assistant_internal — most commonly seen with server-side "
+        "context compaction stripping the tool_use detail block.",
+        fallback_tool_name,
+        tool_use_id,
+    )
+    return (
+        cast(ServerToolUseBlockParam, {
+            "id": tool_use_id,
+            "name": fallback_tool_name,
+            "type": "server_tool_use",
+            "input": {},
+        }),
+        fallback_tool_name,
+        {},
+    )
+
+
 def _drop_citations(obj: Any) -> Any:
     """Recursively remove every ``citations`` key from a dict/list structure.
 
@@ -2360,19 +2431,18 @@ def content_and_tool_calls_from_assistant_content_blocks(
                 )
             )
         elif content_block.type == "web_fetch_tool_result":
-            # confirm that there is a pending tool use
-            pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
-            if pending_tool_use is None:
-                raise RuntimeError(
-                    "BetaWebFetchToolResultBlock without previous ServerToolUseBlock"
+            tool_use_param, tool_use_name, tool_use_input = (
+                _resolve_or_synthesize_tool_use(
+                    tool_use_id=content_block.tool_use_id,
+                    pending_tool_uses=pending_tool_uses,
+                    server_store=assistant_internal().server_web_fetches,
+                    fallback_tool_name="web_fetch",
                 )
+            )
 
             # record in internal
-            assistant_internal().server_web_fetches[pending_tool_use.id] = (
-                cast(
-                    ServerToolUseBlockParam,
-                    pending_tool_use.model_dump(exclude_none=True),
-                ),
+            assistant_internal().server_web_fetches[content_block.tool_use_id] = (
+                tool_use_param,
                 cast(
                     BetaWebFetchToolResultBlockParam,
                     content_block.model_dump(exclude_none=True),
@@ -2383,9 +2453,9 @@ def content_and_tool_calls_from_assistant_content_blocks(
             content.append(
                 ContentToolUse(
                     tool_type="web_search",
-                    id=pending_tool_use.id,
-                    name="web_fetch",
-                    arguments=to_json_str_safe(pending_tool_use.input),
+                    id=content_block.tool_use_id,
+                    name=tool_use_name,
+                    arguments=to_json_str_safe(tool_use_input),
                     result=to_json_tool_result_safe(content_block),
                 )
             )
@@ -2394,19 +2464,18 @@ def content_and_tool_calls_from_assistant_content_blocks(
             content_block.type == "bash_code_execution_tool_result"
             or content_block.type == "text_editor_code_execution_tool_result"
         ):
-            # confirm that there is a pending tool use
-            pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
-            if pending_tool_use is None:
-                raise RuntimeError(
-                    "CodeExecutionToolResultBlock without previous ServerToolUseBlock"
+            tool_use_param, tool_use_name, tool_use_input = (
+                _resolve_or_synthesize_tool_use(
+                    tool_use_id=content_block.tool_use_id,
+                    pending_tool_uses=pending_tool_uses,
+                    server_store=assistant_internal().server_code_executions,
+                    fallback_tool_name="code_execution",
                 )
+            )
 
             # record in internal
-            assistant_internal().server_code_executions[pending_tool_use.id] = (
-                cast(
-                    ServerToolUseBlockParam,
-                    pending_tool_use.model_dump(exclude_none=True),
-                ),
+            assistant_internal().server_code_executions[content_block.tool_use_id] = (
+                tool_use_param,
                 cast(
                     BetaBashCodeExecutionToolResultBlockParam
                     | BetaTextEditorCodeExecutionToolResultBlockParam,
@@ -2418,9 +2487,9 @@ def content_and_tool_calls_from_assistant_content_blocks(
             content.append(
                 ContentToolUse(
                     tool_type="code_execution",
-                    id=pending_tool_use.id,
-                    name=pending_tool_use.name,
-                    arguments=to_json_str_safe(pending_tool_use.input),
+                    id=content_block.tool_use_id,
+                    name=tool_use_name,
+                    arguments=to_json_str_safe(tool_use_input),
                     result=to_json_tool_result_safe(content_block),
                 )
             )
@@ -2476,18 +2545,18 @@ def content_and_tool_calls_from_assistant_content_blocks(
         elif isinstance(
             content_block, (WebSearchToolResultBlock, BetaWebSearchToolResultBlock)
         ):
-            pending_tool_use = pending_tool_uses.pop(content_block.tool_use_id, None)
-            if pending_tool_use is None:
-                raise RuntimeError(
-                    "WebSearchToolResultBlock without previous ServerToolUseBlock"
+            tool_use_param, tool_use_name, tool_use_input = (
+                _resolve_or_synthesize_tool_use(
+                    tool_use_id=content_block.tool_use_id,
+                    pending_tool_uses=pending_tool_uses,
+                    server_store=assistant_internal().server_web_searches,
+                    fallback_tool_name="web_search",
                 )
+            )
 
             # record in internal
-            assistant_internal().server_web_searches[pending_tool_use.id] = (
-                cast(
-                    ServerToolUseBlockParam,
-                    pending_tool_use.model_dump(exclude_none=True),
-                ),
+            assistant_internal().server_web_searches[content_block.tool_use_id] = (
+                tool_use_param,
                 cast(
                     WebSearchToolResultBlockParam,
                     content_block.model_dump(exclude_none=True),
@@ -2497,9 +2566,9 @@ def content_and_tool_calls_from_assistant_content_blocks(
             content.append(
                 ContentToolUse(
                     tool_type="web_search",
-                    id=pending_tool_use.id,
-                    name=pending_tool_use.name,
-                    arguments=to_json_str_safe(pending_tool_use.input),
+                    id=content_block.tool_use_id,
+                    name=tool_use_name,
+                    arguments=to_json_str_safe(tool_use_input),
                     result=web_search_result_block_adapter.dump_json(
                         content_block.content, exclude_none=True
                     ).decode(),
