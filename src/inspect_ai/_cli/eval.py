@@ -363,6 +363,16 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         flag_value="__bare__",
         default=None,
         callback=_notification_callback,
+        # Disable Click auto_envvar_prefix lookup for this option.
+        # The root CLI sets ``auto_envvar_prefix="INSPECT"``, which
+        # would otherwise auto-bind ``INSPECT_EVAL_NOTIFICATION`` as
+        # this option's value — colliding with the same env var
+        # ``build_apprise(True)`` reads as the URL/config payload.
+        # The collision would let a user who exports the URL turn
+        # notifications on without passing the flag, or crash plain
+        # ``inspect eval`` runs when the env var holds a URL string
+        # that ``build_apprise`` then rejects as a non-file path.
+        allow_from_autoenv=False,
         help=(
             "Send out-of-band notifications when a human-in-the-loop "
             "interaction (`ask_user` or human approval) is posted. Bare "

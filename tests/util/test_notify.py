@@ -300,3 +300,107 @@ def test_apprise_scope_installs_and_unwinds() -> None:
     with apprise_scope(fake):
         assert active_apprise() is fake
     assert active_apprise() is None
+
+
+# -- EvalConfig.notification only stores the indirection, never the URL ---
+#
+# Notification URLs (Slack tokens, Twilio auth tokens, webhook bearer
+# tokens) live inside the constructed `apprise.Apprise` instance that
+# `init_apprise` holds in a ContextVar. They must NEVER reach
+# `EvalConfig.notification`, since that field is serialized into every
+# eval log. The CLI layer enforces this by rejecting URL strings via
+# `_notification_callback` + `allow_from_autoenv=False`; the API layer
+# enforces it because `build_apprise` reads URLs from the env var
+# (when `notification=True`) without mutating the caller's argument,
+# and rejects URL strings passed directly. These tests pin the
+# guarantee at the EvalConfig serialization boundary so a future
+# refactor that, say, "helpfully" resolves `True` to the env-var
+# content before stashing it on the config would fail loudly.
+
+
+def test_eval_config_notification_true_does_not_leak_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`EvalConfig(notification=True)` serializes as `True`, not the env URL.
+
+    Even with `INSPECT_EVAL_NOTIFICATION` set to a Slack URL, the
+    config — and therefore the eval log — stores only the literal
+    `True` indirection. The URL stays inside the Apprise instance
+    `build_apprise(True)` constructs.
+    """
+    from inspect_ai.log._log import EvalConfig
+
+    secret_url = "slack://T0/B0/abc-def-ghi"
+    monkeypatch.setenv("INSPECT_EVAL_NOTIFICATION", secret_url)
+
+    config = EvalConfig(notification=True)
+    serialized = config.model_dump_json()
+
+    assert '"notification":true' in serialized
+    assert secret_url not in serialized
+    # And the typed accessor returns the literal True too.
+    assert config.notification is True
+
+
+def test_eval_config_notification_path_string_roundtrips() -> None:
+    """A file-path notification config string roundtrips unchanged."""
+    from inspect_ai.log._log import EvalConfig
+
+    config = EvalConfig(notification="/etc/inspect/apprise.yml")
+    serialized = config.model_dump_json()
+
+    assert '"notification":"/etc/inspect/apprise.yml"' in serialized
+    # Roundtrip through Pydantic.
+    restored = EvalConfig.model_validate_json(serialized)
+    assert restored.notification == "/etc/inspect/apprise.yml"
+
+
+def test_eval_config_notification_default_is_none() -> None:
+    """No `notification` argument → field is `None` (default-disabled)."""
+    from inspect_ai.log._log import EvalConfig
+
+    config = EvalConfig()
+    assert config.notification is None
+
+
+def test_eval_config_old_log_without_notification_field_loads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An eval log written before this field existed loads with `notification=None`.
+
+    Pydantic backward-compat: a config JSON missing `notification`
+    must validate (default `None`) so older logs still load under
+    `eval-retry`. Without this guarantee, the `notification: bool |
+    str | None = Field(default=None)` addition would silently break
+    log loading.
+    """
+    from inspect_ai.log._log import EvalConfig
+
+    # An EvalConfig from a pre-feature log won't carry the field at all.
+    legacy = EvalConfig.model_validate({})
+    assert legacy.notification is None
+
+
+def test_build_apprise_does_not_mutate_or_return_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`build_apprise(True)` reads the env URL but doesn't surface it back.
+
+    The returned object is the `apprise.Apprise` instance — the
+    caller (`init_apprise`) installs it into a ContextVar, never
+    onto `EvalConfig`. This is the actual mechanism that keeps the
+    URL out of the log.
+    """
+    pytest.importorskip("apprise")
+
+    # Generic webhook URL — avoids Apprise emitting an "invalid token"
+    # warning that would otherwise pollute the captured-log output for
+    # a test that has nothing to do with token validation.
+    secret_url = "json://example.com/notify"
+    monkeypatch.setenv("INSPECT_EVAL_NOTIFICATION", secret_url)
+
+    result = build_apprise(True)
+
+    # The return type is an Apprise instance (or None) — never the URL string.
+    assert result is not None
+    assert not isinstance(result, (bool, str))
