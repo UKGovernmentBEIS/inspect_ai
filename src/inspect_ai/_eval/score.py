@@ -58,7 +58,7 @@ from inspect_ai.scorer._reducer import (
     create_reducers,
     reducer_log_names,
 )
-from inspect_ai.scorer._scorer import ScorerSpec, unique_scorer_name
+from inspect_ai.scorer._scorer import ScorerSpec, as_scorer_spec, unique_scorer_name
 from inspect_ai.solver import TaskState
 from inspect_ai.util._display import (
     DisplayType,
@@ -68,6 +68,7 @@ from inspect_ai.util._display import (
 from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME, span
 from inspect_ai.util._store import init_subtask_store
 
+from .task.log import record_scorer_value_schemas, resolve_eval_scorers
 from .task.results import ScorerInfo, eval_results
 
 ScoreAction = Literal["append", "overwrite"]
@@ -307,15 +308,26 @@ async def score_async(
             epochs_reducer = reducers_from_log_header(log)
 
         # compute metrics
+        completed_scores = list(filter(None, scores))
         results, reductions = eval_results(
             total_samples,
-            list(filter(None, scores)),
+            completed_scores,
             epochs_reducer,
             resolved_scorers,
             log_metrics,
             scorer_names,
             early_stopping=log.results.early_stopping if log.results else None,
             metadata=log.results.metadata if log.results else None,
+        )
+
+        # Update log.eval.scorers to reflect the scorers actually applied so
+        # that subsequent recompute_metrics() (which derives ScorerInfo and
+        # value_schema from this header list) operates on the right entries.
+        applied_eval_scorers = (
+            resolve_eval_scorers([as_scorer_spec(s) for s in resolved_scorers]) or []
+        )
+        record_scorer_value_schemas(
+            applied_eval_scorers, scorer_names or [], completed_scores
         )
 
         # Since the metrics calculation above is only be done using the scorers
@@ -325,10 +337,12 @@ async def score_async(
         if action == "overwrite" or log.results is None:
             # Completely replace the results with the new results
             log.results = results
+            log.eval.scorers = applied_eval_scorers
         else:
             # Only update the results with the new scores, leaving the rest
             # of the results as they were
             log.results.scores.extend(results.scores)
+            log.eval.scorers = (log.eval.scorers or []) + applied_eval_scorers
 
     return log
 
