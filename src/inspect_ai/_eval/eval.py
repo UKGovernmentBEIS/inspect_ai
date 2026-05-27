@@ -9,6 +9,7 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
+from inspect_ai._control.server import control_server as _control_server
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
@@ -840,7 +841,17 @@ async def _eval_async_inner(
         # via the discovery file in `<inspect_data_dir>/acp/`. Nested
         # rather than parenthesized because ``scan_cm`` is a sync
         # context manager and Python disallows mixing in the comma form.
-        async with _acp_server(eval_id=run_id, transport=acp_server):
+        #
+        # The control channel HTTP server is default-on (unlike ACP,
+        # which is opt-in). It exposes live-eval read / direct /
+        # event-subscription operations to `inspect ctl` CLI clients,
+        # TUIs, and agents. Bind failures are logged and swallowed —
+        # eval correctness never depends on the control channel coming
+        # up. See design/control-channel.md "Implementation notes".
+        async with (
+            _control_server(run_id=run_id),
+            _acp_server(eval_id=run_id, transport=acp_server),
+        ):
             with scan_cm:
                 # single task definition (could be multi-model) or max_tasks capped to 1
                 if parallel == 1:

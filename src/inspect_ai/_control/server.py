@@ -1,0 +1,197 @@
+"""HTTP control server embedded in each running eval process.
+
+When an eval is launched, :func:`control_server` spins up a FastAPI
+app on an AF_UNIX socket (default at
+``<inspect_data_dir>/control/<pid>.sock``) and writes a discovery
+JSON file so CLI clients can enumerate live evals.
+
+Default-on with graceful degradation: bind failures (read-only
+filesystem, restricted sandbox, etc.) log a warning and continue
+without the surface — eval correctness never depends on the control
+channel coming up. See design/control-channel.md "Implementation
+notes" for the lifecycle / flag policy.
+
+MVP scope: a single ``GET /evals`` read-only endpoint sufficient for
+``inspect ctl ls``. Directives, sample-level endpoints, and event
+subscription land in subsequent phases.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import os
+import time
+from contextlib import asynccontextmanager
+from logging import getLogger
+from pathlib import Path
+from typing import Any, AsyncIterator
+
+from inspect_ai._control.discovery import (
+    cleanup_stale_discovery_files,
+    default_socket_path,
+    discovery_file_path,
+)
+from inspect_ai._control.state import current_eval_summary
+
+logger = getLogger(__name__)
+
+
+class ControlServer:
+    """FastAPI server for the live-eval control channel.
+
+    One instance per eval process; lifecycle scoped to the eval run.
+    """
+
+    def __init__(self, *, run_id: str) -> None:
+        self._run_id = run_id
+        self._started_at = time.time()
+        self._socket_path: Path | None = None
+        self._discovery_path: Path | None = None
+        self._uvicorn_server: Any = None
+        self._serve_task: asyncio.Task[None] | None = None
+
+    @property
+    def socket_path(self) -> Path | None:
+        return self._socket_path
+
+    def _build_app(self) -> Any:
+        """Build the FastAPI app.
+
+        Imported lazily so module import doesn't pay the FastAPI cost
+        when control is disabled.
+        """
+        from fastapi import FastAPI
+
+        app = FastAPI()
+        run_id = self._run_id
+        started_at = self._started_at
+
+        @app.get("/evals")
+        async def list_evals() -> list[dict[str, Any]]:
+            return [current_eval_summary(run_id, started_at)]
+
+        return app
+
+    async def start(self) -> None:
+        """Bind the AF_UNIX socket, write the discovery file, start serving."""
+        import uvicorn
+
+        cleanup_stale_discovery_files()
+
+        socket_path = default_socket_path(os.getpid())
+        socket_path.parent.mkdir(parents=True, exist_ok=True)
+        # Unlink any leftover socket node from a stale prior bind.
+        if socket_path.exists() or socket_path.is_symlink():
+            try:
+                socket_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+        app = self._build_app()
+        config = uvicorn.Config(
+            app,
+            uds=str(socket_path),
+            log_config=None,
+            log_level="warning",
+            access_log=False,
+            timeout_keep_alive=5,
+        )
+        server = uvicorn.Server(config)
+        # Suppress uvicorn's signal handler installation — we're an
+        # embedded server, not the main process, so SIGINT/SIGTERM
+        # should not be intercepted here.
+        server.install_signal_handlers = lambda: None  # type: ignore[attr-defined,method-assign]
+
+        self._socket_path = socket_path
+        self._uvicorn_server = server
+        self._serve_task = asyncio.create_task(
+            server.serve(), name=f"inspect-ctl-server-{self._run_id}"
+        )
+
+        # Wait until uvicorn reports started so the discovery file is
+        # only published after the socket is actually accepting.
+        for _ in range(100):  # up to ~5s
+            if server.started:
+                break
+            await asyncio.sleep(0.05)
+
+        self._discovery_path = discovery_file_path(os.getpid())
+        self._discovery_path.write_text(
+            json.dumps(
+                {
+                    "pid": os.getpid(),
+                    "run_id": self._run_id,
+                    "socket_path": str(socket_path),
+                    "started_at": self._started_at,
+                }
+            )
+        )
+
+    async def stop(self) -> None:
+        """Tear down the server, remove the socket + discovery file."""
+        try:
+            if self._uvicorn_server is not None:
+                self._uvicorn_server.should_exit = True
+            if self._serve_task is not None and not self._serve_task.done():
+                try:
+                    await asyncio.wait_for(self._serve_task, timeout=5.0)
+                except asyncio.TimeoutError:
+                    self._serve_task.cancel()
+                    try:
+                        await self._serve_task
+                    except (asyncio.CancelledError, Exception):
+                        pass
+                except (asyncio.CancelledError, Exception):
+                    pass
+        finally:
+            if self._discovery_path is not None:
+                try:
+                    self._discovery_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            if self._socket_path is not None:
+                try:
+                    self._socket_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
+
+@asynccontextmanager
+async def control_server(
+    *,
+    run_id: str,
+    enabled: bool = True,
+) -> AsyncIterator[ControlServer | None]:
+    """Start (and stop) the control HTTP server for one eval run.
+
+    Default-on: pass ``enabled=False`` to skip the bind entirely (eg.
+    via a future ``--no-ctl`` flag or ``INSPECT_CTL=false`` env var).
+
+    Bind failures are logged and swallowed — yields ``None`` and the
+    eval runs without the control surface. Eval correctness never
+    depends on the control channel coming up.
+    """
+    if not enabled:
+        yield None
+        return
+
+    server = ControlServer(run_id=run_id)
+    try:
+        await server.start()
+    except Exception as exc:
+        logger.warning(
+            "Control server failed to start (eval will run without "
+            "control surface): %s",
+            exc,
+        )
+        yield None
+        return
+
+    try:
+        yield server
+    finally:
+        try:
+            await server.stop()
+        except Exception:
+            logger.exception("Error stopping control server")
