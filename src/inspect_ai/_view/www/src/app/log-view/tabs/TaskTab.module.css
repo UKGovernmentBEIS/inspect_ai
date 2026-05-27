@@ -1,6 +1,0 @@
-.grid {
-  display: grid;
-  grid-template-columns: fit-content(50%) fit-content(50%);
-  column-gap: 3em;
-  align-items: flex-start;
-}

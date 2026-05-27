@@ -2,11 +2,18 @@ from contextvars import ContextVar
 from copy import deepcopy
 from typing import Any, Literal, Union
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from typing_extensions import TypedDict
 
-from inspect_ai._util.constants import DEFAULT_BATCH_SIZE
+from inspect_ai._util.constants import DEFAULT_BATCH_SIZE, DESERIALIZING
 from inspect_ai.model._cache import CachePolicy
+from inspect_ai.util._concurrency import AdaptiveConcurrency
 from inspect_ai.util._json import JSONSchema
 
 
@@ -53,6 +60,21 @@ class BatchConfig(BaseModel):
     """Maximum number of consecutive check failures before failing a batch (defaults to 1000)."""
 
 
+class ImageOutput(BaseModel):
+    """Image output configuration.
+
+    Use the `options` field to pass provider-specific options directly
+    to the underlying API (e.g. OpenAI image_generation tool parameters).
+    """
+
+    options: dict[Literal["openai"], dict[str, Any]] | None = Field(default=None)
+    """Provider-specific image output options, keyed by provider name."""
+
+
+OutputModality = Union[Literal["image"], ImageOutput]
+"""Output modality type. Either a literal string or an ImageOutput configuration."""
+
+
 class GenerateConfigArgs(TypedDict, total=False):
     """Type for kwargs that selectively override GenerateConfig."""
 
@@ -67,6 +89,9 @@ class GenerateConfigArgs(TypedDict, total=False):
 
     max_connections: int | None
     """Maximum number of concurrent connections to Model API (default is model specific)."""
+
+    adaptive_connections: bool | int | AdaptiveConcurrency | None
+    """Adaptive concurrency for model API connections. Defaults to enabled (`None` and `True` both resolve to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100). Pass `False` to opt out (uses static concurrency). Pass an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`. Pass an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency."""
 
     system_message: str | None
     """Override the default system message."""
@@ -110,6 +135,9 @@ class GenerateConfigArgs(TypedDict, total=False):
     top_logprobs: int | None
     """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Google, Grok, and Huggingface only."""
 
+    prompt_logprobs: int | None
+    """Number of log probabilities to return per prompt token (1-20). When greater than 1, top-N alternative tokens are also returned. vLLM only."""
+
     parallel_tool_calls: bool | None
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
 
@@ -120,16 +148,16 @@ class GenerateConfigArgs(TypedDict, total=False):
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
     cache_prompt: Literal["auto"] | bool | None
-    """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
+    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only."""
 
     verbosity: Literal["low", "medium", "high"] | None
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
 
-    effort: Literal["low", "medium", "high"] | None
-    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only."""
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None
+    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5+ only (`max` only supported on 4.6 and 4.7, `xhigh` supported only on 4.7)."""
 
     reasoning_effort: (
-        Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
+        Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] | None
     )
     """Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details)."""
 
@@ -145,8 +173,14 @@ class GenerateConfigArgs(TypedDict, total=False):
     response_schema: ResponseSchema | None
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, and Mistral only."""
 
+    extra_headers: dict[str, str] | None
+    """Extra headers to be sent with requests. Not supported for AzureAI, Bedrock, and Grok."""
+
     extra_body: dict[str, Any] | None
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    modalities: list[OutputModality] | None
+    """Additional output modalities to enable beyond text (e.g. ["image"]). OpenAI and Google only."""
 
     cache: bool | CachePolicy | None
     """Policy for caching of model generations."""
@@ -169,6 +203,9 @@ class GenerateConfig(BaseModel):
 
     max_connections: int | None = Field(default=None)
     """Maximum number of concurrent connections to Model API (default is model specific)."""
+
+    adaptive_connections: bool | int | AdaptiveConcurrency | None = Field(default=None)
+    """Adaptive concurrency for model API connections. Defaults to enabled (`None` and `True` both resolve to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100). Pass `False` to opt out (uses static concurrency). Pass an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`. Pass an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency."""
 
     system_message: str | None = Field(default=None)
     """Override the default system message."""
@@ -212,6 +249,16 @@ class GenerateConfig(BaseModel):
     top_logprobs: int | None = Field(default=None)
     """Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, Huggingface, vLLM, and SGLang only."""
 
+    prompt_logprobs: int | None = Field(default=None)
+    """Number of log probabilities to return per prompt token (1-20). When greater than 1, top-N alternative tokens are also returned. vLLM only."""
+
+    @field_validator("prompt_logprobs")
+    @classmethod
+    def _validate_prompt_logprobs(cls, v: int | None) -> int | None:
+        if v is not None and (v < 1 or v > 20):
+            raise ValueError("prompt_logprobs must be between 1 and 20")
+        return v
+
     parallel_tool_calls: bool | None = Field(default=None)
     """Whether to enable parallel function calling during tool use (defaults to True). OpenAI and Groq only."""
 
@@ -222,16 +269,18 @@ class GenerateConfig(BaseModel):
     """Maximum tool output (in bytes). Defaults to 16 * 1024."""
 
     cache_prompt: Literal["auto"] | bool | None = Field(default=None)
-    """Whether to cache the prompt prefix. Defaults to "auto", which will enable caching for requests with tools. Anthropic only."""
+    """Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only."""
 
     verbosity: Literal["low", "medium", "high"] | None = Field(default=None)
     """Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models)."""
 
-    effort: Literal["low", "medium", "high"] | None = Field(default=None)
-    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only."""
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None = Field(
+        default=None
+    )
+    """Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude Opus 4.5+ only (`max` only supported on 4.6 and 4.7, `xhigh` supported only on 4.7)."""
 
     reasoning_effort: (
-        Literal["none", "minimal", "low", "medium", "high", "xhigh"] | None
+        Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"] | None
     ) = Field(default=None)
     """Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details)."""
 
@@ -251,14 +300,44 @@ class GenerateConfig(BaseModel):
     response_schema: ResponseSchema | None = Field(default=None)
     """Request a response format as JSONSchema (output should still be validated). OpenAI, Google, Mistral, vLLM, and SGLang only."""
 
+    extra_headers: dict[str, str] | None = Field(default=None)
+    """Extra headers to be sent with requests. Not supported for AzureAI, Bedrock, and Grok."""
+
     extra_body: dict[str, Any] | None = Field(default=None)
     """Extra body to be sent with requests to OpenAI compatible servers. OpenAI, vLLM, and SGLang only."""
+
+    modalities: list[OutputModality] | None = Field(default=None)
+    """Additional output modalities to enable beyond text (e.g. ["image"]). OpenAI and Google only."""
 
     cache: bool | CachePolicy | None = Field(default=None)
     """Policy for caching of model generate output."""
 
     batch: bool | int | BatchConfig | None = Field(default=None)
     """Use batching API when available. True to enable batching with default configuration, False to disable batching, a number to enable batching of the specified batch size, or a BatchConfig object specifying the batching configuration."""
+
+    # reject unknown fields unless we are reading older logs
+    @model_validator(mode="before")
+    @classmethod
+    def handle_unknown_fields(cls, data: Any, info: ValidationInfo) -> Any:
+        if isinstance(data, dict):
+            data = dict(data)
+            extra = set(data) - set(cls.model_fields)
+            if extra:
+                if isinstance(info.context, dict) and info.context.get(
+                    DESERIALIZING, False
+                ):
+                    data = {
+                        key: value
+                        for key, value in data.items()
+                        if key in cls.model_fields
+                    }
+                else:
+                    fields = ", ".join(sorted(extra))
+                    raise ValueError(
+                        f"Unknown GenerateConfig field(s): {fields}. "
+                        "Use extra_body for provider-specific options."
+                    )
+        return data
 
     # migrate reasoning_history as a bool
     @model_validator(mode="before")
@@ -292,7 +371,7 @@ class GenerateConfig(BaseModel):
         for key in config_keys:
             value = getattr(other, key, None)
             if value is not None:
-                setattr(config, key, value)
+                setattr(config, key, deepcopy(value))
         return config
 
 
@@ -307,6 +386,33 @@ def set_active_generate_config(config: GenerateConfig) -> None:
 active_generate_config_context_var: ContextVar[GenerateConfig] = ContextVar(
     "generate_config", default=GenerateConfig()
 )
+
+
+def has_image_output(modalities: list[OutputModality] | None) -> bool:
+    """Check if modalities include image output."""
+    return image_output_config(modalities) is not None
+
+
+def image_output_config(
+    modalities: list[OutputModality] | None,
+) -> ImageOutput | None:
+    """Return the last ImageOutput from modalities.
+
+    Returns a default ImageOutput if only string "image" entries exist,
+    or None if no image output is present.
+    """
+    if modalities is None:
+        return None
+    last: ImageOutput | None = None
+    found = False
+    for m in modalities:
+        if m == "image" or isinstance(m, ImageOutput):
+            found = True
+            if isinstance(m, ImageOutput):
+                last = m
+    if not found:
+        return None
+    return last if last is not None else ImageOutput()
 
 
 def normalized_batch_config(

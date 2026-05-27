@@ -1,7 +1,9 @@
 import ast
 import contextlib
+import copy
 import inspect
 import os
+from dataclasses import replace
 from logging import getLogger
 from pathlib import Path
 from typing import Any, Callable, Tuple, cast
@@ -25,11 +27,16 @@ from inspect_ai._util.registry import (
 )
 from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.model import Model
+from inspect_ai.scorer._metric import Metric, MetricSpec, metric_create
 from inspect_ai.scorer._scorer import Scorer, ScorerSpec, scorer_create
 from inspect_ai.solver._bridge import bridge
 from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentSpec, SandboxEnvironmentType
+from inspect_ai.util._checkpoint._layout import (
+    eval_checkpoints_dir_from_config,
+)
+from inspect_ai.util._checkpoint.config import CheckpointConfig
 from inspect_ai.util._sandbox.compose import (
     is_docker_compatible_config,
     is_docker_compatible_sandbox_type,
@@ -50,6 +57,17 @@ from .task.tasks import Tasks
 logger = getLogger(__name__)
 
 
+def _merge_model_roles(
+    *roles_dicts: dict[str, Model] | None,
+) -> dict[str, Model] | None:
+    """Merge model_roles dicts with later dicts taking priority."""
+    merged: dict[str, Model] = {}
+    for d in roles_dicts:
+        if d:
+            merged.update(d)
+    return merged or None
+
+
 def resolve_tasks(
     tasks: Tasks,
     task_args: dict[str, Any],
@@ -57,6 +75,7 @@ def resolve_tasks(
     model_roles: dict[str, Model] | None,
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
+    eval_checkpoint: CheckpointConfig | None = None,
 ) -> list[ResolvedTask]:
     def as_resolved_tasks(tasks: list[Task]) -> list[ResolvedTask]:
         # shuffle data in tasks if requested
@@ -74,76 +93,46 @@ def resolve_tasks(
                 task_args=resolve_task_args(task),
                 task_file=task_file(task, relative=True),
                 model=task.model or model,
-                model_roles=task.model_roles or model_roles,
+                model_roles=_merge_model_roles(task.model_roles, model_roles),
                 sandbox=resolve_task_sandbox(task, sandbox),
+                checkpoint=task.checkpoint,
                 sequence=sequence,
             )
             for sequence, task in enumerate(tasks)
         ]
 
+    # an empty list is equivalent to None (load tasks from cwd) — but it
+    # must short-circuit before any tasks[0] access below
+    if isinstance(tasks, list) and len(tasks) == 0:
+        return as_resolved_tasks(load_tasks(None, task_args))
+
     # reflect resolved tasks right back
     if isinstance(tasks, ResolvedTask):
         return [tasks]
-    elif isinstance(tasks, list) and isinstance(tasks[0], ResolvedTask):
-        return cast(list[ResolvedTask], tasks)
-
-    # take empty lists out of play
-    if isinstance(tasks, list) and len(tasks) == 0:
-        return as_resolved_tasks(load_tasks(None, task_args))
+    if isinstance(tasks, PreviousTask):
+        tasks = [tasks]
+    if isinstance(tasks, list) and isinstance(tasks[0], (ResolvedTask, PreviousTask)):
+        return resolve_previous_tasks(
+            [t for t in tasks if isinstance(t, (ResolvedTask, PreviousTask))],
+            sample_shuffle=sample_shuffle,
+            model=model,
+            model_roles=model_roles,
+            eval_checkpoint=eval_checkpoint,
+        )
 
     # simple cases of passing us Task objects
     if isinstance(tasks, Task):
         return as_resolved_tasks([tasks])
     elif isinstance(tasks, list) and isinstance(tasks[0], Task):
-        return as_resolved_tasks(cast(list[Task], tasks))
-
-    # simple case of passing us PreviousTask
-    if isinstance(tasks, PreviousTask):
-        tasks = [tasks]
-    if isinstance(tasks, list) and isinstance(tasks[0], PreviousTask):
-        # for previous tasks, prefer recreating from the registry (so we have
-        # a fresh instance) but also allow recycling of task instances for
-        # fully dynamic tasks
-        previous_tasks = cast(list[PreviousTask], tasks)
-        loaded_tasks: list[Task] = []
-        loaded_tasks_args: list[dict[str, Any]] = []
-        for previous_task in previous_tasks:
-            if isinstance(previous_task.task, Task):
-                loaded_task_args = previous_task.task_args
-                loaded_task = previous_task.task
-            else:
-                loaded_task_args = previous_task.task_args
-                loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
-            if sample_shuffle is not None:
-                if not loaded_task.dataset.shuffled:
-                    loaded_task.dataset.shuffle(
-                        None if sample_shuffle is True else sample_shuffle
-                    )
-            loaded_tasks.append(loaded_task)
-            loaded_tasks_args.append(loaded_task_args)
-
-        return [
-            resolve_previous_task(
-                loaded_task,
-                loaded_task_args,
-                model,
-                model_roles,
-                previous_task,
-                sequence,
-            )
-            for sequence, loaded_task, loaded_task_args, previous_task in zip(
-                range(0, len(loaded_tasks)),
-                loaded_tasks,
-                loaded_tasks_args,
-                previous_tasks,
-            )
-        ]
+        return as_resolved_tasks([t for t in tasks if isinstance(t, Task)])
 
     # convert TaskInfo to str
     if isinstance(tasks, TaskInfo):
         tasks = [tasks]
     if isinstance(tasks, list) and isinstance(tasks[0], TaskInfo):
-        tasks = [f"{task.file}@{task.name}" for task in cast(list[TaskInfo], tasks)]
+        tasks = [
+            f"{task.file}@{task.name}" for task in tasks if isinstance(task, TaskInfo)
+        ]
 
     # handle functions that return tasks (we get their registry name)
     if isinstance(tasks, list) and callable(tasks[0]):
@@ -159,6 +148,48 @@ def resolve_tasks(
     return as_resolved_tasks(load_tasks(cast(list[str] | None, tasks), task_args))
 
 
+def resolve_previous_tasks(
+    tasks: list[ResolvedTask] | list[PreviousTask] | list[ResolvedTask | PreviousTask],
+    sample_shuffle: bool | int | None,
+    model: Model,
+    model_roles: dict[str, Model] | None,
+    eval_checkpoint: CheckpointConfig | None = None,
+) -> list[ResolvedTask]:
+    result = []
+    for sequence, task in enumerate(tasks):
+        if isinstance(task, ResolvedTask):
+            sequenced_task = replace(task, sequence=sequence)
+            result.append(sequenced_task)
+        else:
+            # for previous tasks, prefer recreating from the registry (so we have
+            # a fresh instance) but also allow recycling of task instances for
+            # fully dynamic tasks
+            previous_task = task
+            if isinstance(previous_task.task, Task):
+                loaded_task_args = previous_task.task_args
+                loaded_task = previous_task.task
+            else:
+                loaded_task_args = previous_task.task_args
+                loaded_task = load_tasks([previous_task.task], loaded_task_args)[0]
+            if sample_shuffle is not None:
+                if not loaded_task.dataset.shuffled:
+                    loaded_task.dataset.shuffle(
+                        None if sample_shuffle is True else sample_shuffle
+                    )
+            result.append(
+                resolve_previous_task(
+                    loaded_task,
+                    loaded_task_args,
+                    model,
+                    model_roles,
+                    previous_task,
+                    sequence,
+                    eval_checkpoint,
+                )
+            )
+    return result
+
+
 def resolve_previous_task(
     loaded_task: Task,
     loaded_task_args: dict[str, Any],
@@ -166,23 +197,46 @@ def resolve_previous_task(
     model_roles: dict[str, Model] | None,
     previous_task: PreviousTask,
     sequence: int,
+    eval_checkpoint: CheckpointConfig | None = None,
 ) -> ResolvedTask:
+    # carry token usage forward from the prior log so cumulative totals stay
+    # accurate across retries. Deep-copy so the prior log is never mutated.
+    prior_stats = previous_task.log.stats
+    initial_model_usage = (
+        copy.deepcopy(prior_stats.model_usage) if prior_stats.model_usage else None
+    )
+    initial_role_usage = (
+        copy.deepcopy(prior_stats.role_usage) if prior_stats.role_usage else None
+    )
+
     return ResolvedTask(
         task=loaded_task,
         task_args=loaded_task_args,
         task_file=previous_task.log.eval.task_file,
         model=previous_task.model or loaded_task.model or model,
-        model_roles=(
-            previous_task.model_roles or loaded_task.model_roles or model_roles
+        model_roles=_merge_model_roles(
+            model_roles, loaded_task.model_roles, previous_task.model_roles
         ),
         sandbox=resolve_task_file_sandbox(
             previous_task.log.eval.task_file, previous_task.log.eval.sandbox
         ),
+        checkpoint=loaded_task.checkpoint,
         sequence=sequence,
         id=previous_task.id,
         sample_source=eval_log_sample_source(
-            previous_task.log, previous_task.log_info, loaded_task.dataset
+            previous_task.log,
+            previous_task.log_info,
+            loaded_task.dataset,
+            eval_checkpoints_dir_from_config(
+                previous_task.log_info.name
+                if previous_task.log_info is not None
+                else previous_task.log.location,
+                loaded_task.checkpoint,
+                eval_checkpoint,
+            ),
         ),
+        initial_model_usage=initial_model_usage,
+        initial_role_usage=initial_role_usage,
     )
 
 
@@ -651,6 +705,70 @@ def scorer_from_spec(spec: ScorerSpec, task_path: Path | None, **kwargs: Any) ->
             else:
                 raise PrerequisiteError(
                     f"The function {scorer_name} was not found in file {pretty_scorer_file}."
+                )
+
+
+def metric_from_spec(spec: MetricSpec, **kwargs: Any) -> Metric:
+    """
+    Load a metric
+
+    Args:
+        spec: The metric spec
+        **kwargs: Additional keyword arguments passed to the metric initialization
+
+    Returns:
+        Metric: the loaded metric
+
+    Raises:
+        PrerequisiteError: If the metric cannot be found or loaded
+    """
+    # resolve @ reference
+    metric_file, metric_name = parse_spec_str(spec.metric)
+
+    # switch contexts if we are loading from a file
+    create_cm = (
+        chdir_python(metric_file.parent.as_posix())
+        if metric_file is not None
+        else contextlib.nullcontext()
+    )
+
+    # pretty metric name for error messages
+    pretty_metric_file = (
+        cwd_relative_path(metric_file.as_posix()) if metric_file else None
+    )
+
+    with create_cm:
+        # is there a metric file being provided? if not, load from registry
+        if metric_file is None:
+            if metric_name is None:
+                raise ValueError(f"Unable to resolve metric name from {spec.metric}")
+
+            return metric_create(metric_name, **kwargs)
+
+        # metric is a path, so load it that way
+        else:
+            load_module(metric_file)
+            metric_decorators = parse_decorators(metric_file, "metric")
+
+            # if there is no metric_name see if we can discover it
+            if metric_name is None:
+                if len(metric_decorators) == 1:
+                    metric_name = metric_decorators[0][0]
+                elif len(metric_decorators) == 0:
+                    raise PrerequisiteError(
+                        f"The source file {pretty_metric_file} does not contain any @metric functions."
+                    )
+                else:
+                    raise PrerequisiteError(
+                        f"The source file {pretty_metric_file} has more than one @metric function (qualify which metric using e.g. '{metric_file.name}@metric_fn')"
+                    )
+
+            # create decorator based metrics using the registry
+            if any(metric[0] == metric_name for metric in metric_decorators):
+                return metric_create(metric_name, **kwargs)
+            else:
+                raise PrerequisiteError(
+                    f"The function {metric_name} was not found in file {pretty_metric_file}."
                 )
 
 

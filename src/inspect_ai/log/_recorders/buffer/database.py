@@ -3,24 +3,37 @@ import hashlib
 import json
 import os
 import sqlite3
+import threading
 import time
+from collections.abc import Sequence
 from contextlib import contextmanager
 from logging import getLogger
 from pathlib import Path
 from sqlite3 import Connection, OperationalError
-from typing import Callable, Iterator, Literal
+from typing import Callable, Iterable, Iterator, Literal
 
 import psutil
-from pydantic import BaseModel
+from pydantic import BaseModel, JsonValue
 from shortuuid import uuid
 from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.appdirs import inspect_data_dir
 from inspect_ai._util.dateutil import is_file_older_than
-from inspect_ai._util.file import basename, dirname, filesystem
+from inspect_ai._util.file import (
+    basename,
+    dirname,
+    filesystem,
+)
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
+from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._pool import (
+    _compress_refs,
+    condense_model_event_calls,
+    condense_model_event_inputs,
+)
+from inspect_ai.log._recorders.buffer.history import SampleHistory
 from inspect_ai.model import ChatMessage
 
 from ..._condense import (
@@ -42,14 +55,17 @@ from .filestore import (
 )
 from .types import (
     AttachmentData,
+    CallPoolData,
     EventData,
     JsonData,
+    MessagePoolData,
     SampleBuffer,
     SampleData,
     Samples,
 )
 
 logger = getLogger(__name__)
+SYNC_CLEANUP_TIMEOUT = 30
 
 
 class TaskData(BaseModel):
@@ -81,12 +97,33 @@ class SampleBufferDatabase(SampleBuffer):
         data TEXT -- JSON containing full event
     );
 
+    CREATE INDEX IF NOT EXISTS idx_events_sample_uuid
+        ON events(sample_id, sample_epoch, event_id, id);
+
     CREATE TABLE attachments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sample_id TEXT,
         sample_epoch INTEGER,
         hash TEXT,
         content TEXT,
+        UNIQUE(sample_id, sample_epoch, hash)
+    );
+
+    CREATE TABLE message_pool (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sample_id TEXT,
+        sample_epoch INTEGER,
+        msg_id TEXT,
+        data TEXT,
+        UNIQUE(sample_id, sample_epoch, msg_id)
+    );
+
+    CREATE TABLE call_pool (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sample_id TEXT,
+        sample_epoch INTEGER,
+        hash TEXT,
+        data TEXT,
         UNIQUE(sample_id, sample_epoch, hash)
     );
 
@@ -140,6 +177,18 @@ class SampleBufferDatabase(SampleBuffer):
             else:
                 raise FileNotFoundError("Log database for '{location}' not found.")
 
+        # Per-sample hash → pool index maps; full pool entries live in SQLite.
+        self._msg_indices: dict[tuple[str, int], dict[str, int]] = {}
+        self._call_indices: dict[tuple[str, int], dict[str, int]] = {}
+
+        # Prevent late ModelEvents from restarting indices at 0 after completion.
+        self._completed_samples: set[tuple[str, int]] = set()
+
+        self._sample_read_leases: dict[tuple[str, int], int] = {}
+        self._pending_sample_removals: set[tuple[str, int]] = set()
+        self._cleanup_pending = False
+        self._lease_lock = threading.Lock()
+
         # create sync filestore if log_shared
         self._sync_filestore = (
             SampleBufferFilestore(location, update_interval=log_shared)
@@ -147,6 +196,12 @@ class SampleBufferDatabase(SampleBuffer):
             else None
         )
         self._sync_time = time.monotonic()
+        self._sync_lock = threading.Lock()
+        self._sync_wakeup = threading.Condition(self._sync_lock)
+        self._sync_thread: threading.Thread | None = None
+        self._sync_pending = False
+        self._sync_closed = False
+        self._sync_requested = False
 
     def start_sample(self, sample: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
@@ -160,10 +215,38 @@ class SampleBufferDatabase(SampleBuffer):
             )
 
     def log_events(self, events: list[SampleEvent]) -> None:
-        with self._get_connection(write=True) as conn:
+        index_snapshots: dict[
+            tuple[str, int], tuple[dict[str, int] | None, dict[str, int] | None]
+        ] = {}
+
+        def restore_index_snapshots() -> None:
+            for key, (msg_index, call_index) in index_snapshots.items():
+                if msg_index is None:
+                    self._msg_indices.pop(key, None)
+                else:
+                    self._msg_indices[key] = msg_index
+
+                if call_index is None:
+                    self._call_indices.pop(key, None)
+                else:
+                    self._call_indices[key] = call_index
+
+        with self._get_connection(
+            write=True, on_rollback=restore_index_snapshots
+        ) as conn:
             # collect the values for all events
             values: list[str | int] = []
             for event in events:
+                if isinstance(event.event, ModelEvent):
+                    key = (str(event.id), event.epoch)
+                    if key not in index_snapshots:
+                        msg_index = self._msg_indices.get(key)
+                        call_index = self._call_indices.get(key)
+                        index_snapshots[key] = (
+                            None if msg_index is None else dict(msg_index),
+                            None if call_index is None else dict(call_index),
+                        )
+
                 event = self._condense_event(conn, event)
                 values.extend(
                     (
@@ -194,6 +277,11 @@ class SampleBufferDatabase(SampleBuffer):
                 (to_json_str_safe(summary), str(summary.id), summary.epoch),
             )
 
+            key = (str(summary.id), summary.epoch)
+            self._msg_indices.pop(key, None)
+            self._call_indices.pop(key, None)
+            self._completed_samples.add(key)
+
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
         with self._get_connection(write=True) as conn:
             conn.execute(
@@ -206,9 +294,29 @@ class SampleBufferDatabase(SampleBuffer):
             )
 
     def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:
+        ready: list[tuple[str, int]] = []
+
+        with self._lease_lock:
+            for sample_id, epoch in samples:
+                key = (str(sample_id), epoch)
+                if key in self._sample_read_leases:
+                    self._pending_sample_removals.add(key)
+                else:
+                    ready.append(key)
+
+        if ready:
+            self._remove_samples_now(ready)
+
+    def _remove_samples_now(self, samples: list[tuple[str, int]]) -> None:
         # short circuit no samples
         if len(samples) == 0:
             return
+
+        # clear in-memory state
+        for key in samples:
+            self._msg_indices.pop(key, None)
+            self._call_indices.pop(key, None)
+            self._completed_samples.discard(key)
 
         with self._get_connection(write=True) as conn:
             cursor = conn.cursor()
@@ -226,12 +334,15 @@ class SampleBufferDatabase(SampleBuffer):
                     # Flatten parameters for binding
                     parameters = [item for tup in batch for item in tup]
 
-                    # Delete associated events first
-                    events_query = f"""
-                        DELETE FROM events
-                        WHERE {placeholders}
-                    """
-                    cursor.execute(events_query, parameters)
+                    # Delete associated data
+                    for table in ("events", "attachments", "message_pool", "call_pool"):
+                        try:
+                            cursor.execute(
+                                f"DELETE FROM {table} WHERE {placeholders}",
+                                parameters,
+                            )
+                        except OperationalError:
+                            pass  # table may not exist in old DBs
 
                     # Then delete the samples using the same approach
                     placeholders = " OR ".join(["(id=? AND epoch=?)" for _ in batch])
@@ -246,7 +357,50 @@ class SampleBufferDatabase(SampleBuffer):
             finally:
                 cursor.close()
 
+    @override
     def cleanup(self) -> None:
+        if not self._close_sync_worker_for_cleanup():
+            return
+
+        with self._lease_lock:
+            if self._sample_read_leases:
+                self._cleanup_pending = True
+                return
+
+        self._cleanup_now()
+
+    def _close_sync_worker_for_cleanup(self) -> bool:
+        """Close the sync worker before destructive cleanup.
+
+        Returns True when cleanup may proceed. Returns False when cleanup should
+        be skipped because cleanup was requested from the sync worker itself or
+        the worker did not stop within the cleanup timeout.
+        """
+        sync_thread: threading.Thread | None = None
+        with self._sync_lock:
+            self._sync_closed = True
+            self._sync_wakeup.notify_all()
+            sync_thread = self._sync_thread
+
+        if sync_thread is threading.current_thread():
+            logger.warning(
+                "Skipping log buffer cleanup from active sync worker for %s",
+                self.location,
+            )
+            return False
+
+        if sync_thread is not None and sync_thread.is_alive():
+            sync_thread.join(timeout=SYNC_CLEANUP_TIMEOUT)
+            if sync_thread.is_alive():
+                logger.warning(
+                    "Timed out waiting for log buffer sync; skipping cleanup for %s",
+                    self.location,
+                )
+                return False
+
+        return True
+
+    def _cleanup_now(self) -> None:
         cleanup_sample_buffer_db(self.db_path)
         if self._sync_filestore is not None:
             self._sync_filestore.cleanup()
@@ -296,23 +450,189 @@ class SampleBufferDatabase(SampleBuffer):
         epoch: int,
         after_event_id: int | None = None,
         after_attachment_id: int | None = None,
+        after_message_pool_id: int | None = None,
+        after_call_pool_id: int | None = None,
     ) -> SampleData | None:
         if not self.db_path.exists():
             return None
 
         try:
             with self._get_connection() as conn:
+                # This should be checking whether the sample data actually
+                # exists in the database, otherwise once the sample is deleted
+                # this will just return no events and no attachments until the
+                # entire task is completed.
+                row = conn.execute(
+                    "SELECT 1 FROM samples WHERE id = ? AND epoch = ?",
+                    (str(id), epoch),
+                ).fetchone()
+                if row is None:
+                    return None
+
                 return SampleData(
                     events=list(self._get_events(conn, id, epoch, after_event_id)),
                     attachments=list(
                         self._get_attachments(conn, id, epoch, after_attachment_id)
                     ),
+                    message_pool=list(
+                        self._get_message_pool(conn, id, epoch, after_message_pool_id)
+                    ),
+                    call_pool=list(
+                        self._get_call_pool(conn, id, epoch, after_call_pool_id)
+                    ),
                 )
         except FileNotFoundError:
             return None
 
+    def sample_event_count(self, id: str | int, epoch: int) -> int:
+        with self._acquire_sample_read_lease(id, epoch):
+            with self._get_connection() as conn:
+                conn.execute("BEGIN")
+                try:
+                    cursor = conn.execute(
+                        """
+                        SELECT COUNT(DISTINCT COALESCE(NULLIF(event_id, ''), CAST(id AS TEXT)))
+                        FROM events
+                        WHERE sample_id = ? AND sample_epoch = ?
+                        """,
+                        [str(id), epoch],
+                    )
+                    count = int(cursor.fetchone()[0])
+                    conn.commit()
+                    return count
+                except Exception:
+                    conn.rollback()
+                    raise
+
+    def sample_attachment(self, id: str | int, epoch: int, hash: str) -> str | None:
+        with self._acquire_sample_read_lease(id, epoch):
+            with self._get_connection() as conn:
+                conn.execute("BEGIN")
+                try:
+                    row = conn.execute(
+                        """
+                        SELECT content FROM attachments
+                        WHERE sample_id = ? AND sample_epoch = ? AND hash = ?
+                        """,
+                        [str(id), epoch, hash],
+                    ).fetchone()
+                    conn.commit()
+                    return None if row is None else str(row["content"])
+                except Exception:
+                    conn.rollback()
+                    raise
+
     @contextmanager
-    def _get_connection(self, *, write: bool = False) -> Iterator[Connection]:
+    def open_sample_history_tail(
+        self,
+        id: str | int,
+        epoch: int,
+        n: int,
+    ) -> Iterator[SampleHistory]:
+        if n <= 0:
+            yield SampleHistory([], [], [], {})
+            return
+
+        with self._acquire_sample_read_lease(id, epoch):
+            with self._get_connection() as conn:
+                conn.execute("BEGIN")
+                history = self._sample_history(
+                    conn, id, epoch, self._get_events_tail(conn, id, epoch, n)
+                )
+                conn.commit()
+            yield history
+
+    @contextmanager
+    def open_sample_history_from(
+        self,
+        id: str | int,
+        epoch: int,
+        start: int,
+    ) -> Iterator[SampleHistory]:
+        with self._acquire_sample_read_lease(id, epoch):
+            with self._get_connection() as conn:
+                conn.execute("BEGIN")
+                history = self._sample_history(
+                    conn, id, epoch, self._get_events_from(conn, id, epoch, start)
+                )
+                conn.commit()
+            yield history
+
+    @contextmanager
+    def open_sample_history(
+        self,
+        id: str | int,
+        epoch: int,
+    ) -> Iterator[SampleHistory]:
+        with self._acquire_sample_read_lease(id, epoch):
+            with self._get_connection() as conn:
+                conn.execute("BEGIN")
+                history = self._sample_history(
+                    conn,
+                    id,
+                    epoch,
+                    self._get_events(conn, id, epoch, latest_only=True),
+                )
+                conn.commit()
+            yield history
+
+    def _sample_history(
+        self,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        events: Iterable[EventData],
+    ) -> SampleHistory:
+        message_pool = [
+            json.loads(entry.data) for entry in self._get_message_pool(conn, id, epoch)
+        ]
+        call_pool = [
+            json.loads(entry.data) for entry in self._get_call_pool(conn, id, epoch)
+        ]
+        attachments = {
+            entry.hash: entry.content
+            for entry in self._get_attachments(conn, id, epoch)
+        }
+        return SampleHistory(list(events), message_pool, call_pool, attachments)
+
+    @contextmanager
+    def _acquire_sample_read_lease(
+        self,
+        id: str | int,
+        epoch: int,
+    ) -> Iterator[None]:
+        key = (str(id), epoch)
+        with self._lease_lock:
+            self._sample_read_leases[key] = self._sample_read_leases.get(key, 0) + 1
+        try:
+            yield
+        finally:
+            ready_remove = False
+            cleanup_ready = False
+            with self._lease_lock:
+                lease_count = self._sample_read_leases[key] - 1
+                if lease_count > 0:
+                    self._sample_read_leases[key] = lease_count
+                else:
+                    del self._sample_read_leases[key]
+                    if key in self._pending_sample_removals:
+                        self._pending_sample_removals.remove(key)
+                        ready_remove = True
+                    if self._cleanup_pending and not self._sample_read_leases:
+                        self._cleanup_pending = False
+                        cleanup_ready = True
+            if ready_remove:
+                self._remove_samples_now([key])
+            if cleanup_ready:
+                self._cleanup_now()
+
+    @contextmanager
+    def _get_connection(
+        self,
+        *,
+        write: bool = False,
+        on_rollback: Callable[[], None] | None = None,
+    ) -> Iterator[Connection]:
         """Get a database connection."""
         max_retries = 5
         retry_delay = 0.1
@@ -368,7 +688,11 @@ class SampleBufferDatabase(SampleBuffer):
 
         except Exception:
             # rollback on any error
-            conn.rollback()
+            try:
+                conn.rollback()
+            finally:
+                if on_rollback is not None:
+                    on_rollback()
             raise
         finally:
             # close the connection
@@ -379,12 +703,57 @@ class SampleBufferDatabase(SampleBuffer):
                 self._sync()
 
     def _sync(self) -> None:
-        if self.log_shared is not None and self._sync_filestore is not None:
-            if (time.monotonic() - self._sync_time) > self.log_shared:
-                with trace_action(logger, "Log Sync", self.location):
-                    sync_to_filestore(self, self._sync_filestore)
+        sync_filestore = self._sync_filestore
+        if self.log_shared is None or sync_filestore is None:
+            return
 
-                self._sync_time = time.monotonic()
+        with self._sync_lock:
+            if self._sync_closed:
+                return
+
+            self._sync_requested = True
+            self._sync_pending = True
+
+            if self._sync_thread is None or not self._sync_thread.is_alive():
+                self._sync_thread = threading.Thread(
+                    target=self._sync_to_filestore,
+                    args=(sync_filestore,),
+                    daemon=True,
+                    name="inspect-buffer-sync",
+                )
+                self._sync_thread.start()
+
+            self._sync_wakeup.notify_all()
+
+    def _sync_to_filestore(self, sync_filestore: SampleBufferFilestore) -> None:
+        while True:
+            with self._sync_lock:
+                while not self._sync_closed:
+                    assert self.log_shared is not None
+                    remaining = self.log_shared - (time.monotonic() - self._sync_time)
+                    if self._sync_requested and remaining <= 0:
+                        self._sync_requested = False
+                        self._sync_pending = False
+                        self._sync_time = time.monotonic()
+                        break
+
+                    timeout = max(remaining, 0) if self._sync_requested else None
+                    self._sync_wakeup.wait(timeout=timeout)
+                else:
+                    self._sync_thread = None
+                    return
+
+            try:
+                with trace_action(logger, "Log Sync", self.location):
+                    sync_to_filestore(self, sync_filestore)
+            except Exception:
+                logger.exception("Log Sync failed for %s", self.location)
+            except BaseException:
+                with self._sync_lock:
+                    self._sync_requested = False
+                    self._sync_pending = False
+                    self._sync_thread = None
+                raise
 
     def _increment_version(self, conn: Connection) -> None:
         conn.execute("""
@@ -424,18 +793,37 @@ class SampleBufferDatabase(SampleBuffer):
         epoch: int,
         after_event_id: int | None = None,
         resolve_attachments: bool | Literal["full", "core"] = False,
+        latest_only: bool = False,
     ) -> Iterator[EventData]:
-        query = """
-            SELECT id, event_id, data
-            FROM events e WHERE sample_id = ? AND sample_epoch = ?
-        """
-        params: list[str | int] = [str(id), epoch]
+        if latest_only:
+            query = """
+                WITH first_rows AS (
+                    SELECT
+                        COALESCE(NULLIF(event_id, ''), CAST(id AS TEXT)) AS logical_id,
+                        MIN(id) AS first_id,
+                        MAX(id) AS latest_id
+                    FROM events
+                    WHERE sample_id = ? AND sample_epoch = ?
+                    GROUP BY COALESCE(NULLIF(event_id, ''), CAST(id AS TEXT))
+                )
+                SELECT e.id, fr.logical_id AS event_id, e.data
+                FROM first_rows fr
+                JOIN events e ON e.id = fr.latest_id
+                ORDER BY fr.first_id
+            """
+            params: list[str | int] = [str(id), epoch]
+        else:
+            query = """
+                SELECT id, COALESCE(NULLIF(e.event_id, ''), CAST(e.id AS TEXT)) AS event_id, data
+                FROM events e WHERE sample_id = ? AND sample_epoch = ?
+            """
+            params = [str(id), epoch]
 
-        if after_event_id is not None:
-            query += " AND e.id > ?"
-            params.append(after_event_id)
+            if after_event_id is not None:
+                query += " AND e.id > ?"
+                params.append(after_event_id)
 
-        query += " ORDER BY e.id"
+            query += " ORDER BY e.id"
 
         cursor = conn.execute(query, params)
 
@@ -445,6 +833,83 @@ class SampleBufferDatabase(SampleBuffer):
             event = json.loads(row["data"])
             if resolve_attachments is True or resolve_attachments == "full":
                 event = self._resolve_event_attachments(conn, event, message_cache)
+            yield EventData(
+                id=row["id"],
+                event_id=row["event_id"],
+                sample_id=str(id),
+                epoch=epoch,
+                event=event,
+            )
+
+    def _get_events_tail(
+        self,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        n: int,
+    ) -> Iterator[EventData]:
+        query = """
+            WITH first_rows AS (
+                SELECT
+                    COALESCE(NULLIF(event_id, ''), CAST(id AS TEXT)) AS logical_id,
+                    MIN(id) AS first_id,
+                    MAX(id) AS latest_id
+                FROM events
+                WHERE sample_id = ? AND sample_epoch = ?
+                GROUP BY COALESCE(NULLIF(event_id, ''), CAST(id AS TEXT))
+            ), tail_rows AS (
+                SELECT logical_id, first_id, latest_id
+                FROM first_rows
+                ORDER BY first_id DESC
+                LIMIT ?
+            )
+            SELECT e.id, tr.logical_id AS event_id, e.data
+            FROM tail_rows tr
+            JOIN events e ON e.id = tr.latest_id
+            ORDER BY tr.first_id
+        """
+        cursor = conn.execute(query, [str(id), epoch, n])
+
+        for row in cursor:
+            event = json.loads(row["data"])
+            yield EventData(
+                id=row["id"],
+                event_id=row["event_id"],
+                sample_id=str(id),
+                epoch=epoch,
+                event=event,
+            )
+
+    def _get_events_from(
+        self,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        start: int,
+    ) -> Iterator[EventData]:
+        query = """
+            WITH first_rows AS (
+                SELECT
+                    COALESCE(NULLIF(event_id, ''), CAST(id AS TEXT)) AS logical_id,
+                    MIN(id) AS first_id,
+                    MAX(id) AS latest_id
+                FROM events
+                WHERE sample_id = ? AND sample_epoch = ?
+                GROUP BY COALESCE(NULLIF(event_id, ''), CAST(id AS TEXT))
+            ), ordered_rows AS (
+                SELECT logical_id, latest_id, ROW_NUMBER() OVER (ORDER BY first_id) AS row_num
+                FROM first_rows
+            )
+            SELECT e.id, ordered_rows.logical_id AS event_id, e.data
+            FROM ordered_rows
+            JOIN events e ON e.id = ordered_rows.latest_id
+            WHERE ordered_rows.row_num > ?
+            ORDER BY ordered_rows.row_num
+        """
+        cursor = conn.execute(query, [str(id), epoch, start])
+
+        for row in cursor:
+            event = json.loads(row["data"])
             yield EventData(
                 id=row["id"],
                 event_id=row["event_id"],
@@ -470,6 +935,8 @@ class SampleBufferDatabase(SampleBuffer):
             query += " AND id > ?"
             params.append(after_attachment_id)
 
+        query += " ORDER BY id"
+
         cursor = conn.execute(query, params)
 
         for row in cursor:
@@ -479,6 +946,56 @@ class SampleBufferDatabase(SampleBuffer):
                 epoch=epoch,
                 hash=row["hash"],
                 content=row["content"],
+            )
+
+    def _get_message_pool(
+        self,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        after_id: int | None = None,
+    ) -> Iterator[MessagePoolData]:
+        query = """
+            SELECT id, msg_id, data FROM message_pool
+            WHERE sample_id = ? AND sample_epoch = ?
+        """
+        params: list[str | int] = [str(id), epoch]
+        if after_id is not None:
+            query += " AND id > ?"
+            params.append(after_id)
+        query += " ORDER BY id"
+        for row in conn.execute(query, params):
+            yield MessagePoolData(
+                id=row["id"],
+                sample_id=str(id),
+                epoch=epoch,
+                msg_id=row["msg_id"],
+                data=row["data"],
+            )
+
+    def _get_call_pool(
+        self,
+        conn: Connection,
+        id: str | int,
+        epoch: int,
+        after_id: int | None = None,
+    ) -> Iterator[CallPoolData]:
+        query = """
+            SELECT id, hash, data FROM call_pool
+            WHERE sample_id = ? AND sample_epoch = ?
+        """
+        params: list[str | int] = [str(id), epoch]
+        if after_id is not None:
+            query += " AND id > ?"
+            params.append(after_id)
+        query += " ORDER BY id"
+        for row in conn.execute(query, params):
+            yield CallPoolData(
+                id=row["id"],
+                sample_id=str(id),
+                epoch=epoch,
+                hash=row["hash"],
+                data=row["data"],
             )
 
     def _condense_sample(
@@ -527,7 +1044,36 @@ class SampleBufferDatabase(SampleBuffer):
         # insert attachments
         self._insert_attachments(conn, event.id, event.epoch, attachments)
 
-        # return events with aliases
+        # message/call pool dedup for ModelEvents
+        if isinstance(event.event, ModelEvent):
+            key = (str(event.id), event.epoch)
+            if key in self._completed_samples:
+                raise RuntimeError(
+                    f"ModelEvent for sample {key} arrived after "
+                    "complete_sample; this would corrupt buffer DB pool "
+                    "indices."
+                )
+
+            # message pool
+            msg_index = self._msg_indices.get(key, {})
+            [condensed_event], msg_index, new_msgs = condense_model_event_inputs(
+                [event.event], len(msg_index), msg_index
+            )
+            event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
+            for h, msg in new_msgs:
+                self._insert_message_pool_entry(conn, event.id, event.epoch, h, msg)
+            self._msg_indices[key] = msg_index
+
+            # call pool
+            call_index = self._call_indices.get(key, {})
+            [condensed_event], call_index, new_calls = condense_model_event_calls(
+                [event.event], len(call_index), call_index
+            )
+            event = SampleEvent(id=event.id, epoch=event.epoch, event=condensed_event)
+            for h, call_msg in new_calls:
+                self._insert_call_pool_entry(conn, event.id, event.epoch, h, call_msg)
+            self._call_indices[key] = call_index
+
         return event
 
     def _resolve_event_attachments(
@@ -572,6 +1118,32 @@ class SampleBufferDatabase(SampleBuffer):
             VALUES (?, ?, ?, ?)
             """,
             parameters,
+        )
+
+    def _insert_message_pool_entry(
+        self,
+        conn: Connection,
+        sample_id: str | int,
+        epoch: int,
+        msg_id: str,
+        msg: ChatMessage,
+    ) -> None:
+        conn.execute(
+            "INSERT OR IGNORE INTO message_pool (sample_id, sample_epoch, msg_id, data) VALUES (?, ?, ?, ?)",
+            (str(sample_id), epoch, msg_id, msg.model_dump_json()),
+        )
+
+    def _insert_call_pool_entry(
+        self,
+        conn: Connection,
+        sample_id: str | int,
+        epoch: int,
+        hash: str,
+        call_msg: JsonValue,
+    ) -> None:
+        conn.execute(
+            "INSERT OR IGNORE INTO call_pool (sample_id, sample_epoch, hash, data) VALUES (?, ?, ?, ?)",
+            (str(sample_id), epoch, hash, json.dumps(call_msg)),
         )
 
     def _get_attachments_content(
@@ -646,25 +1218,27 @@ def sync_to_filestore(
     segment_id = last_segment_id + 1
     last_event_id = 0
     last_attachment_id = 0
+    last_message_pool_id = 0
+    last_call_pool_id = 0
     segment_files: list[SegmentFile] = []
+    segment_by_id = {seg.id: seg for seg in manifest.segments}
     for manifest_sample in manifest.samples:
-        # get last ids we've seen for this sample
-        sample_last_segment_id = (
-            manifest_sample.segments[-1] if manifest_sample.segments else None
-        )
-        sample_last_segment = next(
-            (
-                segment
-                for segment in manifest.segments
-                if segment.id == sample_last_segment_id
-            ),
-            None,
-        )
-        if sample_last_segment is not None:
-            after_event_id = sample_last_segment.last_event_id
-            after_attachment_id = sample_last_segment.last_attachment_id
-        else:
-            after_event_id, after_attachment_id = (0, 0)
+        # take the max of last_*_id across all of this sample's segments, not
+        # just the latest: each segment's last_*_id is 0 if no items of that
+        # type were added there, so the latest alone can regress the cursor.
+        after_event_id = 0
+        after_attachment_id = 0
+        after_message_pool_id = 0
+        after_call_pool_id = 0
+        for seg_id in manifest_sample.segments:
+            seg = segment_by_id.get(seg_id)
+            if seg is not None:
+                after_event_id = max(after_event_id, seg.last_event_id)
+                after_attachment_id = max(after_attachment_id, seg.last_attachment_id)
+                after_message_pool_id = max(
+                    after_message_pool_id, seg.last_message_pool_id
+                )
+                after_call_pool_id = max(after_call_pool_id, seg.last_call_pool_id)
 
         # get sample data
         sample_data = db.get_sample_data(
@@ -672,10 +1246,15 @@ def sync_to_filestore(
             epoch=manifest_sample.summary.epoch,
             after_event_id=after_event_id,
             after_attachment_id=after_attachment_id,
+            after_message_pool_id=after_message_pool_id,
+            after_call_pool_id=after_call_pool_id,
         )
         # if we got sample data....
         if sample_data is not None and (
-            len(sample_data.events) > 0 or len(sample_data.attachments) > 0
+            len(sample_data.events) > 0
+            or len(sample_data.attachments) > 0
+            or len(sample_data.message_pool) > 0
+            or len(sample_data.call_pool) > 0
         ):
             # add to segment file
             segment_files.append(
@@ -689,8 +1268,17 @@ def sync_to_filestore(
             manifest_sample.segments.append(segment_id)
 
             # update maximums
-            last_event_id, last_attachment_id = maximum_ids(
-                last_event_id, last_attachment_id, sample_data
+            (
+                last_event_id,
+                last_attachment_id,
+                last_message_pool_id,
+                last_call_pool_id,
+            ) = maximum_ids(
+                last_event_id,
+                last_attachment_id,
+                last_message_pool_id,
+                last_call_pool_id,
+                sample_data,
             )
 
     # write the segment file and update the manifest
@@ -701,6 +1289,8 @@ def sync_to_filestore(
                 id=segment_id,
                 last_event_id=last_event_id,
                 last_attachment_id=last_attachment_id,
+                last_message_pool_id=last_message_pool_id,
+                last_call_pool_id=last_call_pool_id,
             )
         )
 
@@ -709,13 +1299,36 @@ def sync_to_filestore(
 
 
 def maximum_ids(
-    event_id: int, attachment_id: int, sample_data: SampleData
-) -> tuple[int, int]:
+    event_id: int,
+    attachment_id: int,
+    message_pool_id: int,
+    call_pool_id: int,
+    sample_data: SampleData,
+) -> tuple[int, int, int, int]:
     if sample_data.events:
         event_id = max(event_id, sample_data.events[-1].id)
     if sample_data.attachments:
         attachment_id = max(attachment_id, sample_data.attachments[-1].id)
-    return event_id, attachment_id
+    if sample_data.message_pool:
+        message_pool_id = max(message_pool_id, sample_data.message_pool[-1].id)
+    if sample_data.call_pool:
+        call_pool_id = max(call_pool_id, sample_data.call_pool[-1].id)
+    return event_id, attachment_id, message_pool_id, call_pool_id
+
+
+def _remap_refs(
+    refs: Sequence[object], pos_map: dict[int, int]
+) -> list[tuple[int, int]]:
+    """Translate pooled ref ranges after importing pool entries into a new store."""
+    indices: list[int] = []
+    for ref in refs:
+        if not isinstance(ref, (list, tuple)) or len(ref) != 2:
+            continue
+        start, end = ref
+        if not isinstance(start, int) or not isinstance(end, int):
+            continue
+        indices.extend(pos_map[index] for index in range(start, end))
+    return _compress_refs(indices)
 
 
 def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:

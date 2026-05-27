@@ -99,6 +99,15 @@ def vllm() -> type[ModelAPI]:
     return VLLMAPI
 
 
+@modelapi(name="vllm-completions")
+def vllm_completions() -> type[ModelAPI]:
+    validate_openai_client("vLLM Completions API")
+
+    from .vllm_completions import VLLMCompletionsAPI
+
+    return VLLMCompletionsAPI
+
+
 @modelapi(name="cf")
 def cf() -> type[ModelAPI]:
     from .cloudflare import CloudFlareAPI
@@ -110,7 +119,7 @@ def cf() -> type[ModelAPI]:
 def mistral() -> type[ModelAPI]:
     FEATURE = "Mistral API"
     PACKAGE = "mistralai"
-    MIN_VERSION = "1.9.11"
+    MIN_VERSION = "2.0.1"
 
     # verify we have the package
     try:
@@ -131,7 +140,7 @@ def mistral() -> type[ModelAPI]:
 def grok() -> type[ModelAPI]:
     FEATURE = "Grok API"
     PACKAGE = "xai_sdk"
-    MIN_VERSION = "1.4.0"
+    MIN_VERSION = "1.7.0"
 
     # verify we have the package
     try:
@@ -249,6 +258,13 @@ def mockllm() -> type[ModelAPI]:
     return MockLLM
 
 
+@modelapi(name="sagemaker")
+def sagemaker() -> type[ModelAPI]:
+    from .sagemaker import SagemakerAPI
+
+    return SagemakerAPI
+
+
 @modelapi(name="sglang")
 def sglang() -> type[ModelAPI]:
     # Only validate OpenAI compatibility (needed for the API interface)
@@ -316,7 +332,7 @@ def hf_inference_providers() -> type[ModelAPI]:
 def validate_openai_client(feature: str) -> None:
     FEATURE = feature
     PACKAGE = "openai"
-    MIN_VERSION = "2.8.0"
+    MIN_VERSION = "2.26.0"
 
     # verify we have the package
     try:
@@ -330,7 +346,7 @@ def validate_openai_client(feature: str) -> None:
 
 def validate_anthropic_client(feature: str) -> None:
     PACKAGE = "anthropic"
-    MIN_VERSION = "0.75.0"
+    MIN_VERSION = "0.96.0"
 
     # verify we have the package
     try:
@@ -342,16 +358,15 @@ def validate_anthropic_client(feature: str) -> None:
     verify_required_version(feature, PACKAGE, MIN_VERSION)
 
 
-def validate_google_client(function_name: str) -> None:
-    FEATURE = "Google API"
+def validate_google_client(feature: str) -> None:
     PACKAGE = "google-genai"
-    MIN_VERSION = "1.56.0"
+    MIN_VERSION = "1.69.0"
 
     # verify we have the package
     try:
         import google.genai  # type: ignore  # noqa: F401
     except ImportError:
-        raise pip_dependency_error(FEATURE, [PACKAGE])
+        raise pip_dependency_error(feature, [PACKAGE])
 
     # verify version
-    verify_required_version(FEATURE, PACKAGE, MIN_VERSION)
+    verify_required_version(feature, PACKAGE, MIN_VERSION)

@@ -23,13 +23,18 @@ def code_viewer(
     return viewer
 
 
-@tool(viewer=code_viewer("bash", "cmd"))
+@tool(viewer=code_viewer("bash", "command"), parallel=True)
 def bash(
     timeout: int | None = None, user: str | None = None, sandbox: str | None = None
 ) -> Tool:
     """Bash shell command execution tool.
 
     Execute bash shell commands using a sandbox environment (e.g. "docker").
+
+    Each call spawns a fresh subprocess and holds no per-call state, so
+    multiple bash tool calls in the same assistant message run concurrently.
+    The model is responsible for sequencing commands that depend on each
+    other's filesystem side effects.
 
     Args:
       timeout: Timeout (in seconds) for command.
@@ -40,19 +45,19 @@ def bash(
       String with command output (stdout) or command error (stderr).
     """
 
-    async def execute(cmd: str) -> str:
+    async def execute(command: str) -> str:
         """
         Use this function to execute bash commands.
 
         Args:
-          cmd (str): The bash command to execute.
+          command: The bash command to execute.
 
         Returns:
           The output of the command.
         """
         # execute the command
         result = await sandbox_env(sandbox).exec(
-            cmd=["bash", "--login", "-c", cmd], timeout=timeout, user=user
+            cmd=["bash", "--login", "-c", command], timeout=timeout, user=user
         )
         # return output (including stderr if any)
         output = ""
@@ -63,13 +68,16 @@ def bash(
     return execute
 
 
-@tool(viewer=code_viewer("python", "code"))
+@tool(viewer=code_viewer("python", "code"), parallel=True)
 def python(
     timeout: int | None = None, user: str | None = None, sandbox: str | None = None
 ) -> Tool:
     """Python code execution tool.
 
     Execute Python code using a sandbox environment (e.g. "docker").
+
+    Each call spawns a fresh subprocess and holds no per-call state, so
+    multiple python tool calls in the same assistant message run concurrently.
 
     Args:
       timeout: Timeout (in seconds) for command.

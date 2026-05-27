@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Callable, TypeGuard, cast
+from typing import Annotated, Any, Callable, TypeGuard, cast
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
 
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.registry import registry_find_sandboxenv
@@ -89,6 +89,11 @@ def is_dockerfile(file: Any) -> TypeGuard[str]:
         return False
 
 
+def _coerce_cpus(v: Any) -> str | None:
+    """Accept numeric cpus values (e.g. ``cpus: 1``) and coerce to string."""
+    return str(v) if v is not None else None
+
+
 class ComposeModel(BaseModel):
     """Base model that allows x- extensions while rejecting other unknown fields."""
 
@@ -150,7 +155,7 @@ class ComposeBuild(ComposeModel):
 class ComposeResources(ComposeModel):
     """Resource limits/reservations for a compose service."""
 
-    cpus: str | None = Field(default=None)
+    cpus: Annotated[str | None, BeforeValidator(_coerce_cpus)] = Field(default=None)
     """CPU limit (e.g., '0.5', '2')."""
 
     memory: str | None = Field(default=None)
@@ -179,7 +184,7 @@ class ComposeDeviceReservation(ComposeModel):
 class ComposeResourceReservations(ComposeModel):
     """Resource reservations including devices."""
 
-    cpus: str | None = Field(default=None)
+    cpus: Annotated[str | None, BeforeValidator(_coerce_cpus)] = Field(default=None)
     """Reserved CPU (e.g., '0.5', '2')."""
 
     memory: str | None = Field(default=None)
@@ -259,6 +264,21 @@ class ComposeService(ComposeModel):
 
     init: bool | None = Field(default=None)
     """Run an init process inside the container."""
+
+    privileged: bool | None = Field(default=None)
+    """Run the container in privileged mode."""
+
+    shm_size: str | int | None = Field(default=None)
+    """Size of ``/dev/shm`` (e.g. ``1g``, ``256m``, or bytes as int)."""
+
+    ulimits: dict[str, int | dict[str, int]] | None = Field(default=None)
+    """Per-container ulimits (e.g. ``nofile: {soft: 20000, hard: 40000}``)."""
+
+    depends_on: list[str] | dict[str, Any] | None = Field(default=None)
+    """Service startup dependencies. Short (list) or long (dict) form per Compose spec."""
+
+    pull_policy: str | None = Field(default=None)
+    """Image pull policy (e.g. ``always``, ``never``, ``missing``, ``build``)."""
 
     deploy: ComposeDeploy | None = Field(default=None)
     """Deployment configuration including resources."""

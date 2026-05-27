@@ -1,15 +1,18 @@
 ---
-title: "inspect_ai.event"
+reference: inspect_ai.event
+description: Transcript events.
 ---
 
 ## Core Events
 
 ### ModelEvent
 ### ToolEvent
+### BranchEvent
 ### CompactionEvent
 ### ApprovalEvent
 ### SandboxEvent
 ### InfoEvent
+### ScoreEvent
 ### LoggerEvent
 ### ErrorEvent
 ### SpanBeginEvent
@@ -18,10 +21,24 @@ title: "inspect_ai.event"
 ## Event Tree
 
 ### event_tree
+### event_tree_walk
 ### event_sequence
 ### EventTree
-### EventNode
-### SpanNode
+### EventTreeSpan
+### EventTreeNode
+
+## Timeline
+
+### timeline_build
+### timeline_dump
+### timeline_filter
+### timeline_load
+### timeline_branch
+### Timeline
+### TimelineEvent
+### TimelineSpan
+### Outline
+### OutlineNode
 
 ## Eval Events
 
@@ -30,8 +47,8 @@ title: "inspect_ai.event"
 ### StateEvent
 ### StoreEvent
 ### InputEvent
-### ScoreEvent
 ### ScoreEditEvent
+### InterruptEvent
 
 ## Types
 

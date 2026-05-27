@@ -1,5 +1,6 @@
 ---
 title: Standard Tools
+llms-description: Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
 tbl-colwidths: [40,60]
 ---
 
@@ -79,8 +80,8 @@ For more details, see [Grounding with Google Search](https://ai.google.dev/gemin
 
 Note that when using the "gemini" provider, you should also specify a fallback external provider (like "tavily", "exa", or "google") if you are also running the evaluation with non-Gemini models.
 
-::: callout-warning
-Google's search grounding does not currently support use with other tools. Attempting to use `web_search("gemini")` alongside other tools will result in an error.
+::: callout-note
+Gemini 3 and later models can use `web_search("gemini")` alongside other tools. For Gemini 2.x models, Google's search grounding does not support use with other function tools, so Inspect will raise an error if you attempt to combine them. Use an external search provider such as "tavily", "exa", or "google" when you need web search alongside other tools on Gemini 2.x.
 :::
 
 ### Grok Options
@@ -262,9 +263,15 @@ The schema for the `text_editor()` tool is based on the standard Anthropic [text
 
 ## Computer {#sec-computer}
 
-The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures.
+The `computer()` tool provides models with a computer desktop environment along with the ability to view the screen and perform mouse and keyboard gestures. The computer tool work better with models that have been trained for computer use. As of Q1 2026 the recommended models for computer use include:
 
-The computer tool works with any model that supports image input. It also binds directly to the internal computer tool definitions for Anthropic and OpenAI models tuned for computer use (currently `anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`).
+| Provider  | Models                                                     |
+|-----------|------------------------------------------------------------|
+| Anthropic | `claude-opus-4-5+`, `claude-sonnet-4-6`                    |
+| Open AI   | `gpt-5.4+`, `gpt-5.4-pro+`                                 |
+| Google    | `gemini-3-flash-preview`                                   |
+
+: {tbl-colwidths="\[25,75\]"}
 
 ### Configuration
 
@@ -321,8 +328,9 @@ def computer_task():
 To evaluate the task with models tuned for computer use:
 
 ``` bash
-inspect eval computer.py --model anthropic/claude-3-7-sonnet-latest
-inspect eval computer.py --model openai/computer-use-preview
+inspect eval computer.py --model anthropic/claude-sonnet-4-6
+inspect eval computer.py --model openai/gpt-5.4
+inspect eval computer.py --model google/gemini-3-flash-preview
 ```
 
 #### Options
@@ -423,13 +431,7 @@ inspect eval computer.py --approval approval.yaml
 
 ### Tool Binding
 
-The computer tool's schema is a superset of the standard [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool) and [Open AI](https://platform.openai.com/docs/guides/tools-computer-use) computer tool schemas. When using models tuned for computer use (currently `anthropic/claude-3-7-sonnet-latest` and `openai/computer-use-preview`) the computer tool will automatically bind to the native computer tool definitions (as this presumably provides improved performance).
-
-If you want to experiment with bypassing the native computer tool types and just register the computer tool as a normal function based tool then specify the `--no-internal-tools` generation option as follows:
-
-``` bash
-inspect eval computer.py --no-internal-tools
-```
+The computer tool's schema is a superset of the standard [Anthropic](https://docs.anthropic.com/en/docs/build-with-claude/computer-use#computer-tool),[OpenAI](https://platform.openai.com/docs/guides/tools-computer-use), and [Google](https://ai.google.dev/gemini-api/docs/computer-use) computer tool schemas. When using models tuned for computer use, the computer tool will automatically bind to the native computer tool definitions.
 
 ## Code Execution {#sec-code-execution}
 
@@ -462,6 +464,8 @@ def code_execution_task():
 
 [OpenAI](https://platform.openai.com/docs/guides/tools-code-interpreter), [Anthropic](https://platform.claude.com/docs/en/agents-and-tools/tool-use/code-execution-tool), [Google](https://ai.google.dev/gemini-api/docs/code-execution), and [Grok](https://docs.x.ai/docs/guides/tools/code-execution-tool) models all have support for native server-side Python code execution. Note that Anthropic can additionally execute bash and text editor commands, but the primary execution language used is still Python.
 
+For Gemini models, `code_execution()` uses Google's native code execution tool when the Google provider is enabled. Gemini 3 and later models can use native code execution alongside other tools. For Gemini 2.x models, Google's native tools do not support use with other function tools, so Inspect will raise an error if you attempt to combine them; disable the Google native provider to use the `python()` fallback in that case.
+
 ::: callout-important
 Note that some providers bill separately for code execution, so you should consult their documentation for details before enabling this feature.
 :::
@@ -490,12 +494,11 @@ code_interpreter(
 
 When falling back to the `python()` provider you should ensure that your `Task` has a `sandbox` with access to Python enabled.
 
-
 ## Web Browser {#sec-web-browser}
 
 The web browser tools provides models with the ability to browse the web using a headless Chromium browser. Navigation, history, and mouse/keyboard interactions are all supported.
 
-::: {.callout-warning}
+::: callout-warning
 The `web_browser()` tool uses a headless browser for interacting with the web. However, as of 2026, many websites have incorporated defenses against headless browsers. Therefore if you want to do generalized web information retrieval you should strongly prefer the [web_search()](#sec-web-search) tool.
 
 If however you are using the web browser to interact with a local web application or specific sites you know don't block it then this warning isn't applicable.
@@ -594,9 +597,10 @@ The `skill()` tool provides models with [agent skills](https://agentskills.io/ho
 
 Skills were originally created as a feature of Claude Code, but are now widely supported by many agents and agent frameworks. You can learn more about creating skills at:
 
-- [Agent Skills Specification](https://agentskills.io/specification)
-- [Claude Code Agent Skills](https://code.claude.com/docs/en/skills)
-- [Codex CLI Agent Skills](https://developers.openai.com/codex/skills/)
+-   [Agent Skills Specification](https://agentskills.io/specification)
+-   [Claude Code Agent Skills](https://code.claude.com/docs/en/skills)
+-   [Codex CLI Agent Skills](https://developers.openai.com/codex/skills/)
+-   [Gemini CLI Agent Skills](https://geminicli.com/docs/cli/skills/)
 
 The `skill()` tool takes a list of paths that contain standard skill specifications, copies them into the sample's sandbox, and provides a tool description that enumerates the available skills. For example, here we make available "system-info" and "network-info" skills:
 
@@ -604,7 +608,7 @@ The `skill()` tool takes a list of paths that contain standard skill specificati
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.agent import react
-from inspect_ai.tool import bash, skill, update_plan
+from inspect_ai.tool import bash, skill, todo_write
 
 SKILLS_DIR = Path(__file__).parent / "skills"
 
@@ -629,37 +633,113 @@ def intercode_ctf():
 
 Note that use of the `skill()` tool requires a that a [sandbox](sandboxing.qmd) be defined for the task so there is a filesystem to publish the skills within.
 
-## Update Plan {#sec-update-plan}
+## Todo Write {#sec-todo-write}
 
-The `update_plan()` tool provides models with a way to track steps and progress in longer horizon tasks where it might otherwise lose track of where it is or forget earlier goals as context grows. It can also make agent behavior more interpretable, since you can inspect the plan to understand what the model thinks it's trying to accomplish.
+The `todo_write()` tool provides models with a way to track steps and progress in longer horizon tasks where it might otherwise lose track of where it is or forget earlier goals as context grows. It can also make agent behavior more interpretable, since you can inspect the plan to understand what the model thinks it's trying to accomplish.
 
 Note though that for simpler tasks, plan maintenance is just overhead, and some models may fixate on updating the plan rather than actually executing it.
 
 ### Task Setup
 
-A task configured to use the update_plan tool might look like this:
+A task configured to use the todo_write tool might look like this:
 
 ``` python
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.agent import react
-from inspect_ai.tool import bash, update_plan
+from inspect_ai.tool import bash, todo_write
 
 @task
 def intercode_ctf():
     return Task(
         dataset=read_dataset(),
-        solver=react(tools=[bash(timeout=180), update_plan()]),
+        solver=react(tools=[bash(timeout=180), todo_write()]),
         scorer=includes(),
         sandbox=("docker", "compose.yaml")
     )
 ```
 
-The update_plan tool is based on the update_plan tool used by [Codex CLI](https://github.com/openai/codex). The default tool description is taken from the GPT 5.1 system prompt for Codex. Pass a custom `description` to override this.
+
+## File Reading
+
+Inspect provides three read-only sandbox tools — `read_file()`, `list_files()`, and `grep()` — for agents that need filesystem access without write capabilities. These are the default tools for `research()` and `plan()` subagents in the deep agent system, but are useful in any eval where you want to give a model read-only access.
+
+All three tools require a [Sandbox Environment](sandboxing.qmd) and accept optional `timeout`, `user`, and `sandbox` parameters matching the `bash()` tool.
+
+### read_file
+
+Read the contents of a file, optionally selecting a range of lines:
+
+``` python
+from inspect_ai.tool import read_file
+
+# default configuration
+read_file()
+
+# with timeout and user
+read_file(timeout=30, user="nobody")
+```
+
+The model can specify `offset` (0-indexed line to start from) and `limit` (max lines to read) for pagination. Output includes line numbers for reference.
+
+### list_files
+
+List files and directories, with optional depth control:
+
+``` python
+from inspect_ai.tool import list_files
+
+# default configuration (recursive)
+list_files()
+
+# with depth limit
+list_files(timeout=30)
+```
+
+The model can specify a `path` and `depth` parameter. `depth=1` lists only immediate contents; omitting it lists everything recursively.
+
+### grep
+
+Search for patterns in files:
+
+``` python
+from inspect_ai.tool import grep
+
+# default configuration
+grep()
+
+# with timeout
+grep(timeout=60)
+```
+
+The model can specify a `pattern`, `path`, optional `glob` filter (e.g. `"*.py"`), `fixed_strings` flag for literal matching, and `output_mode` (`"content"`, `"files_with_matches"`, or `"count"`). Results include file paths and line numbers by default.
+
+### Task Setup
+
+A task configured with read-only tools might look like this:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import includes
+from inspect_ai.agent import react
+from inspect_ai.tool import read_file, list_files, grep
+
+@task
+def code_analysis():
+    return Task(
+        dataset=read_dataset(),
+        solver=react(tools=[read_file(), list_files(), grep()]),
+        scorer=includes(),
+        sandbox=("docker", "compose.yaml")
+    )
+```
+
 
 ## Memory {#sec-memory}
 
-The memory tool enables models to store and retrieve information into a `/memories` file directory. Models can create, read, update, and delete files, enabling them to preserve knowledge over time without keeping everything in the context window.
+The memory tool enables models to store and retrieve information into a virtual `/memories` file directory. Models can create, read, update, and delete files, enabling them to preserve knowledge over time without keeping everything in the context window.
+
+Note that the `memory()` tool does not require a [Sandbox Environment](sandboxing.qmd)—despite using file-like paths (e.g. `/memories/notes.md`), it stores all data in-memory using Inspect's sample store.
 
 ### Task Setup
 
@@ -669,7 +749,7 @@ A task configured to use the memory tool might look like this:
 from inspect_ai import Task, task
 from inspect_ai.scorer import includes
 from inspect_ai.agent import react
-from inspect_ai.tool import bash, memory
+from inspect_ai.tool import memory
 
 @task
 def intercode_ctf():
@@ -677,13 +757,11 @@ def intercode_ctf():
         dataset=read_dataset(),
         solver=[
             system_message("system.txt"),
-            react(tools=[bash(timeout=180), memory()]),
+            react(tools=[memory()]),
         ],
         scorer=includes(),
-        sandbox=("docker", "compose.yaml")
     )
 ```
-
 
 ### Seeding Memories
 
@@ -700,9 +778,21 @@ memory(
 
 Keys should be valid `/memories` paths (e.g. "/memories/notes.md"). Values are resolved via `resource()`, supporting inline strings, file paths, or remote resources (s3://, https://). Seeding happens once on first tool execution. The model is prompted to read any pre-seeded memories before beginning work.
 
+### Read-Only Mode
+
+Use `memory(readonly=True)` to provide read-only access to the memory directory. In readonly mode, only the `view` command is available — write operations (`create`, `str_replace`, `insert`, `delete`, `rename`) are not exposed to the model. This is used by `research()` and `plan()` subagents in the deep agent system to share context without allowing mutation.
+
+``` python
+# read-only memory with pre-seeded data
+memory(
+    initial_data={"/memories/context.md": "shared context"},
+    readonly=True,
+)
+```
+
 ### Tool Binding
 
-The schema for the `memory()` tool is based on the standard Anthropic [memory tool type](hhttps://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool). The `memory()` works with all models that support tool calling, but when using Claude, the text editor tool will automatically bind to the native Claude tool definition.
+The schema for the `memory()` tool is based on the standard Anthropic [memory tool type](https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool). The `memory()` works with all models that support tool calling, but when using Claude, the memory tool will automatically bind to the native Claude tool definition.
 
 ## Think {#sec-think}
 
@@ -834,3 +924,45 @@ def swe_bench():
 ```
 
 Note that the effectivess of using the system prompt will vary considerably across tasks, tools, and models, so should definitely be the subject of experimentation.
+
+## Intervention {#sec-intervention}
+
+The `ask_user()` and `notify_user()` tools let models communicate with a human operator during a sample. They pair with Inspect's [Agent Intervention](intervention.qmd) features (the `inspect acp` client, the in-process task display, and out-of-band notifications).
+
+Both of these tools take advantage of notifications, which are delivered via [Apprise](https://github.com/caronc/apprise) (Slack, desktop, SMS, email, and many other services) when the eval is configured with a notification target. See the [Notifications](intervention.qmd#notifications) section of the Agent Intervention article for more details.
+
+### Ask User
+
+The `ask_user()` tool lets the model request structured information from the operator. It uses the [ACP Elicitation](https://agentclientprotocol.com/rfds/elicitation) standard, which supports text, boolean, enum, and other field types.
+
+``` python
+from inspect_ai.agent import agent, react
+from inspect_ai.tool import ask_user, bash, text_editor
+
+@agent
+def ctf_agent():
+    return react(
+        description="Expert at completing cybersecurity challenges.",
+        prompt="You are an expert at CTF challenges.",
+        tools=[bash(), text_editor(), ask_user()]
+    )
+```
+
+The prompt is dispatched to whichever surface is attached: an ACP client (e.g. `inspect acp`) if connected, otherwise the in-process Textual panel or the console. The sample pauses on the call until the operator responds.
+
+### Notify User
+
+The `notify_user()` tool lets the model send fire-and-forget status messages to the operator — useful for long-running agents that want to flag progress or surface a heads-up without waiting for a reply.
+
+``` python
+from inspect_ai.agent import agent, react
+from inspect_ai.tool import ask_user, notify_user, bash, text_editor
+
+@agent
+def ctf_agent():
+    return react(
+        description="Expert at completing cybersecurity challenges.",
+        prompt="You are an expert at CTF challenges.",
+        tools=[bash(), text_editor(), ask_user(), notify_user()]
+    )
+```

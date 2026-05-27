@@ -3,6 +3,9 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+# Duplicated from inspect_ai.util._sandbox._cli — keep in sync.
+# Cannot import it here because this module runs inside Docker build containers
+# where inspect_ai is not installed.
 SANDBOX_TOOLS_BASE_NAME = "inspect-sandbox-tools"
 
 

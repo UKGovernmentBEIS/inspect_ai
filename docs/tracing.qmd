@@ -1,5 +1,6 @@
 ---
 title: Tracing
+llms-description: Advanced execution tracing tools for diagnosing runtime issues.
 ---
 
 ## Overview

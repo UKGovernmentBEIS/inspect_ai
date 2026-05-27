@@ -5,6 +5,7 @@ from test_helpers.tool_call_utils import (
     get_tool_call,
     get_tool_response,
 )
+from test_helpers.utils import flaky_retry
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
@@ -32,6 +33,7 @@ from inspect_ai.tool import ToolCallError, bash_session, text_editor
     ],
 )
 @pytest.mark.slow
+@flaky_retry(max_retries=3)
 def test_text_editor_read(sandbox: str | tuple[str, str]):
     task = Task(
         dataset=[Sample(input="Please read the file '/etc/passwd'")],

@@ -1,5 +1,6 @@
 ---
 title: Log Viewer 
+llms-description: How to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and integrate it with Python logging.
 ---
 
 ## Overview
@@ -213,6 +214,14 @@ Use `tail --follow` to track the contents of the log file in realtime. For examp
 
 ``` bash
 tail --follow /tmp/inspect.log
+```
+
+### Logger Format
+
+Console logger output can be formatted using `rich` (ANSI), `plain` (non-ANSI), or `json` formatters. You might want to use `plain` or `json` for single-line logs in non-TTY CI, containers, and log aggregators. To do this, use the `INSPECT_PY_LOGGER_FORMAT` environment variable:
+
+``` bash
+export INSPECT_PY_LOGGER_FORMAT=plain
 ```
 
 ## Task Information

@@ -22,14 +22,25 @@ import anyio
 
 from inspect_ai._display import display as display_manager
 from inspect_ai._eval.context import init_task_context
-from inspect_ai._eval.loader import scorer_from_spec
+from inspect_ai._eval.loader import load_file_tasks, scorer_from_spec
 from inspect_ai._eval.task.task import resolve_scorer, resolve_scorer_metrics
 from inspect_ai._util._async import configured_async_backend, run_coroutine, tg_collect
 from inspect_ai._util.platform import platform_init, running_in_notebook
-from inspect_ai._util.registry import registry_create, registry_unqualified_name
+from inspect_ai._util.registry import (
+    has_registry_params,
+    registry_create,
+    registry_lookup,
+    registry_params,
+    registry_unqualified_name,
+)
 from inspect_ai.event._event import Event
 from inspect_ai.event._score import ScoreEvent
-from inspect_ai.event._tree import SpanNode, event_sequence, event_tree, walk_node_spans
+from inspect_ai.event._tree import (
+    EventTreeSpan,
+    event_sequence,
+    event_tree,
+    walk_node_spans,
+)
 from inspect_ai.log import (
     EvalLog,
 )
@@ -54,10 +65,10 @@ from inspect_ai.util._display import (
     display_type_initialized,
     init_display_type,
 )
-from inspect_ai.util._span import span
+from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME, span
 from inspect_ai.util._store import init_subtask_store
 
-from .task.results import eval_results
+from .task.results import ScorerInfo, eval_results
 
 ScoreAction = Literal["append", "overwrite"]
 
@@ -65,6 +76,9 @@ ScoreAction = Literal["append", "overwrite"]
 def score(
     log: EvalLog,
     scorers: "Scorers",
+    metrics: list[Metric | dict[str, list[Metric]]]
+    | dict[str, list[Metric]]
+    | None = None,
     epochs_reducer: ScoreReducers | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
@@ -75,6 +89,9 @@ def score(
     Args:
        log (EvalLog): Evaluation log.
        scorers (Scorer): List of Scorers to apply to log
+       metrics (list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None):
+           Alternative metrics (overrides the metrics provided by the
+           specified scorer and log).
        epochs_reducer (ScoreReducers | None):
            Reducer function(s) for aggregating scores in each sample.
            Defaults to previously used reducer(s).
@@ -96,13 +113,14 @@ def score(
 
     if running_in_notebook():
         return run_coroutine(
-            score_async(log, scorers, epochs_reducer, action, copy=copy)
+            score_async(log, scorers, metrics, epochs_reducer, action, copy=copy)
         )
     else:
         return anyio.run(
             functools.partial(score_async, copy=copy),
             log,
             scorers,
+            metrics,
             epochs_reducer,
             action,
             backend=configured_async_backend(),
@@ -139,11 +157,11 @@ def _get_updated_events(
         return [*sample.events, *new_events]
 
     (new_scorers_tree,) = event_tree(new_events)
-    assert isinstance(new_scorers_tree, SpanNode)
+    assert isinstance(new_scorers_tree, EventTreeSpan)
     if action == "append":
         # Add the new score nodes to the existing scorer node's children
         for child in new_scorers_tree.children:
-            if isinstance(child, SpanNode):
+            if isinstance(child, EventTreeSpan):
                 child.parent_id = final_scorers_node.id
         final_scorers_node.children.extend(new_scorers_tree.children)
     else:
@@ -170,6 +188,9 @@ def _get_updated_events(
 async def score_async(
     log: EvalLog,
     scorers: "Scorers",
+    metrics: list[Metric | dict[str, list[Metric]]]
+    | dict[str, list[Metric]]
+    | None = None,
     epochs_reducer: ScoreReducers | None = None,
     action: ScoreAction | None = None,
     display: DisplayType | None = None,
@@ -183,6 +204,9 @@ async def score_async(
          Evaluation log. Only the headers are needed if `samples`
          is passed as well.
        scorers (list[Scorer]): Scorers to apply to log
+       metrics (list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]] | None):
+         Alternative metrics (overrides the metrics provided by the
+         specified scorer and log).
        epochs_reducer (ScoreReducers  | None):
          Reducer function(s) for aggregating scores in each sample.
          Defaults to previously used reducer(s).
@@ -265,8 +289,12 @@ async def score_async(
         )
 
         # collect metrics from EvalLog (they may overlap w/ the scorer metrics,
-        # that will be taken care of in eval_results)
-        log_metrics = metrics_from_log_header(log)
+        # that will be taken care of in eval_results). For append, the new scorer
+        # uses its own metrics -- the original eval's metrics are already baked
+        # into log.results.scores and don't need to be recreated.
+        log_metrics = metrics or (
+            metrics_from_log_header(log) if action != "append" else None
+        )
 
         # resolve the scorer metrics onto the scorers
         resolved_scorers = resolve_scorer_metrics(resolved_scorers, log_metrics) or []
@@ -286,7 +314,8 @@ async def score_async(
             resolved_scorers,
             log_metrics,
             scorer_names,
-            log.results.early_stopping if log.results else None,
+            early_stopping=log.results.early_stopping if log.results else None,
+            metadata=log.results.metadata if log.results else None,
         )
 
         # Since the metrics calculation above is only be done using the scorers
@@ -342,7 +371,7 @@ async def _run_score_task(
     init_subtask_store(state.store)
 
     # load a copy of the current sample events into the transcript
-    init_transcript(Transcript([*sample.events]))
+    init_transcript(Transcript([*sample.events], log_model_api=False))
 
     if state.scores is None:
         state.scores = {}
@@ -350,13 +379,13 @@ async def _run_score_task(
 
     results: dict[str, SampleScore] = {}
     scorer_names: list[str] = []
-    async with span(name="scorers"):
+    async with span(name=SCORERS_SPAN_NAME):
         for scorer in scorers:
             scorer_name = unique_scorer_name(
                 scorer, list({*existing_score_names, *results})
             )
             scorer_names.append(scorer_name)
-            async with span(name=scorer_name, type="scorer"):
+            async with span(name=scorer_name, type=SCORER_SPAN_TYPE):
                 score_result = await scorer(state, target)
                 if scorer_name in state.scores:
                     raise RuntimeError(
@@ -369,7 +398,12 @@ async def _run_score_task(
                         ScoreEvent(
                             score=score_result,
                             target=target.target,
+                            scorer=scorer_name,
+                            scorer_args=registry_params(scorer)
+                            if has_registry_params(scorer)
+                            else None,
                             model_usage=sample.model_usage or None,
+                            role_usage=sample.role_usage or None,
                         )
                     )
 
@@ -455,18 +489,14 @@ def resolve_scorers(
         ]
     # See if we can create scorers from the eval itself
     elif log.eval.scorers is not None:
-        return (
-            [
-                scorer_from_spec(
-                    spec=ScorerSpec(scorer=score.name),
-                    task_path=task_path,
-                    **(score.options or {}),
-                )
-                for score in log.eval.scorers
-            ]
-            if log.results
-            else []
-        )
+        return [
+            scorer_from_spec(
+                spec=ScorerSpec(scorer=score.name),
+                task_path=task_path,
+                **(score.options or {}),
+            )
+            for score in log.eval.scorers
+        ]
 
     # Otherwise, perhaps we can re-create them from the results
     return (
@@ -479,3 +509,61 @@ def resolve_scorers(
         if log.results
         else []
     )
+
+
+def resolve_scorers_info(log: EvalLog) -> list[ScorerInfo]:
+    """Build ScorerInfo objects from an evaluation log for metrics recomputation."""
+    if log.eval.scorers is None:
+        return []
+
+    task_file = log.eval.task_file
+    task_path = Path(task_file).absolute() if task_file else None
+    task_loaded = False
+
+    def resolve_metric(metric: EvalMetricDefinition) -> Metric:
+        nonlocal task_loaded
+        if (
+            task_path is not None
+            and not task_loaded
+            and registry_lookup("metric", metric.name) is None
+        ):
+            load_file_tasks(task_path)
+            task_loaded = True
+        return metric_from_log(metric)
+
+    infos: list[ScorerInfo] = []
+    for s in log.eval.scorers:
+        # s.metrics holds EvalMetricDefinition entries (serialized name + options).
+        # ScorerInfo needs callable Metric instances since eval_results invokes them
+        # via call_metric(). Walk the (possibly nested) list/dict structure and run
+        # each leaf through metric_from_log to instantiate it from the registry.
+        metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]
+        if not s.metrics:
+            metrics = []
+        elif isinstance(s.metrics, list):
+            metrics_list: list[Metric | dict[str, list[Metric]]] = []
+            for m in s.metrics:
+                if isinstance(m, dict):
+                    metrics_list.append(
+                        {
+                            key: [resolve_metric(md) for md in mds]
+                            for key, mds in m.items()
+                        }
+                    )
+                else:
+                    metrics_list.append(resolve_metric(m))
+            metrics = metrics_list
+        else:
+            metrics = {
+                key: [resolve_metric(md) for md in mds]
+                for key, mds in s.metrics.items()
+            }
+        infos.append(
+            ScorerInfo(
+                name=s.name,
+                metrics=metrics,
+                params=s.options or {},
+                metadata=s.metadata or {},
+            )
+        )
+    return infos

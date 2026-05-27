@@ -22,13 +22,13 @@ import sys
 def get_screen_scale_factor() -> float:
     if sys.platform == "darwin":
         # `pip install pyobjc-framework-AppKit` is required to run headfully on macOS
-        from AppKit import NSScreen  # type: ignore
+        from AppKit import NSScreen  # type: ignore  # noqa: PLC0415
 
         return NSScreen.mainScreen().backingScaleFactor()
     elif sys.platform == "win32":
         try:
             # Using GetDpiForSystem from Windows API
-            import ctypes
+            import ctypes  # noqa: PLC0415
 
             user32 = ctypes.windll.user32
             user32.SetProcessDPIAware()
@@ -42,13 +42,14 @@ def get_screen_scale_factor() -> float:
                 ["gsettings", "get", "org.gnome.desktop.interface", "scaling-factor"],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             if result.returncode == 0:
                 return float(result.stdout.strip())
 
             # Try to get scaling from xrandr (X11)
             result = subprocess.run(
-                ["xrandr", "--current"], capture_output=True, text=True
+                ["xrandr", "--current"], capture_output=True, text=True, check=False
             )
             if result.returncode == 0:
                 # Parse xrandr output to find scaling

@@ -14,13 +14,13 @@ from typing import (
 import anyio
 import anyio.from_thread
 import rich
-from rich.console import Console
+from rich.console import Console, RenderableType
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
 from textual.css.query import NoMatches
 from textual.events import Print
 from textual.widget import Widget
-from textual.widgets import TabbedContent, TabPane
+from textual.widgets import RichLog, TabbedContent, TabPane
 from textual.widgets.tabbed_content import ContentTabs
 from textual.worker import Worker, WorkerState
 from typing_extensions import override
@@ -49,8 +49,20 @@ from .theme import inspect_dark, inspect_light
 from .widgets.console import ConsoleView
 from .widgets.footer import AppFooter
 from .widgets.samples import SamplesView
+from .widgets.scan import ScanView
 from .widgets.tasks import TasksView
 from .widgets.titlebar import AppTitlebar
+
+_flow_content: RenderableType | None = None
+
+
+def set_flow_content(content: RenderableType) -> None:
+    """Set content to display in a "Flow" tab when the app starts.
+
+    Internal integration point for Inspect Flow; not intended for general use.
+    """
+    global _flow_content
+    _flow_content = content
 
 
 class TaskScreenResult(Generic[TR]):
@@ -241,6 +253,11 @@ class TaskScreenApp(App[TR]):
                 yield SamplesView()
             with TabPane("Console", id="console"):
                 yield ConsoleView()
+            with TabPane("Scan", id="scan"):
+                yield ScanView()
+            if _flow_content is not None:
+                with TabPane("Flow", id="flow"):
+                    yield RichLog(id="flow-log")
 
     def on_mount(self) -> None:
         # register and set theme
@@ -250,6 +267,15 @@ class TaskScreenApp(App[TR]):
 
         # capture stdout/stderr (works w/ on_print)
         self.begin_capture_print(self)
+
+        # write any flow content to the Flow tab
+        if _flow_content is not None:
+            self.query_one("#flow-log", RichLog).write(_flow_content)
+
+        # Scan tab starts hidden; revealed by update_display when a
+        # scan becomes active. Tab content is composed unconditionally
+        # so we can show it later without `add_pane`.
+        self.query_one(TabbedContent).hide_tab("scan")
 
         # handle tab activations
         self.handle_tab_activations()
@@ -265,12 +291,43 @@ class TaskScreenApp(App[TR]):
 
     # update dynamic parts of display
     def update_display(self) -> None:
-        self.update_title()
-        self.update_tasks()
-        self.update_samples()
-        self.update_footer()
-        for input_panel in self.query(f".{InputPanel.DEFAULT_CLASSES}"):
-            cast(InputPanel, input_panel).update()
+        try:
+            self.update_title()
+            self.update_tasks()
+            self.update_samples()
+            self.update_scan()
+            self.update_footer()
+            for input_panel in self.query(f".{InputPanel.DEFAULT_CLASSES}"):
+                cast(InputPanel, input_panel).update()
+        except NoMatches:
+            # In Textual <8.x, query_one searches the active screen's DOM.
+            # When a modal (e.g. CancelDialog) is active, main app widgets
+            # like AppTitlebar and TasksView are not found.
+            pass
+
+    def update_scan(self) -> None:
+        # avoid importing scan_display at module load time — it's only
+        # populated when an eval_set call has a scanner configured
+        from inspect_ai._eval.task.scan_display import get_state
+
+        state = get_state()
+        if not state.active:
+            return
+        tabs = self.query_one(TabbedContent)
+        # show_tab is idempotent — cheaper than tracking the revealed
+        # state ourselves
+        tabs.show_tab("scan")
+
+        # samples_total = sum of samples across every task this app has
+        # seen × number of scanners. `_app_tasks` is cumulative across
+        # task_screen lifecycles, so multi-task eval_set runs aggregate
+        # correctly. 0 when no tasks have started yet → ScanView omits
+        # the progress bar.
+        n_scanners = len(state.spec.scanners) if state.spec else 1
+        total_samples = sum(t.profile.samples for t in self._app_tasks)
+        samples_total = total_samples * n_scanners
+
+        self.query_one(ScanView).update(samples_total=samples_total)
 
     # update the header title
     def update_title(self) -> None:
@@ -279,7 +336,14 @@ class TaskScreenApp(App[TR]):
             title = "eval interrupted (cancelling running samples...)"
         elif len(self._tasks) > 0:
             if self._parallel:
-                completed = sum(1 for task in self._tasks if task.result is not None)
+                # Only count the last task per task_id (retries
+                # supersede earlier attempts)
+                last_by_id: dict[str, TaskWithResult] = {}
+                for task in self._tasks:
+                    last_by_id[task.profile.task_id] = task
+                completed = sum(
+                    1 for task in last_by_id.values() if task.result is not None
+                )
                 title = f"{tasks_title(completed, self._total_tasks)}"
             else:
                 title = f"{task_title(self._tasks[0].profile, show_model=len(self._tasks) == 1)}"
@@ -442,6 +506,7 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
+        record_event: bool = True,
     ) -> Iterator[Console]:
         with self.app.suspend_app():
             # get rich console
@@ -472,7 +537,8 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
                 input = console.export_text(clear=False, styles=False)
                 input_ansi = console.export_text(clear=True, styles=True)
                 console.record = False
-                transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+                if record_event:
+                    transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
 
                 # print one blank line
                 console.print("")

@@ -161,7 +161,7 @@ async def check_server_tool_compaction(
         keep_thinking_turns=10,  # Keep thinking (not what we're testing)
         keep_tool_uses=1,  # Clear older tool results, keep only most recent
     )
-    compacted_messages, _ = await strategy.compact(messages, model)
+    compacted_messages, _ = await strategy.compact(model, messages, [])
 
     # Verify that tool results were actually cleared
     total_after, cleared_after = _count_server_tool_uses(compacted_messages)
@@ -198,7 +198,6 @@ async def check_server_tool_compaction(
 
 @skip_if_no_anthropic
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_server_tool_compaction_anthropic_web_search() -> None:
     """Test Anthropic native web_search tool compaction doesn't cause 400 errors."""
     tools = [_create_web_search_tool("anthropic")]
@@ -210,7 +209,6 @@ async def test_server_tool_compaction_anthropic_web_search() -> None:
 
 @skip_if_no_openai
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_server_tool_compaction_openai_web_search() -> None:
     """Test OpenAI native web_search tool compaction doesn't cause 400 errors."""
     tools = [_create_web_search_tool("openai")]
@@ -222,7 +220,6 @@ async def test_server_tool_compaction_openai_web_search() -> None:
 
 @skip_if_no_anthropic
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_server_tool_compaction_anthropic_with_thinking() -> None:
     """Test Anthropic server tool compaction combined with thinking compaction."""
     tools = [_create_web_search_tool("anthropic")]

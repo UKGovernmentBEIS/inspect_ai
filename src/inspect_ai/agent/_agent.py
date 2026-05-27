@@ -172,20 +172,26 @@ def agent(
             # create agent
             agent = agent_type(*args, **kwargs)
 
-            # capture explicit description that agent may have
-            # (still use passed description if specified)
+            # capture explicit name and description that agent may have
+            # (still use passed name/description if specified)
             if is_registry_object(agent):
                 info = registry_info(agent)
+                registry_name = info.name
                 registry_description = info.metadata.get(AGENT_DESCRIPTION, None)
             else:
+                registry_name = None
                 registry_description = None
+
+            # If name was explicitly passed to decorator, use agent_name (which uses it)
+            # Otherwise, preserve inner agent's name if available
+            final_name = agent_name if name else (registry_name or agent_name)
 
             registry_tag(
                 agent_type,
                 agent,
                 RegistryInfo(
                     type="agent",
-                    name=agent_name,
+                    name=final_name,
                     metadata={AGENT_DESCRIPTION: description or registry_description},
                 ),
                 *args,

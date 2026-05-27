@@ -6,6 +6,7 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, Literal, cast
 
+import anyio
 import yaml
 from pydantic import BaseModel
 
@@ -25,7 +26,7 @@ from .util import TRACE_DOCKER, ComposeProject, is_inspect_project
 logger = getLogger(__name__)
 
 # How long to wait for compose environment to pass a health check
-COMPOSE_WAIT = 120
+COMPOSE_WAIT = 600
 
 
 async def compose_up(
@@ -63,8 +64,7 @@ async def compose_down(project: ComposeProject, quiet: bool = True) -> None:
 
     # shut down docker containers. default internal timeout is 10 seconds
     # but we've seen reports of this handing, so add a proess timeout
-    # of 60 seconds for belt and suspenders
-    TIMEOUT = 60
+    TIMEOUT = 300
     try:
         result = await compose_command(
             ["down", "--volumes"],
@@ -102,7 +102,7 @@ async def compose_cp(
     result = await compose_command(
         ["cp", "-L", "--", src, dest],
         project=project,
-        timeout=120,  # 2-minute timeout for file copies
+        timeout=600,  # 10-minute timeout for file copies
         cwd=cwd,
         output_limit=output_limit,
     )
@@ -123,9 +123,6 @@ async def compose_check_running(
 
     if len(successful_services) > 0:
         if len(successful_services) != len(services):
-            unhealthy_services = services
-            for successful_service in successful_services:
-                unhealthy_services.remove(successful_service["Service"])
             return []
     else:
         return []
@@ -146,7 +143,7 @@ async def compose_ps(
         command.append("--all")
     if status:
         command = command + ["--status", status]
-    result = await compose_command(command, project=project, timeout=60)
+    result = await compose_command(command, project=project, timeout=300)
     if not result.success:
         msg = f"Error querying for running services: {result.stderr}"
         raise RuntimeError(msg)
@@ -185,6 +182,15 @@ async def compose_pull(
     )
 
 
+async def docker_image_exists_locally(image: str) -> bool:
+    """Check whether a docker image is already present in the local daemon."""
+    result = await subprocess(
+        ["docker", "image", "inspect", image],
+        capture_output=True,
+    )
+    return result.success
+
+
 async def compose_exec(
     command: list[str],
     *,
@@ -208,7 +214,7 @@ async def compose_exec(
 
 
 async def compose_services(project: ComposeProject) -> dict[str, ComposeService]:
-    result = await compose_command(["config"], project=project, timeout=60)
+    result = await compose_command(["config"], project=project, timeout=300)
     if not result.success:
         raise RuntimeError(f"Error reading docker config: {result.stderr}")
     return cast(dict[str, ComposeService], yaml.safe_load(result.stdout)["services"])
@@ -345,7 +351,12 @@ async def compose_command(
     # these same commands succeed if you just retry them. therefore, we add some
     # extra resiliance by retrying commands with a timeout once. we were observing
     # commands hanging at a rate of ~ 1/1000, so we retry up to twice (tweaking the
-    # retry time down) to make the odds of hanging vanishingly small
+    # retry time down) to make the odds of hanging vanishingly small.
+    # under the same conditions we have also seen the compose CLI process exit
+    # immediately when dockerd fails the exec attach ("error attaching stdout
+    # stream: write unix /run/docker.sock->@: broken pipe"); the subsequent
+    # write of `input` to the dead subprocess's stdin then raises
+    # anyio.BrokenResourceError. retry that too.
 
     if timeout is not None:
         MAX_RETRIES = 2
@@ -356,16 +367,19 @@ async def compose_command(
                     timeout if retries == 0 else (min(timeout, 60) // retries), 1
                 )
                 return await run_command(command_timeout)
-            except TimeoutError as e:
+            except (TimeoutError, anyio.BrokenResourceError) as e:
                 retries += 1
                 if timeout_retry and (retries <= MAX_RETRIES):
                     logger.info(
-                        f"Retrying docker compose command: {shlex.join(compose_command)}"
+                        f"Retrying docker compose command after "
+                        f"{type(e).__name__}: {shlex.join(compose_command)}"
                     )
-                else:
+                elif isinstance(e, TimeoutError):
                     raise TimeoutError(
                         f"Docker compose command '{command}' timed out after {timeout} seconds"
                     ) from e
+                else:
+                    raise
 
     else:
         return await run_command(timeout)

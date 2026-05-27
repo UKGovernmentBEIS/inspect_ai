@@ -235,6 +235,43 @@ def test_reasoning_round_trip_no_summary():
     assert parsed.summary is None
 
 
+def test_reasoning_round_trip_signature_with_quotes():
+    # OpenRouter encodes its reasoning_details payload as a JSON-bearing
+    # signature, which contains double quotes that must survive the
+    # think-tag attribute round-trip.
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._reasoning import reasoning_to_think_tag
+
+    original = ContentReasoning(
+        reasoning="Test reasoning",
+        signature='reasoning-details://[{"type": "reasoning.text", "text": "hi"}]',
+    )
+
+    serialized = reasoning_to_think_tag(original)
+    _, parsed = parse_content_with_reasoning(serialized)
+
+    assert parsed is not None
+    assert parsed.signature == original.signature
+    assert parsed.reasoning == original.reasoning
+
+
+def test_reasoning_round_trip_signature_with_angle_brackets_and_amp():
+    from inspect_ai._util.content import ContentReasoning
+    from inspect_ai.model._reasoning import reasoning_to_think_tag
+
+    original = ContentReasoning(
+        reasoning="Test reasoning",
+        signature='a<b>c & d "e"',
+    )
+
+    serialized = reasoning_to_think_tag(original)
+    _, parsed = parse_content_with_reasoning(serialized)
+
+    assert parsed is not None
+    assert parsed.signature == original.signature
+    assert parsed.reasoning == original.reasoning
+
+
 # Tests for internal field (values are base64-encoded JSON)
 def test_reasoning_parse_with_internal_simple():
     # base64("123") = "MTIz"
@@ -366,3 +403,17 @@ def test_reasoning_parse_with_invalid_internal_json():
     assert reasoning is not None
     assert reasoning.internal is None  # Invalid JSON should result in None
     assert reasoning.reasoning == "Reasoning"
+
+
+def test_reasoning_parse_redacted_collapses_wrapped_payload():
+    encrypted = "abcDEF123+/=" * 50
+    wrapped = "\n".join(encrypted[i : i + 17] for i in range(0, len(encrypted), 17))
+
+    content, reasoning = parse_content_with_reasoning(
+        f'<think signature="rs_123" redacted="true">\n{wrapped}\n</think>Content'
+    )
+
+    assert reasoning is not None
+    assert reasoning.reasoning == encrypted
+    assert reasoning.redacted is True
+    assert content == "Content"

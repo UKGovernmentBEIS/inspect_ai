@@ -1,5 +1,6 @@
 ---
-title: inspect log
+reference: inspect log
+description: Query, read, write, and convert logs.
 ---
 
 

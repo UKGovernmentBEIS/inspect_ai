@@ -6,13 +6,14 @@ own unique auto-compose file in the central directory, avoiding overwrites
 and race conditions.
 """
 
-import asyncio
 import os
 import tempfile
 from contextlib import contextmanager
+from functools import partial
 from pathlib import Path
 from typing import Generator
 
+from inspect_ai._util._async import tg_collect
 from inspect_ai.util import ComposeConfig, ComposeService
 from inspect_ai.util._sandbox.docker.util import ComposeProject
 
@@ -99,9 +100,9 @@ async def test_compose_config_concurrent_no_overwrite() -> None:
         ]
 
         # Create all projects concurrently
-        projects = await asyncio.gather(
-            *[
-                ComposeProject.create(name=name, config=config)
+        projects = await tg_collect(
+            [
+                partial(ComposeProject.create, name=name, config=config)
                 for name, config in configs
             ]
         )

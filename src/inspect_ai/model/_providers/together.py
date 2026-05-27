@@ -16,7 +16,7 @@ from inspect_ai.tool._tool_info import ToolInfo
 
 from .._chat_message import ChatMessage, ChatMessageAssistant
 from .._generate_config import GenerateConfig, normalized_batch_config
-from .._model import ModelAPI, log_model_retry
+from .._model import ModelAPI, RetryDecision, log_model_retry
 from .._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -33,9 +33,8 @@ from .util import (
     chat_api_input,
     chat_api_request,
     model_base_url,
-    should_retry_chat_api_error,
 )
-from .util.chatapi import ChatAPIHandler
+from .util.chatapi import ChatAPIHandler, classify_chat_api_error
 
 
 def chat_choices_from_response_together(
@@ -107,6 +106,11 @@ class TogetherAIAPI(OpenAICompatibleAPI):
     def max_tokens(self) -> int | None:
         return DEFAULT_MAX_TOKENS
 
+    @property
+    @override
+    def schema_exclude_fields(self) -> set[str] | None:
+        return None
+
     @override
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup.
@@ -123,7 +127,7 @@ class TogetherAIAPI(OpenAICompatibleAPI):
             content = response.get("error").get("message")
         else:
             content = str(response)
-        if "max_new_tokens" in ex.message:
+        if "max_new_tokens" in ex.message or "context length" in ex.message:
             return ModelOutput.from_content(
                 model=self.model_name, content=content, stop_reason="model_length"
             )
@@ -284,8 +288,9 @@ class TogetherRESTAPI(ModelAPI):
             return ModelOutput(model=model, choices=choices, usage=usage)
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
-        return should_retry_chat_api_error(ex)
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
+        decision = classify_chat_api_error(ex)
+        return decision if decision is not None else RetryDecision.no()
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -293,10 +298,16 @@ class TogetherRESTAPI(ModelAPI):
             return ex.response.status_code == 401
         return False
 
-    # cloudflare enforces rate limits by model for each account
     @override
     def connection_key(self) -> str:
-        return f"{self.api_key}"
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.api_key}:{self.model_name}"
 
     # Together uses a default of 512 so we bump it up
     @override

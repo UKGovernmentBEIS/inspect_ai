@@ -2,21 +2,21 @@ import re
 
 from pydantic import BaseModel, Field
 
+from inspect_ai._util._json_rpc import exec_model_request
 from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai.tool._json_rpc_helpers import exec_model_request
+from inspect_ai.tool._sandbox_tools_utils._error_mapper import (
+    SandboxToolsErrorMapper,
+)
 from inspect_ai.tool._sandbox_tools_utils._legacy_helpers import (
     LEGACY_SANDBOX_CLI,
     legacy_tool_support_sandbox,
-)
-from inspect_ai.tool._sandbox_tools_utils._runtime_helpers import (
-    SandboxJSONRPCTransport,
-    SandboxToolsServerErrorMapper,
 )
 from inspect_ai.tool._tool import Tool, ToolError, ToolResult, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from inspect_ai.tool._tool_info import parse_tool_info
 from inspect_ai.tool._tool_with import tool_with
+from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
 from inspect_ai.util._store_model import StoreModel, store_as
 
 from ._back_compat import old_web_browser_cmd
@@ -414,9 +414,8 @@ async def _web_browser_cmd(
     # bind to store (use instance id if provided)
     store = store_as(WebBrowserStore, instance=instance)
 
-    # Create transport and server error mapper
+    # Create transport for all RPC calls
     transport = SandboxJSONRPCTransport(sandbox_env, LEGACY_SANDBOX_CLI)
-    server_error_mapper = SandboxToolsServerErrorMapper()
 
     if not store.session_id:
         store.session_id = (
@@ -425,7 +424,7 @@ async def _web_browser_cmd(
                 params={"headful": False},
                 result_type=NewSessionResult,
                 transport=transport,
-                server_error_mapper=server_error_mapper,
+                error_mapper=SandboxToolsErrorMapper,
                 timeout=timeout,
             )
         ).session_name
@@ -437,7 +436,7 @@ async def _web_browser_cmd(
         params=params,
         result_type=CrawlerResult,
         transport=transport,
-        server_error_mapper=server_error_mapper,
+        error_mapper=SandboxToolsErrorMapper,
         timeout=timeout,
     )
     if crawler_result.error and crawler_result.error.strip() != "":

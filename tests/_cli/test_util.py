@@ -62,6 +62,15 @@ test_cases = [
             ModelRoleParameters(role_name="grader", parsed_type=str),
         ],
     ),
+    # YAML inline format with model_args
+    ModelRoleTestCase(
+        cli_args=(
+            "critic={model: mockllm/model, temperature: 0.2, model_args: {custom_outputs: null}}",
+        ),
+        params=[
+            ModelRoleParameters(role_name="critic", temperature=0.2, parsed_type=Model),
+        ],
+    ),
     # Model roles should use default model if no model is specified
     ModelRoleTestCase(
         cli_args=(
@@ -111,12 +120,26 @@ def test_parse_model_role_cli_args(monkeypatch, test_case):
             ("grader={model: mockllm/model, temperature: oops, max_tokens: 1000}",),
             "Invalid config",
         ),  # invalid temperature value
+        (
+            ("grader={model: mockllm/model, model_args: not_a_dict}",),
+            "model_args must be a dict",
+        ),  # model_args is not a dict
     ],
 )
 def test_parse_model_role_cli_invalid_args_raises_error(args, expected_substring):
     with pytest.raises(ValueError) as e:
         parse_model_role_cli_args(args)
     assert expected_substring in str(e.value)
+
+
+def test_parse_model_role_cli_args_without_model_args():
+    """Verify YAML config without model_args parses correctly."""
+    result = parse_model_role_cli_args(
+        ("critic={model: mockllm/model, temperature: 0.3}",)
+    )
+    assert "critic" in result
+    assert isinstance(result["critic"], Model)
+    assert result["critic"].config.temperature == 0.3
 
 
 def test_parse_no_model_role_cli_args():

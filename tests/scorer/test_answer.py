@@ -3,7 +3,7 @@ import textwrap
 import pytest
 from test_helpers.utils import simple_task_state
 
-from inspect_ai.scorer import CORRECT, INCORRECT, Target, answer
+from inspect_ai.scorer import CORRECT, INCORRECT, NOANSWER, Target, answer
 
 
 @pytest.mark.anyio
@@ -39,7 +39,45 @@ async def test_word_failure():
     state = simple_task_state(model_output="ANSWER: Yes")
     result = await scorer(state, Target(["No"]))
 
-    assert result.text == INCORRECT
+    assert result.text == NOANSWER
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_output,target",
+    [
+        ("ANSWER: ☆", "☆"),
+        ("ANSWER: ○", "○"),
+        ("ANSWER: ◎", "◎"),
+        ("ANSWER: Yes.", "Yes"),
+        ("ANSWER: 42,\n", "42"),
+        ("ANSWER: correct!", "correct"),
+        ("ANSWER: 3.14", "3.14"),
+    ],
+)
+async def test_word_matching(model_output: str, target: str):
+    scorer = answer("word")
+    state = simple_task_state(model_output=model_output)
+    result = await scorer(state, Target([target]))
+
+    assert result is not None
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "model_output,target",
+    [
+        ("ANSWER: Yes then more text", "Yes"),
+        ("ANSWER: No, because reasons", "No"),
+    ],
+)
+async def test_word_trailing_prose_noanswer(model_output: str, target: str):
+    scorer = answer("word")
+    state = simple_task_state(model_output=model_output)
+    result = await scorer(state, Target([target]))
+
+    assert result is not None and result.text == NOANSWER
 
 
 @pytest.mark.anyio
@@ -58,6 +96,33 @@ async def test_line_failure():
     result = await scorer(state, Target(["This doesn't match does it?"]))
 
     assert result.text == INCORRECT
+
+
+@pytest.mark.anyio
+async def test_letter_last_occurrence_wins():
+    # Models sometimes self-correct ("ANSWER: A ... wait, ANSWER: B"). The
+    # final ANSWER: line should be the one that is scored, consistent with
+    # the behaviour of answer("line").
+    scorer = answer("letter")
+    state = simple_task_state(
+        model_output="Let me think. ANSWER: A\nWait, that is wrong.\nANSWER: B"
+    )
+    result = await scorer(state, Target(["B"]))
+
+    assert result.answer == "B"
+    assert result.text == CORRECT
+
+
+@pytest.mark.anyio
+async def test_word_last_occurrence_wins():
+    scorer = answer("word")
+    state = simple_task_state(
+        model_output="ANSWER: No\nActually, on reflection...\nANSWER: Yes"
+    )
+    result = await scorer(state, Target(["Yes"]))
+
+    assert result.answer == "Yes"
+    assert result.text == CORRECT
 
 
 @pytest.mark.anyio

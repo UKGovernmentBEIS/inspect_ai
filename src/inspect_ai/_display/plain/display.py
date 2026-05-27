@@ -8,7 +8,7 @@ from inspect_ai._display.core.rich import rich_initialise
 from inspect_ai._util._async import configured_async_backend, run_coroutine
 from inspect_ai._util.platform import running_in_notebook
 from inspect_ai._util.text import truncate
-from inspect_ai._util.throttle import throttle
+from inspect_ai.util._throttle import throttle
 
 from ...util._concurrency import concurrency_status_display
 from ..core.config import task_config
@@ -24,7 +24,7 @@ from ..core.display import (
     TaskSpec,
     TaskWithResult,
 )
-from ..core.footer import task_http_retries_str
+from ..core.footer import task_http_retries_str, task_refusals_str
 from ..core.panel import task_panel
 from ..core.results import task_metric, tasks_results
 
@@ -190,6 +190,9 @@ class PlainTaskDisplay(TaskDisplay):
             rate_limits = task_http_retries_str()
             if rate_limits:
                 status_parts.append(rate_limits)
+            refusals = task_refusals_str()
+            if refusals:
+                status_parts.append(refusals)
 
             # Print on new line
             print(" | ".join(status_parts))

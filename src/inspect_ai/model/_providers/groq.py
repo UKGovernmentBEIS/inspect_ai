@@ -29,11 +29,19 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_TOKENS,
 )
 from inspect_ai._util.content import Content, ContentReasoning, ContentText
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data_uri
 from inspect_ai._util.url import is_http_url
-from inspect_ai.model._reasoning import reasoning_to_think_tag
+from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.model._reasoning import (
+    clamp_reasoning_effort_to_low_medium_high,
+    reasoning_to_think_tag,
+)
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
+from inspect_ai.util._json import json_schema_dump
 
 from .._call_tools import parse_tool_call
 from .._chat_message import (
@@ -44,8 +52,8 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
-from .._model_call import ModelCall
+from .._model import ModelAPI, RetryDecision
+from .._model_call import ModelCall, as_error_response
 from .._model_output import (
     ChatCompletionChoice,
     ModelOutput,
@@ -113,18 +121,6 @@ class GroqAPI(ModelAPI):
         # allocate request_id (so we can see it from ModelCall)
         request_id = self._http_hooks.start_request()
 
-        # setup request and response for ModelCall
-        request: dict[str, Any] = {}
-        response: dict[str, Any] = {}
-
-        def model_call() -> ModelCall:
-            return ModelCall.create(
-                request=request,
-                response=response,
-                filter=model_call_filter,
-                time=self._http_hooks.end_request(request_id),
-            )
-
         messages = await as_groq_chat_messages(input)
 
         params = self.completion_params(config)
@@ -139,8 +135,14 @@ class GroqAPI(ModelAPI):
         request = dict(
             messages=messages,
             model=self.model_name,
-            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+            extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+            | (config.extra_headers or {}),
             **params,
+        )
+
+        model_call = set_active_model_event_call(
+            request=request,
+            filter=model_call_filter,
         )
 
         try:
@@ -148,7 +150,9 @@ class GroqAPI(ModelAPI):
                 **request,
             )
 
-            response = completion.model_dump()
+            model_call.set_response(
+                completion.model_dump(), self._http_hooks.end_request(request_id)
+            )
 
             # extract metadata
             metadata: dict[str, Any] = {
@@ -187,9 +191,12 @@ class GroqAPI(ModelAPI):
             )
 
             # return
-            return output, model_call()
+            return output, model_call
         except APIStatusError as ex:
-            return self.handle_bad_request(ex), model_call()
+            model_call.set_error(
+                as_error_response(ex.body), self._http_hooks.end_request(request_id)
+            )
+            return self.handle_bad_request(ex), model_call
 
     def completion_params(self, config: GenerateConfig) -> Dict[str, Any]:
         params: dict[str, Any] = {}
@@ -210,18 +217,22 @@ class GroqAPI(ModelAPI):
         if config.num_choices is not None:
             params["n"] = config.num_choices
         if config.reasoning_effort is not None:
-            params["reasoning_effort"] = config.reasoning_effort
+            # Groq's API accepts low/medium/high; clamp the extended effort
+            # values (minimal/xhigh/max) so requests aren't rejected.
+            clamped = clamp_reasoning_effort_to_low_medium_high(config.reasoning_effort)
+            if clamped is not None:
+                params["reasoning_effort"] = clamped
         if config.response_schema is not None:
+            json_schema_dict: dict[str, Any] = dict(
+                name=config.response_schema.name,
+                schema=json_schema_dump(config.response_schema.json_schema),
+            )
+            if config.response_schema.description is not None:
+                json_schema_dict["description"] = config.response_schema.description
+            if config.response_schema.strict is not None:
+                json_schema_dict["strict"] = config.response_schema.strict
             params["response_format"] = dict(
-                type="json_schema",
-                json_schema=dict(
-                    name=config.response_schema.name,
-                    schema=config.response_schema.json_schema.model_dump(
-                        exclude_none=True
-                    ),
-                    description=config.response_schema.description,
-                    strict=config.response_schema.strict,
-                ),
+                type="json_schema", json_schema=json_schema_dict
             )
         return params
 
@@ -239,17 +250,28 @@ class GroqAPI(ModelAPI):
         ]
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         if isinstance(ex, APIStatusError):
-            return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, APITimeoutError):
-            return True
-        else:
-            return False
+            if not is_retryable_http_status(ex.status_code):
+                return RetryDecision.no()
+            retry_after = parse_retry_after_from_exception(ex)
+            if ex.status_code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+        if isinstance(ex, APITimeoutError):
+            return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def connection_key(self) -> str:
-        return str(self.api_key)
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.api_key}:{self.model_name}"
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -369,17 +391,16 @@ async def as_chat_completion_part(
 
         return ChatCompletionContentPartImageParam(
             type="image_url",
-            image_url=dict(url=image_url, detail=detail),
+            image_url=dict(
+                url=image_url, detail="high" if detail == "original" else detail
+            ),
         )
     else:
         raise RuntimeError("Groq models do not support audio or video inputs.")
 
 
 def chat_tools(tools: List[ToolInfo]) -> List[Dict[str, Any]]:
-    return [
-        {"type": "function", "function": tool.model_dump(exclude_none=True)}
-        for tool in tools
-    ]
+    return [{"type": "function", "function": json_schema_dump(tool)} for tool in tools]
 
 
 def chat_tool_choice(tool_choice: ToolChoice) -> str | Dict[str, Any]:

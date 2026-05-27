@@ -240,7 +240,9 @@ def schema_command() -> None:
 
 
 def schema() -> None:
-    print(view_resource("log-schema.json"))
+    resource = PKG_PATH / "_view" / "inspect-openapi.json"
+    with open(resource, "r", encoding="utf-8") as f:
+        print(f.read())
 
 
 @log_command.command("types", hidden=True)
@@ -250,16 +252,223 @@ def types_command() -> None:
 
 
 def types() -> None:
-    print(view_type_resource("log.d.ts"))
+    print(view_type_resource("generated.ts"))
+
+
+@log_command.command("export-config")
+@click.argument("log_file")
+@click.option(
+    "--output",
+    type=str,
+    default=None,
+    help="Write output to this file instead of stdout.",
+)
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["yaml", "json"], case_sensitive=False),
+    default="yaml",
+    show_default=True,
+    help="Output format.",
+)
+def export_config_command(log_file: str, output: str | None, fmt: str) -> None:
+    """Export the run configuration from a log file.
+
+    Reads LOG_FILE and writes a YAML (or JSON) file that can be passed directly
+    to 'inspect eval --run-config' to reproduce the run.
+
+    Example:
+        inspect log export-config logs/my_run.eval > run.yaml
+
+        inspect eval --run-config run.yaml
+    """
+    import yaml
+
+    from inspect_ai.log._config import eval_log_to_run_config_dict
+    from inspect_ai.log._file import read_eval_log
+
+    log = read_eval_log(log_file, header_only=True)
+    d = eval_log_to_run_config_dict(log)
+
+    if fmt == "json":
+        from json import dumps
+
+        text = dumps(d, indent=2)
+    else:
+        text = yaml.dump(
+            d, default_flow_style=False, sort_keys=False, allow_unicode=True
+        )
+
+    if output:
+        with open(output, "w", encoding="utf-8") as f:
+            f.write(text)
+    else:
+        print(text, end="")
+
+
+@log_command.command("recover")
+@click.argument("log_file", required=False)
+@click.option(
+    "--output",
+    type=str,
+    default=None,
+    help="Output path for the recovered log file.",
+)
+@click.option(
+    "--overwrite",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Overwrite the crashed log file in-place instead of creating a new file.",
+)
+@click.option(
+    "--no-cleanup",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Don't remove the sample buffer database after recovery.",
+)
+@click.option(
+    "--no-events",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Exclude event transcript from recovered samples (reduces output size).",
+)
+@click.option(
+    "--list",
+    "list_mode",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="List recoverable logs instead of recovering.",
+)
+@click.option(
+    "--json",
+    "json_output",
+    type=bool,
+    is_flag=True,
+    default=False,
+    help="Output listing as JSON (only with --list).",
+)
+@common_options
+def recover_command(
+    log_file: str | None,
+    output: str | None,
+    overwrite: bool,
+    no_cleanup: bool,
+    no_events: bool,
+    list_mode: bool,
+    json_output: bool,
+    **common: Unpack[CommonOptions],
+) -> None:
+    """Recover crashed eval logs from sample buffer databases."""
+    from json import dumps as json_dumps
+
+    from inspect_ai._util.platform import platform_init
+    from inspect_ai.log._recover import (
+        recover_eval_log,
+        recoverable_eval_logs,
+    )
+
+    process_common_options(common)
+    platform_init()
+
+    if list_mode:
+        logs = recoverable_eval_logs(log_dir=common["log_dir"])
+
+        if not logs:
+            print("No recoverable logs found.")
+            return
+
+        if json_output:
+            print(
+                json_dumps(
+                    [
+                        {
+                            "name": r.log.name,
+                            "task": r.log.task,
+                            "total_samples": r.total_samples,
+                            "flushed_samples": r.flushed_samples,
+                            "completed_samples": r.completed_samples,
+                            "in_progress_samples": r.in_progress_samples,
+                            "source": r.source,
+                        }
+                        for r in logs
+                    ],
+                    indent=2,
+                )
+            )
+        else:
+            import rich
+
+            from inspect_ai._util.path import pretty_path
+
+            console = rich.get_console()
+            for r in logs:
+                print()
+                console.print(
+                    f"[bold]log:[/bold] {pretty_path(r.log.name)}", highlight=False
+                )
+                console.print(f"  [dim]source:[/dim] {r.source}", highlight=False)
+                print(
+                    f"  ({r.total_samples} total, "
+                    f"{r.flushed_samples} flushed, "
+                    f"{r.completed_samples} completed, "
+                    f"{r.in_progress_samples} in-progress)"
+                )
+            print()
+
+    else:
+        if log_file is None:
+            raise click.UsageError("LOG_FILE is required when not using --list.")
+
+        from inspect_ai.log._recover import RecoveryNotAvailable, RecoveryStats
+
+        stats = RecoveryStats()
+        try:
+            log = recover_eval_log(
+                log_file,
+                output=output,
+                overwrite=overwrite,
+                cleanup=not no_cleanup,
+                no_events=no_events,
+                _stats=stats,
+            )
+        except RecoveryNotAvailable as e:
+            raise click.UsageError(str(e))
+        output_path = log.location or output
+        print(f"Recovered {stats.sample_count} samples to {output_path}")
+
+        if stats.failed_count > 0:
+            print(f"\nTo re-run the {stats.failed_count} failed/cancelled samples:")
+            print(f"  inspect eval-retry {output_path}")
+
+
+_TS_MONO_APP = PKG_PATH / "_view" / "ts-mono" / "apps" / "inspect"
+
+_SUBMODULE_MSG = (
+    "ts-mono submodule not initialized. Run 'git submodule update --init' to set it up."
+)
+
+
+def _require_submodule() -> None:
+    if not (_TS_MONO_APP / "src").exists():
+        raise RuntimeError(_SUBMODULE_MSG)
 
 
 def view_resource(file: str) -> str:
-    resource = PKG_PATH / "_view" / "www" / file
+    _require_submodule()
+    resource = _TS_MONO_APP / file
     with open(resource, "r", encoding="utf-8") as f:
         return f.read()
 
 
+_TS_MONO_INSPECT_COMMON = PKG_PATH / "_view" / "ts-mono" / "packages" / "inspect-common"
+
+
 def view_type_resource(file: str) -> str:
-    resource = PKG_PATH / "_view" / "www" / "src" / "@types" / file
+    _require_submodule()
+    resource = _TS_MONO_INSPECT_COMMON / "src" / "types" / file
     with open(resource, "r", encoding="utf-8") as f:
         return f.read()

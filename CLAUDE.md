@@ -16,6 +16,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Naming**: Use snake_case for variables, functions, methods; PascalCase for classes
 - **Docstrings**: Google-style docstrings required for public APIs
 - **Error Handling**: Use appropriate exception types; include context in error messages
-- **Testing**: Write tests with pytest; maintain high coverage
+- **Testing**: Write tests with pytest; maintain high coverage. See "Testing Async Code" below for async test conventions.
 
-Respect existing code patterns when modifying files. Run linting before committing changes.
+- **Async Concurrency**: Use `inspect_ai._util._async.tg_collect()` instead of `asyncio.gather()` for running concurrent async tasks. Use `inspect_ai.util.collect()` only inside sample subtasks (it adds transcript span grouping).
+
+- **File Paths**: All code that handles file paths must support `s3://` URLs, `file://` URIs, and plain local paths. Use `filesystem()` from `inspect_ai._util.file` for filesystem operations and `local_path()` to resolve `file://` URIs to local paths before passing to APIs that only accept local paths (e.g. `ZipFile`).
+
+- **Respect existing code patterns when modifying files. Run linting before committing changes.
+
+## Testing Async Code
+
+All async test functions automatically run under both asyncio and trio backends via anyio (applied by the `pytest_pycollect_makeitem` hook in `tests/conftest.py`). Trio variants are skipped by default; use `--runtrio` to enable them.
+
+- **Do NOT use `@pytest.mark.asyncio`** — it conflicts with anyio and is blocked by conftest. Just write `async def test_...` and the hook handles the rest.
+- **Use `anyio.sleep()` not `asyncio.sleep()`** in tests; `anyio.Event()` not `asyncio.Event()`; `tg_collect()` not `asyncio.gather()`.
+- **Use `@skip_if_trio`** (from `test_helpers.utils`) for tests that cannot run under trio (e.g. they test asyncio-specific fallback paths).
+- **`@pytest.mark.anyio`** is not required but harmless — use it to signal intentional dual-backend coverage.
+
+## Subsystem Documentation
+
+Additional files provide context when working in specific areas:
+
+- [Sandbox tools: build process, container injection, RPC communication, design patterns](src/inspect_sandbox_tools/CLAUDE.md)
+
+## Design Documentation
+
+`design/` contains architecture notes, subsystem internals, and documentation of repo/CI/development processes and workflows. Browse it before diving into an unfamiliar area.

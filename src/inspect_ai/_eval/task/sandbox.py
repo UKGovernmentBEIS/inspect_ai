@@ -97,14 +97,17 @@ async def sandboxenv_context(
         interrupted = False
         environments: dict[str, SandboxEnvironment] | None = None
         try:
-            # initialize sandbox environment,
+            # initialize sandbox environment
+            metadata = dict(sample.metadata) if sample.metadata else {}
+            metadata["__sample_id__"] = sample.id
+
             environments = await init_sandbox_environments_sample(
                 sandboxenv_type=sandboxenv_type,
                 task_name=registry_unqualified_name(task_name),
                 config=sandbox.config,
                 files=files,
                 setup=setup,
-                metadata=sample.metadata if sample.metadata else {},
+                metadata=metadata,
             )
 
             # run sample
@@ -117,13 +120,14 @@ async def sandboxenv_context(
         finally:
             # cleanup sandbox environment
             if environments and cleanup:
-                await cleanup_sandbox_environments_sample(
-                    type=sandbox.type,
-                    task_name=task_name,
-                    config=sandbox.config,
-                    environments=environments,
-                    interrupted=interrupted,
-                )
+                with anyio.CancelScope(shield=interrupted):
+                    await cleanup_sandbox_environments_sample(
+                        type=sandbox.type,
+                        task_name=task_name,
+                        config=sandbox.config,
+                        environments=environments,
+                        interrupted=interrupted,
+                    )
 
 
 def resolve_sample_files(files: dict[str, str]) -> dict[str, str]:
@@ -249,24 +253,27 @@ async def resolve_sandbox(
 
 async def _retrying_httpx_get(
     url: str,
-    client: httpx.AsyncClient = httpx.AsyncClient(),
+    client: httpx.AsyncClient | None = None,
     timeout: int = 30,  # per-attempt timeout
     max_retries: int = 10,
     total_timeout: int = 120,  #  timeout for the whole retry loop. not for an individual attempt
 ) -> bytes:
-    @retry(
-        wait=wait_exponential_jitter(),
-        stop=(stop_after_attempt(max_retries) | stop_after_delay(total_timeout)),
-        retry=retry_if_exception(httpx_should_retry),
-        before_sleep=log_httpx_retry_attempt(url),
-    )
-    async def do_get() -> bytes:
-        response = await client.get(
-            url=url,
-            follow_redirects=True,
-            timeout=(timeout, timeout, timeout, timeout),
-        )
-        response.raise_for_status()
-        return response.content
+    client = client or httpx.AsyncClient()
+    async with client:
 
-    return await do_get()
+        @retry(
+            wait=wait_exponential_jitter(),
+            stop=(stop_after_attempt(max_retries) | stop_after_delay(total_timeout)),
+            retry=retry_if_exception(httpx_should_retry),
+            before_sleep=log_httpx_retry_attempt(url),
+        )
+        async def do_get() -> bytes:
+            response = await client.get(
+                url=url,
+                follow_redirects=True,
+                timeout=(timeout, timeout, timeout, timeout),
+            )
+            response.raise_for_status()
+            return response.content
+
+        return await do_get()

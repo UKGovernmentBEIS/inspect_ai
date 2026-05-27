@@ -27,7 +27,7 @@ from ..core.display import (
     TaskSuccess,
     TaskWithResult,
 )
-from ..core.footer import task_http_retries_str
+from ..core.footer import task_http_retries_str, task_refusals_str
 from ..core.panel import task_title
 from ..core.results import task_metric
 
@@ -79,8 +79,14 @@ class LogDisplay(Display):
 
     def _log_status(self) -> None:
         """Log status updates for all tasks"""
-        completed_tasks = sum(1 for task in self.tasks if task.result is not None)
-        total_tasks = len(self.tasks)
+        # Only count the last task per task_id (retries supersede earlier attempts)
+        last_by_id: dict[str, TaskWithResult] = {}
+        for task in self.tasks:
+            last_by_id[task.profile.task_id] = task
+        completed_tasks = sum(
+            1 for task in last_by_id.values() if task.result is not None
+        )
+        total_tasks = len(last_by_id)
         logging.info(f"{completed_tasks}/{total_tasks} tasks complete", stacklevel=4)
 
     def _task_stats_str(self, stats: EvalStats) -> str:
@@ -201,10 +207,13 @@ class LogTaskDisplay(TaskDisplay):
         )
         status_parts.append(resources)
 
-        # Add rate limits
+        # Add rate limits and refusals
         rate_limits = task_http_retries_str()
         if rate_limits:
             status_parts.append(rate_limits)
+        refusals = task_refusals_str()
+        if refusals:
+            status_parts.append(refusals)
 
         # Print on new line
         logging.info(", ".join(status_parts), stacklevel=stacklevel)

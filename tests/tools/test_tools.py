@@ -8,7 +8,6 @@ from test_helpers.tool_call_utils import (
 )
 from test_helpers.tools import addition, raise_error, read_file
 from test_helpers.utils import (
-    flaky_retry,
     skip_if_no_anthropic,
     skip_if_no_google,
     skip_if_no_mistral,
@@ -109,17 +108,22 @@ def check_tools_calls(model: Model, **model_args) -> None:
     # evaluate the task
     log: list[EvalLog] = eval(task, model=model, model_args=model_args)
 
-    # check that we got the answer right
-    assert log[0].results and log[0].results.scores[0].metrics["accuracy"].value == 1
-
-    # check that there is a tool_call
+    # check that the forced tool_call was made with the expected arguments. we
+    # deliberately do NOT assert on accuracy of the final model response: a
+    # forced tool call followed by free-form text is non-deterministic across
+    # providers (models occasionally return empty content or phrasing the
+    # match scorer doesn't pick up), and this test is about tool-call plumbing
+    # rather than the model's natural-language behavior.
     assert log[0].samples
     messages = log[0].samples[0].messages
     tool_call = get_tool_call(messages, "addition")
     assert tool_call
+    assert int(tool_call.arguments["x"]) + int(tool_call.arguments["y"]) == 2
 
-    # check that there is a tool response for this call
-    assert get_tool_response(messages, tool_call)
+    # check that the tool produced and returned the correct result
+    response = get_tool_response(messages, tool_call)
+    assert response
+    assert "2" in response.text
 
 
 def check_tools_none(model: Model, **model_args) -> None:
@@ -166,7 +170,7 @@ def check_tools_force(model: Model, **model_args) -> None:
 
 @skip_if_no_openai
 def test_openai_tools():
-    check_tools("openai/gpt-4")
+    check_tools("openai/gpt-4o")
 
 
 @skip_if_no_openai
@@ -176,7 +180,7 @@ def test_openai_responses_tools():
 
 @skip_if_no_anthropic
 def test_anthropic_tools():
-    check_tools("anthropic/claude-3-7-sonnet-latest")
+    check_tools("anthropic/claude-sonnet-4-6")
 
 
 @skip_if_no_mistral
@@ -192,9 +196,6 @@ def test_mistral_tools():
 
 
 @skip_if_no_google
-# Rarely, but reproducibly, gemini will respond with '' after the tool call returns '2'?!?
-# In my testing, it failed on the order of a couple times per 100 attempts
-@flaky_retry(max_retries=3)
 def test_google_tools():
     check_tools("google/gemini-2.5-pro")
 

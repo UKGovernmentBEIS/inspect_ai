@@ -58,6 +58,9 @@ class ToolEvent(BaseEvent):
     agent: str | None = Field(default=None)
     """Name of agent if the tool call was an agent handoff."""
 
+    agent_span_id: str | None = Field(default=None)
+    """Span ID of the agent span, if this tool call spawned an agent."""
+
     failed: bool | None = Field(default=None)
     """Did the tool call fail with a hard error?."""
 
@@ -73,17 +76,43 @@ class ToolEvent(BaseEvent):
         agent: str | None,
         failed: bool | None,
         message_id: str | None,
+        agent_span_id: str | None = None,
     ) -> None:
+        # When the event was already operator-cancelled
+        # (``AcpTransport.cancel_current_turn`` stamps
+        # ``error=ToolCallError("cancelled")`` + ``failed=True`` on any
+        # in-flight tool) and the tool subsequently finished inside the
+        # cancellation propagation window — whether naturally or with
+        # its own error — keep the cancel-marker fields sticky. The
+        # ``error.type == "cancelled" + failed=True`` combo is a
+        # unique fingerprint produced only by ``cancel_current_turn``,
+        # so no normal ``_set_result`` caller can collide with it.
+        # Forensic fields (``result``, ``completed``, ``working_time``,
+        # identifiers) are still recorded from the late completion so
+        # the eval log retains a record of what the abandoned call
+        # actually produced; late ``error`` / ``failed`` status is
+        # discarded in favor of the cancel marker so renderers / ACP
+        # surface the row as cancelled rather than as a normal failure.
+        operator_cancelled = (
+            self.error is not None
+            and self.error.type == "cancelled"
+            and self.failed is True
+        )
+
         self.result = result
         self.truncated = truncated
-        self.error = error
         self.pending = None
         completed = datetime.now(timezone.utc)
         self.completed = completed
         self.working_time = (completed - self.timestamp).total_seconds() - waiting_time
         self.agent = agent
-        self.failed = failed
         self.message_id = message_id
+        if agent_span_id is not None:
+            self.agent_span_id = agent_span_id
+
+        if not operator_cancelled:
+            self.error = error
+            self.failed = failed
 
     # mechanism for operator to cancel the tool call
 

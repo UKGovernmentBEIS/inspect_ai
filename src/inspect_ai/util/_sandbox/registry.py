@@ -10,6 +10,14 @@ from inspect_ai._util.registry import (
 
 from .environment import SandboxEnvironment
 
+_SANDBOX_PACKAGES: dict[str, str] = {
+    "k8s": "inspect-k8s-sandbox",
+    "ec2": "git+https://github.com/UKGovernmentBEIS/inspect_ec2_sandbox.git",
+    "proxmox": "git+https://github.com/UKGovernmentBEIS/inspect_proxmox_sandbox.git",
+    "modal": "inspect-sandboxes",
+    "daytona": "inspect-sandboxes",
+}
+
 T = TypeVar("T", bound=SandboxEnvironment)
 
 
@@ -48,7 +56,16 @@ def registry_find_sandboxenv(envtype: str) -> type[SandboxEnvironment]:
         sandboxenv_type = cast(type[SandboxEnvironment], sanxboxenv_types[0])
         return sandboxenv_type
     else:
-        raise ValueError(f"SandboxEnvironment type '{envtype}' not recognized.")
+        package = _SANDBOX_PACKAGES.get(envtype)
+        if package:
+            package_msg = (
+                f". Please install the '{package}' package to use this sandbox."
+            )
+        else:
+            package_msg = ""
+        raise ValueError(
+            f"SandboxEnvironment type '{envtype}' not recognized.{package_msg}"
+        )
 
 
 def registry_has_sandboxenv(envtype: str) -> bool:

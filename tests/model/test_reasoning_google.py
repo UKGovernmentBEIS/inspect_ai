@@ -30,7 +30,7 @@ def test_google_reasoning_effort():
     task = Task(dataset=[Sample(input="Solve 3*x^3-5*x=1")])
     log = eval(
         task,
-        model="google/gemini-3-pro-preview",
+        model="google/gemini-3.1-pro-preview",
         reasoning_effort="low",
     )[0]
     assert log.status == "success"

@@ -1,5 +1,6 @@
 import os
 import re
+from functools import partial
 from logging import getLogger
 from pathlib import Path
 from typing import IO, Any, Callable, Generator, Literal, cast
@@ -9,7 +10,9 @@ from pydantic import (
     Field,
 )
 
-from inspect_ai._util._async import current_async_backend, run_coroutine
+from inspect_ai._util._async import current_async_backend, run_coroutine, tg_collect
+from inspect_ai._util.async_zip import AsyncZipReader
+from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import ALL_LOG_FORMATS, EVAL_LOG_FORMAT
 from inspect_ai._util.dateutil import UtcDatetimeStr
 from inspect_ai._util.error import EvalError
@@ -21,6 +24,7 @@ from inspect_ai._util.file import (
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
+from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
 
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (
@@ -73,6 +77,7 @@ class LogOverview(BaseModel):
     error: EvalError | None = Field(default=None)
 
     model: str
+    model_roles: dict[str, str] | None = Field(default=None)
 
     started_at: UtcDatetimeStr | Literal[""]
     completed_at: UtcDatetimeStr | Literal[""]
@@ -133,6 +138,7 @@ def write_eval_log(
     location: str | Path | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
+    header_only: bool = False,
 ) -> None:
     """Write an evaluation log.
 
@@ -143,6 +149,9 @@ def write_eval_log(
           (defaults to 'auto' based on `log_file` extension)
        if_match_etag (str | None): ETag for conditional write. If provided
           and writing to S3, will only write if the current ETag matches.
+       header_only (bool): If True, only write the header to the log file.
+          For .eval files, this appends the header to the existing zip
+          without rewriting samples. Defaults to False.
 
     Raises:
        WriteConflictError: If if_match_etag is provided and doesn't match
@@ -156,7 +165,11 @@ def write_eval_log(
 
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    run_coroutine(write_eval_log_async(log, location, format, if_match_etag))
+    run_coroutine(
+        write_eval_log_async(
+            log, location, format, if_match_etag, header_only=header_only
+        )
+    )
 
 
 async def write_eval_log_async(
@@ -164,6 +177,7 @@ async def write_eval_log_async(
     location: str | Path | FileInfo | None = None,
     format: Literal["eval", "json", "auto"] = "auto",
     if_match_etag: str | None = None,
+    header_only: bool = False,
 ) -> None:
     """Write an evaluation log.
 
@@ -174,6 +188,9 @@ async def write_eval_log_async(
           (defaults to 'auto' based on `log_file` extension)
        if_match_etag (str | None): ETag for conditional write. If provided
           and writing to S3, will only write if the current ETag matches.
+       header_only (bool): If True, only write the header to the log file.
+          For .eval files, this appends the header to the existing zip
+          without rewriting samples. Defaults to False.
     """
     # resolve location
     if location is None:
@@ -198,7 +215,7 @@ async def write_eval_log_async(
         recorder_type = recorder_type_for_location(location)
     else:
         recorder_type = recorder_type_for_format(format)
-    await recorder_type.write_log(location, log, if_match_etag)
+    await recorder_type.write_log(location, log, if_match_etag, header_only=header_only)
 
     logger.debug(f"Writing eval log to {location} completed")
 
@@ -334,10 +351,9 @@ async def read_eval_log_async(
             recorder_type = recorder_type_for_format(format)
         log = await recorder_type.read_log(log_file, header_only)
 
-    # resolve attachement if requested
-    if resolve_attachments and log.samples:
+    if log.samples:
         log.samples = [
-            resolve_sample_attachments(sample, resolve_attachments)
+            _resolve_sample_for_read(sample, resolve_attachments)
             for sample in log.samples
         ]
 
@@ -355,20 +371,39 @@ async def read_eval_log_async(
     return log
 
 
+class ReadEvalLogsProgress:
+    def before_reading_logs(self, total_files: int) -> None:
+        pass
+
+    def after_read_log(self, log_file: str) -> None:
+        pass
+
+
 def read_eval_log_headers(
     log_files: list[str] | list[EvalLogInfo],
+    progress: ReadEvalLogsProgress | None = None,
 ) -> list[EvalLog]:
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    return run_coroutine(read_eval_log_headers_async(log_files))
+    return run_coroutine(read_eval_log_headers_async(log_files, progress))
 
 
 async def read_eval_log_headers_async(
     log_files: list[str] | list[Path] | list[EvalLogInfo],
+    progress: ReadEvalLogsProgress | None = None,
 ) -> list[EvalLog]:
-    return [
-        await read_eval_log_async(log_file, header_only=True) for log_file in log_files
-    ]
+    if progress:
+        progress.before_reading_logs(len(log_files))
+
+    async def _read(lf: str | Path | EvalLogInfo) -> EvalLog:
+        log = await read_eval_log_async(lf, header_only=True)
+        if progress:
+            progress.after_read_log(
+                lf.name if isinstance(lf, EvalLogInfo) else str(lf),
+            )
+        return log
+
+    return await tg_collect([partial(_read, lf) for lf in log_files])
 
 
 def read_eval_log_sample(
@@ -385,17 +420,17 @@ def read_eval_log_sample(
     Args:
        log_file (str | FileInfo): Log file to read.
        id (int | str): Sample id to read. Optional, alternatively
-         specify `uuid` (you must specify `id` or `uuid`)
+          specify `uuid` (you must specify `id` or `uuid`)
        epoch (int): Epoch for sample id (defaults to 1)
        uuid: Sample uuid to read. Optional, alternatively specify
-         `id` and `epoch` (you must specify either `uuid` or `id`)
+          `id` and `epoch` (you must specify either `uuid` or `id`)
        resolve_attachments (bool): Resolve attachments (duplicated content blocks)
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
        exclude_fields (set[str] | None): Set of field names to exclude when reading
-          the sample. Useful for reducing memory usage when reading large samples
-          with fields like 'store' or 'attachments' that aren't needed.
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
 
     Returns:
        EvalSample object read from file.
@@ -409,13 +444,31 @@ def read_eval_log_sample(
             "read_eval_log_sample cannot be called from a trio async context (please use read_eval_log_sample_async instead)"
         )
 
+    # resolve to file path
+    log_file = (
+        log_file
+        if isinstance(log_file, str)
+        else log_file.as_posix()
+        if isinstance(log_file, Path)
+        else log_file.name
+    )
+
     # will use s3fs and is not called from main inspect solver/scorer/tool/sandbox
     # flow, so force the use of asyncio
-    return run_coroutine(
-        read_eval_log_sample_async(
-            log_file, id, epoch, uuid, resolve_attachments, format, exclude_fields
+    async def do_read() -> EvalSample:
+        reader = AsyncZipReader(get_async_filesystem(), log_file)
+        return await read_eval_log_sample_async(
+            log_file,
+            id,
+            epoch,
+            uuid,
+            resolve_attachments,
+            format,
+            exclude_fields,
+            reader,
         )
-    )
+
+    return run_coroutine(do_read())
 
 
 async def read_eval_log_sample_async(
@@ -426,6 +479,7 @@ async def read_eval_log_sample_async(
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
     exclude_fields: set[str] | None = None,
+    reader: AsyncZipReader | None = None,
 ) -> EvalSample:
     """Read a sample from an evaluation log.
 
@@ -439,8 +493,9 @@ async def read_eval_log_sample_async(
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
        exclude_fields (set[str] | None): Set of field names to exclude when reading
-          the sample. Useful for reducing memory usage when reading large samples
-          with fields like 'store' or 'attachments' that aren't needed.
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
+       reader (AsyncZipReader | None): Optional async zip reader to use when reading the sample.
 
     Returns:
        EvalSample object read from file.
@@ -467,14 +522,19 @@ async def read_eval_log_sample_async(
         recorder_type = recorder_type_for_location(log_file)
     else:
         recorder_type = recorder_type_for_format(format)
+    if exclude_fields:
+        if "events" not in exclude_fields:
+            # events_data is needed to resolve refs in events
+            exclude_fields = exclude_fields - {"events_data"}
+        else:
+            # no events means events_data is useless
+            exclude_fields = exclude_fields | {"events_data"}
+
     sample = await recorder_type.read_log_sample(
-        log_file, id, epoch, uuid, exclude_fields
+        log_file, id, epoch, uuid, exclude_fields, reader
     )
 
-    if resolve_attachments:
-        sample = resolve_sample_attachments(sample, resolve_attachments)
-
-    return sample
+    return _resolve_sample_for_read(sample, resolve_attachments)
 
 
 def read_eval_log_sample_summaries(
@@ -537,6 +597,7 @@ def read_eval_log_samples(
     all_samples_required: bool = True,
     resolve_attachments: bool | Literal["full", "core"] = False,
     format: Literal["eval", "json", "auto"] = "auto",
+    exclude_fields: set[str] | None = None,
 ) -> Generator[EvalSample, None, None]:
     """Read all samples from an evaluation log incrementally.
 
@@ -551,6 +612,9 @@ def read_eval_log_samples(
           to their full content.
        format (Literal["eval", "json", "auto"]): Read from format
           (defaults to 'auto' based on `log_file` extension)
+       exclude_fields (set[str] | None): Set of field names to exclude when reading
+          the sample. Useful when reading large samples with fields like
+          'store' or 'attachments' that aren't needed.
 
     Returns:
        Generator of EvalSample objects in the log file.
@@ -588,6 +652,7 @@ def read_eval_log_samples(
                     epoch=epoch_id,
                     resolve_attachments=resolve_attachments,
                     format=format,
+                    exclude_fields=exclude_fields,
                 )
                 yield sample
             except IndexError:
@@ -607,29 +672,52 @@ def manifest_eval_log_name(info: EvalLogInfo, log_dir: str, sep: str) -> str:
     return log.replace("\\", "/")
 
 
+def _filter_log_files(
+    ls: list[FileInfo],
+    formats: list[Literal["eval", "json"]] | None,
+    descending: bool,
+    sort: bool,
+) -> list[FileInfo]:
+    extensions = [f".{format}" for format in (formats or ALL_LOG_FORMATS)]
+    ordered = (
+        sorted(
+            ls,
+            key=lambda file: file.mtime if file.mtime else 0,
+            reverse=descending,
+        )
+        if sort
+        else ls
+    )
+    return [
+        file
+        for file in ordered
+        if file.type == "file" and is_log_file(file.name, extensions)
+    ]
+
+
 def log_files_from_ls(
     ls: list[FileInfo],
     formats: list[Literal["eval", "json"]] | None = None,
     descending: bool = True,
     sort: bool = True,
 ) -> list[EvalLogInfo]:
-    extensions = [f".{format}" for format in (formats or ALL_LOG_FORMATS)]
-    return [
-        log_file_info(file)
-        for file in (
-            sorted(
-                ls,
-                key=lambda file: (file.mtime if file.mtime else 0),
-                reverse=descending,
-            )
-            if sort
-            else ls
-        )
-        if file.type == "file" and is_log_file(file.name, extensions)
-    ]
+    return [log_file_info(f) for f in _filter_log_files(ls, formats, descending, sort)]
+
+
+async def log_files_from_ls_async(
+    ls: list[FileInfo],
+    formats: list[Literal["eval", "json"]] | None = None,
+    descending: bool = True,
+    sort: bool = True,
+) -> list[EvalLogInfo]:
+    files = _filter_log_files(ls, formats, descending, sort)
+    return await tg_collect([partial(log_file_info_async, f) for f in files])
 
 
 log_file_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}.*$"
+# Native Inspect filenames always start with a full ISO timestamp
+# (date + T + HH[:-]MM[:-]SS); anything shorter must use the header fallback.
+_timestamp_prefix_re = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}[:-]\d{2}[:-]\d{2}")
 
 
 def is_log_file(file: str, extensions: list[str]) -> bool:
@@ -644,34 +732,92 @@ def is_log_file(file: str, extensions: list[str]) -> bool:
         )
 
 
-def log_file_info(info: FileInfo) -> "EvalLogInfo":
-    # extract the basename and split into parts
-    # (deal with previous logs had the model in their name)
+def _try_parse_filename(
+    parts: list[str],
+) -> tuple[str | None, str | None, str | None]:
+    """Parse task/task_id/suffix from filename parts.
+
+    Returns (None, None, None) if the filename does not match
+    the expected {timestamp}_{task}_{id} pattern.
+    """
+    if len(parts) < 2:
+        return None, None, None
+
+    if not _timestamp_prefix_re.match(parts[0]):
+        return None, None, None
+
+    if len(parts) == 2:
+        return parts[1], "", None
+
+    # 3+ parts: {ts}_{task}_{id} or {ts}_{task}_{model}_{id}
+    last_idx = 3 if len(parts) > 3 else 2
+    task = parts[1]
+    part3 = parts[last_idx].split("-")
+    task_id = part3[0]
+    suffix = part3[1] if len(part3) > 1 else None
+    return task, task_id, suffix
+
+
+def _try_read_header(
+    name: str,
+) -> tuple[str | None, str | None, str | None]:
+    """Read task/task_id from the eval log header (sync). Returns (None, None, None) on error."""
+    try:
+        log = read_eval_log(name, header_only=True)
+        return log.eval.task, log.eval.task_id, None
+    except Exception as e:
+        logger.debug(f"Failed to read header from {name}: {e}")
+        return None, None, None
+
+
+async def _try_read_header_async(
+    name: str,
+) -> tuple[str | None, str | None, str | None]:
+    """Read task/task_id from the eval log header (async). Returns (None, None, None) on error."""
+    try:
+        log = await read_eval_log_async(name, header_only=True)
+        return log.eval.task, log.eval.task_id, None
+    except Exception as e:
+        logger.debug(f"Failed to read header from {name}: {e}")
+        return None, None, None
+
+
+def _filename_parts(info: FileInfo) -> list[str]:
     basename = os.path.splitext(info.name)[0]
-    parts = basename.split("/").pop().split("_")
-    if len(parts) == 1:
-        task = ""
-        task_id = ""
-        suffix = None
-    elif len(parts) == 2:
-        task = parts[1]
-        task_id = ""
-        suffix = None
-    else:
-        last_idx = 3 if len(parts) > 3 else 2
-        task = parts[1]
-        part3 = parts[last_idx].split("-")
-        task_id = part3[0]
-        suffix = task_id[2] if len(part3) > 1 else None
+    return basename.split("/").pop().split("_")
+
+
+def _build_log_info(
+    info: FileInfo,
+    task: str | None,
+    task_id: str | None,
+    suffix: str | None,
+) -> "EvalLogInfo":
     return EvalLogInfo(
         name=info.name,
         type=info.type,
         size=info.size,
         mtime=info.mtime,
-        task=task,
-        task_id=task_id,
+        task=task or "",
+        task_id=task_id or "",
         suffix=suffix,
     )
+
+
+def log_file_info(info: FileInfo) -> "EvalLogInfo":
+    parts = _filename_parts(info)
+    task, task_id, suffix = _try_parse_filename(parts)
+    if task is None:
+        task, task_id, suffix = _try_read_header(info.name)
+    return _build_log_info(info, task, task_id, suffix)
+
+
+async def log_file_info_async(info: FileInfo) -> "EvalLogInfo":
+    parts = _filename_parts(info)
+    task, task_id, suffix = _try_parse_filename(parts)
+    if task is None:
+        task, task_id, suffix = await _try_read_header_async(info.name)
+    return _build_log_info(info, task, task_id, suffix)
 
 
 def eval_log_json(log: EvalLog) -> bytes:
@@ -689,6 +835,7 @@ def eval_log_json_str(log: EvalLog) -> str:
 def write_log_listing(
     log_dir: str,
     *,
+    logs: list[EvalLogInfo] | None = None,
     filename: str = "listing.json",
     output_dir: str | None = None,
     fs_options: dict[str, Any] = {},
@@ -699,6 +846,7 @@ def write_log_listing(
 
     Args:
       log_dir (str): Log directory to write overview for.
+      logs (list[EvalLogInfo] | None): Pre-fetched log list (defaults to listing log_dir).
       filename (str): Manifest filename (defaults to "overview.json")
       output_dir (str | None): Output directory for manifest (defaults to log_dir)
       fs_options (dict[str,Any]): Optional. Additional arguments to pass through
@@ -709,7 +857,8 @@ def write_log_listing(
     log_dir = fs.info(log_dir).name
 
     # list eval logs
-    logs = list_eval_logs(log_dir)
+    if logs is None:
+        logs = list_eval_logs(log_dir)
 
     # resolve to overview (make filenames relative to the log dir)
     names = [manifest_eval_log_name(log, log_dir, fs.sep) for log in logs]
@@ -738,6 +887,12 @@ def to_overview(header: EvalLog) -> LogOverview:
     ):
         primary_metric = next(iter(first_scorer.metrics.values()))
 
+    model_roles = (
+        {role: cfg.model for role, cfg in header.eval.model_roles.items()}
+        if header.eval.model_roles
+        else None
+    )
+
     return LogOverview(
         eval_id=header.eval.eval_id,
         run_id=header.eval.run_id,
@@ -749,7 +904,19 @@ def to_overview(header: EvalLog) -> LogOverview:
         invalidated=header.invalidated,
         error=header.error,
         model=header.eval.model,
+        model_roles=model_roles,
         started_at=header.stats.started_at,
         completed_at=header.stats.completed_at,
         primary_metric=primary_metric,
     )
+
+
+def _resolve_sample_for_read(
+    sample: "EvalSample",
+    resolve_attachments: bool | Literal["full", "core"],
+) -> "EvalSample":
+    """Apply read-time event resolution and bind timelines to final events."""
+    sample = resolve_sample_events_data(sample)
+    if resolve_attachments:
+        sample = resolve_sample_attachments(sample, resolve_attachments)
+    return rebind_sample_timelines(sample)

@@ -150,6 +150,8 @@ class RichDisplay(Display):
 
     @throttle(1)
     def _update_display(self) -> None:
+        # These guards are load-bearing: trailing-edge throttle may fire a
+        # deferred call after task_screen teardown has nulled these fields.
         if (
             display_type() != "conversation"
             and self.tasks is not None
@@ -200,6 +202,7 @@ class RichTaskScreen(TaskScreen):
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
+        record_event: bool = True,
     ) -> Iterator[Console]:
         # determine transient based on trace mode
         if transient is None:
@@ -237,7 +240,8 @@ class RichTaskScreen(TaskScreen):
             input = self.live.console.export_text(clear=False, styles=False)
             input_ansi = self.live.console.export_text(clear=True, styles=True)
             self.live.console.record = False
-            transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+            if record_event:
+                transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
 
             # print one blank line
             self.live.console.print("")
@@ -335,8 +339,11 @@ def tasks_live_status(
     console = rich.get_console()
     width = CONSOLE_DISPLAY_WIDTH if is_vscode_notebook(console) else None
 
-    # compute completed tasks
-    completed = sum(1 for task in tasks if task.result is not None)
+    # Only count the last task per task_id (retries supersede earlier attempts)
+    last_by_id: dict[str, TaskStatus] = {}
+    for task in tasks:
+        last_by_id[task.profile.task_id] = task
+    completed = sum(1 for task in last_by_id.values() if task.result is not None)
 
     # get config
     config = task_config(tasks[0].profile, generate_config=False, style=theme.light)

@@ -1,7 +1,9 @@
 import abc
-from typing import IO
+from typing import IO, TYPE_CHECKING
 
+from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.error import EvalError
+from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._log import (
     EvalLog,
     EvalPlan,
@@ -13,6 +15,10 @@ from inspect_ai.log._log import (
     EvalStats,
     EvalStatus,
 )
+from inspect_ai.log._recorders.streaming import materialize_streaming_sample
+
+if TYPE_CHECKING:
+    from inspect_ai.log._recorders.buffer.history import SampleHistory
 
 
 class Recorder(abc.ABC):
@@ -25,7 +31,7 @@ class Recorder(abc.ABC):
     def handles_bytes(cls, first_bytes: bytes) -> bool: ...
 
     @abc.abstractmethod
-    def default_log_buffer(self, sample_count: int) -> int: ...
+    def default_log_buffer(self, sample_count: int, high_throughput: bool) -> int: ...
 
     @abc.abstractmethod
     def is_writeable(self) -> bool: ...
@@ -38,6 +44,11 @@ class Recorder(abc.ABC):
 
     @abc.abstractmethod
     async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None: ...
+
+    async def log_sample_streaming(
+        self, eval: EvalSpec, sample: EvalSample, history: "SampleHistory"
+    ) -> None:
+        await self.log_sample(eval, materialize_streaming_sample(sample, history))
 
     @abc.abstractmethod
     async def flush(self, eval: EvalSpec) -> None: ...
@@ -53,11 +64,16 @@ class Recorder(abc.ABC):
         error: EvalError | None = None,
         header_only: bool = False,
         invalidated: bool = False,
+        log_updates: list[LogUpdate] | None = None,
     ) -> EvalLog: ...
 
     @classmethod
     @abc.abstractmethod
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog: ...
+    async def read_log(
+        cls,
+        location: str,
+        header_only: bool = False,
+    ) -> EvalLog: ...
 
     @classmethod
     @abc.abstractmethod
@@ -74,6 +90,7 @@ class Recorder(abc.ABC):
         epoch: int = 1,
         uuid: str | None = None,
         exclude_fields: set[str] | None = None,
+        reader: AsyncZipReader | None = None,
     ) -> EvalSample: ...
 
     @classmethod
@@ -98,5 +115,9 @@ class Recorder(abc.ABC):
     @classmethod
     @abc.abstractmethod
     async def write_log(
-        cls, location: str, log: EvalLog, if_match_etag: str | None = None
+        cls,
+        location: str,
+        log: EvalLog,
+        if_match_etag: str | None = None,
+        header_only: bool = False,
     ) -> None: ...

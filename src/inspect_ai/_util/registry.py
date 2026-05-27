@@ -7,7 +7,6 @@ from typing import (
     Any,
     Callable,
     Literal,
-    TypedDict,
     TypeGuard,
     cast,
     overload,
@@ -15,6 +14,7 @@ from typing import (
 
 from pydantic import BaseModel, Field
 from pydantic_core import to_jsonable_python
+from typing_extensions import TypedDict
 
 from inspect_ai._util.json import jsonable_python
 from inspect_ai._util.package import get_installed_package_name
@@ -92,6 +92,11 @@ def registry_add(o: object, info: RegistryInfo) -> None:
     # add to registry
     _registry[registry_key(info.type, info.name)] = o
 
+    # bump version so caches keyed on registry contents (e.g. get_all_hooks)
+    # know to invalidate
+    global _registry_version
+    _registry_version += 1
+
 
 def registry_tag(
     type: Callable[..., Any],
@@ -139,6 +144,9 @@ def extract_named_params(
 
     # callables are not serializable so use their names
     for param in named_params.keys():
+        if hasattr(named_params[param], "_repr_params_"):
+            named_params[param] = named_params[param]._repr_params_()
+
         if is_registry_object(named_params[param]):
             named_params[param] = registry_info(named_params[param]).name
         elif callable(named_params[param]) and hasattr(named_params[param], "__name__"):
@@ -508,6 +516,17 @@ def registry_key(type: RegistryType, name: str) -> str:
 REGISTRY_INFO = "__registry_info__"
 REGISTRY_PARAMS = "__registry_params__"
 _registry: dict[str, object] = {}
+
+# Monotonic counter bumped by `registry_add` on every mutation. Used by
+# consumers (e.g. `get_all_hooks`) to cache results derived from the registry
+# while invalidating automatically when new entries are added. Module-private
+# — read it via `registry_version()` if needed externally.
+_registry_version: int = 0
+
+
+def registry_version() -> int:
+    """Current registry version. Bumped on each `registry_add`."""
+    return _registry_version
 
 
 class RegistryDict(TypedDict):

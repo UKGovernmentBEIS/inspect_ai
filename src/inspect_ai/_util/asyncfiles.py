@@ -1,20 +1,28 @@
+from __future__ import annotations
+
+import functools
+import io
+import shutil
 from contextlib import AbstractAsyncContextManager
-from os import stat
+from contextvars import ContextVar
+from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from types import TracebackType
-from typing import Any, cast
+from typing import Any, AsyncIterator, BinaryIO, Callable, Coroutine, TypeVar, cast
 from urllib.parse import urlparse
 
+import anyio
 import anyio.to_thread
-import boto3
-from aiobotocore.config import AioConfig
-from aiobotocore.response import StreamingBody
 from anyio import AsyncFile, EndOfStream, open_file
 from anyio.abc import ByteReceiveStream
-from botocore.config import Config
-from typing_extensions import override
+from typing_extensions import TYPE_CHECKING, override
+
+if TYPE_CHECKING:
+    from aiobotocore.response import StreamingBody
+    from boto3.s3.transfer import TransferConfig
 
 from inspect_ai._util._async import current_async_backend
-from inspect_ai._util.file import file, filesystem
+from inspect_ai._util.file import FileInfo, file, filesystem, local_path
 
 
 class _BytesByteReceiveStream(ByteReceiveStream):
@@ -111,6 +119,15 @@ class _AnyIOFileByteReceiveStream(ByteReceiveStream):
             self._file = None
 
 
+@dataclass
+class SuffixResult:
+    """Result of reading the suffix of a file."""
+
+    data: bytes
+    file_size: int
+    etag: str | None = None
+
+
 class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     """Interface for reading/writing files that uses different interfaces depending on context
 
@@ -118,25 +135,62 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
     2. Use boto3 with anyio.to_thread when using s3 under the trio backend
     3. Use fsspec when using any other filesystem
 
-    Call close() when finished with the filesystem (or use it as a context manager)
+    When used as a context manager, the filesystem is registered in a ContextVar
+    so that it is shared with all downstream code within the same async context.
+    If a shared filesystem already exists, the context manager reuses it and does
+    not close it on exit (the original owner handles cleanup).
     """
 
-    _s3_client: Any | None = None
-    _s3_client_async: Any | None = None
+    def __init__(self, anonymous: bool = False, region_name: str | None = None) -> None:
+        self._anonymous = anonymous
+        self._region_name = region_name
+        self._s3_client: Any | None = None
+        self._s3_client_async: Any | None = None
+        self._s3_lock = anyio.Lock()
+        self._owns_context: bool = False
 
     async def get_size(self, filename: str) -> int:
+        return (await self.info(filename)).size
+
+    async def info(self, filename: str) -> FileInfo:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
             if current_async_backend() == "asyncio":
                 response = await (await self.s3_client_async()).head_object(
                     Bucket=bucket, Key=key
                 )
-                return cast(int, response["ContentLength"])
+                return _s3_head_to_file_info(filename, response)
             return await anyio.to_thread.run_sync(
-                s3_get_size, self.s3_client(), bucket, key
+                s3_info, self.s3_client(), bucket, key, filename
             )
         else:
-            return stat(filename).st_size
+            return filesystem(filename).info(filename)
+
+    async def exists(self, filename: str) -> bool:
+        """Return True if `filename` exists, False otherwise."""
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            if current_async_backend() == "asyncio":
+                from botocore.exceptions import ClientError
+
+                try:
+                    await (await self.s3_client_async()).head_object(
+                        Bucket=bucket, Key=key
+                    )
+                    return True
+                except ClientError as e:
+                    if e.response.get("Error", {}).get("Code") in (
+                        "404",
+                        "NoSuchKey",
+                        "NotFound",
+                    ):
+                        return False
+                    raise
+            return await anyio.to_thread.run_sync(
+                s3_exists, self.s3_client(), bucket, key
+            )
+        else:
+            return filesystem(filename).exists(filename)
 
     async def read_file(self, filename: str) -> bytes:
         if is_s3_filename(filename):
@@ -178,7 +232,7 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             fs = filesystem(filename)
             if fs.is_local():
                 # If local, use AnyIO's async/chunking file reading support
-                return _AnyIOFileByteReceiveStream(filename, start, end)
+                return _AnyIOFileByteReceiveStream(local_path(filename), start, end)
             with file(filename, "rb") as f:
                 f.seek(start)
                 return _BytesByteReceiveStream(f.read(end - start))
@@ -191,12 +245,52 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             chunks.append(chunk)
         return b"".join(chunks)
 
+    async def read_file_suffix(self, filename: str, suffix_length: int) -> SuffixResult:
+        """Read the last suffix_length bytes of a file.
+
+        Uses a suffix range request (``bytes=-N``) to avoid a separate
+        HEAD request for the file size.
+
+        Returns:
+            SuffixResult with data, file_size, and etag (S3 only).
+        """
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            if current_async_backend() == "asyncio":
+                response = await (await self.s3_client_async()).get_object(
+                    Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}"
+                )
+                content_range: str = response["ContentRange"]
+                total_size = int(content_range.split("/")[-1])
+                etag_raw = response.get("ETag")
+                etag = cast(str, etag_raw).strip('"') if etag_raw else None
+                body = response["Body"]
+                try:
+                    data = cast(bytes, await body.read())
+                finally:
+                    body.close()
+                return SuffixResult(data, total_size, etag)
+            else:
+                return await anyio.to_thread.run_sync(
+                    s3_read_file_suffix,
+                    self.s3_client(),
+                    bucket,
+                    key,
+                    suffix_length,
+                )
+        else:
+            file_size = filesystem(filename).info(filename).size
+            start = max(0, file_size - suffix_length)
+            data = await self.read_file_bytes_fully(filename, start, file_size)
+            return SuffixResult(data, file_size)
+
     async def write_file(self, filename: str, content: bytes) -> None:
         if is_s3_filename(filename):
             bucket, key = s3_bucket_and_key(filename)
             if current_async_backend() == "asyncio":
-                await (await self.s3_client_async()).put_object(
-                    Bucket=bucket, Key=key, Body=content
+                client = await self.s3_client_async()
+                await client.upload_fileobj(
+                    Fileobj=io.BytesIO(content), Bucket=bucket, Key=key
                 )
             else:
                 await anyio.to_thread.run_sync(
@@ -206,6 +300,185 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
             with file(filename, "wb") as f:
                 f.write(content)
 
+    async def write_file_streaming(self, filename: str, source: BinaryIO) -> None:
+        """Write a file from a binary stream without reading it all into memory.
+
+        Uses the appropriate backend for streaming writes:
+        - S3: native upload_fileobj with TransferConfig for multipart chunking
+        - Local/other: chunked copy via fsspec with explicit block_size
+
+        Args:
+            filename: Destination file path or URL.
+            source: A readable binary file-like object.
+        """
+        if is_s3_filename(filename):
+            bucket, key = s3_bucket_and_key(filename)
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                await client.upload_fileobj(
+                    Fileobj=source,
+                    Bucket=bucket,
+                    Key=key,
+                    Config=_s3_transfer_config(),
+                )
+            else:
+                await anyio.to_thread.run_sync(
+                    s3_write_file_streaming,
+                    self.s3_client(),
+                    bucket,
+                    key,
+                    source,
+                )
+        else:
+            with file(
+                filename, "wb", fs_options={"block_size": _FSSPEC_WRITE_BLOCK_SIZE}
+            ) as f:
+                shutil.copyfileobj(source, f, length=_STREAMING_COPY_BUFSIZE)
+
+    async def get_file(self, remote: str, local: str) -> None:
+        """Download `remote` to local path `local`."""
+        if is_s3_filename(remote):
+            bucket, key = s3_bucket_and_key(remote)
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                await client.download_file(Bucket=bucket, Key=key, Filename=local)
+            else:
+                await anyio.to_thread.run_sync(
+                    s3_get_file, self.s3_client(), bucket, key, local
+                )
+        else:
+            filesystem(remote).get_file(remote, local)
+
+    async def iter_files(
+        self, base: str, pattern: str = "*", *, recursive: bool = False
+    ) -> AsyncIterator[str]:
+        """Yield URIs of files under `base`.
+
+        Matching is fnmatch-on-basename (case-sensitive). When `recursive`
+        is False, only direct children of `base` are considered; otherwise
+        any file at any depth under `base` is considered.
+
+        The `pattern` argument matches the basename only; it must not
+        contain `/`.
+        """
+        if is_s3_filename(base):
+            bucket, prefix = s3_bucket_and_key(base)
+            prefix = prefix.rstrip("/") + "/" if prefix else ""
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                paginator = client.get_paginator("list_objects_v2")
+                kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
+                if not recursive:
+                    kwargs["Delimiter"] = "/"
+                async for page in paginator.paginate(**kwargs):
+                    for obj in page.get("Contents", []):
+                        key = obj["Key"]
+                        if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
+                            yield f"s3://{bucket}/{key}"
+            else:
+                results = await anyio.to_thread.run_sync(
+                    s3_iter_files,
+                    self.s3_client(),
+                    bucket,
+                    prefix,
+                    pattern,
+                    recursive,
+                )
+                for r in results:
+                    yield r
+        else:
+            fs = filesystem(base).fs
+            if recursive:
+                paths = fs.find(base)
+                if isinstance(paths, dict):
+                    paths = list(paths.keys())
+                for path in paths:
+                    if fnmatchcase(path.rsplit("/", 1)[-1], pattern):
+                        yield path
+            else:
+                for entry in fs.ls(base, detail=True):
+                    if entry["type"] == "file":
+                        name = entry["name"]
+                        if fnmatchcase(name.rsplit("/", 1)[-1], pattern):
+                            yield name
+
+    async def iter_dirs(
+        self, base: str, pattern: str = "*", *, recursive: bool = False
+    ) -> AsyncIterator[str]:
+        """Yield URIs (ending in `/`) of directory-like entries under `base`.
+
+        Matching is fnmatch-on-terminal-name (case-sensitive). When
+        `recursive` is False, only direct subdirectories of `base` are
+        considered; otherwise matching directories at any depth are
+        yielded once (deduplicated).
+
+        The `pattern` argument matches the terminal name only; it must
+        not contain `/`.
+        """
+        if is_s3_filename(base):
+            bucket, prefix = s3_bucket_and_key(base)
+            prefix = prefix.rstrip("/") + "/" if prefix else ""
+            if current_async_backend() == "asyncio":
+                client = await self.s3_client_async()
+                paginator = client.get_paginator("list_objects_v2")
+                if not recursive:
+                    async for page in paginator.paginate(
+                        Bucket=bucket, Prefix=prefix, Delimiter="/"
+                    ):
+                        for cp in page.get("CommonPrefixes", []):
+                            cp_key = cp["Prefix"]
+                            name = cp_key.rstrip("/").rsplit("/", 1)[-1]
+                            if fnmatchcase(name, pattern):
+                                yield f"s3://{bucket}/{cp_key}"
+                else:
+                    base_depth = len(prefix.rstrip("/").split("/")) if prefix else 0
+                    seen: set[str] = set()
+                    async for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                        for obj in page.get("Contents", []):
+                            key = obj["Key"]
+                            parts = key.split("/")
+                            for i in range(base_depth, len(parts) - 1):
+                                if fnmatchcase(parts[i], pattern):
+                                    dir_path = "/".join(parts[: i + 1])
+                                    if dir_path not in seen:
+                                        seen.add(dir_path)
+                                        yield f"s3://{bucket}/{dir_path}/"
+            else:
+                results = await anyio.to_thread.run_sync(
+                    s3_iter_dirs,
+                    self.s3_client(),
+                    bucket,
+                    prefix,
+                    pattern,
+                    recursive,
+                )
+                for r in results:
+                    yield r
+        else:
+            fs = filesystem(base).fs
+            if not recursive:
+                for entry in fs.ls(base, detail=True):
+                    if entry["type"] == "directory":
+                        name = entry["name"]
+                        terminal = name.rstrip("/").rsplit("/", 1)[-1]
+                        if fnmatchcase(terminal, pattern):
+                            yield name.rstrip("/") + "/"
+            else:
+                for dirpath, dirnames, _ in fs.walk(base):
+                    for dirname in dirnames:
+                        if fnmatchcase(dirname, pattern):
+                            yield f"{dirpath.rstrip('/')}/{dirname}/"
+
+    @override
+    async def __aenter__(self) -> "AsyncFilesystem":
+        existing = _current_async_fs.get()
+        if existing is not None:
+            self._owns_context = False
+            return existing
+        self._owns_context = True
+        _current_async_fs.set(self)
+        return self
+
     @override
     async def __aexit__(
         self,
@@ -213,44 +486,88 @@ class AsyncFilesystem(AbstractAsyncContextManager["AsyncFilesystem"]):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        await self.close()
+        if self._owns_context:
+            _current_async_fs.set(None)
+            await self.close()
 
     async def close(
         self,
     ) -> None:
         if self._s3_client_async is not None:
-            await self._s3_client_async.__aexit__(None, None, None)
+            client = self._s3_client_async
             self._s3_client_async = None
+            await client.__aexit__(None, None, None)
 
     def s3_client(self) -> Any:
         if self._s3_client is None:
+            import boto3
+            from botocore import UNSIGNED
+            from botocore.config import Config
+
             config = Config(
                 max_pool_connections=50,
                 retries={"max_attempts": 10, "mode": "adaptive"},
+                # Disable boto3 1.36+ default integrity checksums.
+                # The AwsChunkedWrapper body framing is buggy under
+                # concurrent multipart uploads and intermittently
+                # produces IncompleteBody from S3. See GH-3858.
+                request_checksum_calculation="when_required",
+                response_checksum_validation="when_required",
+                **({"signature_version": UNSIGNED} if self._anonymous else {}),
             )
-            self._s3_client = boto3.client("s3", config=config)
+            self._s3_client = boto3.client(
+                "s3", config=config, region_name=self._region_name
+            )
 
         return self._s3_client
 
     async def s3_client_async(self) -> Any:
         if self._s3_client_async is None:
-            import aioboto3
-
-            session = aioboto3.Session()
-            config = AioConfig(
-                max_pool_connections=50,
-                retries={"max_attempts": 10, "mode": "adaptive"},
-            )
-            self._s3_client_async = await session.client(
-                "s3", config=config
-            ).__aenter__()
-
+            async with self._s3_lock:
+                if self._s3_client_async is None:
+                    self._s3_client_async = await self._create_s3_client_async(
+                        anonymous=self._anonymous,
+                        region_name=self._region_name,
+                    )
         return self._s3_client_async
 
+    @staticmethod
+    async def _create_s3_client_async(
+        anonymous: bool = False, region_name: str | None = None
+    ) -> Any:
+        import aioboto3
+        from aiobotocore.config import AioConfig
+        from botocore import UNSIGNED
 
-def s3_get_size(s3: Any, bucket: str, key: str) -> int:
+        session = aioboto3.Session()
+        config = AioConfig(
+            max_pool_connections=50,
+            retries={"max_attempts": 10, "mode": "adaptive"},
+            # Disable boto3 1.36+ default integrity checksums.
+            # The AwsChunkedWrapper body framing is buggy under
+            # concurrent multipart uploads and intermittently
+            # produces IncompleteBody from S3. See GH-3858.
+            request_checksum_calculation="when_required",
+            response_checksum_validation="when_required",
+            **({"signature_version": UNSIGNED} if anonymous else {}),
+        )
+        return await session.client(
+            "s3", config=config, region_name=region_name
+        ).__aenter__()
+
+
+def _s3_head_to_file_info(filename: str, response: dict[str, Any]) -> FileInfo:
+    size = cast(int, response["ContentLength"])
+    last_modified = response.get("LastModified")
+    mtime = last_modified.timestamp() * 1000 if last_modified else None
+    etag_raw = response.get("ETag")
+    etag = cast(str, etag_raw).strip('"') if etag_raw else None
+    return FileInfo(name=filename, type="file", size=size, mtime=mtime, etag=etag)
+
+
+def s3_info(s3: Any, bucket: str, key: str, filename: str) -> FileInfo:
     response = s3.head_object(Bucket=bucket, Key=key)
-    return cast(int, response["ContentLength"])
+    return _s3_head_to_file_info(filename, response)
 
 
 def s3_read_file(s3: Any, bucket: str, key: str) -> bytes:
@@ -264,8 +581,87 @@ def s3_read_file_bytes(s3: Any, bucket: str, key: str, start: int, end: int) -> 
     return cast(bytes, response["Body"].read())
 
 
+def s3_read_file_suffix(
+    s3: Any, bucket: str, key: str, suffix_length: int
+) -> SuffixResult:
+    response = s3.get_object(Bucket=bucket, Key=key, Range=f"bytes=-{suffix_length}")
+    content_range: str = response["ContentRange"]
+    total_size = int(content_range.split("/")[-1])
+    etag_raw = response.get("ETag")
+    etag = cast(str, etag_raw).strip('"') if etag_raw else None
+    data = cast(bytes, response["Body"].read())
+    return SuffixResult(data, total_size, etag)
+
+
 def s3_write_file(s3: Any, bucket: str, key: str, content: bytes) -> None:
-    s3.put_object(Bucket=bucket, Key=key, Body=content)
+    s3.upload_fileobj(Fileobj=io.BytesIO(content), Bucket=bucket, Key=key)
+
+
+def s3_write_file_streaming(s3: Any, bucket: str, key: str, source: BinaryIO) -> None:
+    """Upload a file-like stream to S3 using multipart upload."""
+    s3.upload_fileobj(
+        Fileobj=source, Bucket=bucket, Key=key, Config=_s3_transfer_config()
+    )
+
+
+def s3_get_file(s3: Any, bucket: str, key: str, filename: str) -> None:
+    s3.download_file(Bucket=bucket, Key=key, Filename=filename)
+
+
+def s3_iter_files(
+    s3: Any, bucket: str, prefix: str, pattern: str, recursive: bool
+) -> list[str]:
+    paginator = s3.get_paginator("list_objects_v2")
+    kwargs: dict[str, Any] = {"Bucket": bucket, "Prefix": prefix}
+    if not recursive:
+        kwargs["Delimiter"] = "/"
+    results: list[str] = []
+    for page in paginator.paginate(**kwargs):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            if fnmatchcase(key.rsplit("/", 1)[-1], pattern):
+                results.append(f"s3://{bucket}/{key}")
+    return results
+
+
+def s3_iter_dirs(
+    s3: Any, bucket: str, prefix: str, pattern: str, recursive: bool
+) -> list[str]:
+    paginator = s3.get_paginator("list_objects_v2")
+    results: list[str] = []
+    if not recursive:
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix, Delimiter="/"):
+            for cp in page.get("CommonPrefixes", []):
+                cp_key = cp["Prefix"]
+                name = cp_key.rstrip("/").rsplit("/", 1)[-1]
+                if fnmatchcase(name, pattern):
+                    results.append(f"s3://{bucket}/{cp_key}")
+    else:
+        base_depth = len(prefix.rstrip("/").split("/")) if prefix else 0
+        seen: set[str] = set()
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                key = obj["Key"]
+                parts = key.split("/")
+                for i in range(base_depth, len(parts) - 1):
+                    if fnmatchcase(parts[i], pattern):
+                        dir_path = "/".join(parts[: i + 1])
+                        if dir_path not in seen:
+                            seen.add(dir_path)
+                            results.append(f"s3://{bucket}/{dir_path}/")
+    return results
+
+
+def s3_exists(s3: Any, bucket: str, key: str) -> bool:
+    from botocore.exceptions import ClientError
+
+    try:
+        s3.head_object(Bucket=bucket, Key=key)
+        return True
+    except ClientError as e:
+        if e.response.get("Error", {}).get("Code") in ("404", "NoSuchKey", "NotFound"):
+            return False
+        raise
 
 
 def s3_bucket_and_key(filename: str) -> tuple[str, str]:
@@ -277,3 +673,69 @@ def s3_bucket_and_key(filename: str) -> tuple[str, str]:
 
 def is_s3_filename(filename: str) -> bool:
     return filename.startswith("s3://")
+
+
+_current_async_fs: ContextVar[AsyncFilesystem | None] = ContextVar(
+    "_current_async_fs", default=None
+)
+
+
+_T = TypeVar("_T")
+
+
+def with_async_fs(
+    main: Callable[[], Coroutine[Any, Any, _T]],
+) -> Callable[[], Coroutine[Any, Any, _T]]:
+    """Wrap an async callable so it runs with a shared AsyncFilesystem."""
+
+    async def wrapper() -> _T:
+        async with AsyncFilesystem():
+            return await main()
+
+    return wrapper
+
+
+def get_async_filesystem() -> AsyncFilesystem:
+    """Get the current shared AsyncFilesystem from the ContextVar.
+
+    Raises:
+        RuntimeError: If no AsyncFilesystem has been established via
+            ``async with AsyncFilesystem()``.
+    """
+    fs = _current_async_fs.get()
+    if fs is None:
+        raise RuntimeError(
+            "No AsyncFilesystem is available. "
+            "Use 'async with AsyncFilesystem()' to establish one."
+        )
+    return fs
+
+
+@functools.cache
+def _s3_transfer_config() -> TransferConfig:
+    # boto3 S3 multipart upload configuration for streaming writes.
+    # Values are the boto3.s3.transfer.TransferConfig library defaults
+    # as of 2026-03-07.
+    # - multipart_threshold: use multipart upload for files larger than this
+    # - multipart_chunksize: size of each part in a multipart upload
+    # - max_concurrency: maximum threads for concurrent part uploads
+    from boto3.s3.transfer import TransferConfig
+
+    return TransferConfig(
+        multipart_threshold=8 * 1024 * 1024,  # 8 MB
+        multipart_chunksize=8 * 1024 * 1024,  # 8 MB
+        max_concurrency=10,
+    )
+
+
+# fsspec write buffer size for cloud storage backends (GCS, Azure, etc.).
+# 4MB is the fsspec AbstractFileSystem.blocksize library default
+# as of 2026-03-07. We set to 8 MB to match boto3 values above.
+# When the in-memory write buffer reaches this size, it is flushed as
+# a multipart upload part. Individual backends may override this class
+# attribute with a different default.
+_FSSPEC_WRITE_BLOCK_SIZE = 8 * 1024 * 1024  # 8 MB
+
+# Size of chunks read from the source stream per iteration when
+# copying to local or fsspec-backed files via shutil.copyfileobj.
+_STREAMING_COPY_BUFSIZE = 16 * 1024 * 1024  # 16 MB

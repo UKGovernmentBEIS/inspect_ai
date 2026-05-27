@@ -5,7 +5,7 @@ from typing import Literal
 import pytest
 
 from inspect_ai._util.citation import UrlCitation
-from inspect_ai._util.content import ContentImage, ContentText
+from inspect_ai._util.content import ContentImage, ContentReasoning, ContentText
 from inspect_ai.model import (
     ChatMessage,
     ChatMessageAssistant,
@@ -18,9 +18,22 @@ from inspect_ai.model._compaction.edit import CompactionEdit
 from inspect_ai.model._compaction.memory import MEMORY_TOOL
 from inspect_ai.model._compaction.summary import CompactionSummary
 from inspect_ai.model._compaction.trim import CompactionTrim
-from inspect_ai.model._model import get_model
-from inspect_ai.model._trim import strip_citations
+from inspect_ai.model._model import Model, get_model
+from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._trim import partition_messages, strip_citations
 from inspect_ai.tool import ToolInfo
+
+
+class ConsecutiveUserCompaction(CompactionSummary):
+    async def compact(
+        self, model: Model, messages: list[ChatMessage], tools: list[ToolInfo]
+    ) -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        summary = ChatMessageUser(
+            content="summary",
+            id="summary",
+            metadata={"summary": True},
+        )
+        return [user_msg("input", "input", source="input"), summary], summary
 
 
 # Helper to create messages with IDs
@@ -59,9 +72,6 @@ def other_tool() -> ToolInfo:
 # ==============================================================================
 # Threshold Resolution Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_threshold_absolute_int() -> None:
     """Test that integer threshold is used as-is."""
     strategy = CompactionEdit(threshold=500)  # Absolute token count
@@ -78,12 +88,11 @@ async def test_threshold_absolute_int() -> None:
     ]
 
     # Should not trigger compaction
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert summary is None  # No compaction occurred
     assert len(result) == 3
 
 
-@pytest.mark.asyncio
 async def test_threshold_absolute_float_above_one() -> None:
     """Test that threshold > 1.0 is treated as absolute."""
     strategy = CompactionEdit(threshold=5000.0)  # Float > 1.0 = absolute
@@ -97,7 +106,7 @@ async def test_threshold_absolute_float_above_one() -> None:
         user_msg("Message", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert summary is None  # Under threshold, no compaction
     assert len(result) == 2
 
@@ -105,9 +114,6 @@ async def test_threshold_absolute_float_above_one() -> None:
 # ==============================================================================
 # Memory Warning Logic Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_memory_warning_issued(memory_tool: ToolInfo) -> None:
     """Test that memory warning is issued when tokens > 0.9 * threshold."""
     # Use a low threshold so we can trigger memory warning zone
@@ -125,7 +131,7 @@ async def test_memory_warning_issued(memory_tool: ToolInfo) -> None:
         assistant_msg("A" * 50, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # The test verifies the mechanism works - whether warning is issued
     # depends on exact token count which varies with tiktoken encoding.
@@ -134,7 +140,6 @@ async def test_memory_warning_issued(memory_tool: ToolInfo) -> None:
     assert len(result) >= 3  # At least the original messages
 
 
-@pytest.mark.asyncio
 async def test_memory_warning_disabled() -> None:
     """Test that memory warning is NOT issued when strategy.memory=False."""
     strategy = CompactionEdit(threshold=100, memory=False)
@@ -150,7 +155,7 @@ async def test_memory_warning_disabled() -> None:
         assistant_msg("A" * 30, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # No memory warning should be present when memory=False
     has_warning = any(
@@ -162,7 +167,6 @@ async def test_memory_warning_disabled() -> None:
     assert not has_warning
 
 
-@pytest.mark.asyncio
 async def test_memory_warning_no_tool(other_tool: ToolInfo) -> None:
     """Test that memory warning is NOT issued when MEMORY_TOOL not in tools."""
     strategy = CompactionEdit(threshold=100, memory=True)
@@ -178,7 +182,7 @@ async def test_memory_warning_no_tool(other_tool: ToolInfo) -> None:
         assistant_msg("A" * 30, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # No memory warning without memory tool
     has_warning = any(
@@ -193,9 +197,6 @@ async def test_memory_warning_no_tool(other_tool: ToolInfo) -> None:
 # ==============================================================================
 # Prefix Preservation Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_prefix_restored() -> None:
     """Test that prefix messages are restored after compaction."""
     strategy = CompactionSummary(threshold=100)
@@ -218,7 +219,7 @@ async def test_prefix_restored() -> None:
         assistant_msg("A" * 100, "msg3"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
 
     # Prefix should be preserved in result
     assert len(result) >= 2
@@ -226,7 +227,6 @@ async def test_prefix_restored() -> None:
     assert isinstance(result[0], ChatMessageSystem)
 
 
-@pytest.mark.asyncio
 async def test_prefix_empty() -> None:
     """Test that empty prefix is handled correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -241,16 +241,13 @@ async def test_prefix_empty() -> None:
         assistant_msg("Answer", "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 2
 
 
 # ==============================================================================
 # Multiple Compaction Cycles Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_cycle_processed_ids() -> None:
     """Test that sequential calls track processed_message_ids correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -265,7 +262,7 @@ async def test_cycle_processed_ids() -> None:
         user_msg("Q1", "msg1"),
         assistant_msg("A1", "msg2"),
     ]
-    result1, _ = await compact(messages1)
+    result1, _ = await compact.compact_input(messages1)
 
     # Second call with additional messages
     messages2: list[ChatMessage] = [
@@ -275,13 +272,12 @@ async def test_cycle_processed_ids() -> None:
         user_msg("Q2", "msg3"),
         assistant_msg("A2", "msg4"),
     ]
-    result2, _ = await compact(messages2)
+    result2, _ = await compact.compact_input(messages2)
 
     # All messages should be included
     assert len(result2) == 5
 
 
-@pytest.mark.asyncio
 async def test_cycle_token_cache() -> None:
     """Test that token counts are cached and reused across calls."""
     strategy = CompactionEdit(threshold=500)
@@ -297,8 +293,8 @@ async def test_cycle_token_cache() -> None:
     ]
 
     # Call twice with same messages
-    result1, _ = await compact(messages)
-    result2, _ = await compact(messages)
+    result1, _ = await compact.compact_input(messages)
+    result2, _ = await compact.compact_input(messages)
 
     # Results should be consistent
     assert len(result1) == len(result2)
@@ -307,9 +303,6 @@ async def test_cycle_token_cache() -> None:
 # ==============================================================================
 # Tool Token Handling Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_tools_empty() -> None:
     """Test that empty tools list is handled correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -323,11 +316,10 @@ async def test_tools_empty() -> None:
         user_msg("Question", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 2
 
 
-@pytest.mark.asyncio
 async def test_tools_none() -> None:
     """Test that None tools is handled correctly."""
     strategy = CompactionEdit(threshold=500)
@@ -341,16 +333,13 @@ async def test_tools_none() -> None:
         user_msg("Question", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 2
 
 
 # ==============================================================================
 # Boundary Condition Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_boundary_under_threshold() -> None:
     """Test that tokens under threshold don't trigger compaction."""
     strategy = CompactionEdit(threshold=10000)  # High threshold
@@ -365,12 +354,11 @@ async def test_boundary_under_threshold() -> None:
         assistant_msg("Short", "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert summary is None  # No compaction
     assert len(result) == 3
 
 
-@pytest.mark.asyncio
 async def test_boundary_triggers_compaction() -> None:
     """Test that tokens above threshold trigger compaction (with tool calls to clear)."""
     from inspect_ai.tool import ToolCall
@@ -384,7 +372,7 @@ async def test_boundary_triggers_compaction() -> None:
 
     # Create messages with tool calls that can be cleared
     # This allows compaction to actually reduce token count
-    tool_call = ToolCall(id="t1", function="bash", arguments={"cmd": "A" * 200})
+    tool_call = ToolCall(id="t1", function="bash", arguments={"command": "A" * 200})
 
     messages: list[ChatMessage] = [
         system_msg("S", "sys1"),
@@ -397,7 +385,7 @@ async def test_boundary_triggers_compaction() -> None:
         assistant_msg("Done", "msg5"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Compaction should have occurred (summary is still None for Edit strategy)
     assert summary is None  # Edit strategy returns None
     # Tool result should have been cleared
@@ -407,9 +395,6 @@ async def test_boundary_triggers_compaction() -> None:
 # ==============================================================================
 # Strategy Return Value Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_return_edit_none() -> None:
     """Test that CompactionEdit returns None for summary."""
     strategy = CompactionEdit(threshold=50)
@@ -424,12 +409,11 @@ async def test_return_edit_none() -> None:
         assistant_msg("B" * 100, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Edit strategy always returns None for summary
     assert summary is None
 
 
-@pytest.mark.asyncio
 async def test_return_trim_none() -> None:
     """Test that CompactionTrim returns None for summary."""
     strategy = CompactionTrim(threshold=50)
@@ -444,12 +428,11 @@ async def test_return_trim_none() -> None:
         assistant_msg("B" * 100, "msg2"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Trim strategy always returns None for summary
     assert summary is None
 
 
-@pytest.mark.asyncio
 async def test_return_summary_not_none() -> None:
     """Test that CompactionSummary returns non-None summary."""
     # Use threshold that triggers compaction but can accommodate the summary output
@@ -469,7 +452,7 @@ async def test_return_summary_not_none() -> None:
         user_msg("C" * 800, "msg3"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     # Summary strategy returns non-None summary when compaction occurs
     assert summary is not None
     assert isinstance(summary, ChatMessageUser)
@@ -480,9 +463,6 @@ async def test_return_summary_not_none() -> None:
 # ==============================================================================
 # Edge Case Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_edge_small_threshold() -> None:
     """Test that very small threshold (100 tokens) works correctly."""
     strategy = CompactionEdit(threshold=100)
@@ -497,11 +477,10 @@ async def test_edge_small_threshold() -> None:
     ]
 
     # Should work without errors
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert result is not None
 
 
-@pytest.mark.asyncio
 async def test_single_message() -> None:
     """Test compaction with a single message."""
     strategy = CompactionEdit(threshold=500)
@@ -514,11 +493,10 @@ async def test_single_message() -> None:
         user_msg("Hello", "msg1"),
     ]
 
-    result, summary = await compact(messages)
+    result, summary = await compact.compact_input(messages)
     assert len(result) == 1
 
 
-@pytest.mark.asyncio
 async def test_summary_integration() -> None:
     """Test that summary message is recognized in subsequent calls."""
     strategy = CompactionSummary(threshold=100)
@@ -539,14 +517,14 @@ async def test_summary_integration() -> None:
         user_msg("Q" * 500, "msg2"),
     ]
 
-    result1, summary1 = await compact(messages1)
+    result1, summary1 = await compact.compact_input(messages1)
     assert summary1 is not None
 
     # Second call with the summary included
     messages2: list[ChatMessage] = messages1 + [summary1]
     messages2.append(assistant_msg("Continuing", "msg3"))
 
-    result2, summary2 = await compact(messages2)
+    result2, summary2 = await compact.compact_input(messages2)
     # The factory should handle the summary in the history
     assert result2 is not None
 
@@ -554,9 +532,6 @@ async def test_summary_integration() -> None:
 # ==============================================================================
 # Iterative Compaction Tests
 # ==============================================================================
-
-
-@pytest.mark.asyncio
 async def test_iterative_compaction_succeeds() -> None:
     """Test that iterative compaction retries until under threshold."""
     # Use CompactionTrim with threshold that requires 2+ passes to succeed.
@@ -578,12 +553,11 @@ async def test_iterative_compaction_succeeds() -> None:
         messages.append(assistant_msg(f"A{i}" * 10, f"a{i}"))
 
     # Should succeed via iteration (not raise RuntimeError)
-    result, _ = await compact(messages)
+    result, _ = await compact.compact_input(messages)
     assert result is not None
     assert len(result) < len(messages)
 
 
-@pytest.mark.asyncio
 async def test_iterative_compaction_stops_when_no_progress() -> None:
     """Test that iteration stops if compaction makes no progress."""
     # CompactionEdit with nothing to clear should stop immediately
@@ -601,10 +575,9 @@ async def test_iterative_compaction_stops_when_no_progress() -> None:
 
     # Should raise RuntimeError since Edit can't reduce these messages
     with pytest.raises(RuntimeError, match="Compaction insufficient"):
-        await compact(messages)
+        await compact.compact_input(messages)
 
 
-@pytest.mark.asyncio
 async def test_compaction_error_message_breakdown() -> None:
     """Test that RuntimeError includes tools, prefix, messages breakdown."""
     strategy = CompactionEdit(threshold=50, keep_tool_uses=100)
@@ -620,7 +593,7 @@ async def test_compaction_error_message_breakdown() -> None:
     ]
 
     with pytest.raises(RuntimeError) as exc_info:
-        await compact(messages)
+        await compact.compact_input(messages)
 
     error_msg = str(exc_info.value)
     assert "tools:" in error_msg
@@ -753,7 +726,6 @@ def teststrip_citations_handles_multiple_citations() -> None:
     assert content_text.citations is None
 
 
-@pytest.mark.asyncio
 async def test_compaction_strips_citations() -> None:
     """Test that compaction strips citations from messages."""
     from inspect_ai.tool import ToolCall
@@ -773,7 +745,7 @@ async def test_compaction_strips_citations() -> None:
     compact = compaction(strategy, prefix=prefix, tools=None, model=model)
 
     # Create tool calls with large content to exceed threshold
-    tool_call = ToolCall(id="t1", function="bash", arguments={"cmd": "A" * 500})
+    tool_call = ToolCall(id="t1", function="bash", arguments={"command": "A" * 500})
 
     messages: list[ChatMessage] = [
         system_msg("S", "sys1"),
@@ -790,7 +762,7 @@ async def test_compaction_strips_citations() -> None:
         ),
     ]
 
-    result, _ = await compact(messages)
+    result, _ = await compact.compact_input(messages)
 
     # Find any assistant message with ContentText content
     for msg in result:
@@ -801,3 +773,564 @@ async def test_compaction_strips_citations() -> None:
                     assert content.citations is None, (
                         f"Expected citations to be None, got {content.citations}"
                     )
+
+
+async def test_compact_input_concurrent_no_duplicate_messages() -> None:
+    """Concurrent compact_input calls must not duplicate closure state.
+
+    When the same Compact instance is shared (e.g. through AgentBridge),
+    parallel callers must not lose updates to compacted_input.
+    """
+    import anyio
+
+    from inspect_ai._util._async import tg_collect
+    from inspect_ai.model._generate_config import GenerateConfig
+
+    # high threshold so compaction never triggers; exercises the no-compaction
+    # branch where concurrent callers all extend compacted_input
+    strategy = CompactionEdit(threshold=10_000_000)
+
+    model = get_model("mockllm/model")
+
+    # yield inside count_tokens so the scheduler interleaves concurrent
+    # callers; without an explicit yield, asyncio may run each coroutine
+    # to completion without context-switching
+    async def yielding_count_tokens(
+        input: str | list[ChatMessage],
+        config: GenerateConfig | None = None,
+    ) -> int:
+        await anyio.sleep(0)
+        return 1
+
+    model.count_tokens = yielding_count_tokens  # type: ignore[method-assign]
+
+    prefix: list[ChatMessage] = []
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    messages: list[ChatMessage] = [
+        user_msg("hello", "msg1"),
+        assistant_msg("hi", "msg2"),
+    ]
+
+    async def call_once() -> tuple[list[ChatMessage], ChatMessageUser | None]:
+        return await compact.compact_input(messages)
+
+    await tg_collect([call_once for _ in range(10)])
+
+    final, _ = await compact.compact_input(messages)
+    final_ids = [m.id for m in final]
+    assert len(final_ids) == len(set(final_ids)), (
+        f"compacted_input contains duplicate message ids: {final_ids}"
+    )
+
+
+async def test_force_compaction_skips_threshold() -> None:
+    """force=True compacts even when total tokens are well under threshold.
+
+    Without force=True, CompactionTrim with threshold=1_000_000 should not
+    trim (way under the threshold). With force=True, compaction runs
+    unconditionally and trim's preserve=0.5 reduces the message count.
+    """
+    strategy = CompactionTrim(threshold=1_000_000, preserve=0.5)
+    model = get_model("mockllm/model")
+
+    prefix: list[ChatMessage] = []
+
+    messages: list[ChatMessage] = [user_msg(f"msg{i}", f"u{i}") for i in range(10)]
+
+    # Predictive (no force) should not trim under a huge threshold.
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+    result_predictive, _ = await compact.compact_input(messages)
+    assert len(result_predictive) == len(messages), (
+        f"Predictive compaction should not trim under threshold; "
+        f"got {len(result_predictive)} vs {len(messages)} messages"
+    )
+
+    # Force should trim regardless of threshold.
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+    result_forced, _ = await compact.compact_input(messages, force=True)
+    assert len(result_forced) < len(messages), (
+        f"force=True should trigger compaction (trim with preserve=0.5); "
+        f"got {len(result_forced)} vs {len(messages)} messages"
+    )
+
+
+async def test_compaction_collapses_provider_required_consecutive_messages(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Compacted input is stored already collapsed for providers that require it."""
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(model.api, "collapse_user_messages", lambda: True)
+
+    compact = compaction(
+        ConsecutiveUserCompaction(threshold=1_000_000),
+        prefix=[],
+        tools=None,
+        model=model,
+    )
+
+    result, summary = await compact.compact_input(
+        [user_msg("original", "original")], force=True
+    )
+
+    assert summary is None
+    assert len(result) == 1
+    assert isinstance(result[0], ChatMessageUser)
+    assert result[0].content == "input\nsummary"
+    assert result[0].source == "input"
+    assert result[0].metadata is not None
+    assert result[0].metadata.get("summary") is True
+
+    partitioned = partition_messages(result)
+    assert partitioned.input == []
+    assert partitioned.conversation == result
+
+
+async def test_compaction_collapse_does_not_accumulate_old_summaries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Collapsed summaries remain replaceable on subsequent compactions."""
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", "SUMMARY1"),
+            ModelOutput.from_content("mockllm/model", "SUMMARY2"),
+        ],
+    )
+    monkeypatch.setattr(model.api, "collapse_user_messages", lambda: True)
+
+    compact = compaction(
+        CompactionSummary(threshold=1_000_000),
+        prefix=[],
+        tools=None,
+        model=model,
+    )
+    messages: list[ChatMessage] = [user_msg("TASK", "task", source="input")]
+
+    result, summary = await compact.compact_input(messages, force=True)
+    assert summary is None
+    assert len(result) == 1
+    assert "SUMMARY1" in result[0].text
+
+    messages = result + [assistant_msg("continuing", "assistant")]
+    result, summary = await compact.compact_input(messages, force=True)
+    assert len(result) == 1
+    assert result[0] is summary
+    assert "SUMMARY1" not in result[0].text
+    assert "SUMMARY2" in result[0].text
+
+
+# ==============================================================================
+# Redacted-reasoning input cost (predictive blind-spot fix)
+# ==============================================================================
+
+
+def _assistant_with_redacted_reasoning_tokens(
+    text: str, id: str, redacted_tokens: int
+) -> ChatMessageAssistant:
+    """Build an all-redacted-reasoning assistant message for tests.
+
+    The assistant has a redacted ContentReasoning block alongside text
+    output, plus the metadata key the wrapper would have stamped.
+    """
+    return ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="ENCRYPTED", redacted=True),
+            ContentText(text=text),
+        ],
+        id=id,
+        metadata={"redacted_reasoning_tokens": redacted_tokens},
+    )
+
+
+async def test_redacted_reasoning_metadata_pushes_threshold_over(
+    monkeypatch,
+) -> None:
+    """Summed redacted_reasoning_tokens push the effective total over threshold.
+
+    When the provider declares the blind spot, summed
+    `redacted_reasoning_tokens` from message metadata pushes the effective
+    total over threshold. With the flag off, the same messages stay under.
+
+    This is the test the original PR was missing — it would have failed
+    against the count_tokens-based fix because count_tokens does not
+    actually report the encrypted reasoning.
+    """
+    # Threshold low enough to be exceeded only by the redacted accounting.
+    strategy = CompactionTrim(threshold=1000, preserve=0.5)
+    model = get_model("mockllm/model")
+
+    prefix: list[ChatMessage] = []
+
+    # 4 turns; each assistant turn adds 400 redacted tokens.
+    # Plain message tokens are tiny (well under 1000), so the predictive
+    # threshold trip is driven entirely by metadata.
+    messages: list[ChatMessage] = []
+    for i in range(4):
+        messages.append(user_msg(f"q{i}", f"u{i}"))
+        messages.append(
+            _assistant_with_redacted_reasoning_tokens(
+                f"answer {i}", f"a{i}", redacted_tokens=400
+            )
+        )
+
+    # With flag off (default), no correction → stays under threshold → no compaction
+    monkeypatch.setattr(
+        model.api, "apply_redacted_reasoning_tokens_to_input", lambda: False
+    )
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+    result_off, _ = await compact.compact_input(messages)
+    assert len(result_off) == len(messages), (
+        f"With flag off, redacted_reasoning_tokens should be ignored; "
+        f"got {len(result_off)} messages (expected {len(messages)})"
+    )
+
+    # With flag on, sum is 4 * 400 = 1600 > threshold (1000) → compaction trips
+    monkeypatch.setattr(
+        model.api, "apply_redacted_reasoning_tokens_to_input", lambda: True
+    )
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+    result_on, _ = await compact.compact_input(messages)
+    assert len(result_on) < len(messages), (
+        f"With flag on, summed redacted_reasoning_tokens (1600) should push "
+        f"effective total over threshold (1000); expected compaction to run; "
+        f"got {len(result_on)} messages (no compaction)"
+    )
+
+
+async def test_redacted_reasoning_metadata_dropped_after_compaction(
+    monkeypatch,
+) -> None:
+    """Compaction-discarded messages fall out of the threshold sum.
+
+    When a strategy discards messages, their metadata contributions fall
+    out of the next threshold sum naturally — the surviving subset is what
+    gets summed.
+    """
+    strategy = CompactionTrim(threshold=1000, preserve=0.25)
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(
+        model.api, "apply_redacted_reasoning_tokens_to_input", lambda: True
+    )
+
+    prefix: list[ChatMessage] = []
+
+    # 8 turns × 200 tokens = 1600 hidden tokens > 1000 threshold → trips.
+    messages: list[ChatMessage] = []
+    for i in range(8):
+        messages.append(user_msg(f"q{i}", f"u{i}"))
+        messages.append(
+            _assistant_with_redacted_reasoning_tokens(
+                f"answer {i}", f"a{i}", redacted_tokens=200
+            )
+        )
+
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+    compacted, _ = await compact.compact_input(messages)
+
+    # CompactionTrim with preserve=0.25 keeps the most recent ~25% of messages.
+    # Surviving assistant metadata sum should be << 1600 (the pre-compaction
+    # total) — verify by reading the metadata directly off the result.
+    surviving_hidden = sum(
+        (m.metadata or {}).get("redacted_reasoning_tokens", 0)
+        for m in compacted
+        if isinstance(m, ChatMessageAssistant)
+    )
+    assert surviving_hidden < 1600, (
+        f"Surviving redacted_reasoning_tokens after compaction should drop "
+        f"below the pre-compaction total of 1600; got {surviving_hidden}"
+    )
+
+
+async def test_post_compaction_validation_includes_redacted_reasoning_tokens(
+    monkeypatch,
+) -> None:
+    """Post-compaction validation must include hidden redacted-reasoning cost.
+
+    Regression for a bug where `_perform_compaction` validated only against
+    `tool_tokens + count_tokens(c_input)` and ignored the hidden cost of
+    redacted-reasoning tokens that the strategy preserved. A trim strategy
+    with high preserve could "succeed" (no error raised, no further
+    iteration) while the surviving messages still carried enough hidden
+    reasoning to push the effective total over threshold.
+
+    Setup: 8 assistant turns × 250 redacted tokens = 2000 hidden tokens,
+    threshold=1000, preserve=0.75 → trim keeps ~75% of messages and ~1500
+    hidden tokens, still over threshold. Compaction should NOT silently
+    succeed; it should either iterate again or raise "Compaction insufficient".
+    """
+    strategy = CompactionTrim(threshold=1000, preserve=0.75)
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(
+        model.api, "apply_redacted_reasoning_tokens_to_input", lambda: True
+    )
+
+    prefix: list[ChatMessage] = []
+
+    messages: list[ChatMessage] = []
+    for i in range(8):
+        messages.append(user_msg(f"q{i}", f"u{i}"))
+        messages.append(
+            _assistant_with_redacted_reasoning_tokens(
+                f"answer {i}", f"a{i}", redacted_tokens=250
+            )
+        )
+
+    compact = compaction(strategy, prefix=prefix, tools=None, model=model)
+
+    # If validation correctly accounts for hidden tokens, compaction either
+    # converges below threshold via iteration OR raises. It must NOT return
+    # a result whose surviving hidden tokens still exceed threshold.
+    try:
+        compacted, _ = await compact.compact_input(messages)
+        surviving_hidden = sum(
+            (m.metadata or {}).get("redacted_reasoning_tokens", 0)
+            for m in compacted
+            if isinstance(m, ChatMessageAssistant)
+        )
+        assert surviving_hidden <= 1000, (
+            f"Compaction returned a result with {surviving_hidden} surviving "
+            f"redacted_reasoning_tokens, which exceeds threshold (1000). "
+            f"Post-compaction validation must include hidden reasoning cost."
+        )
+    except RuntimeError as ex:
+        # Acceptable: compaction couldn't reduce enough and raised instead
+        # of silently returning an over-threshold result.
+        assert "Compaction insufficient" in str(ex), ex
+
+
+async def test_redacted_reasoning_total_ignores_messages_without_redacted_blocks(
+    monkeypatch,
+) -> None:
+    """Helper ignores metadata when redacted content has been stripped.
+
+    Regression for an interaction with CompactionEdit's reasoning-clearing
+    pass: it removes ContentReasoning blocks from older turns but preserves
+    message metadata. The redacted_reasoning_tokens metadata describes a
+    cost that only applies while the redacted content is being re-injected,
+    so once the content is gone the metadata is stale and must be ignored.
+    """
+    from inspect_ai.model._compaction._compaction import (
+        _redacted_reasoning_tokens_total,
+    )
+
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(
+        model.api, "apply_redacted_reasoning_tokens_to_input", lambda: True
+    )
+
+    # Message A: still has the redacted ContentReasoning block → counts.
+    msg_with_block = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="ENCRYPTED", redacted=True),
+            ContentText(text="answer"),
+        ],
+        id="a1",
+        metadata={"redacted_reasoning_tokens": 400},
+    )
+
+    # Message B: same metadata, but reasoning content has been stripped
+    # (e.g. by CompactionEdit._clear_reasoning) → must NOT count.
+    msg_block_stripped = ChatMessageAssistant(
+        content=[ContentText(text="answer")],
+        id="a2",
+        metadata={"redacted_reasoning_tokens": 400},
+    )
+
+    # Message C: only-visible-reasoning case (defensive — shouldn't have been
+    # stamped, but if metadata leaks in, it shouldn't be counted).
+    msg_only_visible = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="visible thinking", redacted=False),
+            ContentText(text="answer"),
+        ],
+        id="a3",
+        metadata={"redacted_reasoning_tokens": 400},
+    )
+
+    total = _redacted_reasoning_tokens_total(
+        [msg_with_block, msg_block_stripped, msg_only_visible], model
+    )
+    assert total == 400, (
+        f"Expected only the message with a redacted ContentReasoning block "
+        f"to contribute (400 tokens); got {total}"
+    )
+
+
+async def test_redacted_reasoning_total_respects_reasoning_history(
+    monkeypatch,
+) -> None:
+    """Helper mirrors generate-time reasoning_history filtering.
+
+    With `reasoning_history="none"` all reasoning will be stripped before
+    re-injection, so no redacted tokens contribute. With `"last"` only the
+    most recent reasoning-bearing assistant message survives, so only its
+    metadata contributes. With `"all"` (the default), every redacted-
+    reasoning message contributes.
+    """
+    from inspect_ai.model._compaction._compaction import (
+        _redacted_reasoning_tokens_total,
+    )
+
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(
+        model.api, "apply_redacted_reasoning_tokens_to_input", lambda: True
+    )
+
+    msg_a = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="enc1", redacted=True),
+            ContentText(text="answer 1"),
+        ],
+        id="a1",
+        metadata={"redacted_reasoning_tokens": 300},
+    )
+    msg_b = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="enc2", redacted=True),
+            ContentText(text="answer 2"),
+        ],
+        id="a2",
+        metadata={"redacted_reasoning_tokens": 500},
+    )
+    messages: list[ChatMessage] = [msg_a, msg_b]
+
+    # "all": both contribute
+    monkeypatch.setattr(model.config, "reasoning_history", "all")
+    assert _redacted_reasoning_tokens_total(messages, model) == 800
+
+    # "last": only the most recent reasoning-bearing message contributes
+    monkeypatch.setattr(model.config, "reasoning_history", "last")
+    assert _redacted_reasoning_tokens_total(messages, model) == 500
+
+    # "none": all reasoning stripped → 0
+    monkeypatch.setattr(model.config, "reasoning_history", "none")
+    assert _redacted_reasoning_tokens_total(messages, model) == 0
+
+
+async def test_redacted_reasoning_total_last_mode_respects_reasoning_position(
+    monkeypatch,
+) -> None:
+    """In `last` mode, the latest reasoning turn determines what survives.
+
+    If the most recent reasoning-bearing message has only visible reasoning
+    (not redacted), no redacted tokens survive — this matches
+    `resolve_reasoning_history`, which strips all reasoning from earlier
+    turns once the most recent reasoning-bearing turn is found, regardless
+    of whether that latest reasoning is visible or redacted.
+    """
+    from inspect_ai.model._compaction._compaction import (
+        _redacted_reasoning_tokens_total,
+    )
+
+    model = get_model("mockllm/model")
+    monkeypatch.setattr(
+        model.api, "apply_redacted_reasoning_tokens_to_input", lambda: True
+    )
+    monkeypatch.setattr(model.config, "reasoning_history", "last")
+
+    earlier_redacted = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="enc", redacted=True),
+            ContentText(text="earlier"),
+        ],
+        id="a1",
+        metadata={"redacted_reasoning_tokens": 300},
+    )
+    latest_visible_only = ChatMessageAssistant(
+        content=[
+            ContentReasoning(reasoning="visible", redacted=False),
+            ContentText(text="latest"),
+        ],
+        id="a2",
+    )
+
+    # The latest reasoning-bearing message has only visible reasoning, so it
+    # survives the filter; the earlier redacted reasoning gets stripped.
+    # Net: 0 redacted tokens reach the model.
+    assert (
+        _redacted_reasoning_tokens_total([earlier_redacted, latest_visible_only], model)
+        == 0
+    )
+
+
+async def test_baseline_shortcut_trips_only_with_redacted_reasoning_correction(
+    monkeypatch,
+) -> None:
+    """Baseline shortcut + redacted_reasoning_tokens correction trips threshold.
+
+    Targets the missing test the original PR review flagged: a workload where
+    `baseline_tokens` from `record_output` is well under threshold, but
+    `baseline_tokens + Σ redacted_reasoning_tokens` exceeds it. Without the
+    correction, compaction would never trip even though the actual context
+    on the wire is over the limit.
+
+    This exercises the baseline-shortcut branch specifically, complementing
+    `test_redacted_reasoning_metadata_pushes_threshold_over` (which exercises
+    the count-tokens fallback branch).
+    """
+    from inspect_ai.model._model_output import ModelOutput, ModelUsage
+
+    strategy = CompactionTrim(threshold=2000, preserve=0.5)
+
+    # Initial conversation: two assistant turns, each carrying 400 redacted
+    # reasoning tokens. The plain text content is tiny (a few tokens each).
+    def build_messages() -> list[ChatMessage]:
+        msgs: list[ChatMessage] = []
+        for i in range(2):
+            msgs.append(user_msg(f"q{i}", f"u{i}"))
+            msgs.append(
+                _assistant_with_redacted_reasoning_tokens(
+                    f"answer {i}", f"a{i}", redacted_tokens=400
+                )
+            )
+        return msgs
+
+    async def run_with_flag(flag: bool) -> tuple[int, int]:
+        """Prime baseline at 1500 tokens, add a small message, run compaction.
+
+        Returns (n_messages_in, n_messages_out).
+        """
+        model = get_model("mockllm/model")
+        monkeypatch.setattr(
+            model.api, "apply_redacted_reasoning_tokens_to_input", lambda: flag
+        )
+
+        compact = compaction(strategy, prefix=[], tools=None, model=model)
+
+        initial = build_messages()
+        # First call processes initial messages (no baseline yet → count_tokens
+        # path; total well under threshold, no compaction).
+        await compact.compact_input(initial)
+
+        # Synthesize record_output to install baseline_tokens=1500 (under
+        # threshold of 2000) covering the initial set.
+        output = ModelOutput.from_message(initial[-1])
+        output.usage = ModelUsage(
+            input_tokens=1500, output_tokens=10, total_tokens=1510
+        )
+        await compact.record_output(initial, output)
+
+        # Add a tiny new user message and re-run compaction. This call hits
+        # the baseline-shortcut branch (baseline_tokens set, baseline ids
+        # subset of target). Without the correction:
+        #   total = 1500 + ~few + 0 = ~1500 < 2000 → no trip
+        # With the correction:
+        #   total = 1500 + ~few + 800 = ~2300 > 2000 → trip
+        next_messages = initial + [user_msg("q-new", "u-new")]
+        result, _ = await compact.compact_input(next_messages)
+        return len(next_messages), len(result)
+
+    # Flag off: baseline shortcut alone keeps total under threshold → no trip
+    n_in, n_out = await run_with_flag(False)
+    assert n_out == n_in, (
+        f"flag off: baseline alone is under threshold; expected no compaction "
+        f"({n_in} messages), got {n_out}"
+    )
+
+    # Flag on: redacted_reasoning_tokens correction pushes total over → trip
+    n_in, n_out = await run_with_flag(True)
+    assert n_out < n_in, (
+        f"flag on: baseline + redacted_reasoning_tokens should exceed threshold "
+        f"and trigger compaction; expected fewer than {n_in} messages, got {n_out}"
+    )

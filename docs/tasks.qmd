@@ -1,5 +1,6 @@
 ---
 title: Tasks
+llms-description: Tasks bring together datasets, solvers, and scorers to define an evaluation. Strategies for creating flexible and re-usable tasks.
 ---
 
 ## Overview
@@ -57,9 +58,9 @@ While many tasks can be defined with only a dataset, solver, and scorer, there a
 +------------------+-------------------------------------------------------------------------------------------------+-----------------------------------------------------------+
 | `config`         | Config for model generation (also typically specified in `eval`).                               | [Generate Config](options.qmd#model-generation)           |
 +------------------+-------------------------------------------------------------------------------------------------+-----------------------------------------------------------+
-| `fail_on_error`  | Failure tolerance for samples.                                                                  | [Sample Failure](errors-and-limits.qmd#failure-threshold) |
+| `fail_on_error`  | Failure tolerance for samples.                                                                  | [Failure Threshold](handling-errors.qmd#failure-threshold) |
 +------------------+-------------------------------------------------------------------------------------------------+-----------------------------------------------------------+
-| `message_limit`\ | Limits to apply to sample execution.                                                            | [Sample Limits](errors-and-limits.qmd#sample-limits)      |
+| `message_limit`\ | Limits to apply to sample execution.                                                            | [Sample Limits](setting-limits.qmd#sample-limits)      |
 | `token_limit`\   |                                                                                                 |                                                           |
 | `time_limit`\    |                                                                                                 |                                                           |
 | `working_limit`  |                                                                                                 |                                                           |
@@ -123,6 +124,10 @@ Reference this file from the CLI with:
 ``` bash
 inspect eval security.py --task-config=config.yaml
 ```
+
+If you want to bundle task parameters together with model, generation, and solver settings in a single file, use `--run-config` instead. See [Run Config File](task-configuration.qmd#run-config).
+
+For a broader view of how task parameters relate to `task_with()`, environment variables, `eval()`, and CLI overrides, see [Task Configuration](task-configuration.qmd).
 
 ## Solvers {#solvers}
 
@@ -270,6 +275,10 @@ Note that like solvers, cleanup functions should be `async`.
 The basic mechanism for task re-use is to create flexible and adaptable base `@task` functions (which often have many parameters) and then derive new higher-level tasks from them by creating additional `@task` functions that call the base function.
 
 In some cases though you might not have full control over the base `@task` function (e.g. it's published in a Python package you aren't the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the `task_with()` function, which provides a straightforward way to modify the properties of an existing task.
+
+::: {.callout-tip}
+For a comprehensive reference on all configuration and override mechanisms --- including `task_with()`, `eval()` overrides, CLI flags, and precedence rules --- see [Task Configuration](task-configuration.qmd).
+:::
 
 For example, imagine you are dealing with a `Task` that hard-codes its `sandbox` to a particular Dockerfile included with the task, and further hard codes its `solver` to a simple agent:
 

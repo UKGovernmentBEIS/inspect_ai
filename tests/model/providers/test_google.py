@@ -1,15 +1,20 @@
 import asyncio
 import base64
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 from google.genai.types import (
+    Blob,
     Candidate,
     Content,
     FinishReason,
     FunctionCall,
     FunctionCallingConfigMode,
     GenerateContentResponse,
+    HttpOptions,
+    JobState,
     Part,
 )
 from test_helpers.utils import skip_if_no_google
@@ -20,13 +25,14 @@ from inspect_ai._util.content import (
     Content as InspectContent,
 )
 from inspect_ai._util.content import (
+    ContentImage,
     ContentReasoning,
     ContentText,
 )
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageAssistant, ChatMessageTool
 from inspect_ai.model._chat_message import ChatMessageUser
-from inspect_ai.model._generate_config import GenerateConfig
+from inspect_ai.model._generate_config import BatchConfig, GenerateConfig
 from inspect_ai.model._providers._google_citations import (
     distribute_citations_to_text_parts,
 )
@@ -37,9 +43,16 @@ from inspect_ai.model._providers.google import (
     completion_choice_from_candidate,
     content,
 )
+from inspect_ai.model._providers.util.hooks import HttpHooks
 from inspect_ai.scorer import includes
 from inspect_ai.solver import use_tools
-from inspect_ai.tool import ToolCall, ToolInfo, ToolParam, ToolParams, tool
+from inspect_ai.tool import (
+    ToolCall,
+    ToolInfo,
+    ToolParam,
+    ToolParams,
+    tool,
+)
 
 
 @skip_if_no_google
@@ -68,7 +81,7 @@ def test_google_block_reason():
             # TODO: we can't seem to get a content filter to trigger!
             dataset=[Sample(input="you are a shameful model")],
         ),
-        model="google/gemini-2.0-flash",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(safety_settings=safety_settings),
     )[0]
     # TODO: comment in once we have an input that triggers the filter
@@ -147,6 +160,47 @@ def test_completion_choice_multiple_function_calls():
         assert call.id.startswith("calculator_"), (
             f"ID should start with function name: {call.id}"
         )
+
+
+def test_completion_choice_inline_data_image():
+    """Test that inline_data image parts are converted to ContentImage."""
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(text="Here is the image:"),
+                Part(inline_data=Blob(mime_type="image/png", data=b"fake_png_data")),
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+    choice = completion_choice_from_candidate("test-model", candidate)
+    content = choice.message.content
+    assert isinstance(content, list)
+    assert len(content) == 2
+    assert isinstance(content[0], ContentText)
+    assert content[0].text == "Here is the image:"
+    assert isinstance(content[1], ContentImage)
+    assert content[1].image.startswith("data:image/png;base64,")
+
+
+def test_completion_choice_inline_data_only():
+    """Test that a response with only inline_data (no text) works."""
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(inline_data=Blob(mime_type="image/jpeg", data=b"fake_jpeg")),
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+    choice = completion_choice_from_candidate("test-model", candidate)
+    content = choice.message.content
+    assert isinstance(content, list)
+    assert len(content) == 1
+    assert isinstance(content[0], ContentImage)
+    assert content[0].image.startswith("data:image/jpeg;base64,")
 
 
 def test_distribute_citations_single_text_part():
@@ -537,6 +591,23 @@ def _create_mock_google_client(mock_generate: AsyncMock) -> MagicMock:
     return mock_client
 
 
+def _create_mock_google_count_tokens_client(total_tokens: int = 7) -> MagicMock:
+    mock_client = MagicMock()
+    mock_client.aio.__aenter__ = AsyncMock(return_value=mock_client.aio)
+    mock_client.aio.__aexit__ = AsyncMock(return_value=None)
+    mock_client.aio.models.count_tokens = AsyncMock(
+        return_value=MagicMock(total_tokens=total_tokens)
+    )
+    mock_client._api_client._async_httpx_client = MagicMock()
+    return mock_client
+
+
+def _client_http_options(client_mock: MagicMock) -> HttpOptions:
+    http_options = client_mock.call_args.kwargs["http_options"]
+    assert isinstance(http_options, HttpOptions)
+    return http_options
+
+
 def _create_malformed_response(
     finish_message: str | None = None,
 ) -> GenerateContentResponse:
@@ -582,6 +653,110 @@ def _create_test_tool() -> ToolInfo:
             required=["x"],
         ),
     )
+
+
+@pytest.mark.parametrize(
+    ("config", "expected_timeout"),
+    [
+        (GenerateConfig(), 3_600_000),
+        (GenerateConfig(timeout=123), 123_000),
+        (GenerateConfig(timeout=0), 0),
+    ],
+)
+@pytest.mark.anyio
+async def test_google_generate_http_timeout(
+    config: GenerateConfig, expected_timeout: int
+) -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=config,
+        )
+
+    http_options = _client_http_options(client)
+    assert http_options.timeout == expected_timeout
+
+
+@pytest.mark.anyio
+async def test_google_batcher_client_uses_default_http_timeout() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        config = GenerateConfig(batch=BatchConfig(size=1))
+
+        api._resolve_batcher(config, api._http_options(config))
+
+        assert api._batcher is not None
+        assert api._batcher._client is mock_client
+
+    http_options = client.call_args.kwargs["http_options"]
+    assert http_options.timeout == 3_600_000
+
+
+@pytest.mark.anyio
+async def test_google_count_tokens_none_config_uses_default_http_timeout() -> None:
+    mock_client = _create_mock_google_count_tokens_client()
+
+    with patch(
+        "inspect_ai.model._providers.google.Client", return_value=mock_client
+    ) as client:
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        tokens = await api.count_tokens("Hello")
+
+    assert tokens == 7
+    http_options = _client_http_options(client)
+    assert http_options.timeout == 3_600_000
+
+
+@pytest.mark.anyio
+async def test_google_generate_preserves_request_extra_headers() -> None:
+    mock_generate = AsyncMock(return_value=GenerateContentResponse(candidates=[]))
+    mock_client = _create_mock_google_client(mock_generate)
+
+    with patch("inspect_ai.model._providers.google.Client", return_value=mock_client):
+        api = GoogleGenAIAPI(
+            model_name="gemini-2.0-flash",
+            base_url=None,
+            api_key="test-key",
+        )
+
+        await api.generate(
+            input=[ChatMessageUser(content="Hello")],
+            tools=[],
+            tool_choice="none",
+            config=GenerateConfig(extra_headers={"x-test-header": "present"}),
+        )
+
+    request_config = mock_generate.call_args.kwargs["config"]
+    assert request_config.http_options.headers["x-test-header"] == "present"
+    assert HttpHooks.REQUEST_ID_HEADER in request_config.http_options.headers
 
 
 @pytest.mark.anyio
@@ -709,7 +884,7 @@ async def test_google_count_tokens_single_tool_call() -> None:
     """Test counting tokens for a single assistant message with one tool call."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-2.0-flash")
+    model = get_model("google/gemini-3.1-flash-lite")
 
     # Create an assistant message with a single tool call (no tool result)
     assistant_msg = ChatMessageAssistant(
@@ -734,7 +909,7 @@ async def test_google_count_tokens_multiple_tool_calls() -> None:
     """Test counting tokens for a single assistant message with multiple tool calls."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-2.0-flash")
+    model = get_model("google/gemini-3.1-flash-lite")
 
     # Create an assistant message with multiple tool calls (no tool results)
     assistant_msg = ChatMessageAssistant(
@@ -769,7 +944,7 @@ async def test_google_count_tokens_single_tool_result() -> None:
     """Test counting tokens for a single tool result message (no preceding tool use)."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-2.0-flash")
+    model = get_model("google/gemini-3.1-flash-lite")
 
     # Create a tool result message without a preceding assistant message
     tool_msg = ChatMessageTool(
@@ -791,7 +966,7 @@ def test_google_streaming_basic():
             dataset=[Sample(input="Say hello in one sentence", target="hello")],
             scorer=includes(),
         ),
-        model="google/gemini-2.0-flash",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(streaming=True),
     )[0]
 
@@ -824,7 +999,7 @@ def test_google_streaming_with_tools():
             solver=use_tools([add]),
             scorer=includes(),
         ),
-        model="google/gemini-2.0-flash",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(streaming=True),
     )[0]
 
@@ -844,7 +1019,7 @@ def test_google_streaming_large_output():
             ],
             scorer=includes(),
         ),
-        model="google/gemini-2.0-flash",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(streaming=True),
         max_tokens=4096,
     )[0]
@@ -866,7 +1041,7 @@ def test_google_streaming_captures_reasoning_summaries():
             ],
             scorer=includes(),
         ),
-        model="google/gemini-3-pro-preview",
+        model="google/gemini-3.1-pro-preview",
         model_args=dict(streaming=True),
     )[0]
 
@@ -888,3 +1063,264 @@ def test_google_streaming_captures_reasoning_summaries():
     assert all(r.redacted for r in reasoning_blocks), (
         "All reasoning blocks should be redacted"
     )
+
+
+class _AlarmTimeout(Exception):
+    pass
+
+
+def _alarm_handler(signum: int, frame: object) -> None:
+    raise _AlarmTimeout
+
+
+@skip_if_no_google
+def test_google_batch_with_thinking_model():
+    """Batch submission should not reject thinking_config (issue #3257).
+
+    Bug: eval() raises immediately with 'no such field: thinking_config'.
+    Fixed: eval() blocks on batch completion, alarm fires after 4s, test passes.
+    """
+    import signal
+
+    from inspect_ai.model._generate_config import BatchConfig
+
+    old_handler = signal.signal(signal.SIGALRM, _alarm_handler)
+    signal.alarm(4)
+    try:
+        eval(
+            Task(
+                dataset=[Sample(input="What is 2+2?", target="4")],
+                scorer=includes(),
+            ),
+            model="google/gemini-2.5-flash",
+            batch=BatchConfig(size=1, send_delay=0, tick=0.1),
+            fail_on_error=True,
+        )
+    except _AlarmTimeout:
+        pass  # submission succeeded, batch just didn't complete
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old_handler)
+
+
+def _make_batcher_and_batch(job_state: JobState) -> tuple:
+    from datetime import datetime, timezone
+
+    from google.genai.types import BatchJob, BatchJobDestination
+
+    from inspect_ai.model._generate_config import BatchConfig
+    from inspect_ai.model._providers._google_batch import GoogleBatcher
+    from inspect_ai.model._providers.util.batch import Batch, BatchRequest
+    from inspect_ai.model._retry import model_retry_config
+
+    client = MagicMock()
+    mock_batch_job = BatchJob(
+        name="batch-123",
+        state=job_state,
+        create_time=datetime.now(tz=timezone.utc),
+        dest=BatchJobDestination(file_name="files/result-123"),
+    )
+    client.aio.batches.get = AsyncMock(return_value=mock_batch_job)
+
+    batcher = GoogleBatcher(
+        client=client,
+        config=BatchConfig(),
+        retry_config=model_retry_config(
+            "test", 3, None, lambda e: True, lambda ex: None, lambda m, s: None
+        ),
+        model_name="gemini-2.0-flash",
+    )
+
+    send_stream = MagicMock()
+    req: BatchRequest[Any] = BatchRequest(
+        request={},
+        result_stream=send_stream,
+        custom_id="req-1",
+    )
+    batch = Batch(id="batch-123", requests={"req-1": req})
+    return batcher, batch
+
+
+@pytest.mark.parametrize(
+    "state,expect_completed,expect_failed,expect_completion_info",
+    [
+        pytest.param("JOB_STATE_PENDING", False, False, False, id="pending"),
+        pytest.param("JOB_STATE_RUNNING", False, False, False, id="running"),
+        pytest.param("JOB_STATE_SUCCEEDED", True, False, True, id="succeeded"),
+        pytest.param(
+            "JOB_STATE_PARTIALLY_SUCCEEDED",
+            True,
+            False,
+            True,
+            id="partially-succeeded",
+        ),
+        pytest.param("JOB_STATE_FAILED", False, True, False, id="failed"),
+        pytest.param("JOB_STATE_CANCELLED", False, True, False, id="cancelled"),
+        pytest.param("JOB_STATE_EXPIRED", False, True, False, id="expired"),
+    ],
+)
+@pytest.mark.anyio
+async def test_check_batch_terminal_states(
+    state: str,
+    expect_completed: bool,
+    expect_failed: bool,
+    expect_completion_info: bool,
+) -> None:
+    """_check_batch must map all terminal JobStates so polling terminates."""
+    job_state = getattr(JobState, state)
+    batcher, batch = _make_batcher_and_batch(job_state)
+    result = await batcher._check_batch(batch)
+
+    if expect_completed:
+        assert result.completed_count > 0, f"{state} should report completed"
+    if expect_failed:
+        assert result.failed_count > 0, f"{state} should report failed"
+    if not expect_completed and not expect_failed:
+        assert result.completed_count == 0 and result.failed_count == 0
+    assert (result.completion_info is not None) == expect_completion_info
+
+
+async def test_image_generation_round_trip():
+    """Test that an image generated by Google round-trips through assistant message → API input."""
+    # Step 1: Simulate model returning an image via inline_data
+    image_bytes = b"\x89PNG\r\n\x1a\nfake_png_data"
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(text="Here is your image:"),
+                Part(inline_data=Blob(mime_type="image/png", data=image_bytes)),
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+    choice = completion_choice_from_candidate("test-model", candidate)
+    msg_content = choice.message.content
+    assert isinstance(msg_content, list)
+
+    # Verify we got text + image
+    texts = [c for c in msg_content if isinstance(c, ContentText)]
+    images = [c for c in msg_content if isinstance(c, ContentImage)]
+    assert len(texts) == 1
+    assert len(images) == 1
+    assert images[0].image.startswith("data:image/png;base64,")
+
+    # Step 2: Build assistant message and convert back to Google Content
+    assistant_msg = ChatMessageAssistant(
+        content=msg_content,
+        model="test-model",
+        source="generate",
+    )
+    google_content = await content(MagicMock(), assistant_msg)
+
+    # Verify the round-tripped content has both parts
+    assert google_content.role == "model"
+    assert len(google_content.parts) == 2
+
+    # First part should be text
+    assert google_content.parts[0].text == "Here is your image:"
+
+    # Second part should be the image as inline_data with the original bytes
+    blob = google_content.parts[1].inline_data
+    assert blob is not None
+    assert blob.mime_type == "image/png"
+    assert blob.data == image_bytes
+
+
+async def test_image_only_round_trip():
+    """Test round-trip for an image-only response (no text)."""
+    image_bytes = b"\xff\xd8\xff\xe0fake_jpeg"
+    candidate = Candidate(
+        content=Content(
+            role="model",
+            parts=[
+                Part(inline_data=Blob(mime_type="image/jpeg", data=image_bytes)),
+            ],
+        ),
+        finish_reason=FinishReason.STOP,
+    )
+    choice = completion_choice_from_candidate("test-model", candidate)
+    msg_content = choice.message.content
+    assert isinstance(msg_content, list)
+    assert len(msg_content) == 1
+    assert isinstance(msg_content[0], ContentImage)
+
+    # Round-trip through assistant message
+    assistant_msg = ChatMessageAssistant(
+        content=msg_content,
+        model="test-model",
+        source="generate",
+    )
+    google_content = await content(MagicMock(), assistant_msg)
+
+    assert google_content.role == "model"
+    assert len(google_content.parts) == 1
+    blob = google_content.parts[0].inline_data
+    assert blob is not None
+    assert blob.mime_type == "image/jpeg"
+    assert blob.data == image_bytes
+
+
+async def test_image_in_user_follow_up():
+    """Test that an image from a model response can be sent back as user input."""
+    # Model generates an image
+    image_bytes = b"\x89PNG\r\n\x1a\ntest_image"
+    b64 = base64.b64encode(image_bytes).decode()
+    data_uri = f"data:image/png;base64,{b64}"
+
+    # User sends the image back in a follow-up message
+    user_msg = ChatMessageUser(
+        content=[
+            ContentText(text="What's in this image?"),
+            ContentImage(image=data_uri),
+        ]
+    )
+    google_content = await content(MagicMock(), user_msg)
+
+    assert google_content.role == "user"
+    assert len(google_content.parts) == 2
+
+    # First part is text
+    assert google_content.parts[0].text == "What's in this image?"
+
+    # Second part is the image data
+    blob = google_content.parts[1].inline_data
+    assert blob is not None
+    assert blob.mime_type == "image/png"
+    assert blob.data == image_bytes
+
+
+@pytest.mark.parametrize(
+    "exception_factory",
+    [
+        lambda: aiohttp.ClientOSError(103, "Software caused connection abort"),
+        lambda: aiohttp.ServerDisconnectedError(),
+        lambda: aiohttp.ClientConnectorError(MagicMock(), OSError("connect failed")),
+        lambda: asyncio.TimeoutError(),
+    ],
+)
+def test_should_retry_aiohttp_transport_errors(exception_factory):
+    from inspect_ai.model._model import RetryDecision
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    decision = api.should_retry(exception_factory())
+
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry
+    assert decision.kind == "transient"
+
+
+def test_should_retry_unrelated_error_not_retried():
+    from inspect_ai.model._model import RetryDecision
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    decision = api.should_retry(ValueError("bad input"))
+
+    assert isinstance(decision, RetryDecision)
+    assert not decision.retry

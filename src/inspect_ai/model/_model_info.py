@@ -10,7 +10,11 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from inspect_ai.model._model_data.model_data import ModelInfo, read_model_info
+from inspect_ai.model._model_data.model_data import (
+    ModelCost,
+    ModelInfo,
+    read_model_info,
+)
 
 if TYPE_CHECKING:
     from inspect_ai.model._model import Model  # noqa: F401
@@ -20,6 +24,13 @@ _custom_models: dict[str, ModelInfo] = {}
 
 # Cached model info database
 _model_info_cache: dict[str, ModelInfo] | None = None
+
+# Memoized results of get_model_info() keyed by input identifier (string name
+# or Model.canonical_name()). Includes negative results so failed lookups -
+# which run a full fuzzy scan and may instantiate a provider SDK - aren't
+# repeated on every turn. Invalidated by set_model_info, set_model_cost, and
+# clear_model_info_cache.
+_result_cache: dict[str, ModelInfo | None] = {}
 
 
 def _get_model_info_db() -> dict[str, ModelInfo]:
@@ -266,6 +277,22 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
         ```
     """
     # Import here to avoid circular imports
+    from inspect_ai.model._model import Model
+
+    # Cache key: the input identifier as the caller passed it. Model
+    # instances key on their canonical_name() so different instances
+    # representing the same model share an entry.
+    cache_key = model.canonical_name() if isinstance(model, Model) else model
+    if cache_key in _result_cache:
+        return _result_cache[cache_key]
+
+    result = _resolve_model_info(model)
+    _result_cache[cache_key] = result
+    return result
+
+
+def _resolve_model_info(model: str | Model) -> ModelInfo | None:
+    # Import here to avoid circular imports
     from inspect_ai.model._model import Model, get_model
 
     # Get the database
@@ -308,6 +335,15 @@ def get_model_info(model: str | Model) -> ModelInfo | None:
         return None
 
 
+def get_model_input_tokens(model: Model) -> int | None:
+    model_name = model.input_tokens_name()
+    model_info = get_model_info(model_name)
+    if model_info:
+        return model_info.input_tokens
+    else:
+        return None
+
+
 def set_model_info(model: str, info: ModelInfo) -> None:
     """Set custom model information for models not in the database.
 
@@ -333,6 +369,24 @@ def set_model_info(model: str, info: ModelInfo) -> None:
         ```
     """
     _custom_models[model] = info
+    _result_cache.clear()
+
+
+def set_model_cost(model: str, cost: ModelCost) -> None:
+    """Set cost data for a model already in the database.
+
+    Looks up the model and updates its cost field. Raises if
+    the model is not found in the database or custom registry.
+
+    Args:
+        model: Model name (e.g. "openai/gpt-4o")
+        cost: ModelCost with pricing per million tokens.
+    """
+    info = get_model_info(model)
+    if info is None:
+        raise ValueError(f"Model '{model}' not found.")
+    _custom_models[model] = info.model_copy(update={"cost": cost})
+    _result_cache.clear()
 
 
 def clear_model_info_cache() -> None:
@@ -344,3 +398,5 @@ def clear_model_info_cache() -> None:
     global _model_info_cache, _lookup_index
     _model_info_cache = None
     _lookup_index = None
+    _custom_models.clear()
+    _result_cache.clear()

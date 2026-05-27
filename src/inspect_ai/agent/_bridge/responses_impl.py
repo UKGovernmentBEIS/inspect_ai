@@ -103,6 +103,7 @@ from inspect_ai.model._openai_responses import (
     is_function_call_output,
     is_function_tool_param,
     is_mcp_tool_param,
+    is_namespace_tool_param,
     is_response_code_interpreter_call,
     is_response_computer_tool_call,
     is_response_custom_tool_call,
@@ -132,7 +133,7 @@ from inspect_ai.model._openai_responses import (
     web_search_to_tool_use,
 )
 from inspect_ai.model._providers._openai_computer_use import (
-    tool_call_arguments_to_action,
+    tool_call_arguments_to_actions,
     tool_call_from_openai_computer_tool_call,
 )
 from inspect_ai.model._reasoning import (
@@ -169,27 +170,46 @@ logger = getLogger(__name__)
 
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
+    headers: dict[str, str] | None,
     web_search: WebSearchProviders,
     code_execution: CodeExecutionProviders,
     bridge: AgentBridge,
 ) -> Response:
     # resolve model
     bridge_model_name = str(json_data["model"])
-    model = resolve_inspect_model(bridge_model_name)
+    model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
     model_name = model.api.model_name
     is_openai = ModelName(model).api == "openai"
 
     # record parallel tool calls
     parallel_tool_calls = json_data.get("parallel_tool_calls", True)
 
-    # convert openai tools to inspect tools (don't pass custom tools on to
-    # non openai models as they don't know how to handle them)
+    # validate computer use compatibility
     responses_tools: list[ToolParam] = json_data.get("tools", [])
-    tools = [
-        tool_from_responses_tool(tool, web_search, code_execution)
-        for tool in responses_tools
-        if is_openai or tool["type"] != "custom"
-    ]
+    has_computer_use = any(is_computer_tool_param(tool) for tool in responses_tools)
+    if has_computer_use and not is_openai:
+        raise RuntimeError(
+            f"computer use with the OpenAI Responses agent bridge requires an "
+            f"OpenAI model, got '{ModelName(model)}'"
+        )
+
+    # convert openai tools to inspect tools (don't pass custom tools on to
+    # non openai models as they don't know how to handle them). Track which
+    # tool names belong to a namespace so we can restore the `namespace`
+    # field on outgoing ResponseFunctionToolCalls (codex-cli dispatches by
+    # (namespace, name) and would reject calls with a missing namespace).
+    tools: list[ToolInfo | Tool] = []
+    tool_namespaces: dict[str, str] = {}
+    for tool in responses_tools:
+        if not is_openai and tool["type"] == "custom":
+            continue
+        if is_namespace_tool_param(tool):
+            ns_name = tool["name"]
+            for inner in tool.get("tools", []):
+                inner_name = cast(dict[str, Any], inner).get("name")
+                if isinstance(inner_name, str):
+                    tool_namespaces[inner_name] = ns_name
+        tools.extend(tools_from_responses_tool(tool, web_search, code_execution))
     tools = [tool for tool in tools if tool]
     responses_tool_choice: ResponsesToolChoiceParam | None = json_data.get(
         "tool_choice", None
@@ -206,6 +226,7 @@ async def inspect_responses_api_request_impl(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_openai_responses(json_data)
+    config.extra_headers = headers
     if config.system_message:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
         config.system_message = None
@@ -235,7 +256,9 @@ async def inspect_responses_api_request_impl(
         incomplete_details=responses_incomplete_details(output.stop_reason),
         model=model_name,
         object="response",
-        output=responses_output_items_from_assistant_message(output.message),
+        output=responses_output_items_from_assistant_message(
+            output.message, tool_namespaces
+        ),
         parallel_tool_calls=parallel_tool_calls,
         tool_choice=responses_tool_choice_param_to_tool_choice(responses_tool_choice),
         tools=responses_tool_params_to_tools(responses_tools),
@@ -353,6 +376,37 @@ def tool_from_responses_tool(
         )
     else:
         raise RuntimeError(f"ToolParam of type {tool_param.get('type')} not supported.")
+
+
+def tools_from_responses_tool(
+    tool_param: ToolParam,
+    web_search_providers: WebSearchProviders,
+    code_execution_providers: CodeExecutionProviders,
+) -> list[ToolInfo | Tool]:
+    """Convert a responses ToolParam into zero or more inspect tools.
+
+    NamespaceToolParam groups multiple function/custom tools under one
+    logical container; it is flattened into its constituent tools. The
+    enclosing namespace name is tracked separately by the caller and
+    restored on outgoing ResponseFunctionToolCall.namespace so that
+    scaffolds (e.g. codex-cli) which dispatch by (namespace, name) can
+    locate the tool on the return trip.
+    """
+    if is_namespace_tool_param(tool_param):
+        flattened: list[ToolInfo | Tool] = []
+        for inner in tool_param.get("tools", []):
+            inner_param = cast(ToolParam, inner)
+            flattened.append(
+                tool_from_responses_tool(
+                    inner_param, web_search_providers, code_execution_providers
+                )
+            )
+        return flattened
+    return [
+        tool_from_responses_tool(
+            tool_param, web_search_providers, code_execution_providers
+        )
+    ]
 
 
 def resolve_code_interpreter_providers(
@@ -637,11 +691,11 @@ def messages_from_responses_input(
                     content.append(reasoning_from_responses_reasoning(param))
                 elif is_response_web_search_call(param):
                     ensure_id(param, "ws")
-                    # Workaround for OpenAI server implementation change
-                    # https://github.com/openai/openai-java/issues/526
+                    # Backwards compat: older SDK data may use "find" instead of
+                    # "find_in_page". https://github.com/openai/openai-java/issues/526
                     action = param["action"]
-                    if action["type"] == "find_in_page":  # type: ignore[comparison-overlap]
-                        action["type"] = "find"
+                    if action["type"] == "find":  # type: ignore[comparison-overlap]
+                        action["type"] = "find_in_page"
                     web_search = ResponseFunctionWebSearch.model_validate(param)
                     content.append(web_search_to_tool_use(web_search))
                 elif is_response_code_interpreter_call(param):
@@ -803,6 +857,7 @@ mcp_tool_adapter = TypeAdapter(list[McpListToolsTool])
 
 def responses_output_items_from_assistant_message(
     message: ChatMessageAssistant,
+    tool_namespaces: dict[str, str] | None = None,
 ) -> list[ResponseOutputItem]:
     output: list[ResponseOutputItem] = []
     # normalize message content to list
@@ -897,7 +952,7 @@ def responses_output_items_from_assistant_message(
                 ResponseComputerToolCall(
                     id=uuid(),
                     type="computer_call",
-                    action=tool_call_arguments_to_action(tool_call.arguments),
+                    actions=tool_call_arguments_to_actions(tool_call.arguments),
                     call_id=tool_call.id,
                     pending_safety_checks=[],
                     status="completed",
@@ -913,12 +968,14 @@ def responses_output_items_from_assistant_message(
                 )
             )
         else:
+            namespace = (tool_namespaces or {}).get(tool_call.function)
             output.append(
                 ResponseFunctionToolCall(
                     type="function_call",
                     call_id=tool_call.id,
                     name=tool_call.function,
                     arguments=json.dumps(tool_call.arguments),
+                    namespace=namespace,
                 )
             )
 

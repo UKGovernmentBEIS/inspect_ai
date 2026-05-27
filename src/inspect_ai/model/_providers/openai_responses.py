@@ -1,6 +1,7 @@
 import json
+from collections.abc import Callable
 from logging import getLogger
-from typing import Any, Callable
+from typing import Any
 
 import anyio
 from openai import (
@@ -26,12 +27,16 @@ from tenacity import (
 
 from inspect_ai._util.httpx import httpx_should_retry, log_httpx_retry_attempt
 from inspect_ai._util.logger import warn_once
+from inspect_ai.log._samples import set_active_model_event_call
+from inspect_ai.model._generate_config import has_image_output
 from inspect_ai.model._providers._openai_batch import OpenAIBatcher
 from inspect_ai.tool import ToolChoice, ToolInfo
+from inspect_ai.tool._tools._computer._computer import is_computer_tool_info
+from inspect_ai.util._json import json_schema_dump
 
 from .._chat_message import ChatMessage
 from .._generate_config import GenerateConfig
-from .._model_call import ModelCall
+from .._model_call import ModelCall, as_error_response
 from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIResponseError,
@@ -60,7 +65,7 @@ def _fix_function_tool_parameters(response: Response) -> None:
     """
     from openai.types.responses import FunctionTool
 
-    for tool in response.tools:
+    for tool in response.tools if response.tools is not None else []:
         if isinstance(tool, FunctionTool) and isinstance(tool.parameters, str):
             try:
                 tool.parameters = json.loads(tool.parameters)
@@ -82,6 +87,7 @@ async def generate_responses(
     prompt_cache_retention: str | NotGiven,
     safety_identifier: str | NotGiven,
     responses_store: bool | None,
+    synthesize_phase: bool,
     model_info: ResponsesModelInfo,
     batcher: OpenAIBatcher[Response] | None,
     handle_bad_request: Callable[[APIStatusError], ModelOutput | Exception]
@@ -89,7 +95,7 @@ async def generate_responses(
 ) -> ModelOutput | tuple[ModelOutput | Exception, ModelCall]:
     # background in extra_body should be applied
     if background is None and config.extra_body:
-        background = config.extra_body.pop("background", None)
+        background = config.extra_body.get("background", None)
 
     # batch mode and background are incompatible
     if batcher:
@@ -98,32 +104,23 @@ async def generate_responses(
     # allocate request_id (so we can see it from ModelCall)
     request_id = http_hooks.start_request()
 
-    # setup request and response for ModelCall
-    request: dict[str, Any] = {}
-    response: dict[str, Any] = {}
-
-    def model_call() -> ModelCall:
-        return ModelCall.create(
-            request=request,
-            response=response,
-            # TODO: is this the right filter?
-            filter=openai_media_filter,
-            time=http_hooks.end_request(request_id),
-        )
-
     # prepare request (we do this so we can log the ModelCall)
     tool_params = (
         openai_responses_tools(tools, model_name, config)
-        if len(tools) > 0
+        if len(tools) > 0 or has_image_output(config.modalities)
         else NOT_GIVEN
     )
+
     request = dict(
-        input=await openai_responses_inputs(input, model_info),
+        input=await openai_responses_inputs(
+            input, model_info, synthesize_phase=synthesize_phase
+        ),
         tools=tool_params,
         tool_choice=openai_responses_tool_choice(tool_choice, tool_params)
-        if isinstance(tool_params, list) and tool_choice != "auto"
+        if isinstance(tool_params, list) and tool_choice != "auto" and len(tools) > 0
         else NOT_GIVEN,
-        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id},
+        extra_headers={HttpxHooks.REQUEST_ID_HEADER: request_id}
+        | (config.extra_headers or {}),
         **completion_params_responses(
             model_name,
             model_info=model_info,
@@ -135,10 +132,16 @@ async def generate_responses(
             responses_store=responses_store,
             tools=len(tools) > 0,
             tool_params=[] if isinstance(tool_params, NotGiven) else tool_params,
+            has_computer_tool=any(is_computer_tool_info(t) for t in tools),
         ),
     )
     if isinstance(background, bool):
         request["background"] = background
+
+    model_call = set_active_model_event_call(
+        request=request,
+        filter=openai_media_filter,
+    )
 
     try:
         # generate response
@@ -157,16 +160,31 @@ async def generate_responses(
 
         # check for error
         if model_response.error is not None:
-            raise OpenAIResponseError(
-                code=model_response.error.code, message=model_response.error.message
-            )
+            # check for content filter
+            if model_response.error.code == "invalid_prompt":
+                model_call.set_error(
+                    as_error_response(model_response.error),
+                    http_hooks.end_request(request_id),
+                )
+                return ModelOutput.from_content(
+                    model=model_name,
+                    content=model_response.error.message,
+                    stop_reason="content_filter",
+                ), model_call
+            else:
+                raise OpenAIResponseError(
+                    code=model_response.error.code, message=model_response.error.message
+                )
 
         # save response for model_call
         _fix_function_tool_parameters(model_response)
-        # Use warnings=False to suppress Pydantic serialization warnings for unknown
-        # action types like 'find_in_page' that the SDK doesn't support yet.
+        # Use warnings=False to suppress Pydantic serialization warnings for
+        # action types the SDK may not yet support.
         # See: https://github.com/pydantic/pydantic-ai/issues/3653
-        response = model_response.model_dump(warnings=False)
+        model_call.set_response(
+            model_response.model_dump(warnings=False),
+            http_hooks.end_request(request_id),
+        )
 
         # parse out choices
         choices = openai_responses_chat_choices(model_name, model_response, tools)
@@ -176,27 +194,34 @@ async def generate_responses(
             model=model_response.model,
             choices=choices,
             usage=model_usage_from_response(model_response),
-        ), model_call()
+        ), model_call
     except BadRequestError as e:
+        model_call.set_error(
+            as_error_response(e.body), http_hooks.end_request(request_id)
+        )
         if handle_bad_request:
-            return handle_bad_request(e), model_call()
+            return handle_bad_request(e), model_call
         else:
-            return openai_handle_bad_request(model_name, e), model_call()
+            return openai_handle_bad_request(model_name, e), model_call
 
 
 def model_usage_from_response(model_response: Response) -> ModelUsage | None:
-    return (
-        ModelUsage(
-            input_tokens=model_response.usage.input_tokens,
-            output_tokens=model_response.usage.output_tokens,
-            input_tokens_cache_read=(
-                model_response.usage.input_tokens_details.cached_tokens
-            ),
-            reasoning_tokens=model_response.usage.output_tokens_details.reasoning_tokens,
-            total_tokens=model_response.usage.total_tokens,
-        )
-        if model_response.usage
-        else None
+    if model_response.usage is None:
+        return None
+    cached_tokens = (
+        model_response.usage.input_tokens_details.cached_tokens
+        if model_response.usage.input_tokens_details is not None
+        and model_response.usage.input_tokens_details.cached_tokens is not None
+        else 0
+    )
+    return ModelUsage(
+        input_tokens=model_response.usage.input_tokens - cached_tokens,
+        output_tokens=model_response.usage.output_tokens,
+        input_tokens_cache_read=cached_tokens if cached_tokens > 0 else None,
+        reasoning_tokens=model_response.usage.output_tokens_details.reasoning_tokens
+        if model_response.usage.output_tokens_details is not None
+        else None,
+        total_tokens=model_response.usage.total_tokens,
     )
 
 
@@ -248,9 +273,8 @@ def completion_params_responses(
     responses_store: bool | None,
     tools: bool,
     tool_params: list[ToolParam],
+    has_computer_tool: bool,
 ) -> dict[str, Any]:
-    # TODO: we'll need a computer_use_preview bool for the 'include'
-    # and 'reasoning' parameters
     def unsupported_warning(param: str) -> None:
         warn_once(
             logger,
@@ -266,17 +290,22 @@ def completion_params_responses(
         params["prompt_cache_retention"] = prompt_cache_retention
     if isinstance(safety_identifier, str):
         params["safety_identifier"] = safety_identifier
-    if model_info.is_computer_use_preview():
-        params["truncation"] = "auto"
 
     # responses_store may have been specified in config.extra_body
     # (e.g. by a client talking to us through the agent bridge)
     if responses_store is None and config.extra_body and "store" in config.extra_body:
         responses_store = config.extra_body["store"]
 
+    if has_computer_tool and responses_store is not True:
+        warn_once(
+            logger,
+            "OpenAI computer use tool requires store=True; overriding store setting.",
+        )
+        responses_store = True
+
     if responses_store is not True:
         params["store"] = False
-        if model_info.has_reasoning_options() or model_info.is_computer_use_preview():
+        if model_info.has_reasoning_options():
             params["include"].append("reasoning.encrypted_content")
 
     if config.max_tokens is not None:
@@ -342,20 +371,30 @@ def completion_params_responses(
     ):
         params["parallel_tool_calls"] = config.parallel_tool_calls
 
-    if model_info.has_reasoning_options():
-        reasoning: dict[str, str] = {}
-        if config.reasoning_effort is not None:
-            reasoning["effort"] = config.reasoning_effort
-        if config.reasoning_summary != "none":
-            reasoning["summary"] = config.reasoning_summary or "auto"
-        if len(reasoning) > 0:
+    reasoning: dict[str, str] = {}
+    if config.reasoning_effort is not None:
+        # OpenAI's highest published effort is `xhigh`; map `max` to it so the
+        # request isn't rejected. Mirrors the mapping in
+        # `OpenAIAPI._get_reasoning_params_for_config`.
+        reasoning["effort"] = (
+            "xhigh" if config.reasoning_effort == "max" else config.reasoning_effort
+        )
+    if config.reasoning_summary != "none":
+        reasoning["summary"] = config.reasoning_summary or "auto"
+    if len(reasoning) > 0:
+        if model_info.has_reasoning_options():
             params["reasoning"] = reasoning
+        else:
+            warn_once(
+                logger,
+                f"reasoning options ignored for non-reasoning model {model_name}",
+            )
     if config.response_schema is not None:
         params["text"] = dict(
             format=ResponseFormatTextJSONSchemaConfigParam(
                 type="json_schema",
                 name=config.response_schema.name,
-                schema=config.response_schema.json_schema.model_dump(exclude_none=True),
+                schema=json_schema_dump(config.response_schema.json_schema),
                 description=config.response_schema.description
                 or config.response_schema.name,
                 strict=config.response_schema.strict,

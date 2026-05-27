@@ -7,6 +7,9 @@ grok:
       knowledge_cutoff_date: 2024-11-01
       context_length: 256000
       reasoning: True
+      # Grok 4 reasons but does not accept the `reasoning_effort` parameter.
+      # https://docs.x.ai/docs/guides/reasoning
+      reasoning_effort_default: fixed
       versions:
         grok-4-0709:
           snapshot: "0709"
@@ -32,6 +35,100 @@ grok:
       versions:
         grok-4-fast-non-reasoning-latest:
           snapshot: latest
+    grok-4-1-fast-non-reasoning:
+      display_name: "Grok 4.1 Fast Non-Reasoning"
+      release_date: 2025-11-19
+      knowledge_cutoff_date: 2024-11-01
+      context_length: 2000000
+      reasoning: False
+      versions:
+        grok-4-1-fast-non-reasoning-latest:
+          snapshot: latest
+    grok-4-1-fast-reasoning:
+      display_name: "Grok 4.1 Fast Reasoning"
+      release_date: 2025-11-19
+      knowledge_cutoff_date: 2024-11-01
+      context_length: 2000000
+      reasoning: True
+      aliases:
+        - grok-4-1-fast
+      versions:
+        grok-4-1-fast-reasoning-latest:
+          snapshot: latest
+    grok-4.20-non-reasoning:
+      display_name: "Grok 4.2 Non-Reasoning"
+      release_date: 2026-03-31
+      knowledge_cutoff_date: 2025-09-01
+      context_length: 2000000
+      reasoning: False
+      versions:
+        grok-4.20-0309-non-reasoning:
+          snapshot: "0309"
+          aliases:
+            - grok-4.20-non-reasoning
+            - grok-4.20-beta-non-reasoning
+            - grok-4.20-beta-latest-non-reasoning
+            - grok-4.20-experimental-beta-0304-non-reasoning
+            - grok-4.20-experimental-beta-non-reasoning-latest
+            - grok-4.20-beta-0309-non-reasoning
+            - grok-4.20-non-reasoning-gv2
+        grok-4.20-non-reasoning-latest:
+          snapshot: latest
+    grok-4.20:
+      display_name: "Grok 4.2"
+      release_date: 2026-03-31
+      knowledge_cutoff_date: 2025-09-01
+      context_length: 2000000
+      reasoning: True
+      versions:
+        grok-4.20-0309-reasoning:
+          snapshot: "0309"
+          aliases:
+            - grok-4.20
+            - grok-4.20-reasoning
+            - grok-4.20-0309
+            - grok-4.20-beta-0309-reasoning
+            - grok-4.20-beta
+            - grok-4.20-beta-0309
+            - grok-4.20-beta-latest
+            - grok-4.20-beta-latest-reasoning
+            - grok-4.20-beta-reasoning
+            - grok-4.20-experimental-beta-0304-reasoning
+            - grok-4.20-experimental-beta-0304
+            - grok-4.20-experimental-beta-reasoning-latest
+            - grok-4.20-experimental-beta-latest
+            - grok-4.20-reasoning-gv2
+        grok-4.20-reasoning-latest:
+          snapshot: latest
+    grok-4.20-multi-agent:
+      display_name: "Grok 4.20 Multi-Agent"
+      release_date: 2026-03-31
+      knowledge_cutoff_date: 2025-09-01
+      context_length: 2000000
+      reasoning: True
+      versions:
+        grok-4.20-multi-agent-0309:
+          snapshot: "0309"
+          aliases:
+            - grok-4.20-multi-agent
+            - grok-4.20-multi-agent-beta-latest
+            - grok-4.20-multi-agent-experimental-beta-0304
+            - grok-4.20-multi-agent-experimental-beta-latest
+            - grok-4.20-multi-agent-beta-0309
+        grok-4.20-multi-agent-latest:
+          snapshot: latest
+    grok-4.3:
+      display_name: "Grok 4.3"
+      release_date: 2026-04-17
+      knowledge_cutoff_date: 2025-12-01
+      context_length: 1000000
+      reasoning: True
+      # Grok 4.3 accepts reasoning_effort (none/low/medium/high) and defaults
+      # to `low`. https://docs.x.ai/developers/model-capabilities/text/reasoning
+      reasoning_effort_default: low
+      versions:
+        grok-4.3-latest:
+          snapshot: latest
     grok-3:
       display_name: "Grok 3"
       release_date: 2025-02-17
@@ -47,6 +144,10 @@ grok:
       release_date: 2025-02-17
       knowledge_cutoff_date: 2024-11-01
       context_length: 131072
+      reasoning: True
+      # Grok 3 Mini accepts reasoning_effort=low/high; defaults to `low`.
+      # https://docs.x.ai/docs/guides/reasoning
+      reasoning_effort_default: low
       versions:
         grok-3-mini-latest:
           snapshot: latest

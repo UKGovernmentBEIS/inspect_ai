@@ -51,6 +51,96 @@ class TestBedrockCanonicalName:
         assert api.canonical_name() == "some-model"
 
 
+class TestAzureAICanonicalName:
+    """Tests for AzureAI provider canonical_name()."""
+
+    @pytest.fixture
+    def mock_azureai_env(self, monkeypatch):
+        """Mock required AzureAI environment variables."""
+        monkeypatch.setenv("AZUREAI_API_KEY", "test-key")
+        monkeypatch.setenv("AZUREAI_BASE_URL", "https://test.azure.com/models")
+
+    def test_openai_model(self, mock_azureai_env):
+        """Test OpenAI model gets openai/ prefix."""
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        api = AzureAIAPI(model_name="gpt-4o")
+        assert api.canonical_name() == "openai/gpt-4o"
+
+    def test_openai_o_series(self, mock_azureai_env):
+        """Test OpenAI o-series model gets openai/ prefix."""
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        api = AzureAIAPI(model_name="o1-preview")
+        assert api.canonical_name() == "openai/o1-preview"
+
+    def test_mistral_model(self, mock_azureai_env):
+        """Test Mistral model gets mistral/ prefix."""
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        api = AzureAIAPI(model_name="Mistral-large-2411")
+        assert api.canonical_name() == "mistral/Mistral-large-2411"
+
+    def test_unknown_model(self, mock_azureai_env):
+        """Test unknown model returns as-is."""
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        api = AzureAIAPI(model_name="some-unknown-model")
+        assert api.canonical_name() == "some-unknown-model"
+
+    def test_explicit_org_prefix(self, mock_azureai_env):
+        """Test explicit org prefix: azureai/moonshotai/kimi-k2.5."""
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        api = AzureAIAPI(model_name="moonshotai/kimi-k2.5")
+        assert api.org_prefix == "moonshotai"
+        assert api.model_name == "moonshotai/kimi-k2.5"  # Full name preserved for logs
+        assert api.canonical_name() == "moonshotai/kimi-k2.5"
+
+    def test_explicit_org_overrides_auto_detection(self, mock_azureai_env):
+        """Test explicit org overrides auto-detection (e.g., custom org for OpenAI)."""
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        # Without explicit org, gpt-4o would be auto-detected as openai/
+        # With explicit org, user's org takes precedence
+        api = AzureAIAPI(model_name="my-custom-org/gpt-4o")
+        assert api.org_prefix == "my-custom-org"
+        assert api.model_name == "my-custom-org/gpt-4o"  # Full name preserved for logs
+        assert api.canonical_name() == "my-custom-org/gpt-4o"
+
+    def test_no_org_prefix_uses_auto_detection(self, mock_azureai_env):
+        """Test no org prefix falls back to auto-detection."""
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        api = AzureAIAPI(model_name="gpt-4o")
+        assert api.org_prefix is None
+        assert api.model_name == "gpt-4o"
+        assert api.canonical_name() == "openai/gpt-4o"
+
+    def test_service_model_name_strips_org_prefix(self, mock_azureai_env):
+        """Test service_model_name() returns name without org for API calls."""
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        api = AzureAIAPI(model_name="moonshotai/kimi-k2.5")
+        assert api.service_model_name() == "kimi-k2.5"
+
+    def test_service_model_name_unchanged_without_prefix(self, mock_azureai_env):
+        """Test service_model_name() unchanged when no org prefix."""
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        api = AzureAIAPI(model_name="gpt-4o")
+        assert api.service_model_name() == "gpt-4o"
+
+    def test_detection_uses_service_model_name(self, mock_azureai_env):
+        """Test detection methods use service_model_name(), not full model_name."""
+        from inspect_ai.model._providers.azureai import AzureAIAPI
+
+        # Even with org prefix, is_llama() should detect llama in the model name
+        api = AzureAIAPI(model_name="custom-org/llama-3-70b")
+        assert api.is_llama() is True
+        assert api.service_model_name() == "llama-3-70b"
+
+
 class TestOpenRouterCanonicalName:
     """Tests for OpenRouter provider canonical_name()."""
 

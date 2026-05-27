@@ -19,6 +19,16 @@ from .environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
 )
+from .events import SandboxTimeoutError
+from .exec_remote import (
+    ExecCompleted,
+    ExecOutput,
+    ExecRemoteAwaitableOptions,
+    ExecRemoteProcess,
+    ExecRemoteStreamingOptions,
+    ExecStderr,
+    ExecStdout,
+)
 from .limits import OutputLimitExceededError, SandboxEnvironmentLimits
 from .local import LocalSandboxEnvironment  # noqa: F401
 from .registry import sandboxenv
@@ -29,6 +39,13 @@ __all__ = [
     "ComposeConfig",
     "ComposeHealthcheck",
     "ComposeService",
+    "ExecCompleted",
+    "ExecOutput",
+    "ExecRemoteAwaitableOptions",
+    "ExecRemoteProcess",
+    "ExecRemoteStreamingOptions",
+    "ExecStderr",
+    "ExecStdout",
     "is_compose_yaml",
     "is_dockerfile",
     "OutputLimitExceededError",
@@ -40,6 +57,7 @@ __all__ = [
     "SandboxEnvironmentSpec",
     "SandboxEnvironmentType",
     "SandboxConnection",
+    "SandboxTimeoutError",
     "sandboxenv",
     "sandbox",
     "sandbox_with",

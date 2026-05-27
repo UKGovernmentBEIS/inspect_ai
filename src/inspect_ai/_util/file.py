@@ -1,5 +1,6 @@
 import datetime
 import io
+import logging
 import os
 import re
 import string
@@ -8,13 +9,12 @@ from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, BinaryIO, Iterator, Literal, cast, overload
-from urllib.parse import urlparse
+from urllib.parse import quote_from_bytes, urlparse
 
 import fsspec  # type: ignore  # type: ignore
 from fsspec.core import split_protocol  # type: ignore  # type: ignore
 from fsspec.implementations.local import make_path_posix  # type: ignore
 from pydantic import BaseModel, Field
-from s3fs import S3FileSystem  # type: ignore
 from shortuuid import uuid
 
 from inspect_ai._util._async import configured_async_backend, current_async_backend
@@ -25,6 +25,7 @@ from inspect_ai._util.azure import (
     is_azure_path,
 )
 from inspect_ai._util.error import PrerequisiteError
+from inspect_ai._util.trace import trace_message
 
 # https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem
 # https://filesystem-spec.readthedocs.io/en/latest/api.html#fsspec.generic.GenericFileSystem
@@ -272,7 +273,11 @@ class FileSystem:
         return isinstance(self.fs, fsspec.asyn.AsyncFileSystem)
 
     def is_s3(self) -> bool:
-        return isinstance(self.fs, S3FileSystem)
+        # match on the fsspec protocol instead of isinstance(S3FileSystem)
+        # so we don't pull in s3fs/aiobotocore at import time
+        protocol = self.fs.protocol
+        protocols = protocol if isinstance(protocol, tuple) else (protocol,)
+        return "s3" in protocols
 
     def put_file(self, lpath: str, rpath: str) -> None:
         self.fs.put_file(lpath, rpath)
@@ -379,7 +384,7 @@ def absolute_file_path(file: str) -> str:
     fs_scheme = urlparse(file).scheme
     if not fs_scheme and not os.path.isabs(file):
         file = Path(file).resolve().as_posix()
-    return file
+    return strip_trailing_sep(file)
 
 
 def to_uri(path_or_uri: str) -> str:
@@ -390,9 +395,19 @@ def to_uri(path_or_uri: str) -> str:
         # Already has a scheme, return as is
         return path_or_uri
 
-    # It's a file path, convert to URI
+    # It's a file path, convert to URI.
+    # Note: Path.as_uri() encodes @ as %40, but @ is valid in URI path
+    # components (RFC 3986) and the encoded form breaks round-tripping
+    # through filesystem()/local_path().
     path_obj = Path(path_or_uri).absolute()
-    return path_obj.as_uri()
+    return "file://" + quote_from_bytes(bytes(path_obj), safe="/:@")
+
+
+def local_path(filename: str) -> str:
+    """Convert a file:// URL to a local path, or return as-is."""
+    if filename.startswith("file://"):
+        return urlparse(filename).path
+    return filename
 
 
 def default_fs_options(file: str) -> dict[str, Any]:
@@ -489,15 +504,91 @@ def safe_filename(s: str, max_length: int = 255) -> str:
     return s
 
 
-# clean underscores, slashes, and : from the file name component so we can reliably
-# parse components out later without worrying about underscores
+# clean underscores, slashes, colons, and + from the file name component so we can
+# reliably parse components out later without worrying about underscores
 def clean_filename_component(component: str) -> str:
-    return component.replace("_", "-").replace("/", "-").replace(":", "-")
+    return (
+        component.replace("_", "-")
+        .replace("/", "-")
+        .replace(":", "-")
+        .replace("+", "-")
+    )
+
+
+def strip_trailing_sep(path: str) -> str:
+    """Remove trailing separators from a path, preserving the root.
+
+    Matches pathlib behavior: exactly ``//`` is preserved per POSIX,
+    any other all-separator path collapses to a single separator.
+    """
+    fs = filesystem(path)
+    stripped = path.rstrip(fs.sep)
+    if stripped:
+        return stripped
+    # All separators — preserve exactly "//" per POSIX, otherwise collapse
+    if path == fs.sep * 2:
+        return path
+    return fs.sep
+
+
+logger = logging.getLogger(__name__)
+
+
+async def cleanup_s3_sessions() -> None:
+    """Close cached S3FileSystem sessions to prevent 'Unclosed connector' errors.
+
+    s3fs caches S3FileSystem instances via fsspec's instance cache. Each holds an
+    aiobotocore client with an open aiohttp.ClientSession. At process exit, s3fs's
+    weakref finalizer fails to close these properly due to a bug in its close_session
+    method (it accesses _connector instead of _sessions on AIOHTTPSession), causing
+    aiohttp.ClientSession.__del__ to emit 'Unclosed client session' / 'Unclosed
+    connector' warnings. See https://github.com/fsspec/s3fs/issues/943
+
+    This function explicitly closes the sessions via the proper async cleanup path
+    and clears the instance cache so the weakref finalizer has nothing to do.
+    """
+    import sys
+
+    if "s3fs" not in sys.modules:
+        # s3fs was never imported so there can be no cached instances
+        return
+
+    from s3fs import S3FileSystem  # type: ignore
+
+    instances = list(S3FileSystem._cache.values())
+    if not instances:
+        return
+
+    try:
+        for instance in instances:
+            s3creator = getattr(instance, "_s3creator", None)
+            if s3creator is not None:
+                try:
+                    await s3creator.__aexit__(None, None, None)
+                except Exception:
+                    pass
+    finally:
+        try:
+            S3FileSystem.clear_instance_cache()
+        except Exception:
+            logger.warning("Failed to clear S3FileSystem instance cache", exc_info=True)
+        else:
+            trace_message(
+                logger,
+                "s3",
+                "Cleaned up %d cached S3FileSystem instance(s)",
+                len(instances),
+            )
 
 
 DEFAULT_FS_OPTIONS: dict[str, dict[str, Any]] = dict(
     # disable all S3 native caching
-    s3=dict(default_fill_cache=False, default_cache_type="none", cache_regions=False),
+    s3=dict(
+        default_fill_cache=False,
+        default_cache_type="none",
+        cache_regions=False,
+        config_kwargs={"signature_version": "s3v4"},
+    ),
     # Azure schemes (credentials resolved dynamically in default_fs_options)
     az=dict(),
     abfs=dict(),

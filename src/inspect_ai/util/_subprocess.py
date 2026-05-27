@@ -97,7 +97,8 @@ async def subprocess(
        cwd (str | Path | None): Switch to directory for execution.
        env (dict[str, str]): Additional environment variables.
        capture_output (bool): Capture stderr and stdout into ExecResult
-          (if False, then output is redirected to parent stderr/stdout)
+          (if False, then output is redirected to parent stderr/stdout
+          or to logging if INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER is set)
        output_limit (int | None): Maximum bytes to retain from stdout/stderr.
           If output exceeds this limit, only the most recent bytes are kept
           (older output is discarded). The process continues to completion.
@@ -122,11 +123,15 @@ async def subprocess(
     )
 
     async def run_command() -> Union[ExecResult[str], ExecResult[bytes]]:
+        redirect_output_to_logger = (
+            not capture_output
+            and os.environ.get("INSPECT_SUBPROCESS_REDIRECT_TO_LOGGER") is not None
+        )
         process = await open_process(
             args,
             stdin=PIPE if input else DEVNULL,
-            stdout=PIPE if capture_output else None,
-            stderr=PIPE if capture_output else None,
+            stdout=PIPE if (capture_output or redirect_output_to_logger) else None,
+            stderr=PIPE if (capture_output or redirect_output_to_logger) else None,
             cwd=cwd,
             env={**os.environ, **(env or {})},
         )
@@ -136,28 +141,15 @@ async def subprocess(
                 await process.stdin.send(input)
                 await process.stdin.aclose()
 
-            # read streams, using circular buffer if output_limit is set
-            async def read_stream(stream: ByteReceiveStream | None) -> bytes:
-                if stream is None:
-                    return bytes()
-
-                if output_limit is None:
-                    # No limit: use simple BytesIO
-                    bytesio = io.BytesIO()
-                    async for chunk in stream:
-                        bytesio.write(chunk)
-                    return bytesio.getvalue()
-                else:
-                    # Limited: use circular buffer to cap memory
-                    circular = CircularByteBuffer(output_limit)
-                    async for chunk in stream:
-                        circular.write(chunk)
-                    return circular.getvalue()
+            if redirect_output_to_logger:
+                consume = _log_stream
+            else:
+                consume = functools.partial(_read_stream, output_limit=output_limit)
 
             stdout, stderr = await tg_collect(
                 [
-                    functools.partial(read_stream, process.stdout),
-                    functools.partial(read_stream, process.stderr),
+                    functools.partial(consume, process.stdout),
+                    functools.partial(consume, process.stderr),
                 ]
             )
 
@@ -258,6 +250,37 @@ async def drain_stream(stream: ByteReceiveStream | None) -> None:
             pass
     except ClosedResourceError:
         pass
+
+
+async def _read_stream(
+    stream: ByteReceiveStream | None, *, output_limit: int | None = None
+) -> bytes:
+    if stream is None:
+        return bytes()
+    if output_limit is None:
+        bytesio = io.BytesIO()
+        async for chunk in stream:
+            bytesio.write(chunk)
+        return bytesio.getvalue()
+    else:
+        circular = CircularByteBuffer(output_limit)
+        async for chunk in stream:
+            circular.write(chunk)
+        return circular.getvalue()
+
+
+async def _log_stream(stream: ByteReceiveStream | None) -> bytes:
+    if stream is None:
+        return bytes()
+    buffer = bytes()
+    async for chunk in stream:
+        parts = (buffer + chunk).split(b"\n")
+        buffer = parts[-1]
+        for line in parts[:-1]:
+            logger.info(line.decode(errors="replace").rstrip())
+    if buffer:
+        logger.info(buffer.decode(errors="replace").rstrip())
+    return bytes()
 
 
 max_subprocesses_context_var = ContextVar[int](

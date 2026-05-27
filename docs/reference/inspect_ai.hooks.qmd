@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.hooks"
+reference: inspect_ai.hooks
+description: Hook into Inspect lifecycle events.
 ---
 
 ## Registration
@@ -16,6 +17,10 @@ title: "inspect_ai.hooks"
 ### RunEnd
 ### RunStart
 ### SampleEnd
+### SampleInit
 ### SampleStart
+### SampleAttemptStart
+### SampleAttemptEnd
+### SampleEvent
 ### TaskEnd
 ### TaskStart

@@ -1,5 +1,6 @@
 ---
 title: Inspect
+llms-description: Welcome and overview of Inspect AI.
 subtitle: An open-source framework for large language model evaluations
 citation:
   id: "UK_AI_Security_Institute_Inspect_AI_Framework_2024"
@@ -12,22 +13,20 @@ citation:
 
 ## Welcome
 
-Welcome to Inspect, a framework for large language model evaluations created by the [UK AI Security Institute](https://aisi.gov.uk).
-
-Inspect can be used for a broad range of evaluations that measure coding, agentic tasks, reasoning, knowledge, behavior, and multi-modal understanding. Core features of Inspect include:
+Inspect is a framework for frontier AI evaluations developed by the [UK AI Security Institute](https://aisi.gov.uk) and [Meridian Labs](https://meridianlabs.ai). Inspect can be used for a broad range of evaluations that measure coding, agentic tasks, reasoning, knowledge, behavior, and multi-modal understanding. Core features of Inspect include:
 
 ::: welcome-bullets
 -   A set of straightforward interfaces for implementing evaluations and re-using components across evaluations.
--   A collection of over 100 pre-built evaluations ready to run on any model.
+-   A collection of over 200 pre-built evaluations ready to run on any model.
 -   Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
 -   Flexible support for tool calling---custom and MCP tools, as well as built-in bash, python, text editing, web search, web browsing, and computer tools.
--   Support for agent evaluations, including flexible built-in agents, multi-agent primitives, the ability to run arbitrary external agents like Claude Code and Codex CLI.
+-   Support for agent evaluations, including flexible built-in agents, multi-agent primitives, the ability to run arbitrary external agents like Claude Code, Codex CLI, and Gemini CLI.
 -   A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Modal, Proxmox, and other systems via an extension API.
 :::
 
 We'll walk through a fairly trivial "Hello, Inspect" example below. Read on to learn the basics, then read the documentation on [Datasets](datasets.qmd), [Solvers](solvers.qmd), [Scorers](scorers.qmd), [Tools](tools.qmd), and [Agents](agents.qmd) to learn how to create more advanced evaluations.
 
-If you are primarily interested in running evaluations rather than developing new evaluations, [Inspect Evals](https://ukgovernmentbeis.github.io/inspect_evals/) provides implementations for a large collection of popular benchmarks.
+If you are primarily interested in running evaluations rather than developing new ones, see the [Evals](evals/index.qmd) listing where you'll find implementations for over 200 popular benchmarks.
 
 ## Getting Started
 
@@ -198,11 +197,15 @@ These sections provide a more in depth treatment of the various components used 
 
 -   [Tasks](tasks.qmd) bring together datasets, solvers, and scorers to define an evaluation. This section explores strategies for creating flexible and re-usable tasks.
 
+-   [Task Config](task-configuration.qmd) is a reference for overriding task components at runtime using `task_with()`, `eval()`, and the CLI.
+
 -   [Datasets](datasets.qmd) provide samples to evaluation tasks. This section illustrates how to adapt various data sources for use with Inspect, as well as how to include multi-modal data (images, etc.) in your datasets.
 
 -   [Solvers](solvers.qmd) are the heart of Inspect, and encompass prompt engineering and various other elicitation strategies (the `plan` in the example above). Here we cover using the built-in solvers and creating your own more sophisticated ones.
 
 -   [Scorers](scorers.qmd) evaluate the work of solvers and aggregate scores into metrics. Sophisticated evals often require custom scorers that use models to evaluate output. This section covers how to create them.
+
+-   [Scanners](scanners.qmd) review transcripts to find issues like misconfigured environments, refusals, and evaluation awareness.
 
 These sections cover defining custom tools as well as Inspect's standard built-in tools:
 
@@ -210,7 +213,7 @@ These sections cover defining custom tools as well as Inspect's standard built-i
 
 -   [Standard Tools](tools-standard.qmd) describes Inspect's built-in tools for code execution, text editing, computer use, web search, and web browsing.
 
--   [MCP Tools](tools-mcp.qmd) covers how to intgrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
+-   [MCP Tools](tools-mcp.qmd) covers how to integrate tools from the growing list of [Model Context Protocol](https://modelcontextprotocol.io/introduction) providers.
 
 -   [Custom Tools](tools-custom.qmd) provides details on more advanced custom tool features including sandboxing, error handling, and dynamic tool definitions.
 
@@ -233,6 +236,8 @@ These sections cover how to use various language models with Inspect:
 -   [Reasoning](reasoning.qmd) documents the additional options and data available for reasoning models.
 
 -   [Batch Mode](models-batch.qmd) covers using batch processing APIs for model inference.
+
+-   [Model Concurrency](models-concurrency.qmd) covers tuning model API connection limits, adaptive concurrency, and rate-limit handling.
 
 -   [Structured Output](structured.qmd) explains how to constrain model output to a particular JSON schema.
 
@@ -260,7 +265,9 @@ These sections discuss more advanced features and workflows. You don't need to r
 
 -   [Eval Sets](eval-sets.qmd) covers Inspect's features for describing, running, and analysing larger sets of evaluation tasks.
 
--   [Errors and Limits](errors-and-limits.qmd) covers various techniques for dealing with unexpected errors and setting limits on evaluation tasks and samples.
+-   [Handling Errors](handling-errors.qmd) covers techniques for dealing with runtime errors and recovering from crashes during evaluation.
+
+-   [Setting Limits](setting-limits.qmd) covers setting time, message, token, and cost limits on evaluation tasks and samples.
 
 -   [Typing](typing.qmd): provides guidance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e. sample metadata and store).
 
@@ -268,7 +275,7 @@ These sections discuss more advanced features and workflows. You don't need to r
 
 -   [Caching](caching.qmd) enables you to cache model output to reduce the number of API calls made, saving both time and expense.
 
--   [Parallelism](parallelism.qmd) delves into how to obtain maximum performance for evaluations. Inspect uses a highly parallel async architecture---here we cover how to tune this parallelism (e.g to stay under API rate limits or to not overburden local compute) for optimal throughput.
+-   [Parallelism](parallelism.qmd) covers running multiple models or tasks in parallel, sandbox container concurrency, and writing parallel custom code (tools, solvers, scorers). For tuning model API connection limits and rate-limit handling, see [Model Concurrency](models-concurrency.qmd).
 
 -   [Interactivity](interactivity.qmd) covers various ways to introduce user interaction into the implementation of tasks (for example, prompting the model dynamically based on the trajectory of the evaluation).
 

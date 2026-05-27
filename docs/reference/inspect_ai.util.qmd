@@ -1,5 +1,6 @@
 ---
-title: "inspect_ai.util"
+reference: inspect_ai.util
+description: Miscellaneous utility functions.
 ---
 
 ## Store
@@ -15,6 +16,7 @@ title: "inspect_ai.util"
 
 ### message_limit
 ### token_limit
+### cost_limit
 ### time_limit
 ### working_limit
 ### apply_limits
@@ -22,30 +24,35 @@ title: "inspect_ai.util"
 ### SampleLimits
 ### Limit
 ### LimitExceededError
+### suspend_token_limit
 
 ## Concurrency
 
 ### concurrency
 ### subprocess
 ### ExecResult
+### AdaptiveConcurrency
 
 ## Display
 
 ### display_counter
 ### display_type
 ### DisplayType
-### input_screen
 
 ## Utilities
 
 ### span
+### current_span_id
+### span_id_provider
 ### collect
-### resource
 ### throttle
 ### background
 ### trace_action
 ### trace_message
-
+### media_resolver
+### resource
+### download
+### gdrive_download
 
 ## Sandbox
 
@@ -56,6 +63,21 @@ title: "inspect_ai.util"
 ### SandboxConnection
 ### sandboxenv
 ### sandbox_service
+### ExecRemoteProcess
+### ExecRemoteStreamingOptions
+### ExecRemoteAwaitableOptions
+### ExecOutput
+### ExecStdout
+### ExecStderr
+### ExecCompleted
+
+## Intervention
+
+### notify
+### request_input
+### InputRequest
+### InputResult
+### InputResult
 
 ## Registry
 

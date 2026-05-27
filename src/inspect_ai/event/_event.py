@@ -2,11 +2,15 @@ from typing import TypeAlias, Union
 
 from inspect_ai.event._score_edit import ScoreEditEvent
 
+from ._anchor import AnchorEvent
 from ._approval import ApprovalEvent
+from ._branch import BranchEvent
+from ._checkpoint import CheckpointEvent
 from ._compaction import CompactionEvent
 from ._error import ErrorEvent
 from ._info import InfoEvent
 from ._input import InputEvent
+from ._interrupt import InterruptEvent
 from ._logger import LoggerEvent
 from ._model import ModelEvent
 from ._sample_init import SampleInitEvent
@@ -28,9 +32,13 @@ Event: TypeAlias = Union[
     StoreEvent,
     ModelEvent,
     ToolEvent,
+    AnchorEvent,
     ApprovalEvent,
+    BranchEvent,
+    CheckpointEvent,
     CompactionEvent,
     InputEvent,
+    InterruptEvent,
     ScoreEvent,
     ScoreEditEvent,
     ErrorEvent,

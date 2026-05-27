@@ -8,12 +8,17 @@ from pydantic import BaseModel
 from pydantic_core import from_json
 from typing_extensions import override
 
-from inspect_ai._util.constants import LOG_SCHEMA_VERSION, get_deserializing_context
+from inspect_ai._util.asyncfiles import AsyncFilesystem
+from inspect_ai._util.constants import (
+    LOG_SCHEMA_VERSION,
+    get_deserializing_context,
+)
 from inspect_ai._util.error import EvalError
-from inspect_ai._util.file import FileSystem, absolute_file_path, file, filesystem
+from inspect_ai._util.file import absolute_file_path, file, filesystem
 from inspect_ai._util.json import is_ijson_nan_inf_error
 from inspect_ai._util.trace import trace_action
 
+from .._edit import LogUpdate
 from .._log import (
     EvalLog,
     EvalPlan,
@@ -25,6 +30,7 @@ from .._log import (
     EvalStatus,
     sort_samples,
 )
+from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3_conditional
 from .file import FileRecorder
 
@@ -43,14 +49,18 @@ class JSONRecorder(FileRecorder):
         return first_bytes[:1] == b"{"
 
     @override
-    def default_log_buffer(self, sample_count: int) -> int:
-        # we write the entire file in one shot and the files can
-        # get fairly large (> 100MB) so we are a bit more sparing
-        # for remote filesystem writes
-        if self.is_local():
-            return 10
+    def default_log_buffer(self, sample_count: int, high_throughput: bool) -> int:
+        if high_throughput:
+            # High-throughput: flush ~10 times over the run
+            return max(10, sample_count // 10)
         else:
-            return 100
+            # we write the entire file in one shot and the files can
+            # get fairly large (> 100MB) so we are a bit more sparing
+            # for remote filesystem writes
+            if self.is_local():
+                return 10
+            else:
+                return 100
 
     class JSONLogFile(BaseModel):
         file: str
@@ -110,12 +120,15 @@ class JSONRecorder(FileRecorder):
         error: EvalError | None = None,
         header_only: bool = False,
         invalidated: bool = False,
+        log_updates: list[LogUpdate] | None = None,
     ) -> EvalLog:
         log = self.data[self._log_file_key(eval)]
         log.data.status = status
         log.data.stats = stats
         log.data.results = results
         log.data.invalidated = invalidated
+        log.data.log_updates = log_updates
+        log.data.recompute_tags_and_metadata()
         if error:
             log.data.error = error
         if reductions:
@@ -125,6 +138,14 @@ class JSONRecorder(FileRecorder):
 
         # stop tracking this data
         del self.data[self._log_file_key(eval)]
+
+        # resolve condensed events data (input_refs/call_refs -> input/call)
+        # so callers see fully populated ModelEvent.input fields
+        if log.data.samples:
+            log.data.samples = [
+                rebind_sample_timelines(resolve_sample_events_data(s))
+                for s in log.data.samples
+            ]
 
         # return the log
         return log.data
@@ -136,7 +157,11 @@ class JSONRecorder(FileRecorder):
 
     @override
     @classmethod
-    async def read_log(cls, location: str, header_only: bool = False) -> EvalLog:
+    async def read_log(
+        cls,
+        location: str,
+        header_only: bool = False,
+    ) -> EvalLog:
         fs = filesystem(location)
 
         if header_only:
@@ -161,7 +186,7 @@ class JSONRecorder(FileRecorder):
         # full reads (and fallback to streaming reads if they encounter invalid json characters)
         if fs.is_s3():
             # read content and get ETag such that they always match
-            content, etag = await _s3_read_with_etag(location, fs)
+            content, etag = await _s3_read_with_etag(location)
             raw_data = from_json(content)
         else:
             with file(location, "r") as f:
@@ -185,7 +210,11 @@ class JSONRecorder(FileRecorder):
     @override
     @classmethod
     async def write_log(
-        cls, location: str, log: EvalLog, if_match_etag: str | None = None
+        cls,
+        location: str,
+        log: EvalLog,
+        if_match_etag: str | None = None,
+        header_only: bool = False,
     ) -> None:
         from inspect_ai.log._file import eval_log_json
 
@@ -196,7 +225,7 @@ class JSONRecorder(FileRecorder):
         fs = filesystem(location)
         if fs.is_s3() and if_match_etag:
             # Use S3 conditional write
-            await cls._write_log_s3_conditional(location, log, if_match_etag, fs)
+            await cls._write_log_s3_conditional(location, log, if_match_etag)
         else:
             # Standard write
             # get log as bytes
@@ -208,7 +237,7 @@ class JSONRecorder(FileRecorder):
 
     @classmethod
     async def _write_log_s3_conditional(
-        cls, location: str, log: EvalLog, etag: str, fs: FileSystem
+        cls, location: str, log: EvalLog, etag: str
     ) -> None:
         """Perform S3 conditional write using aioboto3."""
         from inspect_ai.log._file import eval_log_json
@@ -218,7 +247,16 @@ class JSONRecorder(FileRecorder):
         # get log as bytes
         log_bytes = eval_log_json(log)
 
-        await _write_s3_conditional(fs, bucket, key, log_bytes, etag, location, logger)
+        async with AsyncFilesystem() as async_fs:
+            await _write_s3_conditional(
+                async_fs,
+                bucket,
+                key,
+                log_bytes,
+                etag,
+                location,
+                logger,
+            )
 
 
 def _validate_version(ver: int) -> None:
@@ -249,29 +287,25 @@ def _parse_json_log(raw_data: Any, header_only: bool) -> EvalLog:
     return log
 
 
-async def _s3_read_with_etag(location: str, fs: FileSystem) -> tuple[str, str]:
+async def _s3_read_with_etag(
+    location: str,
+) -> tuple[str, str]:
     """
     Read S3 file content and get ETag in a single operation.
 
     Returns:
         (content, etag) - etag is guaranteed to match content
     """
-    import aioboto3
-
     bucket, key = _s3_bucket_and_key(location)
 
-    session = aioboto3.Session()
-    async with session.client(
-        "s3",
-        endpoint_url=fs.fs.client_kwargs.get("endpoint_url"),
-        region_name=fs.fs.client_kwargs.get("region_name"),
-    ) as s3_client:
+    async with AsyncFilesystem() as async_fs:
+        s3_client = await async_fs.s3_client_async()
         response = await s3_client.get_object(Bucket=bucket, Key=key)
         content = await response["Body"].read()
         content = content.decode("utf-8")
         etag = response["ETag"].strip('"')  # S3 returns ETag with quotes
 
-    return content, etag
+        return content, etag
 
 
 def _read_header_streaming(log_file: str) -> EvalLog:
@@ -279,19 +313,16 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         # Do low-level parsing to get the version number and also
         # detect the presence of results or error sections
         version: int | None = None
-        has_results = False
-        has_error = False
+        last_header_field = "stats"
 
         for prefix, event, value in ijson.parse(f):
             if (prefix, event) == ("version", "number"):
                 version = value
-            elif (prefix, event) == ("results", "start_map"):
-                has_results = True
-            elif (prefix, event) == ("error", "start_map"):
-                has_error = True
             elif prefix == "samples":
                 # Break as soon as we hit samples as that can be very large
                 break
+            elif event == "map_key" and prefix == "":
+                last_header_field = value
 
         if version is None:
             raise ValueError("Unable to read version of log format.")
@@ -302,7 +333,7 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         # Rewind the file to the beginning to re-parse the contents of fields
         f.seek(0)
 
-        # Parse the log file, stopping before parsing samples
+        # Parse all header fields, stopping before samples
         invalidated = False
         status: EvalStatus | None = None
         eval: EvalSpec | None = None
@@ -310,25 +341,26 @@ def _read_header_streaming(log_file: str) -> EvalLog:
         results: EvalResults | None = None
         stats: EvalStats | None = None
         error: EvalError | None = None
+        log_updates: list[LogUpdate] | None = None
         for k, v in ijson.kvitems(f, ""):
             if k == "status":
                 assert v in get_args(EvalStatus)
                 status = v
             elif k == "invalidated":
                 invalidated = v
-            if k == "eval":
-                eval = EvalSpec(**v)
+            elif k == "eval":
+                eval = EvalSpec.model_validate(v, context=get_deserializing_context())
             elif k == "plan":
-                plan = EvalPlan(**v)
+                plan = EvalPlan.model_validate(v, context=get_deserializing_context())
             elif k == "results":
-                results = EvalResults(**v)
+                results = EvalResults.model_validate(v)
             elif k == "stats":
-                stats = EvalStats(**v)
-                if not has_error:
-                    # Exit before parsing samples
-                    break
+                stats = EvalStats.model_validate(v)
             elif k == "error":
-                error = EvalError(**v)
+                error = EvalError.model_validate(v)
+            elif k == "log_updates":
+                log_updates = [LogUpdate.model_validate(u) for u in v]
+            if k == last_header_field:
                 break
 
     assert status, "Must encounter a 'status'"
@@ -339,11 +371,12 @@ def _read_header_streaming(log_file: str) -> EvalLog:
     return EvalLog(
         eval=eval,
         plan=plan,
-        results=results if has_results else None,
+        results=results,
         stats=stats,
         status=status,
         invalidated=invalidated,
+        log_updates=log_updates,
         version=version,
-        error=error if has_error else None,
+        error=error,
         location=log_file,
     )

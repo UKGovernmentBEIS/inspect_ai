@@ -1,9 +1,16 @@
-"""Tests for json_schema_to_base_model function."""
+"""Tests for json_schema_to_base_model and json_schema_dump functions."""
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
-from inspect_ai.util._json import JSONSchema, json_schema_to_base_model
+from inspect_ai.tool import ToolInfo, ToolParam, ToolParams
+from inspect_ai.util._json import (
+    JSON_SCHEMA_EXTENDED_FIELDS,
+    JSONSchema,
+    json_schema,
+    json_schema_dump,
+    json_schema_to_base_model,
+)
 
 
 def test_basic_string_type():
@@ -515,3 +522,117 @@ def test_dict_type_without_properties():
     instance = Model(config={"key1": "value1", "key2": 42})
     assert instance.config["key1"] == "value1"
     assert instance.config["key2"] == 42
+
+
+# -- json_schema_dump tests ---------------------------------------------------
+
+
+def test_json_schema_dump_excludes_none():
+    """json_schema_dump should always exclude None values."""
+    schema = JSONSchema(type="string", description="test", pattern=None)
+    result = json_schema_dump(schema)
+    assert "pattern" not in result
+    assert result == {"type": "string", "description": "test"}
+
+
+def test_json_schema_dump_includes_extended_fields():
+    """Extended fields should appear when set and no exclude is given."""
+    schema = JSONSchema(type="string", pattern=r"^[a-z]+$", minLength=1, maxLength=10)
+    result = json_schema_dump(schema)
+    assert result["pattern"] == r"^[a-z]+$"
+    assert result["minLength"] == 1
+    assert result["maxLength"] == 10
+
+
+def test_json_schema_dump_excludes_extended_fields():
+    """Extended fields should be stripped when exclude=JSON_SCHEMA_EXTENDED_FIELDS."""
+    schema = JSONSchema(type="string", pattern=r"^[a-z]+$", minLength=1, maxLength=10)
+    result = json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS)
+    assert "pattern" not in result
+    assert "minLength" not in result
+    assert "maxLength" not in result
+    assert result["type"] == "string"
+
+
+def test_json_schema_dump_recursive_exclude() -> None:
+    """Extended fields in nested properties should also be stripped."""
+
+    class UserProfile(BaseModel):
+        username: str = Field(min_length=3, max_length=20, pattern=r"^[a-z]+$")
+        age: int = Field(ge=0, le=150)
+
+    schema = json_schema(UserProfile)
+    result = json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS)
+
+    username_schema = result["properties"]["username"]
+    age_schema = result["properties"]["age"]
+
+    assert "pattern" not in username_schema
+    assert "minLength" not in username_schema
+    assert "maxLength" not in username_schema
+    assert "minimum" not in age_schema
+    assert "maximum" not in age_schema
+
+    # Core fields should remain
+    assert username_schema["type"] == "string"
+    assert age_schema["type"] == "integer"
+
+
+def test_json_schema_dump_preserves_property_names():
+    """Property names matching excluded keywords must NOT be stripped."""
+    params = ToolParams(
+        properties={
+            "pattern": ToolParam(type="string", description="A regex pattern"),
+            "minimum": ToolParam(type="number", description="Min value"),
+            "examples": ToolParam(type="string", description="Example text"),
+            "name": ToolParam(type="string", description="Name", minLength=1),
+        },
+        required=["pattern", "minimum", "examples", "name"],
+    )
+    result = json_schema_dump(params, exclude=JSON_SCHEMA_EXTENDED_FIELDS)
+
+    # Property names must be preserved even though they match excluded keywords
+    assert "pattern" in result["properties"]
+    assert "minimum" in result["properties"]
+    assert "examples" in result["properties"]
+    assert "name" in result["properties"]
+
+    # But the minLength keyword inside "name" should be stripped
+    assert "minLength" not in result["properties"]["name"]
+
+    # Required list should be intact
+    assert result["required"] == ["pattern", "minimum", "examples", "name"]
+
+
+def test_json_schema_dump_tool_info():
+    """json_schema_dump should work on ToolInfo objects."""
+    tool = ToolInfo(
+        name="test_tool",
+        description="A test tool",
+        parameters=ToolParams(
+            properties={
+                "query": ToolParam(type="string", description="Search query"),
+            },
+            required=["query"],
+        ),
+    )
+    result = json_schema_dump(tool)
+    assert result["name"] == "test_tool"
+    assert result["description"] == "A test tool"
+    assert "query" in result["parameters"]["properties"]
+
+
+def test_json_schema_dump_anyof_exclude():
+    """Extended fields inside anyOf schemas should be stripped."""
+    schema = JSONSchema(
+        anyOf=[
+            JSONSchema(type="string", minLength=1),
+            JSONSchema(type="integer", minimum=0),
+        ]
+    )
+    result = json_schema_dump(schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS)
+
+    assert "minLength" not in result["anyOf"][0]
+    assert "minimum" not in result["anyOf"][1]
+    assert result["anyOf"][0]["type"] == "string"
+    assert result["anyOf"][1]["type"] == "integer"

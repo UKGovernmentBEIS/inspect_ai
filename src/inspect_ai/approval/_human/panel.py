@@ -137,7 +137,10 @@ class ApprovalRequestContent(ScrollableContainer):
         await self.remove_children()
         if approval:
             self.mount_all(
-                Static(r) for r in render_tool_approval(approval.message, approval.view)
+                Static(r)
+                for r in render_tool_approval(
+                    approval.message, approval.view, approval.call.arguments
+                )
             )
             self.scroll_end(animate=False)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import abc
 import logging
-from contextlib import ExitStack, contextmanager
+from contextlib import AbstractContextManager, ExitStack, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from types import TracebackType
@@ -40,7 +40,9 @@ class LimitExceededError(Exception):
 
     def __init__(
         self,
-        type: Literal["message", "time", "working", "token", "operator", "custom"],
+        type: Literal[
+            "message", "time", "working", "token", "cost", "operator", "custom"
+        ],
         *,
         value: float,
         limit: float,
@@ -52,9 +54,9 @@ class LimitExceededError(Exception):
         self.value_str = self._format_float_or_int(value)
         self.limit = limit
         self.limit_str = self._format_float_or_int(limit)
-        self.message = f"Exceeded {type} limit: {limit:,}"
+        self.message = message or f"Exceeded {type} limit: {limit:,}"
         self.source = source
-        super().__init__(message)
+        super().__init__(self.message)
 
     def with_state(self, state: TaskState) -> LimitExceededError:
         warn_once(
@@ -182,6 +184,9 @@ class SampleLimits:
     token: Limit
     """Token limit."""
 
+    cost: Limit
+    """Cost limit."""
+
     message: Limit
     """Message limit."""
 
@@ -211,6 +216,7 @@ def sample_limits() -> SampleLimits:
 
     return SampleLimits(
         token=get_root_node(token_limit_tree.get(), "token"),
+        cost=get_root_node(cost_limit_tree.get(), "cost"),
         message=get_root_node(message_limit_tree.get(), "message"),
         working=get_root_node(working_limit_tree.get(), "working"),
         time=get_root_node(time_limit_tree.get(), "time"),
@@ -222,6 +228,7 @@ def record_sample_limit_data(message_usage: float) -> None:
     _sample_limit_data.set(
         SampleLimits(
             token=_LimitData(current_limits.token),
+            cost=_LimitData(current_limits.cost),
             message=_LimitData(current_limits.message, usage=message_usage),
             working=_LimitData(current_limits.working),
             time=_LimitData(current_limits.time),
@@ -258,7 +265,11 @@ def record_model_usage(usage: ModelUsage) -> None:
     """Record model usage against any active token limits.
 
     Does not check if the limit has been exceeded.
+
+    No-op when token limits are suspended (see `suspend_token_limit()`).
     """
+    if token_limit_tree.is_suspended():
+        return
     node = token_limit_tree.get()
     if node is None:
         return
@@ -271,8 +282,83 @@ def check_token_limit() -> None:
     Within the current execution context (e.g. async task) and its parent contexts only.
 
     Note that all active token limits are checked, not just the most recent one.
+
+    No-op when token limits are suspended (see `suspend_token_limit()`).
     """
+    if token_limit_tree.is_suspended():
+        return
     node = token_limit_tree.get()
+    if node is None:
+        return
+    node.check()
+
+
+def suspend_token_limit() -> AbstractContextManager[None]:
+    """Suspend token limit metering within a block of code.
+
+    While this context manager is open:
+
+    - Token usage is not recorded against any active `token_limit()` scope
+      (including sample-level, agent-scoped, and arbitrary block limits).
+    - Calls to `check_token_limit()` are no-ops.
+    - This applies to any `token_limit()` contexts opened inside the block
+      as well — suspension wins over nested limits.
+
+    Useful for running code whose token usage should not count against an
+    agent's budget, e.g. one-shot summarization, routing, or auxiliary
+    planning calls.
+
+    Example:
+        with token_limit(10_000):
+            # tokens count against the 10k budget
+            await generate()
+            with suspend_token_limit():
+                # tokens here do not count
+                await expensive_summary()
+            # tokens count again
+            await generate()
+    """
+    return token_limit_tree.suspended()
+
+
+def cost_limit(limit: float | None) -> _CostLimit:
+    """Limits the total cost (in dollars) which can be used.
+
+    The counter starts when the context manager is opened and ends when it is closed.
+
+    These limits can be stacked.
+
+    This relies on "cooperative" checking - consumers must call `check_cost_limit()`
+    themselves whenever cost is recorded.
+
+    When a limit is exceeded, a `LimitExceededError` is raised.
+
+    Args:
+      limit: The maximum cost (in dollars) that can be used while the context manager is
+        open. A value of None means unlimited cost.
+    """
+    return _CostLimit(limit)
+
+
+def record_model_cost(cost: float) -> None:
+    """Record model cost against any active cost limits.
+
+    Does not check if the limit has been exceeded.
+    """
+    node = cost_limit_tree.get()
+    if node is None:
+        return
+    node.record(cost)
+
+
+def check_cost_limit() -> None:
+    """Check if the current cost exceeds _any_ of the cost limits.
+
+    Within the current execution context (e.g. async task) and its parent contexts only.
+
+    Note that all active cost limits are checked, not just the most recent one.
+    """
+    node = cost_limit_tree.get()
     if node is None:
         return
     node.check()
@@ -434,6 +520,7 @@ class _Tree(Generic[TNode]):
 
     def __init__(self, id: str) -> None:
         self._leaf_node: ContextVar[TNode | None] = ContextVar(id, default=None)
+        self._suspended: ContextVar[int] = ContextVar(f"{id}_suspended", default=0)
 
     def get(self) -> TNode | None:
         return self._leaf_node.get()
@@ -450,8 +537,20 @@ class _Tree(Generic[TNode]):
         self._leaf_node.set(current_leaf.parent)
         return current_leaf
 
+    def is_suspended(self) -> bool:
+        return self._suspended.get() > 0
+
+    @contextmanager
+    def suspended(self) -> Iterator[None]:
+        token = self._suspended.set(self._suspended.get() + 1)
+        try:
+            yield
+        finally:
+            self._suspended.reset(token)
+
 
 token_limit_tree: _Tree[_TokenLimit] = _Tree("token_limit_tree")
+cost_limit_tree: _Tree[_CostLimit] = _Tree("cost_limit_tree")
 message_limit_tree: _Tree[_MessageLimit] = _Tree("message_limit_tree")
 working_limit_tree: _Tree[_WorkingLimit] = _Tree("working_limit_tree")
 time_limit_tree: _Tree[_TimeLimit] = _Tree("time_limit_tree")
@@ -557,6 +656,88 @@ class _TokenLimit(Limit, _Node):
             )
 
 
+class _CostLimit(Limit, _Node):
+    def __init__(self, limit: float | None) -> None:
+        super().__init__()
+        self._validate_cost_limit(limit)
+        self._limit = limit
+        self._cost: float = 0.0
+
+    def __enter__(self) -> Limit:
+        super()._check_reuse()
+        cost_limit_tree.push(self)
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self._pop_and_check_identity(cost_limit_tree)
+
+    @property
+    def usage(self) -> float:
+        return self._cost
+
+    @property
+    def limit(self) -> float | None:
+        """Get the configured cost limit value."""
+        return self._limit
+
+    @limit.setter
+    def limit(self, value: float | None) -> None:
+        """Update the cost limit value.
+
+        This does not trigger a check of the cost limit (which could now have been
+        exceeded).
+        """
+        self._validate_cost_limit(value)
+        self._limit = value
+
+    def record(self, cost: float) -> None:
+        """Record cost for this node and its ancestor nodes."""
+        if self.parent is not None:
+            self.parent.record(cost)
+        self._cost += cost
+
+    def check(self) -> None:
+        """Check if this cost limit or any ancestor limits have been exceeded.
+
+        The checks occur from root to leaf. This is so that if multiple limits are
+        simultaneously exceeded, the outermost (closest to root) one raises the error,
+        preventing certain sub-agent architectures from ending up in an infinite loop.
+        """
+        if self.parent is not None:
+            self.parent.check()
+        self._check_self()
+
+    def _validate_cost_limit(self, value: float | None) -> None:
+        if value is not None and value < 0:
+            raise ValueError(
+                f"Cost limit value must be a non-negative float or None: {value}"
+            )
+
+    def _check_self(self) -> None:
+        from inspect_ai.event._sample_limit import SampleLimitEvent
+        from inspect_ai.log._transcript import transcript
+
+        if self.limit is None:
+            return
+        if self._cost > self.limit:
+            message = f"Cost limit exceeded. value: ${self._cost:,.4f}; limit: ${self.limit:,.4f}"
+            transcript()._event(
+                SampleLimitEvent(type="cost", limit=self.limit, message=message)
+            )
+            raise LimitExceededError(
+                "cost",
+                value=self._cost,
+                limit=self.limit,
+                message=message,
+                source=self,
+            )
+
+
 class _MessageLimit(Limit, _Node):
     def __init__(self, limit: int | None) -> None:
         super().__init__()
@@ -659,7 +840,11 @@ class _TimeLimit(Limit, _Node):
         self._cancel_scope.__exit__(exc_type, exc_val, exc_tb)
         self._end_time = anyio.current_time()
         self._pop_and_check_identity(time_limit_tree)
-        if self._cancel_scope.cancel_called and self._limit is not None:
+        # use cancelled_caught (not cancel_called): if the deadline fired but
+        # the body raised a non-Cancelled exception (e.g. cleanup in `finally`
+        # crashed), the cancel scope did not catch a Cancelled and we must let
+        # the original exception propagate rather than masking it.
+        if self._cancel_scope.cancelled_caught and self._limit is not None:
             message = f"Time limit exceeded. limit: {self._limit} seconds"
             assert self._start_time is not None
             # Note we've measured the elapsed time independently of anyio's cancel scope

@@ -1,5 +1,6 @@
 ---
 title: Model Providers
+llms-description: Usage details and available options for the various supported model providers.
 ---
 
 ## Overview
@@ -26,6 +27,7 @@ The following environment variables are supported by the OpenAI provider
 | `OPENAI_BASE_URL` | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
 | `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
 | `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
+| `OPENAI_SAFETY_IDENTIFIER` | Default `safety_identifier` passed with each request (optional; overridden by the `safety_identifier` model arg if set). |
 
 ### Model Args
 
@@ -35,6 +37,7 @@ The `openai` provider supports the following custom model args (other model args
 |--------------------------|----------------------------------------------|
 | `responses_api` | Use the OpenAI Responses API rather than the Chat Completions API. |
 | `responses_store` | Pass `store=True` to the Responses API (defaults to `True`). |
+| `responses_phase` | Synthesize missing assistant message `phase` values when replaying Responses API histories. |
 | `service_tier` | Processing type used for serving the request ("auto", "default", or "flex"). |
 | `background` | Execute generate requests asynchronously, polling response objects to check status over time. Defaults to `True` for `gpt-5-pro` and `deep-research` and `False` for other models. |
 | `safety_identifier` | A stable identifier used to help detect users of your application. |
@@ -72,6 +75,16 @@ inspect eval math.py --model openai/gpt-4o -M responses_api=true
 
 Note that certain models including `o1-pro` and `computer_use_preview` *require* the use of the Responses API. Check the Open AI [models documentation](https://platform.openai.com/docs/models) for details on which models are supported by the respective APIs.
 
+### Responses Phase
+
+OpenAI Responses API assistant messages can include a [`phase`](https://developers.openai.com/api/docs/guides/reasoning#phase-parameter) label that distinguishes intermediate commentary from the final answer. Inspect preserves and replays `phase` values returned by OpenAI. To additionally synthesize missing `phase` values for assistant messages constructed outside the Responses API, use the `responses_phase` model argument:
+
+``` bash
+inspect eval math.py --model openai/gpt-5.4 -M responses_phase=true
+```
+
+When enabled, assistant messages with tool calls are labeled `commentary`; other assistant messages are labeled `final_answer`.
+
 ### Responses Store
 
 By default, Inspect's implementation of the Responses API does not store messages on the server. Reasoning content (which is intended to be opaque to clients) is handled using encrypted payloads (via the "reasoning.encrypted_content" include option). To control this behavior explicitly use the `responses_store` model argument. For example:
@@ -105,7 +118,8 @@ The `openai` provider supports OpenAI models deployed on the [Azure AI Foundry](
 
 | Variable | Description |
 |---------------------------|---------------------------------------------|
-| `AZUREAI_OPENAI_API_KEY` | API key credentials (optional). |
+| `AZUREAI_OPENAI_API_KEY` | API key credentials (optional, preferred name). |
+| `AZURE_OPENAI_API_KEY` | API key credentials (optional, used as a fallback if `AZUREAI_OPENAI_API_KEY` is unset). |
 | `AZUREAI_OPENAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_OPENAI_API_VERSION` | OpenAI API version (optional) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
@@ -154,7 +168,7 @@ The following environment variables are supported by the Anthropic provider
 
 Some Anthropic features require that you include a beta identifier in the `betas` field of model requests. Inspect automatically includes the requisite identifier for beta features it utilizes (e.g. "mcp-client-2025-04-04", "computer-use-2025-01-24", etc.).
 
-If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window) for Sonnet 5 models:
+If there are other beta features you want to enable, use the `betas` model arg (`-M`). For example, to enable [1M token context windows](https://docs.anthropic.com/en/docs/build-with-claude/context-windows#1m-token-context-window) for Sonnet 4.5 and Opus 4.6 models:
 
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
@@ -197,8 +211,11 @@ Authentication is doing using the standard Google Cloud CLI (i.e. if you have au
 
 The `anthropic` provider supports Anthropic models deployed on the [Azure AI Foundry](https://ai.azure.com/). To use Anthropic models on Azure AI, specify the following environment variables:
 
--   `AZUREAI_ANTHROPIC_API_KEY`
--   `AZUREAI_ANTHROPIC_BASE_URL`
+| Variable | Description |
+|---------------------------|---------------------------------------------|
+| `AZUREAI_ANTHROPIC_API_KEY` | API key credentials (optional, preferred name). |
+| `AZURE_ANTHROPIC_API_KEY` | API key credentials (optional, used as a fallback if `AZUREAI_ANTHROPIC_API_KEY` is unset). |
+| `AZUREAI_ANTHROPIC_BASE_URL` | Base URL for requests (required). |
 
 You can then use the normal `anthropic` provider with the `azure` qualifier and the name of your model deployment (e.g. `Claude-4-0-Sonnet-2411`). For example:
 
@@ -219,6 +236,7 @@ inspect eval arc.py --model google/gemini-2.5-pro
 ```
 
 For the `google` provider, custom model args (`-M`) are forwarded to the `genai.Client` function.
+Google GenAI requests use a default SDK transport timeout of 1 hour when `timeout` is not configured; setting `timeout` applies the same value to each Google SDK request attempt and to Inspect's overall retry budget.
 
 The following environment variables are supported by the Google provider
 
@@ -250,7 +268,7 @@ Authentication is done using the standard Google Cloud CLI. For example:
 gcloud auth application-default login
 ```
 
-If you have authorised the CLI then no additional auth is needed for the model API.
+If you have authorised the CLI then no additional auth is needed for the model API. Alternatively, if you are running in [Vertex Express Mode](https://cloud.google.com/vertex-ai/generative-ai/docs/start/express-mode/overview), set `VERTEX_API_KEY` to authenticate with an Express Mode API key.
 
 You can optionally specify a custom `GOOGLE_VERTEX_BASE_URL` to override the default base URL for Vertex.
 
@@ -369,11 +387,12 @@ export XAI_API_KEY=your-grok-api-key
 inspect eval arc.py --model grok/grok-3-mini
 ```
 
-The following environment variables are supported by the Grok provider
+The following environment variables are supported by the Grok provider. The provider reads its API key from `XAI_API_KEY` if set, otherwise from `GROK_API_KEY`; one of them must be defined.
 
 | Variable | Description |
 |----------------------------|--------------------------------------------|
-| `XAI_API_KEY` | API key credentials (required). |
+| `XAI_API_KEY` | API key credentials (preferred). |
+| `GROK_API_KEY` | API key credentials (fallback if `XAI_API_KEY` is unset). |
 | `XAI_BASE_URL` | Base URL for requests (optional, defaults to `api.x.ai`, note no "https://" prefix is used for the base url). |
 
 ### Model Args
@@ -405,13 +424,130 @@ export AWS_DEFAULT_REGION=us-east-1
 inspect eval bedrock/meta.llama2-70b-chat-v1
 ```
 
-For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class.
+For the `bedrock` provider, custom model args (`-M`) are forwarded to the `client` method of the `aioboto3.Session` class, save for the `read_timeout` and `connect_timeout` args which are passed in the `config` parameter.
 
 Note that all models on AWS Bedrock require that you [request model access](https://docs.aws.amazon.com/bedrock/latest/userguide/model-access.html) before using them in a deployment (in some cases access is granted immediately, in other cases it could one or more days).
 
 You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
 
 If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access.
+
+## AWS SageMaker {#aws-sagemaker}
+
+To use the [AWS SageMaker](https://aws.amazon.com/sagemaker/) provider, install the `aioboto3` package, set your credentials, and specify a SageMaker endpoint name using the `--model` option:
+
+``` bash
+pip install aioboto3
+export AWS_ACCESS_KEY_ID=access-key-id
+export AWS_SECRET_ACCESS_KEY=secret-access-key
+inspect eval arc.py --model sagemaker/my-endpoint-name \
+  -M region_name=us-west-2
+```
+
+Deploy your preferred model via Sagemaker studio jumpstart UI/SDK/CLI ([link](https://docs.aws.amazon.com/sagemaker/latest/dg/deploy-jumpstart-model.html)). The model name after `sagemaker/` is the SageMaker endpoint name. 
+
+### Model Args
+
+The following model args are supported:
+
+| Model Arg | Description |
+|--------------------------|----------------------------------------------|
+| `region_name` | AWS region where the endpoint is deployed (default: `us-east-1`). |
+| `endpoint_url` | Custom SageMaker runtime endpoint URL (required). |
+| `read_timeout` | Read timeout in seconds (default: `600`). |
+| `connect_timeout` | Connection timeout in seconds (default: `60`). |
+| `stream` | Enable streaming responses (default: `false`). |
+| `completion_mode` | Send completions-style payloads for CPT/base models instead of chat-style payloads (default: `false`). |
+| `inference_component_name` | Name of the inference component for multi-model endpoints. |
+| `prompt_logprobs` | Number of prompt log probabilities to return per token. Used for perplexity scoring with vLLM-backed endpoints. |
+
+: {tbl-colwidths=\[35,65\]}
+
+For example:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2 \
+  -M read_timeout=300 \
+  -M stream=true
+```
+
+### Inference Components
+
+For [multi-model endpoints](https://docs.aws.amazon.com/sagemaker/latest/dg/multi-model-endpoints.html) that use inference components, specify the `inference_component_name` to route requests to a specific component:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2 \
+  -M inference_component_name=my-inference-component
+```
+
+### Completion Mode
+
+For CPT (Continual Pre-Training) or base models that expect completions-style payloads (with a `prompt` field) rather than chat-style payloads (with a `messages` array), enable `completion_mode`:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-cpt-endpoint \
+  -M region_name=us-west-2 \
+  -M completion_mode=true
+```
+
+Completion mode supports logprobs via the standard CLI flags:
+
+``` bash
+inspect eval arc.py --model sagemaker/my-cpt-endpoint \
+  -M region_name=us-west-2 \
+  -M completion_mode=true \
+  --logprobs \
+  --top-logprobs 5
+```
+
+::: {.callout-note}
+Completion mode builds a plain text prompt from chat messages. Image content is not supported in this mode and will be ignored with a warning.
+:::
+
+### Prompt Logprobs & Perplexity
+
+The SageMaker provider supports prompt log probabilities and the `perplexity()` and `target_perplexity()` scorers when backed by a vLLM endpoint.
+
+In **chat mode**, set `prompt_logprobs` via `GenerateConfig` or the `-G` CLI flag:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.model import GenerateConfig
+from inspect_ai.scorer import perplexity
+from inspect_ai.solver import generate
+
+@task
+def perplexity_eval():
+    return Task(
+        dataset=[Sample(input="The capital of France is Paris")],
+        solver=[generate(max_tokens=1)],
+        scorer=perplexity(),
+        config=GenerateConfig(prompt_logprobs=1),
+    )
+```
+
+``` bash
+inspect eval perplexity_eval.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2
+```
+
+In **completion mode**, pass `prompt_logprobs` as a model argument:
+
+``` bash
+inspect eval perplexity_eval.py --model sagemaker/my-endpoint \
+  -M region_name=us-west-2 \
+  -M completion_mode=true \
+  -M prompt_logprobs=1
+```
+
+::: {.callout-note}
+The `target_perplexity()` scorer's auto-tokenization feature is not available for SageMaker (the vLLM `/tokenize` endpoint is not reachable through `invoke_endpoint`). Provide `num_target_tokens` in sample metadata instead.
+:::
+
+Authentication uses your standard AWS credentials (e.g. `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or an IAM role). The endpoint must be accessible from your environment.
 
 ## Azure AI {#azure-ai}
 
@@ -441,7 +577,8 @@ The following environment variables are supported by the Azure AI provider
 
 | Variable | Description |
 |---------------------------|---------------------------------------------|
-| `AZUREAI_API_KEY` | API key credentials (optional). |
+| `AZURE_API_KEY` | API key credentials (optional, preferred name). |
+| `AZUREAI_API_KEY` | API key credentials (optional, used as a fallback if `AZURE_API_KEY` is unset). |
 | `AZUREAI_BASE_URL` | Base URL for requests (required) |
 | `AZUREAI_AUDIENCE` | Azure resource URI that the access token is intended for when using managed identity (optional, defaults to `https://cognitiveservices.azure.com/.default`) |
 
@@ -464,7 +601,7 @@ To use the [Together AI](https://www.together.ai/) provider, install the `openai
 ``` bash
 pip install openai
 export TOGETHER_API_KEY=your-together-api-key
-inspect eval arc.py --model together/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
 ```
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
@@ -520,7 +657,7 @@ To use the [SambaNova](https://sambanova.ai/) provider, install the `openai` pac
 
 ``` bash
 pip install openai
-export SAMABANOVA_API_KEY=your-sambanova-api-key
+export SAMBANOVA_API_KEY=your-sambanova-api-key
 inspect eval arc.py --model sambanova/DeepSeek-V1-0324
 ```
 
@@ -607,6 +744,26 @@ Or in a call to `get_model()`
 model = get_model("hf/openai-community/gpt2", device="cuda:0")
 ```
 
+### Chat Templates
+
+For Hugging Face models, Inspect will use a tokenizer chat template when available. 
+Use the `chat_template` model arg to override the tokenizer template, and
+`use_chat_template=false` to bypass chat-template rendering entirely.
+
+For example:
+
+``` bash
+inspect eval gsm8k.py --model hf/Qwen/Qwen3-1.7B-Base \
+  -M "chat_template={% for message in messages %}{{ message.content }}{% endfor %}" \
+  -M use_chat_template=true
+```
+
+Or to bypass templates:
+
+``` bash
+inspect eval gsm8k.py --model hf/Qwen/Qwen3-1.7B-Base -M use_chat_template=false
+```
+
 ### Hidden States
 
 If you wish to access hidden states (activations) from generation, use the `hidden_states` model arg. For example:
@@ -625,6 +782,30 @@ model = get_model(
 ```
 
 Activations are available in the "hidden_states" field of `ModelOutput.metadata`. The hidden_states value is the same as transformers [GenerateDecoderOnlyOutput](https://huggingface.co/docs/transformers/main/en/internal/generation_utils#transformers.generation.GenerateDecoderOnlyOutput).
+
+### Sampling
+
+Pass the `do_sample` model arg to override the default sampling behavior (which is `do_sample=True`). For example:
+
+``` bash
+$ inspect eval arc.py --model hf/openai-community/gpt2 -M do_sample=false
+```
+
+### Trust Remote Code
+
+Some Hugging Face models ship custom Python code in their repositories that the `transformers` library will execute on load when `trust_remote_code=True`. Because executing remote code is a security risk (the model author can run arbitrary code in your evaluation process), Inspect defaults `trust_remote_code` to `False` and will not forward `trust_remote_code` from generic `model_args`. To opt in for a specific model you trust, pass it explicitly:
+
+``` bash
+inspect eval arc.py --model hf/some-org/custom-arch-model -M trust_remote_code=true
+```
+
+Or from Python:
+
+``` python
+eval("arc.py", model="hf/some-org/custom-arch-model", model_args=dict(trust_remote_code=True))
+```
+
+The flag is applied to both the model and tokenizer `from_pretrained()` calls.
 
 ### Local Models
 
@@ -655,7 +836,7 @@ pip install vllm
 inspect eval arc.py --model vllm/openai-community/gpt2
 ```
 
-For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference).
+For the `vllm` provider, custom model args (-M) are forwarded to the vllm [CLI](https://docs.vllm.ai/en/stable/serving/openai_compatible_server.html#cli-reference). Top-level model arg names are converted to CLI flag form (for example, `tensor_parallel_size` becomes `--tensor-parallel-size`). Dotted vLLM arguments preserve nested field names after the dot, so `-M speculative-config.num_speculative_tokens=1` is forwarded as `--speculative-config.num_speculative_tokens 1`.
 
 The following environment variables are supported by the vLLM provider:
 
@@ -668,6 +849,41 @@ The following environment variables are supported by the vLLM provider:
 You can also access models from ModelScope rather than Hugging Face, see the [vLLM documentation](https://docs.vllm.ai/en/stable/getting_started/quickstart.html) for details on this.
 
 vLLM is generally much faster than the Hugging Face provider as the library is designed entirely for inference speed whereas the Hugging Face library is more general purpose.
+
+### Multiple Servers
+
+`VLLM_BASE_URL` sets a single global endpoint, but a vLLM server only serves one model. If you need different models for different purposes — for example, a small model for the solver and a larger one as a judge for [model-graded scoring](scorers.qmd#model-graded) — start a vLLM server per model and pass a per-model `base_url` rather than relying on the env var.
+
+The most ergonomic path is [model roles](models.qmd#model-roles), which lets the built-in `model_graded_*` scorers automatically resolve their judge from the `grader` role:
+
+``` bash
+inspect eval task.py \
+    --model vllm/meta-llama/Llama-3-8B \
+    --model-base-url http://gpu1:8000/v1 \
+    --model-role 'grader={model: vllm/meta-llama/Llama-3-70B-Instruct, base_url: http://gpu2:8000/v1}'
+```
+
+Equivalent from Python:
+
+``` python
+from inspect_ai import eval
+from inspect_ai.model import get_model
+
+eval(
+    "task.py",
+    model=get_model("vllm/meta-llama/Llama-3-8B", base_url="http://gpu1:8000/v1"),
+    model_roles={
+        "grader": get_model(
+            "vllm/meta-llama/Llama-3-70B-Instruct",
+            base_url="http://gpu2:8000/v1",
+        ),
+    },
+)
+```
+
+Any number of roles can be defined this way (e.g. a separate `critic` or `red_team` model); each one can point at its own vLLM server. `VLLM_API_KEY` is also accepted as a per-model `api_key=` argument if your servers use different keys.
+
+Note: Inspect reuses a single server entry per base model name, so two `vllm/<same-model>` instances pointed at different URLs will collapse to the first URL. This caveat does not apply to the typical solver-vs-judge setup since the two models are different.
 
 ### Batching
 
@@ -689,9 +905,132 @@ Similar to the Hugging Face provider, you can also use local models with the vLL
 $ inspect eval arc.py --model vllm/local -M model_path=./my-model
 ```
 
+### LoRA Adapters
+
+vLLM supports [LoRA (Low-Rank Adaptation)](https://docs.vllm.ai/en/stable/features/lora.html) adapters, allowing you to use fine-tuned models without duplicating the base model weights. To use a LoRA adapter, append `:adapter-path` to the model name:
+
+``` bash
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
+```
+
+The adapter path can be a HuggingFace repository (e.g., `myorg/my-lora-adapter`) or a local path (e.g., `./adapters/my-adapter`).
+
+When using LoRA adapters:
+
+- The vLLM server is automatically started with `--enable-lora`
+- `max_lora_rank` is auto-detected from the adapter's `adapter_config.json` (supports both local paths and HuggingFace repos)
+- Adapters are dynamically loaded on first request via vLLM's `/v1/load_lora_adapter` endpoint
+- Multiple models sharing the same base model reuse a single vLLM server, even with different adapters
+
+For example, you can evaluate multiple LoRA fine-tunes on the same base model efficiently:
+
+``` python
+# These will share the same vLLM server
+# max_lora_rank is auto-detected as the max across all adapters
+eval(
+    "task.py",
+    model=["vllm/meta-llama/Llama-3-8B:adapter-a", "vllm/meta-llama/Llama-3-8B:adapter-b"],
+)
+```
+
+You can also compare a base model against its LoRA fine-tune --- LoRA will be auto-enabled for the shared server:
+
+``` python
+eval(
+    "task.py",
+    model=["vllm/meta-llama/Llama-3-8B", "vllm/meta-llama/Llama-3-8B:my-adapter"],
+)
+```
+
+If you need to override the auto-detected rank (e.g. when using `get_model()` directly with multiple adapters of different ranks), pass `max_lora_rank` explicitly:
+
+``` bash
+inspect eval task.py --model vllm/meta-llama/Llama-3-8B:my-adapter -M max_lora_rank=128
+```
+
+#### External vLLM Server with LoRA
+
+When using an external vLLM server (`VLLM_BASE_URL`), you have two options:
+
+**Option 1: Pre-load adapters manually**
+
+Load the adapters yourself when starting the server and reference them by name:
+
+``` bash
+# Start server with pre-loaded adapter
+vllm serve meta-llama/Llama-3-8B --enable-lora \
+    --lora-modules my-adapter=path/to/adapter
+
+# Use the adapter name directly (not the path)
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:my-adapter
+```
+
+**Option 2: Enable dynamic loading**
+
+Start the server with `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True` to let Inspect load adapters dynamically:
+
+``` bash
+VLLM_ALLOW_RUNTIME_LORA_UPDATING=True vllm serve meta-llama/Llama-3-8B --enable-lora
+```
+
+Then use adapter paths as normal:
+
+``` bash
+inspect eval arc.py --model vllm/meta-llama/Llama-3-8B:myorg/my-lora-adapter
+```
+
+Note: When Inspect starts the vLLM server itself, it automatically sets `VLLM_ALLOW_RUNTIME_LORA_UPDATING=True`.
+
+### Chat Templates
+
+For vLLM models, the `chat_template` model arg is forwarded to the vLLM server's `--chat-template` flag. Use `use_chat_template=false` to bypass chat-template rendering entirely (useful for base models):
+
+``` bash
+inspect eval gsm8k.py --model vllm/Qwen/Qwen3-1.7B-Base -M use_chat_template=false
+```
+
+::: {.callout-note}
+`use_chat_template` only takes effect when Inspect starts the vLLM server. When connecting to an existing server via `VLLM_BASE_URL`, set `--chat-template` when starting the server instead.
+:::
+
+### Raw Text Completions
+
+Use the `vllm-completions` provider when you want vLLM to receive a raw text prompt rather than chat messages rendered through a chat template:
+
+``` bash
+inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m
+```
+
+This provider uses vLLM's `/v1/completions` endpoint. It accepts a single user message, sends that message content as the raw prompt, and is useful for base-model generation and log-probability based evaluations.
+
 ### Tool Use and Reasoning
 
 vLLM supports tool use and reasoning; however, the usage is often model dependant and requires additional configuration. See the [Tool Use](https://docs.vllm.ai/en/stable/features/tool_calling.html) and [Reasoning](https://docs.vllm.ai/en/stable/features/reasoning_outputs.html) sections of the vLLM documentation for details.
+
+For vLLM reasoning models, pass the model-specific parser and chat-template kwargs through `-M`. See [Reasoning](reasoning.qmd#vllmsglang) for CLI examples.
+
+### Prompt Log Probabilities
+
+vLLM supports returning log probabilities for prompt tokens via the `prompt_logprobs` configuration option. This enables [perplexity-based scoring](scorers.qmd#perplexity) for benchmarks like WikiText, C4, ARC-C, and MMLU:
+
+``` bash
+inspect eval perplexity_eval.py --model vllm/meta-llama/Meta-Llama-3-8B \
+  --prompt-logprobs 1
+```
+
+Or in Python:
+
+``` python
+Task(
+    dataset=dataset,
+    solver=generate(max_tokens=1, prompt_logprobs=1),
+    scorer=perplexity(),
+)
+```
+
+::: {.callout-note}
+Prompt log probabilities are not available when streaming is enabled. Ensure streaming is disabled when using perplexity scorers.
+:::
 
 ### vLLM Server
 
@@ -918,6 +1257,8 @@ Or using the `eval()` function:
 eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(responses_api=True))
 ```
 
+When using the Responses API, `openai-api` also supports the `responses_phase` model arg to synthesize missing assistant message `phase` values when replaying Responses API histories.
+
 ### Tool Emulation {#tool-emulation-openai}
 
 When using OpenAI compatible model providers, tool calling support can be 'emulated' for models that don't yet support it. Use the `emulate_tools` model arg to force tool emulation:
@@ -927,6 +1268,20 @@ inspect eval ctf.py --model openai-api/<provider>/<model> -M emulate_tools=true
 ```
 
 Tool calling emulation works by encoding tool JSON schema in an XML tag and asking the model to make tool calls using another XML tag. This works with varying degrees of efficacy depending on the model and the complexity of the tool schema. Before using tool emulation you should always check if your provider implements native support for tool calling on the model you are using, as that will generally work better.
+
+### Strict Tool Schemas
+
+By default, Inspect sets `"strict": true` on tool function schemas for the `openai-api` provider. This preserves compatibility with providers that require strict tool schemas. You can override this using the `strict_tools` model arg:
+
+``` bash
+inspect eval arc.py --model openai-api/<provider>/<model> -M strict_tools=false
+```
+
+Or using the `eval()` function:
+
+``` python
+eval("arc.py", model="openai-api/<provider>/<model>", model_args=dict(strict_tools=False))
+```
 
 ### Streaming {#streaming-openai-compatible}
 
@@ -958,6 +1313,12 @@ For the `openrouter` provider, the following custom model args (`-M`) are suppor
 : {tbl-colwidths=\[20,85\]}
 
 In addition, [Tool Emulation](#tool-emulation-openai) is available for models that don't yet support tool calling in their API.
+
+For `openrouter/anthropic/*` models, Anthropic [prompt caching](https://docs.claude.com/en/docs/build-with-claude/prompt-caching) is enabled by default: per-block `cache_control` markers are inserted on the last system block, the last tool definition, and a rolling pair of message-level breakpoints (mirroring the placement used by the direct `anthropic` provider). The markers are accepted by OpenRouter across Anthropic-direct, Bedrock, and Vertex routing. Cache writes returned upstream are surfaced as `ModelUsage.input_tokens_cache_write`. Pass `--cache-prompt=false` (or set `cache_prompt=False` in `GenerateConfig`) to disable. Single-turn evaluations that never re-issue the same prefix pay a small premium (Anthropic charges ~1.25× for cache writes) with no offsetting cache reads — disable caching for those workloads.
+
+Note that OpenRouter may distribute consecutive requests for the same model across multiple Anthropic-compatible backends (Anthropic-direct, Bedrock, Vertex), and each backend maintains its own prompt cache. To maximise the cache hit rate across a multi-turn run, pin routing to a single backend via the `provider` model-arg, for example `-M provider='{"order":["anthropic"],"allow_fallbacks":false}'`.
+
+The `cache_control` markers are injected just before the request reaches OpenRouter and so will not appear in the request snapshot recorded in `.eval` log files. Verify caching is active by inspecting the usage line (cache reads/writes) on returned `ModelOutput`s.
 
 The following environment variables are supported by the OpenRouter AI provider
 

@@ -1,4 +1,5 @@
 import contextlib
+import os
 import sys
 from contextlib import AsyncExitStack
 from logging import getLogger
@@ -23,12 +24,17 @@ from mcp.types import (
 from mcp.types import Tool as MCPTool
 from typing_extensions import override
 
+from inspect_ai._util._json_rpc import (
+    JSONRPCErrorMapper,
+    JSONRPCParamsType,
+    exception_for_rpc_response_error,
+)
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.trace import trace_action
-from inspect_ai.tool._json_rpc_helpers import exception_for_rpc_response_error
-from inspect_ai.tool._tool import Tool, ToolError, ToolResult
+from inspect_ai.tool._tool import Tool, ToolError, ToolParsingError, ToolResult
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tool_params import ToolParams
+from inspect_ai.util._anyio import inner_exception
 
 from ._context import MCPServerContext
 from ._sandbox import sandbox_client
@@ -36,6 +42,41 @@ from ._types import MCPServer
 from .sampling import as_inspect_content_list, sampling_fn
 
 logger = getLogger(__name__)
+
+
+class _McpErrorMapper(JSONRPCErrorMapper):
+    """Error mapper for MCP server JSON-RPC errors.
+
+    MCP servers are opaque — we don't know what server-defined error codes they
+    might use, so all errors are mapped to ToolError/ToolParsingError so they
+    are fed back to the model rather than crashing the eval.
+
+    This preserves the behavior from when the MCP path called
+    exception_for_rpc_response_error with server_error_mapper=None.
+
+    TODO: Consider whether MCP can share SandboxToolsErrorMapper instead.
+    """
+
+    @staticmethod
+    def server_error(
+        code: int, message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        del code, method, params
+        return ToolError(message)
+
+    @staticmethod
+    def invalid_params(
+        message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        del method, params
+        return ToolParsingError(message)
+
+    @staticmethod
+    def internal_error(
+        message: str, method: str, params: JSONRPCParamsType
+    ) -> Exception:
+        del method, params
+        return ToolError(message)
 
 
 class MCPServerLocal(MCPServer):
@@ -159,26 +200,42 @@ class MCPServerLocalSession(MCPServer):
 
     def _tool_def_from_mcp_tool(self, mcp_tool: MCPTool) -> ToolDef:
         async def execute(**kwargs: Any) -> ToolResult:
-            async with self._client_session() as tool_session:
-                mcp_call = format_function_call(
-                    mcp_tool.name, kwargs, width=sys.maxsize
-                )
-                with trace_action(
-                    logger, "MCPServer", f"call_tool ({self._name}): {mcp_call}"
-                ):
-                    try:
-                        result = await tool_session.call_tool(mcp_tool.name, kwargs)
-                        if result.isError:
-                            raise ToolError(tool_result_as_text(result.content))
-                    except McpError as e:
-                        # Some errors that are raised via McpError (e.g. -32603)
-                        # need to be converted to ToolError so that they make it
-                        # back to the model.
-                        raise exception_for_rpc_response_error(
-                            e.error.code, e.error.message, mcp_tool.name, kwargs
-                        ) from e
+            # Tool-call timeouts (e.g. the sandbox MCP per-RPC timeout)
+            # surface as TimeoutError, often wrapped in an ExceptionGroup
+            # raised when the underlying task group exits its context
+            # manager. Convert these to ToolError so the model is notified
+            # rather than the exception reaching the top of the sample stack.
+            try:
+                async with self._client_session() as tool_session:
+                    mcp_call = format_function_call(
+                        mcp_tool.name, kwargs, width=sys.maxsize
+                    )
+                    with trace_action(
+                        logger, "MCPServer", f"call_tool ({self._name}): {mcp_call}"
+                    ):
+                        try:
+                            result = await tool_session.call_tool(mcp_tool.name, kwargs)
+                            if result.isError:
+                                raise ToolError(tool_result_as_text(result.content))
+                        except McpError as e:
+                            # Some errors that are raised via McpError (e.g. -32603)
+                            # need to be converted to ToolError so that they make it
+                            # back to the model.
+                            raise exception_for_rpc_response_error(
+                                e.error.code,
+                                e.error.message,
+                                mcp_tool.name,
+                                kwargs,
+                                error_mapper=_McpErrorMapper,
+                            ) from e
 
-                return as_inspect_content_list(result.content)  # type: ignore[return-value,arg-type]
+                    return as_inspect_content_list(result.content)  # type: ignore[return-value,arg-type]
+            except Exception as e:
+                if isinstance(inner_exception(e), TimeoutError):
+                    raise ToolError(
+                        f"Tool '{mcp_tool.name}' timed out before completing."
+                    ) from e
+                raise
 
         # get parameters (fill in missing ones)
         parameters = ToolParams.model_validate(mcp_tool.inputSchema)
@@ -262,6 +319,35 @@ def create_server_streamablehttp(
     )
 
 
+@contextlib.asynccontextmanager
+async def _stdio_client_forwarding_stderr(
+    server_params: StdioServerParameters,
+    name: str,
+) -> AsyncIterator[Any]:
+    r_fd, w_fd = os.pipe()
+    w_file = os.fdopen(w_fd, "w", buffering=1, encoding="utf-8", errors="replace")
+    r_file = os.fdopen(r_fd, "r", encoding="utf-8", errors="replace")
+    mcp_logger = getLogger(f"inspect_ai.tool._mcp.{name}")
+
+    async def _drain() -> None:
+        try:
+            async_r = anyio.wrap_file(r_file)
+            async for line in async_r:
+                stripped = line.rstrip("\r\n")
+                if stripped:
+                    mcp_logger.info(stripped)
+        finally:
+            r_file.close()
+
+    async with anyio.create_task_group() as tg:
+        tg.start_soon(_drain)
+        try:
+            async with stdio_client(server_params, errlog=w_file) as streams:
+                yield streams
+        finally:
+            w_file.close()
+
+
 def create_server_stdio(
     *,
     name: str,
@@ -270,15 +356,14 @@ def create_server_stdio(
     cwd: str | Path | None = None,
     env: dict[str, str] | None = None,
 ) -> MCPServer:
+    server_params = StdioServerParameters(
+        command=command,
+        args=args if args is not None else [],
+        cwd=cwd,
+        env=env,
+    )
     return MCPServerLocal(
-        lambda: stdio_client(
-            StdioServerParameters(
-                command=command,
-                args=args if args is not None else [],
-                cwd=cwd,
-                env=env,
-            )
-        ),
+        lambda: _stdio_client_forwarding_stderr(server_params, name),
         name=name,
         events=True,
     )

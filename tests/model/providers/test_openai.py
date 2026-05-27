@@ -13,6 +13,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._chat_message import ChatMessageSystem
 from inspect_ai.model._internal import parse_content_with_internal
+from inspect_ai.model._openai import openai_completion_params
 
 
 @pytest.mark.anyio
@@ -47,7 +48,20 @@ def test_openai_verbosity() -> None:
     assert log.status == "success"
 
 
-@pytest.mark.asyncio
+def test_openai_completion_params_extra_body_not_mutated() -> None:
+    config = GenerateConfig(
+        extra_body={"metadata": {"source": "test"}, "reasoning": {"effort": "low"}}
+    )
+
+    for _ in range(2):
+        params = openai_completion_params("gpt-4o-mini", config, tools=False)
+        assert params["extra_body"] == {"reasoning": {"effort": "low"}}
+        assert config.extra_body == {
+            "metadata": {"source": "test"},
+            "reasoning": {"effort": "low"},
+        }
+
+
 @skip_if_no_openai
 async def test_openai_o_series_developer_messages() -> None:
     async def check_developer_messages(model_name: str):
@@ -65,7 +79,6 @@ async def test_openai_o_series_developer_messages() -> None:
     await check_developer_messages("openai/o3-mini")
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 async def test_openai_o_series_reasoning_effort() -> None:
     async def check_reasoning_effort(model_name: str, effort: str = "medium"):
@@ -81,7 +94,6 @@ async def test_openai_o_series_reasoning_effort() -> None:
     await check_reasoning_effort("openai/gpt-5-mini", "minimal")
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 async def test_openai_o_series_max_tokens() -> None:
     async def check_max_tokens(model_name: str):

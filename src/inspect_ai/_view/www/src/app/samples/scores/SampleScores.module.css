@@ -1,5 +1,0 @@
-.grid {
-  display: grid;
-  grid-template-columns: max-content max-content;
-  column-gap: 1em;
-}

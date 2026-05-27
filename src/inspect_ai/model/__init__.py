@@ -40,7 +40,9 @@ from ._chat_message import (
 )
 from ._compaction import (
     Compact,
+    CompactionAuto,
     CompactionEdit,
+    CompactionNative,
     CompactionStrategy,
     CompactionSummary,
     CompactionTrim,
@@ -51,6 +53,8 @@ from ._generate_config import (
     BatchConfig,
     GenerateConfig,
     GenerateConfigArgs,
+    ImageOutput,
+    OutputModality,
     ResponseSchema,
 )
 from ._google_convert import messages_from_google, model_output_from_google
@@ -61,12 +65,14 @@ from ._model import (
     Model,
     ModelAPI,
     ModelName,
+    RetryDecision,
     get_model,
+    model_roles,
 )
 from ._model_call import ModelCall
 from ._model_config import ModelConfig
-from ._model_data.model_data import ModelInfo
-from ._model_info import get_model_info, set_model_info
+from ._model_data.model_data import ModelCost, ModelInfo
+from ._model_info import get_model_info, set_model_cost, set_model_info
 from ._model_output import (
     ChatCompletionChoice,
     Logprob,
@@ -94,6 +100,8 @@ __all__ = [
     "GenerateConfigArgs",
     "GenerateFilter",
     "GenerateInput",
+    "ImageOutput",
+    "OutputModality",
     "ResponseSchema",
     "CachePolicy",
     "ContentAudio",
@@ -124,20 +132,24 @@ __all__ = [
     "messages_to_openai",
     "stable_message_ids",
     "ModelCall",
+    "ModelCost",
     "ModelOutput",
     "ModelConversation",
     "compaction",
     "Compact",
     "CompactionStrategy",
+    "CompactionAuto",
     "CompactionEdit",
     "CompactionSummary",
     "CompactionTrim",
+    "CompactionNative",
     "Logprobs",
     "Logprob",
     "TopLogprob",
     "Model",
     "ModelAPI",
     "ModelName",
+    "RetryDecision",
     "ModelConfig",
     "ModelUsage",
     "StopReason",
@@ -153,7 +165,9 @@ __all__ = [
     "cache_size",
     "get_model",
     "get_model_info",
+    "set_model_cost",
     "set_model_info",
+    "model_roles",
     "ModelInfo",
     "modelapi",
     "Citation",

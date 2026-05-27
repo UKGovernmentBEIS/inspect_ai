@@ -14,9 +14,7 @@ from inspect_ai._util.constants import (
 from inspect_ai._util.dotenv import init_dotenv
 from inspect_ai._util.error import exception_message
 from inspect_ai._util.logger import init_logger
-from inspect_ai._view.server import view_server
 
-from .fastapi_prereqs import verify_fastapi_prerequisites
 from .notify import view_data_dir
 
 logger = logging.getLogger(__name__)
@@ -49,33 +47,22 @@ def view(
     init_logger(log_level)
 
     # initialize the log_dir
-    log_dir = log_dir if log_dir else os.getenv("INSPECT_LOG_DIR", "./logs")
+    if not log_dir:
+        log_dir = os.getenv("INSPECT_LOG_DIR", "./logs")
 
     # acquire the requested port
     view_acquire_port(view_data_dir(), port)
 
-    # run server
-    if os.getenv("INSPECT_VIEW_FASTAPI_SERVER"):
-        verify_fastapi_prerequisites()
-        from .fastapi_server import view_server as fastapi_view_server
+    from .fastapi_server import view_server
 
-        fastapi_view_server(
-            log_dir=log_dir,
-            recursive=recursive,
-            host=host,
-            port=port,
-            authorization=authorization,
-            fs_options=fs_options,
-        )
-    else:
-        view_server(
-            log_dir=log_dir,
-            recursive=recursive,
-            host=host,
-            port=port,
-            authorization=authorization,
-            fs_options=fs_options,
-        )
+    view_server(
+        log_dir=log_dir,
+        recursive=recursive,
+        host=host,
+        port=port,
+        authorization=authorization,
+        fs_options=fs_options,
+    )
 
 
 def view_port_pid_file(app_dir: Path, port: int) -> Path:

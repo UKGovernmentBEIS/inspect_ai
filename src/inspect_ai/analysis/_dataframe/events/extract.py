@@ -1,5 +1,6 @@
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
+from inspect_ai.tool._tool_call import substitute_tool_call_content
 
 from ..extract import messages_as_str
 
@@ -21,7 +22,8 @@ def completion_as_str(event: ModelEvent) -> str:
 
 def tool_view_as_str(event: ToolEvent) -> str | None:
     if event.view is not None:
-        title = f"{event.view.title}\n\n" if event.view.title is not None else ""
-        return f"{title}{event.view.content}"
+        view = substitute_tool_call_content(event.view, event.arguments)
+        title = f"{view.title}\n\n" if view.title is not None else ""
+        return f"{title}{view.content}"
     else:
         return None

@@ -1,4 +1,6 @@
-from typing import Literal, TypeAlias, TypedDict
+from typing import Literal, TypeAlias
+
+from typing_extensions import TypedDict
 
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
@@ -43,7 +45,7 @@ fi
 
 async def _sandbox_exec(sandbox: SandboxEnvironment, command: str) -> str:
     """Execute a command in the container and return the output."""
-    result = await sandbox.exec(["sh", "-c", command], timeout=30)
+    result = await sandbox.exec(["sh", "-c", command], timeout=120)
     if not result.success:
         raise RuntimeError(
             f"Error executing command {' '.join(command)}: {result.stderr}"

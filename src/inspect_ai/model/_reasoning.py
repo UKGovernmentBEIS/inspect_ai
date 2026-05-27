@@ -1,8 +1,9 @@
 import base64
+import html
 import json
 import re
 from logging import getLogger
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from pydantic import JsonValue
 
@@ -14,6 +15,59 @@ from inspect_ai._util.content import (
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 
 logger = getLogger(__name__)
+
+
+# Fixed effort -> token budget table used to bridge `reasoning_effort` onto
+# providers that only accept an explicit token budget (Anthropic Claude 3.7-4.5,
+# Google Gemini 2.5). Magnitudes mirror the existing Anthropic max_tokens-sizing
+# table in anthropic.py (with `minimal` added) and clear Anthropic's 1024-token
+# API floor across the board.
+_EFFORT_TO_TOKENS: dict[str, int] = {
+    "minimal": 2048,
+    "low": 4096,
+    "medium": 10000,
+    "high": 16000,
+    "xhigh": 32000,
+    "max": 32000,
+}
+
+
+def effort_to_reasoning_tokens(
+    effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+    | str
+    | None,
+) -> int | None:
+    """Translate a `reasoning_effort` value into a token budget.
+
+    Returns None for `None` and `"none"` (no reasoning requested). Returns the
+    mapped int for any supported effort level.
+    """
+    if effort is None or effort == "none":
+        return None
+    return _EFFORT_TO_TOKENS.get(effort)
+
+
+def clamp_reasoning_effort_to_low_medium_high(
+    effort: Literal["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+    | str
+    | None,
+) -> Literal["low", "medium", "high"] | None:
+    """Clamp a `reasoning_effort` value to the `low`/`medium`/`high` tier.
+
+    Used by providers that pass effort through to upstream APIs which only
+    accept the three-level scale (Groq, Ollama, SageMaker). Returns None for
+    `None` and `"none"`.
+    """
+    if effort is None or effort == "none":
+        return None
+    match effort:
+        case "minimal" | "low":
+            return "low"
+        case "medium":
+            return "medium"
+        case "high" | "xhigh" | "max":
+            return "high"
+    return None
 
 
 class ReasoningCapsule(NamedTuple):
@@ -47,6 +101,11 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
 
         # Extract nested <summary> tag from content
         reasoning, summary = _parse_summary(reasoning)
+        if redacted and signature and signature.startswith("rs_"):
+            # Redacted reasoning bodies carry opaque provider payloads such as
+            # encrypted_content. Some text scaffolds wrap long lines; whitespace
+            # inserted there is not part of the payload.
+            reasoning = re.sub(r"\s+", "", reasoning)
 
         # Remove the matched <think>...</think> from the input
         start, end = match.span()
@@ -66,9 +125,14 @@ def parse_content_with_reasoning(content: str) -> tuple[str, ReasoningCapsule | 
 
 
 def _parse_attr(attrs_str: str, name: str) -> str | None:
-    """Extract attribute value from attributes string."""
+    """Extract attribute value from attributes string.
+
+    Values are HTML-unescaped to invert the escaping done by
+    `reasoning_to_think_tag`. Plain values without entities are
+    unchanged.
+    """
     match = re.search(rf'{name}="([^"]*)"', attrs_str)
-    return match.group(1) if match else None
+    return html.unescape(match.group(1)) if match else None
 
 
 def _parse_internal_attr(attrs_str: str) -> JsonValue | None:
@@ -104,7 +168,11 @@ def reasoning_to_think_tag(reasoning: "ContentReasoning") -> str:
     """
     attribs = ""
     if reasoning.signature is not None:
-        attribs = f'{attribs} signature="{reasoning.signature}"'
+        # HTML-escape so signatures containing quotes, '<', '>', or '&'
+        # (e.g. OpenRouter's reasoning-details JSON payload) survive the
+        # attribute round-trip. Plain signatures are unchanged.
+        signature = html.escape(reasoning.signature, quote=True)
+        attribs = f'{attribs} signature="{signature}"'
     if reasoning.redacted:
         attribs = f'{attribs} redacted="true"'
     if reasoning.internal is not None:

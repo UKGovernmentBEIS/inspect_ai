@@ -4,6 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.dynamic]
 dependencies = { file = ["requirements.txt"] }
+optional-dependencies.dev = { file = ["requirements-dev.txt"] }
+optional-dependencies.doc = { file = ["requirements-doc.txt"] }
+optional-dependencies.dist = { file = ["requirements-dist.txt"] }
 
 [tool.setuptools_scm]
 git_describe_command = [
@@ -22,7 +25,16 @@ where = ["src"]
 include = ["inspect_ai*"]
 
 [tool.setuptools.package-data]
-inspect_ai = ["binaries/*", "tool/sandbox_tools/sandbox_tools_version.txt"]
+inspect_ai = [
+    "binaries/*",
+    "tool/_sandbox_tools_utils/sandbox_tools_version.txt",
+    "**/*.tcss",
+    "**/*.yml",
+    "_view/dist/**/*",
+    "**/*.jsonl",
+    "_view/log-schema.json",
+    "py.typed",
+]
 
 
 [tool.ruff]
@@ -41,6 +53,8 @@ select = [
   # "RET", # flake8-return
   # "RUF", # ruff rules
   "DTZ",
+  "TID251",  # banned-api
+  "PLE",     # pylint errors
 ]
 ignore = [
   "E203",
@@ -62,6 +76,10 @@ ignore = [
   "B905",
 ]
 
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"typing.TypedDict".msg = "Use typing_extensions.TypedDict (Pydantic requires it on Python < 3.12)"
+"typing.is_typeddict".msg = "Use typing_extensions.is_typeddict (typing.is_typeddict doesn't recognize typing_extensions.TypedDict subclasses)"
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
@@ -75,8 +93,6 @@ norecursedirs = [
   "tests/test_package",
   "tests/test_task_list",
 ]
-asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
 log_level = "WARNING"
 
 [tool.mypy]
@@ -85,7 +101,9 @@ exclude = [
   "build",
   "(?:^|/)_resources/",
   "examples/bridge",
+  "examples/evals_in_eval",
   "examples/hooks",
+  "examples/http_proxy",
   "src/inspect_tool_support",
   "src/inspect_sandbox_tools",
 ]
@@ -127,7 +145,7 @@ authors = [{ name = "UK AI Security Institute" }]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT License" }
-dynamic = ["version", "dependencies"]
+dynamic = ["version", "dependencies", "optional-dependencies"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
@@ -149,75 +167,13 @@ Documentation = "https://inspect.aisi.org.uk/"
 [project.scripts]
 inspect = "inspect_ai._cli.main:main"
 
-[project.optional-dependencies]
-dev = [
-  "adlfs>=2025.8.0",
-  "anthropic>=0.62.0",
-  "azure-identity",
-  "azure-ai-inference",
-  "fastapi",
-  "google-genai",
-  "griffe",
-  "groq",
-  "huggingface_hub>=1.0.0",
-  "inspect_scout",
-  "ipython",
-  "jsonpath-ng",
-  "markdown",
-  "mcp>=1.10.0",
-  "mistralai",
-  "moto[server]",
-  "mypy>=1.17.0",
-  "nbformat",
-  "openai",
-  "pandas>=2.0.0",
-  "panflute",
-  "pip",
-  "pre-commit",
-  "pyarrow>=10.0.1",
-  "pylint",
-  "pytest",
-  "pytest-asyncio",
-  "pytest-cov",
-  "pytest-dotenv",
-  "pytest-mock",
-  "pytest-watcher",
-  "pytest-xdist",
-  "ruff==0.9.6",           # match version specified in .pre-commit-config.yaml
-  "together",
-  "textual-dev>=0.86.2",
-  "trio",
-  "pandas-stubs",
-  "pyarrow-stubs",
-  "types-grpcio",
-  "types-Markdown",
-  "types-PyYAML",
-  "types-beautifulsoup4",
-  "types-aioboto3",
-  "types-boto3",
-  "types-botocore",
-  "types-jsonpatch",
-  "types-jsonschema",
-  "types-protobuf",
-  "types-psutil",
-  "types-python-dateutil",
-  "xai_sdk",
-  "uvicorn",
-]
-dev-mcp-tests = ["mcp-server-fetch", "mcp_server_git"]
-doc = [
-  "quarto-cli==1.7.32",
-  "jupyter",
-  "panflute",
-  "markdown",
-  "griffe",
-  "click>=8.2.0",
-]
-dist = ["twine", "build"]
-
 [tool.typos.default.extend-words]
 ba = "ba"
 lsat = "lsat"
 
+[dependency-groups]
+dev = ["inspect_ai[dev]"]
+
 [tool.uv]
 cache-keys = [{ git = { commit = true } }, { file = "pyproject.toml" }]
+default-groups = ["dev"]

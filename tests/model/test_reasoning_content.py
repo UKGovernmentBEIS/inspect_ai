@@ -20,25 +20,21 @@ from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_choice import ToolChoice
 
 
-@pytest.mark.asyncio
 @skip_if_no_together
 async def test_reasoning_content_together():
     await check_reasoning_content("together/openai/gpt-oss-20b")
 
 
-@pytest.mark.asyncio
 @skip_if_no_groq
 async def test_reasoning_content_groq():
     await check_reasoning_content("groq/openai/gpt-oss-20b")
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 async def test_reasoning_content_openai():
     await check_reasoning_content("openai/gpt-5-mini")
 
 
-@pytest.mark.asyncio
 @skip_if_no_openai
 @skip_if_no_openrouter
 async def test_reasoning_content_openrouter_openai():

@@ -6,6 +6,8 @@ hooks:
 ruff:
 	ruff check --fix
 	ruff format
+	cd src/inspect_tool_support/src && ruff check --fix
+	cd src/inspect_tool_support/src && ruff format
 
 .PHONY: mypy
 mypy:
@@ -13,8 +15,13 @@ mypy:
 
 .PHONY: check
 check: ruff mypy
-	pylint src
 
 .PHONY: test
 test:
 	pytest
+
+.PHONY: test-parallel
+test-parallel:
+	pytest -n auto
+
+include docs/evals/inspect-evals.mk

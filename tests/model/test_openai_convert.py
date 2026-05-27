@@ -1,13 +1,12 @@
 """Tests for OpenAI model API conversion functions."""
 
-import pytest
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessage,
 )
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat.chat_completion_message_function_tool_call import Function
-from openai.types.completion_usage import CompletionUsage
+from openai.types.completion_usage import CompletionUsage, PromptTokensDetails
 from openai.types.responses import (
     Response,
     ResponseOutputMessage,
@@ -30,9 +29,13 @@ from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
 )
 from inspect_ai.model._model_output import ModelOutput
+from inspect_ai.model._openai import chat_message_assistant_from_openai
+from inspect_ai.model._openai_responses import (
+    reasoning_from_responses_reasoning,
+    responses_reasoning_from_reasoning,
+)
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_basic() -> None:
     """Test basic ChatCompletion conversion to ModelOutput."""
     completion = ChatCompletion(
@@ -72,7 +75,6 @@ async def test_model_output_from_openai_basic() -> None:
     assert result.usage.total_tokens == 30
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_with_tool_calls() -> None:
     """Test ChatCompletion with tool calls conversion."""
     from openai.types.chat.chat_completion_message_function_tool_call import (
@@ -125,7 +127,32 @@ async def test_model_output_from_openai_with_tool_calls() -> None:
     assert message.tool_calls[0].function == "get_weather"
 
 
-@pytest.mark.asyncio
+async def test_chat_completion_openrouter_reasoning_details() -> None:
+    details = [
+        {
+            "type": "reasoning.text",
+            "text": "I should answer directly.",
+            "format": "unknown",
+            "index": 0,
+        }
+    ]
+    message = ChatCompletionMessage.model_construct(
+        role="assistant",
+        content="Final answer",
+        reasoning_details=details,
+    )
+
+    result = chat_message_assistant_from_openai("gpt-4o", message, [])
+
+    assert isinstance(result.content, list)
+    assert isinstance(result.content[0], ContentReasoning)
+    assert result.content[0].reasoning == "I should answer directly."
+    assert "reasoning.text" not in result.content[0].reasoning
+    assert result.content[0].signature is not None
+    assert isinstance(result.content[1], ContentText)
+    assert result.content[1].text == "Final answer"
+
+
 async def test_model_output_from_openai_dict_input() -> None:
     """Test conversion from dict representation of ChatCompletion."""
     completion_dict = {
@@ -155,7 +182,6 @@ async def test_model_output_from_openai_dict_input() -> None:
     assert result.choices[0].message.content == "Test response"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_basic() -> None:
     """Test basic Response conversion to ModelOutput."""
     response = Response.model_construct(
@@ -205,7 +231,6 @@ async def test_model_output_from_openai_responses_basic() -> None:
     assert result.usage.total_tokens == 300
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_with_reasoning() -> None:
     """Test Response with reasoning blocks conversion."""
     response = Response.model_construct(
@@ -266,7 +291,6 @@ async def test_model_output_from_openai_responses_with_reasoning() -> None:
     assert result.usage.input_tokens_cache_read == 10
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_dict_input() -> None:
     """Test conversion from dict representation of Response."""
     response_dict = {
@@ -309,7 +333,6 @@ async def test_model_output_from_openai_responses_dict_input() -> None:
     assert result.usage.input_tokens == 20
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_responses_with_refusal() -> None:
     """Test Response with refusal content."""
     response = Response.model_construct(
@@ -348,7 +371,6 @@ async def test_model_output_from_openai_responses_with_refusal() -> None:
     assert result.choices[0].stop_reason == "stop"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_multiple_choices() -> None:
     """Test ChatCompletion with multiple choices (n > 1)."""
     completion = ChatCompletion(
@@ -391,7 +413,6 @@ async def test_model_output_from_openai_multiple_choices() -> None:
     assert result.choices[1].message.content == "Second response"
 
 
-@pytest.mark.asyncio
 async def test_model_output_from_openai_length_stop_reason() -> None:
     """Test ChatCompletion with length finish reason."""
     completion = ChatCompletion(
@@ -421,3 +442,314 @@ async def test_model_output_from_openai_length_stop_reason() -> None:
 
     assert isinstance(result, ModelOutput)
     assert result.choices[0].stop_reason == "max_tokens"
+
+
+async def test_model_output_from_openai_cache_token_normalization() -> None:
+    """Test that input_tokens excludes cached tokens for OpenAI Chat Completions."""
+    completion = ChatCompletion(
+        id="chatcmpl-cache",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            Choice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content="Hello!",
+                ),
+                finish_reason="stop",
+                logprobs=None,
+            )
+        ],
+        usage=CompletionUsage(
+            prompt_tokens=1000,
+            completion_tokens=50,
+            total_tokens=1050,
+            prompt_tokens_details=PromptTokensDetails(cached_tokens=600),
+        ),
+    )
+
+    result = await model_output_from_openai(completion)
+
+    assert result.usage is not None
+    # input_tokens should exclude cached tokens: 1000 - 600 = 400
+    assert result.usage.input_tokens == 400
+    assert result.usage.input_tokens_cache_read == 600
+    assert result.usage.output_tokens == 50
+    assert result.usage.total_tokens == 1050
+
+
+async def test_model_output_from_openai_no_cache_tokens() -> None:
+    """Test that input_tokens is unchanged when there are no cached tokens."""
+    completion = ChatCompletion(
+        id="chatcmpl-nocache",
+        model="gpt-4o-mini",
+        object="chat.completion",
+        created=1234567890,
+        choices=[
+            Choice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant",
+                    content="Hello!",
+                ),
+                finish_reason="stop",
+                logprobs=None,
+            )
+        ],
+        usage=CompletionUsage(
+            prompt_tokens=500,
+            completion_tokens=50,
+            total_tokens=550,
+        ),
+    )
+
+    result = await model_output_from_openai(completion)
+
+    assert result.usage is not None
+    # No cache, input_tokens should equal prompt_tokens
+    assert result.usage.input_tokens == 500
+    assert result.usage.input_tokens_cache_read is None
+    assert result.usage.total_tokens == 550
+
+
+async def test_model_output_from_openai_responses_cache_normalization() -> None:
+    """Test that input_tokens excludes cached tokens for OpenAI Responses API."""
+    response = Response(
+        id="resp-cache",
+        created_at=1234567890,
+        model="gpt-4o-mini",
+        object="response",
+        output=[
+            ResponseOutputMessage(
+                id="msg-1",
+                type="message",
+                role="assistant",
+                status="completed",
+                content=[
+                    ResponseOutputText(
+                        type="output_text",
+                        text="Hello!",
+                        annotations=[],
+                    )
+                ],
+            )
+        ],
+        tool_choice="auto",
+        tools=[],
+        parallel_tool_calls=False,
+        usage=ResponseUsage(
+            input_tokens=1000,
+            output_tokens=50,
+            total_tokens=1050,
+            input_tokens_details=InputTokensDetails(cached_tokens=600),
+            output_tokens_details=OutputTokensDetails(reasoning_tokens=0),
+        ),
+    )
+
+    result = await model_output_from_openai_responses(response)
+
+    assert result.usage is not None
+    # input_tokens should exclude cached tokens: 1000 - 600 = 400
+    assert result.usage.input_tokens == 400
+    assert result.usage.input_tokens_cache_read == 600
+    assert result.usage.output_tokens == 50
+    assert result.usage.total_tokens == 1050
+
+
+# --- Tests for reasoning_from_responses_reasoning (ingest) ---
+
+
+def test_reasoning_from_responses_both_content_and_encrypted() -> None:
+    """When both content and encrypted_content exist, readable goes to summary."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_123",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": "readable thinking"}],
+        encrypted_content="ENCRYPTED_BLOB",
+        summary=[],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "ENCRYPTED_BLOB"
+    assert result.summary == "readable thinking"
+    assert result.redacted is True
+    assert result.signature == "rs_123"
+
+
+def test_reasoning_from_responses_empty_content_and_encrypted() -> None:
+    """Present-but-empty content still preserves encrypted reasoning."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_empty",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": ""}],
+        encrypted_content="ENCRYPTED_BLOB",
+        summary=[],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "ENCRYPTED_BLOB"
+    assert result.summary == ""
+    assert result.redacted is True
+    assert result.signature == "rs_empty"
+
+
+def test_reasoning_from_responses_only_encrypted() -> None:
+    """When only encrypted_content exists, store it in reasoning as redacted."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_456",
+        type="reasoning",
+        content=None,
+        encrypted_content="ENCRYPTED_ONLY",
+        summary=[],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "ENCRYPTED_ONLY"
+    assert result.redacted is True
+    assert result.summary is None
+
+
+def test_reasoning_from_responses_only_content() -> None:
+    """When only content exists (no encryption), store readable text normally."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_789",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": "just thinking"}],
+        encrypted_content=None,
+        summary=[{"type": "summary_text", "text": "a summary"}],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "just thinking"
+    assert result.redacted is False
+    assert result.summary == "a summary"
+
+
+def test_reasoning_from_responses_encrypted_with_api_summary() -> None:
+    """When encrypted with API summary but no content, summary is used."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_sum",
+        type="reasoning",
+        content=None,
+        encrypted_content="ENCRYPTED",
+        summary=[{"type": "summary_text", "text": "API summary"}],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "ENCRYPTED"
+    assert result.summary == "API summary"
+    assert result.redacted is True
+
+
+def test_reasoning_from_responses_content_encrypted_and_summary() -> None:
+    """All three present: readable -> reasoning, API summary -> summary, encrypted -> internal.
+
+    For visible-CoT models, redacted is False and the encrypted blob is
+    stashed in `internal` so it can be restored on replay.
+    """
+    item = ResponseReasoningItem.model_construct(
+        id="rs_all",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": "raw cot thinking"}],
+        encrypted_content="ENCRYPTED_BLOB",
+        summary=[{"type": "summary_text", "text": "API summary"}],
+    )
+    result = reasoning_from_responses_reasoning(item)
+    assert result.reasoning == "raw cot thinking"
+    assert result.summary == "API summary"
+    assert result.redacted is False
+    assert result.signature == "rs_all"
+    assert result.internal == {"reasoning_encrypted_content": "ENCRYPTED_BLOB"}
+
+
+# --- Tests for responses_reasoning_from_reasoning (replay) ---
+
+
+def test_replay_redacted_with_summary() -> None:
+    """Redacted format: encrypted in reasoning, readable text not sent back as content."""
+    content = ContentReasoning(
+        reasoning="ENCRYPTED_BLOB",
+        summary="readable thinking",
+        redacted=True,
+        signature="rs_123",
+    )
+    result = responses_reasoning_from_reasoning(content)
+    assert result["encrypted_content"] == "ENCRYPTED_BLOB"
+    # OpenAI API requires content to be empty when encrypted_content is present
+    assert list(result["content"]) == []
+    assert list(result["summary"]) == []
+    assert result["id"] == "rs_123"
+
+
+def test_replay_redacted_no_summary() -> None:
+    """Redacted with no summary: only encrypted content, no readable content."""
+    content = ContentReasoning(
+        reasoning="ENCRYPTED_BLOB",
+        redacted=True,
+        signature="rs_456",
+    )
+    result = responses_reasoning_from_reasoning(content)
+    assert result["encrypted_content"] == "ENCRYPTED_BLOB"
+    assert list(result["content"]) == []
+    assert result["id"] == "rs_456"
+
+
+def test_replay_no_encrypted_content() -> None:
+    """No encryption at all — just readable text."""
+    content = ContentReasoning(
+        reasoning="just thinking",
+        redacted=False,
+        signature="rs_789",
+    )
+    result = responses_reasoning_from_reasoning(content)
+    result_content = list(result["content"])
+    assert result["encrypted_content"] is None
+    assert len(result_content) == 1
+    assert result_content[0]["text"] == "just thinking"
+
+
+# --- Round-trip test ---
+
+
+def test_reasoning_round_trip_preserves_encrypted() -> None:
+    """Ingest then replay preserves encrypted content; readable text kept in summary only."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_rt",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": "readable"}],
+        encrypted_content="ENCRYPTED",
+        summary=[],
+    )
+    content = reasoning_from_responses_reasoning(item)
+    # Readable text stored in summary for display
+    assert content.summary == "readable"
+    assert content.redacted is True
+    # On replay, only encrypted_content is sent (API rejects content + encrypted_content)
+    replayed = responses_reasoning_from_reasoning(content)
+    assert replayed["encrypted_content"] == "ENCRYPTED"
+    assert list(replayed["content"]) == []
+    assert list(replayed["summary"]) == []
+    assert replayed["id"] == "rs_rt"
+
+
+def test_reasoning_round_trip_content_encrypted_and_summary() -> None:
+    """When content, encrypted_content, and summary all exist, replay restores all three."""
+    item = ResponseReasoningItem.model_construct(
+        id="rs_rt_all",
+        type="reasoning",
+        content=[{"type": "reasoning_text", "text": "raw cot thinking"}],
+        encrypted_content="ENCRYPTED_BLOB",
+        summary=[{"type": "summary_text", "text": "API summary"}],
+    )
+    content = reasoning_from_responses_reasoning(item)
+    assert content.reasoning == "raw cot thinking"
+    assert content.summary == "API summary"
+    assert content.redacted is False
+    assert content.internal == {"reasoning_encrypted_content": "ENCRYPTED_BLOB"}
+
+    replayed = responses_reasoning_from_reasoning(content)
+    assert replayed["encrypted_content"] == "ENCRYPTED_BLOB"
+    replayed_content = list(replayed["content"])
+    assert len(replayed_content) == 1
+    assert replayed_content[0]["text"] == "raw cot thinking"
+    replayed_summary = list(replayed["summary"])
+    assert len(replayed_summary) == 1
+    assert replayed_summary[0]["text"] == "API summary"
+    assert replayed["id"] == "rs_rt_all"

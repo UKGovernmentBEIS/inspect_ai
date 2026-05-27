@@ -103,6 +103,11 @@ async def check_thinking_compaction(
         )
         messages.append(output2.message)
 
+        # Execute any tool calls from output2 (model may call tools again)
+        if output2.message.tool_calls:
+            result2 = await execute_tools(messages, tools)
+            messages.extend(result2.messages)
+
     # Step 4: Add thank you message
     messages.append(ChatMessageUser(content="Thank you for the suggestions!"))
 
@@ -113,14 +118,26 @@ async def check_thinking_compaction(
         keep_tool_uses=10,  # Keep tool uses
     )
     # Set the model so CompactionEdit can check compact_reasoning_history()
-    compacted_messages, _ = await strategy.compact(messages, model)
+    compacted_messages, _ = await strategy.compact(model, messages, [])
 
-    # Verify thinking was removed (only if provider supports it)
+    # Verify visible reasoning was removed (only if provider supports it).
+    # Provider-specific replay anchors (e.g. Google's redacted ContentReasoning
+    # blocks carrying internal["gemini_function_call_id"]) survive compaction
+    # because they hold the thought_signature bytes the verifier requires on
+    # the next turn — they are not "thinking text" in the user-visible sense
+    # and should not count toward this assertion.
     thinking_turns = 0
     if model.api.compact_reasoning_history():
         for msg in compacted_messages:
             if isinstance(msg, ChatMessageAssistant) and isinstance(msg.content, list):
-                if any([isinstance(c, ContentReasoning) for c in msg.content]):
+                if any(
+                    isinstance(c, ContentReasoning)
+                    and not (
+                        isinstance(c.internal, dict)
+                        and "gemini_function_call_id" in c.internal
+                    )
+                    for c in msg.content
+                ):
                     thinking_turns += 1
     assert thinking_turns == 1, "Thinking blocks should have been removed"
 
@@ -145,7 +162,6 @@ async def check_thinking_compaction(
 
 @skip_if_no_openai
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_openai() -> None:
     await check_thinking_compaction(
         "openai/gpt-5-mini",
@@ -155,7 +171,6 @@ async def test_thinking_compaction_openai() -> None:
 
 @skip_if_no_anthropic
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_anthropic() -> None:
     await check_thinking_compaction(
         "anthropic/claude-sonnet-4-5",
@@ -165,22 +180,20 @@ async def test_thinking_compaction_anthropic() -> None:
 
 @skip_if_no_google
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_google() -> None:
     # Note: Google doesn't support thinking compaction (compact_reasoning_history returns False)
     # This test verifies the behavior is handled gracefully
     await check_thinking_compaction(
-        "google/gemini-3-pro-preview",
+        "google/gemini-3.1-pro-preview",
         GenerateConfig(reasoning_effort="low"),
     )
 
 
 @skip_if_no_mistral
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_mistral() -> None:
     await check_thinking_compaction(
-        "mistral/magistral-small-2506",
+        "mistral/magistral-medium-2509",
         GenerateConfig(reasoning_effort="low"),
         conversation_api=False,
     )
@@ -188,7 +201,6 @@ async def test_thinking_compaction_mistral() -> None:
 
 @skip_if_no_grok
 @pytest.mark.slow
-@pytest.mark.asyncio
 async def test_thinking_compaction_grok() -> None:
     await check_thinking_compaction(
         "grok/grok-3-mini",

@@ -7,6 +7,7 @@ from inspect_ai._util._async import run_coroutine
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai._util.file import exists, filesystem
 from inspect_ai.log import resolve_sample_attachments
+from inspect_ai.log._condense import condense_sample
 from inspect_ai.log._file import (
     log_files_from_ls,
     read_eval_log,
@@ -15,6 +16,7 @@ from inspect_ai.log._file import (
 )
 from inspect_ai.log._recorders import create_recorder_for_location
 from inspect_ai.log._recorders.create import recorder_type_for_location
+from inspect_ai.log._resolve import resolve_sample_events_data
 
 
 def convert_eval_logs(
@@ -27,8 +29,7 @@ def convert_eval_logs(
 ) -> None:
     """Convert between log file formats.
 
-    Convert log file(s) to a target format. If a file is already in the target
-    format it will just be copied to the output dir.
+    Convert log file(s) to a target format.
 
     Args:
         path (str): Path to source log file(s). Should be either a single
@@ -94,10 +95,8 @@ def convert_eval_logs(
                 )
             )
         else:
-            write_eval_log(
-                read_eval_log(input_file, resolve_attachments=resolve_attachments),
-                output_file,
-            )
+            log = read_eval_log(input_file, resolve_attachments=resolve_attachments)
+            write_eval_log(log, output_file)
 
     if fs.info(path).type == "file":
         convert_file(path)
@@ -135,6 +134,11 @@ async def _stream_convert_file(
             sample = await input_recorder.read_log_sample(input_file, sample_id, epoch)
             if resolve_attachments:
                 sample = resolve_sample_attachments(sample, resolve_attachments)
+            else:
+                # Must resolve message pool refs before re-condensing,
+                # otherwise condense_sample will overwrite pools with empty lists
+                sample = resolve_sample_events_data(sample)
+            sample = condense_sample(sample)
             await output_recorder.log_sample(
                 log_header.eval,
                 sample,
@@ -163,4 +167,5 @@ async def _stream_convert_file(
         log_header.results,
         log_header.reductions,
         invalidated=log_header.invalidated,
+        log_updates=log_header.log_updates,
     )

@@ -1,17 +1,19 @@
-import os
 from logging import getLogger
 from types import TracebackType
-from typing import Any, Literal, Type, TypedDict
+from typing import Any, Literal, Type
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
+    JsonValue,
     PrivateAttr,
+    ValidationInfo,
+    field_serializer,
     model_validator,
 )
-from rich.console import Console
 from shortuuid import uuid
+from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import DESERIALIZING
 from inspect_ai._util.dateutil import UtcDatetimeStr
@@ -20,21 +22,36 @@ from inspect_ai._util.hash import base57_id_hash
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.logger import warn_once
 from inspect_ai._util.metadata import MT, metadata_as
-from inspect_ai._util.rich import rich_traceback, truncate_traceback
+from inspect_ai._util.rich import format_traceback
 from inspect_ai.approval._policy import ApprovalPolicyConfig
-from inspect_ai.log._edit import ProvenanceData
-from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput, ModelUsage
+from inspect_ai.event._timeline import Timeline
+from inspect_ai.log._edit import LogUpdate, MetadataEdit, ProvenanceData, TagsEdit
+from inspect_ai.model import (
+    ChatMessage,
+    GenerateConfig,
+    ModelOutput,
+    ModelUsage,
+)
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
 from inspect_ai.util._store_model import SMT
+from inspect_ai.viewer import ViewerConfig
 
 from ..event._event import Event
 from ._util import thin_input, thin_metadata, thin_target, thin_text
 
 logger = getLogger(__name__)
+
+
+class EventsData(TypedDict):
+    """Pooled data extracted by condense_events / condense_sample."""
+
+    messages: list[ChatMessage]
+    calls: list[JsonValue]
+
 
 EvalStatus = Literal["started", "success", "cancelled", "error"]
 """Status of an evaluation run."""
@@ -47,6 +64,7 @@ class EvalConfigDefaults(TypedDict):
     epochs_reducer: list[str]
     fail_on_error: bool
     continue_on_fail: bool
+    score_on_error: bool
     sandbox_cleanup: bool
     log_samples: bool
     log_realtime: bool
@@ -60,6 +78,7 @@ def eval_config_defaults() -> EvalConfigDefaults:
         "epochs_reducer": ["mean"],
         "fail_on_error": True,
         "continue_on_fail": False,
+        "score_on_error": False,
         "sandbox_cleanup": True,
         "log_samples": True,
         "log_realtime": True,
@@ -91,6 +110,13 @@ class EvalConfig(BaseModel):
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
 
+    notification: bool | str | None = Field(default=None)
+    """Notification routing for human-in-the-loop interactions.
+
+    `True` means notifications are enabled via the `INSPECT_EVAL_NOTIFICATION`
+    environment variable; a string is a path to an Apprise YAML/text config
+    file. URLs are never stored here to keep secrets out of eval logs."""
+
     fail_on_error: bool | float | None = Field(default=None)
     """Fail eval when sample errors occur.
 
@@ -110,6 +136,14 @@ class EvalConfig(BaseModel):
     retry_on_error: int | None = Field(default=None)
     """Number of times to retry samples if they encounter errors."""
 
+    score_on_error: bool | None = Field(default=None)
+    """Score samples that error rather than failing the eval mid-run.
+
+    Errors are still counted toward the `fail_on_error` threshold for marking
+    the eval log as 'error'. Only takes effect after retries (if any) are
+    exhausted.
+    """
+
     message_limit: int | None = Field(default=None)
     """Maximum messages to allow per sample."""
 
@@ -122,8 +156,15 @@ class EvalConfig(BaseModel):
     working_limit: int | None = Field(default=None)
     """Meximum working time per sample."""
 
+    cost_limit: float | None = Field(default=None)
+    """Maximum cost (in dollars) per sample."""
+
     max_samples: int | None = Field(default=None)
     """Maximum number of samples to run in parallel."""
+
+    max_dataset_memory: int | None = Field(default=None)
+    """Maximum MB of dataset sample data to hold in memory per task.
+    When exceeded, samples are paged to a temporary file on disk."""
 
     max_tasks: int | None = Field(default=None)
     """Maximum number of tasks to run in parallel."""
@@ -146,6 +187,13 @@ class EvalConfig(BaseModel):
     log_images: bool | None = Field(default=None)
     """Log base64 encoded versions of images."""
 
+    log_model_api: bool | None = Field(default=None)
+    """Log raw model api requests and responses.
+
+    True logs all calls. False logs only errors. None (default) logs the
+    first few calls per model plus all errors.
+    """
+
     log_buffer: int | None = Field(default=None)
     """Number of samples to buffer before writing log file."""
 
@@ -154,6 +202,17 @@ class EvalConfig(BaseModel):
 
     score_display: bool | None = Field(default=None)
     """Display scoring metrics realtime."""
+
+    acp_server: bool | int | str | None = Field(default=None)
+    """Expose this eval over an Agent Client Protocol server.
+
+    `True` enables a default AF_UNIX socket at
+    `<inspect_data_dir>/acp/<eval_id>.sock`; an integer binds a TCP
+    loopback port (127.0.0.1:<int>); a string of the form `host:port`
+    (e.g. `0.0.0.0:4444`) binds TCP on a specific interface; any other
+    string is taken as a custom AF_UNIX socket path; `None` (default)
+    does not start an ACP server.
+    """
 
     @property
     def max_messages(self) -> int | None:
@@ -174,12 +233,15 @@ class EvalConfig(BaseModel):
         return values
 
 
+EvalSampleLimitType = Literal[
+    "context", "time", "working", "message", "token", "cost", "operator", "custom"
+]
+
+
 class EvalSampleLimit(BaseModel):
     """Limit encountered by sample."""
 
-    type: Literal[
-        "context", "time", "working", "message", "token", "operator", "custom"
-    ]
+    type: EvalSampleLimitType
     """The type of limit"""
 
     limit: float
@@ -212,6 +274,9 @@ class EvalSampleSummary(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for sample."""
 
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
@@ -275,6 +340,22 @@ class EvalSampleSummary(BaseModel):
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
+
+
+class EvalRetryError(BaseModel):
+    """Error from a retried sample attempt."""
+
+    message: str
+    """Error message."""
+
+    traceback: str
+    """Error traceback."""
+
+    traceback_ansi: str
+    """Error traceback with ANSI color codes."""
+
+    events: list[Event] | None = Field(default=None)
+    """Events prior to error (goes back to last ModelEvent)."""
 
 
 class EvalSample(BaseModel):
@@ -359,8 +440,14 @@ class EvalSample(BaseModel):
     events: list[Event] = Field(default_factory=list)
     """Events that occurred during sample execution."""
 
+    timelines: list[Timeline] | None = Field(default=None)
+    """Custom timelines for this sample."""
+
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for sample."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for sample."""
 
     started_at: UtcDatetimeStr | None = Field(default=None)
     """Time sample started."""
@@ -383,7 +470,7 @@ class EvalSample(BaseModel):
     error: EvalError | None = Field(default=None)
     """Error that halted sample."""
 
-    error_retries: list[EvalError] | None = Field(default=None)
+    error_retries: list[EvalRetryError] | None = Field(default=None)
     """Errors that were retried for this sample."""
 
     attachments: dict[str, str] = Field(default_factory=dict)
@@ -392,6 +479,9 @@ class EvalSample(BaseModel):
     Resolve attachments for a sample (replacing attachment://* references with
     attachment content) by passing `resolve_attachments=True` to log reading functions.
     """
+
+    events_data: EventsData | None = Field(default=None)
+    """Pooled dedup data for condensed events (messages and calls)."""
 
     limit: EvalSampleLimit | None = Field(default=None)
     """The limit that halted the sample"""
@@ -417,6 +507,7 @@ class EvalSample(BaseModel):
             metadata=self.metadata,
             scores=self.scores,
             model_usage=self.model_usage,
+            role_usage=self.role_usage,
             started_at=self.started_at,
             completed_at=self.completed_at,
             total_time=self.total_time,
@@ -480,6 +571,28 @@ class EvalSample(BaseModel):
             del values["transcript"]
 
         return migrate_values(values)
+
+    @model_validator(mode="wrap")
+    @classmethod
+    def _resolve_timelines(
+        cls, data: Any, handler: Any, info: ValidationInfo
+    ) -> "EvalSample":
+        raw_timelines = None
+        if isinstance(data, dict) and data.get("timelines"):
+            raw_timelines = data.pop("timelines")
+
+        sample: EvalSample = handler(data)
+
+        if raw_timelines:
+            events_by_uuid = {e.uuid: e for e in sample.events if e.uuid}
+            ctx: dict[str, Any] = {"events_by_uuid": events_by_uuid}
+            if info.context:
+                ctx.update(info.context)
+            sample.timelines = [
+                Timeline.model_validate(t, context=ctx) for t in raw_timelines
+            ]
+
+        return sample
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
@@ -830,6 +943,10 @@ class EvalSpec(BaseModel):
     metadata: dict[str, Any] | None = Field(default=None)
     """Additional eval metadata."""
 
+    viewer: ViewerConfig | None = Field(default=None)
+    """Log viewer configuration — controls how scanner results are rendered
+    in the sidebar. Authored via `Task(viewer=...)`."""
+
     scorers: list[EvalScorer] | None = Field(default=None)
     """Scorers and args for this eval"""
 
@@ -886,23 +1003,34 @@ def eval_error(
     exc_value: BaseException,
     exc_traceback: TracebackType | None,
 ) -> EvalError:
-    # get text traceback
-    traceback_text, truncated = truncate_traceback(exc_type, exc_value, exc_traceback)
+    traceback_text, traceback_ansi = format_traceback(
+        exc_type, exc_value, exc_traceback
+    )
 
-    if not truncated:
-        with open(os.devnull, "w") as f:
-            console = Console(record=True, file=f, legacy_windows=True)
-            console.print(rich_traceback(exc_type, exc_value, exc_traceback))
-            traceback_ansi = console.export_text(styles=True)
-    else:
-        traceback_ansi = traceback_text
-
-    # return error
     return EvalError(
         message=exception_message(exception),
         traceback=traceback_text,
         traceback_ansi=traceback_ansi,
     )
+
+
+class ConnectionLimitChange(BaseModel):
+    """Record of an adaptive-connections controller scale change."""
+
+    timestamp: float
+    """Unix timestamp (seconds since epoch) of the change."""
+
+    model: str
+    """Display name of the model whose connection limit changed (e.g. `openai/gpt-4o`)."""
+
+    old_limit: int
+    """Concurrency limit before the change."""
+
+    new_limit: int
+    """Concurrency limit after the change."""
+
+    reason: Literal["slow_start", "steady_state_up", "rate_limit"]
+    """Why the change occurred."""
 
 
 class EvalStats(BaseModel):
@@ -916,6 +1044,12 @@ class EvalStats(BaseModel):
 
     model_usage: dict[str, ModelUsage] = Field(default_factory=dict)
     """Model token usage for evaluation."""
+
+    role_usage: dict[str, ModelUsage] = Field(default_factory=dict)
+    """Model token usage by role for evaluation."""
+
+    connection_limit_history: list[ConnectionLimitChange] = Field(default_factory=list)
+    """History of adaptive-connections controller scale changes (empty unless `adaptive_connections` was enabled)."""
 
     # allow field model_usage
     model_config = ConfigDict(protected_namespaces=())
@@ -952,6 +1086,15 @@ class EvalLog(BaseModel):
     invalidated: bool = Field(default=False)
     """Whether any samples were invalidated."""
 
+    log_updates: list[LogUpdate] | None = Field(default=None)
+    """Post-eval edits to tags and metadata."""
+
+    tags: list[str] = Field(default_factory=list)
+    """Current tags (eval-time + edits). Do not set directly; use edit_eval_log()."""
+
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    """Current metadata (eval-time + edits). Do not set directly; use edit_eval_log()."""
+
     samples: list[EvalSample] | None = Field(default=None)
     """Samples processed by eval."""
 
@@ -965,6 +1108,27 @@ class EvalLog(BaseModel):
     """ETag from S3 for conditional writes."""
 
     @model_validator(mode="after")
+    def _validate_tags_and_metadata(self) -> "EvalLog":
+        self.recompute_tags_and_metadata()
+        return self
+
+    def recompute_tags_and_metadata(self) -> None:
+        """Recompute tags and metadata from eval-time values + log_updates."""
+        tags = set(self.eval.tags or [])
+        metadata = dict(self.eval.metadata or {})
+        for update in self.log_updates or []:
+            for edit in update.edits:
+                if isinstance(edit, TagsEdit):
+                    tags -= set(edit.tags_remove)
+                    tags |= set(edit.tags_add)
+                elif isinstance(edit, MetadataEdit):
+                    for key in edit.metadata_remove:
+                        metadata.pop(key, None)
+                    metadata.update(edit.metadata_set)
+        self.tags = sorted(tags)
+        self.metadata = metadata
+
+    @model_validator(mode="after")
     def populate_scorer_name_for_samples(self) -> "EvalLog":
         if self.samples and self.results and self.results.scores:
             scorer_name = self.results.scores[0].name
@@ -974,6 +1138,41 @@ class EvalLog(BaseModel):
                     del sample.scores[SCORER_PLACEHOLDER]
 
         return self
+
+    @field_serializer("samples")
+    @classmethod
+    def _serialize_samples(
+        cls, value: list[EvalSample] | None
+    ) -> list[EvalSample] | None:
+        """Ensure LazyList is materialized before Pydantic serializes.
+
+        Pydantic v2's Rust serializer accesses the C-level list array directly,
+        bypassing Python __len__/__iter__ overrides. For empty LazyList instances
+        (not yet loaded), this means Pydantic sees an empty list and never
+        triggers the lazy load. Calling _ensure_loaded() here populates the
+        underlying C array in-place — no copy needed.
+        """
+        if value is None:
+            return value
+        from ._recorders.eval import LazyList
+
+        if isinstance(value, LazyList):
+            value._ensure_loaded()
+        return value
+
+    @field_serializer("reductions")
+    @classmethod
+    def _serialize_reductions(
+        cls, value: list[EvalSampleReductions] | None
+    ) -> list[EvalSampleReductions] | None:
+        """Ensure LazyList is materialized before Pydantic serializes."""
+        if value is None:
+            return value
+        from ._recorders.eval import LazyList
+
+        if isinstance(value, LazyList):
+            value._ensure_loaded()
+        return value
 
     @model_validator(mode="before")
     @classmethod

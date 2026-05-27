@@ -1,5 +1,6 @@
 ---
 title: Using Models
+llms-description: Models provide a uniform API for evaluating a variety of large language models and using models within evaluations.
 ---
 
 ## Overview
@@ -82,7 +83,7 @@ See the documentation for the requisite model provider for information on how mo
 
 Inspect uses an asynchronous architecture to run task samples in parallel. If your model provider can handle 100 concurrent connections, then Inspect can utilise all of those connections to get the highest possible throughput. The limiting factor on parallelism is therefore not typically local parallelism (e.g. number of cores) but rather what the underlying rate limit is for your interface to the provider.
 
-By default, Inspect uses a `max_connections` value of 10. You can increase this consistent with your account limits. If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (the section on [Parallelism](parallelism.qmd) includes additional documentation on how to do this).
+By default, Inspect uses a `max_connections` value of 10. You can increase this consistent with your account limits. If you are experiencing rate-limit errors you will need to experiment with the `max_connections` option to find the optimal value that keeps you under the rate limit (see [Model Concurrency](models-concurrency.qmd) for additional documentation, including the `--adaptive-connections` option that tunes this for you automatically).
 
 ## Model API {#model-api}
 
@@ -150,19 +151,68 @@ def model_grader() -> Scorer:
         ...
 ```
 
-By default if there is no "grader" role specified, the default model for the evaluation will be returned. Model roles can be specified when using `inspect eval` or calling the `eval()` function:
+By default if there is no "grader" role specified, the default model for the evaluation will be returned.
+
+Model roles can be specified in several ways:
+
+**In the task definition:**
+
+``` python
+Task(
+    ...,
+    model_roles={"grader": "openai/gpt-4o"}
+)
+```
+
+**With generation config in the task definition:**
+
+``` python
+Task(
+    ...,
+    model_roles={
+        "grader": {
+            "model": "openai/gpt-4o",
+            "temperature": 0.5,
+            "max_tokens": 2048
+        }
+    }
+)
+```
+
+**With `task_with()`:**
+
+``` python
+task_with(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
+```
+
+**With `eval()`:**
+
+``` python
+eval("math.py", model_roles={"grader": "google/gemini-2.0-flash"})
+```
+
+**On the CLI** with simple model names:
 
 ``` bash
 inspect eval math.py --model-role grader=google/gemini-2.0-flash
 ```
 
-Or with `eval()`:
+**On the CLI** with inline JSON/YAML for generation config:
 
-``` python
-eval("math.py", model_roles = { "grader": "google/gemini-2.0-flash" })
+``` bash
+# JSON
+inspect eval math.py \
+    --model-role 'grader={"model": "openai/gpt-4o", "temperature": 0.5}'
+# YAML
+inspect eval math.py \
+    --model-role 'grader={model: openai/gpt-4o, temperature: 0.5}'
 ```
 
 Note that the built-in [model-graded scorers](scorers.qmd#model-graded) (e.g. `model_graded_qa()`, `model_graded_fact()`) look for the `grader` role by default.
+
+Model roles can also be specified in a `--run-config` file alongside the full eval configuration. See [Run Config File](task-configuration.qmd#run-config).
+
+For how model roles fit into the broader override and precedence model, see [Task Configuration](task-configuration.qmd#model-roles).
 
 ### Role Resolution
 

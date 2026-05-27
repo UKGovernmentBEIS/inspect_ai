@@ -1,5 +1,6 @@
 ---
-title: inspect_ai
+reference: inspect_ai
+description: Tasks, evaluation, and scoring.
 ---
 
 ## Evaluation
@@ -16,6 +17,11 @@ title: inspect_ai
 ### Epochs
 ### TaskInfo
 ### Tasks
+
+## Scanning
+
+### Scanners
+### ScannerConfig
 
 ## View
 

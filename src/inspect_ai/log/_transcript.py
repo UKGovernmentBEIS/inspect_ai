@@ -1,9 +1,11 @@
 import contextlib
 from contextvars import ContextVar
+from dataclasses import dataclass
 from logging import getLogger
 from typing import (
     Callable,
     Iterator,
+    Literal,
     Sequence,
     TypeVar,
     overload,
@@ -13,12 +15,15 @@ from pydantic import (
     JsonValue,
 )
 
+from inspect_ai._util.constants import SKIP_TRANSCRIPT_DISPATCH
 from inspect_ai._util.logger import warn_once
 from inspect_ai.event._base import BaseEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._interrupt import InterruptEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._store import StoreEvent
+from inspect_ai.event._timeline import Timeline
 from inspect_ai.log._condense import (
     WalkContext,
     events_attachment_fn,
@@ -32,23 +37,53 @@ logger = getLogger(__name__)
 ET = TypeVar("ET", bound=BaseEvent)
 
 
+@dataclass(frozen=True)
+class _TranscriptSubscription:
+    id: int
+    callback: Callable[[Event], None]
+
+
 class Transcript:
     """Transcript of events."""
 
-    _event_logger: Callable[[Event], None] | None
+    _event_logger: _TranscriptSubscription | None
+    _event_loggers: list[_TranscriptSubscription]
+    _notifying_subscribers: set[int]
     _context: WalkContext
 
     @overload
-    def __init__(self) -> None: ...
+    def __init__(self, *, log_model_api: bool | None = None) -> None: ...
 
     @overload
-    def __init__(self, events: list[Event]) -> None: ...
+    def __init__(
+        self, events: list[Event], log_model_api: bool | None = None
+    ) -> None: ...
 
-    def __init__(self, events: list[Event] | None = None) -> None:
+    def __init__(
+        self, events: list[Event] | None = None, log_model_api: bool | None = None
+    ) -> None:
         self._event_logger = None
+        self._log_model_api = log_model_api
         self._context = WalkContext(message_cache={}, only_core=False)
         self._events: list[Event] = events if events is not None else []
         self._attachments: dict[str, str] = {}
+        self._timelines: list[Timeline] = []
+        self._model_call_counts: dict[str, int] = {}
+        self._kept_event_ids: set[int] = set()
+        self._event_loggers = []
+        self._next_event_logger_id = 0
+        # Sidecar of currently-pending events keyed by ``event.uuid`` so
+        # consumers (live TUI toolbar, future DB-backed transcripts) can
+        # query in-flight state in O(in-flight) without scanning all
+        # events. Maintained by ``_event``/``_event_updated``. Insertion
+        # order = declared order; dict preserves it so the "earliest
+        # pending" is the first value.
+        self._pending_events: dict[str, Event] = {}
+        if events is not None:
+            for ev in events:
+                if ev.pending and ev.uuid is not None:
+                    self._pending_events[ev.uuid] = ev
+        self._notifying_subscribers = set()
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -83,36 +118,168 @@ class Transcript:
         return self._events
 
     @property
+    def pending_events(self) -> Sequence[Event]:
+        """Currently-pending events in declared (insertion) order.
+
+        Returns a snapshot of events with ``pending=True`` keyed by
+        their ``uuid``. Updates whenever ``_event`` records a new
+        pending event or ``_event_updated`` flips one to a terminal
+        state. Bounded by the number of in-flight operations
+        (typically 0-1, up to the stage size under parallel tools).
+        """
+        return list(self._pending_events.values())
+
+    @property
     def attachments(self) -> dict[str, str]:
         return self._attachments
 
+    @property
+    def timelines(self) -> Sequence[Timeline]:
+        return self._timelines
+
+    def add_timeline(self, timeline: Timeline) -> None:
+        """Add a named timeline to the transcript.
+
+        Args:
+            timeline: Timeline to add.
+
+        Raises:
+            ValueError: If a timeline with the same name already exists.
+        """
+        for existing in self._timelines:
+            if existing.name == timeline.name:
+                raise ValueError(
+                    f"A timeline with the name '{timeline.name}' already exists."
+                )
+        self._timelines.append(timeline)
+
     def _event(self, event: Event) -> None:
-        if self._event_logger:
-            self._event_logger(event)
-
-        # condense model event calls immediately to prevent O(N) memory usage
-        if isinstance(event, ModelEvent):
-            event_fn = events_attachment_fn(self.attachments)
-            event.call = walk_model_call(event.call, event_fn, self._context)
-
+        self._process_event(event)
         self._events.append(event)
+        self._update_pending(event)
 
     def _event_updated(self, event: Event) -> None:
-        if self._event_logger:
-            self._event_logger(event)
+        self._process_event(event)
+        self._update_pending(event)
 
-        # condense model event call immediately to prevent O(N) memory usage (call is the only changed fields
-        if isinstance(event, ModelEvent):
+    def _update_pending(self, event: Event) -> None:
+        """Reflect ``event``'s current pending state in the sidecar.
+
+        Adds the event on first emission with ``pending=True``; removes
+        on the subsequent ``_event_updated`` that flips it to a terminal
+        state. Events without a ``uuid`` (synthetic step/span events)
+        are skipped — they can't be deduplicated and don't represent
+        an in-flight operation.
+        """
+        if event.uuid is None:
+            return
+        if event.pending:
+            self._pending_events[event.uuid] = event
+        else:
+            self._pending_events.pop(event.uuid, None)
+
+    def _process_event(self, event: Event) -> None:
+        if isinstance(event, ModelEvent) and event.call is not None:
+            is_error = bool(event.call.error)
+            if not is_error:
+                if self._log_model_api is True:
+                    pass
+                elif self._log_model_api is False:
+                    event.call = None
+                else:
+                    event_id = id(event)
+                    if event_id not in self._kept_event_ids:
+                        from inspect_ai._util.constants import (
+                            DEFAULT_LOG_MODEL_API_CALLS,
+                        )
+
+                        count = self._model_call_counts.get(event.model, 0)
+                        if count < DEFAULT_LOG_MODEL_API_CALLS:
+                            self._model_call_counts[event.model] = count + 1
+                            self._kept_event_ids.add(event_id)
+                        else:
+                            event.call = None
+
+        for event_logger in list(self._event_loggers):
+            subscriber_id = event_logger.id
+            if subscriber_id in self._notifying_subscribers:
+                continue
+            self._notifying_subscribers.add(subscriber_id)
+            try:
+                try:
+                    event_logger.callback(event)
+                except Exception:
+                    # Tag this record so the eval LogHandler does NOT re-inject
+                    # it as a LoggerEvent — that would re-enter this loop and
+                    # fan out combinatorially across other failing subscribers.
+                    logger.warning(
+                        "Transcript subscriber failed",
+                        exc_info=True,
+                        extra={SKIP_TRANSCRIPT_DISPATCH: True},
+                    )
+            finally:
+                self._notifying_subscribers.remove(subscriber_id)
+
+        # condense model event calls immediately to prevent O(N) memory usage
+        if isinstance(event, ModelEvent) and event.call is not None:
             event_fn = events_attachment_fn(self.attachments)
             event.call = walk_model_call(event.call, event_fn, self._context)
 
-    def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
-        self._event_logger = event_logger
+    def _subscribe(self, event_logger: Callable[[Event], None]) -> Callable[[], None]:
+        subscription = self._create_subscription(event_logger)
+        self._event_loggers.append(subscription)
+        unsubscribed = False
+
+        def unsubscribe() -> None:
+            nonlocal unsubscribed
+            if not unsubscribed:
+                unsubscribed = True
+                self._event_loggers.remove(subscription)
+
+        return unsubscribe
+
+    def _create_subscription(
+        self, callback: Callable[[Event], None]
+    ) -> _TranscriptSubscription:
+        self._next_event_logger_id += 1
+        return _TranscriptSubscription(id=self._next_event_logger_id, callback=callback)
 
 
 def transcript() -> Transcript:
     """Get the current `Transcript`."""
     return _transcript.get()
+
+
+def record_interrupt_event(
+    *,
+    source: Literal["user_cancel", "limit", "system"],
+    interrupted: Literal["generate", "tool_call", "between_turns"],
+    interrupted_tool_call_id: str | None = None,
+    interrupted_model_event_id: str | None = None,
+) -> None:
+    """Append an `InterruptEvent` to the current transcript.
+
+    Internal helper used by Inspect's cancellation machinery — the ACP
+    `cancel_current_turn` path, sample-level limit handlers, and system
+    shutdown. Not a public API for agent authors.
+
+    Args:
+        source: What caused the interrupt — an ACP client cancel,
+            a sample limit, or system shutdown.
+        interrupted: What was running at the moment of the interrupt.
+        interrupted_tool_call_id: ``ToolEvent.id`` of the in-flight
+            tool call, if any.
+        interrupted_model_event_id: ``ModelEvent.uuid`` of the
+            in-flight model call, if any.
+    """
+    transcript()._event(
+        InterruptEvent(
+            source=source,
+            interrupted=interrupted,
+            interrupted_tool_call_id=interrupted_tool_call_id,
+            interrupted_model_event_id=interrupted_model_event_id,
+        )
+    )
 
 
 @contextlib.contextmanager

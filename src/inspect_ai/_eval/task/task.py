@@ -38,11 +38,13 @@ from inspect_ai.scorer._reducer import ScoreReducers, create_reducers
 from inspect_ai.solver import Plan, Solver, generate
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._task_state import TaskState
+from inspect_ai.util._checkpoint.config import CheckpointConfig
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironmentSpec,
     SandboxEnvironmentType,
     resolve_sandbox_environment,
 )
+from inspect_ai.viewer import ViewerConfig
 
 from .epochs import Epochs
 
@@ -76,19 +78,24 @@ class Task:
         config: GenerateConfig = GenerateConfig(),
         model_roles: dict[str, str | Model] | None = None,
         sandbox: SandboxEnvironmentType | None = None,
+        checkpoint: CheckpointConfig | None = None,
         approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = None,
         epochs: int | Epochs | None = None,
         fail_on_error: bool | float | None = None,
         continue_on_fail: bool | None = None,
+        score_on_error: bool | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
         time_limit: int | None = None,
         working_limit: int | None = None,
+        cost_limit: float | None = None,
         early_stopping: "EarlyStopping" | None = None,
         display_name: str | None = None,
         name: str | None = None,
         version: int | str = 0,
         metadata: dict[str, Any] | None = None,
+        tags: list[str] | None = None,
+        viewer: ViewerConfig | None = None,
         **kwargs: Unpack[TaskDeprecatedArgs],
     ) -> None:
         """Create a task.
@@ -106,6 +113,9 @@ class Task:
             config: Model generation config for default model (does not apply to model roles)
             model_roles: Named roles for use in `get_model()`.
             sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+            checkpoint: Checkpoint configuration for this task. Overridden by
+                eval-level `checkpoint` when set; overrides any sample-level
+                `checkpoint`.
             approval: Tool use approval policies.
                 Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
             epochs: Epochs to repeat samples for and optional score
@@ -116,12 +126,17 @@ class Task:
                 eval if a count of samples fails.
             continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
                 `False` to fail eval immediately when the `fail_on_error` condition is met (default).
+            score_on_error: `True` to score samples that error rather than failing the eval mid-run.
+                Errors still count toward the `fail_on_error` threshold for marking the eval log
+                as 'error'. Only takes effect after retries (if any) are exhausted.
             message_limit: Limit on total messages used for each sample.
             token_limit: Limit on total tokens used for each sample.
             time_limit: Limit on clock time (in seconds) for samples.
             working_limit: Limit on working time (in seconds) for sample. Working
                 time includes model generation, tool calls, etc. but does not include
                 time spent waiting on retries or shared resources.
+            cost_limit: Limit on total cost (in dollars) for each sample.
+                Requires model cost data via set_model_cost() or --model-cost-config.
             early_stopping: Early stopping callbacks.
             name: Task name. If not specified is automatically
                 determined based on the registered name of the task.
@@ -129,6 +144,9 @@ class Task:
             version: Version of task (to distinguish evolutions
                 of the task spec or breaking changes to it)
             metadata:  Additional metadata to associate with the task.
+            tags: Tags to associate with the task.
+            viewer: Log viewer configuration for this task (controls how
+                scanner results are rendered in the sidebar).
             **kwargs: Deprecated arguments.
         """
         # handle deprecated args
@@ -165,21 +183,26 @@ class Task:
         self.config = config
         self.model_roles = resolve_model_roles(model_roles)
         self.sandbox = resolve_sandbox_environment(sandbox)
+        self.checkpoint = checkpoint
         self.approval = resolve_approval(approval)
         epochs = resolve_epochs(epochs)
         self.epochs = epochs.epochs if epochs else None
         self.epochs_reducer = epochs.reducer if epochs else None
         self.fail_on_error = fail_on_error
         self.continue_on_fail = continue_on_fail
+        self.score_on_error = score_on_error
         self.message_limit = message_limit
         self.token_limit = token_limit
         self.time_limit = time_limit
         self.working_limit = working_limit
+        self.cost_limit = cost_limit
         self.early_stopping = early_stopping
         self.version = version
         self._display_name = display_name
         self._name = name
         self.metadata = metadata
+        self.tags = tags
+        self.viewer = viewer
 
     @property
     def name(self) -> str:
@@ -232,6 +255,7 @@ def task_with(
     config: GenerateConfig | NotGiven = NOT_GIVEN,
     model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
+    checkpoint: CheckpointConfig | None | NotGiven = NOT_GIVEN,
     approval: str
     | ApprovalPolicyConfig
     | list[ApprovalPolicy]
@@ -240,14 +264,18 @@ def task_with(
     epochs: int | Epochs | None | NotGiven = NOT_GIVEN,
     fail_on_error: bool | float | None | NotGiven = NOT_GIVEN,
     continue_on_fail: bool | None | NotGiven = NOT_GIVEN,
+    score_on_error: bool | None | NotGiven = NOT_GIVEN,
     message_limit: int | None | NotGiven = NOT_GIVEN,
     token_limit: int | None | NotGiven = NOT_GIVEN,
     time_limit: int | None | NotGiven = NOT_GIVEN,
     working_limit: int | None | NotGiven = NOT_GIVEN,
+    cost_limit: float | None | NotGiven = NOT_GIVEN,
     early_stopping: EarlyStopping | None | NotGiven = NOT_GIVEN,
     name: str | None | NotGiven = NOT_GIVEN,
     version: int | str | NotGiven = NOT_GIVEN,
     metadata: dict[str, Any] | None | NotGiven = NOT_GIVEN,
+    tags: list[str] | None | NotGiven = NOT_GIVEN,
+    viewer: ViewerConfig | None | NotGiven = NOT_GIVEN,
 ) -> Task:
     """Task adapted with alternate values for one or more options.
 
@@ -269,6 +297,9 @@ def task_with(
         config: Model generation config for default model (does not apply to model roles)
         model_roles: Named roles for use in `get_model()`.
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
+        checkpoint: Checkpoint configuration for this task. Overridden by
+            eval-level `checkpoint` when set; overrides any sample-level
+            `checkpoint`.
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
         epochs: Epochs to repeat samples for and optional score
@@ -279,12 +310,17 @@ def task_with(
             eval if a count of samples fails.
         continue_on_fail: `True` to continue running and only fail at the end if the `fail_on_error` condition is met.
             `False` to fail eval immediately when the `fail_on_error` condition is met (default).
+        score_on_error: `True` to score samples that error rather than failing the eval mid-run.
+            Errors still count toward the `fail_on_error` threshold for marking the eval log
+            as 'error'. Only takes effect after retries (if any) are exhausted.
         message_limit: Limit on total messages used for each sample.
         token_limit: Limit on total tokens used for each sample.
         time_limit: Limit on clock time (in seconds) for samples.
         working_limit: Limit on working time (in seconds) for sample. Working
             time includes model generation, tool calls, etc. but does not include
             time spent waiting on retries or shared resources.
+        cost_limit: Limit on total cost (in dollars) for each sample.
+            Requires model cost data via set_model_cost() or --model-cost-config.
         early_stopping: Early stopping callbacks.
         name: Task name. If not specified is automatically
             determined based on the name of the task directory (or "task")
@@ -293,6 +329,9 @@ def task_with(
         version: Version of task (to distinguish evolutions
             of the task spec or breaking changes to it)
         metadata:  Additional metadata to associate with the task.
+        tags: Tags to associate with the task.
+        viewer: Log viewer configuration for this task (controls how
+            scanner results are rendered in the sidebar).
 
     Returns:
         Task: Passed `task` with modifications.
@@ -317,6 +356,8 @@ def task_with(
         task.model_roles = resolve_model_roles(model_roles)
     if not isinstance(sandbox, NotGiven):
         task.sandbox = resolve_sandbox_environment(sandbox)
+    if not isinstance(checkpoint, NotGiven):
+        task.checkpoint = checkpoint
     if not isinstance(approval, NotGiven):
         task.approval = resolve_approval(approval)
     if not isinstance(epochs, NotGiven):
@@ -327,6 +368,8 @@ def task_with(
         task.fail_on_error = fail_on_error
     if not isinstance(continue_on_fail, NotGiven):
         task.continue_on_fail = continue_on_fail
+    if not isinstance(score_on_error, NotGiven):
+        task.score_on_error = score_on_error
     if not isinstance(message_limit, NotGiven):
         task.message_limit = message_limit
     if not isinstance(token_limit, NotGiven):
@@ -335,6 +378,8 @@ def task_with(
         task.time_limit = time_limit
     if not isinstance(working_limit, NotGiven):
         task.working_limit = working_limit
+    if not isinstance(cost_limit, NotGiven):
+        task.cost_limit = cost_limit
     if not isinstance(early_stopping, NotGiven):
         task.early_stopping = early_stopping
     if not isinstance(version, NotGiven):
@@ -343,6 +388,10 @@ def task_with(
         task._name = name
     if not isinstance(metadata, NotGiven):
         task.metadata = metadata
+    if not isinstance(tags, NotGiven):
+        task.tags = tags
+    if not isinstance(viewer, NotGiven):
+        task.viewer = viewer
 
     # return modified task
     return task

@@ -38,11 +38,16 @@ from typing_extensions import override
 from inspect_ai._util.constants import DEFAULT_MAX_TOKENS
 from inspect_ai._util.content import Content, ContentImage, ContentText
 from inspect_ai._util.error import PrerequisiteError
-from inspect_ai._util.http import is_retryable_http_status
+from inspect_ai._util.http import (
+    is_retryable_http_status,
+    parse_retry_after_from_exception,
+)
 from inspect_ai._util.images import file_as_data_uri
+from inspect_ai.log._samples import set_active_model_event_call
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
+from inspect_ai.util._json import JSON_SCHEMA_EXTENDED_FIELDS, json_schema_dump
 
 from .._call_tools import parse_tool_call
 from .._chat_message import (
@@ -53,7 +58,7 @@ from .._chat_message import (
     ChatMessageUser,
 )
 from .._generate_config import GenerateConfig
-from .._model import ModelAPI
+from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import (
     ChatCompletionChoice,
@@ -61,7 +66,7 @@ from .._model_output import (
     ModelUsage,
     StopReason,
 )
-from .._openai import openai_media_filter
+from .._openai import needs_max_completion_tokens, openai_media_filter
 from .util import (
     environment_prerequisite_error,
     model_base_url,
@@ -89,6 +94,13 @@ class AzureAIAPI(ModelAPI):
         config: GenerateConfig = GenerateConfig(),
         **model_args: Any,
     ):
+        # Check for explicit org prefix: azureai/moonshotai/kimi-k2.5 -> org=moonshotai
+        # We keep the full model_name (including prefix) so it appears in logs
+        # but use service_model_name() for actual API calls
+        self.org_prefix: str | None = None
+        if "/" in model_name:
+            self.org_prefix = model_name.split("/", 1)[0]
+
         super().__init__(
             model_name=model_name,
             base_url=base_url,
@@ -203,26 +215,27 @@ class AzureAIAPI(ModelAPI):
         client = ChatCompletionsClient(
             endpoint=self.endpoint_url,
             credential=credential,
-            model=self.model_name,
+            model=self.service_model_name(),
             model_extras=self.model_args,
         )
 
-        def model_call(response: ChatCompletions | None = None) -> ModelCall:
-            return ModelCall.create(
-                request=request
-                | dict(
-                    messages=[message.as_dict() for message in request["messages"]],
-                    tools=[tool.as_dict() for tool in request["tools"]]
-                    if request.get("tools", None) is not None
-                    else None,
-                ),
-                response=response.as_dict() if response else {},
-                filter=openai_media_filter,
-            )
+        model_call = set_active_model_event_call(
+            request=request
+            | dict(
+                messages=[message.as_dict() for message in request["messages"]],
+                tools=[tool.as_dict() for tool in request["tools"]]
+                if request.get("tools", None) is not None
+                else None,
+            ),
+            filter=openai_media_filter,
+        )
 
         # make call
         try:
             response: ChatCompletions = await client.complete(**request)
+
+            model_call.set_response(response.as_dict())
+
             return ModelOutput(
                 model=response.model,
                 choices=chat_completion_choices(
@@ -233,10 +246,11 @@ class AzureAIAPI(ModelAPI):
                     output_tokens=response.usage.completion_tokens,
                     total_tokens=response.usage.total_tokens,
                 ),
-            ), model_call(response)
+            ), model_call
 
         except AzureError as ex:
-            return self.handle_azure_error(ex), model_call()
+            model_call.set_error({"error": {"message": str(ex.message)}})
+            return self.handle_azure_error(ex), model_call
         finally:
             await client.close()
 
@@ -251,7 +265,10 @@ class AzureAIAPI(ModelAPI):
         if config.top_p is not None:
             params["top_p"] = config.top_p
         if config.max_tokens is not None:
-            params["max_tokens"] = config.max_tokens
+            if needs_max_completion_tokens(self.service_model_name().lower()):
+                params["max_completion_tokens"] = config.max_tokens
+            else:
+                params["max_tokens"] = config.max_tokens
         if config.stop_seqs is not None:
             params["stop"] = config.stop_seqs
         if config.seed is not None:
@@ -274,13 +291,17 @@ class AzureAIAPI(ModelAPI):
             return DEFAULT_MAX_TOKENS
 
     @override
-    def should_retry(self, ex: Exception) -> bool:
+    def should_retry(self, ex: Exception) -> bool | RetryDecision:
         if isinstance(ex, HttpResponseError) and ex.status_code is not None:
-            return is_retryable_http_status(ex.status_code)
-        elif isinstance(ex, ServiceResponseError):
-            return True
-        else:
-            return False
+            if not is_retryable_http_status(ex.status_code):
+                return RetryDecision.no()
+            retry_after = parse_retry_after_from_exception(ex)
+            if ex.status_code == 429:
+                return RetryDecision.rate_limit(retry_after=retry_after)
+            return RetryDecision.transient(retry_after=retry_after)
+        if isinstance(ex, ServiceResponseError):
+            return RetryDecision.transient()
+        return RetryDecision.no()
 
     @override
     def is_auth_failure(self, ex: Exception) -> bool:
@@ -296,18 +317,24 @@ class AzureAIAPI(ModelAPI):
     def connection_key(self) -> str:
         return f"{self.api_key}{self.model_name}"
 
+    def service_model_name(self) -> str:
+        """Model name without any org prefix, for API calls."""
+        if self.org_prefix:
+            return self.model_name.replace(f"{self.org_prefix}/", "", 1)
+        return self.model_name
+
     def is_llama(self) -> bool:
-        return "llama" in self.model_name.lower()
+        return "llama" in self.service_model_name().lower()
 
     def is_llama3(self) -> bool:
-        return "llama-3" in self.model_name.lower()
+        return "llama-3" in self.service_model_name().lower()
 
     def is_mistral(self) -> bool:
-        return "mistral" in self.model_name.lower()
+        return "mistral" in self.service_model_name().lower()
 
     def is_openai_model(self) -> bool:
         """Check if this is an OpenAI model (gpt-*, o1, o3, o4, etc.)."""
-        name = self.model_name.lower()
+        name = self.service_model_name().lower()
         return (
             name.startswith("gpt-")
             or name.startswith("o1")
@@ -320,14 +347,20 @@ class AzureAIAPI(ModelAPI):
         """Canonical model name for model info database lookup.
 
         Maps AzureAI model names to their organization's canonical format.
-        For example, "gpt-4o" → "openai/gpt-4o".
+        Users can explicitly specify org: azureai/moonshotai/kimi-k2.5 → moonshotai/kimi-k2.5
+        Otherwise auto-detects for known models: azureai/gpt-4o → openai/gpt-4o
         """
+        base_name = self.service_model_name()
+        # Explicit org prefix takes precedence
+        if self.org_prefix:
+            return f"{self.org_prefix}/{base_name}"
+        # Auto-detect organization from model name
         if self.is_openai_model():
-            return f"openai/{self.model_name}"
+            return f"openai/{base_name}"
         elif self.is_mistral():
-            return f"mistral/{self.model_name}"
-        # For other models (e.g., Llama), return as-is and rely on fuzzy matching
-        return self.model_name
+            return f"mistral/{base_name}"
+        # For other models, return as-is and rely on fuzzy matching
+        return base_name
 
     def handle_azure_error(self, ex: AzureError) -> ModelOutput | Exception:
         if isinstance(ex, HttpResponseError):
@@ -482,7 +515,9 @@ def chat_tool_definition(tool: ToolInfo) -> ChatCompletionsToolDefinition:
         function=FunctionDefinition(
             name=tool.name,
             description=tool.description,
-            parameters=tool.parameters.model_dump(exclude_none=True),
+            parameters=json_schema_dump(
+                tool.parameters, exclude=JSON_SCHEMA_EXTENDED_FIELDS
+            ),
         )
     )
 

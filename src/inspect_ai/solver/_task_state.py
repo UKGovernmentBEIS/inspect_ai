@@ -17,16 +17,18 @@ from inspect_ai.model import (
     ModelOutput,
 )
 from inspect_ai.model._call_tools import get_tools_info
-from inspect_ai.model._model import sample_total_tokens
+from inspect_ai.model._model import sample_total_cost, sample_total_tokens
 from inspect_ai.model._prompt import user_prompt
 from inspect_ai.scorer._metric import Score
 from inspect_ai.scorer._target import Target
 from inspect_ai.tool import Tool, ToolChoice
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.util._limit import (
+    check_cost_limit,
     check_message_limit,
     check_token_limit,
 )
+from inspect_ai.util._limit import cost_limit as create_cost_limit
 from inspect_ai.util._limit import message_limit as create_message_limit
 from inspect_ai.util._limit import token_limit as create_token_limit
 from inspect_ai.util._limited_conversation import ChatMessageList
@@ -156,6 +158,7 @@ class TaskState:
         output: ModelOutput | None = None,
         message_limit: int | None = None,
         token_limit: int | None = None,
+        cost_limit: float | None = None,
         completed: bool = False,
         metadata: dict[str, Any] | None = None,
         store: dict[str, Any] | None = None,
@@ -173,6 +176,7 @@ class TaskState:
         self._output = output if output else ModelOutput(model=str(model))
         self._message_limit = create_message_limit(message_limit)
         self._token_limit = create_token_limit(token_limit)
+        self._cost_limit = create_cost_limit(cost_limit)
         self._completed = completed
         self._store = Store(store)
         self._uuid = sample_uuid or uuid()
@@ -349,6 +353,29 @@ class TaskState:
     def token_usage(self) -> int:
         """Total tokens used for the current sample."""
         return sample_total_tokens()
+
+    @property
+    def cost_limit(self) -> float | None:
+        """Limit on total cost (in dollars) allowed per sample."""
+        return self._cost_limit.limit
+
+    @cost_limit.setter
+    def cost_limit(self, cost: float | None) -> None:
+        """Set limit on total cost allowed per sample.
+
+        Also checks whether the current cost usage exceeds the new limit.
+        """
+        self._cost_limit.limit = cost
+        check_cost_limit()
+
+        from inspect_ai.log._samples import set_active_sample_cost_limit
+
+        set_active_sample_cost_limit(cost)
+
+    @property
+    def cost_usage(self) -> float:
+        """Total cost (in dollars) used for the current sample."""
+        return sample_total_cost()
 
     @property
     def completed(self) -> bool:

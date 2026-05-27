@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import re
+from functools import partial
+from itertools import chain
 from os import PathLike
 from pathlib import Path
 from re import Pattern
 from typing import TYPE_CHECKING, Sequence, TypeAlias, cast
 
+from inspect_ai._util._async import run_coroutine, tg_collect
+from inspect_ai._util.asyncfiles import AsyncFilesystem
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai._util.file import FileInfo, filesystem
 from inspect_ai._util.version import verify_required_version
@@ -77,16 +81,20 @@ def resolve_logs(
     ]
 
     # expand directories
-    log_paths: list[FileInfo] = []
-    for log_str in logs_str:
-        fs = filesystem(log_str)
-        info = fs.info(log_str)
+    async def expand_log(log_str: str) -> list[FileInfo]:
+        async with AsyncFilesystem() as async_fs:
+            info = await async_fs.info(log_str)
         if info.type == "directory":
-            log_paths.extend(
-                [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
-            )
+            fs = filesystem(log_str)
+            return [fi for fi in fs.ls(info.name, recursive=True) if fi.type == "file"]
         else:
-            log_paths.append(info)
+            return [info]
+
+    log_paths = list(
+        chain.from_iterable(
+            run_coroutine(tg_collect([partial(expand_log, s) for s in logs_str]))
+        )
+    )
 
     log_files = log_files_from_ls(log_paths, sort=False)
     return [log_file.name for log_file in log_files]
@@ -176,9 +184,9 @@ def records_to_pandas(records: list[dict[str, ColumnType]]) -> "pd.DataFrame":
                 # If mixed types (not all str/bytes), convert to string
                 if len(types) > 1 and not types.issubset({"str", "bytes"}):
                     df[col] = df[col].apply(
-                        lambda x: str(x)
-                        if x is not None and not isinstance(x, str)
-                        else x
+                        lambda x: (
+                            str(x) if x is not None and not isinstance(x, str) else x
+                        )
                     )
 
     table = pa.Table.from_pandas(df)

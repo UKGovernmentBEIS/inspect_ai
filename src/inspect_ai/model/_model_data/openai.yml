@@ -223,7 +223,10 @@ openai:
       knowledge_cutoff_date: 2024-09-30
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5-2025-08-07:
           snapshot: "2025-08-07"
@@ -235,7 +238,10 @@ openai:
       knowledge_cutoff_date: 2024-05-30
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5-mini-2025-08-07:
           snapshot: "2025-08-07"
@@ -247,7 +253,10 @@ openai:
       knowledge_cutoff_date: 2024-05-30
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5-nano-2025-08-07:
           snapshot: "2025-08-07"
@@ -259,33 +268,162 @@ openai:
       knowledge_cutoff_date: 2024-09-30
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5.1-2025-11-13:
           snapshot: "2025-11-13"
         latest:
           snapshot: latest
+    gpt-5.1-codex:
+      display_name: GPT-5.1 Codex
+      release_date: 2025-11-12
+      knowledge_cutoff_date: 2024-09-30
+      context_length: 400000
+      output_tokens: 128000
+      input_tokens: 272000
+      reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
     gpt-5.2:
       display_name: GPT-5.2
       release_date: 2025-12-11
       knowledge_cutoff_date: 2025-08-31
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5.2-2025-12-11:
           snapshot: "2025-12-11"
         latest:
           snapshot: latest
+    gpt-5.2-codex:
+      display_name: GPT-5.2 Codex
+      release_date: 2025-12-18
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 400000
+      output_tokens: 128000
+      input_tokens: 272000
+      reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
     gpt-5.2-pro:
       display_name: GPT-5.2 Pro
       release_date: 2025-12-11
       knowledge_cutoff_date: 2025-08-31
       context_length: 400000
       output_tokens: 128000
+      input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: high
       versions:
         gpt-5.2-pro-2025-12-11:
           snapshot: "2025-12-11"
         latest:
           snapshot: latest
+    gpt-5.3-codex:
+      display_name: GPT-5.3 Codex
+      release_date: 2026-02-25
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 400000
+      output_tokens: 128000
+      input_tokens: 272000
+      reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
+    gpt-5.3-chat:
+      display_name: GPT-5.3 Chat
+      release_date: 2026-03-03
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 128000
+      output_tokens: 16384
+      input_tokens: 111616
+      reasoning: False
+      versions:
+        latest:
+          snapshot: "2026-03-03"
+    gpt-5.4:
+      display_name: GPT-5.4
+      release_date: 2026-03-05
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
+      versions:
+        gpt-5.4-2026-03-05:
+          snapshot: "2026-03-05"
+    gpt-5.4-pro:
+      display_name: GPT-5.4 Pro
+      release_date: 2026-03-05
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: high
+      versions:
+        gpt-5.4-pro-2026-03-05:
+          snapshot: "2026-03-05"
+    gpt-5.4-mini:
+      display_name: GPT-5.4 Mini
+      release_date: 2026-03-17
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 400000
+      output_tokens: 128000
+      input_tokens: 272000
+      reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
+      versions:
+        gpt-5.4-mini-2026-03-17:
+          snapshot: "2026-03-17"
+    gpt-5.4-nano:
+      display_name: GPT-5.4 Nano
+      release_date: 2026-03-17
+      knowledge_cutoff_date: 2025-08-31
+      context_length: 400000
+      output_tokens: 128000
+      input_tokens: 272000
+      reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
+      versions:
+        gpt-5.4-nano-2026-03-17:
+          snapshot: "2026-03-17"
+    gpt-5.5:
+      display_name: GPT-5.5
+      release_date: 2026-04-23
+      knowledge_cutoff_date: 2025-12-01
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
+      versions:
+        gpt-5.5-2026-04-23:
+          snapshot: "2026-04-23"
+    gpt-5.5-pro:
+      display_name: GPT-5.5 Pro
+      release_date: 2026-04-23
+      knowledge_cutoff_date: 2025-12-01
+      context_length: 1050000
+      output_tokens: 128000
+      input_tokens: 922000
+      reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: high
+      versions:
+        gpt-5.5-2026-04-23:
+          snapshot: "2026-04-23"
+

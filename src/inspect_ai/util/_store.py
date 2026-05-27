@@ -154,14 +154,14 @@ def store_from_events(events: list["Event"]) -> Store:
         Store: A new Store with reconstructed state.
     """
     from inspect_ai.event._store import StoreEvent
-    from inspect_ai.event._tree import SpanNode, event_tree
+    from inspect_ai.event._tree import EventTreeSpan, event_tree
 
     tree = event_tree(events)
     data: dict[str, Any] = {}
 
     # Process only root-level items
     for node in tree:
-        if isinstance(node, SpanNode):
+        if isinstance(node, EventTreeSpan):
             # Find StoreEvents that are direct children (not nested in child spans)
             for child in node.children:
                 if isinstance(child, StoreEvent):

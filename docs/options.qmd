@@ -1,11 +1,12 @@
 ---
 title: Options
+llms-description: Covers the various options available for evaluations as well as how to manage model credentials.
 tbl-colwidths: [37,63]
 ---
 
 ## Overview
 
-Inspect evaluations have a large number of options available for logging, tuning, diagnostics and model interctions. These options fall into roughly two categories:
+Inspect evaluations have a large number of options available for logging, tuning, diagnostics and model interactions. These options fall into roughly two categories:
 
 1.  Options that you want to set on a more durable basis (for a project or session).
 
@@ -32,7 +33,7 @@ INSPECT_EVAL_MAX_CONNECTIONS=20
 INSPECT_EVAL_MODEL=anthropic/claude-3-5-sonnet-20240620
 ```
 
-All command line options can also be set via environment variable by using the `INSPECT_EVAL_` prefix.
+All command line options can also be set via environment variable, most commonly by using the `INSPECT_EVAL_` prefix. Exceptions are noted below.
 
 Note that `.env` files are searched for in parent directories, so if you run an Inspect command from a subdirectory of a parent that has an `.env` file, it will still be read and resolved. If you define a relative path to `INSPECT_LOG_DIR` in a `.env` file, then its location will always be resolved as relative to that `.env` file (rather than relative to whatever your current working directory is when you run `inspect eval`).
 
@@ -53,6 +54,14 @@ Below are sections for the various categories of options supported by `inspect e
 
 : {tbl-colwidths=\[33,33,33\]}
 
+For more detail on the different methods of configuration, see [Task Configuration](task-configuration.qmd).
+
+## Run Configuration
+
+|  |  |
+|--|--|
+| `--run-config` | YAML or JSON file with the complete run configuration — task, model, model roles, generate config, solver, and eval config — in one place. Explicit CLI flags override values from this file. Cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. See [Run Config File](task-configuration.qmd#run-config). |
+
 ## Model Provider
 
 |                    |                                              |
@@ -61,11 +70,13 @@ Below are sections for the various categories of options supported by `inspect e
 | `--model-base-url` | Base URL for for model API                   |
 | `--model-config`   | Model specific arguments (JSON or YAML file) |
 | `-M`               | Model specific arguments (`key=value`).      |
+| `--model-role`     | Named model role with model name or config (e.g. `grader=openai/gpt-4o`). See [Model Roles](models.qmd#model-roles). |
 
 ## Model Generation
 
 |  |  |
 |-------------------------|-----------------------------------------------|
+| `--generate-config` | YAML or JSON config file with `GenerateConfig` fields (alternatively, use the individual options below). See [Generation Config](task-configuration.qmd#generate-config). |
 | `--max-tokens` | The maximum number of tokens that can be generated in the completion (default is model specific) |
 | `--system-message` | Override the default system message. |
 | `--temperature` | What sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic. |
@@ -80,10 +91,10 @@ Below are sections for the various categories of options supported by `inspect e
 | `--best-of` | Generates best_of completions server-side and returns the 'best' (the one with the highest log probability per token). OpenAI only. |
 | `--log-probs` | Return log probabilities of the output tokens. OpenAI, Grok, TogetherAI, Huggingface, llama-cpp-python, and vLLM only. |
 | `--top-logprobs` | Number of most likely tokens (0-20) to return at each token position, each with an associated log probability. OpenAI, Grok, TogetherAI, Huggingface, and vLLM only. |
-| `--cache-prompt` | Values: `auto`, `true`, or `false`. Cache prompt prefix (Anthropic only). Defaults to "auto", which will enable caching for requests with tools. |
-| `--effort` | Values: `low`, `medium`, or `high`. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency. Anthropic Claude 4.5 Opus only. |
+| `--cache-prompt` | Values: `auto`, `true`, or `false`. Whether to cache the prompt prefix. Enabled by default. Set to False to disable. Anthropic only. |
+| `--effort` | Values: `low`, `medium`, `high`, `xhigh`, or `max`. Control how many tokens are used for a response, trading off between response thoroughness and token efficiency (Claude 4.5, 4.6, 4.7 only, `max` only supported on 4.6 and 4.7, `xhigh` supported only on 4.7). |
 | `--verbosity` | Values `low`, `medium`, or `high`. Constrains the verbosity of the model's response. Lower values will result in more concise responses, while higher values will result in more verbose responses. GPT 5.x models only (defaults to "medium" for OpenAI models).
-| `--reasoning-effort` | Values: `none`, `minimal`, `low`, `medium`, or `high`. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). |
+| `--reasoning-effort` | Values: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Constrains effort on reasoning. Defaults vary by provider and model and not all models support all values (please consult provider documentation for details). |
 | `--reasoning-tokens` | Maximum number of tokens to use for reasoning. Anthropic Claude models only. |
 | `--reasoning-history` | Values: `none`, `all`, `last`, or `auto`. Include reasoning in chat message history sent to generate (defaults to "auto", which uses the recommended default for each provider) |
 | `--response-format` | JSON schema for desired response format (output should still be validated). OpenAI, Google, and Mistral only. |
@@ -104,6 +115,8 @@ Below are sections for the various categories of options supported by `inspect e
 | `--solver-config` | Solver arguments (JSON or YAML file)              |
 | `-S`              | Solver arguments (`key=value`)                    |
 
+For a complete matrix of which task, solver, and runtime settings can be configured on `Task()`, with `task_with()`, via `eval()`, or on the CLI, see the [override reference](task-configuration.qmd#override-reference).
+
 ## Sample Selection
 
 |  |  |
@@ -111,7 +124,7 @@ Below are sections for the various categories of options supported by `inspect e
 | `--limit` | Limit samples to evaluate by specifying a maximum (e.g. `10`) or range (e.g. `10-20`) |
 | `--sample-id` | Evaluate a specific sample (e.g. `44`) or list of samples (e.g. `44,63,91`) |
 | `--epochs` | Number of times to repeat each sample (defaults to 1) |
-| `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, and `pass_at_{k}`. |
+| `--epochs-reducer` | Method for reducing per-epoch sample scores into a single score. Built in reducers include `mean`, `median`, `mode`, `max`, `at_least_{n}`, `pass_at_{k}`, and `pass_k_{k}`. |
 | `--no-epochs-reducer` | Do not reduce epochs across samples (compute metrics across all samples and epochs together). |
 
 ## Parallelism
@@ -120,6 +133,7 @@ Below are sections for the various categories of options supported by `inspect e
 |--------------------------|----------------------------------------------|
 | `--max-connections` | Maximum number of concurrent connections to Model provider (defaults to 10) |
 | `--max-samples` | Maximum number of samples to run in parallel (default is `--max-connections`) |
+| `--max-dataset-memory` | Maximum MB of dataset sample data to hold in memory per task. When exceeded, samples are paged to disk. |
 | `--max-subprocesses` | Maximum number of subprocesses to run in parallel (default is `os.cpu_count()`) |
 | `--max-sandboxes` | Maximum number of sandboxes (per-provider) to run in parallel (default is `2 * os.cpu_count()`) |
 | `--max-tasks` | Maximum number of tasks to run in parallel (default is 1) |
@@ -130,24 +144,28 @@ Below are sections for the various categories of options supported by `inspect e
 |--------------------------|----------------------------------------------|
 | `--fail-on-error` | Threshold of sample errors to tolerate (by default, evals fail when any error occurs). Value between 0 to 1 to set a proportion; value greater than 1 to set a count. |
 | `--no-fail-on-error` | Do not fail the eval if errors occur within samples (instead, continue running other samples) |
+| `--retry-on-error` | Retry samples if they encounter errors (no retries by default). Specify `--retry-on-error` to retry once, or `--retry-on-error=N` to retry N times. |
+| `--score-on-error` | Score samples that error rather than failing the eval mid-run. Errors still count toward the `--fail-on-error` threshold for marking the log as 'error'. Only fires after retries (if any) are exhausted. |
 | `--message-limit` | Limit on total messages used for each sample. |
 | `--token-limit` | Limit on total tokens used for each sample. |
 | `--time-limit` | Limit on total running time for each sample. |
 | `--working-limit` | Limit on total working time (model generation, tool calls, etc.) for each sample. |
+| `--cost-limit` | Limit on total cost (in dollars) for each sample. Requires model cost data via `set_model_cost()` or `--model-cost-config`. |
+| `--model-cost-config` | YAML or JSON file with model prices for cost tracking. |
 
 ## Eval Logs
 
 |  |  |
 |--------------------------|----------------------------------------------|
-| `--log-dir` | Directory for log files (defaults to `./logs`) |
+| `--log-dir` / `INSPECT_LOG_DIR` | Directory for log files (defaults to `./logs`) |
 | `--no-log-samples` | Do not log sample details. |
 | `--no-log-images` | Do not log images and other media. |
 | `--no-log-realtime` | Do not log events in realtime (affects live viewing of logs) |
 | `--log-buffer` | Number of samples to buffer before writing log file. If not specified, an appropriate default for the format and filesystem is chosen (10 for most cases, 100 for JSON logs on remote filesystems). |
 | `--log-shared` | Sync sample events to log directory so that users on other systems can see log updates in realtime (defaults to no syncing). Specify `True` to sync every 10 seconds, otherwise an integer to sync every `n` seconds. |
-| `--log-format` | Values: `eval`, `json` Format for writing log files (defaults to `eval`). |
-| `--log-level` | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`) |
-| `--log-level-transcript` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`). |
+| `--log-format` / `INSPECT_LOG_FORMAT` | Values: `eval`, `json` Format for writing log files (defaults to `eval`). |
+| `--log-level` / `INSPECT_LOG_LEVEL` | Python logger level for console. Values: `debug`, `trace`, `http`, `info`, `warning`, `error`, `critical` (defaults to `warning`) |
+| `--log-level-transcript` / `INSPECT_LOG_LEVEL_TRANSCRIPT` | Python logger level for eval log transcript (values same as `--log-level`, defaults to `info`). |
 
 ## Scoring
 
@@ -167,16 +185,17 @@ Below are sections for the various categories of options supported by `inspect e
 
 |  |  |
 |--------------------------|----------------------------------------------|
-| `--debug` | Wait to attach debugger |
-| `--debug-port` | Port number for debugger |
-| `--debug-errors` | Raise task errors (rather than logging them) so they can be debugged. |
-| `--traceback-locals` | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). |
+| `--debug` / `INSPECT_DEBUG` | Wait to attach debugger |
+| `--debug-port` / `INSPECT_DEBUG_PORT` | Port number for debugger |
+| `--debug-errors` / `INSPECT_DEBUG_ERRORS` | Raise task errors (rather than logging them) so they can be debugged. |
+| `--traceback-locals` / `INSPECT_TRACEBACK_LOCALS` | Include values of local variables in tracebacks (note that this can leak private data e.g. API keys so should typically only be enabled for targeted debugging). |
 
 ## Miscellaneous
 
 |  |  |
 |--------------------------|----------------------------------------------|
-| `--display` | Display type. Values: `full`, `conversation`, `rich`, `plain`, `log`, `none` (defaults to `full`). |
+| `--display` / `INSPECT_DISPLAY` | Display type. Values: `full`, `conversation`, `rich`, `plain`, `log`, `none` (defaults to `full`). |
+| `--no-ansi` / `INSPECT_NO_ANSI` | Do not print ANSI control characters. |
 | `--approval` | Config file for tool call approval. |
 | `--env` | Set an environment variable (multiple instances of `--env` are permitted). |
 | `--tags` | Tags to associate with this evaluation run. |

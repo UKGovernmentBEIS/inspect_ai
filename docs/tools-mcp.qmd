@@ -1,5 +1,6 @@
 ---
 title: Model Context Protocol
+llms-description: How to integrate tools from Model Context Protocol providers.
 ---
 
 ## Overview

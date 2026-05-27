@@ -23,14 +23,34 @@ class SandboxEnvironment:
         """
         ...
 
+    async def exec_remote(
+        self,
+        cmd: list[str],
+        options: (
+          ExecRemoteStreamingOptions
+          | ExecRemoteAwaitableOptions
+          | None
+      ) = None,
+        *,
+        stream: bool = True,
+    ) -> ExecRemoteProcess | ExecResult[str]:
+        """
+        Raises:
+          TimeoutError: If `timeout` is specified in
+            ExecRemoteAwaitableOptions and the command
+            exceeds it (only applicable when `stream=False`).
+        """
+        ...
+
     async def write_file(
         self, file: str, contents: str | bytes
     ) -> None:
         """
         Raises:
+          TimeoutError: If the operation times out.
           PermissionError: If the user does not have
             permission to write to the specified path.
-          IsADirectoryError: If the file exists already and 
+          IsADirectoryError: If the file exists already and
             is a directory.
         """
         ...
@@ -40,8 +60,9 @@ class SandboxEnvironment:
     ) -> Union[str | bytes]:
         """
         Raises:
+          TimeoutError: If the operation times out.
           FileNotFoundError: If the file does not exist.
-          UnicodeDecodeError: If an encoding error occurs 
+          UnicodeDecodeError: If an encoding error occurs
             while reading the file.
             (only applicable when `text = True`)
           PermissionError: If the user does not have
@@ -60,11 +81,13 @@ class SandboxEnvironment:
         """
 ```
 
-The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (currently 10MB) and front-truncate its output to the limit when it is exceeded.
+The `exec()` method should enforce an output limit of `SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE` (default 10MB, configurable via the `INSPECT_SANDBOX_MAX_EXEC_OUTPUT_SIZE` environment variable) and front-truncate its output to the limit when it is exceeded.
 
-The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (currently 100MB) and raise an `OutputLimitExceededError` when it is exceeded.
+The `read_file()` method should enforce the `SandboxEnvironmentLimits.MAX_READ_FILE_SIZE` limit (default 100MB, configurable via the `INSPECT_SANDBOX_MAX_READ_FILE_SIZE` environment variable) and raise an `OutputLimitExceededError` when it is exceeded.
 
 The `read_file()` method should preserve newline constructs (e.g. crlf should be preserved not converted to lf). This is equivalent to specifying `newline=""` in a call to the Python `open()` function. Note that `write_file()` automatically creates parent directories as required if they don't exist.
+
+The `exec_remote()` options (`ExecRemoteStreamingOptions` and `ExecRemoteAwaitableOptions`) include a `user` field that requests the command run as the specified user (equivalent to `docker exec --user`). This requires the sandbox tools server to be running as root inside the container. If the server cannot switch users, a `ToolException` is raised.
 
 The `connection()` method is optional, and provides commands that can be used to login to the sandbox container from a terminal or IDE.
 

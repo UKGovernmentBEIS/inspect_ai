@@ -25,6 +25,10 @@ def multi_scorer(scorers: list[Scorer], reducer: str | ScoreReducer) -> Scorer:
         )
         # Filter out None values from scores list
         resolved_scores = [score for score in scores if score is not None]
+        if len(resolved_scores) == 0:
+            # every sub-scorer declined to score; reducers index scores[0]
+            # so surface the unscored sentinel rather than crashing
+            return Score.unscored()
         return reducer(resolved_scores)
 
     return score

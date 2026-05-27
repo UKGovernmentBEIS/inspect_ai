@@ -4,7 +4,7 @@ from typing import Any, overload
 from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.util._limit import Limit, LimitExceededError, apply_limits
-from inspect_ai.util._span import span
+from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
 from ._agent import Agent, AgentState
 
@@ -16,6 +16,7 @@ async def run(
     limits: list[Limit],
     *,
     name: str | None = None,
+    span_id: str | None = None,
     **agent_kwargs: Any,
 ) -> tuple[AgentState, LimitExceededError | None]: ...
 
@@ -27,6 +28,7 @@ async def run(
     limits: None = ...,
     *,
     name: str | None = None,
+    span_id: str | None = None,
     **agent_kwargs: Any,
 ) -> AgentState: ...
 
@@ -37,6 +39,7 @@ async def run(
     limits: list[Limit] | None = None,
     *,
     name: str | None = None,
+    span_id: str | None = None,
     **agent_kwargs: Any,
 ) -> AgentState | tuple[AgentState, LimitExceededError | None]:
     """Run an agent.
@@ -51,6 +54,8 @@ async def run(
             exceeded, the `LimitExceededError` is caught and returned.
         name: Optional display name for the transcript entry. If not provided, the
             agent's name as defined in the registry will be used.
+        span_id: Optional span ID for the agent span. If not provided, one is
+            generated automatically.
         **agent_kwargs: Additional arguments to pass to agent.
 
     Returns:
@@ -85,7 +90,7 @@ async def run(
     with apply_limits(limits or [], catch_errors=True) as limit_scope:
         # run the agent
         agent_name = name or registry_unqualified_name(agent)
-        async with span(name=agent_name, type="agent"):
+        async with span(name=agent_name, type=AGENT_SPAN_TYPE, id=span_id):
             state = await agent(state, **agent_kwargs)
             if limits is None:
                 return state
