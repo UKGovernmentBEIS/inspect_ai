@@ -921,20 +921,19 @@ def epochs_changed(epochs: Epochs | None, config: EvalConfig) -> bool:
     # number of epochs differs (changed)
     elif epochs.epochs != config.epochs:
         return True
-    # default to mean reducer should match (not changed). Kept for
-    # backward-compat with logs written before the epochs_reducer default
-    # was dropped from eval_config_defaults(); new logs record None and are
-    # handled by the next branch.
-    if epochs.reducer is None and config.epochs_reducer == ["mean"]:
-        return False
-    # different reducer list (changed)
-    elif [reducer_log_name(r) for r in (epochs.reducer or [])] != [
-        r for r in (config.epochs_reducer or [])
-    ]:
-        return True
-    # fall through (not changed)
-    else:
-        return False
+
+    # compare reducers, treating the unrecorded default (None) and an
+    # explicit ["mean"] as equivalent (older logs recorded ["mean"] for
+    # the default before it was dropped from eval_config_defaults()).
+    def canonical(r: list[str] | None) -> list[str] | None:
+        return None if r is None or r == ["mean"] else r
+
+    requested = (
+        [reducer_log_name(r) for r in epochs.reducer]
+        if epochs.reducer is not None
+        else None
+    )
+    return canonical(requested) != canonical(config.epochs_reducer)
 
 
 # cleanup logs that aren't the latest
