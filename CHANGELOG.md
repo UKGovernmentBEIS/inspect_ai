@@ -1,5 +1,6 @@
 ## Unreleased
 
+- OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
 - Bugfix: Align CLI --display and --effort type annotations with their choices.
 
 ## 0.3.228 (27 May 2026)
