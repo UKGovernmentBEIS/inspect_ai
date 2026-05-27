@@ -164,6 +164,13 @@ def mock_s3():
     os.environ["AWS_SECRET_ACCESS_KEY"] = "unused_key_mock_s3"
     os.environ["AWS_DEFAULT_REGION"] = "us-west-1"
 
+    # Drop any cached fsspec S3FileSystem instance from a previous module's
+    # mock_s3 fixture — its baked-in client points at a moto server that
+    # was already torn down, and reuse causes EndpointConnectionError.
+    from s3fs import S3FileSystem
+
+    S3FileSystem.clear_instance_cache()
+
     s3_client = boto3.client("s3")
     s3_client.create_bucket(
         Bucket="test-bucket",
@@ -187,6 +194,9 @@ def mock_s3():
     s3_client.delete_bucket(Bucket="test-bucket")
 
     server.stop()
+    # Clear again on teardown so a later non-mock_s3 caller doesn't grab
+    # the stale instance either.
+    S3FileSystem.clear_instance_cache()
     for key, value in existing_env.items():
         if value is None:
             del os.environ[key]
