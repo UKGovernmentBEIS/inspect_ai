@@ -8,6 +8,7 @@
 - Bugfix: Prevent transcript subscriber-failure warnings from re-entering the subscriber loop and fanning out.
 - Bugfix: Align CLI --display and --effort type annotations with their choices.
 - Bugfix: Don't enter prompt mode when a sample is globally cancelled.
+- Bugfix: `write_eval_log(..., header_only=True)` now preserves on-disk samples for JSON logs and remote `.eval` logs (previously a header-only write to either erased the samples). On non-local filesystems the `.eval` zip is rewritten cleanly so old header bytes don't accumulate across edits.
 
 ## 0.3.228 (27 May 2026)
 
