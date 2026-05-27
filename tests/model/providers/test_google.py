@@ -3,6 +3,7 @@ import base64
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 from google.genai.types import (
     Blob,
@@ -80,7 +81,7 @@ def test_google_block_reason():
             # TODO: we can't seem to get a content filter to trigger!
             dataset=[Sample(input="you are a shameful model")],
         ),
-        model="google/gemini-3.1-flash-lite-preview",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(safety_settings=safety_settings),
     )[0]
     # TODO: comment in once we have an input that triggers the filter
@@ -883,7 +884,7 @@ async def test_google_count_tokens_single_tool_call() -> None:
     """Test counting tokens for a single assistant message with one tool call."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-3.1-flash-lite-preview")
+    model = get_model("google/gemini-3.1-flash-lite")
 
     # Create an assistant message with a single tool call (no tool result)
     assistant_msg = ChatMessageAssistant(
@@ -908,7 +909,7 @@ async def test_google_count_tokens_multiple_tool_calls() -> None:
     """Test counting tokens for a single assistant message with multiple tool calls."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-3.1-flash-lite-preview")
+    model = get_model("google/gemini-3.1-flash-lite")
 
     # Create an assistant message with multiple tool calls (no tool results)
     assistant_msg = ChatMessageAssistant(
@@ -943,7 +944,7 @@ async def test_google_count_tokens_single_tool_result() -> None:
     """Test counting tokens for a single tool result message (no preceding tool use)."""
     from inspect_ai.model import get_model
 
-    model = get_model("google/gemini-3.1-flash-lite-preview")
+    model = get_model("google/gemini-3.1-flash-lite")
 
     # Create a tool result message without a preceding assistant message
     tool_msg = ChatMessageTool(
@@ -965,7 +966,7 @@ def test_google_streaming_basic():
             dataset=[Sample(input="Say hello in one sentence", target="hello")],
             scorer=includes(),
         ),
-        model="google/gemini-3.1-flash-lite-preview",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(streaming=True),
     )[0]
 
@@ -998,7 +999,7 @@ def test_google_streaming_with_tools():
             solver=use_tools([add]),
             scorer=includes(),
         ),
-        model="google/gemini-3.1-flash-lite-preview",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(streaming=True),
     )[0]
 
@@ -1018,7 +1019,7 @@ def test_google_streaming_large_output():
             ],
             scorer=includes(),
         ),
-        model="google/gemini-3.1-flash-lite-preview",
+        model="google/gemini-3.1-flash-lite",
         model_args=dict(streaming=True),
         max_tokens=4096,
     )[0]
@@ -1287,3 +1288,39 @@ async def test_image_in_user_follow_up():
     assert blob is not None
     assert blob.mime_type == "image/png"
     assert blob.data == image_bytes
+
+
+@pytest.mark.parametrize(
+    "exception_factory",
+    [
+        lambda: aiohttp.ClientOSError(103, "Software caused connection abort"),
+        lambda: aiohttp.ServerDisconnectedError(),
+        lambda: aiohttp.ClientConnectorError(MagicMock(), OSError("connect failed")),
+        lambda: asyncio.TimeoutError(),
+    ],
+)
+def test_should_retry_aiohttp_transport_errors(exception_factory):
+    from inspect_ai.model._model import RetryDecision
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    decision = api.should_retry(exception_factory())
+
+    assert isinstance(decision, RetryDecision)
+    assert decision.retry
+    assert decision.kind == "transient"
+
+
+def test_should_retry_unrelated_error_not_retried():
+    from inspect_ai.model._model import RetryDecision
+
+    api = GoogleGenAIAPI(
+        model_name="gemini-2.0-flash", base_url=None, api_key="test-key"
+    )
+
+    decision = api.should_retry(ValueError("bad input"))
+
+    assert isinstance(decision, RetryDecision)
+    assert not decision.retry

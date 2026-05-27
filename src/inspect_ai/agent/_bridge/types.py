@@ -14,7 +14,7 @@ from inspect_ai.model._compaction import (
 from inspect_ai.model._compaction import (
     compaction as create_compaction,
 )
-from inspect_ai.model._model import GenerateFilter, Model
+from inspect_ai.model._model import GenerateFilter, Model, ModelEventSink
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
 from inspect_ai.tool._tool_info import ToolInfo
@@ -31,12 +31,14 @@ class AgentBridge:
         compaction: CompactionStrategy | None = None,
         model: str | None = None,
         model_aliases: dict[str, str | Model] | None = None,
+        model_event_sink: ModelEventSink | None = None,
     ) -> None:
         self.state = state
         self.filter = filter
         self.retry_refusals = retry_refusals
         self.model = model
         self.model_aliases: dict[str, str | Model] = model_aliases or {}
+        self.model_event_sink = model_event_sink
         self._compaction = compaction
         self._compaction_prefix = state.messages.copy()
         self._compact: Compact | None = None
@@ -62,6 +64,15 @@ class AgentBridge:
     """Map of model name aliases.  When a request uses a name that appears
     here, the corresponding value (a ``Model`` instance or model spec string)
     is used instead.  Checked before the fallback ``model``.
+    """
+
+    model_event_sink: ModelEventSink | None
+    """Optional sink that takes ownership of `ModelEvent` emission for calls
+    routed through the bridge. When set, the bridge installs it around
+    `model.generate()`; `_record_model_interaction` then dispatches pending /
+    complete events to the sink instead of emitting them to the transcript.
+    Use this to attribute bridge model events to externally-managed agent
+    spans (e.g. spans driven by a side-channel event stream).
     """
 
     def compaction(

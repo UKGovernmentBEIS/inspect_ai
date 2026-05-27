@@ -506,6 +506,7 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
+        record_event: bool = True,
     ) -> Iterator[Console]:
         with self.app.suspend_app():
             # get rich console
@@ -536,7 +537,8 @@ class TextualTaskScreen(TaskScreen, Generic[TR]):
                 input = console.export_text(clear=False, styles=False)
                 input_ansi = console.export_text(clear=True, styles=True)
                 console.record = False
-                transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+                if record_event:
+                    transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
 
                 # print one blank line
                 console.print("")

@@ -5,7 +5,7 @@ notifications out over a bound connection. This module is the
 in-process step before that — transcript events become typed
 ``acp.SessionNotification`` payloads on the session's pub/sub bus.
 
-When a :class:`LiveAcpSession` is active, an :class:`_AcpEventRouter`
+When a :class:`LiveAcpTransport` is active, an :class:`_AcpEventRouter`
 is attached at session entry. It subscribes to the active sample's
 ``Transcript`` and:
 
@@ -13,7 +13,7 @@ is attached at session entry. It subscribes to the active sample's
    to maintain a sub-agent nesting depth counter.
 2. Optionally filters out events emitted while a sub-agent boundary is
    open (default ACP-friendly behavior; consumers can opt out via
-   :meth:`LiveAcpSession.disable_subagent_filtering`).
+   :meth:`LiveAcpTransport.disable_subagent_filtering`).
 3. Maps the surviving events to ``acp.SessionNotification`` payloads
    and publishes them onto the session's pub/sub bus.
 
@@ -59,6 +59,7 @@ from acp.schema import (
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent._acp.inspect_ext import (
+    TOTAL_MESSAGES_META_KEY,
     assistant_complete_chunk_meta,
     assistant_content_chunk_meta,
     assistant_pending_chunk_meta,
@@ -83,7 +84,7 @@ from inspect_ai.model._model_info import get_model_info
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp.session_live import LiveAcpSession
+    from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 
 logger = getLogger(__name__)
 
@@ -102,6 +103,23 @@ class SubagentDepthTracker:
     considered "inside a sub-agent" and the ACP semantic forwarder
     drops them so the editor sees only the outermost conversation.
 
+    The *first* ``AGENT_SPAN_TYPE`` begin we see is treated specially:
+    it's the OUTER agent boundary (the eval framework's ``as_solver``
+    wrap, or the top-level ``run()`` of a free-standing agent). Its
+    contents are exactly the conversation we want to expose, so the
+    tracker consumes the boundary markers but keeps depth at 0 for
+    everything inside. Only the SECOND ``AGENT_SPAN_TYPE`` begin (a
+    real sub-agent nested in the outer one) increments depth.
+
+    This matters because the ACP router attaches at
+    ``acp_session().__aenter__`` — which runs BEFORE the solver opens
+    the outer ``AGENT_SPAN``. So both LIVE event processing and
+    REPLAY-on-attach (whose snapshot starts at the router's
+    attach-index) observe the outer span begin. Without the
+    "first-is-outer" rule, depth would spike to 1 the moment the
+    outer span opens and every subsequent event — the entire
+    conversation — would be silently filtered.
+
     Boundary spans are paired by id so out-of-order or unknown
     ``SpanEndEvent``s (e.g. one that opened before the tracker was
     constructed) don't underflow the counter.
@@ -115,11 +133,20 @@ class SubagentDepthTracker:
 
     def __init__(self) -> None:
         self._depth: int = 0
+        # ``AGENT_SPAN_TYPE`` ids we treat as in-scope boundaries:
+        # the outer agent span (consumed without depth change) plus
+        # any nested sub-agent spans (which DO change depth).
         self._boundary_span_ids: set[str] = set()
+        # Id of the outer agent span — the one whose contents we
+        # surface to the wire. Set on the first
+        # ``SpanBeginEvent(type=AGENT_SPAN_TYPE)`` we see; its
+        # matching SpanEndEvent is consumed without decrementing
+        # depth.
+        self._outer_span_id: str | None = None
 
     @property
     def depth(self) -> int:
-        """Current nesting depth (0 = at top level)."""
+        """Current nesting depth (0 = at top level / inside outer agent)."""
         return self._depth
 
     def process(self, event: Event) -> _SubagentAction:
@@ -134,10 +161,19 @@ class SubagentDepthTracker:
         """
         if isinstance(event, SpanBeginEvent) and event.type == AGENT_SPAN_TYPE:
             self._boundary_span_ids.add(event.id)
+            if self._outer_span_id is None:
+                # First agent span we've seen — this IS the outer
+                # agent. Keep depth at 0 so its contents emit.
+                self._outer_span_id = event.id
+                return "consume"
             self._depth += 1
             return "consume"
         if isinstance(event, SpanEndEvent) and event.id in self._boundary_span_ids:
             self._boundary_span_ids.discard(event.id)
+            if event.id == self._outer_span_id:
+                # Closing the outer agent — don't decrement (we
+                # never incremented for it).
+                return "consume"
             self._depth -= 1
             return "consume"
         return "skip" if self._depth > 0 else "emit"
@@ -146,7 +182,7 @@ class SubagentDepthTracker:
 class _AcpEventRouter:
     """Subscribe to a transcript, map events, publish session notifications."""
 
-    def __init__(self, session: "LiveAcpSession") -> None:
+    def __init__(self, session: "LiveAcpTransport") -> None:
         self._session = session
         self._depth_tracker = SubagentDepthTracker()
         self._seen_tool_call_ids: set[str] = set()
@@ -563,7 +599,17 @@ def _map_model_event(
         # SessionUpdate union (the schema discriminated union includes it,
         # but the helper's typedef is narrower). Constructing the
         # notification by hand sidesteps the type mismatch.
-        yield SessionNotification(session_id=session_id, update=usage_update)
+        #
+        # Piggyback the sample's running ``total_messages`` on the outer
+        # ``field_meta`` so the TUI's header re-renders the ``messages``
+        # chip on the same per-model-event tick that drives ``tokens``.
+        yield SessionNotification(
+            session_id=session_id,
+            update=usage_update,
+            field_meta={
+                TOTAL_MESSAGES_META_KEY: _active_sample_total_messages(session_id)
+            },
+        )
 
 
 # UUIDv5 namespace for deriving message_id from Inspect ModelEvent uuids.
@@ -584,6 +630,23 @@ def _model_event_message_id(model_event_uuid: str) -> str:
     client.
     """
     return str(_uuid_module.uuid5(_INSPECT_MESSAGE_ID_NAMESPACE, model_event_uuid))
+
+
+def _active_sample_total_messages(session_id: str) -> int:
+    """Look up ``ActiveSample.total_messages`` for the given ACP session.
+
+    Returns 0 if no matching active sample is found (e.g. the sample
+    finished between the model event firing and our lookup) — the TUI
+    treats 0 as "no data" and renders an em-dash, matching the
+    ``totalTokens=0`` fallback the picker already uses.
+    """
+    from inspect_ai.log._samples import active_samples
+
+    for sample in active_samples():
+        sess = sample.acp_transport
+        if sess is not None and sess.session_id == session_id:
+            return sample.total_messages
+    return 0
 
 
 def _build_usage_update(event: ModelEvent) -> UsageUpdate | None:

@@ -79,6 +79,7 @@ def _make_sample(
     session_id: str | None,
     agent_name: str | None = None,
     started: float | None = None,
+    total_messages: int = 0,
     total_tokens: int = 0,
     fails_on_error: bool = True,
 ) -> Any:
@@ -90,8 +91,8 @@ def _make_sample(
     active.epoch = epoch
     # Explicit values on the fields read by ``list_picker_targets`` so
     # MagicMock doesn't auto-wrap them and break JSON serialization
-    # downstream. ``total_tokens`` / ``fails_on_error`` are serialised
-    # over the wire by both the picker meta and
+    # downstream. ``total_messages`` / ``total_tokens`` / ``fails_on_error``
+    # are serialised over the wire by both the picker meta and
     # ``inspect/list_sessions`` — must be real Python values, not
     # MagicMocks, or the server crashes silently in a background task
     # and the request hangs forever. Default ``fails_on_error=True``
@@ -100,14 +101,25 @@ def _make_sample(
     # ``ActiveSample.fails_on_error``).
     active.agent_name = agent_name
     active.started = started
+    active.total_messages = total_messages
     active.total_tokens = total_tokens
     active.fails_on_error = fails_on_error
+    # ``pending_interaction`` is read by ``list_all_samples`` into the
+    # serialized ``inspect/list_samples`` payload — must be a real
+    # ``None`` / ``"approval"`` / ``"question"``, not a MagicMock.
+    # Same hazard as the fields above.
+    active.pending_interaction = None
     if session_id is None:
-        active.acp_session = None
+        active.acp_transport = None
     else:
         session = MagicMock()
         session.session_id = session_id
-        active.acp_session = session
+        # Match production semantics: noop placeholder is not attachable,
+        # real bound sessions are. Without this the MagicMock's
+        # auto-generated ``is_attachable`` is truthy, and the picker's
+        # ``is_attachable`` filter doesn't strip the noop sentinel.
+        session.is_attachable = session_id != "noop"
+        active.acp_transport = session
     return active
 
 
@@ -1148,6 +1160,7 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
                         "epoch": 0,
                         "agentName": None,
                         "startedAt": None,
+                        "totalMessages": 0,
                         "totalTokens": 0,
                         "failsOnError": True,
                         "target": "t1/s1/0",
@@ -1159,6 +1172,7 @@ async def test_inspect_list_sessions_returns_all_attachable_targets(
                         "epoch": 1,
                         "agentName": None,
                         "startedAt": None,
+                        "totalMessages": 0,
                         "totalTokens": 0,
                         "failsOnError": True,
                         "target": "t2/s2/1",
@@ -1685,7 +1699,7 @@ async def test_bound_mode_prompt_with_unreachable_target_returns_internal_error(
     which does NOT plug into the registry the forwarder reads, so
     targets are present at picker time but unreachable at forward
     time — surfaces as ``internal_error`` with a clear reason. Real
-    forwarding to a live ``LiveAcpSession`` is exercised in
+    forwarding to a live ``LiveAcpTransport`` is exercised in
     ``test_server_forwarding.py``.
     """
     stub_targets(

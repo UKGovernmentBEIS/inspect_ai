@@ -15,6 +15,7 @@ from inspect_ai.model._model import (
     active_model,
     get_model,
     model_roles,
+    use_model_event_sink,
 )
 from inspect_ai.model._model_output import ModelOutput
 from inspect_ai.tool._tool import Tool
@@ -115,14 +116,18 @@ async def bridge_generate(
                 # Update the inputs that will be used for generation
                 input_messages, tools, tool_choice, config = result
 
-        # Run the generation if the filter didn't
+        # Run the generation if the filter didn't. If the bridge has a
+        # model_event_sink installed, route ModelEvent emissions through it
+        # (instead of going straight to the transcript) so the caller can
+        # control when / under which span events appear.
         if output is None:
-            output = await model.generate(
-                input=input_messages,
-                tool_choice=tool_choice,
-                tools=tools,
-                config=config,
-            )
+            with use_model_event_sink(bridge.model_event_sink):
+                output = await model.generate(
+                    input=input_messages,
+                    tool_choice=tool_choice,
+                    tools=tools,
+                    config=config,
+                )
 
         # Update the compaction baseline with the actual input token
         # count from the generate call (most accurate source of truth)

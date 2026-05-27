@@ -202,6 +202,7 @@ class RichTaskScreen(TaskScreen):
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
+        record_event: bool = True,
     ) -> Iterator[Console]:
         # determine transient based on trace mode
         if transient is None:
@@ -239,7 +240,8 @@ class RichTaskScreen(TaskScreen):
             input = self.live.console.export_text(clear=False, styles=False)
             input_ansi = self.live.console.export_text(clear=True, styles=True)
             self.live.console.record = False
-            transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
+            if record_event:
+                transcript()._event(InputEvent(input=input, input_ansi=input_ansi))
 
             # print one blank line
             self.live.console.print("")

@@ -1,6 +1,41 @@
 ## Unreleased
 
+- Bugfix: Align CLI --display and --effort type annotations with their choices.
+
+## 0.3.228 (27 May 2026)
+
+- Anthropic: Improved merging of beta headers.
+
+## 0.3.227 (26 May 2026)
+
+- [`ask_user()`](https://inspect.aisi.org.uk/tools-standard.html#ask-user) tool: model can solicit a structured answer from the operator.
+- [`notify_user()`](https://inspect.aisi.org.uk/tools-standard.html#notify-user) tool: model can send status notifications to the operator.
+- [Notifications](https://inspect.aisi.org.uk/intervention.html#notifications) via [Apprise](https://appriseit.com) (Slack, desktop, SMS, email, webhook, ~90 services).
+- [`request_input()`](https://inspect.aisi.org.uk/interactivity.html) public API: programmatic structured prompts from solvers, agents, or tools, using the same dispatch surfaces as `ask_user()`.
+- Text Editor Tool: Cap undo history to 10 and no longer consider failures in undo history file operations fatal.
+
+## 0.3.226 (25 May 2026)
+
+- OpenAI: Backfill required 'query' field when service only provides 'queries'.
+- Agent Bridge: Add `model_event_sink` option for bridge to control order of model event emission (used to nest model events properly in agent spans).
+
+## 0.3.225 (23 May 2026)
+
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.
+- Parallel [tool execution](https://inspect.aisi.org.uk/tools-custom.html#sec-parallel-execution) executes tool calls in parallel when their tool declares `@tool(parallel=True)`. Builtin tools that are atomic per call (e.g. `bash`, `python`, `memory`, `read_file`, `web_search`) are now registered with `parallel=True`.
+- Reasoning: `--reasoning-effort` now works uniformly across Claude 3.7–4.5 and Gemini 2.5. Inspect automatically bridges effort to a `budget_tokens` / `thinking_budget` value using a fixed table (minimal=2048, low=4096, medium=10000, high=16000, xhigh/max=32000). Previously these models silently ignored `reasoning_effort`.
+- Reasoning: Clamp extended effort values (`minimal` / `xhigh` / `max`) to the `low` / `medium` / `high` tier accepted by upstream APIs for Groq, Ollama, and SageMaker.
+- Reasoning: OpenRouter — clamp `max` effort to `xhigh` before forwarding (OpenRouter does not accept `max`).
+- OpenAI: Apply the `max` → `xhigh` mapping for `reasoning_effort`.
+- Google: Enable support for "medium" thinking level for Gemini 3 Pro models.
+- Google: Retry transport-level aiohttp errors and SDK transport timeouts in `should_retry()` so the model-layer tenacity loop can retry network failures that escape the SDK's one-shot inline retry.
+- vLLM: Support HF @revision and other extended characters in LoRA adapter names.
+- Model API: Create separate connection limit pools per model (improving concurrency under adaptive connections).
+- Eval Set: Re-condense carried-forward samples on retry.
+- Scoring: Use scorers_info instead of scorers for functions that recompute metrics.
+- Scanning: Compatibility with Inspect Scout 0.4.37.
+- Async: `run_coroutine()` (and the sync log/analysis helpers built on it) now honour `INSPECT_ASYNC_BACKEND=trio` when called with no running event loop, rather than always using asyncio.
+- Bugfix: Resolve message/call pool references in DB-buffer recovery.
 
 ## 0.3.224 (20 May 2026)
 

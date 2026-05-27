@@ -1,12 +1,13 @@
 adlfs>=2025.8.0
 anthropic>=0.96.0
+apprise
 azure-ai-inference
 azure-identity
 google-genai>=1.69.0
 griffe>=2
 groq>=0.28.0
 huggingface_hub>=1.0.0
-inspect-scout>=0.4.34
+inspect-scout>=0.4.37
 ipython
 jsonpath-ng
 markdown

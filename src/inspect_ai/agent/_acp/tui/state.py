@@ -37,6 +37,7 @@ from acp.schema import (
     AgentMessageChunk,
     AgentPlanUpdate,
     AgentThoughtChunk,
+    ElicitationSchema,
     PlanEntry,
     RequestPermissionRequest,
     SessionInfoUpdate,
@@ -55,6 +56,7 @@ from inspect_ai.agent._acp.inspect_ext import (
     MODEL_META_KEY,
     PICKER_META_KEY,
     REPLAY_META_KEY,
+    TOTAL_MESSAGES_META_KEY,
     USER_SOURCE_META_KEY,
 )
 from inspect_ai.scorer._metric import CORRECT, INCORRECT, NOANSWER, PARTIAL
@@ -286,6 +288,76 @@ class PendingApproval:
     cancelled: bool = False
 
 
+ElicitationAction = Literal["accept", "decline", "cancel"]
+"""Action submitted by the operator in response to an elicitation card.
+
+Mirrors ACP's ``elicitation/create`` response discriminator.
+``cancel`` is used for the implicit cancellation paths (session
+teardown, sample interrupt) — the operator never picks it from a
+button.
+"""
+
+
+@dataclass
+class PendingElicitation:
+    """An in-flight ACP ``elicitation/create`` awaiting a submission.
+
+    Held on :class:`SessionState` (one at a time — the agent loop
+    issues one ``ask_user`` call at a time) while the inline form
+    card is visible. The ``event`` lets the client-side JSON-RPC
+    handler park on ``event.wait()`` until the card's Submit /
+    Decline button (or one of the cancel paths via
+    :meth:`mark_complete` / :meth:`mark_interrupted`) calls
+    :meth:`SessionState.resolve_elicitation`, which sets the event
+    and populates ``action`` + ``content`` for the handler to read.
+
+    Bare-minimum design for Phase 6a — Phase 6b will extract a
+    reusable inline-card primitive that may carry additional metadata
+    (timeouts, retries, etc.); for now we mirror :class:`PendingApproval`
+    one-for-one.
+    """
+
+    message: str
+    requested_schema: ElicitationSchema
+    event: asyncio.Event
+    tool_call_id: str | None = None
+    action: ElicitationAction | None = None
+    content: dict[str, Any] | None = None
+
+
+@dataclass
+class PendingCancel:
+    """An operator-initiated sample-cancel awaiting disposition.
+
+    Set on :class:`SessionState.pending_cancel` when the operator
+    invokes ``^N`` on the session screen; the inline
+    :class:`_CancelCard` mounts to render the choice and the screen
+    enters auto-follow mode so the card stays visible as new events
+    arrive (the agent keeps running while the operator deliberates —
+    see ``design/acp/elicitation.md`` "Routing policy" + Phase 6b
+    plan for the rationale).
+
+    Carries the JSON-RPC plumbing the card needs to fire
+    ``inspect/cancel_sample`` directly when Score / Error is picked:
+    the operator's pick → RPC → on success the screen flips
+    ``mark_sample_cancelling`` to start the local in-flight cleanup,
+    and the natural ``inspect/session_ended`` flow handles the
+    terminal-state transition. ``Back`` is a fire-free no-op that
+    just clears the slot.
+
+    Bare-minimum design for Phase 6b — see the slot helpers
+    :meth:`SessionState.consume_cancel_request` and
+    :meth:`SessionState.resolve_cancel`.
+    """
+
+    fails_on_error: bool
+    # The bound ACP connection — typed as ``Any`` to avoid a circular
+    # import through ``acp.connection``. The card calls
+    # ``connection.send_request(INSPECT_CANCEL_SAMPLE_METHOD, …)``.
+    connection: Any
+    session_id: str
+
+
 @dataclass
 class ToolCallState:
     """Merged view of a tool call across its ToolCallStart + ToolCallProgress.
@@ -335,6 +407,25 @@ class ToolCallState:
     :class:`SessionState`'s ``cancel_tool_call_id`` accessor filters
     cards with this flag set so ``^L`` advances to the next eligible
     tool.
+    """
+    parallel_batch_id: int | None = None
+    """Sticky id of the parallel batch this tool joined, or None for solo tools.
+
+    Set by :meth:`SessionState._tag_parallel_batch` whenever ≥2 tools
+    are simultaneously eligible-in-progress (in_progress, not pending
+    approval, not cancel-requested) — both the existing and the newly
+    arriving tools get tagged with a shared id. A new tool that starts
+    while another already-tagged tool is still running inherits that
+    tool's batch id; a new batch (no overlap with any tagged
+    in-progress tool) allocates a fresh id. Never cleared.
+
+    Drives the deferred-body parallel-tools gate in
+    :class:`TranscriptWidget._compute_defer_body`: a tool keeps its
+    body held back until every member of *its own* batch has reached
+    a terminal status. Scoping by batch id (rather than a global
+    "any parallel tool still running" sweep) prevents a later batch
+    from re-deferring the bodies of an earlier, already-settled
+    batch's tools.
     """
 
     @property
@@ -653,6 +744,7 @@ class UsageState:
 
     used: int
     size: int
+    messages: int = 0
 
 
 class SessionState:
@@ -676,6 +768,22 @@ class SessionState:
         self.usage: UsageState | None = None
         self.session_title: str | None = None
         self._last_chunk_at: float | None = None
+        # In-flight ACP ``elicitation/create`` request, if any. Set by
+        # :meth:`consume_elicitation_request` when the wire handler
+        # accepts one; cleared by :meth:`resolve_elicitation` once the
+        # operator submits / declines / one of the cancel paths fires.
+        # Only one at a time — the agent loop issues at most one
+        # ``ask_user`` tool call concurrently. The session screen reads
+        # this slot to mount / unmount the inline elicitation card.
+        self.pending_elicitation: PendingElicitation | None = None
+        # Operator-initiated cancel-sample request, if any. Set by
+        # :meth:`consume_cancel_request` when the screen's ``^N`` action
+        # fires; cleared by :meth:`resolve_cancel` once the operator
+        # picks Back / Score / Error. The session screen reads this slot
+        # to mount / unmount the inline cancel card and to engage
+        # auto-follow mode (the agent keeps running while the operator
+        # deliberates — see the Phase 6b plan).
+        self.pending_cancel: PendingCancel | None = None
         # message_ids for which the server has signalled a pending
         # model event but not yet the matching completion marker. While
         # this set is non-empty the status row stays "generating" so
@@ -834,6 +942,12 @@ class SessionState:
         # Bounded by events-per-sample which is small (handfuls per
         # sample), so we don't cap it.
         self._seen_inspect_event_uuids: set[str] = set()
+        # Monotonic counter that allocates a fresh `parallel_batch_id`
+        # the first time a new set of overlapping tools is tagged
+        # (see :meth:`_tag_parallel_batch`). Bare counter is enough —
+        # ids only need to be unique within a session, never compared
+        # across sessions.
+        self._next_parallel_batch_id: int = 1
         self._subscribers: list[Callable[[], None]] = []
 
     # ------------------------------------------------------------------
@@ -1356,6 +1470,16 @@ class SessionState:
         # cleared, lifecycle bit not yet set).
         if self._clear_pending_approvals():
             changed = True
+        # Same treatment for any in-flight elicitation: drop it as
+        # cancelled so the inline card disappears in lockstep with
+        # the rest of the in-flight UI on interrupt / session end.
+        if self._clear_pending_elicitation():
+            changed = True
+        # And any operator-pending cancel card — irrelevant once the
+        # sample is terminating by other means; the card itself would
+        # otherwise stay mounted on a session that's already complete.
+        if self._clear_pending_cancel():
+            changed = True
         return changed
 
     def _drop_message_groups(self, message_ids: list[str]) -> set[str]:
@@ -1441,12 +1565,17 @@ class SessionState:
         elif isinstance(update, ToolCallProgress):
             changed = self._consume_tool_progress(update)
         elif isinstance(update, UsageUpdate):
-            changed = self._consume_usage(update)
+            changed = self._consume_usage(update, outer_meta)
         elif isinstance(update, SessionInfoUpdate):
             changed = self._consume_session_info(update)
         elif isinstance(update, AgentPlanUpdate):
             changed = self._consume_plan_update(update)
         if changed:
+            # Tag the parallel batch BEFORE notifying so subscribers
+            # (notably ``TranscriptWidget._compute_defer_body``) see
+            # the freshly-assigned ``parallel_batch_id`` on the same
+            # refresh pass that sees the new tool state.
+            self._tag_parallel_batch()
             # Stamp the running-window timestamp BEFORE notifying so
             # subscribers (notably the header pill) see the freshest
             # ``has_active_work`` and the quiescence window in sync.
@@ -1458,6 +1587,52 @@ class SessionState:
             if was_active or self.has_active_work:
                 self._last_running_at = self._now()
             self._notify()
+
+    def _tag_parallel_batch(self) -> None:
+        """Sticky-assign a ``parallel_batch_id`` to every eligible in-progress tool.
+
+        Whenever ≥2 tools are simultaneously eligible-in-progress
+        (in_progress, not pending approval, not cancel-requested),
+        every such tool gets a ``parallel_batch_id``. Tools that join
+        an already-tagged group inherit that group's id; an entirely
+        new overlap (no eligible tool currently carries an id)
+        allocates a fresh one. Ids are sticky — never cleared — so
+        they survive the tool reaching a terminal status and
+        continue to scope the deferred-body reveal to its own batch.
+
+        Eligibility mirrors :meth:`has_other_active_tools`: a tool
+        awaiting operator approval doesn't count as parallel work
+        (the operator is the gating actor, not another tool), and a
+        cancel-requested tool is on its way out and shouldn't keep
+        the batch alive.
+        """
+        eligible = [
+            tc
+            for tc in self._tool_calls_by_id.values()
+            if tc.status == "in_progress"
+            and tc.pending_approval is None
+            and not tc.cancel_requested
+        ]
+        if len(eligible) < 2:
+            return
+        # Inherit any existing batch id present among the eligible
+        # tools; otherwise allocate a new one. This keeps a tool that
+        # arrives mid-batch in the same batch as its in-flight peers,
+        # but starts a fresh batch when none of the current overlap
+        # has been tagged yet.
+        existing_id = next(
+            (
+                tc.parallel_batch_id
+                for tc in eligible
+                if tc.parallel_batch_id is not None
+            ),
+            None,
+        )
+        if existing_id is None:
+            existing_id = self._next_parallel_batch_id
+            self._next_parallel_batch_id += 1
+        for tc in eligible:
+            tc.parallel_batch_id = existing_id
 
     def consume_inspect_event(self, event: dict[str, Any]) -> None:
         """Route an ``inspect/event`` raw transcript payload.
@@ -1995,6 +2170,140 @@ class SessionState:
                 any_cleared = True
         return any_cleared
 
+    # ------------------------------------------------------------------
+    # Elicitation handshake (parallel to the approval pair above)
+    # ------------------------------------------------------------------
+
+    def consume_elicitation_request(self, pending: PendingElicitation) -> None:
+        """Park a ``PendingElicitation`` so the inline card mounts.
+
+        The caller (the client-side ``elicitation/create`` handler in
+        ``client.py``) owns the ``PendingElicitation`` and reads its
+        ``action`` / ``content`` AFTER awaiting ``pending.event``. By
+        passing the object in (rather than letting state synthesize
+        it) the handler keeps the same reference that
+        :meth:`resolve_elicitation` mutates — single source of truth
+        for the resolution outcome.
+
+        Idempotence: an existing pending elicitation is cancelled
+        first so a misbehaving / racing client can't strand the prior
+        request. In practice the agent loop only issues one
+        ``ask_user`` at a time, so this is defence-in-depth.
+        """
+        if self.pending_elicitation is not None:
+            self._resolve_elicitation_inner(action="cancel")
+        self.pending_elicitation = pending
+        self._notify()
+
+    def resolve_elicitation(
+        self,
+        *,
+        action: ElicitationAction,
+        content: dict[str, Any] | None = None,
+    ) -> None:
+        """Resolve the pending elicitation; fires the event so the handler returns.
+
+        Idempotent: re-resolving an already-resolved elicitation (or
+        resolving when there's none pending) is a no-op. Pass
+        ``action="accept"`` with ``content`` for an operator submission,
+        ``action="decline"`` for an operator-driven decline, or
+        ``action="cancel"`` for unmount / disconnect / Esc / session
+        completion. The handler reads the slots set here to build its
+        wire response.
+        """
+        if self._resolve_elicitation_inner(action=action, content=content):
+            self._notify()
+
+    def _resolve_elicitation_inner(
+        self,
+        *,
+        action: ElicitationAction,
+        content: dict[str, Any] | None = None,
+    ) -> bool:
+        """Mutate-only resolve. Returns True if anything changed.
+
+        Used by :meth:`resolve_elicitation` (which notifies after) and
+        by bulk-transition helpers like
+        :meth:`_clear_pending_elicitation` that batch the elicitation
+        cancel alongside other mutations into a single ``_notify()``.
+
+        Fires ``pending.event`` here so the parked JSON-RPC handler
+        wakes immediately — the wire response is unrelated to the
+        UI-refresh notification.
+        """
+        pending = self.pending_elicitation
+        if pending is None:
+            return False
+        pending.action = action
+        pending.content = content if action == "accept" else None
+        self.pending_elicitation = None
+        pending.event.set()
+        return True
+
+    def _clear_pending_elicitation(self) -> bool:
+        """Resolve any in-flight elicitation as cancelled, NO notify.
+
+        Returns True if anything cleared. Mirrors
+        :meth:`_clear_pending_approvals` — used by the bulk
+        cancellation paths (``mark_complete`` /
+        ``mark_interrupted`` / ``mark_sample_cancelling`` via
+        ``_clear_active_work_signals``) so the elicitation card
+        disappears in lockstep with the rest of the in-flight UI
+        and the handler unblocks to send a ``cancel`` response.
+        """
+        return self._resolve_elicitation_inner(action="cancel")
+
+    # ------------------------------------------------------------------
+    # Cancel-sample handshake (operator-driven; no parked handler)
+    # ------------------------------------------------------------------
+
+    def consume_cancel_request(self, pending: PendingCancel) -> None:
+        """Park a :class:`PendingCancel` so the inline cancel card mounts.
+
+        Idempotent: if a cancel is already pending, this is a no-op —
+        the operator pressing ``^N`` while the card is already up
+        does not stomp the existing pending. (The session screen
+        treats a repeat ``^N`` as a "scroll back to the card + re-
+        engage auto-follow" gesture; see Phase 6b plan.)
+
+        Unlike the elicitation / approval pairs, there's no parked
+        JSON-RPC handler waiting on an event — the cancel-sample
+        flow is fire-and-forget from the operator's perspective and
+        the card itself fires the wire RPC when Score / Error is
+        picked.
+        """
+        if self.pending_cancel is None:
+            self.pending_cancel = pending
+            self._notify()
+
+    def resolve_cancel(self) -> None:
+        """Clear ``pending_cancel`` and notify subscribers.
+
+        Called by the card after the operator picks Back (no RPC) or
+        after the ``inspect/cancel_sample`` RPC has been dispatched
+        (success or failure). The screen's apply-loop sees the
+        cleared slot and unmounts the card. Also clears the screen's
+        auto-follow flag (managed in :class:`SessionScreen`).
+
+        Idempotent.
+        """
+        if self.pending_cancel is not None:
+            self.pending_cancel = None
+            self._notify()
+
+    def _clear_pending_cancel(self) -> bool:
+        """Clear any pending cancel, NO notify.
+
+        Returns True if anything cleared. Used by bulk-transition
+        helpers (``mark_complete`` / ``mark_interrupted``) so the
+        cancel card disappears in lockstep with the rest of the
+        in-flight UI when the sample terminates by other means.
+        """
+        if self.pending_cancel is None:
+            return False
+        self.pending_cancel = None
+        return True
+
     def _tool_call_state_from_request(
         self,
         request: RequestPermissionRequest,
@@ -2418,8 +2727,15 @@ class SessionState:
         if update.raw_output is not None:
             tc.raw_output = update.raw_output
 
-    def _consume_usage(self, update: UsageUpdate) -> bool:
-        self.usage = UsageState(used=update.used, size=update.size)
+    def _consume_usage(self, update: UsageUpdate, outer_meta: dict[str, Any]) -> bool:
+        # ``totalMessages`` rides on the outer ``field_meta`` (the inspect-
+        # ext extension lane) since ACP's ``UsageUpdate`` schema has no
+        # first-class message-count field. Server stamps it in
+        # ``event_mapping._map_model_event``; absent key falls back to 0
+        # so older servers (or paths that don't bind to an ActiveSample)
+        # render the ``messages`` chip as em-dash via ``format_tokens(0)``.
+        messages = int(outer_meta.get(TOTAL_MESSAGES_META_KEY) or 0)
+        self.usage = UsageState(used=update.used, size=update.size, messages=messages)
         return True
 
     # ------------------------------------------------------------------
@@ -2529,21 +2845,22 @@ class SessionState:
         )
 
     @property
-    def cancel_tool_call_id(self) -> str | None:
-        """``tool_call_id`` of the tool ``^L`` would currently cancel, or None.
+    def cancel_tool_call_ids(self) -> list[str]:
+        """All eligible in-flight tool ids that a ``^L`` press should cancel.
 
-        Eligibility: in-flight (``pending`` / ``in_progress``), not
-        awaiting an operator approval decision (the approval bar's
-        ``reject`` / ``terminate`` is the right exit there), and not
-        already cancel-requested (so a second ``^L`` advances to the
-        next eligible tool instead of re-firing on the one we just
-        cancelled). Among eligible tools, the most-recently-started
-        wins — that's the card the operator is most likely watching
-        at the bottom of the transcript.
+        Eligibility (same as :attr:`cancel_tool_call_id`): in-flight
+        (``pending`` / ``in_progress``), not awaiting an operator
+        approval decision (the approval bar's ``reject`` /
+        ``terminate`` is the right exit there), and not already
+        cancel-requested (so a second ``^L`` is a no-op on tools the
+        operator has already cancelled).
 
-        Used by :class:`SessionScreen` to resolve the ``^L`` binding
-        and by ``check_action`` to decide whether the screen-footer
-        ``cancel tool`` hint should be visible.
+        Under parallel tool calls multiple tools share the in-flight
+        state; a single ``^L`` press fans out to cancel all of them
+        rather than dispatching one at a time. Order is
+        ``start_time`` ascending so the on-screen cancelling-state
+        transitions show oldest-first; semantically any order is
+        correct because each fires an independent RPC.
         """
         eligible = [
             tc
@@ -2552,9 +2869,44 @@ class SessionState:
             and tc.pending_approval is None
             and not tc.cancel_requested
         ]
-        if not eligible:
-            return None
-        return max(eligible, key=lambda tc: tc.start_time).tool_call_id
+        eligible.sort(key=lambda tc: tc.start_time)
+        return [tc.tool_call_id for tc in eligible]
+
+    @property
+    def cancel_tool_call_id(self) -> str | None:
+        """First id from :attr:`cancel_tool_call_ids`, or ``None``.
+
+        Used by :class:`SessionScreen.check_action` to decide whether
+        the screen-footer ``cancel tool`` hint should be visible.
+        """
+        ids = self.cancel_tool_call_ids
+        return ids[0] if ids else None
+
+    def has_other_active_tools(self, exclude_tool_call_id: str) -> bool:
+        """True if any tool other than ``exclude_tool_call_id`` is actively running.
+
+        Mirrors the eligibility predicate used by
+        :attr:`cancel_tool_call_ids` but excludes one specific tool
+        (the caller, asking "is anyone else still running?"). Used by
+        :class:`TranscriptWidget` to decide whether a completed
+        ``ToolCallWidget`` should reveal its body or hold for siblings:
+        under parallel tool calls, streaming completed results in
+        while peers are still running pulls the eye away from the
+        cards the operator is actively tracking.
+
+        Pending-approval tools are excluded because the operator may
+        need to see siblings' results to inform the approval decision.
+        Cancel-requested tools are excluded because the operator has
+        already chosen an exit for that tool; results shouldn't be
+        gated waiting on the cancel to land.
+        """
+        return any(
+            tc.tool_call_id != exclude_tool_call_id
+            and tc.status == "in_progress"
+            and tc.pending_approval is None
+            and not tc.cancel_requested
+            for tc in self._tool_calls_by_id.values()
+        )
 
     @property
     def plan_done_count(self) -> int:

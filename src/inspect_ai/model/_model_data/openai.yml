@@ -225,6 +225,8 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5-2025-08-07:
           snapshot: "2025-08-07"
@@ -238,6 +240,8 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5-mini-2025-08-07:
           snapshot: "2025-08-07"
@@ -251,6 +255,8 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5-nano-2025-08-07:
           snapshot: "2025-08-07"
@@ -264,6 +270,8 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5.1-2025-11-13:
           snapshot: "2025-11-13"
@@ -277,6 +285,8 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
     gpt-5.2:
       display_name: GPT-5.2
       release_date: 2025-12-11
@@ -285,6 +295,8 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5.2-2025-12-11:
           snapshot: "2025-12-11"
@@ -298,6 +310,8 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
     gpt-5.2-pro:
       display_name: GPT-5.2 Pro
       release_date: 2025-12-11
@@ -306,6 +320,8 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: high
       versions:
         gpt-5.2-pro-2025-12-11:
           snapshot: "2025-12-11"
@@ -319,6 +335,8 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
     gpt-5.3-chat:
       display_name: GPT-5.3 Chat
       release_date: 2026-03-03
@@ -338,6 +356,8 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5.4-2026-03-05:
           snapshot: "2026-03-05"
@@ -349,6 +369,8 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: high
       versions:
         gpt-5.4-pro-2026-03-05:
           snapshot: "2026-03-05"
@@ -360,6 +382,8 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5.4-mini-2026-03-17:
           snapshot: "2026-03-17"
@@ -371,6 +395,8 @@ openai:
       output_tokens: 128000
       input_tokens: 272000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5.4-nano-2026-03-17:
           snapshot: "2026-03-17"
@@ -382,6 +408,8 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: medium
       versions:
         gpt-5.5-2026-04-23:
           snapshot: "2026-04-23"
@@ -393,6 +421,8 @@ openai:
       output_tokens: 128000
       input_tokens: 922000
       reasoning: True
+      # https://platform.openai.com/docs/guides/reasoning#reasoning-effort
+      reasoning_effort_default: high
       versions:
         gpt-5.5-2026-04-23:
           snapshot: "2026-04-23"

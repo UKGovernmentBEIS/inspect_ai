@@ -211,13 +211,6 @@ def main() -> Any:
         if elem.level != 3 and "reference" not in elem.attributes:
             return None
 
-        # Inline-reference flow: on article pages (outside reference/),
-        # only H3s that have an explicit `reference="..."` attribute become
-        # symbols. Plain H3s on article pages are normal headings.
-        has_explicit_attr = "reference" in elem.attributes
-        if not has_explicit_attr and not is_reference_page(doc):
-            return elem
-
         # Pages must declare their binding via a `reference:` frontmatter
         # field. No project-default fallback.
         page_ref = page_reference(doc)

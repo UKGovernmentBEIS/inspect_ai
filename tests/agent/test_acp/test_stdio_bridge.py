@@ -199,7 +199,7 @@ def _stub_active_sample(
     sample.transcript = transcript or Transcript()
     sess = MagicMock()
     sess.session_id = target_session_id
-    sample.acp_session = sess
+    sample.acp_transport = sess
     return sample
 
 
@@ -535,12 +535,13 @@ def _make_full_sample(
     active.epoch = epoch
     active.agent_name = None
     active.started = None
+    active.total_messages = 0
     active.total_tokens = 0
     active.fails_on_error = False
     active.transcript = Transcript()
     sess = MagicMock()
     sess.session_id = session_id
-    active.acp_session = sess
+    active.acp_transport = sess
     return active
 
 

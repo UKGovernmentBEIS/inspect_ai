@@ -32,16 +32,21 @@ from textual.widgets import Static, TextArea
 from inspect_ai.agent._acp.inspect_ext import INSPECT_CANCEL_TOOL_CALL_METHOD
 
 from .client import AttachedSession
-from .state import SessionState, _QueuedEnqueueHandle
+from .state import PendingCancel, SessionState, _QueuedEnqueueHandle
 from .widgets import (
     AppFooter,
     PlanStripWidget,
     SessionHeaderWidget,
     TranscriptWidget,
 )
-from .widgets.approval_bar import _ApprovalBar
-from .widgets.cancel_sample import _BUTTON_ID_PREFIX as _CANCEL_BUTTON_ID_PREFIX
-from .widgets.cancel_sample import _CancelSampleBar
+from .widgets.approval_card import _ApprovalCard
+from .widgets.cancel_card import _BUTTON_ID_PREFIX as _CANCEL_BUTTON_ID_PREFIX
+from .widgets.cancel_card import _CancelCard
+from .widgets.elicitation_card import (
+    ElicitationDecisionRequested,
+    _ElicitationCard,
+)
+from .widgets.inline_request_card import InlineRequestCard
 from .widgets.plan import PlanOverlayScreen
 from .widgets.tool_call import _BUTTON_ID_PREFIX, ApprovalDecisionRequested
 
@@ -135,16 +140,17 @@ class SessionScreen(Screen[None]):
             show=True,
             priority=True,
         ),
-        # ``^l`` cancels the most-recently-started in-flight tool
-        # (per :attr:`SessionState.cancel_tool_call_id`). Ordered
-        # after ``plan`` and before ``cancel_sample`` so the footer
-        # left-group reads "submit / newline / interrupt / plan /
-        # cancel tool" with the navigation-cluster (cancel sample /
+        # ``^l`` cancels every eligible in-flight tool (per
+        # :attr:`SessionState.cancel_tool_call_ids`). Under parallel
+        # tool calls a single press fans out to all in-flight siblings.
+        # Ordered after ``plan`` and before ``cancel_sample`` so the
+        # footer left-group reads "submit / newline / interrupt / plan
+        # / cancel tool" with the navigation-cluster (cancel sample /
         # switch / quit) flushed right. This screen-footer binding is
-        # the only cancel-tool affordance; the targeted card only
-        # reflects the request after dispatch via its ``cancelling…``
-        # footer marker. :meth:`check_action` hides the hint when no
-        # eligible tool is in flight.
+        # the only cancel-tool affordance; affected cards reflect the
+        # request after dispatch via their ``cancelling…`` footer
+        # marker. :meth:`check_action` hides the hint when no eligible
+        # tool is in flight.
         Binding(
             "ctrl+l",
             "cancel_tool_call",
@@ -284,17 +290,11 @@ class SessionScreen(Screen[None]):
                     show_line_numbers=False,
                     highlight_cursor_line=False,
                 )
-                # Composer-mode approval bar — hides itself when no
-                # approval is pending. When visible, ``_apply_lifecycle``
-                # also hides the ``#composer`` ``TextArea`` so the bar
-                # takes the row.
-                yield _ApprovalBar(self._state)
-                # Composer-mode cancel-sample bar — hidden by default.
-                # ``action_cancel_sample`` calls ``.show()`` on ``^N``;
-                # ``_apply_lifecycle`` hides both the composer TextArea
-                # and the approval bar while the cancel bar is up so
-                # the row has a single owner.
-                yield _CancelSampleBar()
+                # The approval and cancel-sample prompts no longer
+                # live in the composer row — Phase 6b moves them to
+                # :class:`InlineRequestCard` subclasses that mount
+                # below the transcript via :meth:`_apply_request_cards`,
+                # alongside the elicitation card.
         yield AppFooter()
 
     async def on_mount(self) -> None:
@@ -332,11 +332,133 @@ class SessionScreen(Screen[None]):
             return
         header.set_usage(self._state.usage)
         transcript.refresh_from(self._state)
+        self._apply_request_cards()
         # ``_apply_lifecycle`` calls ``refresh_bindings`` itself so the
         # ``^p plan`` footer hint flips on the same tick the strip
         # becomes visible (and so the bare-letter gates re-evaluate
-        # when the cancel bar shows / hides).
+        # when the cards mount / unmount).
         self._apply_lifecycle()
+
+    def _apply_request_cards(self) -> None:
+        """Mount / unmount the three inline request cards based on state.
+
+        Single source of truth is :class:`SessionState`. Three slots
+        drive three cards:
+
+        - :attr:`SessionState.pending_elicitation` → :class:`_ElicitationCard`
+        - :meth:`SessionState.current_pending_approval` → :class:`_ApprovalCard`
+        - :attr:`SessionState.pending_cancel` → :class:`_CancelCard`
+
+        Each is reconciled independently — multiple can be mounted at
+        once in principle (a cancel card on top of a parked approval),
+        though in practice approval and elicitation park the agent so
+        cancel is the only one that can land while another card is up.
+        """
+        self._reconcile_card(
+            _ElicitationCard,
+            self._state.pending_elicitation,
+            lambda pending: _ElicitationCard.from_pending(pending),
+        )
+        self._reconcile_card(
+            _ApprovalCard,
+            self._state.current_pending_approval(),
+            lambda pending: _ApprovalCard.from_pending(pending),
+        )
+        self._reconcile_card(
+            _CancelCard,
+            self._state.pending_cancel,
+            lambda pending: _CancelCard.from_pending(pending, self._state),
+        )
+
+    def _reconcile_card(
+        self,
+        card_cls: type[InlineRequestCard],
+        pending: object | None,
+        factory: Callable[[Any], InlineRequestCard],
+    ) -> None:
+        """Mount / unmount / replace a single card class.
+
+        Three cases:
+
+        - ``pending is None`` → unmount any existing card of this type.
+        - existing card matches the current pending by identity
+          (``existing.request is pending``) → no-op (re-mounting would
+          steal focus and reset form state).
+        - existing card belongs to a STALE pending (a second request
+          of the same kind arrived before the prior card unmounted) →
+          remove the stale card so the fresh one can mount.
+
+        Mounts go right after the plan strip so the card lives in
+        the same physical slot as the composer (which is hidden
+        whenever a card is up). The transcript stays elastic
+        (``height: 1fr``) and absorbs the slack above; the card is
+        pinned just above the footer — same focus anchor as the
+        composer it temporarily replaces. Because the card is a
+        sibling of the transcript (not a child), it never scrolls
+        out of view, which is why we don't need a separate
+        auto-follow scroll for the cancel card.
+        """
+        existing: InlineRequestCard | None
+        try:
+            existing = self.query_one(card_cls)
+        except NoMatches:
+            existing = None
+        if pending is None:
+            if existing is not None:
+                existing.remove()
+            return
+        if existing is not None:
+            if existing.request is pending:
+                return
+            existing.remove()
+        card = factory(pending)
+        plan_strip = self.query_one(PlanStripWidget)
+        self.query_one("Vertical").mount(card, after=plan_strip)
+
+    def _elicitation_card_or_none(self) -> _ElicitationCard | None:
+        try:
+            return self.query_one(_ElicitationCard)
+        except NoMatches:
+            return None
+
+    def _approval_card_or_none(self) -> _ApprovalCard | None:
+        try:
+            return self.query_one(_ApprovalCard)
+        except NoMatches:
+            return None
+
+    def _cancel_card_or_none(self) -> _CancelCard | None:
+        try:
+            return self.query_one(_CancelCard)
+        except NoMatches:
+            return None
+
+    def _request_card_mounted(self) -> bool:
+        """``True`` while any inline request card is mounted.
+
+        Elicitation / approval / cancel-sample cards all take the
+        composer's slot in the layout. Used as the single source of
+        truth for "should the composer behave as if it isn't there?":
+
+        - :meth:`_apply_lifecycle` hides ``#composer-row`` when this
+          returns True (and the TextArea is also disabled as a backup
+          on the lifecycle-driven paths).
+        - :meth:`action_submit` / :meth:`action_newline` bail out so a
+          stray ↵ / ⇧↵ (focus drift, mouse-elsewhere click) can't ship
+          or mutate the hidden draft underneath the card.
+
+        Before this helper existed each call site listed the three
+        cards inline, and the submit/newline guards forgot
+        elicitation entirely — an Enter with focus off the
+        elicitation form would still ``session/prompt`` the draft
+        that was visually hidden. Single helper, single contract,
+        no drift.
+        """
+        return (
+            self._elicitation_card_or_none() is not None
+            or self._approval_card_or_none() is not None
+            or self._cancel_card_or_none() is not None
+        )
 
     def check_action(self, action: str, _parameters: tuple[object, ...]) -> bool | None:
         """Hide the ``^p plan`` footer hint when there's nothing to show.
@@ -366,14 +488,13 @@ class SessionScreen(Screen[None]):
         if action == "cancel_sample":
             # Nothing to cancel once the sample is terminal — the
             # footer hint also disappears so the operator sees only
-            # the actions that still apply. Also suppressed while the
-            # cancel bar is already up so a stray ^N doesn't try to
-            # re-show it (the bar's own state would survive but the
-            # focus would jump back to score, which is mildly
-            # confusing — better to make ^N inert in that state).
+            # the actions that still apply. While a cancel card is
+            # already mounted, ^N stays live but takes a different
+            # path (scroll-to-card + re-engage auto-follow); see
+            # :meth:`action_cancel_sample`.
             if self._state.lifecycle == "complete":
                 return False
-            return not self._cancel_bar_visible()
+            return True
         if action == "cancel_tool_call":
             # Nothing to cancel when no eligible tool is in flight —
             # hide the footer hint entirely so the operator only sees
@@ -407,30 +528,37 @@ class SessionScreen(Screen[None]):
         lifecycle = self._state.lifecycle
         header.set_lifecycle(lifecycle)
         composer = self._composer_or_none()
-        cancel_bar_visible = self._cancel_bar_visible()
         if composer is not None:
-            # The composer row has three possible owners:
-            # 1. The cancel-sample bar (highest precedence — operator
-            #    just hit ^N, the choice must dominate any other UI).
-            # 2. The approval bar (lifecycle == "approval"; the agent
-            #    is parked awaiting permission).
-            # 3. The composer ``TextArea`` (everything else).
-            # Cases 1 and 2 hide the composer TextArea so the chosen bar
-            # gets the row.
-            if cancel_bar_visible or lifecycle == "approval":
-                composer.display = False
-            else:
-                composer.display = True
-            # Three placeholder states for the visible-TextArea cases.
-            # The composer goes read-only on ``complete``: the ACP
-            # session is gone so a submit would silently round-trip
-            # into the void. Better to surface that the session is
-            # finished and freeze the input than to let the operator
-            # type into a dead pipe. ``scoring`` is the same shape —
-            # the agent loop is over, the server now rejects
-            # ``session/prompt`` (see ``connection.py``'s
-            # ``agent_completed`` guard), so a submit during scoring
-            # would just bounce. Disable the input and say so.
+            # Hide the composer row entirely when there's no way for
+            # the operator to use it productively:
+            #
+            # - An inline request card is mounted (elicitation /
+            #   approval / cancel) — the card is the single thing on
+            #   screen the operator should be reacting to. A queued
+            #   ``session/prompt`` goes nowhere useful until the card
+            #   resolves anyway.
+            # - ``lifecycle in ("complete", "scoring")`` — the ACP
+            #   session is gone (``complete``) or the agent loop is
+            #   over and the server rejects ``session/prompt``
+            #   (``scoring``). Submit would silently bounce.
+            #
+            # We hide ``#composer-row`` rather than just ``#composer``
+            # so the ``>`` prompt static doesn't sit there orphaned.
+            #
+            # The placeholder + disabled assignments below remain as a
+            # backup for any future state where the composer is
+            # visible-but-disabled — none of the current cases hit
+            # that path (every "disabled" state now also hides), but
+            # cheap insurance against a regression.
+            hide_composer_row = self._request_card_mounted() or lifecycle in (
+                "complete",
+                "scoring",
+            )
+            try:
+                composer_row = self.query_one("#composer-row")
+                composer_row.display = not hide_composer_row
+            except NoMatches:
+                pass
             if lifecycle == "complete":
                 composer.placeholder = "sample complete"
                 composer.disabled = True
@@ -438,11 +566,8 @@ class SessionScreen(Screen[None]):
                 composer.placeholder = "scoring"
                 composer.disabled = True
             elif lifecycle == "approval":
-                # Placeholder isn't visible (TextArea is hidden) but kept
-                # accurate in case Textual flashes it during a focus /
-                # display transition.
                 composer.placeholder = "awaiting your approval"
-                composer.disabled = False
+                composer.disabled = True
             else:
                 composer.placeholder = (
                     "type a message · esc to interrupt"
@@ -450,37 +575,22 @@ class SessionScreen(Screen[None]):
                     else "type a message"
                 )
                 composer.disabled = False
-        # Approval bar visibility is normally driven by its own state
-        # subscription, but the cancel bar takes precedence: when
-        # ^N is up we hide the approval bar too so the row has a
-        # single owner. The approval bar's subscription will re-show
-        # it as soon as the cancel bar hides (the pending approval is
-        # unchanged in state).
-        approval_bar = self._approval_bar_or_none()
-        if approval_bar is not None:
-            if cancel_bar_visible:
-                approval_bar.add_class("-hidden")
-            elif self._state.current_pending_approval() is not None:
-                approval_bar.remove_class("-hidden")
-        # Focus handoff on the approval ↔ non-approval boundary. The
-        # bar's ``_mount_options`` focuses its first option when an
-        # approval appears, so the enter-approval direction is
-        # already covered. The exit direction is the one that needs
-        # explicit handling — after a decision the bar hides and any
-        # focused option is now invisible, so we route focus back to
-        # the composer so the operator can type again. Skip the
-        # handoff while the cancel bar is up; that bar owns focus.
+        # Focus handoff on the approval-card unmount boundary: after a
+        # decision the card unmounts and any focused button is now
+        # invisible, so we route focus back to the composer so the
+        # operator can type again. Skip the handoff while a cancel
+        # card is up; that card's first button owns focus.
         if (
             self._last_lifecycle == "approval"
             and lifecycle != "approval"
             and composer is not None
-            and not cancel_bar_visible
+            and self._state.pending_cancel is None
         ):
             composer.focus()
         self._last_lifecycle = lifecycle
-        # Bindings depend on cancel-bar visibility (see check_action) —
-        # nudge the bindings view so the footer + key dispatch stay in
-        # sync with the row owner.
+        # Bindings depend on which cards are mounted (see
+        # check_action) — nudge the bindings view so the footer + key
+        # dispatch stay in sync with the row owner.
         self.refresh_bindings()
 
     def _tick(self) -> None:
@@ -547,12 +657,27 @@ class SessionScreen(Screen[None]):
     # Actions
     # ------------------------------------------------------------------
 
+    def on_elicitation_decision_requested(
+        self, message: ElicitationDecisionRequested
+    ) -> None:
+        """Resolve the pending elicitation bubbled up from the inline card.
+
+        The card's Submit / Decline button posts this message; we land
+        it here and call :meth:`SessionState.resolve_elicitation`,
+        which fires the ``PendingElicitation.event`` the client-side
+        JSON-RPC handler is parked on. That handler then writes the
+        response back over the wire and the next state-change tick
+        unmounts the card via :meth:`_apply_request_cards`.
+        """
+        self._state.resolve_elicitation(action=message.action, content=message.content)
+        message.stop()
+
     def on_approval_decision_requested(
         self, message: ApprovalDecisionRequested
     ) -> None:
-        """Resolve the pending approval bubbled up from the composer bar.
+        """Resolve the pending approval bubbled up from the inline card.
 
-        The button-press handler on :class:`_ApprovalBar` posts this
+        The button-press handler on :class:`_ApprovalCard` posts this
         message; we land it here and call
         :meth:`SessionState.resolve_approval`, which fires the
         ``PendingApproval.event`` the client-side JSON-RPC handler is
@@ -600,48 +725,47 @@ class SessionScreen(Screen[None]):
         self.action_switch_sample()
 
     def action_cancel_sample(self) -> None:
-        """Show the cancel-sample composer-area bar.
+        """Park a :class:`PendingCancel` so the inline cancel card mounts.
 
-        The bar takes over the composer row (the ``TextArea`` and any
-        visible approval bar hide) and presents the operator with
-        ``Cancel: Score`` / ``Cancel: Error`` / ``Go Back`` options.
-        The bar fires ``inspect/cancel_sample`` itself when the
-        operator picks a disposition; we just toggle visibility here.
+        The card lives in the composer's slot (below the plan strip,
+        above the footer) so it is always on screen — no auto-scroll
+        gymnastics needed. Repeat press while a card is already up is
+        a no-op: ``consume_cancel_request`` is itself idempotent and
+        the card never goes out of view, so there's nothing for the
+        re-press to fix.
 
         Gated by :meth:`check_action` against ``lifecycle ==
-        "complete"`` so a stray ^N on a finished sample is a no-op,
-        and against an already-visible bar so a repeat ^N doesn't
-        re-mount and steal focus. The handler itself
-        defence-in-depth re-checks before showing.
+        "complete"`` so a stray ^N on a finished sample is a no-op.
         """
         if self._state.lifecycle == "complete":
-            return
-        bar = self._cancel_bar_or_none()
-        if bar is None or bar.is_visible:
             return
         connection = self._session.connection
         if connection is None:
             return
-        bar.show(
-            fails_on_error=self._session.row.fails_on_error,
-            connection=connection,
-            session_id=self._session.session_id,
-            state=self._state,
+        self._state.consume_cancel_request(
+            PendingCancel(
+                fails_on_error=self._session.row.fails_on_error,
+                connection=connection,
+                session_id=self._session.session_id,
+            )
         )
-        self._apply_lifecycle()
 
     def action_cancel_tool_call(self) -> None:
-        """Cancel the most-recently-started in-flight tool via ``^L``.
+        """Cancel every eligible in-flight tool via ``^L``.
 
-        Targets the tool :attr:`SessionState.cancel_tool_call_id`
-        names. The footer hint hides via :meth:`check_action` when
-        no eligible tool is in flight, so a stray ``^L`` press in a
-        resting state is also a no-op here.
+        Under parallel tool calls multiple tools share the in-flight
+        state. A single press fans out to cancel all of them rather
+        than dispatching one at a time. The footer hint hides via
+        :meth:`check_action` when no eligible tool is in flight, so
+        a stray ``^L`` press in a resting state is also a no-op here.
+
+        :meth:`_dispatch_cancel_tool_call` per-tool idempotence guard
+        (``mark_cancel_requested``) keeps the dispatch safe if the
+        list contains a stale id concurrently transitioning to
+        terminal.
         """
-        tool_call_id = self._state.cancel_tool_call_id
-        if tool_call_id is None:
-            return
-        self._dispatch_cancel_tool_call(tool_call_id)
+        for tool_call_id in self._state.cancel_tool_call_ids:
+            self._dispatch_cancel_tool_call(tool_call_id)
 
     def _dispatch_cancel_tool_call(self, tool_call_id: str) -> None:
         """Flip the card to ``cancelling…`` and fire the JSON-RPC request.
@@ -707,41 +831,41 @@ class SessionScreen(Screen[None]):
             self._state.clear_cancel_requested(tool_call_id)
 
     def action_cancel_decide(self, action: str) -> None:
-        """Resolve a visible cancel bar via a bare-letter shortcut.
+        """Resolve a visible cancel card via a bare-letter shortcut.
 
-        Dispatched from :meth:`action_prompt_letter` when the cancel
-        bar is up and the operator hits ``s`` or ``e``. The bar's
-        :meth:`_CancelSampleBar.choose` method drives the actual
-        RPC + hide; the screen just routes the key through.
+        Dispatched from :meth:`action_prompt_letter` when a cancel
+        card is mounted and the operator hits ``s`` or ``e``. The
+        card's :meth:`_CancelCard.choose` method drives the actual
+        RPC + state cleanup; the screen just routes the key through.
         """
-        bar = self._cancel_bar_or_none()
-        if bar is None or not bar.is_visible:
+        card = self._cancel_card_or_none()
+        if card is None:
             return
         if action not in ("score", "error", "back"):
             return
-        bar.choose(action)  # type: ignore[arg-type]
-        self._apply_lifecycle()
+        card.choose(action)  # type: ignore[arg-type]
 
     def action_prompt_letter(self, letter: str) -> None:
         """Dispatcher for the shared bare-letter shortcuts.
 
-        Both the approval bar and the cancel bar carve letters out of
-        the composer's typing surface (``a`` / ``r`` / ``e`` / ``t``
-        / ``m`` for approval, ``s`` / ``e`` for cancel). Textual's
-        binding table is keyed by letter, so we register each letter
-        once and dispatch here based on which bar is visible.
+        Both the approval card and the cancel card carve letters out
+        of the composer's typing surface (``a`` / ``r`` / ``e`` /
+        ``t`` / ``m`` for approval, ``s`` / ``e`` for cancel).
+        Textual's binding table is keyed by letter, so we register
+        each letter once and dispatch here based on which card is
+        mounted.
 
-        Mutual exclusivity: the cancel bar takes precedence when
-        visible (it dominates the row), so ``e`` while the cancel
-        bar is up means "cancel: error", not "approval: escalate".
+        Mutual exclusivity: the cancel card takes precedence when
+        mounted, so ``e`` while a cancel card is up means "cancel:
+        error", not "approval: escalate".
         """
-        if self._cancel_bar_visible():
+        if self._cancel_card_or_none() is not None:
             cancel_letter_map = {"s": "score", "e": "error"}
             target = cancel_letter_map.get(letter)
             if target is not None:
                 self.action_cancel_decide(target)
             return
-        if self._state.lifecycle == "approval":
+        if self._state.current_pending_approval() is not None:
             approval_letter_map = {
                 "a": "approve",
                 "r": "reject",
@@ -789,18 +913,18 @@ class SessionScreen(Screen[None]):
         already disabled in that state, but the screen binding can
         still land if focus has moved elsewhere. Belt + braces.
 
-        Prompt-bar focus delegation: Enter should activate a focused
-        approval or cancel option, not submit the hidden composer
-        draft. The prompt options normally handle Enter themselves,
-        but this fallback keeps the screen binding harmless if it
-        lands after focus drift.
+        Card-button focus delegation: Enter should activate a focused
+        approval or cancel button, not submit the (potentially
+        disabled) composer draft. The buttons normally handle Enter
+        themselves, but this fallback keeps the screen binding
+        harmless if it lands after focus drift.
 
-        Scoped to widgets whose id starts with one of the bar id
-        prefixes (``"approve-opt-"`` or ``"cancel-sample-opt-"``)
-        so unrelated focusable widgets added later don't get
+        Scoped to widgets whose id starts with one of the card id
+        prefixes (``"approve-opt-"`` or ``"cancel-sample-opt-"``) so
+        unrelated focusable widgets added later don't get
         programmatic-pressed by Enter from the composer context.
-        Both :class:`_PromptOption` instances expose
-        :meth:`action_press`.
+        Textual's :class:`Button` exposes ``action_press`` for this
+        synthetic activation.
         """
         focused = self.focused
         if (
@@ -819,27 +943,29 @@ class SessionScreen(Screen[None]):
         # ``scoring`` is the same shape as ``complete`` from the
         # composer's perspective: the server's prompt handler now
         # rejects messages once the agent has parked for scoring
-        # (see ``LiveAcpSession.agent_completed`` + ``connection.py``).
+        # (see ``LiveAcpTransport.agent_completed`` + ``connection.py``).
         # Belt-and-braces guard against the Enter binding firing
         # during a focus-change window even though ``_apply_lifecycle``
         # has disabled the TextArea.
         if self._state.lifecycle == "scoring":
             return
-        # Cancel bar takes the row: ↵ that isn't delegated to a
-        # focused option (focus drift, transcript click) is a no-op
-        # so the operator's draft doesn't ship while the cancel
-        # prompt is up.
-        if self._cancel_bar_visible():
+        # Any inline request card (elicitation / approval / cancel)
+        # takes the composer's slot: ↵ that isn't delegated to a
+        # focused button or form field (focus drift, transcript
+        # click, a stray priority binding landing here) is a no-op
+        # so the operator's draft can't ship while the card is up.
+        # Pairs with :meth:`_apply_lifecycle`'s ``hide_composer_row``
+        # — same predicate, single source of truth via
+        # :meth:`_request_card_mounted`.
+        if self._request_card_mounted():
             return
-        # Approval mode: hidden composer must not be submittable.
-        # The TextArea is ``display: none`` but its ``text`` survives —
-        # if focus is stranded on the transcript, a tool card, or any
-        # non-approval widget AND the operator hits ↵, the
-        # ``priority=True`` Enter binding would otherwise drop into
-        # the composer-submit path below and ship the invisible draft
-        # to the agent while the agent is parked awaiting permission.
-        # Belt-and-braces guard: when the bar is up, ↵ that isn't
-        # delegated to an approval action is a no-op.
+        # Approval mode: composer is disabled in ``_apply_lifecycle``,
+        # but its ``text`` is intact so a stray ↵ landing here via
+        # focus drift could still ship a queued draft. Belt-and-
+        # braces guard. (The approval card is included in
+        # ``_request_card_mounted`` above but the lifecycle check
+        # also catches the brief window between
+        # ``mark_approval_started`` and the card mounting.)
         if self._state.lifecycle == "approval":
             return
         composer = self._composer_or_none()
@@ -915,15 +1041,18 @@ class SessionScreen(Screen[None]):
         Without this guard a "read-only" completed transcript could
         still accumulate locally-inserted newlines.
 
-        Also a no-op during ``approval`` lifecycle: the TextArea is
-        hidden but its ``text`` is intact, so a stray ⇧↵ would
-        otherwise smuggle a literal ``\\n`` into the invisible
-        draft, which then ships to the agent on the next submit.
-        Pairs with the matching guard in :meth:`action_submit`.
+        Also a no-op while any inline request card is mounted
+        (elicitation / approval / cancel-sample): the composer row
+        is hidden by :meth:`_apply_lifecycle` but its ``text`` is
+        intact, so a stray ⇧↵ would otherwise smuggle a literal
+        ``\\n`` into the invisible draft, which then ships to the
+        agent on the next submit. Single predicate via
+        :meth:`_request_card_mounted` — mirrors the matching guard
+        in :meth:`action_submit`.
         """
         if self._state.lifecycle in ("complete", "scoring", "approval"):
             return
-        if self._cancel_bar_visible():
+        if self._request_card_mounted():
             return
         composer = self._composer_or_none()
         if composer is None:
@@ -931,21 +1060,35 @@ class SessionScreen(Screen[None]):
         composer.insert("\n")
 
     async def action_interrupt(self) -> None:
-        """Dismiss the cancel bar, clear the composer draft, or interrupt the turn.
+        """Dismiss the cancel card, dismiss the elicitation card, clear the composer draft, or interrupt the turn.
 
         Layered escape semantics (in precedence order):
 
-        1. Cancel bar visible → dismiss it (the operator backed out
-           of cancelling). No interrupt, no composer change.
-        2. Composer has a draft → clear it (so a typo is easy to undo).
-        3. Agent is working → send ``session/cancel``.
+        1. Cancel card mounted → resolve it as Back (the operator
+           backed out of cancelling). No interrupt, no composer change.
+        2. Elicitation card mounted → decline it (the operator is
+           saying "no thanks, I won't answer"). Mirrors clicking
+           the card's Decline button.
+        3. Composer has a draft → clear it (so a typo is easy to undo).
+        4. Agent is working → send ``session/cancel``.
 
-        The cancel-bar takeover is the highest-priority case because
-        ``esc`` reads as "back out of this prompt" in every modal /
+        The card takeovers are the highest-priority cases because
+        ``esc`` reads as "back out of this prompt" in every card /
         bar pattern the TUI uses; firing an unrelated session-cancel
         from the same key would be jarring.
 
-        Step 3 is gated on :attr:`SessionState.has_active_work`
+        Cancel beats elicitation when both cards coexist: ^N is
+        still allowed while an elicitation is pending, so the
+        operator can have both cards mounted simultaneously. In
+        that case the cancel card is the *more recent* operator
+        decision (typed ^N after the question had already
+        mounted), so Esc reads as "back out of this prompt I
+        just opened", not "decline the earlier question that's
+        still sitting there". A second Esc then declines the
+        elicitation if the operator wants — two presses handle
+        both cards in order.
+
+        Step 4 is gated on :attr:`SessionState.has_active_work`
         (pending model events OR in-flight tools) rather than the
         looser display :attr:`StatusState.GENERATING`, which also
         fires for the 2-second quiescence tail after a normal
@@ -953,13 +1096,29 @@ class SessionScreen(Screen[None]):
         misleading ``between_turns`` ``InterruptEvent`` on the
         server.
         """
-        bar = self._cancel_bar_or_none()
-        if bar is not None and bar.is_visible:
-            bar.hide()
-            self._apply_lifecycle()
+        cancel_card = self._cancel_card_or_none()
+        if cancel_card is not None:
+            if cancel_card._resolved:
+                # Score/Error has already fired the
+                # ``inspect/cancel_sample`` RPC and the card is
+                # in its "Cancelling…" presentation. Esc is a
+                # no-op until the RPC settles — clearing
+                # ``pending_cancel`` here would unmount the card
+                # underneath the in-flight worker and the UI would
+                # lie about "keep running" while the sample
+                # actually proceeds to cancel.
+                return
+            self._state.resolve_cancel()
             composer = self._composer_or_none()
             if composer is not None:
                 composer.focus()
+            return
+        elicit_card = self._elicitation_card_or_none()
+        if elicit_card is not None:
+            # Route through the same message the Decline button
+            # posts so resolve_elicitation + unmount + composer
+            # re-focus all run on the single screen-level handler.
+            elicit_card.post_message(ElicitationDecisionRequested(action="decline"))
             return
         composer = self._composer_or_none()
         if composer is not None and composer.text:
@@ -993,55 +1152,33 @@ class SessionScreen(Screen[None]):
         except NoMatches:
             return None
 
-    def _approval_bar_or_none(self) -> _ApprovalBar | None:
-        """The composer-row approval bar, or None if it isn't mounted."""
-        try:
-            return self.query_one(_ApprovalBar)
-        except NoMatches:
-            return None
-
-    def _cancel_bar_or_none(self) -> _CancelSampleBar | None:
-        """The composer-row cancel-sample bar, or None if it isn't mounted."""
-        try:
-            return self.query_one(_CancelSampleBar)
-        except NoMatches:
-            return None
-
-    def _cancel_bar_visible(self) -> bool:
-        """Whether the cancel-sample bar is currently showing."""
-        bar = self._cancel_bar_or_none()
-        return bar is not None and bar.is_visible
-
     def _letter_targets_visible_bar(self, letter: str) -> bool:
-        """Whether ``letter`` should activate a visible composer-area bar.
+        """Whether ``letter`` should activate a visible inline card.
 
-        Returns True iff the letter maps to an option on the bar
-        that currently owns the composer row. Used by
-        :meth:`check_action` to gate the bare-letter bindings so
-        the composer ``TextArea`` still receives plain typing when
-        neither bar is visible.
+        Returns True iff the letter maps to an option on a card that
+        is currently mounted. Used by :meth:`check_action` to gate
+        the bare-letter bindings so the composer ``TextArea`` still
+        receives plain typing when no card is up.
 
-        Cancel bar takes precedence: ``e`` while the cancel bar is
-        up activates ``Cancel: Error`` (when offered), not the
+        Cancel card takes precedence: ``e`` while a cancel card is
+        mounted activates ``Cancel: Error`` (when offered), not the
         approval ``escalate``.
         """
-        if self._cancel_bar_visible():
+        cancel_card = self._cancel_card_or_none()
+        if cancel_card is not None:
             if letter == "s":
                 return True
             if letter == "e":
-                # ``e`` is only live when the cancel bar actually
-                # rendered the error option (depends on the row's
+                # ``e`` is only live when the cancel card actually
+                # rendered the error option (depends on the
                 # ``fails_on_error`` flag). Probing the DOM keeps the
                 # gate honest without duplicating the policy here.
-                bar = self._cancel_bar_or_none()
-                if bar is None:
-                    return False
                 try:
-                    bar.query_one(f"#{_CANCEL_BUTTON_ID_PREFIX}error")
+                    cancel_card.query_one(f"#{_CANCEL_BUTTON_ID_PREFIX}error")
                 except NoMatches:
                     return False
                 return True
             return False
-        if self._state.lifecycle == "approval":
+        if self._state.current_pending_approval() is not None:
             return letter in ("a", "r", "e", "t", "m")
         return False

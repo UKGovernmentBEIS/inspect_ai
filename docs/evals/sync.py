@@ -16,15 +16,15 @@ import yaml
 HERE = Path(__file__).parent
 OVERLAY_FILE = HERE / "evals_overrides.yml"
 
-CATEGORY_VOCAB = {
+CATEGORY_ORDER = [
     "Coding",
     "Assistants",
-    "Cybersecurity",
-    "Safeguards",
-    "Mathematics",
     "Reasoning",
     "Knowledge",
+    "Cybersecurity",
+    "Safeguards",
     "Science",
+    "Mathematics",
     "Biology",
     "Chemistry",
     "Physics",
@@ -32,10 +32,12 @@ CATEGORY_VOCAB = {
     "Finance",
     "Medicine",
     "Law",
+    "Behavior",
     "Multimodal",
     "Scheming",
-    "Behavior",
-}
+]
+
+CATEGORY_VOCAB = set(CATEGORY_ORDER)
 
 
 def _first_sentence(text: str) -> str:

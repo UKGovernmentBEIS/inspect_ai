@@ -55,8 +55,8 @@ class ToolDef:
             by parsing doc comments if not specified.
           parameters: Tool parameter descriptions and types.
              Discovered automatically by parsing doc comments if not specified.
-          parallel: Does the tool support parallel execution
-             (defaults to True if not specified)
+          parallel: Can this tool execute concurrently with other tool calls
+             in the same assistant message? Defaults to `False` (opt-in).
           viewer: Optional tool call viewer implementation.
           model_input: Optional function that determines how
               tool call results are played back as model input.
@@ -112,7 +112,7 @@ class ToolDef:
                 self.parameters = parameters
 
             # behavioral attributes
-            self.parallel = parallel is not False
+            self.parallel = parallel is True
             self.viewer = viewer
             self.model_input = model_input
             self.options = options
@@ -267,7 +267,7 @@ def tool_registry_info(
     info = registry_info(tool)
     name = info.name.split("/")[-1]
     prompt = info.metadata.get(TOOL_PROMPT, None)
-    parallel = info.metadata.get(TOOL_PARALLEL, True)
+    parallel = info.metadata.get(TOOL_PARALLEL, False)
     viewer = info.metadata.get(TOOL_VIEWER, None)
     model_input = info.metadata.get(TOOL_MODEL_INPUT, None)
     options = info.metadata.get(TOOL_OPTIONS, None)

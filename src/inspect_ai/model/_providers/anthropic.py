@@ -168,6 +168,7 @@ from .._providers._anthropic_citations import (
     to_anthropic_citation,
     to_inspect_citation,
 )
+from .._reasoning import effort_to_reasoning_tokens
 from ._anthropic_batch import AnthropicBatcher
 from .util import (
     check_azure_deployment_mismatch,
@@ -473,14 +474,9 @@ class AnthropicAPI(ModelAPI):
             # resolve betas and extra headers — preserve any client default
             # betas (e.g. oauth-2025-04-20 set via ANTHROPIC_AUTH_TOKEN)
             if len(betas) > 0:
-                client_beta = getattr(self.client, "_custom_headers", {}).get(
-                    "anthropic-beta", ""
-                )
-                if client_beta:
-                    for b in client_beta.split(","):
-                        b = b.strip()
-                        if b and b not in betas:
-                            betas.insert(0, b)
+                for b in self._client_default_betas():
+                    if b not in betas:
+                        betas.insert(0, b)
                 betas = list(dict.fromkeys(betas))  # remove duplicates
                 extra_headers["anthropic-beta"] = ",".join(betas)
             request["extra_headers"] = extra_headers
@@ -753,6 +749,17 @@ class AnthropicAPI(ModelAPI):
         # Pydantic UserWarning for. We can remove this when remote MCP is out of beta
         return head_message.model_dump(warnings="none"), head_model_output
 
+    def _client_default_betas(self) -> list[str]:
+        """Betas set as client default headers (e.g. oauth-2025-04-20)."""
+        # header names are case-insensitive; _custom_headers is a plain dict
+        # that preserves the caller's original casing (e.g. 'Anthropic-Beta')
+        custom_headers = getattr(self.client, "_custom_headers", {})
+        client_beta = next(
+            (v for k, v in custom_headers.items() if k.lower() == "anthropic-beta"),
+            "",
+        )
+        return [b.strip() for b in client_beta.split(",") if b.strip()]
+
     def completion_config(
         self, config: GenerateConfig
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str], list[str]]:
@@ -762,10 +769,14 @@ class AnthropicAPI(ModelAPI):
         extra_body: dict[str, Any] = {}
         betas: list[str] = self.betas.copy()
 
-        # pull betas out of headers
-        anthropic_beta_header = headers.pop("anthropic_beta", None)
-        if anthropic_beta_header:
-            betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
+        # pull betas out of headers (accept the underscore convention and the
+        # literal 'anthropic-beta' header spelling; header names are
+        # case-insensitive, so match case-insensitively)
+        for key in list(headers.keys()):
+            if key.lower() in ("anthropic_beta", "anthropic-beta"):
+                anthropic_beta_header = headers.pop(key)
+                if anthropic_beta_header:
+                    betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
 
         # Claude 4.7+ is always in adaptive thinking and rejects these params
         # regardless of config; other models only reject them under thinking.
@@ -810,15 +821,29 @@ class AnthropicAPI(ModelAPI):
         if self.is_using_thinking(config):
             reasoning_effort = self.effort_from_reasoning_effort(config)
             if reasoning_effort is not None:
-                params["thinking"] = dict(type="adaptive", display="summarized")
+                thinking: dict[str, Any] = dict(type="adaptive", display="summarized")
                 # reasoning_effort takes precedence over effort
                 params["output_config"] = OutputConfigParam(effort=reasoning_effort)  # type: ignore[typeddict-item]  # (no support for 'xhigh' in sdk yet)
             else:
-                params["thinking"] = dict(
+                # pre-4.6 Claude: extended thinking with an explicit budget.
+                # bridged_reasoning_tokens prefers reasoning_tokens, falling
+                # back to a fixed-table translation of reasoning_effort.
+                thinking = dict(
                     type="enabled",
-                    budget_tokens=config.reasoning_tokens,
+                    budget_tokens=self.bridged_reasoning_tokens(config),
                     display="summarized",
                 )
+
+            # set thinking (remove 'display' for full-thinking). the beta may
+            # arrive via per-request betas or as a client default header.
+            full_thinking_beta = "dev-full-thinking-2025-05-14"
+            if (
+                full_thinking_beta in betas
+                or full_thinking_beta in self._client_default_betas()
+            ):
+                thinking.pop("display", None)
+            params["thinking"] = thinking
+
             headers["anthropic-version"] = "2023-06-01"
             if max_tokens > 8192:
                 betas.append("output-128k-2025-02-19")
@@ -880,8 +905,12 @@ class AnthropicAPI(ModelAPI):
                     "max": 32000,
                 }
                 max_tokens = max_tokens + effort_tokens.get(reasoning_effort, 16000)
-            elif config.reasoning_tokens is not None:
-                max_tokens = max_tokens + config.reasoning_tokens
+            else:
+                # pre-4.6 path: size for explicit reasoning_tokens, or for
+                # the bridged effort->tokens translation when only effort is set.
+                bridged = self.bridged_reasoning_tokens(config)
+                if bridged is not None:
+                    max_tokens = max_tokens + bridged
 
         # migration-guide floor: xhigh/max effort wants ≥64k max_tokens
         # (model caps below will still clamp on older models)
@@ -909,9 +938,26 @@ class AnthropicAPI(ModelAPI):
 
     def is_using_thinking(self, config: GenerateConfig) -> bool:
         return self.is_thinking_model() and (
-            (config.reasoning_tokens is not None)
+            (self.bridged_reasoning_tokens(config) is not None)
             or (self.effort_from_reasoning_effort(config) is not None)
         )
+
+    def bridged_reasoning_tokens(self, config: GenerateConfig) -> int | None:
+        """Effective `budget_tokens` for pre-4.6 Claude (uses extended thinking).
+
+        Explicit `reasoning_tokens` wins; otherwise `reasoning_effort` is
+        translated via the shared fixed-table bridge. Frontier Claude uses
+        adaptive thinking with `effort` and ignores this path (returns None).
+        """
+        if config.reasoning_tokens is not None:
+            return config.reasoning_tokens
+        if (
+            not self.is_claude_frontier()
+            and config.reasoning_effort is not None
+            and config.reasoning_effort != "none"
+        ):
+            return effort_to_reasoning_tokens(config.reasoning_effort)
+        return None
 
     # see https://github.com/anthropics/anthropic-sdk-python?tab=readme-ov-file#long-requests
     def auto_streaming(self, config: GenerateConfig) -> bool:
@@ -995,7 +1041,14 @@ class AnthropicAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        return str(self.api_key)
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.api_key}:{self.service_model_name()}"
 
     def service_model_name(self) -> str:
         """Model name without any service prefix."""

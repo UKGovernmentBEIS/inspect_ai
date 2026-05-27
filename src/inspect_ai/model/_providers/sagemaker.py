@@ -29,6 +29,7 @@ from .._generate_config import GenerateConfig
 from .._model import ModelAPI, RetryDecision
 from .._model_call import ModelCall
 from .._model_output import ModelOutput
+from .._reasoning import clamp_reasoning_effort_to_low_medium_high
 
 logger = getLogger(__name__)
 
@@ -422,7 +423,12 @@ class SagemakerAPI(ModelAPI):
             ("logprobs", config.logprobs),
             ("top_logprobs", config.top_logprobs),
             ("best_of", config.best_of),
-            ("reasoning_effort", config.reasoning_effort),
+            # SageMaker JumpStart endpoints typically accept low/medium/high;
+            # clamp the extended values so requests aren't rejected.
+            (
+                "reasoning_effort",
+                clamp_reasoning_effort_to_low_medium_high(config.reasoning_effort),
+            ),
             ("prompt_logprobs", config.prompt_logprobs),
         ]
 

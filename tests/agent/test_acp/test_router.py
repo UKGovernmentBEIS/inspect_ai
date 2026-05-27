@@ -4,8 +4,9 @@ Two test styles:
 
 - **Unit**: direct router exercise with synthetic events; ``session.publish``
   monkey-patched to a list collector.
-- **Integration**: drive ``react()`` against mockllm under ``acp_session()``
-  with a live subscriber stream, using the Phase 4 capture-via-tool pattern.
+- **Integration**: drive ``react()`` against mockllm with a pre-wired
+  ``LiveAcpTransport`` on the sample and a live subscriber stream, using
+  the Phase 4 capture-via-tool pattern.
 """
 
 from typing import Any, cast
@@ -23,9 +24,8 @@ from acp.schema import (
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.agent import react
-from inspect_ai.agent._acp import acp_session
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, _tool_call_status
-from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._agent import AgentState
 from inspect_ai.agent._as_tool import as_tool
 from inspect_ai.event import (
@@ -45,6 +45,7 @@ from inspect_ai.event import (
 )
 from inspect_ai.event._logger import LoggingMessage
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.log._samples import _sample_active as samples_var
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import (
     ChatMessageAssistant,
@@ -58,17 +59,21 @@ from inspect_ai.model._model_output import (
 )
 from inspect_ai.tool._tool import Tool, tool
 
+from ._capture import acp_test_active_sample
+
 # ---------------------------------------------------------------------------
 # Test helpers
 # ---------------------------------------------------------------------------
 
 
-def _new_session() -> LiveAcpSession:
-    return LiveAcpSession()
+def _new_session() -> LiveAcpTransport:
+    session = LiveAcpTransport()
+    session._attachable_override = True
+    return session
 
 
 def _attach_router(
-    session: LiveAcpSession,
+    session: LiveAcpTransport,
 ) -> tuple[_AcpEventRouter, list[SessionNotification]]:
     """Build a router and route its publications into a list collector."""
     published: list[SessionNotification] = []
@@ -152,21 +157,59 @@ def _chunk_text(chunk: ContentChunk) -> str:
 # ---------------------------------------------------------------------------
 
 
-def test_depth_counter_increments_and_decrements_on_agent_spans() -> None:
-    """SpanBegin(type=agent) increments depth; matching SpanEnd decrements."""
+def test_outer_agent_span_is_consumed_without_changing_depth() -> None:
+    """The FIRST agent span is the outer boundary — its contents emit.
+
+    Reflects the as_solver / agent.run convention: the framework
+    opens an ``AGENT_SPAN_TYPE`` span around the agent body, and
+    the ACP router subscribes BEFORE that span opens (acp_session
+    is entered earlier in the sample lifecycle). The router must
+    consume the outer boundary markers without ticking depth or
+    every event inside — i.e. the whole conversation — gets
+    filtered as a sub-agent.
+    """
     tr = Transcript()
     token = _transcript.set(tr)
     try:
         session = _new_session()
         router, _ = _attach_router(session)
         assert router._depth_tracker.depth == 0
-        tr._event(_span_begin("a"))
+        tr._event(_span_begin("outer"))
+        # Outer span begin consumed; depth stays at 0 so events
+        # inside the outer agent emit normally.
+        assert router._depth_tracker.depth == 0
+        tr._event(_span_end("outer"))
+        assert router._depth_tracker.depth == 0
+    finally:
+        _transcript.reset(token)
+
+
+def test_sub_agent_span_inside_outer_increments_depth() -> None:
+    """Sub-agent span nested inside the outer ticks depth to 1.
+
+    Mirrors the as_tool / handoff pattern: the parent agent
+    invokes a sub-agent which opens its own ``AGENT_SPAN_TYPE``.
+    The first agent span we see is the outer (consumed); the
+    nested one is the actual sub-agent boundary whose contents
+    should be filtered.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        session = _new_session()
+        router, _ = _attach_router(session)
+        tr._event(_span_begin("outer"))
+        assert router._depth_tracker.depth == 0
+        tr._event(_span_begin("sub"))
         assert router._depth_tracker.depth == 1
-        tr._event(_span_begin("b"))
+        tr._event(_span_begin("nested"))
         assert router._depth_tracker.depth == 2
-        tr._event(_span_end("b"))
+        tr._event(_span_end("nested"))
         assert router._depth_tracker.depth == 1
-        tr._event(_span_end("a"))
+        tr._event(_span_end("sub"))
+        assert router._depth_tracker.depth == 0
+        tr._event(_span_end("outer"))
+        # Outer end consumed without decrement — already at 0.
         assert router._depth_tracker.depth == 0
     finally:
         _transcript.reset(token)
@@ -188,16 +231,37 @@ def test_depth_counter_ignores_non_agent_spans() -> None:
 
 
 def test_sub_agent_filter_drops_events_at_depth_one() -> None:
-    """Events emitted while a sub-agent boundary is open do not publish."""
+    """Events emitted while a sub-agent boundary is open do not publish.
+
+    Opens an outer agent span first (consumed without depth
+    change), then a real sub-agent span — events between sub-agent
+    begin/end must be filtered. Events between outer begin and
+    sub-agent begin DO publish (they belong to the outer agent's
+    own conversation).
+    """
     tr = Transcript()
     token = _transcript.set(tr)
     try:
         session = _new_session()
         _, published = _attach_router(session)
-        tr._event(_span_begin("inner"))
+        tr._event(_span_begin("outer"))
+        tr._event(_model_event(text="visible"))
+        tr._event(_span_begin("sub"))
         tr._event(_model_event(text="hidden"))
-        tr._event(_span_end("inner"))
-        assert published == []
+        tr._event(_span_end("sub"))
+        tr._event(_model_event(text="visible-2"))
+        tr._event(_span_end("outer"))
+        # Two model events published — the two emitted at the
+        # outer depth. The middle one (inside the sub-agent) was
+        # filtered. ``content`` on an ``AgentMessageChunk`` is a
+        # :class:`TextContentBlock` whose ``.text`` carries the
+        # model output we set via ``_model_event(text=...)``.
+        texts = [
+            getattr(n.update.content, "text", None)
+            for n in published
+            if getattr(n.update, "content", None) is not None
+        ]
+        assert texts == ["visible", "visible-2"]
     finally:
         _transcript.reset(token)
 
@@ -808,8 +872,32 @@ def test_descriptive_title_per_known_tool() -> None:
     # Planning / thinking — bare name reads fine.
     assert _descriptive_title(_ev("think")) == "think"
     assert _descriptive_title(_ev("todo_write")) == "todo_write"
-    # Unknown tools — fall back to function name.
-    assert _descriptive_title(_ev("my_custom_tool", foo="bar")) == "my_custom_tool"
+    # Unknown tools — first string-valued argument feeds the dim
+    # second half of the TUI's title split (see _header_text in
+    # tui/widgets/tool_call.py), so user-defined tools get a
+    # distinguishable card preview without registering a viewer.
+    assert (
+        _descriptive_title(_ev("my_custom_tool", city="London", seconds=2.0))
+        == "my_custom_tool London"
+    )
+    # Non-string args before the first string arg are skipped.
+    assert (
+        _descriptive_title(_ev("my_custom_tool", count=5, name="alice"))
+        == "my_custom_tool alice"
+    )
+    # No string args → bare function name (current behaviour preserved).
+    assert _descriptive_title(_ev("my_custom_tool", count=5)) == "my_custom_tool"
+    assert _descriptive_title(_ev("my_custom_tool")) == "my_custom_tool"
+    # Empty / whitespace-only string args are skipped — wouldn't add signal.
+    assert (
+        _descriptive_title(_ev("my_custom_tool", first="", second="real value"))
+        == "my_custom_tool real value"
+    )
+    # Long string args truncate via _short_summary.
+    long = "x" * 200
+    title = _descriptive_title(_ev("my_custom_tool", payload=long))
+    assert title.startswith("my_custom_tool ")
+    assert "…" in title
 
 
 # ---------------------------------------------------------------------------
@@ -1643,7 +1731,7 @@ def test_sub_agent_events_publish_when_filter_disabled() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Integration tests — react under acp_session
+# Integration tests — react with per-sample LiveAcpTransport
 # ---------------------------------------------------------------------------
 
 
@@ -1663,9 +1751,11 @@ async def _drain_until_submit(
 
 
 async def test_router_publishes_for_react_against_mockllm() -> None:
-    """End-to-end: react under acp_session emits ModelEvent + ToolEvent notifications."""
+    """End-to-end: react emits ModelEvent + ToolEvent notifications via per-sample transport."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample = acp_test_active_sample(transcript)
+    sample_tok = samples_var.set(sample)
     try:
         # Sequence: turn 1 calls a no-op tool, turn 2 submits "done".
         @tool
@@ -1700,7 +1790,8 @@ async def test_router_publishes_for_react_against_mockllm() -> None:
         model = get_model("mockllm/model", memoize=False, custom_outputs=next_output)
         agent = react(tools=[echo()], model=model)
 
-        async with acp_session() as acp:
+        acp = cast(LiveAcpTransport, sample.acp_transport)
+        async with acp:
             stream = acp.attach()
             async with anyio.create_task_group() as tg:
                 tg.start_soon(lambda: agent(_state()))
@@ -1716,12 +1807,16 @@ async def test_router_publishes_for_react_against_mockllm() -> None:
         for i in items:
             if isinstance(i.update, ToolCallProgress):
                 progress_statuses.append(i.update.status)
-        assert "echo" in start_titles, (
+        # Title may include a first-string-arg suffix (e.g. "echo hi")
+        # from descriptive_title's generic fallback — match on the
+        # function-name prefix, not exact equality.
+        assert any(t == "echo" or t.startswith("echo ") for t in start_titles), (
             f"expected an echo ToolCallStart; got start_titles={start_titles}"
         )
         # Each tool call should also progress through to completion.
         assert "completed" in progress_statuses
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
@@ -1729,6 +1824,8 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
     """React with as_tool sub-agent: subscriber sees only outer notifications."""
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample = acp_test_active_sample(transcript)
+    sample_tok = samples_var.set(sample)
     try:
         from inspect_ai.agent._agent import agent as agent_decorator
 
@@ -1763,7 +1860,8 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
         model = get_model("mockllm/model", memoize=False, custom_outputs=next_output)
         agent = react(tools=[as_tool(inner())], model=model)
 
-        async with acp_session() as acp:
+        acp = cast(LiveAcpTransport, sample.acp_transport)
+        async with acp:
             stream = acp.attach()
             async with anyio.create_task_group() as tg:
                 tg.start_soon(lambda: agent(_state()))
@@ -1779,8 +1877,10 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
             if isinstance(s.update, ToolCallStart):
                 titles.append(s.update.title)
         # We expect the outer "inner_agent" tool call (visible) and possibly
-        # "submit" but no sub-agent-internal tool calls.
-        assert "inner_agent" in titles
+        # "submit" but no sub-agent-internal tool calls. The title may
+        # include a first-string-arg suffix (e.g. "inner_agent do stuff")
+        # from descriptive_title's generic fallback — match the prefix.
+        assert any(t == "inner_agent" or t.startswith("inner_agent ") for t in titles)
         # Nothing with a "sub_" prefix or similar should appear; this is a
         # negative assertion guarding sub-agent leakage.
         for t in titles:
@@ -1788,21 +1888,24 @@ async def test_sub_agent_notifications_filtered_by_default() -> None:
                 f"unexpected sub-agent-internal leak in titles: {titles}"
             )
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)
 
 
 async def test_sub_agent_notifications_publish_when_filter_disabled() -> None:
     """With filter disabled, sub-agent ModelEvent chunks reach the subscriber.
 
-    The filter must be disabled on the outer live session BEFORE the
+    The filter must be disabled on the outer live transport BEFORE the
     sub-agent runs (the live router consults the flag on every event).
-    react itself opens an inner ``acp_session()`` that becomes a no-op
-    shadow — so ``current_acp_session()`` from inside react returns the
-    shadow, not the live outer session. We therefore disable filtering
-    on the outer ``acp`` handle directly.
+    The transport pre-wired on the sample is the producer target for the
+    outer react's channel; the sub-agent's nested channel is rejected
+    by ``maybe_bind`` (first-binder-wins) so it doesn't drive the
+    transport. We disable filtering on the pre-wired transport directly.
     """
     transcript = Transcript()
     token = _transcript.set(transcript)
+    sample = acp_test_active_sample(transcript)
+    sample_tok = samples_var.set(sample)
     try:
         from inspect_ai.agent._agent import agent as agent_decorator
 
@@ -1839,8 +1942,9 @@ async def test_sub_agent_notifications_publish_when_filter_disabled() -> None:
         model = get_model("mockllm/model", memoize=False, custom_outputs=next_output)
         agent = react(tools=[as_tool(inner())], model=model)
 
-        async with acp_session() as acp:
-            cast(LiveAcpSession, acp).disable_subagent_filtering()
+        acp = cast(LiveAcpTransport, sample.acp_transport)
+        async with acp:
+            acp.disable_subagent_filtering()
             stream = acp.attach()
             async with anyio.create_task_group() as tg:
                 tg.start_soon(lambda: agent(_state()))
@@ -1855,4 +1959,5 @@ async def test_sub_agent_notifications_publish_when_filter_disabled() -> None:
             f"sub-agent text missing from subscriber items; got texts={texts}"
         )
     finally:
+        samples_var.reset(sample_tok)
         _transcript.reset(token)

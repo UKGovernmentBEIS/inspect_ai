@@ -56,8 +56,9 @@ def task_tool(
     """
     subagent_map = {s.name: s for s in subagents}
     tool_description = _build_task_description(subagents)
+    can_parallel = _subagents_parallel_safe(subagents, parent_skills)
 
-    @tool
+    @tool(parallel=can_parallel)
     def task() -> Tool:
         """Delegate a task to a specialized subagent."""
 
@@ -387,6 +388,47 @@ def _resolve_tools(
             )
         )
     return tools
+
+
+def _subagents_parallel_safe(
+    subagents: list[Subagent],
+    parent_skills: list[str | Path | Skill] | None,
+) -> bool:
+    """Can multiple task() dispatches run concurrently?
+
+    True iff every subagent's effective tool set is itself parallel-safe.
+    `memory` and `skill` are both parallel-safe under the current
+    implementations (memory has no await points and runs atomically per
+    call; skill serialises its lazy install with a per-instance lock).
+    """
+    for sa in subagents:
+        # `sa.tools is None` means the runtime falls back to the read-only
+        # defaults (read_file/list_files/grep), all of which are
+        # parallel-safe — treat as safe without instantiating them.
+        explicit_tools: list[Tool | ToolDef | ToolSource] = []
+        if sa.tools is not None:
+            explicit_tools.extend(sa.tools)
+        if sa.extra_tools is not None:
+            explicit_tools.extend(sa.extra_tools)
+        for t in explicit_tools:
+            if not _tool_is_parallel_safe(t):
+                return False
+    return True
+
+
+def _tool_is_parallel_safe(t: Tool | ToolDef | ToolSource) -> bool:
+    from inspect_ai._util.registry import is_registry_object
+    from inspect_ai.tool._tool_def import tool_def_fields
+
+    if isinstance(t, ToolDef):
+        return t.parallel
+    if isinstance(t, ToolSource):
+        # ToolSources resolve dynamically and we can't introspect their
+        # contents at task_tool() construction time — be conservative.
+        return False
+    if is_registry_object(t):
+        return tool_def_fields(t).parallel
+    return False
 
 
 def _default_readonly_tools() -> list[Tool | ToolDef | ToolSource]:

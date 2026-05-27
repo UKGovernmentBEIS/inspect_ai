@@ -1,7 +1,7 @@
 """Per-bind outbound forwarder: transcript events → ACP session/update.
 
 The :class:`Forwarders` class owns the lifecycle of a single bind:
-attach to a target :class:`AcpSession`'s pub/sub bus + transcript
+attach to a target :class:`AcpTransport`'s pub/sub bus + transcript
 subscriber list, run the live forwarder task(s), and tear everything
 down on rebind / disconnect. Each bind creates a fresh
 :class:`Forwarders` instance — its per-bind state (plan-tool stash,
@@ -38,7 +38,11 @@ from inspect_ai.agent._acp.inspect_ext import (
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.connection import ConnectionState
-    from inspect_ai.agent._acp.session import AcpSession, ApproverClient
+    from inspect_ai.agent._acp.transport import (
+        AcpTransport,
+        ApproverClient,
+        ElicitationClient,
+    )
 
 logger = getLogger(__name__)
 
@@ -52,7 +56,7 @@ REPLAY_MAX_EVENTS = 100
 
 # How long :meth:`Forwarders.stop` waits for the semantic task to
 # finish its EOF cleanup naturally before falling through to cancel.
-# On the standard end-of-sample path :meth:`LiveAcpSession.finalize`
+# On the standard end-of-sample path :meth:`LiveAcpTransport.finalize`
 # has already closed pubsub by the time ``stop()`` is called, so the
 # task is racing to drain the raw forwarder and send
 # ``inspect/session_ended`` — both finish within microseconds. The
@@ -134,6 +138,7 @@ class Forwarders:
         state: "ConnectionState",
         connection: Connection,
         approver_client: "ApproverClient",
+        elicitation_client: "ElicitationClient | None" = None,
         *,
         target_session_id: str,
         wire_session_id: str,
@@ -141,6 +146,10 @@ class Forwarders:
         self._state = state
         self._connection = connection
         self._approver_client = approver_client
+        # Elicitation client is None when the peer didn't advertise
+        # ``elicitation.form`` capability in ``initialize`` — gated by
+        # ``ConnectionState.client_supports_elicitation_form``.
+        self._elicitation_client = elicitation_client
         # IDs captured at construction. Per-bind; immutable for the
         # lifetime of this Forwarders instance. Reading from
         # ``self._state.wire_session_id`` later would be incorrect on
@@ -149,7 +158,7 @@ class Forwarders:
         self._target_session_id = target_session_id
         self._wire_session_id = wire_session_id
         # Forwarder runtime — populated by ``start()``.
-        self._target: "AcpSession | None" = None
+        self._target: "AcpTransport | None" = None
         self._semantic_stream: Any = None
         self._semantic_task: asyncio.Task[None] | None = None
         # Inspect extensions, fresh per-bind. The raw-event forwarder
@@ -160,6 +169,9 @@ class Forwarders:
         self._plan_policy = PlanPolicyTransformer(state)
         # Approver client unsubscribe callable.
         self._approver_unsub: Callable[[], None] | None = None
+        # Elicitation client unsubscribe callable (only set when the
+        # peer advertised ``elicitation.form`` capability).
+        self._elicitation_unsub: Callable[[], None] | None = None
         # Drain barrier — see :meth:`drain` and ``_run_semantic_forwarder``.
         # ``_notifications_sent`` counts items the forwarder has
         # fully processed (transform + send + finally tick). The
@@ -180,7 +192,7 @@ class Forwarders:
         self._sent_event: anyio.Event = anyio.Event()
         self._processing_item: bool = False
 
-    async def start(self, target: "AcpSession") -> None:
+    async def start(self, target: "AcpTransport") -> None:
         """Begin live forwarding for a freshly-bound target session.
 
         Three-step setup ordered to avoid both lost events AND
@@ -220,6 +232,13 @@ class Forwarders:
         # Register as an approver client so the configured
         # ``human_approver`` can route tool-approval prompts here.
         self._approver_unsub = target.attach_approver_client(self._approver_client)
+        # Register as an elicitation client only when the peer
+        # advertised ``elicitation.form`` capability — clients without
+        # that capability would silently drop ``elicitation/create``.
+        if self._elicitation_client is not None:
+            self._elicitation_unsub = target.attach_elicitation_client(
+                self._elicitation_client
+            )
 
         # REPLAY — emit historical notifications synchronously before
         # live ones. Raw replay (if enabled) first, then semantic.
@@ -275,15 +294,21 @@ class Forwarders:
         connection), so the task is parked in its main loop and
         would otherwise hit the full timeout for no benefit.
         """
-        # Deregister as an approver client so a pending or
-        # post-disconnect approval prompt doesn't try to send through
-        # a closed connection.
+        # Deregister as an approver / elicitation client so a pending
+        # or post-disconnect prompt doesn't try to send through a
+        # closed connection.
         if self._approver_unsub is not None:
             try:
                 self._approver_unsub()
             except Exception:
                 logger.exception("Error detaching ACP approver client")
             self._approver_unsub = None
+        if self._elicitation_unsub is not None:
+            try:
+                self._elicitation_unsub()
+            except Exception:
+                logger.exception("Error detaching ACP elicitation client")
+            self._elicitation_unsub = None
         if self._semantic_task is not None and not self._semantic_task.done():
             if graceful:
                 try:
@@ -332,14 +357,14 @@ class Forwarders:
     # ------------------------------------------------------------------
 
     async def _run_semantic_forwarder(
-        self, target: "AcpSession", recv_stream: Any
+        self, target: "AcpTransport", recv_stream: Any
     ) -> None:
         """Background task: drain the subscriber stream and forward.
 
         Each notification has its ``session_id`` rewritten to the
         connection's ``wire_session_id`` before forwarding. The router
         publishes notifications keyed to the target's
-        ``LiveAcpSession.session_id``, but after a picker selection
+        ``LiveAcpTransport.session_id``, but after a picker selection
         the connection's wire id is the synthetic control id — so
         passthroughs would otherwise reach the client with a session
         id they've never seen. The auto-bind / direct loadSession
@@ -411,7 +436,7 @@ class Forwarders:
         if outer.should_exit:
             return
         # Reaching here means the subscriber stream returned EOF —
-        # the LiveAcpSession's ``__aexit__`` ran ``_pubsub.close_all()``
+        # the LiveAcpTransport's ``__aexit__`` ran ``_pubsub.close_all()``
         # because the sample's react loop returned. Signal the client
         # so it can flip its lifecycle pill to ``complete`` even though
         # the underlying transport remains open (the connection is

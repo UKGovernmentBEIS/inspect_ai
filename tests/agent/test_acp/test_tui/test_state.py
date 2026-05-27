@@ -2044,18 +2044,22 @@ def test_cancel_tool_call_id_returns_only_in_flight_tool() -> None:
     assert state.cancel_tool_call_id == "tc-1"
 
 
-def test_cancel_tool_call_id_picks_most_recently_started_when_multiple() -> None:
-    """With two in-flight tools, ^L targets the one started latest.
+def test_cancel_tool_call_ids_returns_all_eligible_oldest_first() -> None:
+    """With multiple in-flight tools, the accessor lists all of them.
 
-    ``start_time`` is the tiebreaker — the bottom-most card in the
-    transcript (most likely what the operator is watching) wins.
+    Order is ``start_time`` ascending so the cancelling-state
+    transitions on-screen reflect oldest-first; semantically any
+    order is correct because each fires an independent RPC.
     """
     clock = _FakeClock()
     state = SessionState(now=clock)
     state.consume(_tool_start("tc-older"))
     clock.advance(1.0)
     state.consume(_tool_start("tc-newer"))
-    assert state.cancel_tool_call_id == "tc-newer"
+    assert state.cancel_tool_call_ids == ["tc-older", "tc-newer"]
+    # The convenience accessor returns the first id from the list
+    # (used by check_action to gate footer-hint visibility).
+    assert state.cancel_tool_call_id == "tc-older"
 
 
 def test_cancel_tool_call_id_filters_pending_approval_tools() -> None:
@@ -2071,25 +2075,25 @@ def test_cancel_tool_call_id_filters_pending_approval_tools() -> None:
     state.consume_approval_request(_pending(req, asyncio.Event()))
     # Synthesized card status is "pending", so without the
     # pending_approval filter the accessor would happily return it.
+    assert state.cancel_tool_call_ids == []
     assert state.cancel_tool_call_id is None
 
 
-def test_cancel_tool_call_id_skips_already_cancel_requested_tools() -> None:
-    """After ^L on one tool, the accessor advances to the next eligible.
-
-    Lets a second ^L target the next-most-recent instead of
-    re-firing on the one we just cancelled.
-    """
+def test_cancel_tool_call_ids_skips_already_cancel_requested_tools() -> None:
+    """``cancel_requested`` tools are excluded so a follow-up ^L is a no-op."""
     clock = _FakeClock()
     state = SessionState(now=clock)
     state.consume(_tool_start("tc-older"))
     clock.advance(1.0)
     state.consume(_tool_start("tc-newer"))
-    assert state.cancel_tool_call_id == "tc-newer"
+    assert state.cancel_tool_call_ids == ["tc-older", "tc-newer"]
+
+    assert state.mark_cancel_requested("tc-older") is True
+    assert state.cancel_tool_call_ids == ["tc-newer"]
 
     assert state.mark_cancel_requested("tc-newer") is True
-    # ^L now targets the remaining eligible tool.
-    assert state.cancel_tool_call_id == "tc-older"
+    assert state.cancel_tool_call_ids == []
+    assert state.cancel_tool_call_id is None
 
 
 def test_mark_cancel_requested_flips_flag_and_notifies() -> None:
@@ -2177,3 +2181,66 @@ def test_clear_cancel_requested_is_noop_when_flag_not_set() -> None:
 def test_clear_cancel_requested_unknown_tool_is_noop() -> None:
     state = SessionState()
     assert state.clear_cancel_requested("tc-nonexistent") is False
+
+
+# ---------------------------------------------------------------------------
+# has_other_active_tools — TranscriptWidget's "should I defer this completed
+# tool's body?" predicate. True iff some OTHER tool is actively running.
+# ---------------------------------------------------------------------------
+
+
+def test_has_other_active_tools_empty_state() -> None:
+    state = SessionState()
+    assert state.has_other_active_tools("tc-1") is False
+
+
+def test_has_other_active_tools_excludes_self() -> None:
+    """A tool can't be its own sibling — the only in-flight tool gets revealed."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    assert state.has_other_active_tools("tc-1") is False
+
+
+def test_has_other_active_tools_true_when_sibling_in_progress() -> None:
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    state.consume(_tool_start("tc-2"))
+    # tc-1 just completed; tc-2 still running → hold tc-1's body.
+    assert state.has_other_active_tools("tc-1") is True
+    # Symmetric.
+    assert state.has_other_active_tools("tc-2") is True
+
+
+def test_has_other_active_tools_false_when_other_is_terminal() -> None:
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    state.consume(_tool_start("tc-2"))
+    state.consume(_tool_progress("tc-2", status="completed"))
+    # tc-1 finishing while tc-2 already terminal → nothing to wait for.
+    assert state.has_other_active_tools("tc-1") is False
+
+
+def test_has_other_active_tools_excludes_pending_approval() -> None:
+    """A tool waiting on operator approval shouldn't keep peers' results hidden.
+
+    The operator may need the peer's body to inform their approval
+    decision. Mirrors the same exclusion in ``cancel_tool_call_ids``.
+    """
+    import asyncio
+
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    req = _permission_request("tc-approval")
+    state.consume_approval_request(_pending(req, asyncio.Event()))
+    # tc-1 completes; tc-approval is awaiting approval → don't hold tc-1.
+    assert state.has_other_active_tools("tc-1") is False
+
+
+def test_has_other_active_tools_excludes_cancel_requested() -> None:
+    """A tool the operator has already cancelled isn't a tracking concern."""
+    state = SessionState()
+    state.consume(_tool_start("tc-1"))
+    state.consume(_tool_start("tc-2"))
+    assert state.mark_cancel_requested("tc-2") is True
+    # tc-1 completes; tc-2 cancel-requested → don't hold tc-1.
+    assert state.has_other_active_tools("tc-1") is False
