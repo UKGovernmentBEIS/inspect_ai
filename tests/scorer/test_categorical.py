@@ -267,3 +267,64 @@ def test_categorical_recompute_round_trip() -> None:
         after = _metrics_snapshot(reloaded)
 
     assert before == after
+
+
+def test_score_rebuilds_eval_scorers_overwrite() -> None:
+    from inspect_ai import score
+    from inspect_ai.scorer import match
+
+    task = Task(
+        dataset=[Sample(input=f"q{i}", target="x") for i in range(8)],
+        scorer=match(),
+        epochs=2,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
+        assert log.eval.scorers is not None
+        assert [s.name for s in log.eval.scorers] == ["match"]
+        assert log.eval.scorers[0].value_schema is None
+
+        # re-score with a different (categorical) scorer, overwriting
+        rescored = score(log, _verdict_scorer(), action="overwrite")
+        assert rescored.eval.scorers is not None
+        assert [s.name for s in rescored.eval.scorers] == ["_verdict_scorer"]
+        assert isinstance(rescored.eval.scorers[0].value_schema, CategoricalSchema)
+
+        before = _metrics_snapshot(rescored)
+        assert set(before["_verdict_scorer"]) == {"yes", "no", "unsure"}
+
+        # round-trip through disk then recompute
+        path = os.path.join(log_dir, "rescored.eval")
+        write_eval_log(rescored, path)
+        reloaded = read_eval_log(path)
+        recompute_metrics(reloaded)
+        assert _metrics_snapshot(reloaded) == before
+
+
+def test_score_rebuilds_eval_scorers_append() -> None:
+    from inspect_ai import score
+    from inspect_ai.scorer import match
+
+    task = Task(
+        dataset=[Sample(input=f"q{i}", target="x") for i in range(8)],
+        scorer=_verdict_scorer(),
+        epochs=2,
+    )
+    with tempfile.TemporaryDirectory() as log_dir:
+        log = eval(task, model="mockllm/model", log_dir=log_dir, display="none")[0]
+        assert log.eval.scorers is not None
+        assert isinstance(log.eval.scorers[0].value_schema, CategoricalSchema)
+
+        # append a numeric scorer; original schema must survive
+        rescored = score(log, match(), action="append")
+        assert rescored.eval.scorers is not None
+        assert [s.name for s in rescored.eval.scorers] == ["_verdict_scorer", "match"]
+        assert isinstance(rescored.eval.scorers[0].value_schema, CategoricalSchema)
+        assert rescored.eval.scorers[1].value_schema is None
+
+        before = _metrics_snapshot(rescored)
+        path = os.path.join(log_dir, "rescored.eval")
+        write_eval_log(rescored, path)
+        reloaded = read_eval_log(path)
+        recompute_metrics(reloaded)
+        assert _metrics_snapshot(reloaded) == before
