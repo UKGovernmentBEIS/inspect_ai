@@ -100,10 +100,11 @@ class TasksView(Container):
         # compute the column widths by looking all of the tasks — measure the
         # text actually rendered (display name, bare model name) so columns
         # don't reserve space for stripped package prefixes / model providers,
-        # then add COLUMN_SPACING so adjacent columns aren't flush.
+        # then add COLUMN_SPACING so adjacent columns aren't flush. TaskSpec.name
+        # is already normalized via task_display_name, so use it as-is here.
         self.description_width = (
             min(
-                max([len(task_display_name(task.name)) for task in tasks]),
+                max([len(task.name) for task in tasks]),
                 MAX_DESCRIPTION_WIDTH,
             )
             + COLUMN_SPACING

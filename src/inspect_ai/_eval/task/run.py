@@ -214,6 +214,12 @@ def resolve_plan(task: Task, solver: Solver | None) -> Plan:
 
     # add setup solver(s) if specified
     if task.setup:
+        # avoid mutating a caller-supplied Plan: resolve_plan may run more than
+        # once for the same task (e.g. task-identity hashing in evalset, then the
+        # run itself), and prepending in place would stack setup steps each time.
+        # A shallow copy preserves finish/cleanup/name and registry identity.
+        if plan is solver:
+            plan = copy(plan)
         plan.steps = unroll(task.setup) + plan.steps
 
     return plan
