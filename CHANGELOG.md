@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.227 (26 May 2026)
 
 - [`ask_user()`](https://inspect.aisi.org.uk/tools-standard.html#ask-user) tool: model can solicit a structured answer from the operator.
 - [`notify_user()`](https://inspect.aisi.org.uk/tools-standard.html#notify-user) tool: model can send status notifications to the operator.
