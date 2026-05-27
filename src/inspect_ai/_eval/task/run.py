@@ -39,6 +39,7 @@ from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
     has_registry_params,
     is_registry_object,
+    registry_info,
     registry_log_name,
     registry_params,
     registry_unqualified_name,
@@ -218,6 +219,15 @@ def resolve_plan(task: Task, solver: Solver | None) -> Plan:
     return plan
 
 
+def plan_agent_name(plan: Plan) -> str | None:
+    """Unqualified name of the plan's terminal step (agent or solver)."""
+    if plan.steps:
+        last_step = plan.steps[-1]
+        if is_registry_object(last_step):
+            return registry_unqualified_name(registry_info(last_step).name)
+    return None
+
+
 async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
     from inspect_ai.hooks._hooks import (
         emit_task_end,
@@ -332,6 +342,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         name=options.display_name or task.name,
         file=logger.eval.task_file,
         model=model_name,
+        agent=plan_agent_name(plan),
         dataset=task.dataset.name or "(samples)",
         scorer=", ".join(scorer_profiles),
         samples=total_samples,

@@ -21,6 +21,7 @@ from inspect_ai._display.textual.widgets.task_detail import TaskDetail
 from inspect_ai._display.textual.widgets.toggle import Toggle
 from inspect_ai._display.textual.widgets.vscode import conditional_vscode_link
 from inspect_ai._util.file import to_uri
+from inspect_ai._util.task import task_display_name
 from inspect_ai._util.vscode import (
     VSCodeCommand,
 )
@@ -38,8 +39,10 @@ from ...core.display import (
     TaskWithResult,
 )
 from ...core.progress import (
+    MAX_AGENT_NAME_WIDTH,
     MAX_DESCRIPTION_WIDTH,
     MAX_MODEL_NAME_WIDTH,
+    progress_agent_name,
     progress_count,
     progress_description,
     progress_model_name,
@@ -47,6 +50,9 @@ from ...core.progress import (
 
 MAX_METRIC_WIDTH = 25
 MAX_COUNT_WIDTH = 15
+
+# trailing space added to each name column so adjacent columns aren't flush
+COLUMN_SPACING = 1
 
 
 class TasksView(Container):
@@ -78,8 +84,12 @@ class TasksView(Container):
 
     def __init__(self) -> None:
         super().__init__()
-        self.description_width = MAX_DESCRIPTION_WIDTH
-        self.model_name_width = MAX_MODEL_NAME_WIDTH
+        # widths start at 0 and grow to fit content as tasks are added — this
+        # way columns size to the actual names even if init_tasks (which can
+        # also seed them) hasn't run for the current view.
+        self.description_width = 0
+        self.agent_name_width = 0
+        self.model_name_width = 0
         self.sample_count_width = 0
         self.display_metrics = True
 
@@ -87,25 +97,54 @@ class TasksView(Container):
         # clear existing tasks
         self.tasks.remove_children()
 
-        # compute the column widths by looking all of the tasks
-        self.description_width = min(
-            max([len(task.name) for task in tasks]), MAX_DESCRIPTION_WIDTH
+        # compute the column widths by looking all of the tasks — measure the
+        # text actually rendered (display name, bare model name) so columns
+        # don't reserve space for stripped package prefixes / model providers,
+        # then add COLUMN_SPACING so adjacent columns aren't flush.
+        self.description_width = (
+            min(
+                max([len(task_display_name(task.name)) for task in tasks]),
+                MAX_DESCRIPTION_WIDTH,
+            )
+            + COLUMN_SPACING
         )
-        self.model_name_width = min(
-            max([len(str(task.model)) for task in tasks]), MAX_MODEL_NAME_WIDTH
+        agent_content = min(
+            max([len(task.agent or "") for task in tasks]), MAX_AGENT_NAME_WIDTH
+        )
+        self.agent_name_width = agent_content + COLUMN_SPACING if agent_content else 0
+        self.model_name_width = (
+            min(max([len(task.model.name) for task in tasks]), MAX_MODEL_NAME_WIDTH)
+            + COLUMN_SPACING
         )
         self.update_progress_widths()
 
     def add_task(self, task: TaskWithResult) -> TaskDisplay:
         self.update_count_width(task.profile.samples)
         new_description_width = min(
-            max(self.description_width, len(task.profile.name)),
-            MAX_DESCRIPTION_WIDTH,
+            max(
+                self.description_width,
+                len(task_display_name(task.profile.name)) + COLUMN_SPACING,
+            ),
+            MAX_DESCRIPTION_WIDTH + COLUMN_SPACING,
+        )
+        agent_content = len(task.profile.agent or "")
+        new_agent_name_width = (
+            min(
+                max(self.agent_name_width, agent_content + COLUMN_SPACING),
+                MAX_AGENT_NAME_WIDTH + COLUMN_SPACING,
+            )
+            if agent_content
+            else self.agent_name_width
+        )
+        new_model_name_width = min(
+            max(self.model_name_width, len(task.profile.model.name) + COLUMN_SPACING),
+            MAX_MODEL_NAME_WIDTH + COLUMN_SPACING,
         )
         task_display = TaskProgressView(
             task,
             new_description_width,
-            self.model_name_width,
+            new_agent_name_width,
+            new_model_name_width,
             self.sample_count_width,
             self.display_metrics,
         )
@@ -115,6 +154,18 @@ class TasksView(Container):
             for progress_view in self.tasks.query_children(TaskProgressView):
                 progress_view.update_description_width(new_description_width)
         self.description_width = new_description_width
+        # Update existing tasks if agent name width grew
+        if new_agent_name_width > self.agent_name_width:
+            self.agent_name_width = new_agent_name_width
+            for progress_view in self.tasks.query_children(TaskProgressView):
+                progress_view.update_agent_width(new_agent_name_width)
+        self.agent_name_width = new_agent_name_width
+        # Update existing tasks if model name width grew
+        if new_model_name_width > self.model_name_width:
+            self.model_name_width = new_model_name_width
+            for progress_view in self.tasks.query_children(TaskProgressView):
+                progress_view.update_model_width(new_model_name_width)
+        self.model_name_width = new_model_name_width
         self.tasks.mount(task_display)
         self.tasks.scroll_to_widget(task_display)
         self.update_progress_widths()
@@ -202,6 +253,7 @@ class TaskProgressView(Widget):
         self,
         task: TaskWithResult,
         description_width: int,
+        agent_name_width: int,
         model_name_width: int,
         sample_count_width: int,
         display_metrics: bool,
@@ -210,6 +262,7 @@ class TaskProgressView(Widget):
         self.t = task
 
         self.description_width = description_width
+        self.agent_name_width = agent_name_width
         self.model_name_width = model_name_width
 
         self.progress_bar = ProgressBar(
@@ -251,9 +304,17 @@ class TaskProgressView(Widget):
                 markup=False,
             )
             yield Static(
+                progress_agent_name(
+                    self.t.profile.agent, self.agent_name_width, pad=True
+                ),
+                id="task-agent",
+                markup=False,
+            )
+            yield Static(
                 progress_model_name(
                     self.t.profile.model, self.model_name_width, pad=True
                 ),
+                id="task-model",
                 markup=False,
             )
             yield self.progress_bar
@@ -299,6 +360,22 @@ class TaskProgressView(Widget):
         try:
             desc = self.query_one("#task-description", Static)
             desc.update(progress_description(self.t.profile, width, pad=True))
+        except NoMatches:
+            pass
+
+    def update_agent_width(self, width: int) -> None:
+        self.agent_name_width = width
+        try:
+            agent = self.query_one("#task-agent", Static)
+            agent.update(progress_agent_name(self.t.profile.agent, width, pad=True))
+        except NoMatches:
+            pass
+
+    def update_model_width(self, width: int) -> None:
+        self.model_name_width = width
+        try:
+            model = self.query_one("#task-model", Static)
+            model.update(progress_model_name(self.t.profile.model, width, pad=True))
         except NoMatches:
             pass
 
