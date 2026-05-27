@@ -21,7 +21,6 @@ anyio boundary" for the rationale.
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import stat
 import time
@@ -35,20 +34,25 @@ from acp.agent.router import build_agent_router
 from acp.connection import Connection
 from acp.interfaces import Agent
 
+from inspect_ai._util.discovery import (
+    DISCOVERY_FILE_MODE,
+    prepare_discovery_dir,
+    write_discovery_file,
+)
+from inspect_ai._util.sockets import has_unix_sockets, parse_host_port
 from inspect_ai.agent._acp._config import ACP_STREAM_BUFFER_LIMIT
 from inspect_ai.agent._acp._guards import (
     NORMAL_DISCONNECT_EXC,
     install_acp_disconnect_log_filter,
 )
 from inspect_ai.agent._acp.connection import ConnectionHandler
-from inspect_ai.agent._acp.discovery import (
-    cleanup_stale_discovery_files,
-    default_socket_path,
-    discovery_dir,
-    has_unix_sockets,
-    parse_host_port,
-)
+from inspect_ai.agent._acp.discovery import default_socket_path, discovery_dir
 from inspect_ai.agent._acp.inspect_ext import register_inspect_routes
+
+# Socket file permissions — owner-only. Mirrors the control server's
+# hardening; defence-in-depth against a misconfigured umask or a
+# world-traversable parent directory.
+SOCKET_FILE_MODE = DISCOVERY_FILE_MODE
 
 logger = getLogger(__name__)
 
@@ -154,9 +158,12 @@ class AcpServer:
         # server" entry point.
         install_acp_disconnect_log_filter()
 
-        # Clean up any stale discovery files / orphan sockets from
-        # processes that crashed without unregistering.
-        cleanup_stale_discovery_files()
+        # Create the discovery directory at 0700 and sweep stale
+        # entries / orphan sockets before binding. The 0700 lockdown
+        # is defence-in-depth: other users on the same machine can't
+        # traverse into the directory and reach the socket / read the
+        # discovery JSON. See design/control-channel.md "Security model".
+        prepare_discovery_dir(discovery_dir())
 
         if self._transport is True:
             await self._bind_unix(default_socket_path(self._eval_id))
@@ -174,21 +181,21 @@ class AcpServer:
             # us via the asynccontextmanager guard. Defensive check.
             raise ValueError(f"Unsupported acp_server transport: {self._transport!r}")
 
-        # Write the discovery file describing this server.
-        self._discovery_path = discovery_dir() / f"{os.getpid()}.json"
-        self._discovery_path.write_text(
-            json.dumps(
-                {
-                    "pid": os.getpid(),
-                    "eval_id": self._eval_id,
-                    "socket_path": (
-                        str(self._socket_path) if self._socket_path else None
-                    ),
-                    "host": self._host,
-                    "port": self._port,
-                    "started_at": time.time(),
-                }
-            )
+        # Write the discovery file (0600). The helper handles the
+        # chmod; bare ``write_text`` would inherit umask and could end
+        # up 0644, leaking the socket path / eval_id to other users on
+        # a multi-user box.
+        self._discovery_path = write_discovery_file(
+            discovery_dir(),
+            os.getpid(),
+            {
+                "pid": os.getpid(),
+                "eval_id": self._eval_id,
+                "socket_path": (str(self._socket_path) if self._socket_path else None),
+                "host": self._host,
+                "port": self._port,
+                "started_at": time.time(),
+            },
         )
 
     async def _bind_unix(self, path: Path) -> None:
@@ -228,6 +235,14 @@ class AcpServer:
             limit=ACP_STREAM_BUFFER_LIMIT,
         )
         self._socket_path = path
+        # Owner-only on the socket file. Defence-in-depth against a
+        # loosened parent dir / world-traversable user home — without
+        # this the socket inherits umask and may be world-readable.
+        # Best-effort: some filesystems ignore chmod.
+        try:
+            path.chmod(SOCKET_FILE_MODE)
+        except OSError:
+            pass
 
     async def _bind_tcp(self, port: int, host: str = "127.0.0.1") -> None:
         self._server = await asyncio.start_server(

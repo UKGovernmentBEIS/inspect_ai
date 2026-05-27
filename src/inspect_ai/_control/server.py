@@ -19,7 +19,6 @@ subscription land in subsequent phases.
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import time
 from contextlib import asynccontextmanager
@@ -27,12 +26,18 @@ from logging import getLogger
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from inspect_ai._control.discovery import (
-    cleanup_stale_discovery_files,
-    default_socket_path,
-    discovery_file_path,
-)
+from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.state import current_eval_summary
+from inspect_ai._util.discovery import (
+    DISCOVERY_FILE_MODE,
+    prepare_discovery_dir,
+    write_discovery_file,
+)
+
+# Socket file permissions: owner-only read/write. Mirrors
+# DISCOVERY_FILE_MODE for the .json — same threat model (defence in
+# depth against a misconfigured / world-traversable parent directory).
+SOCKET_FILE_MODE = DISCOVERY_FILE_MODE
 
 logger = getLogger(__name__)
 
@@ -77,10 +82,10 @@ class ControlServer:
         """Bind the AF_UNIX socket, write the discovery file, start serving."""
         import uvicorn
 
-        cleanup_stale_discovery_files()
+        # Create dir at 0700 + sweep stale entries before binding.
+        prepare_discovery_dir(discovery_dir())
 
         socket_path = default_socket_path(os.getpid())
-        socket_path.parent.mkdir(parents=True, exist_ok=True)
         # Unlink any leftover socket node from a stale prior bind.
         if socket_path.exists() or socket_path.is_symlink():
             try:
@@ -116,16 +121,26 @@ class ControlServer:
                 break
             await asyncio.sleep(0.05)
 
-        self._discovery_path = discovery_file_path(os.getpid())
-        self._discovery_path.write_text(
-            json.dumps(
-                {
-                    "pid": os.getpid(),
-                    "run_id": self._run_id,
-                    "socket_path": str(socket_path),
-                    "started_at": self._started_at,
-                }
-            )
+        # Lock the socket file to owner-only. Defence-in-depth: the
+        # parent dir is already 0700, but if it's ever loosened (or
+        # the user's home is world-traversable) the socket itself
+        # remains unreachable. Some filesystems ignore chmod; that's
+        # acceptable — same fallback behavior as the directory chmod
+        # in prepare_discovery_dir.
+        try:
+            socket_path.chmod(SOCKET_FILE_MODE)
+        except OSError:
+            pass
+
+        self._discovery_path = write_discovery_file(
+            discovery_dir(),
+            os.getpid(),
+            {
+                "pid": os.getpid(),
+                "run_id": self._run_id,
+                "socket_path": str(socket_path),
+                "started_at": self._started_at,
+            },
         )
 
     async def stop(self) -> None:

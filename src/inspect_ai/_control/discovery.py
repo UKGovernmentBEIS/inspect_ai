@@ -5,20 +5,20 @@ Each running eval process writes a per-PID discovery JSON at
 socket. CLI clients (``inspect ctl ls``, etc.) read this directory to
 enumerate live evals.
 
-The pattern mirrors :mod:`inspect_ai.agent._acp.discovery` but lives
-in a separate directory and namespace so the two surfaces stay
-structurally independent (per the control-channel design's
-"separate from ACP" position).
+The filesystem mechanics (PID-based JSON write with 0600, stale-PID
+cleanup, dir 0700) come from :mod:`inspect_ai._util.discovery`; this
+module is just the ACP-style schema layer (control-specific dir,
+``DiscoveredControlServer`` shape, enumeration with our field
+expectations).
 """
 
 from __future__ import annotations
 
-import json
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from inspect_ai._util.appdirs import inspect_data_dir
+from inspect_ai._util.discovery import list_alive_discovery_entries
 
 
 def discovery_dir() -> Path:
@@ -34,44 +34,6 @@ def default_socket_path(pid: int) -> Path:
 def discovery_file_path(pid: int) -> Path:
     """Path to the discovery JSON for a given pid."""
     return discovery_dir() / f"{pid}.json"
-
-
-def pid_alive(pid: int) -> bool:
-    """Return True if a process with ``pid`` is currently alive."""
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-        return True
-    except (ProcessLookupError, OSError):
-        return False
-
-
-def cleanup_stale_discovery_files() -> None:
-    """Sweep discovery files whose owning PID is no longer alive.
-
-    Also unlinks the orphan AF_UNIX socket node recorded in the file
-    so subsequent binds on the same path don't trip over a leftover
-    inode. Best-effort — malformed files are silently skipped.
-    """
-    ctl_dir = discovery_dir()
-    if not ctl_dir.exists():
-        return
-    for path in ctl_dir.glob("*.json"):
-        try:
-            data = json.loads(path.read_text())
-            pid = int(data.get("pid", -1))
-            if pid <= 0 or pid_alive(pid):
-                continue
-            path.unlink(missing_ok=True)
-            sock = data.get("socket_path")
-            if sock:
-                try:
-                    Path(sock).unlink(missing_ok=True)
-                except OSError:
-                    pass
-        except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError):
-            continue
 
 
 @dataclass(frozen=True)
@@ -93,24 +55,15 @@ def list_discovered_servers() -> list[DiscoveredControlServer]:
     Sorted most-recently-started first. Stale files (dead PID,
     malformed JSON, missing fields) are silently skipped.
     """
-    ctl_dir = discovery_dir()
-    if not ctl_dir.exists():
-        return []
     results: list[DiscoveredControlServer] = []
-    for path in ctl_dir.glob("*.json"):
-        try:
-            data = json.loads(path.read_text())
-        except (OSError, json.JSONDecodeError):
-            continue
-        try:
-            pid = int(data.get("pid", -1))
-        except (TypeError, ValueError):
-            continue
-        if pid <= 0 or not pid_alive(pid):
-            continue
+    for data in list_alive_discovery_entries(discovery_dir()):
         sock = data.get("socket_path")
         run_id = data.get("run_id")
         if not sock or not run_id:
+            continue
+        try:
+            pid = int(data["pid"])
+        except (KeyError, TypeError, ValueError):
             continue
         try:
             started_at = float(data.get("started_at", 0.0))
