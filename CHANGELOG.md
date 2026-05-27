@@ -7,6 +7,7 @@
 - Bugfix: Show View Log button on top right of sample display.
 - Bugfix: Prevent transcript subscriber-failure warnings from re-entering the subscriber loop and fanning out.
 - Bugfix: Align CLI --display and --effort type annotations with their choices.
+- Bugfix: Don't enter prompt mode when a sample is globally cancelled.
 
 ## 0.3.228 (27 May 2026)
 
