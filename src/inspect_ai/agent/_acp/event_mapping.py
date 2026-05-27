@@ -217,7 +217,7 @@ class _AcpEventRouter:
         # replay needs to mirror that view or the depth filter wipes
         # out every in-scope event downstream.
         self._session._router_attach_index = len(tr.events)
-        self._unsubscribe = tr._add_subscriber(self._process)
+        self._unsubscribe = tr._subscribe(self._process)
 
     def detach(self) -> None:
         """Unsubscribe from the transcript. Idempotent."""

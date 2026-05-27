@@ -2,6 +2,7 @@
 
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
 - Scoring: Set `Score.answer` on model_graded parse failure.
+- Transcript: Various improvements to transcript event subscriber delivery.
 - Bugfix: Align CLI --display and --effort type annotations with their choices.
 
 ## 0.3.228 (27 May 2026)
