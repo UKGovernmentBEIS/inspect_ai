@@ -157,6 +157,8 @@ See these additional articles to learn more about creating agent evaluations wit
 
 - [Deep Agent](./deepagent.html.md) describes a batteries-included agent for long-horizon tasks.
 
+- [Intervention](./intervention.html.md) details features that support creating evaluations with a human in the loop.
+
 - [Multi Agent](./multi-agent.html.md) covers various ways to compose agents together in multi-agent architectures.
 
 - [Custom Agents](./agent-custom.html.md) describes Inspect APIs available for creating custom agents.

@@ -1,5 +1,18 @@
 # changelog – Inspect
 
+## 0.3.227 (26 May 2026)
+
+- [`ask_user()`](https://inspect.aisi.org.uk/tools-standard.html#ask-user) tool: model can solicit a structured answer from the operator.
+- [`notify_user()`](https://inspect.aisi.org.uk/tools-standard.html#notify-user) tool: model can send status notifications to the operator.
+- [Notifications](https://inspect.aisi.org.uk/intervention.html#notifications) via [Apprise](https://appriseit.com) (Slack, desktop, SMS, email, webhook, ~90 services).
+- [request_input()](https://inspect.aisi.org.uk/interactivity.html) public API: programmatic structured prompts from solvers, agents, or tools, using the same dispatch surfaces as `ask_user()`.
+- Text Editor Tool: Cap undo history to 10 and no longer consider failures in undo history file operations fatal.
+
+## 0.3.226 (25 May 2026)
+
+- OpenAI: Backfill required ‘query’ field when service only provides ‘queries’.
+- Agent Bridge: Add `model_event_sink` option for bridge to control order of model event emission (used to nest model events properly in agent spans).
+
 ## 0.3.225 (23 May 2026)
 
 - [Agent Intervention](https://inspect.aisi.org.uk/intervention.html) which provides the ability observe a running agent, interrupt it, and redirect it with follow-up messages.

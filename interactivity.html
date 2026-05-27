@@ -556,14 +556,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
    
   <ul>
   <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
-  <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
-  <li><a href="#input-screen" id="toc-input-screen" class="nav-link" data-scroll-target="#input-screen">Input Screen</a></li>
-  <li><a href="#prompts" id="toc-prompts" class="nav-link" data-scroll-target="#prompts">Prompts</a></li>
-  <li><a href="#sec-conversation-display" id="toc-sec-conversation-display" class="nav-link" data-scroll-target="#sec-conversation-display">Conversation Display</a></li>
-  <li><a href="#progress" id="toc-progress" class="nav-link" data-scroll-target="#progress">Progress</a></li>
-  <li><a href="#header" id="toc-header" class="nav-link" data-scroll-target="#header">Header</a></li>
-  <li><a href="#formatting" id="toc-formatting" class="nav-link" data-scroll-target="#formatting">Formatting</a></li>
-  <li><a href="#sec-layout" id="toc-sec-layout" class="nav-link" data-scroll-target="#sec-layout">Layout</a></li>
+  <li><a href="#request-input" id="toc-request-input" class="nav-link" data-scroll-target="#request-input">Request Input</a></li>
+  <li><a href="#field-types" id="toc-field-types" class="nav-link" data-scroll-target="#field-types">Field Types</a></li>
   </ul>
 </nav>
     </div>
@@ -597,95 +591,75 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Prompt the model dynamically based on the trajectory of the evaluation</li>
 <li>Score model output with human judges</li>
 </ul>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#input_screen">input_screen()</a></span> function provides a context manager that temporarily clears the task display for user input. Note that prompting the user is a synchronous operation that pauses other activity within the evaluation (pending model requests or subprocesses will continue to execute, but their results won’t be processed until the input is complete).</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#request_input">request_input()</a></span> function presents a structured form to the operator and returns their answers. It is async, and dispatches automatically to whichever surface is available: an attached ACP client, the in-process Textual panel under <code>--display full</code>, or the console under <code>--display rich</code>. The sample pauses on the call until the operator responds.</p>
 </section>
-<section id="example" class="level2">
-<h2 class="anchored" data-anchor-id="example">Example</h2>
-<p>Before diving into the details of how to add interactions to your tasks, you might want to check out the <a href="https://github.com/UKGovernmentBEIS/inspect_ai/tree/main/examples/intervention">Intervention Mode</a> example.</p>
-<p>Intervention mode is a prototype of an Inspect agent with human intervention, meant to serve as a starting point for evaluations which need these features (e.g.&nbsp;manual open-ended probing). It implements the following:</p>
-<ol type="1">
-<li><p>Sets up a Linux agent with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#python">python()</a></span> tools.</p></li>
-<li><p>Prompts the user for a starting question for the agent.</p></li>
-<li><p>Displays all messages and prompts to approve tool calls.</p></li>
-<li><p>When the model stops calling tools, prompts the user for the next action (i.e.&nbsp;continue generating, ask a new question, or exit the task).</p></li>
-</ol>
-<p>After reviewing the example and the documentation below you’ll be well equipped to write your own custom interactive evaluation tasks.</p>
+<section id="request-input" class="level2">
+<h2 class="anchored" data-anchor-id="request-input">Request Input</h2>
+<p>You can prompt the user for input at any point in an evaluation using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#request_input">request_input()</a></span> function. Pass it a prompt message and an <code>ElicitationSchema</code> describing the fields you want filled in:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> request_input</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> acp.schema <span class="im">import</span> ElicitationSchema, ElicitationStringPropertySchema</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> <span class="cf">await</span> request_input(</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    message<span class="op">=</span><span class="st">"Please enter your name"</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    schema<span class="op">=</span>ElicitationSchema(</span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>        properties<span class="op">=</span>{</span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>            <span class="st">"name"</span>: ElicitationStringPropertySchema(<span class="bu">type</span><span class="op">=</span><span class="st">"string"</span>),</span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        },</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        required<span class="op">=</span>[<span class="st">"name"</span>],</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> result.outcome <span class="op">==</span> <span class="st">"accepted"</span>:</span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    name <span class="op">=</span> result.content[<span class="st">"name"</span>]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>result.outcome</code> is one of <code>"accepted"</code>, <code>"declined"</code>, or <code>"cancelled"</code>. When <code>accepted</code>, <code>result.content</code> is a dict keyed by the schema’s property names.</p>
+<p>A single <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#request_input">request_input()</a></span> call can carry multiple fields, so a small form replaces a chain of separate prompts:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> acp.schema <span class="im">import</span> (</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    ElicitationSchema,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>    ElicitationStringPropertySchema,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    ElicitationIntegerPropertySchema,</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    ElicitationBooleanPropertySchema,</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> <span class="cf">await</span> request_input(</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    message<span class="op">=</span><span class="st">"Configure the request"</span>,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    schema<span class="op">=</span>ElicitationSchema(</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>        properties<span class="op">=</span>{</span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>            <span class="st">"url"</span>: ElicitationStringPropertySchema(<span class="bu">type</span><span class="op">=</span><span class="st">"string"</span>),</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>            <span class="st">"timeout"</span>: ElicitationIntegerPropertySchema(</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>                <span class="bu">type</span><span class="op">=</span><span class="st">"integer"</span>, minimum<span class="op">=</span><span class="dv">1</span>, maximum<span class="op">=</span><span class="dv">300</span>,</span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>            ),</span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>            <span class="st">"confirm"</span>: ElicitationBooleanPropertySchema(<span class="bu">type</span><span class="op">=</span><span class="st">"boolean"</span>),</span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>        },</span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>        required<span class="op">=</span>[<span class="st">"url"</span>, <span class="st">"confirm"</span>],</span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
-<section id="input-screen" class="level2">
-<h2 class="anchored" data-anchor-id="input-screen">Input Screen</h2>
-<p>You can prompt the user for input at any point in an evaluation using the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#input_screen">input_screen()</a></span> context manager, which clears the normal task display and provides access to a <a href="https://rich.readthedocs.io/en/stable/console.html">Console</a> object for presenting content and asking for user input. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"Some preamble text"</span>)</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The <code>console</code> object provided by the context manager is from the <a href="https://rich.readthedocs.io/">Rich</a> Python library used by Inspect, and has many other capabilities beyond simple text input. Read on to learn more.</p>
-</section>
-<section id="prompts" class="level2">
-<h2 class="anchored" data-anchor-id="prompts">Prompts</h2>
-<p>Rich includes <a href="https://rich.readthedocs.io/en/stable/prompt.html">Prompt</a> and <a href="https://rich.readthedocs.io/en/stable/reference/prompt.html#rich.prompt.Confirm">Confirm</a> classes with additional capabilities including default values, choice lists, and re-prompting. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.prompt <span class="im">import</span> Prompt</span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    name <span class="op">=</span> Prompt.ask(</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>        <span class="st">"Enter your name"</span>, </span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>        choices<span class="op">=</span>[<span class="st">"Paul"</span>, <span class="st">"Jessica"</span>, <span class="st">"Duncan"</span>], </span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>        default<span class="op">=</span><span class="st">"Paul"</span></span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The <code>Prompt</code> class is designed to be subclassed for more specialized inputs. The <code>IntPrompt</code> and <code>FloatPrompt</code> classes are built-in, but you can also create your own more customised prompts (the <code>Confirm</code> class is another example of this). See the <a href="https://github.com/Textualize/rich/blob/master/rich/prompt.py">prompt.py</a> source code for additional details.</p>
-</section>
-<section id="sec-conversation-display" class="level2">
-<h2 class="anchored" data-anchor-id="sec-conversation-display">Conversation Display</h2>
-<p>When introducing interactions it’s often useful to see the full chat conversation printed for additional context. You can do this via the <code>--display=conversation</code> CLI option, for example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="ex">$</span> inspect eval theory.py <span class="at">--display</span> conversation</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>In conversation display mode, all messages exchanged with the model are printed to the terminal (tool output is truncated at 100 lines).</p>
-<p>Note that enabling conversation display automatically sets <code>max_tasks</code> and <code>max_samples</code> to 1, as otherwise messages from concurrently running samples would be interleaved together in an incoherent jumble.</p>
-</section>
-<section id="progress" class="level2">
-<h2 class="anchored" data-anchor-id="progress">Progress</h2>
-<p>Evaluations with user input alternate between asking for input and displaying task progress. By default, the normal task status display is shown when a user input screen is not active.</p>
-<p>However, if your evaluation is dominated by user input with very short model interactions in between, the task display flashing on and off might prove distracting. For these cases, you can specify the <code>transient=False</code> option, to indicate that the input screen should be shown at all times. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen(transient<span class="op">=</span><span class="va">False</span>) <span class="im">as</span> console:</span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"Some preamble text"</span>)</span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>This will result in the input screen staying active throughout the evaluation. A small progress indicator will be shown whenever user input isn’t being requested so that the user knows that the evaluation is still running.</p>
-</section>
-<section id="header" class="level2">
-<h2 class="anchored" data-anchor-id="header">Header</h2>
-<p>You can add a header to your console input via the <code>header</code> parameter. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen(header<span class="op">=</span><span class="st">"Input Request"</span>) <span class="im">as</span> console:</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">input</span> <span class="op">=</span> console.<span class="bu">input</span>(<span class="st">"Please enter your name: "</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The <code>header</code> option is a useful way to delineate user input requests (especially when switching between input display and the normal task display). You might also prefer to create your own heading treatments–under the hood, the <code>header</code> option calls <code>console.rule()</code> with a blue bold treatment:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>console.rule(<span class="ss">f"[blue bold]</span><span class="sc">{</span>header<span class="sc">}</span><span class="ss">[/blue bold]"</span>, style<span class="op">=</span><span class="st">"blue bold"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>You can also use the <a href="#sec-layout">Layout</a> primitives (columns, panels, and tables) to present your input user interface.</p>
-</section>
-<section id="formatting" class="level2">
-<h2 class="anchored" data-anchor-id="formatting">Formatting</h2>
-<p>The <code>console.print()</code> method supports <a href="https://rich.readthedocs.io/en/stable/console.html">formatting</a> using simple markup. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(<span class="st">"[bold red]alert![/bold red] Something happened"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>See the documentation on <a href="https://rich.readthedocs.io/en/stable/markup.html">console markup</a> for additional details.</p>
-<p>You can also render <a href="https://rich.readthedocs.io/en/stable/markdown.html">markdown</a> directly, for example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.markdown <span class="im">import</span> Markdown</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(Markdown(<span class="st">'The _quick_ brown **fox**'</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-</section>
-<section id="sec-layout" class="level2">
-<h2 class="anchored" data-anchor-id="sec-layout">Layout</h2>
-<p>Rich includes <a href="https://rich.readthedocs.io/en/stable/columns.html">Columns</a>, <a href="https://rich.readthedocs.io/en/stable/tables.html">Table</a> and <a href="https://rich.readthedocs.io/en/stable/panel.html">Panel</a> classes for more advanced layout. For example, here is a simple table:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> input_screen</span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> rich.table <span class="im">import</span> Table</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> input_screen() <span class="im">as</span> console:</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    table <span class="op">=</span> Table(title<span class="op">=</span><span class="st">"Tool Calls"</span>)</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    table.add_column(<span class="st">"Function"</span>, justify<span class="op">=</span><span class="st">"left"</span>, style<span class="op">=</span><span class="st">"cyan"</span>)</span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    table.add_column(<span class="st">"Parameters"</span>, style<span class="op">=</span><span class="st">"magenta"</span>)</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    table.add_row(<span class="st">"bash"</span>, <span class="st">"ls /usr/bin"</span>)</span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    table.add_row(<span class="st">"python"</span>, <span class="st">"print('foo')"</span>)</span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    console.<span class="bu">print</span>(table)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<section id="field-types" class="level2">
+<h2 class="anchored" data-anchor-id="field-types">Field Types</h2>
+<p>Schema properties can be strings, integers, numbers, booleans, or multi-select arrays. Most types accept constraints that the operator’s answer is validated against. For example, choosing one value from a fixed list:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> request_input</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> acp.schema <span class="im">import</span> ElicitationSchema, ElicitationStringPropertySchema</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>result <span class="op">=</span> <span class="cf">await</span> request_input(</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    message<span class="op">=</span><span class="st">"Enter your name"</span>,</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>    schema<span class="op">=</span>ElicitationSchema(</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        properties<span class="op">=</span>{</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>            <span class="st">"name"</span>: ElicitationStringPropertySchema(</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>                <span class="bu">type</span><span class="op">=</span><span class="st">"string"</span>,</span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>                enum<span class="op">=</span>[<span class="st">"Paul"</span>, <span class="st">"Jessica"</span>, <span class="st">"Duncan"</span>],</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>            ),</span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>        },</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>        required<span class="op">=</span>[<span class="st">"name"</span>],</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Property types and available constraints:</p>
+<ul>
+<li><code>ElicitationStringPropertySchema</code> (<code>type="string"</code>) — <code>enum</code>, <code>min_length</code>, <code>max_length</code>, <code>pattern</code>, <code>format</code></li>
+<li><code>ElicitationIntegerPropertySchema</code> (<code>type="integer"</code>) — <code>minimum</code>, <code>maximum</code></li>
+<li><code>ElicitationNumberPropertySchema</code> (<code>type="number"</code>) — <code>minimum</code>, <code>maximum</code></li>
+<li><code>ElicitationBooleanPropertySchema</code> (<code>type="boolean"</code>)</li>
+<li><code>ElicitationMultiSelectPropertySchema</code> (<code>type="array"</code>) — <code>min_items</code>, <code>max_items</code>, <code>items</code></li>
+</ul>
+<p><code>required</code> lists the property names the operator must fill in; omitted properties may be left blank.</p>
 
 
 </section>

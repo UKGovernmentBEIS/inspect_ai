@@ -563,13 +563,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#intervention-logging" id="toc-intervention-logging" class="nav-link" data-scroll-target="#intervention-logging">Intervention Logging</a></li>
   <li><a href="#remote-connections" id="toc-remote-connections" class="nav-link" data-scroll-target="#remote-connections">Remote Connections</a></li>
+  <li><a href="#intervention-clients" id="toc-intervention-clients" class="nav-link" data-scroll-target="#intervention-clients">Intervention Clients</a></li>
+  </ul></li>
+  <li><a href="#questions-and-notifications" id="toc-questions-and-notifications" class="nav-link" data-scroll-target="#questions-and-notifications">Questions and Notifications</a>
+  <ul class="collapse">
+  <li><a href="#ask-user-tool" id="toc-ask-user-tool" class="nav-link" data-scroll-target="#ask-user-tool">Ask User Tool</a></li>
+  <li><a href="#notifications" id="toc-notifications" class="nav-link" data-scroll-target="#notifications">Notifications</a></li>
   </ul></li>
   <li><a href="#adding-acp-to-an-agent" id="toc-adding-acp-to-an-agent" class="nav-link" data-scroll-target="#adding-acp-to-an-agent">Adding ACP to an Agent</a></li>
-  <li><a href="#using-other-acp-clients" id="toc-using-other-acp-clients" class="nav-link" data-scroll-target="#using-other-acp-clients">Using Other ACP Clients</a>
-  <ul class="collapse">
-  <li><a href="#standard-clients" id="toc-standard-clients" class="nav-link" data-scroll-target="#standard-clients">Standard Clients</a></li>
-  <li><a href="#writing-a-client" id="toc-writing-a-client" class="nav-link" data-scroll-target="#writing-a-client">Writing a Client</a></li>
-  </ul></li>
+  <li><a href="#writing-an-acp-client" id="toc-writing-an-acp-client" class="nav-link" data-scroll-target="#writing-an-acp-client">Writing an ACP Client</a></li>
   </ul>
 </nav>
     </div>
@@ -597,8 +599,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>Agent intervention lets you observe a running agent, interrupt it, and redirect it with follow-up messages. Every intervention is recorded in the transcript, so the log faithfully captures both the agent’s work and any operator actions.</p>
-<p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> support intervention out of the box. <a href="#adding-acp-to-an-agent">Custom agents</a> can opt in with a small change to their turn loop.</p>
+<p>Agent intervention features support creating evaluations with a human in the loop, better modeling how agents accomplish tasks in real world settings. Intervention can be initialized from either the human or agent side:</p>
+<ol type="1">
+<li><p>Human operators can connect to running sessions, interrupt agents, and redirect them with follow-up messages.</p></li>
+<li><p>Agents can solicit help from humans by asking questions and sending notifications.</p></li>
+</ol>
+<p>Every intervention is recorded in the transcript, so the log faithfully captures both the agent’s work and any actions taken by the human operator. <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> support intervention out of the box. <a href="#adding-acp-to-an-agent">Custom agents</a> can opt in with a small change to their turn loop.</p>
 </section>
 <section id="interactive-agent-client" class="level2">
 <h2 class="anchored" data-anchor-id="interactive-agent-client">Interactive Agent Client</h2>
@@ -640,93 +646,159 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> acp <span class="at">--server</span> 127.0.0.1:4545</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>You can also bind to a non-loopback interface with <code>--acp-server 0.0.0.0:4545</code>, but only on a trusted network, as anyone who can reach the port can drive the agent.</p>
 </section>
+<section id="intervention-clients" class="level3">
+<h3 class="anchored" data-anchor-id="intervention-clients">Intervention Clients</h3>
+<p>While the ACP client described above is the preferred way to manage agent intervention, all of the intervention features also work with the standard Inspect full task display. Each call to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> establishes which client it will use for intervention using the <code>--acp-server</code> option:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># manage intervention using ACP client</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval terminal_bench_2 <span class="at">--acp-server</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="co"># manage intervention using standard task display</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval terminal_bench_2 </span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The ACP client is recommended because it is more feature rich, works with <code>--display plain</code> and other non-interactive display modes, and can be remoted over HTTP.</p>
+</section>
+</section>
+<section id="questions-and-notifications" class="level2">
+<h2 class="anchored" data-anchor-id="questions-and-notifications">Questions and Notifications</h2>
+<p>In some cases you may want agents to initiate intervention. You can do this by providing agents with the <code>ask_user()</code> and/or <code>notify_user()</code> tools.</p>
+<section id="ask-user-tool" class="level3">
+<h3 class="anchored" data-anchor-id="ask-user-tool">Ask User Tool</h3>
+<p>The <code>ask_user()</code> tool enables models to request structured information from users. It uses the the <a href="https://agentclientprotocol.com/rfds/elicitation">ACP Elicitation</a> standard, which provides for a variety of field types (text, boolean, enum, etc.)</p>
+<p>For example, here we add <code>ask_user()</code> to a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> agent, react</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> ask_user, bash, text_editor</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ctf_agent():</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> react(</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>        description<span class="op">=</span><span class="st">"Expert at completing cybersecurity challenges."</span>,</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        prompt<span class="op">=</span><span class="st">"You are an expert at CTF challenges."</span>,</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        tools<span class="op">=</span>[bash(), text_editor(), ask_user()]</span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>If you are monitoring several sessions where agents may ask questions, use the main session display to monitor for pending questions:</p>
+<p><a href="images/acp-pending.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3"><img src="images/acp-pending.png" class="border img-fluid"></a></p>
+<p>In addition, the next section describes how to configure notifications so that you can be aware of questions as they are asked.</p>
+</section>
+<section id="notifications" class="level3">
+<h3 class="anchored" data-anchor-id="notifications">Notifications</h3>
+<p>Notifications fire whenever a human-in-the-loop interaction is posted (the <code>ask_user()</code> tool and tool-approval prompts). Inspect uses <a href="https://appriseit.com">Apprise</a> to route notifications, which you can install with:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install apprise</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Apprise supports dozens of notifification types including Slack, desktop, SMS, email, and many other services. Learn more at <a href="https://appriseit.com/services/" class="uri">https://appriseit.com/services/</a>.</p>
+<p>Notifications are opt-in per eval. Notification URLs usually contain secrets, so neither the Python API nor the CLI accepts URL strings directly. Set them in the <code>INSPECT_EVAL_NOTIFICATION</code> environment variable, or pass a path to an Apprise config file. This keeps URLs out of source code, shell history, and eval logs.</p>
+<p>Set the environment variable in your <code>.env</code> file:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># single URL</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_EVAL_NOTIFICATION</span><span class="op">=</span><span class="st">"slack://TokenA/TokenB/TokenC/#agent-help"</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a><span class="co"># multiple URLs (comma-separated)</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_EVAL_NOTIFICATION</span><span class="op">=</span><span class="st">"macosx://,slack://TokenA/TokenB/TokenC/#agent-help"</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="co"># or point at an Apprise config file</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="va">INSPECT_EVAL_NOTIFICATION</span><span class="op">=</span><span class="st">"/path/to/apprise.yml"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Then enable notifications for the eval. Using the CLI:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf_challenge <span class="at">--notification</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Or using Python:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(task, model<span class="op">=</span><span class="st">"openai/gpt-5"</span>, notification<span class="op">=</span><span class="va">True</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>You can also point at an Apprise config file directly, with no environment variable required:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(task, model<span class="op">=</span><span class="st">"openai/gpt-5"</span>, notification<span class="op">=</span><span class="st">"/path/to/apprise.yml"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval ctf_challenge <span class="at">--notification</span> /path/to/apprise.yml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="callout callout-style-default callout-important callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+Important
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Apprise config files often carry secrets so should never be checked in to version control.</p>
+</div>
+</div>
+<section id="notify-user-tool" class="level4">
+<h4 class="anchored" data-anchor-id="notify-user-tool">Notify User Tool</h4>
+<p>If you want the agent to be able to raise notifications to the user, you can also provide it with a <code>notify_user()</code> tool. For example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> agent, react</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> ask_user, notify_user, bash, text_editor</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ctf_agent():</span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> react(</span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a>        ...,</span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a>        tools<span class="op">=</span>[bash(), text_editor(), ask_user(), notify_user()]</span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+<section id="notify-from-code" class="level4">
+<h4 class="anchored" data-anchor-id="notify-from-code">Notify from Code</h4>
+<p>You can also build scaffold driven notification into your custom agents by calling the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#notify">notify()</a></span> function. For example:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.util <span class="im">import</span> notify</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> my_step(state):</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> state.output.stop_reason <span class="op">==</span> <span class="st">"model_length"</span>:</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">await</span> notify(<span class="st">"Model context length exceeded."</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</section>
+</section>
 </section>
 <section id="adding-acp-to-an-agent" class="level2">
 <h2 class="anchored" data-anchor-id="adding-acp-to-an-agent">Adding ACP to an Agent</h2>
 <p>Add intervention support to a custom agent via the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_channel">agent_channel()</a></span> context manager.</p>
 <p>A minimal agent loop, with <code>tools</code> captured from the surrounding <code>@agent</code> factory the way <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> does (click the circled numbers for details):</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-4"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-4-1"><a href="#annotated-cell-4-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> (</span>
-<span id="annotated-cell-4-2"><a href="#annotated-cell-4-2" aria-hidden="true" tabindex="-1"></a>    AgentState, agent_channel, AgentInterrupted</span>
-<span id="annotated-cell-4-3"><a href="#annotated-cell-4-3" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="annotated-cell-4-4"><a href="#annotated-cell-4-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> execute_tools, get_model</span>
-<span id="annotated-cell-4-5"><a href="#annotated-cell-4-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-6"><a href="#annotated-cell-4-6" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="1">1</button><span id="annotated-cell-4-7" class="code-annotation-target"><a href="#annotated-cell-4-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="cf">with</span> agent_channel() <span class="im">as</span> ch:</span>
-<span id="annotated-cell-4-8"><a href="#annotated-cell-4-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="va">True</span>:</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="2">2</button><span id="annotated-cell-4-9" class="code-annotation-target"><a href="#annotated-cell-4-9" aria-hidden="true" tabindex="-1"></a>            <span class="co"># handle operator messages</span></span>
-<span id="annotated-cell-4-10"><a href="#annotated-cell-4-10" aria-hidden="true" tabindex="-1"></a>            state.messages.extend(</span>
-<span id="annotated-cell-4-11"><a href="#annotated-cell-4-11" aria-hidden="true" tabindex="-1"></a>                <span class="cf">await</span> ch.before_turn(state.messages)</span>
-<span id="annotated-cell-4-12"><a href="#annotated-cell-4-12" aria-hidden="true" tabindex="-1"></a>            )</span>
-<span id="annotated-cell-4-13"><a href="#annotated-cell-4-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-14"><a href="#annotated-cell-4-14" aria-hidden="true" tabindex="-1"></a>            <span class="cf">try</span>:</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="3">3</button><span id="annotated-cell-4-15" class="code-annotation-target"><a href="#annotated-cell-4-15" aria-hidden="true" tabindex="-1"></a>                <span class="cf">with</span> ch.turn_scope():</span>
-<span id="annotated-cell-4-16"><a href="#annotated-cell-4-16" aria-hidden="true" tabindex="-1"></a>                    state.output <span class="op">=</span> <span class="cf">await</span> get_model().generate(</span>
-<span id="annotated-cell-4-17"><a href="#annotated-cell-4-17" aria-hidden="true" tabindex="-1"></a>                        state.messages, tools<span class="op">=</span>tools</span>
-<span id="annotated-cell-4-18"><a href="#annotated-cell-4-18" aria-hidden="true" tabindex="-1"></a>                    )</span>
-<span id="annotated-cell-4-19"><a href="#annotated-cell-4-19" aria-hidden="true" tabindex="-1"></a>                    state.messages.append(state.output.message)</span>
-<span id="annotated-cell-4-20"><a href="#annotated-cell-4-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-21"><a href="#annotated-cell-4-21" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">if</span> state.output.message.tool_calls:</span>
-<span id="annotated-cell-4-22"><a href="#annotated-cell-4-22" aria-hidden="true" tabindex="-1"></a>                        messages, _ <span class="op">=</span> <span class="cf">await</span> execute_tools(</span>
-<span id="annotated-cell-4-23"><a href="#annotated-cell-4-23" aria-hidden="true" tabindex="-1"></a>                            state.messages,</span>
-<span id="annotated-cell-4-24"><a href="#annotated-cell-4-24" aria-hidden="true" tabindex="-1"></a>                            tools</span>
-<span id="annotated-cell-4-25"><a href="#annotated-cell-4-25" aria-hidden="true" tabindex="-1"></a>                        )</span>
-<span id="annotated-cell-4-26"><a href="#annotated-cell-4-26" aria-hidden="true" tabindex="-1"></a>                        state.messages.extend(messages)</span>
-<span id="annotated-cell-4-27"><a href="#annotated-cell-4-27" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">else</span>:</span>
-<span id="annotated-cell-4-28"><a href="#annotated-cell-4-28" aria-hidden="true" tabindex="-1"></a>                        <span class="cf">break</span>  <span class="co"># agent is done</span></span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-4" data-target-annotation="4">4</button><span id="annotated-cell-4-29" class="code-annotation-target"><a href="#annotated-cell-4-29" aria-hidden="true" tabindex="-1"></a>            <span class="cf">except</span> AgentInterrupted:</span>
-<span id="annotated-cell-4-30"><a href="#annotated-cell-4-30" aria-hidden="true" tabindex="-1"></a>                <span class="co"># operator interrupted agent</span></span>
-<span id="annotated-cell-4-31"><a href="#annotated-cell-4-31" aria-hidden="true" tabindex="-1"></a>                state.messages.extend(</span>
-<span id="annotated-cell-4-32"><a href="#annotated-cell-4-32" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">await</span> ch.after_cancel(state.messages)</span>
-<span id="annotated-cell-4-33"><a href="#annotated-cell-4-33" aria-hidden="true" tabindex="-1"></a>                )</span>
-<span id="annotated-cell-4-34"><a href="#annotated-cell-4-34" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
-<span id="annotated-cell-4-35"><a href="#annotated-cell-4-35" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-4-36"><a href="#annotated-cell-4-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-14"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-14-1"><a href="#annotated-cell-14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> (</span>
+<span id="annotated-cell-14-2"><a href="#annotated-cell-14-2" aria-hidden="true" tabindex="-1"></a>    AgentState, agent_channel, AgentInterrupted</span>
+<span id="annotated-cell-14-3"><a href="#annotated-cell-14-3" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="annotated-cell-14-4"><a href="#annotated-cell-14-4" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.model <span class="im">import</span> execute_tools, get_model</span>
+<span id="annotated-cell-14-5"><a href="#annotated-cell-14-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-14-6"><a href="#annotated-cell-14-6" aria-hidden="true" tabindex="-1"></a><span class="cf">async</span> <span class="kw">def</span> execute(state: AgentState) <span class="op">-&gt;</span> AgentState:</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-14" data-target-annotation="1">1</button><span id="annotated-cell-14-7" class="code-annotation-target"><a href="#annotated-cell-14-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">async</span> <span class="cf">with</span> agent_channel() <span class="im">as</span> ch:</span>
+<span id="annotated-cell-14-8"><a href="#annotated-cell-14-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">while</span> <span class="va">True</span>:</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-14" data-target-annotation="2">2</button><span id="annotated-cell-14-9" class="code-annotation-target"><a href="#annotated-cell-14-9" aria-hidden="true" tabindex="-1"></a>            <span class="co"># handle operator messages</span></span>
+<span id="annotated-cell-14-10"><a href="#annotated-cell-14-10" aria-hidden="true" tabindex="-1"></a>            state.messages.extend(</span>
+<span id="annotated-cell-14-11"><a href="#annotated-cell-14-11" aria-hidden="true" tabindex="-1"></a>                <span class="cf">await</span> ch.before_turn(state.messages)</span>
+<span id="annotated-cell-14-12"><a href="#annotated-cell-14-12" aria-hidden="true" tabindex="-1"></a>            )</span>
+<span id="annotated-cell-14-13"><a href="#annotated-cell-14-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-14-14"><a href="#annotated-cell-14-14" aria-hidden="true" tabindex="-1"></a>            <span class="cf">try</span>:</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-14" data-target-annotation="3">3</button><span id="annotated-cell-14-15" class="code-annotation-target"><a href="#annotated-cell-14-15" aria-hidden="true" tabindex="-1"></a>                <span class="cf">with</span> ch.turn_scope():</span>
+<span id="annotated-cell-14-16"><a href="#annotated-cell-14-16" aria-hidden="true" tabindex="-1"></a>                    state.output <span class="op">=</span> <span class="cf">await</span> get_model().generate(</span>
+<span id="annotated-cell-14-17"><a href="#annotated-cell-14-17" aria-hidden="true" tabindex="-1"></a>                        state.messages, tools<span class="op">=</span>tools</span>
+<span id="annotated-cell-14-18"><a href="#annotated-cell-14-18" aria-hidden="true" tabindex="-1"></a>                    )</span>
+<span id="annotated-cell-14-19"><a href="#annotated-cell-14-19" aria-hidden="true" tabindex="-1"></a>                    state.messages.append(state.output.message)</span>
+<span id="annotated-cell-14-20"><a href="#annotated-cell-14-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-14-21"><a href="#annotated-cell-14-21" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">if</span> state.output.message.tool_calls:</span>
+<span id="annotated-cell-14-22"><a href="#annotated-cell-14-22" aria-hidden="true" tabindex="-1"></a>                        messages, _ <span class="op">=</span> <span class="cf">await</span> execute_tools(</span>
+<span id="annotated-cell-14-23"><a href="#annotated-cell-14-23" aria-hidden="true" tabindex="-1"></a>                            state.messages,</span>
+<span id="annotated-cell-14-24"><a href="#annotated-cell-14-24" aria-hidden="true" tabindex="-1"></a>                            tools</span>
+<span id="annotated-cell-14-25"><a href="#annotated-cell-14-25" aria-hidden="true" tabindex="-1"></a>                        )</span>
+<span id="annotated-cell-14-26"><a href="#annotated-cell-14-26" aria-hidden="true" tabindex="-1"></a>                        state.messages.extend(messages)</span>
+<span id="annotated-cell-14-27"><a href="#annotated-cell-14-27" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">else</span>:</span>
+<span id="annotated-cell-14-28"><a href="#annotated-cell-14-28" aria-hidden="true" tabindex="-1"></a>                        <span class="cf">break</span>  <span class="co"># agent is done</span></span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-14" data-target-annotation="4">4</button><span id="annotated-cell-14-29" class="code-annotation-target"><a href="#annotated-cell-14-29" aria-hidden="true" tabindex="-1"></a>            <span class="cf">except</span> AgentInterrupted:</span>
+<span id="annotated-cell-14-30"><a href="#annotated-cell-14-30" aria-hidden="true" tabindex="-1"></a>                <span class="co"># operator interrupted agent</span></span>
+<span id="annotated-cell-14-31"><a href="#annotated-cell-14-31" aria-hidden="true" tabindex="-1"></a>                state.messages.extend(</span>
+<span id="annotated-cell-14-32"><a href="#annotated-cell-14-32" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">await</span> ch.after_cancel(state.messages)</span>
+<span id="annotated-cell-14-33"><a href="#annotated-cell-14-33" aria-hidden="true" tabindex="-1"></a>                )</span>
+<span id="annotated-cell-14-34"><a href="#annotated-cell-14-34" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="annotated-cell-14-35"><a href="#annotated-cell-14-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-14-36"><a href="#annotated-cell-14-36" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> state</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-4" data-target-annotation="1">1</dt>
+<dt data-target-cell="annotated-cell-14" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-4" data-code-lines="7" data-code-annotation="1">Open the agent channel. ACP clients see a clean shutdown when the agent loop exits.</span>
+<span data-code-cell="annotated-cell-14" data-code-lines="7" data-code-annotation="1">Open the agent channel. ACP clients see a clean shutdown when the agent loop exits.</span>
 </dd>
-<dt data-target-cell="annotated-cell-4" data-target-annotation="2">2</dt>
+<dt data-target-cell="annotated-cell-14" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-4" data-code-lines="9,12" data-code-annotation="2">Drain any messages the operator queued between turns. Blocks for an initial user message on the first turn if <code>state.messages</code> has none.</span>
+<span data-code-cell="annotated-cell-14" data-code-lines="9,12" data-code-annotation="2">Drain any messages the operator queued between turns. Blocks for an initial user message on the first turn if <code>state.messages</code> has none.</span>
 </dd>
-<dt data-target-cell="annotated-cell-4" data-target-annotation="3">3</dt>
+<dt data-target-cell="annotated-cell-14" data-target-annotation="3">3</dt>
 <dd>
-<span data-code-cell="annotated-cell-4" data-code-lines="15,28" data-code-annotation="3">The cancel target for the operator’s <strong>Esc</strong>, entered and exited per turn.</span>
+<span data-code-cell="annotated-cell-14" data-code-lines="15,28" data-code-annotation="3">The cancel target for the operator’s <strong>Esc</strong>, entered and exited per turn.</span>
 </dd>
-<dt data-target-cell="annotated-cell-4" data-target-annotation="4">4</dt>
+<dt data-target-cell="annotated-cell-14" data-target-annotation="4">4</dt>
 <dd>
-<span data-code-cell="annotated-cell-4" data-code-lines="29,34" data-code-annotation="4"><code>after_cancel</code> synthesizes a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessagetool">ChatMessageTool</a></span> with <code>error.type="cancelled"</code> for any in-flight tool calls (so the next turn sees a clean tool_call / tool_result pair) and appends the operator’s follow-up message.</span>
+<span data-code-cell="annotated-cell-14" data-code-lines="29,34" data-code-annotation="4"><code>after_cancel</code> synthesizes a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#chatmessagetool">ChatMessageTool</a></span> with <code>error.type="cancelled"</code> for any in-flight tool calls (so the next turn sees a clean tool_call / tool_result pair) and appends the operator’s follow-up message.</span>
 </dd>
 </dl>
-<p>Notes:</p>
-<ul>
-<li><p>Custom solvers and agents without this code still run normally. They just don’t appear in the <code>inspect acp</code> picker.</p></li>
-<li><p>Sub-agents invoked via <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#handoff">handoff()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#as_tool">as_tool()</a></span>, or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> open their own channel but are not bound to the ACP transport. Only the outermost agent in a sample is ACP-controllable; sub-agent activity collapses to a single tool call in the operator’s view.</p></li>
-<li><p>Hard sample cancels (limits, eval shutdown) propagate as <code>CancelledError</code> and unwind the agent normally. <code>ch.turn_scope()</code> distinguishes the two: only producer-driven interrupts raise <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentinterrupted">AgentInterrupted</a></span>.</p></li>
-</ul>
 </section>
-<section id="using-other-acp-clients" class="level2">
-<h2 class="anchored" data-anchor-id="using-other-acp-clients">Using Other ACP Clients</h2>
-<p>Any client that speaks the <a href="https://agentclientprotocol.com">Agent Client Protocol</a> can attach to a running eval, including editors with built-in ACP support (such as <a href="https://zed.dev">Zed</a>) or a custom built client.</p>
-<section id="standard-clients" class="level3">
-<h3 class="anchored" data-anchor-id="standard-clients">Standard Clients</h3>
-<p>ACP clients launch the agent as a subprocess and exchange JSON-RPC frames over its stdio. Inspect provides <code>inspect acp --stdio</code> as the bridge: the editor spawns it, and it forwards messages between the editor’s stdio and a running eval’s ACP socket.</p>
-<p>To use Inspect from Zed, add an entry like this to your <code>settings.json</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"agent_servers"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"Inspect"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"command"</span><span class="fu">:</span> <span class="st">"inspect"</span><span class="fu">,</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"args"</span><span class="fu">:</span> <span class="ot">[</span><span class="st">"acp"</span><span class="ot">,</span> <span class="st">"--stdio"</span><span class="ot">]</span></span>
-<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
-<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
-<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>The bridge auto-discovers the most recently started local eval running with <code>--acp-server</code>. If multiple evals are running it picks the newest and lists the others on stderr (visible in the editor’s debug pane). To target a specific eval, pass <code>--eval-id &lt;id&gt;</code>; for an explicit transport, pass <code>--socket &lt;path-or-host:port&gt;</code>.</p>
-<p>Editors get the same intervention surface as <code>inspect acp</code>: pick among running samples, interrupt turns, send follow-up messages, and respond to approval prompts. Editors with native plan rendering display <code>update_plan</code> and <code>todo_write</code> calls as their own plan widgets.</p>
-</section>
-<section id="writing-a-client" class="level3">
-<h3 class="anchored" data-anchor-id="writing-a-client">Writing a Client</h3>
-<p>Custom clients speak ACP directly over the eval’s socket. Inspect implements the full standard ACP surface plus a handful of extensions; a client that uses only standard methods works without modification.</p>
+<section id="writing-an-acp-client" class="level2">
+<h2 class="anchored" data-anchor-id="writing-an-acp-client">Writing an ACP Client</h2>
+<p>Any client that speaks the <a href="https://agentclientprotocol.com">Agent Client Protocol</a> can attach to a running eval. Custom clients speak ACP directly over the eval’s socket. Inspect implements the full standard ACP surface plus a handful of extensions; a client that uses only standard methods works without modification.</p>
 <p>The standard surface is documented at <a href="https://agentclientprotocol.com">agentclientprotocol.com</a>. The methods Inspect expects:</p>
 <table class="caption-top table">
 <colgroup>
@@ -767,6 +839,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>session/request_permission</code></td>
 <td>Ask the operator to approve a tool call.</td>
+</tr>
+<tr class="even">
+<td><code>elicitation/create</code></td>
+<td>Ask the operator a structured question via the <code>ask_user</code> tool (form mode; opt-in via <code>clientCapabilities.elicitation.form</code>).</td>
 </tr>
 </tbody>
 </table>
@@ -813,19 +889,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p>Clients with a dedicated plan UI indicate this at <code>initialize</code> by setting <code>inspect.plan_rendering</code> to <code>true</code> in their capability <code>_meta</code>:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"clientCapabilities"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"_meta"</span><span class="fu">:</span> <span class="fu">{</span></span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"inspect.plan_rendering"</span><span class="fu">:</span> <span class="kw">true</span></span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Inspect then translates <code>update_plan</code> and <code>todo_write</code> tool calls into <code>AgentPlanUpdate</code> notifications, which the client renders in its plan widget.</p>
+<p>Clients with a dedicated plan UI indicate this at <code>initialize</code> by setting <code>inspect.plan_rendering</code> to <code>true</code> in their capability <code>_meta</code>. Clients that can render structured forms — required to receive <code>ask_user</code> prompts — declare ACP’s standard <code>elicitation.form</code> capability:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"clientCapabilities"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"elicitation"</span><span class="fu">:</span> <span class="fu">{</span> <span class="dt">"form"</span><span class="fu">:</span> <span class="fu">{}</span> <span class="fu">},</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>    <span class="dt">"_meta"</span><span class="fu">:</span> <span class="fu">{</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>      <span class="dt">"inspect.plan_rendering"</span><span class="fu">:</span> <span class="kw">true</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="fu">}</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">}</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="fu">}</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Inspect then translates <code>update_plan</code> and <code>todo_write</code> tool calls into <code>AgentPlanUpdate</code> notifications, which the client renders in its plan widget. With <code>elicitation.form</code> advertised, the agent’s <code>ask_user</code> tool dispatches <code>elicitation/create</code> to the attached client and renders the operator’s response back to the model as a structured tool result. Without it, the <code>ask_user</code> prompt parks the sample until a client that declares <code>elicitation.form</code> attaches — under <code>--acp-server</code>, ACP is the exclusive human channel, with no silent fallback to the in-proc panel or console.</p>
 <p>The full set of extensions and metadata keys is defined in <a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/main/src/inspect_ai/agent/_acp/inspect_ext.py">inspect_ext.py</a>.</p>
 
 
-</section>
 </section>
 
 </main> <!-- /main -->

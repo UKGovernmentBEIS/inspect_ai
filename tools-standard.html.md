@@ -18,6 +18,7 @@ Agentic tools include:
 - [Update Plan](./tools-standard.html.md#sec-update-plan) which helps the model tracks steps and progress across longer horizon tasks.
 - [Memory](./tools-standard.html.md#sec-memory) which enables storing and retrieving information through a memory file directory.
 - [Think](./tools-standard.html.md#sec-think), which provides models the ability to include an additional thinking step as part of getting to its final answer.
+- [Intervention](./tools-standard.html.md#sec-intervention), which enable the model to ask questions or send notifications to the user.
 
 ## Web Search
 
@@ -674,7 +675,7 @@ def intercode_ctf():
     )
 ```
 
-## Read-Only Tools
+## File Reading
 
 Inspect provides three read-only sandbox tools — [read_file()](./reference/inspect_ai.tool.html.md#read_file), [list_files()](./reference/inspect_ai.tool.html.md#list_files), and [grep()](./reference/inspect_ai.tool.html.md#grep) — for agents that need filesystem access without write capabilities. These are the default tools for [research()](./reference/inspect_ai.agent.html.md#research) and [plan()](./reference/inspect_ai.agent.html.md#plan) subagents in the deep agent system, but are useful in any eval where you want to give a model read-only access.
 
@@ -937,3 +938,45 @@ def swe_bench():
 ```
 
 Note that the effectivess of using the system prompt will vary considerably across tasks, tools, and models, so should definitely be the subject of experimentation.
+
+## Intervention
+
+The `ask_user()` and `notify_user()` tools let models communicate with a human operator during a sample. They pair with Inspect’s [Agent Intervention](./intervention.html.md) features (the `inspect acp` client, the in-process task display, and out-of-band notifications).
+
+Both of these tools take advantage of notifications, which are delivered via [Apprise](https://github.com/caronc/apprise) (Slack, desktop, SMS, email, and many other services) when the eval is configured with a notification target. See the [Notifications](./intervention.html.md#notifications) section of the Agent Intervention article for more details.
+
+### Ask User
+
+The `ask_user()` tool lets the model request structured information from the operator. It uses the [ACP Elicitation](https://agentclientprotocol.com/rfds/elicitation) standard, which supports text, boolean, enum, and other field types.
+
+``` python
+from inspect_ai.agent import agent, react
+from inspect_ai.tool import ask_user, bash, text_editor
+
+@agent
+def ctf_agent():
+    return react(
+        description="Expert at completing cybersecurity challenges.",
+        prompt="You are an expert at CTF challenges.",
+        tools=[bash(), text_editor(), ask_user()]
+    )
+```
+
+The prompt is dispatched to whichever surface is attached: an ACP client (e.g. `inspect acp`) if connected, otherwise the in-process Textual panel or the console. The sample pauses on the call until the operator responds.
+
+### Notify User
+
+The `notify_user()` tool lets the model send fire-and-forget status messages to the operator — useful for long-running agents that want to flag progress or surface a heads-up without waiting for a reply.
+
+``` python
+from inspect_ai.agent import agent, react
+from inspect_ai.tool import ask_user, notify_user, bash, text_editor
+
+@agent
+def ctf_agent():
+    return react(
+        description="Expert at completing cybersecurity challenges.",
+        prompt="You are an expert at CTF challenges.",
+        tools=[bash(), text_editor(), ask_user(), notify_user()]
+    )
+```

@@ -608,7 +608,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#task-setup-4" id="toc-task-setup-4" class="nav-link" data-scroll-target="#task-setup-4">Task Setup</a></li>
   </ul></li>
-  <li><a href="#sec-read-only-tools" id="toc-sec-read-only-tools" class="nav-link" data-scroll-target="#sec-read-only-tools">Read-Only Tools</a>
+  <li><a href="#file-reading" id="toc-file-reading" class="nav-link" data-scroll-target="#file-reading">File Reading</a>
   <ul class="collapse">
   <li><a href="#read_file" id="toc-read_file" class="nav-link" data-scroll-target="#read_file">read_file</a></li>
   <li><a href="#list_files" id="toc-list_files" class="nav-link" data-scroll-target="#list_files">list_files</a></li>
@@ -627,6 +627,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#usage" id="toc-usage" class="nav-link" data-scroll-target="#usage">Usage</a></li>
   <li><a href="#tool-description" id="toc-tool-description" class="nav-link" data-scroll-target="#tool-description">Tool Description</a></li>
   <li><a href="#system-prompt" id="toc-system-prompt" class="nav-link" data-scroll-target="#system-prompt">System Prompt</a></li>
+  </ul></li>
+  <li><a href="#sec-intervention" id="toc-sec-intervention" class="nav-link" data-scroll-target="#sec-intervention">Intervention</a>
+  <ul class="collapse">
+  <li><a href="#ask-user" id="toc-ask-user" class="nav-link" data-scroll-target="#ask-user">Ask User</a></li>
+  <li><a href="#notify-user" id="toc-notify-user" class="nav-link" data-scroll-target="#notify-user">Notify User</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -671,6 +676,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><a href="./tools-standard.html#sec-update-plan">Update Plan</a> which helps the model tracks steps and progress across longer horizon tasks.</li>
 <li><a href="./tools-standard.html#sec-memory">Memory</a> which enables storing and retrieving information through a memory file directory.</li>
 <li><a href="./tools-standard.html#sec-think">Think</a>, which provides models the ability to include an additional thinking step as part of getting to its final answer.</li>
+<li><a href="./tools-standard.html#sec-intervention">Intervention</a>, which enable the model to ask questions or send notifications to the user.</li>
 </ul>
 </section>
 <section id="sec-web-search" class="level2">
@@ -1424,8 +1430,8 @@ Warning
 <span id="cb22-13"><a href="#cb22-13" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>
-<section id="sec-read-only-tools" class="level2">
-<h2 class="anchored" data-anchor-id="sec-read-only-tools">Read-Only Tools</h2>
+<section id="file-reading" class="level2">
+<h2 class="anchored" data-anchor-id="file-reading">File Reading</h2>
 <p>Inspect provides three read-only sandbox tools — <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#read_file">read_file()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#list_files">list_files()</a></span>, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#grep">grep()</a></span> — for agents that need filesystem access without write capabilities. These are the default tools for <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#research">research()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#plan">plan()</a></span> subagents in the deep agent system, but are useful in any eval where you want to give a model read-only access.</p>
 <p>All three tools require a <a href="./sandboxing.html">Sandbox Environment</a> and accept optional <code>timeout</code>, <code>user</code>, and <code>sandbox</code> parameters matching the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#bash">bash()</a></span> tool.</p>
 <section id="read_file" class="level3">
@@ -1647,6 +1653,40 @@ Warning
 <span id="cb32-36"><a href="#cb32-36" aria-hidden="true" tabindex="-1"></a>        sandbox<span class="op">=</span>(<span class="st">"docker"</span>, <span class="st">"compose.yaml"</span>)</span>
 <span id="cb32-37"><a href="#cb32-37" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that the effectivess of using the system prompt will vary considerably across tasks, tools, and models, so should definitely be the subject of experimentation.</p>
+</section>
+</section>
+<section id="sec-intervention" class="level2">
+<h2 class="anchored" data-anchor-id="sec-intervention">Intervention</h2>
+<p>The <code>ask_user()</code> and <code>notify_user()</code> tools let models communicate with a human operator during a sample. They pair with Inspect’s <a href="./intervention.html">Agent Intervention</a> features (the <code>inspect acp</code> client, the in-process task display, and out-of-band notifications).</p>
+<p>Both of these tools take advantage of notifications, which are delivered via <a href="https://github.com/caronc/apprise">Apprise</a> (Slack, desktop, SMS, email, and many other services) when the eval is configured with a notification target. See the <a href="./intervention.html#notifications">Notifications</a> section of the Agent Intervention article for more details.</p>
+<section id="ask-user" class="level3">
+<h3 class="anchored" data-anchor-id="ask-user">Ask User</h3>
+<p>The <code>ask_user()</code> tool lets the model request structured information from the operator. It uses the <a href="https://agentclientprotocol.com/rfds/elicitation">ACP Elicitation</a> standard, which supports text, boolean, enum, and other field types.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> agent, react</span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> ask_user, bash, text_editor</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ctf_agent():</span>
+<span id="cb33-6"><a href="#cb33-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> react(</span>
+<span id="cb33-7"><a href="#cb33-7" aria-hidden="true" tabindex="-1"></a>        description<span class="op">=</span><span class="st">"Expert at completing cybersecurity challenges."</span>,</span>
+<span id="cb33-8"><a href="#cb33-8" aria-hidden="true" tabindex="-1"></a>        prompt<span class="op">=</span><span class="st">"You are an expert at CTF challenges."</span>,</span>
+<span id="cb33-9"><a href="#cb33-9" aria-hidden="true" tabindex="-1"></a>        tools<span class="op">=</span>[bash(), text_editor(), ask_user()]</span>
+<span id="cb33-10"><a href="#cb33-10" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The prompt is dispatched to whichever surface is attached: an ACP client (e.g.&nbsp;<code>inspect acp</code>) if connected, otherwise the in-process Textual panel or the console. The sample pauses on the call until the operator responds.</p>
+</section>
+<section id="notify-user" class="level3">
+<h3 class="anchored" data-anchor-id="notify-user">Notify User</h3>
+<p>The <code>notify_user()</code> tool lets the model send fire-and-forget status messages to the operator — useful for long-running agents that want to flag progress or surface a heads-up without waiting for a reply.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb34"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> agent, react</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> ask_user, notify_user, bash, text_editor</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="at">@agent</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ctf_agent():</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> react(</span>
+<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>        description<span class="op">=</span><span class="st">"Expert at completing cybersecurity challenges."</span>,</span>
+<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>        prompt<span class="op">=</span><span class="st">"You are an expert at CTF challenges."</span>,</span>
+<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>        tools<span class="op">=</span>[bash(), text_editor(), ask_user(), notify_user()]</span>
+<span id="cb34-10"><a href="#cb34-10" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>

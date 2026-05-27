@@ -28,6 +28,7 @@ Agentic tools include:
 - [Update Plan](./tools-standard.html.md#sec-update-plan) which helps the model tracks steps and progress across longer horizon tasks.
 - [Memory](./tools-standard.html.md#sec-memory) which enables storing and retrieving information through a memory file directory.
 - [Think](./tools-standard.html.md#sec-think), which provides models the ability to include an additional thinking step as part of getting to its final answer.
+- [Intervention](./tools-standard.html.md#sec-intervention), which enable the model to ask questions or send notifications to the user.
 
 If you are only interested in using the standard tools, check out their respective documentation links above. To learn more about creating your own tools read on below.
 
