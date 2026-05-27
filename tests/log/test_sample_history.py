@@ -6,11 +6,17 @@ from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.event import InfoEvent, ModelEvent
 from inspect_ai.log._log import EvalSample, EventsData
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
+from inspect_ai.log._recorders.streaming import materialize_streaming_sample
 from inspect_ai.log._recorders.types import SampleEvent
-from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelOutput
+from inspect_ai.model import ChatMessageUser, GenerateConfig, ModelCall, ModelOutput
 
 
-def _model(uuid: str, completion: str, pending: bool | None = None) -> ModelEvent:
+def _model(
+    uuid: str,
+    completion: str,
+    pending: bool | None = None,
+    call: ModelCall | None = None,
+) -> ModelEvent:
     return ModelEvent(
         uuid=uuid,
         model="mockllm/model",
@@ -20,6 +26,7 @@ def _model(uuid: str, completion: str, pending: bool | None = None) -> ModelEven
         config=GenerateConfig(),
         output=ModelOutput.from_content("mockllm/model", completion),
         pending=pending,
+        call=call,
     )
 
 
@@ -44,6 +51,32 @@ def test_open_sample_history_latest_payload_first_insert_order(tmp_path):
     assert rows[0].event["output"]["completion"] == "complete"
     assert rows[0].event.get("pending") is None
     assert rows[1].event["data"] == "middle"
+
+
+def test_open_sample_history_tail_preserves_logical_order(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    first = _model("event-1", "pending", pending=True)
+    other = InfoEvent(uuid="event-2", data="middle")
+    latest = _model("event-1", "complete", pending=None)
+
+    db.log_events(
+        [
+            SampleEvent(id="sample", epoch=1, event=first),
+            SampleEvent(id="sample", epoch=1, event=other),
+            SampleEvent(id="sample", epoch=1, event=latest),
+        ]
+    )
+
+    with db.open_sample_history("sample", 1) as history:
+        full_rows = history.raw_event_rows
+
+    with db.open_sample_history_tail("sample", 1, 2) as history:
+        tail_rows = history.raw_event_rows
+
+    assert [row.event_id for row in full_rows] == ["event-1", "event-2"]
+    assert [row.event_id for row in tail_rows] == ["event-1", "event-2"]
+    assert tail_rows[0].event["output"]["completion"] == "complete"
+    assert tail_rows[1].event["data"] == "middle"
 
 
 @pytest.mark.parametrize("event_id_literal", ["NULL", "''"])
@@ -151,6 +184,94 @@ def test_sample_history_translates_buffer_pool_refs_to_eval_positions(tmp_path):
     )
 
 
+def test_log_events_restores_pool_indices_when_transaction_rolls_back(
+    tmp_path, monkeypatch
+):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    event = _model(
+        "event-1",
+        "answer",
+        call=ModelCall(
+            request={"messages": [{"role": "user", "content": "question"}]},
+            response={},
+        ),
+    )
+    original_condense_event = db._condense_event
+
+    def fail_after_condense(conn, sample_event):
+        original_condense_event(conn, sample_event)
+        raise RuntimeError("forced rollback")
+
+    monkeypatch.setattr(db, "_condense_event", fail_after_condense)
+    with pytest.raises(RuntimeError, match="forced rollback"):
+        db.log_events([SampleEvent(id="sample", epoch=1, event=event)])
+
+    monkeypatch.setattr(db, "_condense_event", original_condense_event)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=event)])
+
+    with db.open_sample_history("sample", 1) as history:
+        assert len(history.message_pool) == 1
+        assert len(history.call_pool) == 1
+        materialized = materialize_streaming_sample(
+            EvalSample(id="sample", epoch=1, input="question", target="answer"),
+            history,
+        )
+
+    model_event = materialized.events[0]
+    assert isinstance(model_event, ModelEvent)
+    assert model_event.input_refs is None
+    assert model_event.input[0].content == "question"
+    assert model_event.call is not None
+    assert model_event.call.call_refs is None
+    assert model_event.call.request["messages"] == [
+        {"role": "user", "content": "question"}
+    ]
+
+
+def test_log_events_keeps_pool_indices_when_sync_fails_after_commit(
+    tmp_path, monkeypatch
+):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+
+    def model_event(uuid: str, content: str) -> ModelEvent:
+        return _model(uuid, f"answer {content}").model_copy(
+            update={"input": [ChatMessageUser(id=f"{uuid}-input", content=content)]}
+        )
+
+    db.log_events(
+        [SampleEvent(id="sample", epoch=1, event=model_event("event-1", "a"))]
+    )
+
+    original_sync = db._sync
+
+    def fail_sync():
+        raise RuntimeError("sync failed")
+
+    monkeypatch.setattr(db, "_sync", fail_sync)
+    with pytest.raises(RuntimeError, match="sync failed"):
+        db.log_events(
+            [SampleEvent(id="sample", epoch=1, event=model_event("event-2", "b"))]
+        )
+
+    monkeypatch.setattr(db, "_sync", original_sync)
+    db.log_events(
+        [SampleEvent(id="sample", epoch=1, event=model_event("event-3", "c"))]
+    )
+
+    with db.open_sample_history("sample", 1) as history:
+        materialized = materialize_streaming_sample(
+            EvalSample(id="sample", epoch=1, input="question", target="answer"),
+            history,
+        )
+
+    inputs = [
+        event.input[0].content
+        for event in materialized.events
+        if isinstance(event, ModelEvent)
+    ]
+    assert inputs == ["a", "b", "c"]
+
+
 def test_open_sample_history_defers_remove_samples_until_release(tmp_path):
     db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
     db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
@@ -205,3 +326,40 @@ def test_open_sample_history_releases_write_lock_after_snapshot(tmp_path):
 
         assert lock_available is True
         assert [event["data"] for event in history.iter_events()] == ["hello"]
+
+
+def test_sample_history_read_methods_use_deferred_transactions(
+    tmp_path, monkeypatch
+) -> None:
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+
+    statements: list[str] = []
+    original_connect = sqlite3.connect
+
+    class RecordingConnection(sqlite3.Connection):
+        def execute(self, sql, *args, **kwargs):
+            statements.append(str(sql))
+            return super().execute(sql, *args, **kwargs)
+
+    def connect(*args, **kwargs):
+        kwargs["factory"] = RecordingConnection
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", connect)
+
+    assert db.sample_event_count("sample", 1) == 1
+    assert db.sample_attachment("sample", 1, "missing") is None
+    with db.open_sample_history_tail("sample", 1, 1):
+        pass
+    with db.open_sample_history_from("sample", 1, 0):
+        pass
+    with db.open_sample_history("sample", 1):
+        pass
+
+    begin_statements = [
+        statement.strip().upper()
+        for statement in statements
+        if statement.strip().upper().startswith("BEGIN")
+    ]
+    assert begin_statements == ["BEGIN", "BEGIN", "BEGIN", "BEGIN", "BEGIN"]
