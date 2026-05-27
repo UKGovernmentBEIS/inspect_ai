@@ -24103,41 +24103,45 @@ pre._value_8citi_25 {
   width: fit-content;
   max-width: 100%;
 }
-._gridContainer_1253r_1 {
+._gridContainer_8ail9_1 {
   max-width: 100%;
   max-height: 60vh;
   overflow: auto;
   padding: 0.5rem 1rem;
 }
 
-._gridContainer_1253r_1 .ag-layout-auto-height .ag-center-cols-viewport {
+._gridContainer_8ail9_1 .ag-layout-auto-height .ag-center-cols-viewport {
   min-height: unset;
+}
+
+._gridContainer_8ail9_1 .ag-body-horizontal-scroll.ag-scrollbar-invisible {
+  display: none;
 }
 
 /* Breathing room at the edges so values don't sit flush with the modal border
    (and so the last column doesn't get overlapped by the vertical scroll bar).
    The extra specificity via `:global(.ag-cell)` / `:global(.ag-header-cell)`
    is needed to win against ag-grid's built-in theme padding. */
-.ag-cell._firstCell_1253r_16,
-.ag-header-cell._firstHeader_1253r_17 {
+.ag-cell._firstCell_8ail9_20,
+.ag-header-cell._firstHeader_8ail9_21 {
   padding-left: 1rem;
 }
 
-.ag-cell._lastCell_1253r_21,
-.ag-header-cell._lastHeader_1253r_22 {
+.ag-cell._lastCell_8ail9_25,
+.ag-header-cell._lastHeader_8ail9_26 {
   padding-right: 0.5rem;
 }
 
-.ag-header-group-cell._groupHeader_1253r_26
+.ag-header-group-cell._groupHeader_8ail9_30
   .ag-header-group-cell-label {
   justify-content: center;
 }
 
-.ag-header-cell._noGroupBorder_1253r_31 {
+.ag-header-cell._noGroupBorder_8ail9_35 {
   border-top-color: transparent;
 }
 
-._groupGrid_1253r_35 + ._groupGrid_1253r_35 {
+._groupGrid_8ail9_39 + ._groupGrid_8ail9_39 {
   margin-top: 1rem;
   padding-top: 1rem;
   border-top: solid 1px var(--bs-light-border-subtle);

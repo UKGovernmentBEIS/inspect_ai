@@ -68,7 +68,6 @@ from inspect_ai.util._display import (
 from inspect_ai.util._span import SCORER_SPAN_TYPE, SCORERS_SPAN_NAME, span
 from inspect_ai.util._store import init_subtask_store
 
-from .task.log import record_scorer_value_schemas
 from .task.results import ScorerInfo, eval_results
 
 ScoreAction = Literal["append", "overwrite"]
@@ -308,18 +307,9 @@ async def score_async(
             epochs_reducer = reducers_from_log_header(log)
 
         # compute metrics
-        completed_scores = list(filter(None, scores))
-        if (
-            log.eval.scorers
-            and scorer_names
-            and len(log.eval.scorers) == len(scorer_names)
-        ):
-            record_scorer_value_schemas(
-                log.eval.scorers, scorer_names, completed_scores
-            )
         results, reductions = eval_results(
             total_samples,
-            completed_scores,
+            list(filter(None, scores)),
             epochs_reducer,
             resolved_scorers,
             log_metrics,

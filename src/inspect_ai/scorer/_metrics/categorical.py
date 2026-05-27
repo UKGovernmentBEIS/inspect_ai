@@ -16,6 +16,12 @@ def _category_names(categories: Categories) -> list[str] | None:
         return None
     if isinstance(categories, type) and issubclass(categories, StrEnum):
         return [str(member.value) for member in categories]
+    if isinstance(categories, str):
+        raise TypeError(
+            "categories must be a StrEnum type or a sequence of category "
+            f"labels, not a single string ({categories!r} would be iterated "
+            "as characters)."
+        )
     return [str(c) for c in categories]
 
 
