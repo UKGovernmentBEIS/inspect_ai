@@ -1,9 +1,10 @@
 import os
 import tempfile
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import Iterator, Literal
+from typing import TYPE_CHECKING, Iterator, Literal
 from zipfile import ZipFile
 
 from pydantic import BaseModel, Field
@@ -11,13 +12,17 @@ from typing_extensions import override
 
 from inspect_ai._display.core.display import TaskDisplayMetric
 from inspect_ai._util.constants import DEFAULT_LOG_SHARED, EVAL_LOG_FORMAT
-from inspect_ai._util.file import FileSystem, basename, dirname, file, filesystem
+from inspect_ai._util.file import FileSystem, basename, dirname, filesystem, open_file
 from inspect_ai._util.json import to_json_safe, to_json_str_safe
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.log._file import read_eval_log
 
 from ..._log import EvalSampleSummary
 from .types import SampleBuffer, SampleData, Samples
+
+if TYPE_CHECKING:
+    from .history import SampleHistory
+
 
 logger = getLogger(__name__)
 
@@ -147,7 +152,7 @@ class SampleBufferFilestore(SampleBuffer):
             self._fs.touch(f"{self._dir}.keep")
 
     def write_manifest(self, manifest: Manifest) -> None:
-        with file(self._manifest_file(), "wb") as f:
+        with open_file(self._manifest_file(), "wb") as f:
             f.write(to_json_safe(manifest))
 
     def write_segment(self, id: int, files: list[SegmentFile]) -> None:
@@ -166,7 +171,7 @@ class SampleBufferFilestore(SampleBuffer):
         # write then move for atomicity
         try:
             with open(name, "rb") as zf:
-                with file(f"{self._dir}{segment_name(id)}", "wb") as f:
+                with open_file(f"{self._dir}{segment_name(id)}", "wb") as f:
                     f.write(zf.read())
                     f.flush()
         finally:
@@ -174,7 +179,7 @@ class SampleBufferFilestore(SampleBuffer):
 
     def read_manifest(self) -> Manifest | None:
         try:
-            with file(self._manifest_file(), "r") as f:
+            with open_file(self._manifest_file(), "r") as f:
                 contents = f.read()
                 return Manifest.model_validate_json(contents)
         except FileNotFoundError:
@@ -184,7 +189,7 @@ class SampleBufferFilestore(SampleBuffer):
         self, id: int, sample_id: str | int, epoch_id: int
     ) -> SampleData:
         segment_file = f"{self._dir}{segment_name(id)}"
-        with file(segment_file, "rb") as f:
+        with open_file(segment_file, "rb") as f:
             with ZipFile(f, mode="r") as zip:
                 with zip.open(segment_file_name(sample_id, epoch_id), "r") as sf:
                     return SampleData.model_validate_json(sf.read())
@@ -339,6 +344,36 @@ class SampleBufferFilestore(SampleBuffer):
         ]
 
         return sample_data
+
+    @override
+    def sample_event_count(self, id: str | int, epoch: int) -> int:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
+
+    @override
+    def open_sample_history_tail(
+        self,
+        id: str | int,
+        epoch: int,
+        n: int,
+    ) -> AbstractContextManager["SampleHistory"]:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
+
+    @override
+    def open_sample_history_from(
+        self,
+        id: str | int,
+        epoch: int,
+        start: int,
+    ) -> AbstractContextManager["SampleHistory"]:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
+
+    @override
+    def open_sample_history(
+        self,
+        id: str | int,
+        epoch: int,
+    ) -> AbstractContextManager["SampleHistory"]:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
 
     def get_pending_segments(
         self,

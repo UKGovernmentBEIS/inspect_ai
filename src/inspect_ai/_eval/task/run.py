@@ -75,6 +75,7 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     eval_error,
 )
+from inspect_ai.log._recorders.streaming import materialize_streaming_sample
 from inspect_ai.log._samples import (
     active_sample,
 )
@@ -1381,22 +1382,29 @@ async def task_run_sample(
                         state = state_without_base64_content(state)
 
                     # emit/log sample end
-                    eval_sample = create_eval_sample(
-                        start_time=start_time,
-                        sample=sample,
-                        state=state,
-                        scores=results,
-                        error=error,
-                        limit=limit,
-                        error_retries=error_retries,
-                        started_at=sample_start_datetime(),
-                    )
+                    def make_eval_sample(include_events: bool = True) -> EvalSample:
+                        return create_eval_sample(
+                            start_time=start_time,
+                            sample=sample,
+                            state=state,
+                            scores=results,
+                            error=error,
+                            limit=limit,
+                            error_retries=error_retries,
+                            started_at=sample_start_datetime(),
+                            include_events=include_events,
+                        )
+
                     if logger:
-                        await log_sample(
-                            eval_sample=eval_sample,
+                        eval_sample = await log_sample(
+                            eval_sample=make_eval_sample(
+                                include_events=logger.buffer_db is None
+                            ),
                             logger=logger,
                             log_images=log_images,
                         )
+                    else:
+                        eval_sample = make_eval_sample()
                     await scan_eval_sample(
                         eval_sample,
                         scanner,
@@ -1495,6 +1503,7 @@ def create_eval_sample(
     limit: EvalSampleLimit | None,
     error_retries: list[EvalRetryError],
     started_at: datetime | None = None,
+    include_events: bool = True,
 ) -> EvalSample:
     # sample must have id to be logged
     id = sample.id
@@ -1523,7 +1532,7 @@ def create_eval_sample(
         scores={k: v.score for k, v in scores.items()},
         store=dict(state.store.items()),
         uuid=state.uuid,
-        events=list(transcript().events),
+        events=list(transcript().events) if include_events else [],
         timelines=list(transcript().timelines) or None,
         attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
@@ -1541,9 +1550,26 @@ def create_eval_sample(
 
 
 async def log_sample(
-    eval_sample: EvalSample, logger: TaskLogger, log_images: bool
-) -> None:
-    await logger.complete_sample(condense_sample(eval_sample, log_images), flush=True)
+    eval_sample: EvalSample,
+    logger: TaskLogger,
+    log_images: bool,
+) -> EvalSample:
+    if logger.buffer_db is None:
+        await logger.complete_sample(
+            condense_sample(eval_sample, log_images), flush=True
+        )
+        return eval_sample
+
+    logging_sample = condense_sample(
+        eval_sample.model_copy(update={"events": [], "events_data": None}),
+        log_images,
+    )
+    with logger.buffer_db.open_sample_history(
+        eval_sample.id, eval_sample.epoch
+    ) as history:
+        materialized_sample = materialize_streaming_sample(eval_sample, history)
+        await logger.complete_sample_streaming(logging_sample, history, flush=True)
+    return materialized_sample
 
 
 # we can reuse samples from a previous eval_log if and only if:

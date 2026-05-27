@@ -24,7 +24,7 @@ from inspect_ai._util.file import (
 from inspect_ai._util.json import to_json_safe
 from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.log._log import EvalSampleSummary
-from inspect_ai.log._pool import rebind_sample_timelines, resolve_sample_events_data
+from inspect_ai.log._resolve import rebind_sample_timelines, resolve_sample_events_data
 
 from ._log import EvalLog, EvalMetric, EvalSample, EvalStatus
 from ._recorders import (

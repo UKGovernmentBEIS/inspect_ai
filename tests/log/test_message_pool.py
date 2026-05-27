@@ -12,6 +12,7 @@ from inspect_ai._util.constants import LOG_SCHEMA_VERSION
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.event import Event, Timeline, TimelineEvent, TimelineSpan
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._pool import _compress_refs, _expand_refs
 from inspect_ai.log._condense import (
     condense_events,
     condense_sample,
@@ -29,11 +30,7 @@ from inspect_ai.log._log import (
     EvalSpec,
     EvalStats,
 )
-from inspect_ai.log._pool import (
-    _compress_refs,
-    _expand_refs,
-    resolve_sample_events_data,
-)
+from inspect_ai.log._resolve import resolve_sample_events_data
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageSystem,
@@ -1020,7 +1017,7 @@ def test_resolve_call_empty_refs_preserves_request():
     then sets request[default_key] = [], adding a spurious 'messages' key
     and potentially masking the original 'input' field.
     """
-    from inspect_ai.log._pool import resolve_model_event_calls
+    from inspect_ai.event._pool import resolve_model_event_calls
 
     call = ModelCall(
         request={"model": "test", "input": "What is 2+2?"},
