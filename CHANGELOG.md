@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.228 (27 May 2026)
 
 - Anthropic: Improved merging of beta headers.
 
