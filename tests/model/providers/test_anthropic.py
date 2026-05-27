@@ -1,5 +1,5 @@
 import types
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, create_autospec
 
 import pytest
@@ -189,7 +189,9 @@ def test_anthropic_full_thinking_beta_via_client_default_header() -> None:
     """
     api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
     # original casing is preserved by the SDK; detection must be case-insensitive
-    api.client._custom_headers["Anthropic-Beta"] = _FULL_THINKING_BETA
+    cast(dict[str, str], api.client._custom_headers)["Anthropic-Beta"] = (
+        _FULL_THINKING_BETA
+    )
     config = GenerateConfig(max_tokens=64, reasoning_effort="high")
     params, _extra_body, _headers, _betas = api.completion_config(config)
     assert "display" not in params["thinking"]
