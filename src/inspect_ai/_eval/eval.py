@@ -78,6 +78,7 @@ from inspect_ai.util._display import (
     display_type_initialized,
     init_display_type,
 )
+from inspect_ai.util._notify import build_apprise, init_apprise
 
 from .context import init_eval_context
 from .loader import resolve_tasks
@@ -107,6 +108,7 @@ def eval(
     trace: bool | None = None,
     display: DisplayType | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
@@ -183,6 +185,14 @@ def eval(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        notification: Enable out-of-band notifications when a human-in-the-loop
+            interaction (`ask_user`, human approval) is posted. Pass `True` to
+            send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
+            variable (single URL, comma-separated list, or path to an Apprise
+            config file). Alternatively pass a path to an Apprise YAML/text
+            config file. URLs are not accepted directly so secrets never end up
+            in source code, shell history, process listings, or eval logs.
+            Requires the `apprise` package.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -281,6 +291,7 @@ def eval(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
@@ -365,6 +376,7 @@ async def eval_async(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
@@ -431,6 +443,14 @@ async def eval_async(
         approval: Tool use approval policies.
             Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies.
             Defaults to no approval policy.
+        notification: Enable out-of-band notifications when a human-in-the-loop
+            interaction (`ask_user`, human approval) is posted. Pass `True` to
+            send via the URL(s) in the `INSPECT_EVAL_NOTIFICATION` environment
+            variable (single URL, comma-separated list, or path to an Apprise
+            config file). Alternatively pass a path to an Apprise YAML/text
+            config file. URLs are not accepted directly so secrets never end up
+            in source code, shell history, process listings, or eval logs.
+            Requires the `apprise` package.
         log_level: Level for logging to the console: "debug", "http", "sandbox",
             "info", "warning", "error", "critical", or "notset" (defaults to "warning")
         log_level_transcript: Level for logging to the log file (defaults to "info")
@@ -512,6 +532,7 @@ async def eval_async(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
@@ -588,6 +609,7 @@ async def _eval_async_inner(
     tags: list[str] | None = None,
     metadata: dict[str, Any] | None = None,
     approval: str | list[ApprovalPolicy] | ApprovalPolicyConfig | None = None,
+    notification: bool | str | None = None,
     log_level: str | None = None,
     log_level_transcript: str | None = None,
     log_dir: str | None = None,
@@ -685,6 +707,7 @@ async def _eval_async_inner(
             sandbox,
             sample_shuffle,
             checkpoint,
+            notification,
         )
 
         # warn and return empty string if we resolved no tasks
@@ -774,6 +797,7 @@ async def _eval_async_inner(
             if epochs_reducer is not None
             else None,
             approval=config_from_approval_policies(approval) if approval else None,
+            notification=notification,
             fail_on_error=fail_on_error,
             continue_on_fail=continue_on_fail,
             retry_on_error=retry_on_error,
@@ -1324,6 +1348,7 @@ async def eval_retry_async(
             else None
         )
         approval = eval_log.eval.config.approval
+        notification: bool | str | None = eval_log.eval.config.notification
         message_limit = eval_log.eval.config.message_limit
         token_limit = eval_log.eval.config.token_limit
         time_limit = eval_log.eval.config.time_limit
@@ -1447,6 +1472,7 @@ async def eval_retry_async(
                 tags=tags,
                 metadata=metadata,
                 approval=approval,
+                notification=notification,
                 log_level=log_level,
                 log_level_transcript=log_level_transcript,
                 log_dir=log_dir,
@@ -1541,6 +1567,7 @@ def eval_resolve_tasks(
     sandbox: SandboxEnvironmentType | None,
     sample_shuffle: bool | int | None,
     eval_checkpoint: CheckpointConfig | None = None,
+    notification: bool | str | None = None,
 ) -> tuple[list[ResolvedTask], list[ApprovalPolicy] | None]:
     # resolve model roles and initialize them in the eval context -- this
     # will enable tasks that reference model roles in their initialization
@@ -1570,6 +1597,9 @@ def eval_resolve_tasks(
     if isinstance(approval, str | ApprovalPolicyConfig):
         approval = approval_policies_from_config(approval)
     init_tool_approval(approval)
+
+    # install Apprise notification target for the eval scope
+    init_apprise(build_apprise(notification))
 
     # return tasks and approval
     return resolved_tasks, approval

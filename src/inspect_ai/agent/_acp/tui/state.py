@@ -37,6 +37,7 @@ from acp.schema import (
     AgentMessageChunk,
     AgentPlanUpdate,
     AgentThoughtChunk,
+    ElicitationSchema,
     PlanEntry,
     RequestPermissionRequest,
     SessionInfoUpdate,
@@ -285,6 +286,76 @@ class PendingApproval:
     event: asyncio.Event
     chosen_option_id: str | None = None
     cancelled: bool = False
+
+
+ElicitationAction = Literal["accept", "decline", "cancel"]
+"""Action submitted by the operator in response to an elicitation card.
+
+Mirrors ACP's ``elicitation/create`` response discriminator.
+``cancel`` is used for the implicit cancellation paths (session
+teardown, sample interrupt) — the operator never picks it from a
+button.
+"""
+
+
+@dataclass
+class PendingElicitation:
+    """An in-flight ACP ``elicitation/create`` awaiting a submission.
+
+    Held on :class:`SessionState` (one at a time — the agent loop
+    issues one ``ask_user`` call at a time) while the inline form
+    card is visible. The ``event`` lets the client-side JSON-RPC
+    handler park on ``event.wait()`` until the card's Submit /
+    Decline button (or one of the cancel paths via
+    :meth:`mark_complete` / :meth:`mark_interrupted`) calls
+    :meth:`SessionState.resolve_elicitation`, which sets the event
+    and populates ``action`` + ``content`` for the handler to read.
+
+    Bare-minimum design for Phase 6a — Phase 6b will extract a
+    reusable inline-card primitive that may carry additional metadata
+    (timeouts, retries, etc.); for now we mirror :class:`PendingApproval`
+    one-for-one.
+    """
+
+    message: str
+    requested_schema: ElicitationSchema
+    event: asyncio.Event
+    tool_call_id: str | None = None
+    action: ElicitationAction | None = None
+    content: dict[str, Any] | None = None
+
+
+@dataclass
+class PendingCancel:
+    """An operator-initiated sample-cancel awaiting disposition.
+
+    Set on :class:`SessionState.pending_cancel` when the operator
+    invokes ``^N`` on the session screen; the inline
+    :class:`_CancelCard` mounts to render the choice and the screen
+    enters auto-follow mode so the card stays visible as new events
+    arrive (the agent keeps running while the operator deliberates —
+    see ``design/acp/elicitation.md`` "Routing policy" + Phase 6b
+    plan for the rationale).
+
+    Carries the JSON-RPC plumbing the card needs to fire
+    ``inspect/cancel_sample`` directly when Score / Error is picked:
+    the operator's pick → RPC → on success the screen flips
+    ``mark_sample_cancelling`` to start the local in-flight cleanup,
+    and the natural ``inspect/session_ended`` flow handles the
+    terminal-state transition. ``Back`` is a fire-free no-op that
+    just clears the slot.
+
+    Bare-minimum design for Phase 6b — see the slot helpers
+    :meth:`SessionState.consume_cancel_request` and
+    :meth:`SessionState.resolve_cancel`.
+    """
+
+    fails_on_error: bool
+    # The bound ACP connection — typed as ``Any`` to avoid a circular
+    # import through ``acp.connection``. The card calls
+    # ``connection.send_request(INSPECT_CANCEL_SAMPLE_METHOD, …)``.
+    connection: Any
+    session_id: str
 
 
 @dataclass
@@ -697,6 +768,22 @@ class SessionState:
         self.usage: UsageState | None = None
         self.session_title: str | None = None
         self._last_chunk_at: float | None = None
+        # In-flight ACP ``elicitation/create`` request, if any. Set by
+        # :meth:`consume_elicitation_request` when the wire handler
+        # accepts one; cleared by :meth:`resolve_elicitation` once the
+        # operator submits / declines / one of the cancel paths fires.
+        # Only one at a time — the agent loop issues at most one
+        # ``ask_user`` tool call concurrently. The session screen reads
+        # this slot to mount / unmount the inline elicitation card.
+        self.pending_elicitation: PendingElicitation | None = None
+        # Operator-initiated cancel-sample request, if any. Set by
+        # :meth:`consume_cancel_request` when the screen's ``^N`` action
+        # fires; cleared by :meth:`resolve_cancel` once the operator
+        # picks Back / Score / Error. The session screen reads this slot
+        # to mount / unmount the inline cancel card and to engage
+        # auto-follow mode (the agent keeps running while the operator
+        # deliberates — see the Phase 6b plan).
+        self.pending_cancel: PendingCancel | None = None
         # message_ids for which the server has signalled a pending
         # model event but not yet the matching completion marker. While
         # this set is non-empty the status row stays "generating" so
@@ -1382,6 +1469,16 @@ class SessionState:
         # a transient ``lifecycle == 'idle'`` to subscribers (pending
         # cleared, lifecycle bit not yet set).
         if self._clear_pending_approvals():
+            changed = True
+        # Same treatment for any in-flight elicitation: drop it as
+        # cancelled so the inline card disappears in lockstep with
+        # the rest of the in-flight UI on interrupt / session end.
+        if self._clear_pending_elicitation():
+            changed = True
+        # And any operator-pending cancel card — irrelevant once the
+        # sample is terminating by other means; the card itself would
+        # otherwise stay mounted on a session that's already complete.
+        if self._clear_pending_cancel():
             changed = True
         return changed
 
@@ -2072,6 +2169,140 @@ class SessionState:
             ):
                 any_cleared = True
         return any_cleared
+
+    # ------------------------------------------------------------------
+    # Elicitation handshake (parallel to the approval pair above)
+    # ------------------------------------------------------------------
+
+    def consume_elicitation_request(self, pending: PendingElicitation) -> None:
+        """Park a ``PendingElicitation`` so the inline card mounts.
+
+        The caller (the client-side ``elicitation/create`` handler in
+        ``client.py``) owns the ``PendingElicitation`` and reads its
+        ``action`` / ``content`` AFTER awaiting ``pending.event``. By
+        passing the object in (rather than letting state synthesize
+        it) the handler keeps the same reference that
+        :meth:`resolve_elicitation` mutates — single source of truth
+        for the resolution outcome.
+
+        Idempotence: an existing pending elicitation is cancelled
+        first so a misbehaving / racing client can't strand the prior
+        request. In practice the agent loop only issues one
+        ``ask_user`` at a time, so this is defence-in-depth.
+        """
+        if self.pending_elicitation is not None:
+            self._resolve_elicitation_inner(action="cancel")
+        self.pending_elicitation = pending
+        self._notify()
+
+    def resolve_elicitation(
+        self,
+        *,
+        action: ElicitationAction,
+        content: dict[str, Any] | None = None,
+    ) -> None:
+        """Resolve the pending elicitation; fires the event so the handler returns.
+
+        Idempotent: re-resolving an already-resolved elicitation (or
+        resolving when there's none pending) is a no-op. Pass
+        ``action="accept"`` with ``content`` for an operator submission,
+        ``action="decline"`` for an operator-driven decline, or
+        ``action="cancel"`` for unmount / disconnect / Esc / session
+        completion. The handler reads the slots set here to build its
+        wire response.
+        """
+        if self._resolve_elicitation_inner(action=action, content=content):
+            self._notify()
+
+    def _resolve_elicitation_inner(
+        self,
+        *,
+        action: ElicitationAction,
+        content: dict[str, Any] | None = None,
+    ) -> bool:
+        """Mutate-only resolve. Returns True if anything changed.
+
+        Used by :meth:`resolve_elicitation` (which notifies after) and
+        by bulk-transition helpers like
+        :meth:`_clear_pending_elicitation` that batch the elicitation
+        cancel alongside other mutations into a single ``_notify()``.
+
+        Fires ``pending.event`` here so the parked JSON-RPC handler
+        wakes immediately — the wire response is unrelated to the
+        UI-refresh notification.
+        """
+        pending = self.pending_elicitation
+        if pending is None:
+            return False
+        pending.action = action
+        pending.content = content if action == "accept" else None
+        self.pending_elicitation = None
+        pending.event.set()
+        return True
+
+    def _clear_pending_elicitation(self) -> bool:
+        """Resolve any in-flight elicitation as cancelled, NO notify.
+
+        Returns True if anything cleared. Mirrors
+        :meth:`_clear_pending_approvals` — used by the bulk
+        cancellation paths (``mark_complete`` /
+        ``mark_interrupted`` / ``mark_sample_cancelling`` via
+        ``_clear_active_work_signals``) so the elicitation card
+        disappears in lockstep with the rest of the in-flight UI
+        and the handler unblocks to send a ``cancel`` response.
+        """
+        return self._resolve_elicitation_inner(action="cancel")
+
+    # ------------------------------------------------------------------
+    # Cancel-sample handshake (operator-driven; no parked handler)
+    # ------------------------------------------------------------------
+
+    def consume_cancel_request(self, pending: PendingCancel) -> None:
+        """Park a :class:`PendingCancel` so the inline cancel card mounts.
+
+        Idempotent: if a cancel is already pending, this is a no-op —
+        the operator pressing ``^N`` while the card is already up
+        does not stomp the existing pending. (The session screen
+        treats a repeat ``^N`` as a "scroll back to the card + re-
+        engage auto-follow" gesture; see Phase 6b plan.)
+
+        Unlike the elicitation / approval pairs, there's no parked
+        JSON-RPC handler waiting on an event — the cancel-sample
+        flow is fire-and-forget from the operator's perspective and
+        the card itself fires the wire RPC when Score / Error is
+        picked.
+        """
+        if self.pending_cancel is None:
+            self.pending_cancel = pending
+            self._notify()
+
+    def resolve_cancel(self) -> None:
+        """Clear ``pending_cancel`` and notify subscribers.
+
+        Called by the card after the operator picks Back (no RPC) or
+        after the ``inspect/cancel_sample`` RPC has been dispatched
+        (success or failure). The screen's apply-loop sees the
+        cleared slot and unmounts the card. Also clears the screen's
+        auto-follow flag (managed in :class:`SessionScreen`).
+
+        Idempotent.
+        """
+        if self.pending_cancel is not None:
+            self.pending_cancel = None
+            self._notify()
+
+    def _clear_pending_cancel(self) -> bool:
+        """Clear any pending cancel, NO notify.
+
+        Returns True if anything cleared. Used by bulk-transition
+        helpers (``mark_complete`` / ``mark_interrupted``) so the
+        cancel card disappears in lockstep with the rest of the
+        in-flight UI when the sample terminates by other means.
+        """
+        if self.pending_cancel is None:
+            return False
+        self.pending_cancel = None
+        return True
 
     def _tool_call_state_from_request(
         self,
