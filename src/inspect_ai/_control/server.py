@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
-from inspect_ai._control.state import current_eval_summary
+from inspect_ai._control.state import current_eval_summaries
 from inspect_ai._util.discovery import (
     DISCOVERY_FILE_MODE,
     prepare_discovery_dir,
@@ -74,7 +74,7 @@ class ControlServer:
 
         @app.get("/evals")
         async def list_evals() -> list[dict[str, Any]]:
-            return [current_eval_summary(run_id, started_at)]
+            return current_eval_summaries(run_id, started_at)
 
         return app
 

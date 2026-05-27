@@ -96,16 +96,16 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     for s in summaries:
         rows.append(
             (
-                _short_run_id(s.get("run_id", "")),
-                ", ".join(s.get("tasks", [])) or "?",
-                ", ".join(s.get("models", [])) or "?",
+                _short_id(s.get("eval_id", "")),
+                s.get("task", "?") or "?",
+                s.get("model", "?") or "?",
                 str(s.get("samples_in_flight", 0)),
                 _format_started(s.get("started_at", 0)),
                 str(s.get("pid", "")),
             )
         )
 
-    headers = ("run_id", "task", "model", "in-flight", "started", "pid")
+    headers = ("eval_id", "task", "model", "in-flight", "started", "pid")
     widths = [
         max(len(h), max((len(r[i]) for r in rows), default=0))
         for i, h in enumerate(headers)
@@ -120,11 +120,11 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         click.echo(_fmt_row(row))
 
 
-def _short_run_id(run_id: str) -> str:
-    """Trim a run_id for display — full id is in --json output."""
-    if len(run_id) <= 12:
-        return run_id
-    return run_id[:12]
+def _short_id(identifier: str) -> str:
+    """Trim a long uuid for display — full id is in --json output."""
+    if len(identifier) <= 12:
+        return identifier
+    return identifier[:12]
 
 
 def _format_started(started_at: float) -> str:
