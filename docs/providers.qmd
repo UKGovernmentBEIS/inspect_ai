@@ -1326,6 +1326,39 @@ The following environment variables are supported by the OpenRouter AI provider
 | `OPENROUTER_API_KEY` | API key credentials (required). |
 | `OPENROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://openrouter.ai/api/v1`) |
 
+## OrcaRouter
+
+To use the [OrcaRouter](https://www.orcarouter.ai/) provider, install the `openai` package (OrcaRouter offers an OpenAI-compatible endpoint), set your credentials, and specify a model using the `--model` option:
+
+``` bash
+pip install openai
+export ORCAROUTER_API_KEY=your-orcarouter-api-key
+inspect eval arc.py --model orcarouter/openai/gpt-4o-mini
+```
+
+Model ids use the upstream `<vendor>/<model>` form (e.g. `orcarouter/anthropic/claude-opus-4.7`). The virtual router id `orcarouter/auto` selects an upstream per-request via OrcaRouter's adaptive router (see the [console](https://www.orcarouter.ai/console/routing) for strategy configuration). A full catalog is available at <https://www.orcarouter.ai/models>.
+
+For the `orcarouter` provider, the following custom model args (`-M`) are supported:
+
+| Argument | Example |
+|------------------------------------|------------------------------------|
+| `models` | `-M "models=['openai/gpt-4o', 'anthropic/claude-opus-4.7']"` — fallback list (forwarded as `extra_body.models` with `route="fallback"`) |
+| `referer` | `-M "referer=https://my-org.example/"` — overrides the `HTTP-Referer` attribution header (defaults to the Inspect docs URL) |
+| `app_title` | `-M "app_title=My Eval Harness"` — overrides the `X-Title` attribution header |
+
+: {tbl-colwidths=\[20,85\]}
+
+Reasoning options (`--reasoning-effort`, `--reasoning-tokens`) are forwarded as the standard OpenAI-compatible top-level fields. OrcaRouter passes requests through to the selected upstream using that upstream's native protocol, so `reasoning_effort` is honored by upstreams that accept that shape (OpenAI o-series / gpt-5, Gemini, Grok, Qwen, Kimi reasoning families). For Anthropic models that need the native `thinking` block, pass it via `GenerateConfig.extra_body`. Note that some Anthropic and OpenAI reasoning models reject `temperature` upstream — omit it for those models.
+
+In addition, [Tool Emulation](#tool-emulation-openai) is available for models that don't support tool calling in their API.
+
+The following environment variables are supported by the OrcaRouter provider:
+
+| Variable | Description |
+|----------------------------|--------------------------------------------|
+| `ORCAROUTER_API_KEY` | API key credentials (required). |
+| `ORCAROUTER_BASE_URL` | Base URL for requests (optional, defaults to `https://api.orcarouter.ai/v1`). |
+
 ## Hugging Face Inference Providers
 
 To use [Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers), install the `openai` package (which provides the compatibility layer), set your Hugging Face token, and specify a model using the `--model` option:
