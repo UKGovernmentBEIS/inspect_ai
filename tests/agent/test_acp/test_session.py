@@ -537,13 +537,13 @@ async def test_mark_active_promotes_client_to_head_of_chain() -> None:
             acp.attach_approver_client(client)
             acp.notify_approver_attach(client)
         # Reset driver to test the explicit mark_active calls below.
-        acp.mark_active_approver_client(_StubApproverClient())  # unknown → no-op
+        acp.mark_active_session_client(_StubApproverClient())  # unknown → no-op
         # Mark middle client active — it moves to head; others keep
         # attach order (a, c).
-        acp.mark_active_approver_client(b)
+        acp.mark_active_session_client(b)
         assert acp.approver_driver_chain() == [b, a, c]
         # Mark another active — it moves to head; b drops to attach order.
-        acp.mark_active_approver_client(c)
+        acp.mark_active_session_client(c)
         assert acp.approver_driver_chain() == [c, a, b]
 
 
@@ -557,7 +557,7 @@ async def test_mark_active_ignores_unknown_client() -> None:
         a = _StubApproverClient()
         rogue = _StubApproverClient()
         _bind_approver(acp, a)
-        acp.mark_active_approver_client(rogue)  # no-op
+        acp.mark_active_session_client(rogue)  # no-op
         # Driver chain unchanged.
         assert acp.approver_driver_chain() == [a]
 
@@ -569,7 +569,7 @@ async def test_unsubscribing_the_active_driver_resets_to_first_attached() -> Non
         b = _StubApproverClient()
         _bind_approver(acp, a)
         unsub_b = _bind_approver(acp, b)
-        acp.mark_active_approver_client(b)
+        acp.mark_active_session_client(b)
         assert acp.approver_driver_chain() == [b, a]
         unsub_b()
         # b is gone — fall back to first-attached.
@@ -610,7 +610,7 @@ async def test_noop_session_approver_client_is_no_op() -> None:
     assert noop.has_approver_clients() is False
     assert noop.has_ever_had_approver_client() is False
     # mark_active and notify_approver_attach on no-op are also safe.
-    noop.mark_active_approver_client(client)
+    noop.mark_active_session_client(client)
     noop.notify_approver_attach(client)
     unsub()  # no-op, no raise
     # subscribe_approver_attach on no-op returns a no-op unsubscribe.

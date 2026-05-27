@@ -27,6 +27,7 @@ The following environment variables are supported by the OpenAI provider
 | `OPENAI_BASE_URL` | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
 | `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
 | `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
+| `OPENAI_SAFETY_IDENTIFIER` | Default `safety_identifier` passed with each request (optional; overridden by the `safety_identifier` model arg if set). |
 
 ### Model Args
 

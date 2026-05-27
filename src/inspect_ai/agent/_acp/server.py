@@ -26,6 +26,7 @@ import os
 import stat
 import time
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from logging import getLogger
 from pathlib import Path
 from typing import AsyncIterator, cast
@@ -418,6 +419,30 @@ class AcpServer:
                 pass
 
 
+# Set to True by :func:`acp_server` while a server is bound and
+# accepting external ACP clients. Routing shims for ``ask_user`` and
+# human-approval consult this via :func:`acp_server_accepting_clients`
+# to distinguish "external clients can attach" from "a LiveAcpTransport
+# happens to be installed for sub-agent isolation but no server is
+# running". The Live transport is opened per-sample regardless of
+# ``--acp-server`` (sub-agent reachability needs the in-process
+# pub/sub plumbing); only this flag actually tracks whether the eval
+# is reachable from outside.
+_acp_server_accepting_var: ContextVar[bool] = ContextVar(
+    "_acp_server_accepting", default=False
+)
+
+
+def acp_server_accepting_clients() -> bool:
+    """True iff an :class:`AcpServer` is bound and accepting connections.
+
+    See :data:`_acp_server_accepting_var` for why this is separate from
+    "is the current transport a :class:`LiveAcpTransport`" — the latter
+    is always True inside a sample, regardless of ``--acp-server``.
+    """
+    return _acp_server_accepting_var.get()
+
+
 @asynccontextmanager
 async def acp_server(
     *,
@@ -432,13 +457,21 @@ async def acp_server(
 
     ``False`` (the result of ``--acp-server=false``), ``None`` (no
     flag), and ``0`` are all treated as disabled.
+
+    Flips :func:`acp_server_accepting_clients` to ``True`` for the
+    duration of the bound server so the routing shims commit to ACP
+    as the human channel. When ``transport`` is falsy the flag stays
+    ``False`` and routing falls through to the in-proc panel /
+    console — the no-``--acp-server`` baseline.
     """
     if not transport:
         yield None
         return
     server = AcpServer(eval_id=eval_id, transport=transport)
     await server.start()
+    token = _acp_server_accepting_var.set(True)
     try:
         yield server
     finally:
+        _acp_server_accepting_var.reset(token)
         await server.stop()
