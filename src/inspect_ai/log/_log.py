@@ -34,6 +34,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
+from inspect_ai.scorer._metric import ValueSchema
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
@@ -61,7 +62,6 @@ SCORER_PLACEHOLDER = "88F74D2C"
 
 class EvalConfigDefaults(TypedDict):
     epochs: int
-    epochs_reducer: list[str]
     fail_on_error: bool
     continue_on_fail: bool
     score_on_error: bool
@@ -75,7 +75,6 @@ class EvalConfigDefaults(TypedDict):
 def eval_config_defaults() -> EvalConfigDefaults:
     return {
         "epochs": 1,
-        "epochs_reducer": ["mean"],
         "fail_on_error": True,
         "continue_on_fail": False,
         "score_on_error": False,
@@ -651,6 +650,12 @@ class EvalMetric(BaseModel):
     name: str
     """Metric name."""
 
+    group: str | None = Field(default=None)
+    """Group name when this metric is one of several values produced by a
+    single metric function (e.g. one category from ``frequency()``). Metrics
+    sharing a ``group`` within an ``EvalScore`` should be displayed together;
+    ``name`` is then the leaf label within the group."""
+
     value: int | float
     """Metric value."""
 
@@ -835,6 +840,9 @@ class EvalScorer(BaseModel):
         | dict[str, list[EvalMetricDefinition]]
         | None
     ) = Field(default=None)
+
+    value_schema: ValueSchema | dict[str, ValueSchema] | None = Field(default=None)
+    """Schema describing the shape/domain of this scorer's score values."""
 
     metadata: dict[str, Any] | None = Field(default=None)
     """Scorer metadata"""
