@@ -1,5 +1,6 @@
 adlfs>=2025.8.0
 anthropic>=0.96.0
+apprise
 azure-ai-inference
 azure-identity
 google-genai>=1.69.0

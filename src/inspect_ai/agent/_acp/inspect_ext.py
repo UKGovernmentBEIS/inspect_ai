@@ -792,6 +792,7 @@ def sample_listing_meta_dict(listing: SampleListing) -> dict[str, Any]:
         "totalMessages": listing.total_messages,
         "totalTokens": listing.total_tokens,
         "failsOnError": listing.fails_on_error,
+        "pending": listing.pending,
     }
 
 

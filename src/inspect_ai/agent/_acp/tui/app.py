@@ -266,6 +266,7 @@ class InspectAcpApp(App[None]):
                 state=state,
                 on_session_update=state.consume,
                 on_request_permission=state.consume_approval_request,
+                on_request_elicitation=state.consume_elicitation_request,
                 on_inspect_event=state.consume_inspect_event,
                 notify=_notify,
             )

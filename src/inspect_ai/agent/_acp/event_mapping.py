@@ -103,6 +103,23 @@ class SubagentDepthTracker:
     considered "inside a sub-agent" and the ACP semantic forwarder
     drops them so the editor sees only the outermost conversation.
 
+    The *first* ``AGENT_SPAN_TYPE`` begin we see is treated specially:
+    it's the OUTER agent boundary (the eval framework's ``as_solver``
+    wrap, or the top-level ``run()`` of a free-standing agent). Its
+    contents are exactly the conversation we want to expose, so the
+    tracker consumes the boundary markers but keeps depth at 0 for
+    everything inside. Only the SECOND ``AGENT_SPAN_TYPE`` begin (a
+    real sub-agent nested in the outer one) increments depth.
+
+    This matters because the ACP router attaches at
+    ``acp_session().__aenter__`` — which runs BEFORE the solver opens
+    the outer ``AGENT_SPAN``. So both LIVE event processing and
+    REPLAY-on-attach (whose snapshot starts at the router's
+    attach-index) observe the outer span begin. Without the
+    "first-is-outer" rule, depth would spike to 1 the moment the
+    outer span opens and every subsequent event — the entire
+    conversation — would be silently filtered.
+
     Boundary spans are paired by id so out-of-order or unknown
     ``SpanEndEvent``s (e.g. one that opened before the tracker was
     constructed) don't underflow the counter.
@@ -116,11 +133,20 @@ class SubagentDepthTracker:
 
     def __init__(self) -> None:
         self._depth: int = 0
+        # ``AGENT_SPAN_TYPE`` ids we treat as in-scope boundaries:
+        # the outer agent span (consumed without depth change) plus
+        # any nested sub-agent spans (which DO change depth).
         self._boundary_span_ids: set[str] = set()
+        # Id of the outer agent span — the one whose contents we
+        # surface to the wire. Set on the first
+        # ``SpanBeginEvent(type=AGENT_SPAN_TYPE)`` we see; its
+        # matching SpanEndEvent is consumed without decrementing
+        # depth.
+        self._outer_span_id: str | None = None
 
     @property
     def depth(self) -> int:
-        """Current nesting depth (0 = at top level)."""
+        """Current nesting depth (0 = at top level / inside outer agent)."""
         return self._depth
 
     def process(self, event: Event) -> _SubagentAction:
@@ -135,10 +161,19 @@ class SubagentDepthTracker:
         """
         if isinstance(event, SpanBeginEvent) and event.type == AGENT_SPAN_TYPE:
             self._boundary_span_ids.add(event.id)
+            if self._outer_span_id is None:
+                # First agent span we've seen — this IS the outer
+                # agent. Keep depth at 0 so its contents emit.
+                self._outer_span_id = event.id
+                return "consume"
             self._depth += 1
             return "consume"
         if isinstance(event, SpanEndEvent) and event.id in self._boundary_span_ids:
             self._boundary_span_ids.discard(event.id)
+            if event.id == self._outer_span_id:
+                # Closing the outer agent — don't decrement (we
+                # never incremented for it).
+                return "consume"
             self._depth -= 1
             return "consume"
         return "skip" if self._depth > 0 else "emit"

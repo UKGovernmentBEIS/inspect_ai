@@ -2479,6 +2479,20 @@
             ],
             "title": "Message Limit"
           },
+          "notification": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notification"
+          },
           "retry_on_error": {
             "anyOf": [
               {
@@ -5484,11 +5498,37 @@
       "InputEvent": {
         "description": "Input screen interaction.",
         "properties": {
+          "content": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
           "event": {
             "const": "input",
             "default": "input",
             "title": "Event",
             "type": "string"
+          },
+          "fields": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/InputField"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fields"
           },
           "input": {
             "title": "Input",
@@ -5497,6 +5537,17 @@
           "input_ansi": {
             "title": "Input Ansi",
             "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
           },
           "metadata": {
             "anyOf": [
@@ -5509,6 +5560,22 @@
               }
             ],
             "title": "Metadata"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "accepted",
+                  "declined",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
           },
           "pending": {
             "anyOf": [
@@ -5560,6 +5627,43 @@
           "input_ansi"
         ],
         "title": "InputEvent",
+        "type": "object"
+      },
+      "InputField": {
+        "description": "One field of an `ask_user` request.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "string",
+              "integer",
+              "number",
+              "boolean",
+              "array"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "title": "InputField",
         "type": "object"
       },
       "InterruptEvent": {
