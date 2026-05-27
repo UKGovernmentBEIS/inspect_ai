@@ -284,9 +284,7 @@ def test_open_sample_history_releases_write_lock_after_snapshot(tmp_path):
         assert [event["data"] for event in history.iter_events()] == ["hello"]
 
 
-def test_sample_history_read_methods_use_deferred_transactions(
-    tmp_path, monkeypatch
-):
+def test_sample_history_read_methods_use_deferred_transactions(tmp_path, monkeypatch):
     db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
     db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
 
