@@ -111,6 +111,7 @@ class TaskScreen(contextlib.AbstractContextManager["TaskScreen"]):
         header: str | None = None,
         transient: bool | None = None,
         width: int | None = None,
+        record_event: bool = True,
     ) -> Iterator[Console]:
         yield rich.get_console()
 

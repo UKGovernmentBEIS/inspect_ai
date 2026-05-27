@@ -104,6 +104,11 @@ def _make_sample(
     active.total_messages = total_messages
     active.total_tokens = total_tokens
     active.fails_on_error = fails_on_error
+    # ``pending_interaction`` is read by ``list_all_samples`` into the
+    # serialized ``inspect/list_samples`` payload — must be a real
+    # ``None`` / ``"approval"`` / ``"question"``, not a MagicMock.
+    # Same hazard as the fields above.
+    active.pending_interaction = None
     if session_id is None:
         active.acp_transport = None
     else:
