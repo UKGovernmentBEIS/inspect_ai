@@ -474,14 +474,9 @@ class AnthropicAPI(ModelAPI):
             # resolve betas and extra headers — preserve any client default
             # betas (e.g. oauth-2025-04-20 set via ANTHROPIC_AUTH_TOKEN)
             if len(betas) > 0:
-                client_beta = getattr(self.client, "_custom_headers", {}).get(
-                    "anthropic-beta", ""
-                )
-                if client_beta:
-                    for b in client_beta.split(","):
-                        b = b.strip()
-                        if b and b not in betas:
-                            betas.insert(0, b)
+                for b in self._client_default_betas():
+                    if b not in betas:
+                        betas.insert(0, b)
                 betas = list(dict.fromkeys(betas))  # remove duplicates
                 extra_headers["anthropic-beta"] = ",".join(betas)
             request["extra_headers"] = extra_headers
@@ -754,6 +749,17 @@ class AnthropicAPI(ModelAPI):
         # Pydantic UserWarning for. We can remove this when remote MCP is out of beta
         return head_message.model_dump(warnings="none"), head_model_output
 
+    def _client_default_betas(self) -> list[str]:
+        """Betas set as client default headers (e.g. oauth-2025-04-20)."""
+        # header names are case-insensitive; _custom_headers is a plain dict
+        # that preserves the caller's original casing (e.g. 'Anthropic-Beta')
+        custom_headers = getattr(self.client, "_custom_headers", {})
+        client_beta = next(
+            (v for k, v in custom_headers.items() if k.lower() == "anthropic-beta"),
+            "",
+        )
+        return [b.strip() for b in client_beta.split(",") if b.strip()]
+
     def completion_config(
         self, config: GenerateConfig
     ) -> tuple[dict[str, Any], dict[str, Any], dict[str, str], list[str]]:
@@ -763,10 +769,14 @@ class AnthropicAPI(ModelAPI):
         extra_body: dict[str, Any] = {}
         betas: list[str] = self.betas.copy()
 
-        # pull betas out of headers
-        anthropic_beta_header = headers.pop("anthropic_beta", None)
-        if anthropic_beta_header:
-            betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
+        # pull betas out of headers (accept the underscore convention and the
+        # literal 'anthropic-beta' header spelling; header names are
+        # case-insensitive, so match case-insensitively)
+        for key in list(headers.keys()):
+            if key.lower() in ("anthropic_beta", "anthropic-beta"):
+                anthropic_beta_header = headers.pop(key)
+                if anthropic_beta_header:
+                    betas.extend([h.strip() for h in anthropic_beta_header.split(",")])
 
         # Claude 4.7+ is always in adaptive thinking and rejects these params
         # regardless of config; other models only reject them under thinking.
@@ -811,18 +821,29 @@ class AnthropicAPI(ModelAPI):
         if self.is_using_thinking(config):
             reasoning_effort = self.effort_from_reasoning_effort(config)
             if reasoning_effort is not None:
-                params["thinking"] = dict(type="adaptive", display="summarized")
+                thinking: dict[str, Any] = dict(type="adaptive", display="summarized")
                 # reasoning_effort takes precedence over effort
                 params["output_config"] = OutputConfigParam(effort=reasoning_effort)  # type: ignore[typeddict-item]  # (no support for 'xhigh' in sdk yet)
             else:
                 # pre-4.6 Claude: extended thinking with an explicit budget.
                 # bridged_reasoning_tokens prefers reasoning_tokens, falling
                 # back to a fixed-table translation of reasoning_effort.
-                params["thinking"] = dict(
+                thinking = dict(
                     type="enabled",
                     budget_tokens=self.bridged_reasoning_tokens(config),
                     display="summarized",
                 )
+
+            # set thinking (remove 'display' for full-thinking). the beta may
+            # arrive via per-request betas or as a client default header.
+            full_thinking_beta = "dev-full-thinking-2025-05-14"
+            if (
+                full_thinking_beta in betas
+                or full_thinking_beta in self._client_default_betas()
+            ):
+                thinking.pop("display", None)
+            params["thinking"] = thinking
+
             headers["anthropic-version"] = "2023-06-01"
             if max_tokens > 8192:
                 betas.append("output-128k-2025-02-19")
