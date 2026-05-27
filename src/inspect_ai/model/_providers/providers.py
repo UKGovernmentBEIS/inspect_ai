@@ -206,6 +206,17 @@ def openrouter() -> type[ModelAPI]:
     return OpenRouterAPI
 
 
+@modelapi(name="orcarouter")
+def orcarouter() -> type[ModelAPI]:
+    # validate
+    validate_openai_client("OrcaRouter API")
+
+    # in the clear
+    from .orcarouter import OrcaRouterAPI
+
+    return OrcaRouterAPI
+
+
 @modelapi(name="perplexity")
 def perplexity() -> type[ModelAPI]:
     # validate
