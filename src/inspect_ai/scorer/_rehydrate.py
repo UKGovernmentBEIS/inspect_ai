@@ -63,8 +63,10 @@ def detect_value_schema(
                     per_key[k] = CategoricalSchema(
                         categories=[str(m.value) for m in type(val)]
                     )
-    if saw_dict:
-        return per_key or None
+    if per_key:
+        return per_key
+    if saw_dict and scalar is None:
+        return None
     return scalar
 
 

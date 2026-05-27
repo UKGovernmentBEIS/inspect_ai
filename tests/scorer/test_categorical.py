@@ -1,6 +1,7 @@
 import os
 import tempfile
 from enum import StrEnum
+from typing import cast
 
 import pytest
 
@@ -8,14 +9,20 @@ from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log, recompute_metrics, write_eval_log
 from inspect_ai.scorer import (
+    Metric,
     Score,
     Scorer,
     Target,
+    Value,
     categorical,
     frequency,
     scorer,
 )
-from inspect_ai.scorer._metric import CategoricalSchema, SampleScore
+from inspect_ai.scorer._metric import (
+    CategoricalSchema,
+    MetricProtocol,
+    SampleScore,
+)
 from inspect_ai.scorer._rehydrate import (
     _categorical_enum,
     detect_value_schema,
@@ -36,8 +43,12 @@ class Sabotage(StrEnum):
     OVERT = "overt"
 
 
-def ss(v) -> SampleScore:
+def ss(v: Value) -> SampleScore:
     return SampleScore(score=Score(value=v))
+
+
+def call(metric: Metric, scores: list[SampleScore]) -> dict[str, float]:
+    return cast(dict[str, float], cast(MetricProtocol, metric)(scores))
 
 
 # ---------------------------------------------------------------------------
@@ -46,12 +57,12 @@ def ss(v) -> SampleScore:
 
 
 def test_frequency_infers_strenum_categories() -> None:
-    result = frequency()([ss(Verdict.YES)] * 3 + [ss(Verdict.NO)])
+    result = call(frequency(), [ss(Verdict.YES)] * 3 + [ss(Verdict.NO)])
     assert result == {"yes": 0.75, "no": 0.25, "unsure": 0.0}
 
 
 def test_frequency_explicit_categories() -> None:
-    result = frequency(categories=Verdict)([ss("yes"), ss("yes"), ss("no")])
+    result = call(frequency(categories=Verdict), [ss("yes"), ss("yes"), ss("no")])
     assert result == {
         "yes": pytest.approx(2 / 3),
         "no": pytest.approx(1 / 3),
@@ -60,24 +71,24 @@ def test_frequency_explicit_categories() -> None:
 
 
 def test_frequency_relaxed_inference_with_stray_string() -> None:
-    result = frequency()([ss(Verdict.YES), ss(Verdict.NO), ss("weird")])
+    result = call(frequency(), [ss(Verdict.YES), ss(Verdict.NO), ss("weird")])
     assert result["unsure"] == 0.0
     assert result["weird"] == pytest.approx(1 / 3)
 
 
 def test_frequency_normalize_false() -> None:
-    result = frequency(normalize=False)([ss(Verdict.YES)] * 3 + [ss(Verdict.NO)])
+    result = call(frequency(normalize=False), [ss(Verdict.YES)] * 3 + [ss(Verdict.NO)])
     assert result == {"yes": 3.0, "no": 1.0, "unsure": 0.0}
 
 
 def test_frequency_rejects_dict_scores() -> None:
     with pytest.raises(TypeError, match="dict-valued"):
-        frequency()([ss({"k": Verdict.YES})])
+        call(frequency(), [ss({"k": Verdict.YES})])
 
 
 def test_frequency_rejects_list_scores() -> None:
     with pytest.raises(TypeError, match="list-valued"):
-        frequency()([ss([Verdict.YES, Verdict.NO])])
+        call(frequency(), [ss([Verdict.YES, Verdict.NO])])
 
 
 def test_categorical_resolves_enum_to_list() -> None:
@@ -100,6 +111,7 @@ def test_score_preserves_strenum_instance() -> None:
 
 def test_score_preserves_strenum_in_dict() -> None:
     s = Score(value={"k": Verdict.NO})
+    assert isinstance(s.value, dict)
     assert isinstance(s.value["k"], Verdict)
 
 
@@ -167,6 +179,7 @@ def test_rehydrate_value_not_in_domain() -> None:
 def test_rehydrate_dict() -> None:
     schema = {"sab": CategoricalSchema(categories=["none", "subtle", "overt"])}
     v = rehydrate_value({"sab": "subtle", "loss": 0.5}, schema)
+    assert isinstance(v, dict)
     assert isinstance(v["sab"], StrEnum)
     assert v["loss"] == 0.5
 
@@ -224,6 +237,7 @@ def test_categorical_recompute_round_trip() -> None:
         before = _metrics_snapshot(log)
 
         # all enum members reported (including any zero-counts)
+        assert log.results is not None
         verdict_score = next(
             s for s in log.results.scores if s.name == "_verdict_scorer"
         )
@@ -243,10 +257,11 @@ def test_categorical_recompute_round_trip() -> None:
         reloaded = read_eval_log(path)
 
         # values are plain strings on disk; rehydration must restore semantics
-        assert isinstance(reloaded.samples[0].scores["_verdict_scorer"].value, str)
-        assert not isinstance(
-            reloaded.samples[0].scores["_verdict_scorer"].value, StrEnum
-        )
+        assert reloaded.samples is not None
+        assert reloaded.samples[0].scores is not None
+        loaded_value = reloaded.samples[0].scores["_verdict_scorer"].value
+        assert isinstance(loaded_value, str)
+        assert not isinstance(loaded_value, StrEnum)
 
         recompute_metrics(reloaded)
         after = _metrics_snapshot(reloaded)
