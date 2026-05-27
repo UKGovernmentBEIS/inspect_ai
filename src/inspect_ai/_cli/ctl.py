@@ -92,20 +92,29 @@ def _fetch_summaries(
 
 def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     """Render summaries as a simple aligned table on stdout."""
+    # Build all rows first so we can decide whether to show the
+    # errors column (only when at least one eval has errors > 0).
+    any_errors = any((s.get("samples") or {}).get("errored", 0) > 0 for s in summaries)
+
     rows = []
     for s in summaries:
-        rows.append(
-            (
-                _short_id(s.get("eval_id", "")),
-                s.get("task", "?") or "?",
-                s.get("model", "?") or "?",
-                str(s.get("samples_in_flight", 0)),
-                _format_started(s.get("started_at", 0)),
-                str(s.get("pid", "")),
-            )
-        )
+        samples = s.get("samples") or {}
+        errors_cell = str(samples.get("errored", 0)) if any_errors else None
+        cells = [
+            _short_id(s.get("eval_id", "")),
+            s.get("task", "?") or "?",
+            _format_samples(samples),
+            _format_started(s.get("started_at", 0)),
+        ]
+        if errors_cell is not None:
+            cells.insert(3, errors_cell)
+        rows.append(tuple(cells))
 
-    headers = ("eval_id", "task", "model", "in-flight", "started", "pid")
+    headers_list = ["eval_id", "task", "samples", "started"]
+    if any_errors:
+        headers_list.insert(3, "errors")
+    headers = tuple(headers_list)
+
     widths = [
         max(len(h), max((len(r[i]) for r in rows), default=0))
         for i, h in enumerate(headers)
@@ -118,6 +127,38 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     click.echo(_fmt_row(tuple("-" * w for w in widths)))
     for row in rows:
         click.echo(_fmt_row(row))
+
+
+def _format_samples(samples: dict[str, Any]) -> str:
+    """Compact one-cell representation of sample progress.
+
+    Shape:
+    - ``done/total (N running)`` when samples are in flight
+    - ``done/total (complete)`` when total > 0 and nothing in flight + nothing queued
+    - ``0/total (queued)`` when no samples started yet
+    - ``done/total`` as the bland fallback
+
+    ``done`` = ``completed + errored`` (terminal counts).
+    """
+    total = int(samples.get("total", 0) or 0)
+    completed = int(samples.get("completed", 0) or 0)
+    errored = int(samples.get("errored", 0) or 0)
+    in_flight = int(samples.get("in_flight", 0) or 0)
+    queued = int(samples.get("queued", 0) or 0)
+
+    done = completed + errored
+    if total == 0:
+        # No total recorded — show in_flight as a single number so
+        # the user sees something useful pre-EvalState registration.
+        return f"{in_flight} running" if in_flight else "starting"
+
+    if in_flight > 0:
+        return f"{done}/{total} ({in_flight} running)"
+    if done >= total:
+        return f"{done}/{total} (complete)"
+    if queued == total:
+        return f"0/{total} (queued)"
+    return f"{done}/{total}"
 
 
 def _short_id(identifier: str) -> str:

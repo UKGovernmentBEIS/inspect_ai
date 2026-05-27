@@ -186,6 +186,19 @@ def test_ctl_ls_lists_each_eval_in_an_eval_set(short_data_dir: Path) -> None:
         # They all share the same run_id (one eval-set, one process).
         run_ids = {entry["run_id"] for entry in evals}
         assert len(run_ids) == 1, f"expected single shared run_id, got {run_ids}"
+        # Each entry exposes a `samples` block with the expected shape.
+        for entry in evals:
+            samples = entry["samples"]
+            assert samples["total"] == 1, (
+                f"each task has 1 sample; got total={samples['total']}"
+            )
+            assert samples["in_flight"] == 1, (
+                f"both samples hanging in slow_solver; got in_flight="
+                f"{samples['in_flight']}"
+            )
+            assert samples["completed"] == 0
+            assert samples["errored"] == 0
+            assert samples["queued"] == 0
     finally:
         release.set()
         thread.join(timeout=60)

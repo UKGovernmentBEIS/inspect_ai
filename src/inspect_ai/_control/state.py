@@ -1,10 +1,13 @@
 """Eval-level state extraction for the control channel.
 
-For MVP `inspect ctl ls`, summaries are computed on demand from the
-always-on :func:`inspect_ai.log._samples.active_samples` registry.
-A proper :class:`EvalState` aggregate (queued / completed counts,
-model usage rollup) updated at sample lifecycle transitions lands as
-a follow-on — see design/control-channel.md phase 1.
+Reads from two sources at request time:
+
+- :func:`inspect_ai.log._eval_state.get_eval_states` for ``total`` /
+  ``completed`` / ``errored`` counters that survive a sample exiting
+  ``active_samples``.
+- :func:`inspect_ai.log._samples.active_samples` for ``in_flight``
+  (currently-executing samples), plus the per-eval ``task`` / ``model``
+  / ``started_at`` metadata.
 
 One process can host multiple evals at once (an eval-set passes all
 tasks to a single ``eval()`` call, so they share the process and the
@@ -26,58 +29,87 @@ def current_eval_summaries(run_id: str, started_at: float) -> list[dict[str, Any
     """Build per-eval summaries for the ``GET /evals`` endpoint.
 
     Args:
-        run_id: This process's run id (shared across every eval in
-            an eval-set; we filter ``active_samples`` to entries
-            whose ``run_id`` matches so two co-resident inspect
-            processes don't bleed into each other's surface — though
-            the discovery layer already keeps them on separate
-            sockets, this is belt-and-suspenders).
+        run_id: This process's run id. Filters ``active_samples`` and
+            ``EvalState`` entries to this run so two co-resident
+            inspect processes don't bleed into each other (the
+            discovery layer also keeps them on separate sockets —
+            this is belt-and-suspenders).
         started_at: Fallback start time for evals whose samples
-            haven't started yet (rare — there's typically at least
-            one started sample by the time we're queried).
+            haven't started yet.
 
     Returns:
         One dict per running eval, sorted by start time (oldest
-        first). An eval with zero live samples (eg. all completed but
-        scoring still pending) does not appear — see "EvalState
-        aggregate" follow-up in the doc.
+        first). Each entry includes a nested ``samples`` block:
+        ``{total, completed, errored, in_flight, queued}``.
     """
-    # Lazy import to avoid pulling the full log/event/scorer chain at
+    # Lazy imports to avoid pulling the full log/event/scorer chain at
     # module-import time (control server module is imported during
     # eval bootstrap before those packages finish initialising).
+    from inspect_ai.log._eval_state import get_eval_states
     from inspect_ai.log._samples import active_samples
 
-    groups: dict[str, list[ActiveSample]] = defaultdict(list)
+    # Group live samples by eval_id (run-scoped).
+    samples_by_eval: dict[str, list[ActiveSample]] = defaultdict(list)
     for sample in active_samples():
         if sample.run_id != run_id:
             continue
-        groups[sample.eval_id].append(sample)
+        samples_by_eval[sample.eval_id].append(sample)
+
+    # EvalState entries — the source of truth for terminal counts.
+    # Filter by run_id where possible. The eval_state module doesn't
+    # store run_id (it's keyed by eval_id), so we cross-reference
+    # via the active samples we just collected. For an eval with no
+    # active samples (eg. between samples), we have to skip it here
+    # — it'll come back once another sample starts. The follow-up
+    # design is to put run_id directly on EvalState.
+    eval_states = {state.eval_id: state for state in get_eval_states()}
+
+    # Eval ids to summarize: union of live samples and known states
+    # filtered to those that match this run via active_samples.
+    eval_ids = set(samples_by_eval.keys())
 
     summaries: list[dict[str, Any]] = []
-    for eval_id, samples in groups.items():
-        # All samples in one eval share the same task name and model
-        # (eval = task × model). Pick the first row's values.
-        first = samples[0]
+    for eval_id in eval_ids:
+        samples = samples_by_eval.get(eval_id, [])
+        state = eval_states.get(eval_id)
 
-        # Eval-level start time = earliest sample start time. Falls
-        # back to the process started_at if no sample has started yet
-        # (rare: would mean the eval is between samples or in setup).
+        if not samples and state is None:
+            continue
+
+        # Per-eval metadata comes from the first sample (all samples
+        # in one eval share task name + model).
+        first_sample = samples[0] if samples else None
+        task_name = first_sample.task if first_sample else ""
+        model = first_sample.model if first_sample else ""
+
+        # Eval-level start time = earliest sample start. Falls back
+        # to the process started_at if no sample has started yet.
         sample_starts = [s.started for s in samples if s.started is not None]
         eval_started_at = min(sample_starts) if sample_starts else started_at
 
         in_flight = sum(
             1 for s in samples if s.started is not None and s.completed is None
         )
+        total = state.total if state is not None else 0
+        completed = state.completed if state is not None else 0
+        errored = state.errored if state is not None else 0
+        queued = max(0, total - completed - errored - in_flight)
 
         summaries.append(
             {
                 "run_id": run_id,
                 "eval_id": eval_id,
-                "task": first.task,
-                "model": first.model,
+                "task": task_name,
+                "model": model,
                 "status": "running",
                 "started_at": eval_started_at,
-                "samples_in_flight": in_flight,
+                "samples": {
+                    "total": total,
+                    "completed": completed,
+                    "errored": errored,
+                    "in_flight": in_flight,
+                    "queued": queued,
+                },
                 "total_tokens": sum(s.total_tokens for s in samples),
                 "total_messages": sum(s.total_messages for s in samples),
             }

@@ -63,6 +63,12 @@ from inspect_ai.log import (
     EvalStats,
 )
 from inspect_ai.log._condense import condense_sample
+from inspect_ai.log._eval_state import (
+    record_sample_completed,
+    record_sample_errored,
+    register_eval,
+    unregister_eval,
+)
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json_str,
@@ -362,6 +368,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
             # call hook
             await emit_task_start(logger)
+
+            # Register this eval with the process-level state aggregate
+            # so the control channel (and other readers) can answer
+            # "how many samples queued / running / done?" without
+            # polling active_samples() or scanning logs. Paired with
+            # the unregister after the try/except block below.
+            register_eval(logger.eval.eval_id, total_samples)
 
             # call early stopping if we have it
             stopping_manager: str = ""
@@ -704,6 +717,12 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                 # display it
                 td.complete(TaskError(logger.samples_completed, type, value, traceback))
+
+    # Unregister this eval from the process-level state aggregate.
+    # Runs after both the success and error paths in the try/except
+    # above; if debug_errors re-raises we leak a state entry (debug
+    # mode only — acceptable tradeoff).
+    unregister_eval(logger.eval.eval_id)
 
     # cleanup disk sample store if used
     if isinstance(sample_store, DiskSampleStore):
@@ -1483,14 +1502,17 @@ async def task_run_sample(
         # call sample_complete callback if we have score results
         if results is not None:
             await sample_complete(state.sample_id, state.epoch, results)
+        record_sample_completed(task_id)
         return results
 
     # we have an error and should raise it
     elif raise_error is not None:
+        record_sample_errored(task_id)
         raise raise_error
 
     # we have an error and should not raise it
     else:
+        record_sample_errored(task_id)
         return None
 
 
