@@ -1,9 +1,12 @@
 """Tests for the private `Transcript._subscribe` multi-cast API."""
 
+import logging
 from unittest.mock import patch
 
+from inspect_ai._util.constants import SKIP_TRANSCRIPT_DISPATCH
 from inspect_ai.event import Event
 from inspect_ai.event._info import InfoEvent
+from inspect_ai.event._logger import LoggerEvent, LoggingMessage
 from inspect_ai.log._transcript import Transcript
 
 
@@ -108,7 +111,55 @@ def test_subscriber_exception_does_not_block_other_subscribers() -> None:
         tr._event(_info("survivor"))
 
     assert _info_data(received) == ["survivor"]
-    warning.assert_called_once_with("Transcript subscriber failed", exc_info=True)
+    warning.assert_called_once_with(
+        "Transcript subscriber failed",
+        exc_info=True,
+        extra={SKIP_TRANSCRIPT_DISPATCH: True},
+    )
+
+
+def test_subscriber_failure_warning_does_not_fan_out() -> None:
+    """Subscriber-failure warnings must not re-enter the subscriber loop.
+
+    Drives the *real* re-injection path used by the eval ``LogHandler``: a
+    WARNING record is converted back into a transcript ``LoggerEvent``. A
+    handler attached to the transcript logger mirrors that dispatch decision,
+    honoring the ``SKIP_TRANSCRIPT_DISPATCH`` marker. With two always-raising
+    subscribers, each must fire exactly once for the single real event —
+    without the marker this fans out factorially (``T(2) = 4``).
+    """
+    tr = Transcript()
+    calls = {"a": 0, "b": 0}
+
+    def raises_a(_e: Event) -> None:
+        calls["a"] += 1
+        raise RuntimeError("boom-a")
+
+    def raises_b(_e: Event) -> None:
+        calls["b"] += 1
+        raise RuntimeError("boom-b")
+
+    class ReinjectHandler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            # mirror LogHandler.emit's transcript-dispatch decision
+            if getattr(record, SKIP_TRANSCRIPT_DISPATCH, False):
+                return
+            tr._event(LoggerEvent(message=LoggingMessage._from_log_record(record)))
+
+    handler = ReinjectHandler()
+    transcript_logger = logging.getLogger("inspect_ai.log._transcript")
+    transcript_logger.addHandler(handler)
+    previous_level = transcript_logger.level
+    transcript_logger.setLevel(logging.WARNING)
+    try:
+        tr._subscribe(raises_a)
+        tr._subscribe(raises_b)
+        tr._event(_info("outer"))
+    finally:
+        transcript_logger.removeHandler(handler)
+        transcript_logger.setLevel(previous_level)
+
+    assert calls == {"a": 1, "b": 1}
 
 
 def test_reentrant_event_reaches_other_subscribers_once() -> None:
