@@ -65,6 +65,23 @@ directly; the enum class is preserved in-process (enabling metrics like
 string and is excluded from the JSON schema.
 """
 
+
+class CategoricalSchema(BaseModel):
+    """Value schema for categorical (StrEnum-valued) scores."""
+
+    type: Literal["categorical"] = "categorical"
+
+    categories: list[str]
+    """Full set of category labels this scorer may emit."""
+
+
+ValueSchema = CategoricalSchema
+"""Describes the shape/domain of a scorer's ``Score.value``.
+
+Currently only ``CategoricalSchema`` is defined; this is a discriminated union
+intended to grow further variants (ordinal, numeric range, multi-label, ...)."""
+
+
 UNCHANGED: Literal["UNCHANGED"] = "UNCHANGED"
 """Sentinel value to indicate an unchanged field in score edits."""
 

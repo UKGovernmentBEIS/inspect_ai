@@ -53,6 +53,7 @@ from inspect_ai.model._model_config import (
     model_roles_to_model_roles_config,
 )
 from inspect_ai.scorer._metric import MetricSpec, SampleScore
+from inspect_ai.scorer._rehydrate import detect_value_schema
 from inspect_ai.scorer._scorer import ScorerSpec
 from inspect_ai.solver._constants import SOLVER_ALL_PARAMS_ATTR
 from inspect_ai.solver._plan import Plan
@@ -496,11 +497,9 @@ def record_scorer_value_schemas(
     ``task.scorer`` in the same order); ``scorer_names`` are the unique keys
     used in each sample's ``scores`` dict.
     """
-    from inspect_ai.scorer._rehydrate import detect_value_schema
-
     if not eval_scorers or not scorer_names:
         return
-    for eval_scorer, scorer_name in zip(eval_scorers, scorer_names):
+    for eval_scorer, scorer_name in zip(eval_scorers, scorer_names, strict=True):
         scorer_scores = [s[scorer_name].score for s in scores if scorer_name in s]
         eval_scorer.value_schema = detect_value_schema(scorer_scores)
 

@@ -13,13 +13,15 @@ import math
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from logging import getLogger
-from typing import overload
+from typing import TYPE_CHECKING, overload
 
 from inspect_ai._util.logger import warn_once
-from inspect_ai.log._log import CategoricalSchema, EvalScorer, ValueSchema
 
-from ._metric import Score, Value
+from ._metric import CategoricalSchema, Score, Value, ValueSchema
 from ._scorer import unique_scorer_name
+
+if TYPE_CHECKING:
+    from inspect_ai.log._log import EvalScorer
 
 logger = getLogger(__name__)
 
@@ -39,22 +41,31 @@ def _categorical_enum(members: tuple[str, ...]) -> type[StrEnum]:
 def detect_value_schema(
     scores: Sequence[Score],
 ) -> ValueSchema | dict[str, ValueSchema] | None:
-    """Derive a value schema from a scorer's in-process score values."""
+    """Derive a value schema from a scorer's in-process score values.
+
+    Scans all samples so that a stray non-StrEnum first sample (e.g. a parse
+    fallback or partially-populated dict) does not suppress the schema.
+    """
+    scalar: CategoricalSchema | None = None
+    per_key: dict[str, ValueSchema] = {}
+    saw_dict = False
     for score in scores:
         v = score.value
         if isinstance(v, float) and math.isnan(v):
             continue
         if isinstance(v, StrEnum):
-            return CategoricalSchema(categories=[str(m.value) for m in type(v)])
-        if isinstance(v, Mapping):
-            per_key = {
-                k: CategoricalSchema(categories=[str(m.value) for m in type(val)])
-                for k, val in v.items()
-                if isinstance(val, StrEnum)
-            }
-            return per_key or None
-        return None
-    return None
+            if scalar is None:
+                scalar = CategoricalSchema(categories=[str(m.value) for m in type(v)])
+        elif isinstance(v, Mapping):
+            saw_dict = True
+            for k, val in v.items():
+                if k not in per_key and isinstance(val, StrEnum):
+                    per_key[k] = CategoricalSchema(
+                        categories=[str(m.value) for m in type(val)]
+                    )
+    if saw_dict:
+        return per_key or None
+    return scalar
 
 
 _S = str | int | float | bool
@@ -96,7 +107,7 @@ def rehydrate_value(
 
 
 def value_schemas_by_score_key(
-    eval_scorers: Sequence[EvalScorer],
+    eval_scorers: "Sequence[EvalScorer]",
 ) -> dict[str, ValueSchema | dict[str, ValueSchema]]:
     """Map ``sample.scores`` keys to their recorded value schema.
 
