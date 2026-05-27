@@ -1,3 +1,7 @@
+## Unreleased
+
+- Bugfix: Align CLI --display and --effort type annotations with their choices.
+
 ## 0.3.228 (27 May 2026)
 
 - Anthropic: Improved merging of beta headers.
