@@ -215,10 +215,38 @@ class SampleBufferDatabase(SampleBuffer):
             )
 
     def log_events(self, events: list[SampleEvent]) -> None:
-        with self._get_connection(write=True) as conn:
+        index_snapshots: dict[
+            tuple[str, int], tuple[dict[str, int] | None, dict[str, int] | None]
+        ] = {}
+
+        def restore_index_snapshots() -> None:
+            for key, (msg_index, call_index) in index_snapshots.items():
+                if msg_index is None:
+                    self._msg_indices.pop(key, None)
+                else:
+                    self._msg_indices[key] = msg_index
+
+                if call_index is None:
+                    self._call_indices.pop(key, None)
+                else:
+                    self._call_indices[key] = call_index
+
+        with self._get_connection(
+            write=True, on_rollback=restore_index_snapshots
+        ) as conn:
             # collect the values for all events
             values: list[str | int] = []
             for event in events:
+                if isinstance(event.event, ModelEvent):
+                    key = (str(event.id), event.epoch)
+                    if key not in index_snapshots:
+                        msg_index = self._msg_indices.get(key)
+                        call_index = self._call_indices.get(key)
+                        index_snapshots[key] = (
+                            None if msg_index is None else dict(msg_index),
+                            None if call_index is None else dict(call_index),
+                        )
+
                 event = self._condense_event(conn, event)
                 values.extend(
                     (
@@ -459,7 +487,7 @@ class SampleBufferDatabase(SampleBuffer):
     def sample_event_count(self, id: str | int, epoch: int) -> int:
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
-                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("BEGIN")
                 try:
                     cursor = conn.execute(
                         """
@@ -479,7 +507,7 @@ class SampleBufferDatabase(SampleBuffer):
     def sample_attachment(self, id: str | int, epoch: int, hash: str) -> str | None:
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
-                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("BEGIN")
                 try:
                     row = conn.execute(
                         """
@@ -507,7 +535,7 @@ class SampleBufferDatabase(SampleBuffer):
 
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
-                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("BEGIN")
                 history = self._sample_history(
                     conn, id, epoch, self._get_events_tail(conn, id, epoch, n)
                 )
@@ -523,7 +551,7 @@ class SampleBufferDatabase(SampleBuffer):
     ) -> Iterator[SampleHistory]:
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
-                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("BEGIN")
                 history = self._sample_history(
                     conn, id, epoch, self._get_events_from(conn, id, epoch, start)
                 )
@@ -538,7 +566,7 @@ class SampleBufferDatabase(SampleBuffer):
     ) -> Iterator[SampleHistory]:
         with self._acquire_sample_read_lease(id, epoch):
             with self._get_connection() as conn:
-                conn.execute("BEGIN IMMEDIATE")
+                conn.execute("BEGIN")
                 history = self._sample_history(
                     conn,
                     id,
@@ -599,7 +627,12 @@ class SampleBufferDatabase(SampleBuffer):
                 self._cleanup_now()
 
     @contextmanager
-    def _get_connection(self, *, write: bool = False) -> Iterator[Connection]:
+    def _get_connection(
+        self,
+        *,
+        write: bool = False,
+        on_rollback: Callable[[], None] | None = None,
+    ) -> Iterator[Connection]:
         """Get a database connection."""
         max_retries = 5
         retry_delay = 0.1
@@ -655,7 +688,11 @@ class SampleBufferDatabase(SampleBuffer):
 
         except Exception:
             # rollback on any error
-            conn.rollback()
+            try:
+                conn.rollback()
+            finally:
+                if on_rollback is not None:
+                    on_rollback()
             raise
         finally:
             # close the connection
@@ -821,7 +858,7 @@ class SampleBufferDatabase(SampleBuffer):
                 WHERE sample_id = ? AND sample_epoch = ?
                 GROUP BY COALESCE(NULLIF(event_id, ''), CAST(id AS TEXT))
             ), tail_rows AS (
-                SELECT logical_id, latest_id
+                SELECT logical_id, first_id, latest_id
                 FROM first_rows
                 ORDER BY first_id DESC
                 LIMIT ?
@@ -829,7 +866,7 @@ class SampleBufferDatabase(SampleBuffer):
             SELECT e.id, tr.logical_id AS event_id, e.data
             FROM tail_rows tr
             JOIN events e ON e.id = tr.latest_id
-            ORDER BY e.id
+            ORDER BY tr.first_id
         """
         cursor = conn.execute(query, [str(id), epoch, n])
 
