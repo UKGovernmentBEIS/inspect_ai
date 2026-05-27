@@ -15,6 +15,7 @@ from pydantic import (
     JsonValue,
 )
 
+from inspect_ai._util.constants import SKIP_TRANSCRIPT_DISPATCH
 from inspect_ai._util.logger import warn_once
 from inspect_ai.event._base import BaseEvent
 from inspect_ai.event._event import Event
@@ -208,7 +209,14 @@ class Transcript:
                 try:
                     event_logger.callback(event)
                 except Exception:
-                    logger.warning("Transcript subscriber failed", exc_info=True)
+                    # Tag this record so the eval LogHandler does NOT re-inject
+                    # it as a LoggerEvent — that would re-enter this loop and
+                    # fan out combinatorially across other failing subscribers.
+                    logger.warning(
+                        "Transcript subscriber failed",
+                        exc_info=True,
+                        extra={SKIP_TRANSCRIPT_DISPATCH: True},
+                    )
             finally:
                 self._notifying_subscribers.remove(subscriber_id)
 
