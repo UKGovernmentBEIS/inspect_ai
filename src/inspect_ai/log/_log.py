@@ -35,6 +35,7 @@ from inspect_ai.model import (
 )
 from inspect_ai.model._model_config import ModelConfig
 from inspect_ai.scorer import Score
+from inspect_ai.scorer._metric import ValueSchema
 from inspect_ai.util._early_stopping import EarlyStoppingSummary
 from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.util._store import Store
@@ -848,22 +849,6 @@ class EvalMetricDefinition(BaseModel):
     """Metric name"""
 
     options: dict[str, Any] | None = Field(default=None)
-
-
-class CategoricalSchema(BaseModel):
-    """Value schema for categorical (StrEnum-valued) scores."""
-
-    type: Literal["categorical"] = "categorical"
-
-    categories: list[str]
-    """Full set of category labels this scorer may emit."""
-
-
-ValueSchema = CategoricalSchema
-"""Describes the shape/domain of a scorer's ``Score.value``.
-
-Currently only ``CategoricalSchema`` is defined; this is a discriminated union
-intended to grow further variants (ordinal, numeric range, multi-label, ...)."""
 
 
 class EvalScorer(BaseModel):

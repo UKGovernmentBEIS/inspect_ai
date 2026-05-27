@@ -33,6 +33,7 @@ from inspect_ai.scorer._metric import (
 from inspect_ai.scorer._metrics.accuracy import accuracy
 from inspect_ai.scorer._metrics.std import stderr
 from inspect_ai.scorer._reducer import ScoreReducer, mean_score, reducer_log_name
+from inspect_ai.scorer._rehydrate import detect_value_schema
 from inspect_ai.scorer._scorer import (
     SCORER_METRICS,
     ScorerSpec,
@@ -264,16 +265,14 @@ def compute_eval_scores(
 
 def resolve_reducer(
     reducers: ScoreReducer | list[ScoreReducer] | None,
-    scores: list[SampleScore] | None = None,
+    scores: list[SampleScore],
 ) -> tuple[list[ScoreReducer], bool]:
-    from inspect_ai.scorer._rehydrate import detect_value_schema
-
     if reducers is None:
         # No reducer explicitly configured: categorical (StrEnum-valued)
         # scorers skip reduction so each epoch's score is fed to metrics
         # (e.g. ``frequency()``) as an independent observation; numeric
         # scorers default to ``mean``.
-        if scores and detect_value_schema([ss.score for ss in scores]) is not None:
+        if detect_value_schema([ss.score for ss in scores]) is not None:
             return ([], False)
         return ([mean_score()], False)
     elif isinstance(reducers, list) and len(reducers) == 0:
@@ -343,7 +342,10 @@ def scorer_for_metrics(
                 if value is not None:
                     name = metrics_unique_key(metric_key, list(list_metrics.keys()))
                     list_metrics[name] = EvalMetric(
-                        name=name, group=group, value=float(value), params=params
+                        name=metric_key,
+                        group=group,
+                        value=float(value),
+                        params=params,
                     )
 
         # If the metric value is a list, turn each element in the list

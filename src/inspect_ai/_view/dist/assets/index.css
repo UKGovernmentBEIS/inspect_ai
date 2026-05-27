@@ -24103,64 +24103,92 @@ pre._value_8citi_25 {
   width: fit-content;
   max-width: 100%;
 }
-._gridContainer_2wkq3_1 {
+._gridContainer_17s6j_1 {
   max-width: 100%;
   max-height: 60vh;
   overflow: auto;
-  scrollbar-gutter: stable;
+  padding: 0.5rem 1rem;
+}
+
+._gridContainer_17s6j_1 .ag-layout-auto-height .ag-center-cols-viewport {
+  min-height: unset;
+}
+
+._gridContainer_17s6j_1 .ag-body-horizontal-scroll {
+  display: none;
 }
 
 /* Breathing room at the edges so values don't sit flush with the modal border
    (and so the last column doesn't get overlapped by the vertical scroll bar).
    The extra specificity via `:global(.ag-cell)` / `:global(.ag-header-cell)`
    is needed to win against ag-grid's built-in theme padding. */
-.ag-cell._firstCell_2wkq3_12,
-.ag-header-cell._firstHeader_2wkq3_13 {
+.ag-cell._firstCell_17s6j_20,
+.ag-header-cell._firstHeader_17s6j_21 {
   padding-left: 1rem;
 }
 
-.ag-cell._lastCell_2wkq3_17,
-.ag-header-cell._lastHeader_2wkq3_18 {
+.ag-cell._lastCell_17s6j_25,
+.ag-header-cell._lastHeader_17s6j_26 {
   padding-right: 0.5rem;
+}
+
+.ag-header-group-cell._groupHeader_17s6j_30
+  .ag-header-group-cell-label {
+  justify-content: center;
+}
+
+.ag-header-cell._noGroupBorder_17s6j_35 {
+  border-top-color: transparent;
+}
+
+._groupGrid_17s6j_39 {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: solid 1px var(--bs-light-border-subtle);
 }
 ._unscoredSamples_1h85z_1 {
   margin-left: 0.2rem;
   margin-right: 0.2rem;
   cursor: pointer;
 }
-._table_12koy_1 {
+._table_qiij9_1 {
   margin-bottom: 0;
 }
 
-._scorer_12koy_5,
-._value_12koy_6 {
+._scorer_qiij9_5,
+._value_qiij9_6 {
   padding-top: 0.2em !important;
   padding-bottom: 0.2em !important;
 }
 
-._label_12koy_11,
-._value_12koy_6 {
+._label_qiij9_11,
+._value_qiij9_6 {
   text-align: center;
   padding-left: 1em;
   padding-right: 1em;
 }
 
-._label_12koy_11 {
+._label_qiij9_11 {
   font-weight: 400;
   padding-left: 1em;
   padding-right: 1em;
 }
 
-._scorer_12koy_5 {
+._groupHeader_qiij9_24 {
+  border-bottom: solid 1px var(--bs-light-border-subtle) !important;
+  padding-bottom: 0.1em !important;
+}
+
+._scorer_qiij9_5 {
   font-weight: 400;
 }
 
-._groupSeparator_12koy_28 {
+._groupSeparator_qiij9_33 {
   padding-top: 2em;
   border-bottom: hidden;
 }
 
-._tableBody_12koy_33 {
+._tableBody_qiij9_38 {
   border-top-color: var(--bs-light-border-subtle);
 }
 
@@ -24172,10 +24200,10 @@ thead th {
   padding: 0 !important;
 }
 
-._tableSeparator_12koy_45,
-._tableSeparator_12koy_45 tr,
-._tableSeparator_12koy_45 td,
-._tableSeparator_12koy_45 th {
+._tableSeparator_qiij9_50,
+._tableSeparator_qiij9_50 tr,
+._tableSeparator_qiij9_50 td,
+._tableSeparator_qiij9_50 th {
   border: none !important;
 }
 ._downloadLogButton_fi3zx_1 {

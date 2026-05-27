@@ -7,7 +7,6 @@ import pytest
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import read_eval_log, recompute_metrics, write_eval_log
-from inspect_ai.log._log import CategoricalSchema
 from inspect_ai.scorer import (
     Score,
     Scorer,
@@ -16,7 +15,7 @@ from inspect_ai.scorer import (
     frequency,
     scorer,
 )
-from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.scorer._metric import CategoricalSchema, SampleScore
 from inspect_ai.scorer._rehydrate import (
     _categorical_enum,
     detect_value_schema,
@@ -42,7 +41,7 @@ def ss(v) -> SampleScore:
 
 
 # ---------------------------------------------------------------------------
-# frequency() / category_rate() unit tests
+# frequency() unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -125,6 +124,22 @@ def test_detect_value_schema_dict() -> None:
 def test_detect_value_schema_none_for_numeric() -> None:
     assert detect_value_schema([Score(value=0.5)]) is None
     assert detect_value_schema([Score(value={"k": 1})]) is None
+
+
+def test_detect_value_schema_scans_past_first_sample() -> None:
+    # first sample is plain str (e.g. parse fallback); later samples are enum
+    schema = detect_value_schema([Score(value="oops"), Score(value=Verdict.YES)])
+    assert isinstance(schema, CategoricalSchema)
+    assert schema.categories == ["yes", "no", "unsure"]
+    # dict where first sample is missing a key
+    schema = detect_value_schema(
+        [
+            Score(value={"sab": Sabotage.NONE}),
+            Score(value={"sab": Sabotage.SUBTLE, "aware": Verdict.YES}),
+        ]
+    )
+    assert isinstance(schema, dict)
+    assert set(schema) == {"sab", "aware"}
 
 
 def test_categorical_enum_cached() -> None:

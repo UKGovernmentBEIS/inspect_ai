@@ -1,5 +1,5 @@
 from collections import Counter
-from enum import Enum, StrEnum
+from enum import StrEnum
 from logging import getLogger
 from typing import Mapping, Sequence
 
@@ -8,13 +8,13 @@ from .._metric import Metric, SampleScore, Value, metric
 logger = getLogger(__name__)
 
 
-Categories = type[Enum] | Sequence[str] | None
+Categories = type[StrEnum] | Sequence[str] | None
 
 
 def _category_names(categories: Categories) -> list[str] | None:
     if categories is None:
         return None
-    if isinstance(categories, type) and issubclass(categories, Enum):
+    if isinstance(categories, type) and issubclass(categories, StrEnum):
         return [str(member.value) for member in categories]
     return [str(c) for c in categories]
 
