@@ -18,7 +18,7 @@ class MemoryStore(StoreModel):
     dirs: list[str] = Field(default_factory=list)
 
 
-@tool
+@tool(parallel=True)
 def memory(
     *, initial_data: dict[str, str] | None = None, readonly: bool = False
 ) -> Tool:

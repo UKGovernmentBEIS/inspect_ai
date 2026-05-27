@@ -110,6 +110,13 @@ class EvalConfig(BaseModel):
     approval: ApprovalPolicyConfig | None = Field(default=None)
     """Approval policy for tool use."""
 
+    notification: bool | str | None = Field(default=None)
+    """Notification routing for human-in-the-loop interactions.
+
+    `True` means notifications are enabled via the `INSPECT_EVAL_NOTIFICATION`
+    environment variable; a string is a path to an Apprise YAML/text config
+    file. URLs are never stored here to keep secrets out of eval logs."""
+
     fail_on_error: bool | float | None = Field(default=None)
     """Fail eval when sample errors occur.
 

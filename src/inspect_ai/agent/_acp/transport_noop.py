@@ -1,7 +1,7 @@
-"""No-op AcpSession implementation.
+"""No-op AcpTransport implementation.
 
 Used as the default ContextVar value (so every ACP-unaware caller can
-ask ``current_acp_session()`` without isinstance guards) and as the
+ask ``current_acp_transport()`` without isinstance guards) and as the
 shadow installed inside a nested ``acp_session()`` block (so sub-agents
 don't accidentally drive the outermost live session). All methods are
 no-ops; ``session_id`` returns the ``"noop"`` sentinel; ``attach()``
@@ -21,16 +21,21 @@ from anyio.streams.memory import MemoryObjectReceiveStream
 # Runtime imports: ``AcpUpdate`` is subscripted at runtime by
 # ``anyio.create_memory_object_stream[AcpUpdate]`` inside ``attach()``;
 # ``_NOOP_SESSION_ID`` is a string constant returned by ``session_id``.
-from inspect_ai.agent._acp.session import _NOOP_SESSION_ID, AcpUpdate
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.agent._acp.transport import _NOOP_SESSION_ID, AcpUpdate
+from inspect_ai.model._chat_message import ChatMessageUser
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp.session import AcpSession, ApproverClient
+    from inspect_ai.agent._acp.transport import (
+        AcpTransport,
+        ApproverClient,
+        ElicitationClient,
+    )
+    from inspect_ai.agent._channel import AgentChannel, AgentRef
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
 
 
-class NoOpAcpSession:
+class NoOpAcpTransport:
     """No-op session installed when ACP is not active or shadowed.
 
     ``attach()`` returns an already-closed receive stream so callers can
@@ -43,7 +48,7 @@ class NoOpAcpSession:
         """Always returns the ``"noop"`` sentinel."""
         return _NOOP_SESSION_ID
 
-    async def __aenter__(self) -> AcpSession:
+    async def __aenter__(self) -> AcpTransport:
         """No-op enter; returns ``self``."""
         return self
 
@@ -75,23 +80,6 @@ class NoOpAcpSession:
         """No-op publish — updates are discarded."""
         return None
 
-    @contextlib.contextmanager
-    def turn_scope(self) -> Iterator[None]:
-        """No-op turn scope — yields once and exits without cancellation handling."""
-        yield
-
-    async def before_turn(
-        self, messages: Sequence[ChatMessage]
-    ) -> list[ChatMessageUser]:
-        """No-op — never blocks, returns an empty list."""
-        return []
-
-    async def after_cancel(
-        self, messages: list[ChatMessage] | None = None
-    ) -> list[ChatMessage]:
-        """No-op — never reachable on the no-op session (no cancel can fire)."""
-        return []
-
     def submit_user_message(self, msg: ChatMessageUser) -> None:
         """No-op submit — message is discarded."""
         return None
@@ -104,7 +92,7 @@ class NoOpAcpSession:
 
         Does not call ``record_interrupt_event`` — sub-agents must not
         emit cancel events into the top-level transcript. ``cause`` is
-        accepted to match :class:`LiveAcpSession` but is discarded.
+        accepted to match :class:`LiveAcpTransport` but is discarded.
         """
         return None
 
@@ -195,9 +183,62 @@ class NoOpAcpSession:
     def notify_approver_attach(self, client: ApproverClient) -> None:
         """No-op: no subscribers can be registered on the no-op session."""
 
-    def mark_active_approver_client(self, client: ApproverClient) -> None:
+    def mark_active_session_client(self, client: object) -> None:
         """No-op: nothing to promote in the no-op session."""
 
     def approver_driver_chain(self) -> list[ApproverClient]:
         """No-op session returns an empty driver chain."""
         return []
+
+    def attach_elicitation_client(
+        self, client: ElicitationClient
+    ) -> Callable[[], None]:
+        """No-op attach — no elicitation clients can attach to the no-op session."""
+
+        def _noop_unsubscribe() -> None:
+            return None
+
+        return _noop_unsubscribe
+
+    def has_elicitation_clients(self) -> bool:
+        """No-op session never has attached elicitation clients."""
+        return False
+
+    def has_ever_had_elicitation_client(self) -> bool:
+        """No-op session never had elicitation clients."""
+        return False
+
+    def subscribe_elicitation_attach(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """No-op subscribe — no attaches can fire on the no-op session."""
+
+        def _noop_unsubscribe() -> None:
+            return None
+
+        return _noop_unsubscribe
+
+    def notify_elicitation_attach(self, client: ElicitationClient) -> None:
+        """No-op: no subscribers can be registered on the no-op session."""
+
+    def elicitation_driver_chain(self) -> list[ElicitationClient]:
+        """No-op session returns an empty driver chain."""
+        return []
+
+    def maybe_bind(self, channel: AgentChannel, ref: AgentRef) -> bool:
+        """No-op session never accepts a binder."""
+        return False
+
+    def unbind(self, ref: AgentRef) -> None:
+        """No-op session has nothing to unbind."""
+        return None
+
+    @property
+    def ref(self) -> AgentRef | None:
+        """No-op session has no producer target."""
+        return None
+
+    @property
+    def is_attachable(self) -> bool:
+        """No-op sessions are never attachable."""
+        return False

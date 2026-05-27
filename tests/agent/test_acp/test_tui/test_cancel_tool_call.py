@@ -127,42 +127,46 @@ async def test_ctrl_l_cancels_only_in_flight_tool() -> None:
 @skip_if_trio
 @pytest.mark.slow
 @pytest.mark.anyio
-async def test_ctrl_l_targets_most_recently_started_with_multiple_tools() -> None:
-    """Two tools in flight: ``^L`` cancels the one started latest."""
+async def test_ctrl_l_cancels_all_in_flight_tools() -> None:
+    """Two tools in flight: a single ``^L`` fans out to cancel both.
+
+    Under parallel tool calls multiple tools share the in-flight state;
+    one keystroke dispatches one ``inspect/cancel_tool_call`` RPC per
+    tool, in ``start_time`` ascending order (oldest first).
+    """
     rows = [_row()]
     client = make_fake_client(rows)
     app = InspectAcpApp(eval_id=None, server=None, client=client)
     async with app.run_test() as pilot:
         screen = await _open_session_screen(pilot, rows)
         _push_tool_start(screen, "tc-older", title="bash sleep 30")
-        # Back-to-back consume calls stamp ``start_time`` from
-        # ``time.monotonic()`` microseconds apart; the second wins
-        # the ``max(..., key=start_time)`` tiebreaker.
         _push_tool_start(screen, "tc-newer", title="bash sleep 60")
         await pilot.pause()
 
-        # Sanity: the SessionState's accessor agrees.
-        assert screen._state.cancel_tool_call_id == "tc-newer"
+        assert screen._state.cancel_tool_call_ids == ["tc-older", "tc-newer"]
 
         await pilot.press("ctrl+l")
-        for _ in range(10):
+        for _ in range(20):
             await pilot.pause()
-            if _recorded_cancel_requests(screen):
+            if len(_recorded_cancel_requests(screen)) >= 2:
                 break
 
         cancels = _recorded_cancel_requests(screen)
-        assert cancels == [{"sessionId": "sid-x", "toolCallId": "tc-newer"}]
+        assert cancels == [
+            {"sessionId": "sid-x", "toolCallId": "tc-older"},
+            {"sessionId": "sid-x", "toolCallId": "tc-newer"},
+        ]
 
 
 @skip_if_trio
 @pytest.mark.slow
 @pytest.mark.anyio
-async def test_ctrl_l_advances_to_next_eligible_after_first_request() -> None:
-    """A second ``^L`` after the first targets the next-most-recent tool.
+async def test_ctrl_l_is_noop_after_all_eligible_tools_cancelled() -> None:
+    """A second ``^L`` after the fan-out finds nothing eligible.
 
-    ``mark_cancel_requested`` flips the first tool's ``cancel_requested``
-    flag (so the accessor filters it out); the second ^L should then
-    pick the previously-second tool.
+    The first press marks every in-flight tool ``cancel_requested``;
+    the accessor's filter then excludes them, so a follow-up press
+    fires no additional requests.
     """
     rows = [_row()]
     client = make_fake_client(rows)
@@ -174,21 +178,18 @@ async def test_ctrl_l_advances_to_next_eligible_after_first_request() -> None:
         await pilot.pause()
 
         await pilot.press("ctrl+l")
-        for _ in range(10):
-            await pilot.pause()
-            if len(_recorded_cancel_requests(screen)) >= 1:
-                break
-
-        await pilot.press("ctrl+l")
-        for _ in range(10):
+        for _ in range(20):
             await pilot.pause()
             if len(_recorded_cancel_requests(screen)) >= 2:
                 break
 
-        cancels = _recorded_cancel_requests(screen)
-        assert cancels == [
-            {"sessionId": "sid-x", "toolCallId": "tc-newer"},
+        await pilot.press("ctrl+l")
+        for _ in range(5):
+            await pilot.pause()
+
+        assert _recorded_cancel_requests(screen) == [
             {"sessionId": "sid-x", "toolCallId": "tc-older"},
+            {"sessionId": "sid-x", "toolCallId": "tc-newer"},
         ]
 
 

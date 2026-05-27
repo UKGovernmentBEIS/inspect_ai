@@ -59,6 +59,7 @@ from .util import (
 logger = getLogger(__name__)
 
 OPENAI_API_KEY = "OPENAI_API_KEY"
+OPENAI_SAFETY_IDENTIFIER = "OPENAI_SAFETY_IDENTIFIER"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
 
@@ -106,10 +107,15 @@ class OpenAIAPI(ModelAPI):
             "prompt_cache_retention", NOT_GIVEN
         )
 
-        # extract safety_identifier model arg if provided
+        # extract safety_identifier model arg if provided, falling back to
+        # the OPENAI_SAFETY_IDENTIFIER environment variable
         self.safety_identifier: str | NotGiven = model_args.pop(
             "safety_identifier", NOT_GIVEN
         )
+        if self.safety_identifier is NOT_GIVEN:
+            env_safety_identifier = os.environ.get(OPENAI_SAFETY_IDENTIFIER, None)
+            if env_safety_identifier:
+                self.safety_identifier = env_safety_identifier
 
         # OpenAI recommends preserving `phase` on replayed Responses API
         # assistant messages:
@@ -488,8 +494,14 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def connection_key(self) -> str:
-        """Scope for enforcing max_connections (could also use endpoint)."""
-        return str(self.api_key)
+        """Scope adaptive concurrency per (key, model).
+
+        A pool shared across models lets the faster model's signals push the
+        adaptive limit past the slower model's actual ceiling (cram-down).
+        Per-model scoping avoids that, at the cost of slight over-fragmentation
+        when models actually share an upstream rate-limit budget.
+        """
+        return f"{self.api_key}:{self.model_name}"
 
     @override
     def apply_redacted_reasoning_tokens_to_input(self) -> bool:

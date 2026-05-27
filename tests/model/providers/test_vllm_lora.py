@@ -8,6 +8,7 @@ from test_helpers.utils import skip_if_github_action, skip_if_no_vllm
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ChatMessageUser, GenerateConfig, get_model
 from inspect_ai.model._providers._vllm_lora import (
+    LoRAAdapter,
     VLLMServer,
     _normalize_api_base,
     _vllm_servers,
@@ -41,46 +42,70 @@ class TestParseVLLMModel:
     """Tests for parse_vllm_model function."""
 
     def test_base_model_only(self) -> None:
-        base, adapter_path, adapter_name = parse_vllm_model("meta-llama/Llama-3-8B")
+        base, adapter = parse_vllm_model("meta-llama/Llama-3-8B")
         assert base == "meta-llama/Llama-3-8B"
-        assert adapter_path is None
-        assert adapter_name is None
+        assert adapter is None
 
     def test_with_hf_adapter(self) -> None:
-        base, adapter_path, adapter_name = parse_vllm_model(
-            "meta-llama/Llama-3-8B:myorg/my-lora-adapter"
+        base, adapter = parse_vllm_model("meta-llama/Llama-3-8B:myorg/my-lora-adapter")
+        assert base == "meta-llama/Llama-3-8B"
+        assert adapter == LoRAAdapter("myorg/my-lora-adapter")
+
+    def test_with_hf_adapter_revision(self) -> None:
+        base, adapter = parse_vllm_model(
+            "meta-llama/Llama-3-8B:myorg/my-lora-adapter@v2"
         )
         assert base == "meta-llama/Llama-3-8B"
-        assert adapter_path == "myorg/my-lora-adapter"
-        assert adapter_name == "myorg_my-lora-adapter"
+        assert adapter == LoRAAdapter("myorg/my-lora-adapter", "v2")
+        assert adapter is not None
+        assert adapter.name == "myorg/my-lora-adapter@v2"
 
     def test_with_local_adapter(self) -> None:
-        base, adapter_path, adapter_name = parse_vllm_model(
-            "meta-llama/Llama-3-8B:/path/to/adapter"
-        )
+        base, adapter = parse_vllm_model("meta-llama/Llama-3-8B:/path/to/adapter")
         assert base == "meta-llama/Llama-3-8B"
-        assert adapter_path == "/path/to/adapter"
-        assert adapter_name == "_path_to_adapter"
+        assert adapter == LoRAAdapter("/path/to/adapter")
 
     def test_with_relative_path_adapter(self) -> None:
-        base, adapter_path, adapter_name = parse_vllm_model("llama:./local/adapter")
+        base, adapter = parse_vllm_model("llama:./local/adapter")
         assert base == "llama"
-        assert adapter_path == "./local/adapter"
-        assert adapter_name == "._local_adapter"
+        assert adapter == LoRAAdapter("./local/adapter")
 
     def test_simple_model_name(self) -> None:
-        base, adapter_path, adapter_name = parse_vllm_model("gpt2")
+        base, adapter = parse_vllm_model("gpt2")
         assert base == "gpt2"
-        assert adapter_path is None
-        assert adapter_name is None
+        assert adapter is None
 
     def test_nested_hf_path(self) -> None:
-        base, adapter_path, adapter_name = parse_vllm_model(
-            "org/model:other-org/sub/adapter"
-        )
+        base, adapter = parse_vllm_model("org/model:other-org/sub/adapter")
         assert base == "org/model"
-        assert adapter_path == "other-org/sub/adapter"
-        assert adapter_name == "other-org_sub_adapter"
+        assert adapter == LoRAAdapter("other-org/sub/adapter")
+
+    def test_bare_name_treated_as_preloaded(self) -> None:
+        """No slash → treat suffix as a lora_name already on the server."""
+        base, adapter = parse_vllm_model("llama:my-preloaded-name")
+        assert base == "llama"
+        assert adapter == LoRAAdapter("my-preloaded-name", is_preloaded=True)
+        assert adapter is not None
+        assert adapter.is_preloaded is True
+
+    def test_bare_name_with_at_preserves_full_string(self) -> None:
+        """Bare names can contain '@' (vLLM accepts any string); don't split it."""
+        base, adapter = parse_vllm_model("llama:my-preloaded@with-at")
+        assert base == "llama"
+        assert adapter == LoRAAdapter("my-preloaded@with-at", is_preloaded=True)
+        assert adapter is not None
+        assert adapter.revision is None
+        assert adapter.is_preloaded is True
+
+    def test_hf_adapter_not_marked_preloaded(self) -> None:
+        """HF-shaped paths are not preloaded — we'll try to load them."""
+        _, adapter = parse_vllm_model("llama:org/adapter")
+        assert adapter is not None
+        assert adapter.is_preloaded is False
+
+    def test_empty_revision_raises(self) -> None:
+        with pytest.raises(ValueError, match="Empty revision"):
+            parse_vllm_model("llama:org/adapter@")
 
 
 # =============================================================================
@@ -168,7 +193,7 @@ class TestVLLMAPIInit:
         rank_map = {"adapter-a": 16, "adapter-b": 256}
         with patch(
             "inspect_ai.model._providers.vllm.get_adapter_rank",
-            side_effect=lambda p: rank_map.get(p),
+            side_effect=lambda adapter: rank_map.get(adapter.path),
         ):
             api1 = VLLMAPI("base-model:adapter-a")
             api2 = VLLMAPI("base-model:adapter-b")
@@ -228,7 +253,7 @@ class TestVLLMAPIClose:
         api._server.base_url = "http://localhost:8000/v1"
         api._server.api_key = "test-key"
         api._server.port = 8000
-        api._server.loaded_adapters.add("adapter")
+        api._server.loaded_adapters.add(LoRAAdapter("adapter"))
         self._simulate_resolved(api)
 
         api.close()
@@ -354,8 +379,9 @@ class TestEnsureAdapterLoaded:
 
     def test_already_loaded_skips_http(self) -> None:
         """Fast path: adapter already in loaded_adapters → no HTTP calls."""
+        adapter = LoRAAdapter("org/adapter")
         server = self._make_server()
-        server.loaded_adapters.add("org/adapter")
+        server.loaded_adapters.add(adapter)
 
         with (
             patch(
@@ -363,13 +389,14 @@ class TestEnsureAdapterLoaded:
             ) as mock_check,
             patch("inspect_ai.model._providers._vllm_lora._load_adapter") as mock_load,
         ):
-            ensure_adapter_loaded(server, "org/adapter", "org_adapter")
+            ensure_adapter_loaded(server, adapter)
 
         mock_check.assert_not_called()
         mock_load.assert_not_called()
 
     def test_on_server_skips_load(self) -> None:
         """Adapter already on server → mark loaded, don't POST."""
+        adapter = LoRAAdapter("org/adapter")
         server = self._make_server()
 
         with (
@@ -379,13 +406,14 @@ class TestEnsureAdapterLoaded:
             ),
             patch("inspect_ai.model._providers._vllm_lora._load_adapter") as mock_load,
         ):
-            ensure_adapter_loaded(server, "org/adapter", "org_adapter")
+            ensure_adapter_loaded(server, adapter)
 
         mock_load.assert_not_called()
-        assert "org/adapter" in server.loaded_adapters
+        assert adapter in server.loaded_adapters
 
     def test_not_on_server_loads_adapter(self) -> None:
         """Adapter not on server → load via HTTP POST."""
+        adapter = LoRAAdapter("org/adapter")
         server = self._make_server()
 
         with (
@@ -395,19 +423,39 @@ class TestEnsureAdapterLoaded:
             ),
             patch("inspect_ai.model._providers._vllm_lora._load_adapter") as mock_load,
         ):
-            ensure_adapter_loaded(server, "org/adapter", "org_adapter")
+            ensure_adapter_loaded(server, adapter)
 
         mock_load.assert_called_once_with(
-            "http://localhost:8000/v1", "org_adapter", "org/adapter", "test-key"
+            "http://localhost:8000/v1", adapter, "test-key"
         )
-        assert "org/adapter" in server.loaded_adapters
+        assert adapter in server.loaded_adapters
+
+    def test_same_path_different_revisions_coexist(self) -> None:
+        """Two revisions of the same path get distinct vLLM lora_names."""
+        v1 = LoRAAdapter("org/adapter", "v1")
+        v2 = LoRAAdapter("org/adapter", "v2")
+        server = self._make_server()
+        server.loaded_adapters.add(v1)
+
+        with (
+            patch(
+                "inspect_ai.model._providers._vllm_lora._adapter_on_server",
+                return_value=False,
+            ),
+            patch("inspect_ai.model._providers._vllm_lora._load_adapter") as mock_load,
+        ):
+            ensure_adapter_loaded(server, v2)
+
+        mock_load.assert_called_once_with("http://localhost:8000/v1", v2, "test-key")
+        assert v1 in server.loaded_adapters
+        assert v2 in server.loaded_adapters
 
     def test_unresolved_server_raises(self) -> None:
         """Calling before server is resolved raises RuntimeError."""
         server = VLLMServer()
 
         with pytest.raises(RuntimeError, match="Server must be resolved"):
-            ensure_adapter_loaded(server, "org/adapter", "org_adapter")
+            ensure_adapter_loaded(server, LoRAAdapter("org/adapter"))
 
 
 # =============================================================================

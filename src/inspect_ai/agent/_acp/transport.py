@@ -1,19 +1,20 @@
-"""Agent Client Protocol session foundation.
+"""Agent Client Protocol transport foundation.
 
-This module defines the ACP session contract — the ``AcpSession``
+This module defines the ACP transport contract — the ``AcpTransport``
 :class:`typing.Protocol` plus the supporting ``ApproverClient``
-Protocol, ``TurnCancelled`` exception, and the ``acp_session()`` /
-``current_acp_session()`` factory + accessor. The two implementations
-live in sibling files:
+Protocol and the ``acp_session()`` / ``current_acp_transport()``
+factory + accessor. The two implementations live in sibling files:
 
-- :mod:`.session_noop` — :class:`NoOpAcpSession`, the null object
+- :mod:`.transport_noop` — :class:`NoOpAcpTransport`, the null object
   used as the default ContextVar value and as the shadow installed
   when ``acp_session()`` is opened inside an already-active session
   (sub-agent case).
-- :mod:`.session_live` — :class:`LiveAcpSession`, the active
-  implementation that owns the in-process pub/sub bus, the
-  user-message queue, the turn cancel scope, and the cancel/inject
-  machinery.
+- :mod:`.transport_live` — :class:`LiveAcpTransport`, the active
+  implementation. Owns the in-process pub/sub bus, approver registry,
+  transcript snapshot, and in-flight tracking. Acts as a *producer* on
+  the agent's :class:`~inspect_ai.agent.AgentChannel`:
+  ``submit_user_message`` forwards via ``ref.post``,
+  ``cancel_current_turn`` via ``ref.interrupt``.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from __future__ import annotations
 import contextlib
 import math
 from contextvars import ContextVar
+from dataclasses import dataclass
 from types import TracebackType
 from typing import (
     TYPE_CHECKING,
@@ -35,13 +37,50 @@ from typing import (
 
 from anyio.streams.memory import MemoryObjectReceiveStream
 
-from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
+from inspect_ai.model._chat_message import ChatMessageUser
 
 if TYPE_CHECKING:
-    from acp.schema import RequestPermissionRequest, RequestPermissionResponse
+    from acp.schema import (
+        AcceptElicitationResponse,
+        CancelElicitationResponse,
+        DeclineElicitationResponse,
+        ElicitationSchema,
+        RequestPermissionRequest,
+        RequestPermissionResponse,
+    )
 
+    from inspect_ai.agent._channel import AgentChannel, AgentRef
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
+
+    ElicitationResponse = (
+        AcceptElicitationResponse
+        | DeclineElicitationResponse
+        | CancelElicitationResponse
+    )
+
+
+@dataclass(frozen=True)
+class ElicitationRequest:
+    """All fields the standard ACP ``elicitation/create`` wire payload needs.
+
+    The installed ``acp.schema`` (0.10) splits these across two
+    Pydantic types — ``CreateFormElicitationRequest`` carries
+    ``message`` + ``mode``; ``ElicitationFormSessionMode`` carries
+    ``sessionId`` + ``toolCallId`` + ``requestedSchema`` — but on the
+    wire it's one flat object. This Inspect-side container carries the
+    full set so ``ConnectionHandler.request_elicitation`` can perform
+    target-session validation, ``wire_session_id`` rewriting, and emit
+    the standard ACP wire shape in one place. No protocol divergence:
+    the wire JSON we serialize is spec-conformant ``elicitation/create``
+    that any compliant 0.10 client renders.
+    """
+
+    message: str
+    session_id: str
+    requested_schema: "ElicitationSchema"
+    tool_call_id: str | None = None
+
 
 # Loose heterogeneous payload — early tests publish dicts; the live
 # router publishes ``acp.SessionNotification`` Pydantic instances. The
@@ -68,7 +107,7 @@ class ApproverClient(Protocol):
     """A client capable of handling ``session/request_permission``.
 
     An attached ACP client that can render an approval prompt for the
-    user and return their decision. ``LiveAcpSession`` keeps a registry
+    user and return their decision. ``LiveAcpTransport`` keeps a registry
     of these so the ``human_approver`` can route tool-approval prompts
     through ACP when at least one client is attached, falling back to
     the in-proc panel / console flow when none are.
@@ -113,24 +152,63 @@ class ApproverClient(Protocol):
         ...
 
 
-class TurnCancelled(Exception):
-    """Raised inside :meth:`AcpSession.turn_scope` when a client cancels.
+@runtime_checkable
+class ElicitationClient(Protocol):
+    """A client capable of handling ``elicitation/create``.
 
-    Distinct from ``CancelledError``, which is reserved for
-    sample-level hard cancels propagating from the enclosing task
-    group (limit exceeded, eval shutdown). The agent loop catches
-    ``TurnCancelled`` to recover and continue with a fresh user
-    message; ``CancelledError`` continues to unwind the sample.
+    An attached ACP client that can render a structured-form request
+    (``ask_user``) to the user and return their submission. The
+    Phase 6 ``acp_handler`` routes elicitation prompts through ACP
+    when at least one client is attached AND that client advertised
+    the ``elicitation.form`` capability during ``initialize``,
+    falling back to the in-proc panel / console flow otherwise.
+
+    Implementations: ``ConnectionHandler`` in ``connection.py`` (wraps
+    ``conn.send_request("elicitation/create", ...)``); tests pass
+    small stubs to exercise the driver-fallback semantics without a
+    real socket.
     """
+
+    async def request_elicitation(
+        self, request: ElicitationRequest
+    ) -> "ElicitationResponse":
+        """Send the elicitation request and await the response.
+
+        Raises (typically :class:`ConnectionError`) if the client
+        disconnected before responding — the driver-fallback loop in
+        ``_input/acp.py`` treats that as a fallback signal and tries
+        the next client in the chain. Also raises if the implementation
+        is bound to a target session other than ``request.session_id``;
+        the shim treats that the same way (try the next client).
+        """
+        ...
+
+    async def drain_notifications(self) -> None:
+        """Wait until pending ``session/update`` notifications have been sent.
+
+        Called by the elicitation shim immediately before
+        :meth:`request_elicitation` so the operator sees the model's
+        accompanying ``agent_message_chunk`` (the contextual "why"
+        the agent is asking) BEFORE the form appears. Same rationale
+        as :meth:`ApproverClient.drain_notifications`.
+
+        Implementations must return promptly when there's nothing to
+        drain. Stubs in tests can no-op. Cancellation propagates.
+        """
+        ...
 
 
 @runtime_checkable
-class AcpSession(Protocol):
-    """Per-agent ACP session facade.
+class AcpTransport(Protocol):
+    """Per-sample ACP transport facade.
 
-    Provides the in-process pub/sub bus and the cancel/inject
-    machinery: turn scopes, user-message queue, and producer-side
-    cancel/submit methods.
+    Owns the ACP-specific machinery the wire protocol needs:
+    in-process pub/sub bus, approver-client registry, transcript
+    capture/replay, and the producer-side hooks that drive the agent's
+    :class:`~inspect_ai.agent.AgentChannel` (``submit_user_message`` →
+    ``ref.post``, ``cancel_current_turn`` → ``ref.interrupt``). The
+    cancellation primitive lives on the channel; this transport is one
+    *producer* on it.
     """
 
     @property
@@ -143,12 +221,12 @@ class AcpSession(Protocol):
         """
         ...
 
-    async def __aenter__(self) -> "AcpSession":
+    async def __aenter__(self) -> "AcpTransport":
         """Enter the session scope.
 
         Returns ``self``. The session is installed in the ACP
         ContextVar by the ``acp_session()`` factory immediately before
-        this is called; consumers can call :func:`current_acp_session`
+        this is called; consumers can call :func:`current_acp_transport`
         from anywhere inside the scope to retrieve it.
         """
         ...
@@ -192,52 +270,6 @@ class AcpSession(Protocol):
         """
         ...
 
-    def turn_scope(self) -> contextlib.AbstractContextManager[None]:
-        """Wrap one agent turn so an ACP client cancel can interrupt it.
-
-        Synchronous context manager. ACP ``session/cancel`` causes the
-        wrapped block to raise :class:`TurnCancelled`. Sample-level
-        cancels (limit, eval shutdown) continue to propagate as
-        ``CancelledError`` past this scope unchanged.
-        """
-        ...
-
-    async def before_turn(
-        self, messages: Sequence[ChatMessage]
-    ) -> list[ChatMessageUser]:
-        """Drain queued operator messages and return them.
-
-        On the very first call to this method, if ``messages`` contains
-        no user message yet, blocks until at least one is submitted. On
-        subsequent calls, drains non-blockingly and returns immediately
-        (possibly with an empty list).
-
-        Takes a plain message sequence (not an ``AgentState``) so
-        custom solvers can pass ``state.messages`` directly without
-        needing the agent framework.
-        """
-        ...
-
-    async def after_cancel(
-        self, messages: list[ChatMessage] | None = None
-    ) -> list[ChatMessage]:
-        """Return repair + follow-up messages after a turn cancel.
-
-        Returns synthetic :class:`ChatMessageTool` results for any tool
-        calls that were in flight at cancel time, followed by drained
-        operator user messages. Blocks until at least one user message
-        is available if the queue is empty. Returned list is ready to
-        extend onto ``state.messages``.
-
-        When ``messages`` is provided, scans the last assistant
-        message's ``tool_calls`` and synthesizes a repair for every id
-        that doesn't yet have a matching :class:`ChatMessageTool`
-        result. This catches partially-completed tool batches that
-        anyio cancellation interrupts before ``_execute_tools_impl``
-        can return.
-        """
-        ...
-
     def submit_user_message(self, msg: ChatMessageUser) -> None:
         """Queue a user message for the next turn or after-cancel drain.
 
@@ -275,8 +307,8 @@ class AcpSession(Protocol):
 
         Used by the raw-event forwarder to stream Inspect-native
         events out to opt-in clients. Wraps the underlying
-        ``Transcript._add_subscriber`` so callers don't reach into
-        private session state. Returns an idempotent unsubscribe
+        ``Transcript._subscribe`` so callers don't reach into private
+        session state. Returns an idempotent unsubscribe
         callable (calling it removes the subscriber; safe to call
         multiple times).
 
@@ -314,7 +346,7 @@ class AcpSession(Protocol):
     def agent_completed(self) -> bool:
         """True after the agent's react loop has exited (split-phase park).
 
-        ``LiveAcpSession.__aexit__`` parks the session for the scoring
+        ``LiveAcpTransport.__aexit__`` parks the session for the scoring
         window when bound to an ``ActiveSample`` — the router + pubsub
         stay attached so scoring events still reach clients, but the
         agent loop is gone. Connection handlers read this to reject
@@ -407,26 +439,30 @@ class AcpSession(Protocol):
         Decoupled from :meth:`attach_approver_client` (which runs
         before replay and registers as pending) so subscribers wake
         only after replay completes AND the connection has promoted
-        itself via :meth:`mark_active_approver_client`. Half-bound
+        itself via :meth:`mark_active_session_client`. Half-bound
         clients are invisible to :meth:`approver_driver_chain` until
         this notification fires. The connection handler invokes this
         from its post-bind setup. No-op session does nothing.
         """
         ...
 
-    def mark_active_approver_client(self, client: ApproverClient) -> None:
-        """Promote ``client`` to be the active driver for approvals.
+    def mark_active_session_client(self, client: object) -> None:
+        """Promote ``client`` as the active driver across every registry it belongs to.
 
         Called by the connection handler after a ``session/prompt``
         forwards to this session — the strongest signal that this
         client is the operator's current surface. The next
-        ``session/request_permission`` will route to this client
-        first; if it raises (typically ``ConnectionError`` on
-        mid-prompt disconnect), the shim falls through to the next
+        ``session/request_permission`` (and the next
+        ``elicitation/create``) will route to this client first; if
+        it raises (typically ``ConnectionError`` on mid-prompt
+        disconnect), the dispatch shim falls through to the next
         attached client.
 
-        Silently no-ops if the client isn't (or is no longer) in
-        the registry. No-op session does nothing.
+        Fans out to every client-driver registry on the session
+        (approver, elicitation, future additions). Each registry's
+        promotion silently no-ops when the client isn't in its
+        lists, so this is safe to call unconditionally. No-op
+        session does nothing.
         """
         ...
 
@@ -437,6 +473,63 @@ class AcpSession(Protocol):
         recently landed; subsequent entries are the remaining
         attached clients in attach order. Returns a snapshot copy
         so iteration is stable against concurrent attach/detach.
+        """
+        ...
+
+    def attach_elicitation_client(
+        self, client: "ElicitationClient"
+    ) -> Callable[[], None]:
+        """Register an ACP client capable of handling ``elicitation/create``.
+
+        Same single-driver-with-fallback semantics as
+        :meth:`attach_approver_client`. The connection handler gates
+        the call on the client's advertised ``elicitation.form``
+        capability; clients without that capability are never
+        attached here. Returns an idempotent unsubscribe callable.
+        No-op session returns a no-op unsubscribe.
+        """
+        ...
+
+    def has_elicitation_clients(self) -> bool:
+        """True if at least one :class:`ElicitationClient` is currently attached.
+
+        Cheap predicate used by the Phase 6 elicitation shim to
+        decide whether to route via ACP. No-op session always
+        returns False.
+        """
+        ...
+
+    def has_ever_had_elicitation_client(self) -> bool:
+        """True if any elicitation client has attached during this session.
+
+        One-way bit; same semantics as
+        :meth:`has_ever_had_approver_client`.
+        """
+        ...
+
+    def subscribe_elicitation_attach(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Register ``callback`` to fire on :meth:`notify_elicitation_attach`.
+
+        Same semantics as :meth:`subscribe_approver_attach`. No-op
+        session returns a no-op unsubscribe.
+        """
+        ...
+
+    def notify_elicitation_attach(self, client: "ElicitationClient") -> None:
+        """Promote ``client`` from pending to ready and fire subscribers.
+
+        Same semantics as :meth:`notify_approver_attach`. The
+        connection handler invokes this from its post-bind setup
+        when the client advertised elicitation form capability.
+        """
+        ...
+
+    def elicitation_driver_chain(self) -> list["ElicitationClient"]:
+        """Elicitation clients in fallback order: driver first, then others.
+
+        Same semantics as :meth:`approver_driver_chain`.
         """
         ...
 
@@ -472,16 +565,66 @@ class AcpSession(Protocol):
         """
         ...
 
+    def maybe_bind(self, channel: "AgentChannel", ref: "AgentRef") -> bool:
+        """First-binder-wins channel attachment.
 
-# NoOpAcpSession is imported at module bottom (after the Protocol
+        Called by the agent runtime when it opens a new
+        :class:`inspect_ai.agent.AgentChannel` (rebindable per top-level
+        :func:`react <inspect_ai.agent.react>` invocation in the sample,
+        ignored on nested sub-agent opens). Returns True iff this call
+        accepted the binding — the caller uses that to know whether to
+        :meth:`unbind` on exit.
+
+        Implementations may use ``channel`` to subscribe to channel
+        events (e.g. :meth:`AgentChannel.subscribe_drained` so the
+        transport learns when its queued :class:`UserMessage` items
+        reach the consumer); ``ref`` is the producer-side handle used
+        for posting and interrupting.
+        """
+        ...
+
+    def unbind(self, ref: "AgentRef") -> None:
+        """Clear the bound :class:`AgentRef` if it matches ``ref``.
+
+        Identity match: an :meth:`unbind` call from a sub-agent whose
+        :meth:`maybe_bind` was rejected silently no-ops.
+        """
+        ...
+
+    @property
+    def ref(self) -> "AgentRef | None":
+        """Currently-bound :class:`AgentRef`, or ``None``.
+
+        Producers (:meth:`submit_user_message`, :meth:`cancel_current_turn`)
+        consult this to route into the agent's channel when one is bound.
+        """
+        ...
+
+    @property
+    def is_attachable(self) -> bool:
+        """True iff this transport has a bound channel and isn't shutting down.
+
+        ACP clients (the picker, ``inspect/list_sessions``, the
+        connection-handler's session lookup) should only see transports
+        that can actually receive prompts and surface their effects.
+
+        Pre-binding window (sample started, agent loop not yet inside
+        ``agent_channel()``) and post-agent window (loop exited,
+        scoring underway) both return False so ghost sessions don't
+        appear in the picker.
+        """
+        ...
+
+
+# NoOpAcpTransport is imported at module bottom (after the Protocol
 # definitions it depends on) to keep the load order coherent: importing
 # ``session_noop`` triggers a re-import of this module while it's still
 # loading, and that re-import only needs the symbols defined above.
-from inspect_ai.agent._acp.session_noop import NoOpAcpSession  # noqa: E402
+from inspect_ai.agent._acp.transport_noop import NoOpAcpTransport  # noqa: E402
 
-_NOOP_SINGLETON: AcpSession = NoOpAcpSession()
+_NOOP_SINGLETON: AcpTransport = NoOpAcpTransport()
 
-_acp_var: ContextVar[AcpSession] = ContextVar("_acp_session", default=_NOOP_SINGLETON)
+_acp_var: ContextVar[AcpTransport] = ContextVar("_acp_session", default=_NOOP_SINGLETON)
 
 # Sticky "a Live session is active somewhere upstream" flag,
 # inherited like any ContextVar by spawned child tasks. The first
@@ -493,21 +636,21 @@ _acp_var: ContextVar[AcpSession] = ContextVar("_acp_session", default=_NOOP_SING
 # sufficient on its own. A sub-agent installs a NoOp shadow into
 # ``_acp_var``, so a sub-sub-agent that consulted the parent alone
 # would see a NoOp, conclude "no live session here", and install a
-# second Live session — overwriting ``ActiveSample.acp_session`` and
+# second Live session — overwriting ``ActiveSample.acp_transport`` and
 # double-registering the event router. This separate flag breaks that
 # false symmetry.
 _acp_live_active: ContextVar[bool] = ContextVar("_acp_live_active", default=False)
 
 
 @contextlib.asynccontextmanager
-async def acp_session() -> AsyncIterator[AcpSession]:
+async def acp_session() -> AsyncIterator[AcpTransport]:
     """Open an ACP session for the enclosing scope.
 
     The first ``acp_session()`` entry in a context chain installs a
-    real ``LiveAcpSession``. Every nested ``acp_session()`` block —
+    real ``LiveAcpTransport``. Every nested ``acp_session()`` block —
     sub-agents invoked via handoff / ``as_tool`` / dispatch, at any
     depth — installs a no-op shadow instead, so nested code can call
-    ``current_acp_session().submit_user_message(...)`` /
+    ``current_acp_transport().submit_user_message(...)`` /
     ``cancel_current_turn()`` without accidentally driving the
     top-level session.
 
@@ -519,9 +662,9 @@ async def acp_session() -> AsyncIterator[AcpSession]:
     if _acp_live_active.get():
         # Upstream already owns the live session — shadow regardless
         # of how deep we are. ``_acp_var`` still gets the shadow so
-        # ``current_acp_session()`` inside this scope returns it
+        # ``current_acp_transport()`` inside this scope returns it
         # rather than leaking the upstream Live one.
-        install: AcpSession = NoOpAcpSession()
+        install: AcpTransport = NoOpAcpTransport()
         token_var = _acp_var.set(install)
         try:
             async with install:
@@ -534,11 +677,11 @@ async def acp_session() -> AsyncIterator[AcpSession]:
         # Importing here means the factory is the only path that
         # materializes the live impl; tests that import it directly
         # take care of their own ordering.
-        from inspect_ai.agent._acp.session_live import LiveAcpSession
+        from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 
         # First entry — become the live session and mark the chain
         # so all descendants shadow.
-        install = LiveAcpSession()
+        install = LiveAcpTransport()
         token_live = _acp_live_active.set(True)
         token_var = _acp_var.set(install)
         try:
@@ -549,10 +692,24 @@ async def acp_session() -> AsyncIterator[AcpSession]:
             _acp_live_active.reset(token_live)
 
 
-def current_acp_session() -> AcpSession:
+def current_acp_transport() -> AcpTransport:
     """Return the currently active ACP session without entering a scope.
 
     Returns the no-op singleton when no ACP session is active. Safe to
     call from anywhere; never blocks; never raises.
+
+    Resolution order: (1) the ``_acp_var`` ContextVar (set by an
+    :func:`acp_session` entry on an ancestor task); (2) the active
+    sample's :attr:`ActiveSample.acp_transport` field, if any (lets test
+    fixtures attach a session by direct assignment without going through
+    the async context manager); (3) the no-op singleton.
     """
-    return _acp_var.get()
+    var_session = _acp_var.get()
+    if var_session is _NOOP_SINGLETON:
+        # Local import to avoid load-order cycle.
+        from inspect_ai.log._samples import sample_active
+
+        sample = sample_active()
+        if sample is not None and sample.acp_transport is not None:
+            return sample.acp_transport
+    return var_session

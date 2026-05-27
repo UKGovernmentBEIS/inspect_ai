@@ -51,7 +51,7 @@ if TYPE_CHECKING:
 
     from inspect_ai.agent._acp.connection import ConnectionHandler, ConnectionState
     from inspect_ai.agent._acp.picker import PickerTarget, SampleListing
-    from inspect_ai.agent._acp.session import AcpSession
+    from inspect_ai.agent._acp.transport import AcpTransport
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.model._chat_message import ChatMessageSystem, ChatMessageUser
 
@@ -137,7 +137,7 @@ INSPECT_LIST_SESSIONS_METHOD = "inspect/list_sessions"
 # remains the ACP-only enumeration for standard ACP clients.
 INSPECT_LIST_SAMPLES_METHOD = "inspect/list_samples"
 
-# Server → client notification: the bound LiveAcpSession has exited
+# Server → client notification: the bound LiveAcpTransport has exited
 # on the server side (sample's react loop returned). Fired by the
 # per-bind semantic forwarder when its subscriber stream sees clean
 # EOF — gives the client a positive "this session is done" signal
@@ -548,7 +548,7 @@ class RawEventForwarder:
         """True iff the forwarder should forward an event of ``event_type``."""
         return RAW_EVENTS_GLOB in self._subscription or event_type in self._subscription
 
-    def attach(self, target: AcpSession) -> None:
+    def attach(self, target: AcpTransport) -> None:
         """Create the bridge stream + subscribe to the target's transcript."""
         self._send, self._recv = anyio.create_memory_object_stream[Any](
             max_buffer_size=math.inf
@@ -792,6 +792,7 @@ def sample_listing_meta_dict(listing: SampleListing) -> dict[str, Any]:
         "totalMessages": listing.total_messages,
         "totalTokens": listing.total_tokens,
         "failsOnError": listing.fails_on_error,
+        "pending": listing.pending,
     }
 
 

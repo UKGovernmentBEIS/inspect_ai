@@ -3,7 +3,7 @@ from .._tool_call import ToolCall, ToolCallContent, ToolCallView, ToolCallViewer
 from .._tool_def import ToolDef
 
 
-@tool
+@tool(parallel=True)
 def think(
     description: str | None = None,
     thought_description: str | None = None,

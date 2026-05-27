@@ -1,7 +1,7 @@
 import logging
 import os
 from importlib import metadata as importlib_metadata
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from shortuuid import uuid
 
@@ -61,6 +61,9 @@ from inspect_ai.util._sandbox.environment import SandboxEnvironmentSpec
 from inspect_ai.viewer import ViewerConfig
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from inspect_ai.log._recorders.buffer.history import SampleHistory
 
 
 def resolve_revision() -> EvalRevision | None:
@@ -305,6 +308,10 @@ class TaskLogger:
     def samples_completed(self) -> int:
         return self._samples_completed
 
+    @property
+    def buffer_db(self) -> SampleBufferDatabase | None:
+        return self._buffer_db
+
     async def log_start(self, plan: EvalPlan) -> None:
         await self.recorder.log_start(self.eval, plan)
         await self.recorder.flush(self.eval)
@@ -323,28 +330,29 @@ class TaskLogger:
             self._buffer_db.remove_samples([(id, epoch)])
 
     async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
-        # log the sample
         await self.recorder.log_sample(self.eval, sample)
+        await self._finalize_sample(sample, flush=flush)
 
-        # mark complete
+    async def complete_sample_streaming(
+        self, sample: EvalSample, history: "SampleHistory", *, flush: bool
+    ) -> None:
+        await self.recorder.log_sample_streaming(self.eval, sample, history)
+        await self._finalize_sample(sample, flush=flush)
+
+    async def _finalize_sample(self, sample: EvalSample, *, flush: bool) -> None:
         if self._buffer_db is not None:
             self._buffer_db.complete_sample(sample.summary())
 
-        # flush if requested
         if flush:
             self.flush_pending.append((sample.id, sample.epoch))
             if len(self.flush_pending) >= self.flush_buffer:
-                # flush to disk
                 await self.recorder.flush(self.eval)
 
-                # notify the event db it can remove these
                 if self._buffer_db is not None:
                     self._buffer_db.remove_samples(self.flush_pending)
 
-                # Clear
                 self.flush_pending.clear()
 
-        # track sucessful samples logged
         if sample.error is None:
             self._samples_completed += 1
 

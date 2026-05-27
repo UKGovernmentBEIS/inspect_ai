@@ -4,11 +4,12 @@ import logging
 import math
 import os
 import tempfile
-from collections.abc import Generator
+from collections.abc import Generator, Sequence
 from contextlib import contextmanager
 from logging import getLogger
 from typing import (
     IO,
+    TYPE_CHECKING,
     Any,
     BinaryIO,
     Generic,
@@ -21,7 +22,7 @@ from typing import (
 from zipfile import ZipFile
 
 import anyio
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, JsonValue
 from typing_extensions import override
 
 from inspect_ai._util.async_bytes_reader import adapt_to_reader
@@ -38,7 +39,7 @@ from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
 
-from .._condense import condense_sample
+from .._condense import ATTACHMENT_PROTOCOL, condense_sample
 from .._edit import LogUpdate
 from .._log import (
     EvalLog,
@@ -50,12 +51,16 @@ from .._log import (
     EvalSpec,
     EvalStats,
     EvalStatus,
+    EventsData,
     sort_samples,
 )
-from .._pool import rebind_sample_timelines, resolve_sample_events_data
+from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .file import FileRecorder
 
 logger = getLogger(__name__)
+
+if TYPE_CHECKING:
+    from inspect_ai.log._recorders.buffer.history import SampleHistory
 
 
 class LogStart(BaseModel):
@@ -148,6 +153,13 @@ class EvalRecorder(FileRecorder):
     async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None:
         log = self.data[self._log_file_key(eval)]
         await log.buffer_sample(sample)
+
+    @override
+    async def log_sample_streaming(
+        self, eval: EvalSpec, sample: EvalSample, history: "SampleHistory"
+    ) -> None:
+        log = self.data[self._log_file_key(eval)]
+        await log.buffer_sample_streaming(sample, history)
 
     @override
     async def flush(self, eval: EvalSpec) -> None:
@@ -613,6 +625,42 @@ class ZipLogFile:
         async with self._lock:
             self._samples.append(sample)
 
+    async def buffer_sample_streaming(
+        self, sample: EvalSample, history: "SampleHistory"
+    ) -> None:
+        async with self._lock:
+            events = list(history.iter_events())
+            events_data = history.events_data
+            attachments = _sample_history_attachments(
+                sample, history, events, events_data
+            )
+            sample_data = sample.model_dump(
+                mode="json",
+                exclude_none=True,
+                exclude={"events", "events_data", "attachments"},
+            )
+            sample_data.update(
+                {
+                    "events": events,
+                    "attachments": attachments,
+                    "events_data": events_data,
+                }
+            )
+
+            self._zip_writestr(_sample_filename(sample.id, sample.epoch), sample_data)
+
+            self._summary_counter += 1
+            summary = sample.summary()
+            summary_file = _journal_summary_file(self._summary_counter)
+            summary_path = _journal_summary_path(summary_file)
+            self._zip_writestr(summary_path, [summary])
+            self._summaries = [
+                s
+                for s in self._summaries
+                if (s.id, s.epoch) != (summary.id, summary.epoch)
+            ]
+            self._summaries.append(summary)
+
     async def write_buffered_samples(self) -> None:
         async with self._lock:
             # Write the buffered samples
@@ -727,6 +775,38 @@ class ZipLogFile:
         assert self._zip
         with self._zip.open(filename, "w", force_zip64=True) as stream:
             yield stream
+
+
+def _sample_history_attachments(
+    sample: EvalSample,
+    history: "SampleHistory",
+    events: Sequence[JsonValue],
+    events_data: EventsData,
+) -> dict[str, str]:
+    attachments = dict(sample.attachments)
+    for hash in _attachment_hashes(events):
+        content = history.attachment(hash)
+        if content is not None:
+            attachments[hash] = content
+    for hash in _attachment_hashes(events_data):
+        content = history.attachment(hash)
+        if content is not None:
+            attachments[hash] = content
+    return attachments
+
+
+def _attachment_hashes(value: object) -> Iterator[str]:
+    if isinstance(value, str):
+        if value.startswith(ATTACHMENT_PROTOCOL):
+            yield value.replace(ATTACHMENT_PROTOCOL, "", 1)
+    elif isinstance(value, BaseModel):
+        yield from _attachment_hashes(value.model_dump(mode="python"))
+    elif isinstance(value, dict):
+        for item in value.values():
+            yield from _attachment_hashes(item)
+    elif isinstance(value, list | tuple):
+        for item in value:
+            yield from _attachment_hashes(item)
 
 
 async def _read_log(

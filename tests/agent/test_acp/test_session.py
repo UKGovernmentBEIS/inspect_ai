@@ -1,20 +1,20 @@
-"""Phase 1 unit tests for ``AcpSession`` types, factory, and accessors."""
+"""Phase 1 unit tests for ``AcpTransport`` types, factory, and accessors."""
 
 import anyio
 import pytest
 
-from inspect_ai.agent import AcpSession, acp_session
-from inspect_ai.agent._acp.session import current_acp_session
+from inspect_ai.agent._acp import AcpTransport, acp_session
+from inspect_ai.agent._acp.transport import current_acp_transport
 
 
 async def test_current_outside_scope_is_noop() -> None:
-    acp = current_acp_session()
+    acp = current_acp_transport()
     assert acp.session_id == "noop"
 
 
 async def test_real_session_installed_inside_scope() -> None:
     async with acp_session() as acp:
-        assert current_acp_session() is acp
+        assert current_acp_transport() is acp
         assert acp.session_id != "noop"
         # session_id is stable across reads
         assert acp.session_id == acp.session_id
@@ -23,7 +23,7 @@ async def test_real_session_installed_inside_scope() -> None:
 async def test_session_id_reset_after_scope_exits() -> None:
     async with acp_session():
         pass
-    assert current_acp_session().session_id == "noop"
+    assert current_acp_transport().session_id == "noop"
 
 
 async def test_nested_scope_is_noop_shadow() -> None:
@@ -32,9 +32,9 @@ async def test_nested_scope_is_noop_shadow() -> None:
         async with acp_session() as inner:
             assert inner.session_id == "noop"
             assert inner is not outer
-            assert current_acp_session() is inner
+            assert current_acp_transport() is inner
         # after inner exits, outer is restored
-        assert current_acp_session() is outer
+        assert current_acp_transport() is outer
 
 
 async def test_triple_nested_scope_stays_noop_shadow() -> None:
@@ -45,7 +45,7 @@ async def test_triple_nested_scope_stays_noop_shadow() -> None:
     ``_acp_var`` ContextVar alone. At depth 2 the parent was itself a
     NoOp shadow, so the predicate flipped back to "install Live" and
     silently produced a second real session — overwriting
-    ``ActiveSample.acp_session`` and double-registering the event
+    ``ActiveSample.acp_transport`` and double-registering the event
     router. The sticky ``_acp_live_active`` flag fixes this; depth 3+
     blocks see the upstream Live and shadow correctly.
     """
@@ -62,13 +62,13 @@ async def test_triple_nested_scope_stays_noop_shadow() -> None:
                 assert level0 is not level1
                 assert level1 is not level2
                 assert level0 is not level2
-                assert current_acp_session() is level2
+                assert current_acp_transport() is level2
             # After level2 exits, level1 (still a shadow) is restored.
-            assert current_acp_session() is level1
+            assert current_acp_transport() is level1
         # After level1 exits, level0 (the live one) is restored.
-        assert current_acp_session() is level0
+        assert current_acp_transport() is level0
     # After level0 exits, default singleton is restored.
-    assert current_acp_session().session_id == "noop"
+    assert current_acp_transport().session_id == "noop"
 
 
 async def test_publish_to_single_subscriber() -> None:
@@ -117,7 +117,7 @@ async def test_subscriber_sees_eof_on_session_exit() -> None:
 
 
 async def test_noop_attach_returns_closed_stream() -> None:
-    acp = current_acp_session()
+    acp = current_acp_transport()
     assert acp.session_id == "noop"
     stream = acp.attach()
     with pytest.raises(anyio.EndOfStream):
@@ -125,7 +125,7 @@ async def test_noop_attach_returns_closed_stream() -> None:
 
 
 async def test_noop_publish_and_detach_are_safe() -> None:
-    acp = current_acp_session()
+    acp = current_acp_transport()
     stream = acp.attach()
     acp.publish({"k": "v"})  # no subscribers; no error
     acp.detach(stream)  # no-op
@@ -135,7 +135,7 @@ async def test_concurrent_tasks_have_isolated_sessions() -> None:
     """Sibling tasks each see their own session under genuine overlap.
 
     Two tasks each open their own ``acp_session()`` and keep both
-    scopes open simultaneously. ``current_acp_session()`` must return
+    scopes open simultaneously. ``current_acp_transport()`` must return
     *each task's own* session — proving ContextVar isolation under
     genuine overlap, not just sequential entry.
     """
@@ -148,9 +148,9 @@ async def test_concurrent_tasks_have_isolated_sessions() -> None:
             results[f"{label}_id"] = acp.session_id
             my_event.set()
             # Wait until the peer has also entered before reading
-            # current_acp_session() — guarantees both scopes overlap.
+            # current_acp_transport() — guarantees both scopes overlap.
             await peer_event.wait()
-            results[f"{label}_current"] = current_acp_session().session_id
+            results[f"{label}_current"] = current_acp_transport().session_id
 
     async with anyio.create_task_group() as tg:
         tg.start_soon(task, "a", a_entered, b_entered)
@@ -193,7 +193,7 @@ async def test_subscriber_buffer_is_unbounded(monkeypatch) -> None:
     def capture(msg: str, *_args: object, **_kwargs: object) -> None:
         warnings.append(msg)
 
-    from inspect_ai.agent._acp import session_live as live_module
+    from inspect_ai.agent._acp import transport_live as live_module
 
     monkeypatch.setattr(live_module.logger, "warning", capture)
 
@@ -215,8 +215,8 @@ async def test_subscriber_buffer_is_unbounded(monkeypatch) -> None:
 
 async def test_acp_session_satisfies_protocol() -> None:
     async with acp_session() as acp:
-        assert isinstance(acp, AcpSession)
-    assert isinstance(current_acp_session(), AcpSession)
+        assert isinstance(acp, AcpTransport)
+    assert isinstance(current_acp_transport(), AcpTransport)
 
 
 # ---------------------------------------------------------------------------
@@ -319,7 +319,7 @@ async def test_broken_subscriber_does_not_block_others() -> None:
     """One subscriber raising must not prevent siblings from firing.
 
     Mirrors the resilience contract on
-    ``Transcript._add_subscriber`` — the producer's task continues
+    ``Transcript._subscribe`` — the producer's task continues
     even if a downstream listener is broken.
     """
 
@@ -340,9 +340,9 @@ async def test_noop_session_subscribe_returns_noop_unsubscribe() -> None:
     Lets callers use a uniform subscribe/unsubscribe pattern without
     isinstance-guarding the session type.
     """
-    from inspect_ai.agent._acp.session_noop import NoOpAcpSession
+    from inspect_ai.agent._acp.transport_noop import NoOpAcpTransport
 
-    noop = NoOpAcpSession()
+    noop = NoOpAcpTransport()
     unsub_i = noop.subscribe_interrupted(lambda: None)
     unsub_r = noop.subscribe_prompt_resolved(lambda: None)
     assert noop.interrupt_pending is False
@@ -351,53 +351,73 @@ async def test_noop_session_subscribe_returns_noop_unsubscribe() -> None:
     unsub_r()
 
 
-async def test_after_cancel_clears_pending_when_draining_prequeued_message() -> None:
-    """When ``after_cancel`` drains a message that was queued BEFORE the cancel.
+async def test_after_cancel_drain_clears_pending_via_channel_observer() -> None:
+    """``interrupt_pending`` clears when the channel drains a pre-queued message.
 
-    Submit-then-cancel never goes through ``submit_user_message`` again,
-    so ``_interrupt_pending`` would stay True forever without
-    ``after_cancel`` clearing it. Late subscribers (TUI re-attach after
-    sample switch) would see stale pending state. Pinned to keep the
-    state machine consistent across both orderings of submit/cancel.
+    Regression: in the submit-then-cancel-then-drain sequence, the operator
+    queued a follow-up BEFORE pressing Esc. The cancel sets pending=True.
+    The agent's ``after_cancel`` drains the queued message — but the channel
+    is ACP-agnostic and won't directly notify the transport. The transport
+    subscribes to ``channel.subscribe_drained`` during ``maybe_bind`` so it
+    can flip pending=False when its queued :class:`UserMessage` reaches
+    the consumer. Without this hook the TUI's modal-prompt UI sticks open
+    even after the redirect was applied.
     """
+    from inspect_ai.agent._channel import agent_channel
+    from inspect_ai.model._chat_message import ChatMessageUser as _U
+
     async with acp_session() as acp:
-        resolved: list[None] = []
-        acp.subscribe_prompt_resolved(lambda: resolved.append(None))
-        # Order: submit FIRST, then cancel. submit doesn't fire resolved
-        # (no pending yet); cancel sets pending.
-        acp.submit_user_message(ChatMessageUser(content="resume"))
-        assert acp.interrupt_pending is False
-        assert resolved == []
-        acp.cancel_current_turn()
-        assert acp.interrupt_pending is True
-        # Agent loop runs after_cancel — drains the queued message.
-        # Should clear pending and fire resolved.
-        drained = await acp.after_cancel(messages=[])
-        # Drained contents include the pre-queued user message.
-        assert any(isinstance(m, ChatMessageUser) for m in drained)
-        assert acp.interrupt_pending is False
-        assert len(resolved) == 1
+        # Open a channel + manually bind it to the transport. In normal
+        # use the agent_channel() factory does this via sample_active(),
+        # but these unit tests run outside any sample context — wire the
+        # binding directly so submit/cancel/drain all route through the
+        # bound ref.
+        async with agent_channel() as ch:
+            assert acp.maybe_bind(ch, ch._ref()) is True
+            resolved: list[None] = []
+            acp.subscribe_prompt_resolved(lambda: resolved.append(None))
+            # Order: submit FIRST, then cancel. submit doesn't fire resolved
+            # (no pending yet); cancel sets pending.
+            acp.submit_user_message(_U(content="resume"))
+            assert acp.interrupt_pending is False
+            assert resolved == []
+            acp.cancel_current_turn()
+            assert acp.interrupt_pending is True
+            # Agent loop runs after_cancel — drains the queued message,
+            # which fires the subscribe_drained observer on the transport,
+            # which calls resolve_if_pending().
+            drained = await ch.after_cancel(messages=[])
+            assert any(isinstance(m, _U) for m in drained)
+            assert acp.interrupt_pending is False
+            assert len(resolved) == 1
 
 
-async def test_after_cancel_no_double_fire_when_submit_already_cleared() -> None:
-    """``after_cancel`` must NOT fire resolved again when submit already did.
+async def test_after_cancel_drain_no_double_fire_when_submit_already_cleared() -> None:
+    """The drain observer must not re-fire resolved when submit already did.
 
-    The common ordering — cancel first, then user submits, then
-    after_cancel drains — already cleared pending in
-    submit_user_message. after_cancel sees pending=False and shouldn't
-    re-fire (would cause the TUI to attempt a redundant exit).
+    The common ordering — cancel first, then user submits, then drain —
+    already clears pending in :meth:`submit_user_message`. The subsequent
+    channel drain fires the observer, which calls resolve_if_pending on
+    a non-pending state (no-op). The resolved subscriber must NOT fire
+    twice (would cause the TUI to attempt a redundant exit).
     """
+    from inspect_ai.agent._channel import agent_channel
+    from inspect_ai.model._chat_message import ChatMessageUser as _U
+
     async with acp_session() as acp:
-        resolved: list[None] = []
-        acp.subscribe_prompt_resolved(lambda: resolved.append(None))
-        acp.cancel_current_turn()
-        # Submit BEFORE after_cancel — clears pending + fires.
-        acp.submit_user_message(ChatMessageUser(content="ok"))
-        assert acp.interrupt_pending is False
-        assert len(resolved) == 1
-        await acp.after_cancel(messages=[])
-        # No second fire.
-        assert len(resolved) == 1
+        async with agent_channel() as ch:
+            assert acp.maybe_bind(ch, ch._ref()) is True
+            resolved: list[None] = []
+            acp.subscribe_prompt_resolved(lambda: resolved.append(None))
+            acp.cancel_current_turn()
+            # Submit BEFORE drain — clears pending + fires resolved.
+            acp.submit_user_message(_U(content="ok"))
+            assert acp.interrupt_pending is False
+            assert len(resolved) == 1
+            # Drain via after_cancel — observer fires but pending already
+            # cleared, so no second resolve.
+            await ch.after_cancel(messages=[])
+            assert len(resolved) == 1
 
 
 async def test_repeated_cancel_keeps_pending_and_re_fires_interrupted() -> None:
@@ -419,7 +439,7 @@ async def test_repeated_cancel_keeps_pending_and_re_fires_interrupted() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Phase 14: approver-client registry on LiveAcpSession
+# Phase 14: approver-client registry on LiveAcpTransport
 #
 # Tracks ACP clients that can handle ``session/request_permission``.
 # The configured ``human_approver`` checks this registry at prompt
@@ -517,13 +537,13 @@ async def test_mark_active_promotes_client_to_head_of_chain() -> None:
             acp.attach_approver_client(client)
             acp.notify_approver_attach(client)
         # Reset driver to test the explicit mark_active calls below.
-        acp.mark_active_approver_client(_StubApproverClient())  # unknown → no-op
+        acp.mark_active_session_client(_StubApproverClient())  # unknown → no-op
         # Mark middle client active — it moves to head; others keep
         # attach order (a, c).
-        acp.mark_active_approver_client(b)
+        acp.mark_active_session_client(b)
         assert acp.approver_driver_chain() == [b, a, c]
         # Mark another active — it moves to head; b drops to attach order.
-        acp.mark_active_approver_client(c)
+        acp.mark_active_session_client(c)
         assert acp.approver_driver_chain() == [c, a, b]
 
 
@@ -537,7 +557,7 @@ async def test_mark_active_ignores_unknown_client() -> None:
         a = _StubApproverClient()
         rogue = _StubApproverClient()
         _bind_approver(acp, a)
-        acp.mark_active_approver_client(rogue)  # no-op
+        acp.mark_active_session_client(rogue)  # no-op
         # Driver chain unchanged.
         assert acp.approver_driver_chain() == [a]
 
@@ -549,7 +569,7 @@ async def test_unsubscribing_the_active_driver_resets_to_first_attached() -> Non
         b = _StubApproverClient()
         _bind_approver(acp, a)
         unsub_b = _bind_approver(acp, b)
-        acp.mark_active_approver_client(b)
+        acp.mark_active_session_client(b)
         assert acp.approver_driver_chain() == [b, a]
         unsub_b()
         # b is gone — fall back to first-attached.
@@ -578,9 +598,9 @@ async def test_attach_unsubscribe_is_idempotent() -> None:
 
 async def test_noop_session_approver_client_is_no_op() -> None:
     """No-op session: predicate False, attach returns no-op unsubscribe, chain empty."""
-    from inspect_ai.agent._acp.session_noop import NoOpAcpSession
+    from inspect_ai.agent._acp.transport_noop import NoOpAcpTransport
 
-    noop = NoOpAcpSession()
+    noop = NoOpAcpTransport()
     client = _StubApproverClient()
     assert noop.has_approver_clients() is False
     assert noop.has_ever_had_approver_client() is False
@@ -590,7 +610,7 @@ async def test_noop_session_approver_client_is_no_op() -> None:
     assert noop.has_approver_clients() is False
     assert noop.has_ever_had_approver_client() is False
     # mark_active and notify_approver_attach on no-op are also safe.
-    noop.mark_active_approver_client(client)
+    noop.mark_active_session_client(client)
     noop.notify_approver_attach(client)
     unsub()  # no-op, no raise
     # subscribe_approver_attach on no-op returns a no-op unsubscribe.

@@ -1,14 +1,14 @@
-"""Live (active) AcpSession implementation + composed helpers.
+"""Live (active) AcpTransport implementation + composed helpers.
 
-Six helper classes own cohesive slices of ``LiveAcpSession``'s state
+Six helper classes own cohesive slices of ``LiveAcpTransport``'s state
 machine: fan-out subscriber bookkeeping, the user-message queue, the
 interrupt-pending state machine, transcript capture, turn-cancel
-snapshotting, and the approver-client registry. ``LiveAcpSession``
+snapshotting, and the approver-client registry. ``LiveAcpTransport``
 composes these and delegates its Protocol methods through. The split
 exists for cognitive load — each cluster has enough internal detail to
 read more clearly as a named object than as scattered fields.
 
-Sub-agent filtering is a single bool kept inline on ``LiveAcpSession``
+Sub-agent filtering is a single bool kept inline on ``LiveAcpTransport``
 (``_filter_subagent_events``) — not worth its own helper class.
 """
 
@@ -33,26 +33,24 @@ from anyio.streams.memory import (
 )
 from shortuuid import uuid
 
-from inspect_ai._util.content import Content, ContentText
+from inspect_ai.agent._acp._client_registry import _ClientDriverRegistry
 from inspect_ai.agent._acp._guards import acp_guard
-from inspect_ai.agent._acp.session import (
+from inspect_ai.agent._acp.transport import (
     _SUBSCRIBER_BUFFER_SIZE,
-    AcpSession,
+    AcpTransport,
     AcpUpdate,
     ApproverClient,
-    TurnCancelled,
+    ElicitationClient,
 )
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import (
-    ChatMessage,
-    ChatMessageAssistant,
-    ChatMessageTool,
     ChatMessageUser,
 )
 from inspect_ai.tool._tool_call import ToolCallError
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
+    from inspect_ai.agent._channel import AgentChannel, AgentRef
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
     from inspect_ai.log._transcript import Transcript
@@ -61,7 +59,7 @@ logger = getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# LiveAcpSession internal helpers
+# LiveAcpTransport internal helpers
 # ---------------------------------------------------------------------------
 
 
@@ -129,117 +127,6 @@ class _PubSubBus:
         for send, _ in self._subscribers:
             send.close()
         self._subscribers.clear()
-
-
-_COALESCED_OPERATOR_SEPARATOR = "\n\n"
-"""Separator joining text content across coalesced operator messages.
-
-Paragraph break ⇒ markdown-friendly and unambiguous to every model
-(reads as "two distinct paragraphs from the same speaker" rather than
-running the sentences together). See :func:`_coalesce_operator_messages`.
-"""
-
-
-def _coalesce_operator_messages(
-    messages: list[ChatMessageUser],
-) -> list[ChatMessageUser]:
-    r"""Merge consecutive operator-source messages into a single message.
-
-    When the operator queues N sends while the agent is busy, the
-    drained list would otherwise produce N consecutive
-    :class:`ChatMessageUser` turns in ``state.messages``. The model
-    then sees a degenerate conversation shape — multiple user turns
-    before its next assistant turn — that providers handle
-    inconsistently. Coalescing into one merged user message restores
-    standard alternating user/assistant flow.
-
-    Returns the input unchanged in the trivial cases (single message,
-    or any non-operator source mixed in — defensive guard, all callers
-    flow through :meth:`LiveAcpSession.submit_user_message` which
-    normalizes ``source="operator"``).
-
-    Text-only fast path: when every message has ``content: str``, join
-    them with ``\\n\\n``.
-
-    Mixed-modal path: when any message has ``content: list[Content]``,
-    flatten into one content list — string contents become a leading
-    :class:`ContentText` block, list contents contribute their items
-    in arrival order. Preserves all data (no silent drop of images /
-    other non-text blocks).
-
-    Per-message ``.id`` and ``.metadata`` are intentionally lost
-    (replaced by one fresh id + None metadata on the merged message).
-    The downstream :func:`event_mapping._map_input_messages` dedup
-    keys on message id, so one merged message ⇒ one
-    :class:`UserMessageChunk` emitted to clients — exactly what the
-    TUI's single-growing-ephemeral display expects.
-    """
-    if len(messages) <= 1:
-        return messages
-    if not all(m.source == "operator" for m in messages):
-        return messages
-    if all(isinstance(m.content, str) for m in messages):
-        merged_text = _COALESCED_OPERATOR_SEPARATOR.join(
-            m.content for m in messages if isinstance(m.content, str)
-        )
-        return [ChatMessageUser(content=merged_text, source="operator")]
-    blocks: list[Content] = []
-    for m in messages:
-        if isinstance(m.content, str):
-            blocks.append(ContentText(text=m.content))
-        else:
-            blocks.extend(m.content)
-    return [ChatMessageUser(content=blocks, source="operator")]
-
-
-class _UserMessageQueue:
-    """Operator-injected user messages awaiting drain by the agent loop.
-
-    Two drain semantics:
-    - ``drain_initial`` — first ``before_turn`` call; blocks only if
-      ``messages`` has no user content yet (covers the "no dataset
-      prompt, operator types the first message" case). Subsequent
-      ``before_turn`` calls also route through here, drain immediately.
-    - ``drain_blocking`` — ``after_cancel`` call; always blocks until at
-      least one message is queued, then drains.
-
-    The event is recreated after each drain so a stale ``set()`` from
-    a fired-then-drained message doesn't trigger a no-op wake on the
-    next wait.
-    """
-
-    def __init__(self) -> None:
-        self._messages: list[ChatMessageUser] = []
-        self._event = anyio.Event()
-        self._first_drain_handled = False
-
-    def enqueue(self, msg: ChatMessageUser) -> None:
-        self._messages.append(msg)
-        self._event.set()
-
-    async def drain_initial(
-        self, messages: Sequence[ChatMessage]
-    ) -> list[ChatMessageUser]:
-        if not self._first_drain_handled:
-            self._first_drain_handled = True
-            if not any(isinstance(m, ChatMessageUser) for m in messages):
-                while not self._messages:
-                    evt = self._event
-                    await evt.wait()
-        return self._drain()
-
-    async def drain_blocking(self) -> list[ChatMessageUser]:
-        if not self._messages:
-            while not self._messages:
-                evt = self._event
-                await evt.wait()
-        return self._drain()
-
-    def _drain(self) -> list[ChatMessageUser]:
-        drained = list(self._messages)
-        self._messages.clear()
-        self._event = anyio.Event()
-        return drained
 
 
 class _InterruptCoordinator:
@@ -326,7 +213,7 @@ class _TranscriptCapture:
     contexts.
 
     Falls back to ``transcript()`` when ``capture()`` wasn't called —
-    tests construct a bare ``LiveAcpSession`` and set the ContextVar
+    tests construct a bare ``LiveAcpTransport`` and set the ContextVar
     directly, and the fallback supports them.
 
     Also owns ``attach_index``: the transcript event count at the moment
@@ -373,7 +260,7 @@ class _TranscriptCapture:
                 return None
 
             return _noop_unsubscribe
-        return self._captured._add_subscriber(callback)
+        return self._captured._subscribe(callback)
 
     def snapshot(self) -> Sequence[Any]:
         if self._captured is None:
@@ -412,46 +299,25 @@ class _CancelSnapshot:
 
 
 class _TurnCancelMachinery:
-    """Per-turn cancel scope + in-flight tool/model tracking.
+    """In-flight tool/model tracking and ``InterruptEvent`` snapshotting.
 
     Bundles the state that ``cancel_current_turn`` consults when a
     client cancel arrives from a sibling task: which tool call (if any)
-    is mid-execution, which ModelEvent (if any) is mid-generation, and
-    the live ``CancelScope`` to cancel. Also snapshots the in-flight
-    tool ids at cancel time so ``after_cancel`` can synthesize repair
-    messages when no ``state.messages`` is provided.
+    is mid-execution and which ModelEvent (if any) is mid-generation.
+    The cancellation primitive itself lives on the agent's
+    :class:`~inspect_ai.agent.AgentChannel`; this class only owns the
+    ACP-specific telemetry the wire/log layers need.
     """
 
     def __init__(self) -> None:
-        self._turn_cancel_scope: anyio.CancelScope | None = None
-        # Discriminates a client-driven cancel (we cancelled the scope)
-        # from a sample-level cancel propagating from outside.
-        self._pending_turn_cancel: bool = False
         self._in_flight_tool_calls: list[str] = []
         # Tool events keyed by id so cancel can clear ``pending=True``
         # (otherwise the transcript shows cancelled tool rows as
         # in-flight forever).
         self._in_flight_tool_events: dict[str, ToolEvent] = {}
-        # Snapshot at cancel time; ``after_cancel`` consumes when called
-        # without ``state.messages``.
-        self._cancelled_tool_call_ids: list[str] = []
         # In-flight model call. Stored here (not in a ContextVar) so a
         # sibling transport task firing a cancel can read it.
         self._active_model_event: ModelEvent | None = None
-
-    @contextlib.contextmanager
-    def turn_scope(self) -> Iterator[None]:
-        self._pending_turn_cancel = False
-        self._cancelled_tool_call_ids.clear()
-        with anyio.CancelScope() as scope:
-            self._turn_cancel_scope = scope
-            try:
-                yield
-            finally:
-                self._turn_cancel_scope = None
-        if scope.cancelled_caught and self._pending_turn_cancel:
-            self._pending_turn_cancel = False
-            raise TurnCancelled()
 
     @contextlib.contextmanager
     def track_tool_call(
@@ -569,24 +435,9 @@ class _TurnCancelMachinery:
             cancelled_events=cancelled_events,
         )
 
-    def request_cancel(self) -> bool:
-        """Cancel the active turn scope. Returns True iff a turn was active."""
-        if self._turn_cancel_scope is not None:
-            self._pending_turn_cancel = True
-            self._turn_cancel_scope.cancel()
-            return True
-        return False
 
-    @property
-    def cancelled_tool_call_ids(self) -> list[str]:
-        return self._cancelled_tool_call_ids
-
-    def clear_cancelled_tool_ids(self) -> None:
-        self._cancelled_tool_call_ids.clear()
-
-
-class _ApproverClientRegistry:
-    """Attached ACP clients capable of handling ``session/request_permission``.
+class _ApproverClientRegistry(_ClientDriverRegistry[ApproverClient]):
+    """Driver-chain registry for ``ApproverClient`` instances.
 
     The configured ``human_approver`` routes tool-approval prompts to
     a SINGLE driver — the last client to send a ``session/prompt`` on
@@ -595,209 +446,67 @@ class _ApproverClientRegistry:
     (``Forwarders.start``) and detach on unbind / disconnect
     (``Forwarders.stop``).
 
-    Why single-driver and not broadcast: ACP has no protocol-level
-    cancel for outbound requests, so broadcasting to N clients and
-    racing leaves the losers' editors showing a stale permission
-    card forever (whatever they click later is silently discarded
-    by the server). Picking one driver keeps the UX coherent: the
-    operator sees the prompt on the client they're actually using,
-    others observe via the normal event stream. Aligns with the
-    design doc's stated 'one driver + read-only observers' intent.
+    All behaviour comes from :class:`_ClientDriverRegistry`; this class
+    exists for nominal type distinctness and to anchor the doc-string
+    that explains the approval-side usage of the chain.
+    """
+
+
+class _ElicitationClientRegistry(_ClientDriverRegistry[ElicitationClient]):
+    """Driver-chain registry for ``ElicitationClient`` instances.
+
+    The Phase 6 ``acp_handler`` routes ``elicitation/create`` requests
+    to a SINGLE driver — same first-attached-fallback and
+    last-prompt-wins semantics as the approval registry. Clients
+    register on bind only when the client advertised
+    ``elicitation.form`` capability during ``initialize`` (gated in
+    ``connection.py``); without that capability the connection
+    handler skips the elicitation attach entirely.
+    """
+
+
+class _SessionClientRegistries:
+    """Group of client-driver registries for an ACP session.
+
+    Each registry stays domain-specific: clients attach (and detach)
+    per-domain — the elicitation registry is capability-gated in the
+    connection handler so the connection only attaches there when the
+    client advertised ``elicitation.form``. Cross-cutting operations
+    that should fan out to **every** registry — ``mark_active`` on
+    each ``session/prompt``, ``clear`` on teardown — live here so
+    adding a new registry doesn't require chasing every call site.
     """
 
     def __init__(self) -> None:
-        # Clients that have completed the full bind (replay done,
-        # promoted). These are the ONLY clients :meth:`driver_chain`
-        # surfaces — half-bound clients in ``_pending_clients`` are
-        # invisible to the approval shim until :meth:`notify_attach`
-        # promotes them.
-        self._clients: list[ApproverClient] = []
-        # Clients that have called :meth:`attach` but haven't yet
-        # been promoted to ready via :meth:`notify_attach`. They
-        # live here for the duration of ``Forwarders.start`` (i.e.
-        # spanning the replay await). Hiding them from
-        # :meth:`driver_chain` prevents the snapshot race where a
-        # concurrent approval shim would otherwise dispatch into a
-        # half-bound connection before replay shows the operator
-        # the conversation context.
-        self._pending_clients: list[ApproverClient] = []
-        # The client whose ``session/prompt`` most recently landed —
-        # or whose bind most recently completed — set by
-        # :meth:`mark_active`. ``None`` until any client is promoted,
-        # in which case ``driver_chain`` falls back to first-attached.
-        self._last_active: ApproverClient | None = None
-        # One-way flag: flips True on first attach (pending OR ready)
-        # and never resets. Lets the approval shim distinguish "no
-        # operator has ever connected" (panel-fallback territory)
-        # from "operator was here, disconnected mid-approval"
-        # (park-and-wait territory).
-        self._ever_attached: bool = False
-        # Fires on ``notify_attach()`` (NOT on every ``attach``).
-        # The split exists so the registration moment (``attach``,
-        # called from ``Forwarders.start`` before replay) doesn't
-        # wake the approval shim before the connection is ready to
-        # receive an approval card AND has the conversation context
-        # visible. The connection handler calls ``notify_attach``
-        # from ``_post_bind_setup_locked`` AFTER ``_start_forwarders``
-        # has finished (replay done) AND after
-        # ``mark_active_approver_client`` (driver promotion done).
-        self._attach_subscribers: list[Callable[[], None]] = []
+        self.approvers = _ApproverClientRegistry()
+        self.elicitations = _ElicitationClientRegistry()
 
-    def attach(self, client: ApproverClient) -> Callable[[], None]:
-        # Register as PENDING — invisible to ``driver_chain`` until
-        # the connection handler promotes via ``notify_attach``.
-        #
-        # Attaching the same client object twice is not supported:
-        # ``notify_attach`` removes one pending entry per call and
-        # appends one ready entry, so a second notify on the same
-        # object finds nothing to remove and skips promotion;
-        # ``driver_chain``'s ``c is not driver`` filter also can't
-        # distinguish duplicate references. In practice each
-        # ``ConnectionHandler`` is its own client, so this doesn't
-        # occur — but if a caller does pass the same object twice
-        # the second attach's unsubscribe will silently no-op
-        # (the first unsub already removed the only entry).
-        self._pending_clients.append(client)
-        self._ever_attached = True
+    def _all(self) -> tuple[_ClientDriverRegistry[Any], ...]:
+        return (self.approvers, self.elicitations)
 
-        def _unsubscribe() -> None:
-            # Client may be in either list depending on whether
-            # notify_attach has fired yet (e.g. teardown during
-            # replay leaves the entry in ``_pending_clients``;
-            # teardown after a successful bind has it in
-            # ``_clients``). Best-effort removal from both.
-            try:
-                self._pending_clients.remove(client)
-            except ValueError:
-                pass
-            try:
-                self._clients.remove(client)
-            except ValueError:
-                pass
-            # If the active driver just detached, drop the slot so
-            # ``driver_chain`` falls back cleanly to first-attached.
-            if self._last_active is client:
-                self._last_active = None
+    def mark_active(self, client: Any) -> None:
+        """Promote ``client`` as driver for every registry it belongs to.
 
-        return _unsubscribe
-
-    def has_clients(self) -> bool:
-        # Counts READY clients only — pending clients aren't yet
-        # dispatch targets, so the predicate that gates "should we
-        # try to route via ACP" must not see them.
-        return bool(self._clients)
-
-    def has_ever_attached(self) -> bool:
-        return self._ever_attached
-
-    def subscribe_attach(self, callback: Callable[[], None]) -> Callable[[], None]:
-        """Register ``callback`` to fire on every :meth:`notify_attach`.
-
-        Mirrors :meth:`_InterruptState.subscribe_interrupted`. Returns
-        an idempotent unsubscribe callable. Subscribers fire when
-        the connection handler calls :meth:`notify_attach` from
-        ``_post_bind_setup_locked`` — that is, AFTER replay
-        completes and AFTER ``mark_active`` promotes the new client.
-        Subscribers can safely re-query :meth:`driver_chain`.
+        Each registry's :meth:`mark_active` is a no-op when the client
+        isn't in its lists, so this is safe to call unconditionally —
+        a connection that's only registered as an approver (no
+        elicitation capability) silently skips promotion in the
+        elicitation registry.
         """
-        self._attach_subscribers.append(callback)
-
-        def _unsubscribe() -> None:
-            try:
-                self._attach_subscribers.remove(callback)
-            except ValueError:
-                pass
-
-        return _unsubscribe
-
-    def notify_attach(self, client: ApproverClient) -> None:
-        """Promote ``client`` from pending to ready, then fire subscribers.
-
-        Called by the connection handler after its bind is fully
-        ready (replay done, ``mark_active`` set). Only the named
-        client is promoted — if a second connection is mid-bind
-        and still in ``_pending_clients``, it stays there until its
-        own bind sequence calls ``notify_attach`` for itself. Avoids
-        accidentally surfacing a still-binding sibling.
-
-        Promotion is **gated on the client being currently pending**.
-        If the client was unsubscribed between ``attach`` and
-        ``notify_attach`` — e.g. ``Forwarders.start`` aborts replay
-        and runs ``stop()``, but ``_post_bind_setup_locked`` still
-        calls ``notify_approver_attach(self)`` — we must NOT
-        fabricate a ready entry with no unsubscribe left to remove
-        it (would leak a stale connection into ``driver_chain``
-        forever). Re-notify on an already-ready client is also a
-        no-op for state.
-
-        Subscribers fire either way — a spurious wake-up is
-        harmless because the approval shim re-snapshots the chain
-        and re-parks if nothing changed.
-        """
-        try:
-            self._pending_clients.remove(client)
-        except ValueError:
-            # Client isn't pending. Either already promoted
-            # (re-notify; leave _clients alone) or gone (unsub
-            # raced; do NOT fabricate a ready entry).
-            pass
-        else:
-            # We DID remove from pending, so this is a real
-            # first-time promotion. Safe to add to ready.
-            if client not in self._clients:
-                self._clients.append(client)
-        for cb in list(self._attach_subscribers):
-            try:
-                cb()
-            except Exception:
-                logger.exception("approver_attach subscriber raised; continuing")
-
-    def mark_active(self, client: ApproverClient) -> None:
-        """Promote ``client`` to be the driver for subsequent approvals.
-
-        Called by the connection handler when it forwards a
-        ``session/prompt`` OR completes a bind. Accepts clients in
-        EITHER ``_pending_clients`` or ``_clients`` — bind-time
-        promotion fires while the client is still pending (the
-        ``notify_attach`` call right after will move it to ready).
-        Silently no-ops if the client isn't in either list (race
-        with detach).
-        """
-        if client in self._clients or client in self._pending_clients:
-            self._last_active = client
-
-    def driver_chain(self) -> list[ApproverClient]:
-        """Clients in fallback order: driver first, then others by attach order.
-
-        Reads from READY clients only — pending (half-bound) clients
-        are invisible. The approval shim tries each client in turn;
-        if the driver's request raises (typically ``ConnectionError``
-        on mid-prompt disconnect), the shim moves on to the next
-        attached client. Returns a snapshot copy so iteration stays
-        stable against concurrent attach / detach.
-        """
-        if not self._clients:
-            return []
-        driver = self._last_active
-        if driver is None or driver not in self._clients:
-            # No driver yet (or marked driver is still pending) →
-            # first-attached is the fallback driver.
-            return list(self._clients)
-        return [driver] + [c for c in self._clients if c is not driver]
+        for reg in self._all():
+            reg.mark_active(client)
 
     def clear(self) -> None:
-        self._clients.clear()
-        self._pending_clients.clear()
-        self._last_active = None
-        self._attach_subscribers.clear()
+        for reg in self._all():
+            reg.clear()
 
 
 # ---------------------------------------------------------------------------
-# LiveAcpSession
+# LiveAcpTransport
 # ---------------------------------------------------------------------------
 
 
-class LiveAcpSession:
+class LiveAcpTransport:
     """Active ACP session: owns the in-process pub/sub bus.
 
     Installed by :func:`acp_session` as the outermost ACP scope in a
@@ -808,11 +517,10 @@ class LiveAcpSession:
     def __init__(self) -> None:
         self._session_id: str = uuid()
         self._pubsub = _PubSubBus()
-        self._user_messages = _UserMessageQueue()
         self._interrupt = _InterruptCoordinator()
         self._transcript_capture = _TranscriptCapture()
         self._turn_cancel = _TurnCancelMachinery()
-        self._approvers = _ApproverClientRegistry()
+        self._clients = _SessionClientRegistries()
         # When True, the live router drops events emitted inside
         # sub-agents (depth>0). Standard ACP semantic for editor clients.
         # Disabled by consumers (debugging tooling, raw-stream TUIs) that
@@ -831,13 +539,108 @@ class LiveAcpSession:
         # later (called from ``active_sample().__aexit__``).
         self._agent_completed: bool = False
         self._finalized: bool = False
+        # AgentRef captured at react() entry via :meth:`maybe_bind` so
+        # producer-side intervention (``submit_user_message`` /
+        # ``cancel_current_turn``) routes into the agent's channel.
+        # First-binder-wins per active top-level react; cleared by
+        # :meth:`unbind`; rebindable by a successor react.
+        self._ref: "AgentRef | None" = None
+        # Unsubscribe handle for the channel drain observer registered
+        # during :meth:`maybe_bind`. Stored so :meth:`unbind` can drop
+        # the subscription cleanly; ``None`` when not currently bound.
+        self._unsubscribe_drained: Callable[[], None] | None = None
+        # Test-only override for :attr:`is_attachable`. Production code
+        # leaves this at ``None`` (the property derives from ``_ref`` +
+        # ``_agent_completed``). Test fixtures that hand-wire a session
+        # without going through the real bind flow can set this to
+        # ``True`` to make the picker treat the session as attachable.
+        self._attachable_override: bool | None = None
 
     @property
     def session_id(self) -> str:
         """Opaque, stable identifier minted at construction (shortuuid)."""
         return self._session_id
 
-    async def __aenter__(self) -> AcpSession:
+    @property
+    def ref(self) -> "AgentRef | None":
+        """Currently-bound :class:`AgentRef`, or ``None``."""
+        return self._ref
+
+    @property
+    def is_attachable(self) -> bool:
+        """True iff a channel is bound and the agent loop is still live.
+
+        Returns False (a) before the first :meth:`maybe_bind` (sample
+        setup window) and (b) after :meth:`finalize` has marked the
+        transport agent-completed (scoring window). Either state means
+        the session can't actually drive an agent loop and shouldn't
+        show up in pickers.
+
+        Tests that exercise picker/forwarding behavior without going
+        through the real bind flow can set
+        :attr:`_attachable_override` to True to flag a hand-wired
+        session as attachable. Production paths leave it at the
+        default (``None`` → derived from ``_ref`` + ``_agent_completed``).
+        """
+        if self._attachable_override is not None:
+            return self._attachable_override
+        return self._ref is not None and not self._agent_completed
+
+    def maybe_bind(self, channel: "AgentChannel", ref: "AgentRef") -> bool:
+        """Accept the (channel, ref) pair as the active producer target if none is bound.
+
+        Returns True iff this call became the binder. Subsequent
+        :meth:`maybe_bind` calls return False until :meth:`unbind` clears
+        the slot — this is what makes ACP attach to the top-level react()
+        only: a nested sub-agent's bind attempt sees the outer's ref still
+        present and is rejected.
+
+        On accept, also subscribes to ``channel.subscribe_drained`` so
+        the transport learns when its queued :class:`UserMessage` items
+        reach the consumer. This is what lets ``interrupt_pending``
+        clear correctly when an operator submits BEFORE pressing Esc:
+        the channel drains the queued message inside ``after_cancel``,
+        the subscription fires, and the coordinator's pending flag
+        flips False — observable to the TUI's modal-prompt UI and
+        Inspect-aware ACP clients.
+        """
+        if self._ref is None:
+            self._ref = ref
+            self._unsubscribe_drained = channel.subscribe_drained(
+                self._on_channel_drained
+            )
+            return True
+        return False
+
+    def unbind(self, ref: "AgentRef") -> None:
+        """Clear the bound ref if it matches ``ref`` (identity).
+
+        Sub-agents whose :meth:`maybe_bind` was rejected get a no-op
+        here. The outer react's unbind clears the slot, so a successor
+        react in the same sample can rebind. Also drops the channel
+        drain subscription registered in :meth:`maybe_bind`.
+        """
+        if self._ref is ref:
+            self._ref = None
+            if self._unsubscribe_drained is not None:
+                self._unsubscribe_drained()
+                self._unsubscribe_drained = None
+
+    def _on_channel_drained(self, items: list[Any]) -> None:
+        """Callback fired by the channel after a non-empty drain.
+
+        Resolves a pending interrupt iff the drained items include a
+        :class:`UserMessage` — the operator's redirect message reached
+        the consumer, so the TUI/client modal-prompt indicator should
+        clear. Non-UserMessage drains (e.g. a bare ``Cancel`` item) are
+        ignored.
+        """
+        from inspect_ai.agent._channel import UserMessage as _ChannelUserMessage
+
+        if any(isinstance(it, _ChannelUserMessage) for it in items):
+            self._interrupt.resolve_if_pending()
+
+    async def __aenter__(self) -> AcpTransport:
         """Enter the session scope; attach the event router and return ``self``.
 
         Also registers ``self`` on the current :class:`ActiveSample`
@@ -873,7 +676,7 @@ class LiveAcpSession:
         ):
             active = sample_active()
             if active is not None:
-                prev = active.acp_session
+                prev = active.acp_transport
                 # Predecessor handoff: when a solver runs two agents
                 # consecutively in the same sample, the first agent's
                 # ``__aexit__`` parks its session awaiting ``active_sample``
@@ -885,23 +688,31 @@ class LiveAcpSession:
                 # ``inspect/session_ended``), then bind ourselves.
                 # ``finalize()`` is idempotent so this is safe even if
                 # the predecessor was already finalized via some other
-                # path. Nested sub-agents route through ``NoOpAcpSession``
+                # path. Nested sub-agents route through ``NoOpAcpTransport``
                 # (the factory's shadow rule), never reaching this code.
                 #
-                # The ``isinstance(prev, LiveAcpSession)`` does double
+                # The ``isinstance(prev, LiveAcpTransport)`` does double
                 # duty: it narrows the type for mypy (``finalize`` is on
-                # ``LiveAcpSession``, not the ``AcpSession`` Protocol) and
+                # ``LiveAcpTransport``, not the ``AcpTransport`` Protocol) and
                 # acts as a runtime sanity check. Per the shadow rule
-                # above, a non-self ``prev`` is always a ``LiveAcpSession``
+                # above, a non-self ``prev`` is always a ``LiveAcpTransport``
                 # in practice — but we never want a registration that
                 # silently broke the invariant to crash an eval here.
                 if (
                     prev is not None
                     and prev is not self
-                    and isinstance(prev, LiveAcpSession)
+                    and isinstance(prev, LiveAcpTransport)
                 ):
                     await prev.finalize()
-                active.acp_session = self
+                active.acp_transport = self
+                # Install ourselves as the sample's execution observer.
+                # The model/tool layers (`_call_tools.py`, `_model.py`)
+                # consult `sample.execution_observer.track_*` to record
+                # in-flight tool/model events; ACP needs that data to
+                # populate `InterruptEvent` and clear `pending=True` on
+                # cancelled events. Cleared back to the null default in
+                # :meth:`finalize` under the same identity guard.
+                active.execution_observer = self
                 # Register lifecycle hooks the eval primitive will fire:
                 # ``on_complete`` drives the deferred teardown after
                 # scoring + logging finish; ``on_interrupt`` clears the
@@ -929,13 +740,13 @@ class LiveAcpSession:
           the task runner's scoring + logging block is about to run, and
           we want events from that phase (notably ``ScoreEvent``s) to
           reach attached ACP clients. Keep the router + pubsub +
-          ``ActiveSample.acp_session`` binding alive; clear only the
+          ``ActiveSample.acp_transport`` binding alive; clear only the
           per-turn subscriber registries that would be unsafe to keep
           (interrupt coordinator, approver clients) since the agent loop
           is no longer running to drain them. The eventual full teardown
           runs from :meth:`finalize`, invoked by
           ``active_sample().__aexit__`` after the sample is fully done.
-        - **Unbound** (test code that constructs ``LiveAcpSession()``
+        - **Unbound** (test code that constructs ``LiveAcpTransport()``
           directly without an ActiveSample): full immediate teardown, the
           original single-phase behavior.
 
@@ -947,7 +758,7 @@ class LiveAcpSession:
         from inspect_ai.log._samples import sample_active
 
         active = sample_active()
-        bound = active is not None and active.acp_session is self
+        bound = active is not None and active.acp_transport is self
         if bound:
             # Split-phase: park the session for the scoring window.
             self._agent_completed = True
@@ -958,16 +769,16 @@ class LiveAcpSession:
             # so scoring events still flow.
             with acp_guard("ACP session: interrupt clear_subscribers failed"):
                 self._interrupt.clear_subscribers()
-            with acp_guard("ACP session: approvers clear failed"):
-                self._approvers.clear()
+            with acp_guard("ACP session: client registries clear failed"):
+                self._clients.clear()
             return
 
         # Unbound — full immediate teardown. Reached in two cases:
-        # 1. Tests construct ``LiveAcpSession()`` directly without an
+        # 1. Tests construct ``LiveAcpTransport()`` directly without an
         #    enclosing ``active_sample()`` context.
         # 2. Production: the ``acp_guard("ACP session: ActiveSample
         #    registration failed")`` block in ``__aenter__`` caught an
-        #    exception, so ``active.acp_session`` was never assigned and
+        #    exception, so ``active.acp_transport`` was never assigned and
         #    ``bound`` is False. Without this branch a registration
         #    failure would leak the router + pubsub for the rest of the
         #    sample's lifetime (the registration-driven ``on_complete``
@@ -987,8 +798,8 @@ class LiveAcpSession:
         # would otherwise try to call into a closed connection.
         with acp_guard("ACP session: interrupt clear_subscribers failed"):
             self._interrupt.clear_subscribers()
-        with acp_guard("ACP session: approvers clear failed"):
-            self._approvers.clear()
+        with acp_guard("ACP session: client registries clear failed"):
+            self._clients.clear()
 
     async def finalize(self) -> None:
         """Deferred teardown for split-phase exit. Idempotent.
@@ -1020,10 +831,15 @@ class LiveAcpSession:
             active = sample_active()
             # `is self` identity guard: don't clear someone else's
             # registration if a successor session has already taken over.
-            if active is not None and active.acp_session is self:
-                active.acp_session = None
+            if active is not None and active.acp_transport is self:
+                active.acp_transport = None
                 active.on_complete = None
                 active.on_interrupt = None
+                # Restore the null observer; subsequent track_* calls on
+                # the (now winding-down) sample are no-ops.
+                from inspect_ai.agent._channel import null_execution_observer
+
+                active.execution_observer = null_execution_observer()
 
     # Property delegations that preserve the field-access surface the
     # router and a handful of tests already depend on. Storage lives in
@@ -1091,7 +907,7 @@ class LiveAcpSession:
         """Register a sync callback on this session's captured transcript.
 
         Raw-event forwarder hook. Wraps
-        :meth:`Transcript._add_subscriber` so callers can subscribe
+        :meth:`Transcript._subscribe` so callers can subscribe
         without reaching into private session state and without the
         ContextVar-lookup gotcha (we run from the connection's task,
         not the sample's, so ``transcript()`` would return the empty
@@ -1114,192 +930,36 @@ class LiveAcpSession:
         """
         return self._transcript_capture.snapshot()
 
-    @contextlib.contextmanager
-    def turn_scope(self) -> Iterator[None]:
-        """Wrap one agent turn so a client cancel can interrupt it.
-
-        Opens a fresh anyio ``CancelScope``. If
-        :meth:`cancel_current_turn` is called while this scope is
-        active, the wrapped block raises :class:`TurnCancelled`. A
-        sample-level cancel (outer task group) propagates through
-        unchanged — the inner scope only catches what was targeted
-        at it.
-
-        Loop-only invariant: ``react()`` / ``deepagent()`` exited
-        before we parked; a late call here is a programming bug.
-        No-op rather than assert per the never-crash-the-eval contract.
-        """
-        if self._agent_completed:
-            yield
-            return
-        with self._turn_cancel.turn_scope():
-            yield
-
-    async def before_turn(
-        self, messages: Sequence[ChatMessage]
-    ) -> list[ChatMessageUser]:
-        """Drain queued operator messages and return them.
-
-        On the first call, if ``messages`` has no user content yet,
-        blocks for at least one queued message — covers the "no dataset
-        prompt, operator types the first message" case. Subsequent
-        calls drain immediately.
-
-        Hard contract: never propagates a non-cancellation exception
-        to the caller (the agent's react loop). A bug below degrades
-        to "no operator messages this turn" rather than crashing the
-        eval. ``CancelledError`` propagates naturally via
-        :func:`acp_guard`'s BaseException semantics.
-
-        Loop-only invariant: ``react()`` / ``deepagent()`` exited
-        before we parked; a late call here is a programming bug.
-        No-op rather than assert per the never-crash-the-eval contract.
-        """
-        if self._agent_completed:
-            return []
-        with acp_guard("ACP before_turn raised; returning no operator messages"):
-            drained = await self._user_messages.drain_initial(messages)
-            return _coalesce_operator_messages(drained)
-        return []
-
-    async def after_cancel(
-        self, messages: list[ChatMessage] | None = None
-    ) -> list[ChatMessage]:
-        """Return synthetic tool repair messages + drained user messages.
-
-        The agent loop catches :class:`TurnCancelled` and extends
-        ``state.messages`` with the result of this call. Synthetic
-        :class:`ChatMessageTool` results come first (one per cancelled
-        tool call) so the assistant's pending tool calls have matching
-        responses; the new operator user message(s) come next. Blocks
-        if the user-message queue is empty.
-
-        When ``messages`` is provided (the normal production path), this
-        scans the last assistant message's ``tool_calls`` and synthesizes
-        a repair for every id that doesn't yet have a matching
-        :class:`ChatMessageTool` result. That covers three cases under
-        sequential tool execution: tools that were in flight at cancel,
-        tools that never started because an earlier call was cancelled,
-        and tools whose completed results were lost when
-        ``_execute_tools_impl`` was interrupted before returning. When
-        ``messages`` is ``None`` (unit tests), falls back to
-        ``_cancelled_tool_call_ids`` (snapshotted in
-        :meth:`cancel_current_turn`).
-        """
-        # Loop-only invariant: only reached from the agent's
-        # ``except TurnCancelled`` arm, which can't fire after the loop
-        # has exited. No-op rather than assert per the never-crash-the-
-        # eval contract.
-        if self._agent_completed:
-            return []
-        # Hard contract: never propagates a non-cancellation exception
-        # to the caller. ``CancelledError`` propagates naturally via
-        # :func:`acp_guard`'s BaseException semantics — a sample-level
-        # cancel blocked in ``drain_blocking`` still tears down
-        # correctly.
-        #
-        # Three independently-guarded phases — the partition matters
-        # for state.messages integrity:
-        #
-        # 1. Build repair ``ChatMessageTool`` results for any
-        #    unanswered tool_call ids in the last assistant message.
-        #    If this fails, return ``[]`` — without repairs we can't
-        #    safely return anything (drained operator messages alone
-        #    would leave the assistant's pending tool_calls
-        #    unanswered, and the next ``generate()`` would reject the
-        #    conversation).
-        # 2. Drain the operator message queue. Failure here MUST NOT
-        #    discard the repairs we already built — return them as-is
-        #    so ``state.messages`` stays valid. Worst case the agent
-        #    continues without an operator message, but the
-        #    conversation shape is preserved.
-        # 3. Resolve any pending interrupt notification. Best-effort
-        #    and non-blocking; failure here is purely cosmetic
-        #    (modal-prompt UI staying in pending state).
-        results: list[ChatMessage] = []
-        with acp_guard(
-            "ACP after_cancel: repair construction failed; returning "
-            "empty resume payload (next generate may fail due to "
-            "unanswered tool_calls in state.messages)"
-        ) as repair:
-            if messages is not None:
-                repair_ids = _unanswered_tool_call_ids(messages)
-            else:
-                repair_ids = list(self._turn_cancel.cancelled_tool_call_ids)
-            for tool_call_id in repair_ids:
-                results.append(
-                    ChatMessageTool(
-                        tool_call_id=tool_call_id,
-                        content="Tool call cancelled by user.",
-                        error=ToolCallError(
-                            type="cancelled",
-                            message="Tool call cancelled by user.",
-                        ),
-                    )
-                )
-            self._turn_cancel.clear_cancelled_tool_ids()
-        if repair.failed:
-            return []
-
-        # Drain failure must NOT discard repairs — fall through with
-        # them so state.messages stays valid.
-        with acp_guard(
-            "ACP after_cancel: drain failed; returning repair "
-            "messages without operator input"
-        ):
-            drained = await self._user_messages.drain_blocking()
-            results.extend(_coalesce_operator_messages(drained))
-
-        # The agent has now consumed the resumption text, so the
-        # interrupt is logically resolved — clear the pending flag
-        # and notify prompt-resolved subscribers if they haven't
-        # already been fired. ``submit_user_message`` clears + fires
-        # when the message arrives AFTER the cancel; this branch
-        # covers the other ordering (message queued BEFORE the
-        # cancel, then drained here without ``submit_user_message``
-        # being called post-cancel). Without this, a modal-prompt
-        # client would be stuck in pending state forever after that
-        # sequence.
-        with acp_guard(
-            "ACP after_cancel: resolve_if_pending failed; "
-            "modal-prompt UI may remain in pending state"
-        ):
-            self._interrupt.resolve_if_pending()
-
-        return results
-
     def submit_user_message(self, msg: ChatMessageUser) -> None:
-        """Queue ``msg`` and wake any awaiter blocked on it.
+        """Forward ``msg`` to the bound :class:`AgentChannel` as a producer.
 
-        Normalizes provenance: any message queued through this API is
-        treated as operator-injected, so ``source`` is set to
-        ``"operator"`` if it isn't already. Callers don't have to
-        remember to set it themselves.
+        Normalizes provenance: any message submitted through this API
+        is treated as operator-injected, so ``source`` is set to
+        ``"operator"`` if it isn't already. If an interrupt is pending
+        (``cancel_current_turn`` fired and wasn't yet resolved), clears
+        the pending flag and notifies prompt-resolved subscribers — the
+        in-proc TUI's modal prompt mode and Inspect-aware ACP clients
+        use this to dismiss their prompt UI when a sibling client
+        provides the resumption text.
 
-        If an interrupt is pending (``cancel_current_turn`` fired and
-        wasn't yet resolved), clear the pending flag and notify
-        prompt-resolved subscribers. The in-proc TUI's modal prompt
-        mode and Inspect-aware ACP clients use this to dismiss their
-        prompt UI when a sibling client provides the resumption text.
-
-        Hard contract: never propagates to the caller. The agent task
-        blocks in ``before_turn`` / ``after_cancel`` waiting for
-        messages from this queue; failure here is logged but the
-        message is dropped silently rather than crashing the
-        connection handler (or the TUI input handler) that called us.
-
-        Network-reachable: the TUI Send button or a wire
-        ``session/prompt`` can land any time, including after the agent
-        has parked. Drop silently — no consumer for the queue once the
-        loop is gone.
+        Hard contract: never propagates to the caller. The TUI Send
+        button or a wire ``session/prompt`` can land any time, including
+        after the agent has parked; failure here is logged but the
+        message is dropped silently rather than crashing the connection
+        handler (or the TUI input handler) that called us. Likewise,
+        messages submitted with no channel bound are silently dropped
+        (no consumer to receive them).
         """
         if self._agent_completed:
             return
         with acp_guard("ACP submit_user_message raised; message dropped"):
             if msg.source != "operator":
                 msg = msg.model_copy(update={"source": "operator"})
-            self._user_messages.enqueue(msg)
             self._interrupt.resolve_if_pending()
+            if self._ref is not None:
+                from inspect_ai.agent._channel import UserMessage as _ChannelUserMessage
+
+                self._ref.post(_ChannelUserMessage(message=msg))
 
     @property
     def interrupt_pending(self) -> bool:
@@ -1361,7 +1021,7 @@ class LiveAcpSession:
             "ACP attach_approver_client raised; approval routing disabled "
             "for this client"
         ):
-            return self._approvers.attach(client)
+            return self._clients.approvers.attach(client)
         return lambda: None
 
     def has_approver_clients(self) -> bool:
@@ -1374,7 +1034,7 @@ class LiveAcpSession:
         with acp_guard(
             "ACP has_approver_clients raised; falling back to in-proc approval"
         ):
-            return self._approvers.has_clients()
+            return self._clients.approvers.has_clients()
         return False
 
     def has_ever_had_approver_client(self) -> bool:
@@ -1392,7 +1052,7 @@ class LiveAcpSession:
         with acp_guard(
             "ACP has_ever_had_approver_client raised; falling back to in-proc approval"
         ):
-            return self._approvers.has_ever_attached()
+            return self._clients.approvers.has_ever_attached()
         return False
 
     def subscribe_approver_attach(
@@ -1412,7 +1072,7 @@ class LiveAcpSession:
         with acp_guard(
             "ACP subscribe_approver_attach raised; attach notifications disabled"
         ):
-            return self._approvers.subscribe_attach(callback)
+            return self._clients.approvers.subscribe_attach(callback)
         return lambda: None
 
     def notify_approver_attach(self, client: ApproverClient) -> None:
@@ -1423,7 +1083,7 @@ class LiveAcpSession:
         the client as PENDING — invisible to
         :meth:`approver_driver_chain`). The connection handler
         invokes this from ``_post_bind_setup_locked`` after replay
-        completes AND after :meth:`mark_active_approver_client`
+        completes AND after :meth:`mark_active_session_client`
         promotes the connection.
 
         Only the named client is promoted. A second connection that
@@ -1440,33 +1100,38 @@ class LiveAcpSession:
             "ACP notify_approver_attach raised; "
             "parked approval shim may miss this attach"
         ):
-            self._approvers.notify_attach(client)
+            self._clients.approvers.notify_attach(client)
 
-    def mark_active_approver_client(self, client: ApproverClient) -> None:
-        """Promote ``client`` to be the active driver for approvals.
+    def mark_active_session_client(self, client: object) -> None:
+        """Promote ``client`` as active driver across every registry it belongs to.
 
         Called by the connection handler after it forwards a
-        ``session/prompt`` — that's the strongest signal the client
-        is the operator's current surface. The next
-        ``session/request_permission`` will route to this client
-        first; if the client has since disconnected, the shim falls
+        ``session/prompt`` — the strongest signal the client is the
+        operator's current surface. The next
+        ``session/request_permission`` (and the next
+        ``elicitation/create``) will route to this client first; if
+        the client has since disconnected, the dispatch shim falls
         through to the next attached client in attach order.
 
-        Silently no-ops if the client isn't (or is no longer) in
-        the registry. On internal error, logs a warning and continues
-        — the worst case is the approval routes to a stale-but-
-        present client, which the shim's per-client fallback handles.
+        Fans out across every registry the client belongs to. Each
+        registry's :meth:`mark_active` is a no-op when the client
+        isn't in its lists, so this is safe to call regardless of
+        which registries the connection actually attached to (an
+        approver-only client gracefully no-ops in the elicitation
+        registry).
+
+        On internal error, logs a warning and continues.
         """
         with acp_guard(
-            "ACP mark_active_approver_client raised; driver selection unchanged"
+            "ACP mark_active_session_client raised; driver selection unchanged"
         ):
-            self._approvers.mark_active(client)
+            self._clients.mark_active(client)
 
     def approver_driver_chain(self) -> list[ApproverClient]:
         """Approver clients in fallback order: driver first, then others.
 
         The driver is the client whose ``session/prompt`` most
-        recently landed (via :meth:`mark_active_approver_client`);
+        recently landed (via :meth:`mark_active_session_client`);
         when no prompt has been sent yet on this session, the
         fallback is first-attached. Subsequent entries are the
         remaining attached clients in attach order — the approval
@@ -1480,7 +1145,74 @@ class LiveAcpSession:
         with acp_guard(
             "ACP approver_driver_chain raised; falling back to in-proc approval"
         ):
-            return self._approvers.driver_chain()
+            return self._clients.approvers.driver_chain()
+        return []
+
+    def attach_elicitation_client(
+        self, client: ElicitationClient
+    ) -> Callable[[], None]:
+        """Register ``client`` as a recipient for elicitation prompts.
+
+        Same idempotent unsubscribe semantics as
+        :meth:`attach_approver_client`. The connection handler gates
+        this call on the client's advertised ``elicitation.form``
+        capability — clients without that capability never attach
+        here.
+        """
+        if self._agent_completed:
+            return lambda: None
+        with acp_guard(
+            "ACP attach_elicitation_client raised; elicitation routing disabled "
+            "for this client"
+        ):
+            return self._clients.elicitations.attach(client)
+        return lambda: None
+
+    def has_elicitation_clients(self) -> bool:
+        """True if at least one elicitation client is currently attached."""
+        with acp_guard(
+            "ACP has_elicitation_clients raised; falling back to in-proc panel"
+        ):
+            return self._clients.elicitations.has_clients()
+        return False
+
+    def has_ever_had_elicitation_client(self) -> bool:
+        """True if any elicitation client has attached during this session."""
+        with acp_guard(
+            "ACP has_ever_had_elicitation_client raised; falling back to in-proc panel"
+        ):
+            return self._clients.elicitations.has_ever_attached()
+        return False
+
+    def subscribe_elicitation_attach(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Register ``callback`` to fire on every elicitation-client attach."""
+        with acp_guard(
+            "ACP subscribe_elicitation_attach raised; attach notifications disabled"
+        ):
+            return self._clients.elicitations.subscribe_attach(callback)
+        return lambda: None
+
+    def notify_elicitation_attach(self, client: ElicitationClient) -> None:
+        """Promote ``client`` from pending to ready and fire elicitation subscribers."""
+        with acp_guard(
+            "ACP notify_elicitation_attach raised; "
+            "parked elicitation shim may miss this attach"
+        ):
+            self._clients.elicitations.notify_attach(client)
+
+    def elicitation_driver_chain(self) -> list[ElicitationClient]:
+        """Elicitation clients in fallback order: driver first, then others.
+
+        Same semantics as :meth:`approver_driver_chain`. On internal
+        error, returns an empty list — caller falls back to in-proc
+        panel / console.
+        """
+        with acp_guard(
+            "ACP elicitation_driver_chain raised; falling back to in-proc panel"
+        ):
+            return self._clients.elicitations.driver_chain()
         return []
 
     def cancel_current_turn(
@@ -1564,7 +1296,13 @@ class LiveAcpSession:
                 ):
                     tr._event_updated(ev)
 
-            self._turn_cancel.request_cancel()
+            # Drive the cancel through the bound channel: the agent's
+            # ``with ch.turn_scope():`` raises :exc:`AgentInterrupted`,
+            # which react catches, drains, and recovers from.
+            if self._ref is not None:
+                from inspect_ai.agent._channel import Cancel as _ChannelCancel
+
+                self._ref.interrupt(_ChannelCancel(reason=cause))
 
             # Mark the interrupt as pending and notify subscribers so
             # prompt-mode clients (the in-proc TUI; Inspect-aware ACP
@@ -1637,31 +1375,3 @@ class LiveAcpSession:
                 "ACP track_model_event: restore failed; active event may be stale"
             ):
                 self._turn_cancel._active_model_event = prev
-
-
-def _unanswered_tool_call_ids(messages: list[ChatMessage]) -> list[str]:
-    """Return tool_call ids from the last assistant message that lack a result.
-
-    Used by :meth:`LiveAcpSession.after_cancel` to synthesize repair
-    :class:`ChatMessageTool` results for every tool call the assistant
-    issued whose response is missing — covers tools that were in flight,
-    tools that never started because an earlier call was cancelled, and
-    tools whose results were lost when an anyio cancellation interrupted
-    ``_execute_tools_impl`` before it could return.
-    """
-    last_assistant_idx: int | None = None
-    for i in range(len(messages) - 1, -1, -1):
-        if isinstance(messages[i], ChatMessageAssistant):
-            last_assistant_idx = i
-            break
-    if last_assistant_idx is None:
-        return []
-    last_assistant = messages[last_assistant_idx]
-    assert isinstance(last_assistant, ChatMessageAssistant)
-    if not last_assistant.tool_calls:
-        return []
-    answered: set[str] = set()
-    for m in messages[last_assistant_idx + 1 :]:
-        if isinstance(m, ChatMessageTool) and m.tool_call_id:
-            answered.add(m.tool_call_id)
-    return [tc.id for tc in last_assistant.tool_calls if tc.id not in answered]

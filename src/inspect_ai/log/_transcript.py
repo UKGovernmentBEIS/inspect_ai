@@ -1,5 +1,6 @@
 import contextlib
 from contextvars import ContextVar
+from dataclasses import dataclass
 from logging import getLogger
 from typing import (
     Callable,
@@ -14,6 +15,7 @@ from pydantic import (
     JsonValue,
 )
 
+from inspect_ai._util.constants import SKIP_TRANSCRIPT_DISPATCH
 from inspect_ai._util.logger import warn_once
 from inspect_ai.event._base import BaseEvent
 from inspect_ai.event._event import Event
@@ -35,10 +37,18 @@ logger = getLogger(__name__)
 ET = TypeVar("ET", bound=BaseEvent)
 
 
+@dataclass(frozen=True)
+class _TranscriptSubscription:
+    id: int
+    callback: Callable[[Event], None]
+
+
 class Transcript:
     """Transcript of events."""
 
-    _event_logger: Callable[[Event], None] | None
+    _event_logger: _TranscriptSubscription | None
+    _event_loggers: list[_TranscriptSubscription]
+    _notifying_subscribers: set[int]
     _context: WalkContext
 
     @overload
@@ -60,17 +70,20 @@ class Transcript:
         self._timelines: list[Timeline] = []
         self._model_call_counts: dict[str, int] = {}
         self._kept_event_ids: set[int] = set()
-        self._additional_subscribers: list[Callable[[Event], None]] = []
-        # Re-entry guard for the subscriber loop. A subscriber that
-        # raises causes :data:`logger.exception` to run, which (when
-        # ``inspect_ai``'s ``LogHandler`` is installed by eval) feeds
-        # a fresh ``LoggerEvent`` back through ``_event`` → straight
-        # into this method again. Without the guard, a consistently
-        # broken subscriber would recurse infinitely. We still want
-        # the recursive event to land in ``_events`` and reach the
-        # single-slot ``_event_logger`` (log writer), but skip the
-        # subscriber loop to break the cycle.
-        self._notifying_subscribers: bool = False
+        self._event_loggers = []
+        self._next_event_logger_id = 0
+        # Sidecar of currently-pending events keyed by ``event.uuid`` so
+        # consumers (live TUI toolbar, future DB-backed transcripts) can
+        # query in-flight state in O(in-flight) without scanning all
+        # events. Maintained by ``_event``/``_event_updated``. Insertion
+        # order = declared order; dict preserves it so the "earliest
+        # pending" is the first value.
+        self._pending_events: dict[str, Event] = {}
+        if events is not None:
+            for ev in events:
+                if ev.pending and ev.uuid is not None:
+                    self._pending_events[ev.uuid] = ev
+        self._notifying_subscribers = set()
 
     def info(self, data: JsonValue, *, source: str | None = None) -> None:
         """Add an `InfoEvent` to the transcript.
@@ -105,6 +118,18 @@ class Transcript:
         return self._events
 
     @property
+    def pending_events(self) -> Sequence[Event]:
+        """Currently-pending events in declared (insertion) order.
+
+        Returns a snapshot of events with ``pending=True`` keyed by
+        their ``uuid``. Updates whenever ``_event`` records a new
+        pending event or ``_event_updated`` flips one to a terminal
+        state. Bounded by the number of in-flight operations
+        (typically 0-1, up to the stage size under parallel tools).
+        """
+        return list(self._pending_events.values())
+
+    @property
     def attachments(self) -> dict[str, str]:
         return self._attachments
 
@@ -131,9 +156,27 @@ class Transcript:
     def _event(self, event: Event) -> None:
         self._process_event(event)
         self._events.append(event)
+        self._update_pending(event)
 
     def _event_updated(self, event: Event) -> None:
         self._process_event(event)
+        self._update_pending(event)
+
+    def _update_pending(self, event: Event) -> None:
+        """Reflect ``event``'s current pending state in the sidecar.
+
+        Adds the event on first emission with ``pending=True``; removes
+        on the subsequent ``_event_updated`` that flips it to a terminal
+        state. Events without a ``uuid`` (synthetic step/span events)
+        are skipped — they can't be deduplicated and don't represent
+        an in-flight operation.
+        """
+        if event.uuid is None:
+            return
+        if event.pending:
+            self._pending_events[event.uuid] = event
+        else:
+            self._pending_events.pop(event.uuid, None)
 
     def _process_event(self, event: Event) -> None:
         if isinstance(event, ModelEvent) and event.call is not None:
@@ -157,52 +200,49 @@ class Transcript:
                         else:
                             event.call = None
 
-        if self._event_logger:
-            self._event_logger(event)
-
-        # Re-entrant call (a subscriber's logger.exception fed a
-        # LoggerEvent back through here). Skip the subscriber loop
-        # to avoid infinite recursion with a consistently broken
-        # subscriber — the outer call's loop is the one that
-        # delivers events anyway.
-        if not self._notifying_subscribers:
-            self._notifying_subscribers = True
+        for event_logger in list(self._event_loggers):
+            subscriber_id = event_logger.id
+            if subscriber_id in self._notifying_subscribers:
+                continue
+            self._notifying_subscribers.add(subscriber_id)
             try:
-                for sub in self._additional_subscribers:
-                    try:
-                        sub(event)
-                    except Exception:
-                        logger.exception("Transcript subscriber raised; continuing")
+                try:
+                    event_logger.callback(event)
+                except Exception:
+                    # Tag this record so the eval LogHandler does NOT re-inject
+                    # it as a LoggerEvent — that would re-enter this loop and
+                    # fan out combinatorially across other failing subscribers.
+                    logger.warning(
+                        "Transcript subscriber failed",
+                        exc_info=True,
+                        extra={SKIP_TRANSCRIPT_DISPATCH: True},
+                    )
             finally:
-                self._notifying_subscribers = False
+                self._notifying_subscribers.remove(subscriber_id)
 
         # condense model event calls immediately to prevent O(N) memory usage
         if isinstance(event, ModelEvent) and event.call is not None:
             event_fn = events_attachment_fn(self.attachments)
             event.call = walk_model_call(event.call, event_fn, self._context)
 
-    def _subscribe(self, event_logger: Callable[[Event], None]) -> None:
-        self._event_logger = event_logger
-
-    def _add_subscriber(self, callback: Callable[[Event], None]) -> Callable[[], None]:
-        """Register an additive event subscriber.
-
-        Unlike :meth:`_subscribe` (single-slot, used by the eval runner's
-        log writer), multiple subscribers coexist and all fire on every
-        event. Each subscriber runs in a try/except so one failing
-        subscriber does not block others or interrupt the agent loop.
-
-        Returns an idempotent unsubscribe callable.
-        """
-        self._additional_subscribers.append(callback)
+    def _subscribe(self, event_logger: Callable[[Event], None]) -> Callable[[], None]:
+        subscription = self._create_subscription(event_logger)
+        self._event_loggers.append(subscription)
+        unsubscribed = False
 
         def unsubscribe() -> None:
-            try:
-                self._additional_subscribers.remove(callback)
-            except ValueError:
-                pass
+            nonlocal unsubscribed
+            if not unsubscribed:
+                unsubscribed = True
+                self._event_loggers.remove(subscription)
 
         return unsubscribe
+
+    def _create_subscription(
+        self, callback: Callable[[Event], None]
+    ) -> _TranscriptSubscription:
+        self._next_event_logger_id += 1
+        return _TranscriptSubscription(id=self._next_event_logger_id, callback=callback)
 
 
 def transcript() -> Transcript:

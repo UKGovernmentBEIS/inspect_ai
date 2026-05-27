@@ -28,6 +28,7 @@ since both are Inspect-specific extensions on a standard ACP payload.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from inspect_ai.log._samples import active_samples
 
@@ -45,7 +46,7 @@ class PickerTarget:
     """A single attachable ACP session target."""
 
     session_id: str
-    """The target ``LiveAcpSession.session_id`` (uuid)."""
+    """The target ``LiveAcpTransport.session_id`` (uuid)."""
 
     task: str
     """Task name (e.g. ``"my_task"``)."""
@@ -96,17 +97,20 @@ class PickerTarget:
 
 
 def list_picker_targets() -> list[PickerTarget]:
-    """Snapshot active samples that have claimed ACP.
+    """Snapshot active samples whose transport is currently attachable.
 
     Filters :func:`inspect_ai.log._samples.active_samples` to those
-    whose ``acp_session`` is set to a non-noop live session — i.e.
-    agents that have called ``before_turn`` at least once and
-    therefore have a real ``LiveAcpSession.session_id``.
+    whose ``acp_transport`` reports :attr:`AcpTransport.is_attachable`
+    — i.e. a channel is bound and the agent loop is still live. Skips
+    the pre-binding window (sample started, agent_channel not yet
+    opened), the post-agent scoring window, and non-channel agents
+    that never bind. Operators only see sessions they can actually
+    drive.
     """
     targets: list[PickerTarget] = []
     for sample in active_samples():
-        session = sample.acp_session
-        if session is None or session.session_id == "noop":
+        session = sample.acp_transport
+        if session is None or not session.is_attachable:
             continue
         targets.append(
             PickerTarget(
@@ -141,7 +145,7 @@ class SampleListing:
     """
 
     session_id: str | None
-    """Live ``LiveAcpSession.session_id`` (uuid) for ACP-claimed
+    """Live ``LiveAcpTransport.session_id`` (uuid) for ACP-claimed
     samples; ``None`` when the sample has no ACP session or only the
     pre-claim noop placeholder."""
 
@@ -153,6 +157,12 @@ class SampleListing:
     total_messages: int = 0
     total_tokens: int = 0
     fails_on_error: bool = False
+    pending: Literal["approval", "question"] | None = None
+    """Set when the sample is parked on a human-in-the-loop request
+    routed through ACP — ``"approval"`` for tool-call permission,
+    ``"question"`` for ``ask_user``. ``None`` otherwise. The Inspect
+    TUI's picker reads this to surface a "pending" column and float
+    waiting samples to the top of the table."""
 
 
 def list_all_samples() -> list[SampleListing]:
@@ -175,8 +185,8 @@ def list_all_samples() -> list[SampleListing]:
     """
     listings: list[SampleListing] = []
     for sample in active_samples():
-        session = sample.acp_session
-        if session is None or session.session_id == "noop":
+        session = sample.acp_transport
+        if session is None or not session.is_attachable:
             session_id: str | None = None
             agent_name: str | None = None
         else:
@@ -193,6 +203,7 @@ def list_all_samples() -> list[SampleListing]:
                 total_messages=sample.total_messages,
                 total_tokens=sample.total_tokens,
                 fails_on_error=sample.fails_on_error,
+                pending=sample.pending_interaction,
             )
         )
     return listings

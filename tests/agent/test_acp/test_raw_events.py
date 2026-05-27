@@ -36,7 +36,7 @@ from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
 from inspect_ai.agent._acp.server import acp_server
-from inspect_ai.agent._acp.session_live import LiveAcpSession
+from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.event._compaction import CompactionEvent
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._interrupt import InterruptEvent
@@ -95,7 +95,7 @@ def _make_active_sample(*, acp_session: Any) -> Any:
     active.started = None
     active.total_tokens = 0
     active.fails_on_error = True
-    active.acp_session = acp_session
+    active.acp_transport = acp_session
     return active
 
 
@@ -185,11 +185,16 @@ async def _connect(server: Any) -> _RpcClient:
     return _RpcClient(reader, writer)
 
 
-def _make_live_session() -> tuple[LiveAcpSession, Transcript]:
-    session = LiveAcpSession()
+def _make_live_session() -> tuple[LiveAcpTransport, Transcript]:
+    session = LiveAcpTransport()
+    session._attachable_override = True
     tr = Transcript()
     session._transcript = tr
     return session, tr
+
+
+def _subscriber_count(transcript: Transcript) -> int:
+    return len(transcript._event_loggers)
 
 
 async def _initialize(
@@ -385,7 +390,7 @@ async def test_raw_forwarder_unsubscribes_on_disconnect(
     """Disconnecting unregisters the transcript subscriber (no leak)."""
     session, tr = _make_live_session()
     register_target(_make_active_sample(acp_session=session))
-    initial_subs = len(tr._additional_subscribers)
+    initial_subs = _subscriber_count(tr)
     async with acp_server(eval_id="evt-raw-cleanup", transport=True) as server:
         assert server is not None
         client = await _connect(server)
@@ -394,12 +399,12 @@ async def test_raw_forwarder_unsubscribes_on_disconnect(
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
             await client.next_notification()  # bind confirmation
             # Subscriber registered while connected.
-            assert len(tr._additional_subscribers) == initial_subs + 1
+            assert _subscriber_count(tr) == initial_subs + 1
         finally:
             await client.close()
         # After disconnect, subscriber count returns to baseline.
         await asyncio.sleep(0.1)
-        assert len(tr._additional_subscribers) == initial_subs
+        assert _subscriber_count(tr) == initial_subs
 
 
 # ---------------------------------------------------------------------------
@@ -630,7 +635,7 @@ async def test_raw_events_subscription_empty_list_is_no_subscription(
     """
     session, tr = _make_live_session()
     register_target(_make_active_sample(acp_session=session))
-    initial_subs = len(tr._additional_subscribers)
+    initial_subs = _subscriber_count(tr)
     async with acp_server(eval_id="evt-raw-sub-empty", transport=True) as server:
         assert server is not None
         client = await _connect(server)
@@ -639,7 +644,7 @@ async def test_raw_events_subscription_empty_list_is_no_subscription(
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
             await client.next_notification()  # bind confirmation
             # No subscriber registered.
-            assert len(tr._additional_subscribers) == initial_subs
+            assert _subscriber_count(tr) == initial_subs
             tr._event(InfoEvent(source="ignored", data={"x": 1}))
             extra = await _drain_until(client, "inspect/event", timeout=0.3)
             assert extra is None
@@ -683,7 +688,7 @@ async def test_raw_forwarder_drain_blocks_until_pending_items_sent() -> None:
         subscription=frozenset({RAW_EVENTS_GLOB}),
     )
     # Bypass attach() — we hand the bridge stream in directly so we
-    # can push payloads without standing up a full LiveAcpSession.
+    # can push payloads without standing up a full LiveAcpTransport.
     import math
 
     send, recv = anyio.create_memory_object_stream[Any](max_buffer_size=math.inf)
@@ -774,7 +779,7 @@ async def test_raw_events_legacy_bool_is_malformed(
     """
     session, tr = _make_live_session()
     register_target(_make_active_sample(acp_session=session))
-    initial_subs = len(tr._additional_subscribers)
+    initial_subs = _subscriber_count(tr)
     async with acp_server(eval_id="evt-raw-sub-legacy", transport=True) as server:
         assert server is not None
         client = await _connect(server)
@@ -789,7 +794,7 @@ async def test_raw_events_legacy_bool_is_malformed(
             await client.request("initialize", params)
             await client.request("session/new", {"cwd": "/tmp", "mcpServers": []})
             await client.next_notification()  # bind confirmation
-            assert len(tr._additional_subscribers) == initial_subs
+            assert _subscriber_count(tr) == initial_subs
             tr._event(InfoEvent(source="ignored", data={"x": 1}))
             extra = await _drain_until(client, "inspect/event", timeout=0.3)
             assert extra is None

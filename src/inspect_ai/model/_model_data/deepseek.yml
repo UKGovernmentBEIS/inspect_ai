@@ -15,6 +15,9 @@ DeepSeek:
       release_date: 2025-02-17
       context_length: 65536
       reasoning: True
+      # DeepSeek-R1 has no `reasoning_effort` scale: thinking is always on.
+      # https://api-docs.deepseek.com/guides/reasoning_model
+      reasoning_effort_default: fixed
       versions:
         DeepSeek-R1-0528:
           rlease_date: 2025-05-28

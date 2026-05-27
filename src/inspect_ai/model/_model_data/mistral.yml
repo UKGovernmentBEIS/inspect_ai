@@ -9,11 +9,17 @@ mistral:
       display_name: Magistral Medium 3
       release_date: 2025-05-07
       reasoning: True
+      # Magistral has no `reasoning_effort` scale: reasoning is always on
+      # and the model thinks until done.
+      # https://docs.mistral.ai/capabilities/reasoning/
+      reasoning_effort_default: fixed
       context_length: 40960
     magistral-small-2506:
       display_name: Magistral Small
       release_date: 2025-06-10
       reasoning: True
+      # https://docs.mistral.ai/capabilities/reasoning/
+      reasoning_effort_default: fixed
       context_length: 40960
     mistral-small-2506:
       display_name: Mistral Small 3.2

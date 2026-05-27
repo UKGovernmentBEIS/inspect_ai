@@ -16,7 +16,8 @@ from typing import (
 if TYPE_CHECKING:
     from anyio.streams.memory import MemoryObjectReceiveStream, MemoryObjectSendStream
 
-    from inspect_ai.agent._acp.session import AcpSession
+    from inspect_ai.agent._acp.transport import AcpTransport
+    from inspect_ai.agent._channel import ExecutionObserver
     from inspect_ai.hooks._hooks import SampleEvent
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
 
@@ -92,10 +93,33 @@ class ActiveSample:
         self.event_receive: MemoryObjectReceiveStream[SampleEvent] | None = None
         self.event_done: anyio.Event | None = None
         # Live ACP session for this sample, if any. Set by
-        # `LiveAcpSession.__aenter__` on entry; cleared at `__aexit__`.
+        # `LiveAcpTransport.__aenter__` on entry; cleared at `__aexit__`.
         # The Inspect TUI reads this to decide whether to render the
         # Interrupt button and to dispatch session/cancel + session/prompt.
-        self.acp_session: "AcpSession | None" = None
+        self.acp_transport: "AcpTransport | None" = None
+        # Pending human-in-the-loop interaction counts. Incremented by
+        # the ACP routing shims (approval/_human/acp.py, input/acp.py)
+        # on entry to their park-on-attach wait, decremented in
+        # `finally`. Stored as counters (not a single Literal slot)
+        # because `parallel=True` tool calls run concurrently within
+        # one sample (see `_call_tools.py`); two approvals can be
+        # in-flight at once, and a single-slot save/restore would clear
+        # the picker indicator while the second wait is still pending.
+        # The `pending_interaction` property below derives the
+        # picker-visible state from these counters.
+        self._pending_approvals: int = 0
+        self._pending_questions: int = 0
+        # In-flight tool/model tracking observer for this sample.
+        # Defaults to a no-op singleton; an intervention producer (the
+        # ACP transport today, future supervisors) installs itself here
+        # to record `InterruptEvent` cross-references when it cancels.
+        # The model/tool layers wrap each top-level tool execution and
+        # each model generation in the observer's `track_*` context
+        # manager, so the producer always has the necessary provenance
+        # available at cancel time.
+        from inspect_ai.agent._channel import null_execution_observer
+
+        self.execution_observer: "ExecutionObserver" = null_execution_observer()
         # Lifecycle callbacks owned by whoever bound to this sample
         # (in practice, the live ACP session). Kept here rather than
         # in the ACP layer so the eval primitive doesn't have to
@@ -123,6 +147,22 @@ class ActiveSample:
 
     def complete(self) -> None:
         self.completed = datetime.now(timezone.utc).timestamp()
+
+    @property
+    def pending_interaction(self) -> Literal["approval", "question"] | None:
+        """Picker-visible pending state, derived from the counters.
+
+        Approval wins over question when both are in flight — approvals
+        gate tool execution, so they're the more urgent signal. The
+        property reads while any matching wait remains, so concurrent
+        ``parallel=True`` tool calls (which can fire multiple approvals
+        for one sample) don't clear the indicator early.
+        """
+        if self._pending_approvals > 0:
+            return "approval"
+        if self._pending_questions > 0:
+            return "question"
+        return None
 
     @property
     def running_time(self) -> float:
@@ -245,8 +285,16 @@ async def active_sample(
 
     _active_samples.append(active)
     _sample_active.set(active)
+    # Open the ACP session for this sample's lifetime. The session is the
+    # ACP-specific transport layer (pub/sub, approver registry, transcript
+    # snapshot, etc.); it produces into whatever agent_channel() is bound to
+    # via maybe_bind/unbind. Local import to avoid a module-load-time cycle
+    # (log → agent._acp → … → log).
+    from inspect_ai.agent._acp.transport import acp_session
+
     try:
-        yield active
+        async with acp_session():
+            yield active
     finally:
         # Single "the sample is fully done" hook for whoever bound to
         # this sample. By the time we get here scoring + logging have

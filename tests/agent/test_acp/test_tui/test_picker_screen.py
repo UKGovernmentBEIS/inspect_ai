@@ -8,6 +8,7 @@ tests, since ``acp.Connection`` is also asyncio-bound).
 from __future__ import annotations
 
 import time
+from typing import Literal
 
 import pytest
 from rich.text import Text
@@ -128,7 +129,7 @@ async def test_picker_populated_renders_all_rows(
         assert isinstance(screen, PickerScreen)
         table = screen.query_one(DataTable)
         assert table.row_count == 3
-        # Six columns — the ▸ selection glyph used to live in a
+        # Seven columns — the ▸ selection glyph used to live in a
         # dedicated 1-char gutter column but is now embedded into the
         # sample cell so DataTable's uniform cell_padding doesn't
         # produce a double-space gap. eval column is intentionally
@@ -138,11 +139,17 @@ async def test_picker_populated_renders_all_rows(
         # placeholders in non-ACP rows are self-explanatory; the
         # underlying column KEY stays ``"agent"`` so update_cell
         # references need no audit.
+        # ``pending`` column is omitted here because none of the
+        # fixture's rows have a pending interaction set — the column
+        # is hidden in that common case. See
+        # ``test_pending_column_shown_when_any_pending`` for the
+        # reverse path.
         assert columns == [
             "sample",
             "epoch",
             "task",
             "acp agent",
+            "msgs",
             "tokens",
             "running",
         ]
@@ -153,9 +160,11 @@ async def test_picker_populated_renders_all_rows(
         assert "3 samples" in status_text
         assert "2 evals" in status_text
         # Agent values render — missing names become an em-dash so
-        # the column never shows a literal "None". Column indices:
-        # sample=0, epoch=1, task=2, agent=3, tokens=4, running=5.
-        agent_cells = [str(c) for c in table.get_column_at(3)]
+        # the column never shows a literal "None". Look up by column
+        # key (not positional index) so future column additions don't
+        # silently shift the assertion onto the wrong cell.
+        agent_col = [k.value for k in table.columns.keys()].index("agent")
+        agent_cells = [str(c) for c in table.get_column_at(agent_col)]
         assert "react" in agent_cells
         assert "deepagent" in agent_cells
 
@@ -240,10 +249,11 @@ async def test_picker_running_column_ticks_in_place(monkeypatch) -> None:
         assert isinstance(picker, PickerScreen)
         table = picker.query_one(DataTable)
 
-        # ``running`` is column index 5 (sample, epoch, task, agent,
-        # tokens, running) — the gutter column was removed and the
-        # cursor glyph embedded into the sample cell instead.
-        before = str(list(table.get_column_at(5))[0])
+        # Look up ``running`` by column key so future column additions
+        # (e.g. the ``pending`` column) don't silently shift this
+        # positional read.
+        running_col = [k.value for k in table.columns.keys()].index("running")
+        before = str(list(table.get_column_at(running_col))[0])
         assert before.endswith("s") and "m" not in before  # initial "Ns" form
 
         # Patch ``time.time`` on the *picker* module so its
@@ -257,7 +267,7 @@ async def test_picker_running_column_ticks_in_place(monkeypatch) -> None:
         picker._tick_running()
         await pilot.pause()
 
-        after = str(list(table.get_column_at(5))[0])
+        after = str(list(table.get_column_at(running_col))[0])
         # Cursor / row count survive the in-place update.
         assert table.row_count == 1
         assert table.cursor_row == 0
@@ -519,13 +529,15 @@ async def test_picker_rescan_updates_tokens_in_steady_state(
         picker = app.screen
         assert isinstance(picker, PickerScreen)
         table = picker.query_one(DataTable)
-        # Tokens column is index 4 (sample=0, epoch=1, task=2,
-        # agent=3, tokens=4, running=5) — gutter column was dropped.
-        # Initial fixture rows have total_tokens=0 → cell renders
-        # ``—`` (em-dash). The empty-state token cell is intentionally
-        # distinct from a small-but-nonzero value so the eye can scan
-        # the column for "actual usage" at a glance.
-        before = [str(c) for c in table.get_column_at(4)]
+        # Look up ``tokens`` by column key — future additions to the
+        # column set (e.g. ``pending``) shouldn't silently shift the
+        # positional read onto a neighbour. Initial fixture rows have
+        # ``total_tokens=0`` → cell renders ``—`` (em-dash). The
+        # empty-state token cell is intentionally distinct from a
+        # small-but-nonzero value so the eye can scan the column for
+        # "actual usage" at a glance.
+        tokens_col = [k.value for k in table.columns.keys()].index("tokens")
+        before = [str(c) for c in table.get_column_at(tokens_col)]
         assert all(c == "—" for c in before)
 
         # Rebind the client with the SAME session ids but bumped
@@ -540,7 +552,7 @@ async def test_picker_rescan_updates_tokens_in_steady_state(
         await picker._do_rescan()
         await pilot.pause()
 
-        after = [str(c) for c in table.get_column_at(4)]
+        after = [str(c) for c in table.get_column_at(tokens_col)]
         # Display order is longest-running-first now, so the fixture's
         # sess-3 (oldest started_at) lands at row 0, sess-2 at row 1,
         # sess-1 at row 2. _format_tokens: 1234 → "1.2K",
@@ -686,12 +698,14 @@ async def test_picker_tokens_cell_and_header_are_right_justified(
         picker = app.screen
         assert isinstance(picker, PickerScreen)
         table = picker.query_one(DataTable)
-        # Header label is a Text("tokens", justify="right").
-        tokens_col = list(table.columns.values())[4]
+        # Look up the ``tokens`` column by key so future column
+        # additions don't silently shift the assertion.
+        tokens_idx = [k.value for k in table.columns.keys()].index("tokens")
+        tokens_col = list(table.columns.values())[tokens_idx]
         assert isinstance(tokens_col.label, Text)
         assert tokens_col.label.justify == "right"
         # Every cell value is a Text(..., justify="right").
-        tokens_cells = list(table.get_column_at(4))
+        tokens_cells = list(table.get_column_at(tokens_idx))
         assert all(isinstance(c, Text) for c in tokens_cells)
         assert all(c.justify == "right" for c in tokens_cells)
 
@@ -725,7 +739,8 @@ async def test_picker_tokens_tick_preserves_right_justify(
         await picker._do_rescan()
         await pilot.pause()
 
-        tokens_cells = list(table.get_column_at(4))
+        tokens_idx = [k.value for k in table.columns.keys()].index("tokens")
+        tokens_cells = list(table.get_column_at(tokens_idx))
         assert all(isinstance(c, Text) for c in tokens_cells)
         assert all(c.justify == "right" for c in tokens_cells)
 
@@ -1224,6 +1239,203 @@ def test_running_cell_is_right_justified() -> None:
     assert cell.justify == "right"
     # Content matches ``format_running`` (12s elapsed).
     assert str(cell) == "12s"
+
+
+# ---------------------------------------------------------------------------
+# pending column — rendering + sort
+# ---------------------------------------------------------------------------
+
+
+def _row_with_pending(
+    pending: Literal["approval", "question"] | None,
+    *,
+    session_id: str | None = "u1",
+    sample_id: str = "s",
+    started_at: float | None = 1_700_000_000.0,
+    eval_id: str = "e1",
+) -> SessionRow:
+    """SessionRow constructor that exposes the ``pending`` field.
+
+    The ``_row`` helper at the bottom of this file pre-dates the
+    pending column, so this thin wrapper layers the field on top of
+    the same canned defaults — keeps existing tests untouched and
+    keeps the pending-column tests local + readable.
+    """
+    from pathlib import Path
+
+    from inspect_ai.agent._acp.discovery import TargetAddress
+
+    return SessionRow(
+        eval_id=eval_id,
+        session_id=session_id,
+        task="t",
+        sample_id=sample_id,
+        epoch=0,
+        agent_name=None,
+        started_at=started_at,
+        target=TargetAddress(socket_path=Path("/tmp/x.sock")),
+        pending=pending,
+    )
+
+
+def test_pending_cell_approval_is_green() -> None:
+    """``approval`` renders in a literal green hex.
+
+    Not ``green`` — many default themes make the ANSI ``green`` token
+    read as lime.
+    """
+    from inspect_ai.agent._acp.tui.picker_screen import _pending_cell
+
+    cell = _pending_cell("approval")
+    assert isinstance(cell, Text)
+    assert str(cell) == "approval"
+    assert "#2ea043" in str(cell.style)
+
+
+def test_pending_cell_question_is_blue() -> None:
+    """``question`` renders in a literal blue hex.
+
+    Not ``blue`` or ``bright_blue`` — most default themes map those
+    ANSI tokens to a purplish hue.
+    """
+    from inspect_ai.agent._acp.tui.picker_screen import _pending_cell
+
+    cell = _pending_cell("question")
+    assert isinstance(cell, Text)
+    assert str(cell) == "question"
+    assert "#3a8eff" in str(cell.style)
+
+
+def test_pending_cell_none_is_empty() -> None:
+    """No pending state → empty cell."""
+    from inspect_ai.agent._acp.tui.picker_screen import _pending_cell
+
+    cell = _pending_cell(None)
+    assert isinstance(cell, Text)
+    assert str(cell) == ""
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_pending_column_hidden_when_no_pending(
+    sample_rows: list[SessionRow],
+) -> None:
+    """No row carries ``pending`` → column is omitted from the table.
+
+    Avoids a permanently-empty column when no sample is parked, which
+    is the common case mid-eval.
+    """
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        column_keys = [k.value for k in table.columns.keys()]
+        assert "pending" not in column_keys
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_pending_column_shown_when_any_pending(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Any row carries ``pending`` → column appears between agent and msgs."""
+    from dataclasses import replace
+
+    rows = list(sample_rows)
+    rows[0] = replace(rows[0], pending="approval")
+    client = make_fake_client(rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        column_keys = [k.value for k in table.columns.keys()]
+        assert "pending" in column_keys
+        # Positioned between ``agent`` and ``messages`` so the
+        # operator's eye picks up the alert next to which agent owns
+        # the sample.
+        agent_idx = column_keys.index("agent")
+        pending_idx = column_keys.index("pending")
+        messages_idx = column_keys.index("messages")
+        assert agent_idx < pending_idx < messages_idx
+
+
+@skip_if_trio
+@pytest.mark.slow
+@pytest.mark.anyio
+async def test_pending_column_appears_on_rescan_when_pending_arrives(
+    sample_rows: list[SessionRow],
+) -> None:
+    """Rescan that flips a row to pending recomposes the table with the column.
+
+    DataTable's column set is fixed at compose time, so toggling
+    presence has to go via ``refresh(recompose=True)``. Pinned because
+    a missed-recompose path would leave a sample stuck-pending with
+    no visible indicator until the next row-id-set change.
+    """
+    from dataclasses import replace
+
+    client = make_fake_client(sample_rows)
+    app = InspectAcpApp(eval_id=None, server=None, client=client)
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        picker = app.screen
+        assert isinstance(picker, PickerScreen)
+        table = picker.query_one(DataTable)
+        assert "pending" not in [k.value for k in table.columns.keys()]
+
+        # Rebind the client with one row now carrying a pending flag.
+        bumped = list(sample_rows)
+        bumped[1] = replace(bumped[1], pending="approval")
+        app._client = make_fake_client(bumped)
+        await picker._do_rescan()
+        await pilot.pause()
+
+        # New table — the column is now present.
+        table = picker.query_one(DataTable)
+        assert "pending" in [k.value for k in table.columns.keys()]
+
+
+def test_sort_rows_floats_pending_to_top() -> None:
+    """Samples with ``pending`` set sort above non-pending samples regardless of age.
+
+    Without the new primary tier, the oldest-running ACP row leads.
+    With it, a newly-fired approval on the youngest sample wins —
+    the operator can't miss it.
+    """
+    pending_new = _row_with_pending(
+        "approval", session_id="u1", sample_id="a", started_at=10.0
+    )
+    quiet_old = _row_with_pending(None, session_id="u2", sample_id="b", started_at=1.0)
+    quiet_mid = _row_with_pending(None, session_id="u3", sample_id="c", started_at=5.0)
+    sorted_rows = _sort_rows([quiet_old, pending_new, quiet_mid])
+    # Pending row leads despite being the youngest. Within the
+    # non-pending group, oldest-running first preserved.
+    assert [r.sample_id for r in sorted_rows] == ["a", "b", "c"]
+
+
+def test_sort_rows_preserves_acp_attachable_tier_within_pending() -> None:
+    """Within pending rows, ACP-attachable samples still precede non-ACP ones.
+
+    Non-ACP rows shouldn't ever carry ``pending`` in practice (the
+    flag is set by the ACP routing shims only), but the sort's
+    secondary tier must stay correct if they ever do.
+    """
+    pending_acp = _row_with_pending(
+        "approval", session_id="u1", sample_id="a", started_at=5.0
+    )
+    pending_non_acp = _row_with_pending(
+        "approval", session_id=None, sample_id="b", started_at=1.0
+    )
+    sorted_rows = _sort_rows([pending_non_acp, pending_acp])
+    # ACP-attachable lands first within the pending tier.
+    assert [r.sample_id for r in sorted_rows] == ["a", "b"]
 
 
 @skip_if_trio

@@ -25,8 +25,11 @@ from acp.connection import Connection
 from acp.exceptions import RequestError
 from acp.meta import CLIENT_METHODS, PROTOCOL_VERSION
 from acp.schema import (
+    AcceptElicitationResponse,
     AgentCapabilities,
     AgentMessageChunk,
+    CancelElicitationResponse,
+    DeclineElicitationResponse,
     Implementation,
     InitializeResponse,
     LoadSessionResponse,
@@ -60,7 +63,11 @@ from inspect_ai.agent._acp.session_router import Forwarders
 from inspect_ai.model._chat_message import ChatMessageUser
 
 if TYPE_CHECKING:
-    from inspect_ai.agent._acp.session import AcpSession
+    from inspect_ai.agent._acp.transport import (
+        AcpTransport,
+        ElicitationRequest,
+        ElicitationResponse,
+    )
     from inspect_ai.log._samples import ActiveSample
 
 logger = getLogger(__name__)
@@ -101,7 +108,7 @@ class Bound:
     """Connection is bound to a target session; forwarding is active.
 
     ``wire_session_id`` is what the client sees. ``target_session_id``
-    is the internal ``LiveAcpSession.session_id`` we forward to. In
+    is the internal ``LiveAcpTransport.session_id`` we forward to. In
     the auto-bind / direct-load paths these are equal; on the picker
     selection path the wire id is the synthetic control id and the
     target id is the chosen sample — the design contract is that the
@@ -148,6 +155,12 @@ class ConnectionState:
     # forwarder filters against. Decoded by
     # :func:`inspect_ext.detect_capabilities`.
     raw_events_subscription: frozenset[str] | None = None
+    # True if the client advertised ``elicitation.form`` in
+    # ``initialize`` (per ACP 0.10+ ``ClientCapabilities.elicitation
+    # .form``). Gates whether ``Forwarders.start`` attaches us to the
+    # session's elicitation-client registry — clients without this
+    # capability never receive ``elicitation/create`` requests.
+    client_supports_elicitation_form: bool = False
 
     @property
     def wire_session_id(self) -> str | None:
@@ -207,8 +220,8 @@ class ConnectionHandler:
         """Standard ACP handshake. Negotiate protocol version + advertise capabilities.
 
         Also captures client-capability flags (``client_renders_plan``,
-        ``raw_events_subscription``) so the per-connection forwarder can
-        switch behavior per client.
+        ``raw_events_subscription``, ``client_supports_elicitation_form``)
+        so the per-connection forwarder can switch behavior per client.
         """
         # Capture client-capability flags. See ``detect_capabilities``
         # for the allowlist + ``_meta`` opt-in logic.
@@ -216,6 +229,16 @@ class ConnectionHandler:
             self.state.client_renders_plan,
             self.state.raw_events_subscription,
         ) = detect_capabilities(client_info, client_capabilities)
+
+        # Elicitation/form capability — frozen for the connection lifetime.
+        # The presence of ``ElicitationFormCapabilities`` (an empty marker
+        # type) under ``elicitation.form`` signals the client can render an
+        # ``elicitation/create`` form locally and return the user's answer.
+        self.state.client_supports_elicitation_form = (
+            client_capabilities is not None
+            and getattr(client_capabilities, "elicitation", None) is not None
+            and getattr(client_capabilities.elicitation, "form", None) is not None
+        )
 
         return InitializeResponse(
             protocol_version=min(protocol_version, PROTOCOL_VERSION),
@@ -340,33 +363,46 @@ class ConnectionHandler:
                             "target_session_id": target_id,
                         }
                     )
-                if target.agent_completed:
-                    # The session is parked for the scoring window —
-                    # the agent loop has exited and there's no consumer
-                    # to drain ``submit_user_message``. Pre-fix the
-                    # call returned success and the message was silently
-                    # discarded by ``LiveAcpSession.submit_user_message``'s
-                    # post-agent guard. Surface a real error so the
-                    # client (TUI / editor) can show "scoring in progress"
-                    # instead of pretending it landed.
+                if not target.is_attachable:
+                    # The target's transport is alive but has no bound
+                    # agent loop to receive this prompt. Two states
+                    # collapse here:
+                    #
+                    # - ``agent_completed`` — react() has exited and
+                    #   the transport is parked for the scoring window;
+                    # - no bound channel — react() between consecutive
+                    #   invocations (the inter-react gap in the same
+                    #   sample), or a non-channel custom agent.
+                    #
+                    # Pre-fix, the message was silently discarded by
+                    # ``LiveAcpTransport.submit_user_message``'s
+                    # ``_ref is None`` guard. Surface a real error so
+                    # the client (TUI / editor) can drop the binding
+                    # instead of pretending it landed. Detail the
+                    # specific sub-state so clients can render a
+                    # tailored message.
+                    reason = (
+                        "session is scoring"
+                        if target.agent_completed
+                        else "session not currently attachable"
+                    )
                     raise RequestError.invalid_request(
                         {
-                            "reason": "session is scoring",
+                            "reason": reason,
                             "target_session_id": target_id,
                         }
                     )
                 text = _translate_prompt_blocks(prompt)
                 msg = ChatMessageUser(content=text, source="operator")
                 target.submit_user_message(msg)
-                # Promote ourselves to the active driver for any
-                # subsequent ``session/request_permission`` on this
-                # session — the operator just typed here, so this is
-                # where they're paying attention. Silently no-ops if
-                # we aren't (or no longer are) a registered approver
-                # client (e.g. the approval forwarder hasn't started
-                # yet, or we were just torn down). See the registry's
+                # Promote ourselves to the active driver across every
+                # client registry we belong to (approver, elicitation,
+                # future additions) — the operator just typed here, so
+                # this is where they're paying attention. Silently
+                # no-ops in any registry where we aren't (or no longer
+                # are) a registered client. See the registry's
                 # docstring for the single-driver semantics.
-                target.mark_active_approver_client(self)
+                target.mark_active_session_client(self)
                 return PromptResponse(stop_reason="end_turn")
             case _:
                 # Unreachable: the outer match above already raised on
@@ -390,6 +426,17 @@ class ConnectionHandler:
                 target = _find_live_session(target_id)
                 if target is None:
                     # Bound target has already finished; nothing to cancel.
+                    return None
+                if not target.is_attachable:
+                    # No bound agent loop right now (post-agent scoring
+                    # window, or between consecutive react() invocations
+                    # in the same sample). Recording an InterruptEvent
+                    # here would falsely suggest an active turn was
+                    # interrupted; flipping ``interrupt_pending`` would
+                    # leave the TUI / Inspect-aware clients showing a
+                    # prompt-mode indicator forever since no agent will
+                    # consume the resolution. Notifications can't return
+                    # errors, so silently drop.
                     return None
                 target.cancel_current_turn()
             case PickerMode() | Unbound():
@@ -542,7 +589,7 @@ class ConnectionHandler:
         # ``sample.interrupt(action)`` fires the registered
         # ``on_interrupt`` hook before the task-group cancel — for an
         # ACP-bound sample that routes to
-        # ``LiveAcpSession.cancel_current_turn``, which clears
+        # ``LiveAcpTransport.cancel_current_turn``, which clears
         # in-flight ``ModelEvent.pending=True`` (otherwise anyio's
         # hard cancel bypasses the normal completion paths and the
         # TUI's assistant chip spins past the scoring chips). The
@@ -883,7 +930,7 @@ class ConnectionHandler:
         await self._send_session_update(notif)
 
     # ------------------------------------------------------------------
-    # ApproverClient implementation
+    # ApproverClient / ElicitationClient implementation
     # ------------------------------------------------------------------
 
     async def request_permission(
@@ -892,7 +939,7 @@ class ConnectionHandler:
         """Send ``session/request_permission`` to this client and await response.
 
         Implements the :class:`ApproverClient` protocol. The
-        ``LiveAcpSession`` registers this handler when the connection
+        ``LiveAcpTransport`` registers this handler when the connection
         binds (via :class:`Forwarders`); the configured
         ``human_approver`` calls this method (via the
         ``approval/_human/acp.py`` driver-fallback chain) when a tool
@@ -946,20 +993,92 @@ class ConnectionHandler:
     async def drain_notifications(self) -> None:
         """Wait until pending ``session/update`` notifications have been sent.
 
-        Implements the :class:`ApproverClient` drain barrier by
-        delegating to the per-bind :class:`Forwarders`. Safe no-op
-        when there's no active binding (pre-bind, post-disconnect,
-        between picker rebinds) — there's no forwarder to drain.
+        Implements the :class:`ApproverClient` and :class:`ElicitationClient`
+        drain barrier by delegating to the per-bind :class:`Forwarders`.
+        Safe no-op when there's no active binding (pre-bind,
+        post-disconnect, between picker rebinds) — there's no
+        forwarder to drain.
 
-        Called by the approval shim immediately before
-        :meth:`request_permission` so the operator's connection
-        delivers the model's accompanying ``agent_message_chunk``
-        BEFORE the approval card lands. See ``Forwarders.drain`` for
-        the ordering rationale.
+        Called by the approval / elicitation shim immediately before
+        :meth:`request_permission` / :meth:`request_elicitation` so
+        the operator's connection delivers the model's accompanying
+        ``agent_message_chunk`` BEFORE the request card lands. See
+        ``Forwarders.drain`` for the ordering rationale.
         """
         if self._forwarders is None:
             return
         await self._forwarders.drain()
+
+    async def request_elicitation(
+        self, request: "ElicitationRequest"
+    ) -> "ElicitationResponse":
+        """Send ``elicitation/create`` to this client and await response.
+
+        Implements the :class:`ElicitationClient` protocol. The
+        ``LiveAcpTransport`` registers this handler when the connection
+        binds AND the peer advertised ``elicitation.form`` capability;
+        the Phase 6 ``acp_handler`` calls this method (via the
+        ``_input/acp.py`` driver-fallback chain) when ``ask_user`` is
+        invoked.
+
+        Mirrors :meth:`request_permission`:
+
+        - Connection still attached. If not, raise :class:`ConnectionError`.
+        - Connection is ``Bound`` AND its ``target_session_id`` matches
+          ``request.session_id``. Covers the race where the connection
+          unbinds or rebinds to a different target between the shim
+          snapshotting the driver chain and this method being called.
+
+        The outbound payload's ``sessionId`` is rewritten to the
+        connection's ``wire_session_id``. In auto-bind /
+        direct-loadSession this is a no-op (wire == target); in picker
+        mode the wire is a synthetic control id minted at
+        ``session/new`` and the client would otherwise reject the
+        prompt as cross-session traffic.
+
+        The wire payload is the standard ACP ``elicitation/create``
+        shape — ``{message, mode: "form", sessionId, toolCallId?,
+        requestedSchema}`` — assembled here from the
+        :class:`ElicitationRequest` fields. ``acp.schema`` 0.10 models
+        this shape across two Pydantic classes; we serialize directly
+        rather than wrestle with their split. Returns the parsed ACP
+        response union (``Accept | Decline | Cancel``); mapping to
+        :class:`InputResult` happens in the Phase 6 consumer.
+
+        Any exception (binding mismatch, transport failure, malformed
+        response) propagates so the elicitation shim's driver-fallback
+        loop drops us and tries the next client.
+        """
+        if self.connection is None:
+            raise ConnectionError("elicitation client connection is not attached")
+        binding = self.state.binding
+        if not isinstance(binding, Bound):
+            raise ConnectionError(
+                "elicitation client is not bound to a target session "
+                f"(current binding: {type(binding).__name__})"
+            )
+        if binding.target_session_id != request.session_id:
+            raise ConnectionError(
+                "elicitation client target mismatch: bound to "
+                f"{binding.target_session_id!r}, request is for "
+                f"{request.session_id!r}"
+            )
+        # Build the flat wire payload directly. acp.schema 0.10 splits
+        # the message/mode pair (CreateFormElicitationRequest) from the
+        # session scope (ElicitationFormSessionMode); on the wire it's
+        # one merged object, so we emit the canonical shape ourselves.
+        payload: dict[str, Any] = {
+            "message": request.message,
+            "mode": "form",
+            "sessionId": binding.wire_session_id,
+            "requestedSchema": request.requested_schema.model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            ),
+        }
+        if request.tool_call_id is not None:
+            payload["toolCallId"] = request.tool_call_id
+        raw = await self.connection.send_request("elicitation/create", payload)
+        return _parse_elicitation_response(raw)
 
     # ------------------------------------------------------------------
     # Bind / unbind orchestration
@@ -1006,6 +1125,7 @@ class ConnectionHandler:
             self.state,
             self.connection,
             self,
+            self if self.state.client_supports_elicitation_form else None,
             target_session_id=target_session_id,
             wire_session_id=wire,
         )
@@ -1076,33 +1196,38 @@ class ConnectionHandler:
         deferred newSession / loadSession paths.
 
         After forwarders are up we promote ourselves to the active
-        approver-driver for the bound session, THEN wake any parked
-        approval shim via ``notify_approver_attach``. Every path
-        through here (``session/load``, ``session/new`` auto-bind,
-        picker selection) is a deliberate "this client is now
-        driving" signal, parallel to the ``session/prompt`` promotion
-        at the bound-mode prompt handler.
+        driver across every registry we belong to (approver,
+        elicitation), THEN wake any parked dispatch shims via the
+        per-domain ``notify_*_attach`` calls. Every path through here
+        (``session/load``, ``session/new`` auto-bind, picker
+        selection) is a deliberate "this client is now driving"
+        signal, parallel to the ``session/prompt`` promotion at the
+        bound-mode prompt handler.
 
         Ordering matters: promote-then-notify ensures a parked shim
         re-snapshots a driver chain that already has THIS connection
-        at position 0, so the re-issued approval routes here rather
-        than to a stale first-attached client. The notification fires
-        ONLY here (not from the registry's ``attach``), so subscribers
-        wake after replay completes and the forwarder is live — no
-        race where the operator sees an approval card before the
-        conversation context replays.
+        at position 0, so the re-issued request routes here rather
+        than to a stale first-attached client. The notifications fire
+        ONLY here (not from the registries' ``attach`` calls), so
+        subscribers wake after replay completes and the forwarder is
+        live — no race where the operator sees a request card before
+        the conversation context replays.
 
         Silently no-ops if the live session disappeared between
         ``_start_forwarders`` and now (e.g. sample finished); also
-        no-ops if we aren't a registered approver client, which can
-        happen if forwarder startup raised partway through.
+        no-ops if we aren't a registered client in a given registry,
+        which can happen if forwarder startup raised partway through
+        OR if a registry's per-domain capability gate excluded us
+        (no ``elicitation.form`` capability, etc.).
         """
         await self._notify_binding(target)
         await self._start_forwarders(target.session_id)
         live = _find_live_session(target.session_id)
         if live is not None:
-            live.mark_active_approver_client(self)
+            live.mark_active_session_client(self)
             live.notify_approver_attach(self)
+            if self.state.client_supports_elicitation_form:
+                live.notify_elicitation_attach(self)
 
     async def _send_notification_if_current(self, notification: Any, gen: int) -> None:
         """Send a ``session/update`` only if the bind generation still matches.
@@ -1239,8 +1364,8 @@ def _translate_prompt_blocks(prompt_blocks: list[Any]) -> str:
     return "".join(parts)
 
 
-def _find_live_session(session_id: str) -> "AcpSession | None":
-    """Look up a live :class:`AcpSession` by sessionId.
+def _find_live_session(session_id: str) -> "AcpTransport | None":
+    """Look up a live :class:`AcpTransport` by sessionId.
 
     Walks :func:`inspect_ai.log._samples.active_samples` for a sample
     whose ``acp_session.session_id`` matches. Returns ``None`` if
@@ -1250,7 +1375,7 @@ def _find_live_session(session_id: str) -> "AcpSession | None":
     from inspect_ai.log._samples import active_samples
 
     for sample in active_samples():
-        sess = sample.acp_session
+        sess = sample.acp_transport
         if sess is not None and sess.session_id == session_id:
             return sess
     return None
@@ -1267,7 +1392,7 @@ def _find_active_sample(session_id: str) -> "ActiveSample | None":
     from inspect_ai.log._samples import active_samples
 
     for sample in active_samples():
-        sess = sample.acp_session
+        sess = sample.acp_transport
         if sess is not None and sess.session_id == session_id:
             return sample
     return None
@@ -1302,3 +1427,27 @@ def _parse_target_spec(spec: str) -> tuple[str, str, int] | None:
     if not sep:
         return None
     return task, sample_id, epoch
+
+
+def _parse_elicitation_response(raw: Any) -> "ElicitationResponse":
+    """Parse an ``elicitation/create`` response into its tagged variant.
+
+    The three response classes (``Accept``, ``Decline``, ``Cancel``)
+    are separate Pydantic models discriminated on the ``action``
+    field. Dispatch explicitly rather than relying on a Union
+    TypeAdapter so a malformed / unexpected payload surfaces a clear
+    error at the wire boundary rather than a generic validation
+    failure deep inside the dispatch shim.
+    """
+    if not isinstance(raw, dict):
+        raise ValueError(
+            f"elicitation/create response must be a dict, got {type(raw).__name__}"
+        )
+    action = raw.get("action")
+    if action == "accept":
+        return AcceptElicitationResponse.model_validate(raw)
+    if action == "decline":
+        return DeclineElicitationResponse.model_validate(raw)
+    if action == "cancel":
+        return CancelElicitationResponse.model_validate(raw)
+    raise ValueError(f"elicitation/create response has unknown action: {action!r}")
