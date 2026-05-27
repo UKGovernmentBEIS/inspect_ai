@@ -167,7 +167,7 @@ def mock_s3():
     # Drop any cached fsspec S3FileSystem instance from a previous module's
     # mock_s3 fixture — its baked-in client points at a moto server that
     # was already torn down, and reuse causes EndpointConnectionError.
-    from s3fs import S3FileSystem
+    from s3fs import S3FileSystem  # type: ignore
 
     S3FileSystem.clear_instance_cache()
 
