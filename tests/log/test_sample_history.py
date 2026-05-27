@@ -228,6 +228,50 @@ def test_log_events_restores_pool_indices_when_transaction_rolls_back(
     ]
 
 
+def test_log_events_keeps_pool_indices_when_sync_fails_after_commit(
+    tmp_path, monkeypatch
+):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+
+    def model_event(uuid: str, content: str) -> ModelEvent:
+        return _model(uuid, f"answer {content}").model_copy(
+            update={"input": [ChatMessageUser(id=f"{uuid}-input", content=content)]}
+        )
+
+    db.log_events(
+        [SampleEvent(id="sample", epoch=1, event=model_event("event-1", "a"))]
+    )
+
+    original_sync = db._sync
+
+    def fail_sync():
+        raise RuntimeError("sync failed")
+
+    monkeypatch.setattr(db, "_sync", fail_sync)
+    with pytest.raises(RuntimeError, match="sync failed"):
+        db.log_events(
+            [SampleEvent(id="sample", epoch=1, event=model_event("event-2", "b"))]
+        )
+
+    monkeypatch.setattr(db, "_sync", original_sync)
+    db.log_events(
+        [SampleEvent(id="sample", epoch=1, event=model_event("event-3", "c"))]
+    )
+
+    with db.open_sample_history("sample", 1) as history:
+        materialized = materialize_streaming_sample(
+            EvalSample(id="sample", epoch=1, input="question", target="answer"),
+            history,
+        )
+
+    inputs = [
+        event.input[0].content
+        for event in materialized.events
+        if isinstance(event, ModelEvent)
+    ]
+    assert inputs == ["a", "b", "c"]
+
+
 def test_open_sample_history_defers_remove_samples_until_release(tmp_path):
     db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
     db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])

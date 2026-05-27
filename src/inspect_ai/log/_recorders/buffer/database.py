@@ -219,41 +219,7 @@ class SampleBufferDatabase(SampleBuffer):
             tuple[str, int], tuple[dict[str, int] | None, dict[str, int] | None]
         ] = {}
 
-        try:
-            with self._get_connection(write=True) as conn:
-                # collect the values for all events
-                values: list[str | int] = []
-                for event in events:
-                    if isinstance(event.event, ModelEvent):
-                        key = (str(event.id), event.epoch)
-                        if key not in index_snapshots:
-                            msg_index = self._msg_indices.get(key)
-                            call_index = self._call_indices.get(key)
-                            index_snapshots[key] = (
-                                None if msg_index is None else dict(msg_index),
-                                None if call_index is None else dict(call_index),
-                            )
-
-                    event = self._condense_event(conn, event)
-                    values.extend(
-                        (
-                            event.event.uuid or uuid(),
-                            str(event.id),
-                            event.epoch,
-                            to_json_str_safe(event.event),
-                        )
-                    )
-
-                # dynamically create the SQL query
-                placeholders = ", ".join(["(?, ?, ?, ?)"] * len(events))
-                sql = f"""
-                INSERT INTO events (event_id, sample_id, sample_epoch, data)
-                VALUES {placeholders}
-                """
-
-                # Insert all rows
-                conn.execute(sql, values)
-        except Exception:
+        def restore_index_snapshots() -> None:
             for key, (msg_index, call_index) in index_snapshots.items():
                 if msg_index is None:
                     self._msg_indices.pop(key, None)
@@ -264,7 +230,42 @@ class SampleBufferDatabase(SampleBuffer):
                     self._call_indices.pop(key, None)
                 else:
                     self._call_indices[key] = call_index
-            raise
+
+        with self._get_connection(
+            write=True, on_rollback=restore_index_snapshots
+        ) as conn:
+            # collect the values for all events
+            values: list[str | int] = []
+            for event in events:
+                if isinstance(event.event, ModelEvent):
+                    key = (str(event.id), event.epoch)
+                    if key not in index_snapshots:
+                        msg_index = self._msg_indices.get(key)
+                        call_index = self._call_indices.get(key)
+                        index_snapshots[key] = (
+                            None if msg_index is None else dict(msg_index),
+                            None if call_index is None else dict(call_index),
+                        )
+
+                event = self._condense_event(conn, event)
+                values.extend(
+                    (
+                        event.event.uuid or uuid(),
+                        str(event.id),
+                        event.epoch,
+                        to_json_str_safe(event.event),
+                    )
+                )
+
+            # dynamically create the SQL query
+            placeholders = ", ".join(["(?, ?, ?, ?)"] * len(events))
+            sql = f"""
+            INSERT INTO events (event_id, sample_id, sample_epoch, data)
+            VALUES {placeholders}
+            """
+
+            # Insert all rows
+            conn.execute(sql, values)
 
     def complete_sample(self, summary: EvalSampleSummary) -> None:
         with self._get_connection(write=True) as conn:
@@ -626,7 +627,12 @@ class SampleBufferDatabase(SampleBuffer):
                 self._cleanup_now()
 
     @contextmanager
-    def _get_connection(self, *, write: bool = False) -> Iterator[Connection]:
+    def _get_connection(
+        self,
+        *,
+        write: bool = False,
+        on_rollback: Callable[[], None] | None = None,
+    ) -> Iterator[Connection]:
         """Get a database connection."""
         max_retries = 5
         retry_delay = 0.1
@@ -682,7 +688,11 @@ class SampleBufferDatabase(SampleBuffer):
 
         except Exception:
             # rollback on any error
-            conn.rollback()
+            try:
+                conn.rollback()
+            finally:
+                if on_rollback is not None:
+                    on_rollback()
             raise
         finally:
             # close the connection
