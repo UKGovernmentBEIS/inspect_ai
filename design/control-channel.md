@@ -330,6 +330,46 @@ Open question: which knobs are realistically directable mid-flight without rearc
 
 Each is a small surgical addition to the eval runner; the control channel is the wire that triggers them.
 
+### Security model
+
+The control endpoint is default-on and unauthenticated. That's a deliberate trade-off — given the threat model it's the right one, but it deserves a written account.
+
+**Network exposure: zero by construction.** The endpoint binds an AF_UNIX socket at `<inspect_data_dir>/control/<pid>.sock`. AF_UNIX is a filesystem object, not a network socket — it has no IP, no port, doesn't traverse any network stack. It is structurally impossible to reach from another machine. It also isn't reachable from inside containers (Docker, Inspect's sandboxes) unless the user explicitly bind-mounts `inspect_data_dir` into the container — which Inspect's own sandbox setups do not do.
+
+**Local threat model.** On the same machine the relevant question is "who can talk to the socket?":
+
+| Caller | Can connect? | Why |
+|---|---|---|
+| Same user, same machine | Yes | Trust model — same as your shell history, SSH agent socket, browser cookies. |
+| Other users on the same machine | **No** | The directory permissions block them (see below). |
+| Sandboxed eval processes | No | Sandboxes don't see the host's `inspect_data_dir`. |
+| Remote attackers | No | AF_UNIX, no network path. |
+| Root on the same machine | Yes | Filesystem perms can't constrain root. Not in scope — if you don't trust root, no Inspect setting helps. |
+
+**What we do today** (implemented by `prepare_discovery_dir` and `write_discovery_file` in `_util/discovery.py`):
+
+| Object | Mode | Rationale |
+|---|---|---|
+| `<inspect_data_dir>/control/` directory | **0700** | **Principal protection.** Without `x` permission on the directory, other users can't traverse into it — the socket and discovery JSON can't even be `stat()`'d, much less opened. |
+| `<pid>.sock` (AF_UNIX socket) | 0600 | Defence-in-depth — closes the gap if the directory ever gets loosened. |
+| `<pid>.json` (discovery file) | 0600 | Same — prevents the socket path / run_id leaking via a world-readable JSON. |
+
+The chmods are reapplied on every server start (idempotent) so a directory created before the hardening landed gets locked down on the next bind. Some filesystems ignore `chmod` (FUSE, certain network mounts); the fallback is benign — the file still lives under `inspect_data_dir` which is user-scoped, so the loss of defence-in-depth is bounded.
+
+**What this buys us.** With the directory at 0700, an attempted connection from another user's process fails at the directory-traversal step (`EACCES`) before the socket file's own permissions are even consulted. The socket and JSON 0600 modes are belt-and-suspenders: they protect against a misconfigured umask, a future code path that lowers the directory perms, or a user running Inspect under different identities (sudo etc.) that accidentally widen perms.
+
+**What this does NOT buy us:**
+
+- **Same user, different process.** Filesystem perms can't distinguish "your Inspect eval" from "an untrusted script you ran as yourself" — both run with your UID. To enforce "only the launching eval can be controlled" would require an application-layer secret (cookie, capability token). Not in scope for v1 — trust model matches every other user-local IPC (D-Bus session bus, X11 socket, ssh-agent).
+- **Sandboxed self-targeting.** Today sandboxes don't see the host data dir, so an LLM agent inside an eval can't reach the control channel. If a future scenario mounts the host data dir into a sandbox (eg. a meta-eval that watches other evals), that protection vanishes and we need a server-side "no self-targeting" guard (open question #8).
+- **Filesystems that ignore Unix permissions.** Some FUSE / network filesystems don't enforce perms correctly. If a user places `inspect_data_dir` on such a filesystem, all bets are off — but that's also true of their ssh-agent socket, browser cookies, etc.
+
+**Future hardening (when write endpoints land):**
+
+- **SO_PEERCRED / `LOCAL_PEERCRED` UID check.** When `POST /evals/<id>/cancel` / `PATCH /evals/<id>` arrive (phase 3+), the server should verify the connecting process's UID matches our own and reject otherwise. Redundant with filesystem perms in the normal case, but cheap defence-in-depth.
+- **Self-targeting guard.** Server-side rejection of any operation whose target eval is the caller's own process. Belongs in the bind-time check + each write handler. Tracked as open question #8.
+- **Authenticated remote attach.** If/when remote-attach is in scope, design needed: bearer tokens, mTLS, or a more domain-specific mechanism. Out of scope for v1 (loopback-only is the only supported transport).
+
 ## Non-goals (v1)
 
 - **Multi-machine / remote control.** Loopback-only socket today; remote attach is a separate auth/transport problem.
