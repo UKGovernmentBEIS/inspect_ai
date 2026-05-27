@@ -33,12 +33,14 @@ from anyio.streams.memory import (
 )
 from shortuuid import uuid
 
+from inspect_ai.agent._acp._client_registry import _ClientDriverRegistry
 from inspect_ai.agent._acp._guards import acp_guard
 from inspect_ai.agent._acp.transport import (
     _SUBSCRIBER_BUFFER_SIZE,
     AcpTransport,
     AcpUpdate,
     ApproverClient,
+    ElicitationClient,
 )
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import (
@@ -434,8 +436,8 @@ class _TurnCancelMachinery:
         )
 
 
-class _ApproverClientRegistry:
-    """Attached ACP clients capable of handling ``session/request_permission``.
+class _ApproverClientRegistry(_ClientDriverRegistry[ApproverClient]):
+    """Driver-chain registry for ``ApproverClient`` instances.
 
     The configured ``human_approver`` routes tool-approval prompts to
     a SINGLE driver — the last client to send a ``session/prompt`` on
@@ -444,201 +446,59 @@ class _ApproverClientRegistry:
     (``Forwarders.start``) and detach on unbind / disconnect
     (``Forwarders.stop``).
 
-    Why single-driver and not broadcast: ACP has no protocol-level
-    cancel for outbound requests, so broadcasting to N clients and
-    racing leaves the losers' editors showing a stale permission
-    card forever (whatever they click later is silently discarded
-    by the server). Picking one driver keeps the UX coherent: the
-    operator sees the prompt on the client they're actually using,
-    others observe via the normal event stream. Aligns with the
-    design doc's stated 'one driver + read-only observers' intent.
+    All behaviour comes from :class:`_ClientDriverRegistry`; this class
+    exists for nominal type distinctness and to anchor the doc-string
+    that explains the approval-side usage of the chain.
+    """
+
+
+class _ElicitationClientRegistry(_ClientDriverRegistry[ElicitationClient]):
+    """Driver-chain registry for ``ElicitationClient`` instances.
+
+    The Phase 6 ``acp_handler`` routes ``elicitation/create`` requests
+    to a SINGLE driver — same first-attached-fallback and
+    last-prompt-wins semantics as the approval registry. Clients
+    register on bind only when the client advertised
+    ``elicitation.form`` capability during ``initialize`` (gated in
+    ``connection.py``); without that capability the connection
+    handler skips the elicitation attach entirely.
+    """
+
+
+class _SessionClientRegistries:
+    """Group of client-driver registries for an ACP session.
+
+    Each registry stays domain-specific: clients attach (and detach)
+    per-domain — the elicitation registry is capability-gated in the
+    connection handler so the connection only attaches there when the
+    client advertised ``elicitation.form``. Cross-cutting operations
+    that should fan out to **every** registry — ``mark_active`` on
+    each ``session/prompt``, ``clear`` on teardown — live here so
+    adding a new registry doesn't require chasing every call site.
     """
 
     def __init__(self) -> None:
-        # Clients that have completed the full bind (replay done,
-        # promoted). These are the ONLY clients :meth:`driver_chain`
-        # surfaces — half-bound clients in ``_pending_clients`` are
-        # invisible to the approval shim until :meth:`notify_attach`
-        # promotes them.
-        self._clients: list[ApproverClient] = []
-        # Clients that have called :meth:`attach` but haven't yet
-        # been promoted to ready via :meth:`notify_attach`. They
-        # live here for the duration of ``Forwarders.start`` (i.e.
-        # spanning the replay await). Hiding them from
-        # :meth:`driver_chain` prevents the snapshot race where a
-        # concurrent approval shim would otherwise dispatch into a
-        # half-bound connection before replay shows the operator
-        # the conversation context.
-        self._pending_clients: list[ApproverClient] = []
-        # The client whose ``session/prompt`` most recently landed —
-        # or whose bind most recently completed — set by
-        # :meth:`mark_active`. ``None`` until any client is promoted,
-        # in which case ``driver_chain`` falls back to first-attached.
-        self._last_active: ApproverClient | None = None
-        # One-way flag: flips True on first attach (pending OR ready)
-        # and never resets. Lets the approval shim distinguish "no
-        # operator has ever connected" (panel-fallback territory)
-        # from "operator was here, disconnected mid-approval"
-        # (park-and-wait territory).
-        self._ever_attached: bool = False
-        # Fires on ``notify_attach()`` (NOT on every ``attach``).
-        # The split exists so the registration moment (``attach``,
-        # called from ``Forwarders.start`` before replay) doesn't
-        # wake the approval shim before the connection is ready to
-        # receive an approval card AND has the conversation context
-        # visible. The connection handler calls ``notify_attach``
-        # from ``_post_bind_setup_locked`` AFTER ``_start_forwarders``
-        # has finished (replay done) AND after
-        # ``mark_active_approver_client`` (driver promotion done).
-        self._attach_subscribers: list[Callable[[], None]] = []
+        self.approvers = _ApproverClientRegistry()
+        self.elicitations = _ElicitationClientRegistry()
 
-    def attach(self, client: ApproverClient) -> Callable[[], None]:
-        # Register as PENDING — invisible to ``driver_chain`` until
-        # the connection handler promotes via ``notify_attach``.
-        #
-        # Attaching the same client object twice is not supported:
-        # ``notify_attach`` removes one pending entry per call and
-        # appends one ready entry, so a second notify on the same
-        # object finds nothing to remove and skips promotion;
-        # ``driver_chain``'s ``c is not driver`` filter also can't
-        # distinguish duplicate references. In practice each
-        # ``ConnectionHandler`` is its own client, so this doesn't
-        # occur — but if a caller does pass the same object twice
-        # the second attach's unsubscribe will silently no-op
-        # (the first unsub already removed the only entry).
-        self._pending_clients.append(client)
-        self._ever_attached = True
+    def _all(self) -> tuple[_ClientDriverRegistry[Any], ...]:
+        return (self.approvers, self.elicitations)
 
-        def _unsubscribe() -> None:
-            # Client may be in either list depending on whether
-            # notify_attach has fired yet (e.g. teardown during
-            # replay leaves the entry in ``_pending_clients``;
-            # teardown after a successful bind has it in
-            # ``_clients``). Best-effort removal from both.
-            try:
-                self._pending_clients.remove(client)
-            except ValueError:
-                pass
-            try:
-                self._clients.remove(client)
-            except ValueError:
-                pass
-            # If the active driver just detached, drop the slot so
-            # ``driver_chain`` falls back cleanly to first-attached.
-            if self._last_active is client:
-                self._last_active = None
+    def mark_active(self, client: Any) -> None:
+        """Promote ``client`` as driver for every registry it belongs to.
 
-        return _unsubscribe
-
-    def has_clients(self) -> bool:
-        # Counts READY clients only — pending clients aren't yet
-        # dispatch targets, so the predicate that gates "should we
-        # try to route via ACP" must not see them.
-        return bool(self._clients)
-
-    def has_ever_attached(self) -> bool:
-        return self._ever_attached
-
-    def subscribe_attach(self, callback: Callable[[], None]) -> Callable[[], None]:
-        """Register ``callback`` to fire on every :meth:`notify_attach`.
-
-        Mirrors :meth:`_InterruptState.subscribe_interrupted`. Returns
-        an idempotent unsubscribe callable. Subscribers fire when
-        the connection handler calls :meth:`notify_attach` from
-        ``_post_bind_setup_locked`` — that is, AFTER replay
-        completes and AFTER ``mark_active`` promotes the new client.
-        Subscribers can safely re-query :meth:`driver_chain`.
+        Each registry's :meth:`mark_active` is a no-op when the client
+        isn't in its lists, so this is safe to call unconditionally —
+        a connection that's only registered as an approver (no
+        elicitation capability) silently skips promotion in the
+        elicitation registry.
         """
-        self._attach_subscribers.append(callback)
-
-        def _unsubscribe() -> None:
-            try:
-                self._attach_subscribers.remove(callback)
-            except ValueError:
-                pass
-
-        return _unsubscribe
-
-    def notify_attach(self, client: ApproverClient) -> None:
-        """Promote ``client`` from pending to ready, then fire subscribers.
-
-        Called by the connection handler after its bind is fully
-        ready (replay done, ``mark_active`` set). Only the named
-        client is promoted — if a second connection is mid-bind
-        and still in ``_pending_clients``, it stays there until its
-        own bind sequence calls ``notify_attach`` for itself. Avoids
-        accidentally surfacing a still-binding sibling.
-
-        Promotion is **gated on the client being currently pending**.
-        If the client was unsubscribed between ``attach`` and
-        ``notify_attach`` — e.g. ``Forwarders.start`` aborts replay
-        and runs ``stop()``, but ``_post_bind_setup_locked`` still
-        calls ``notify_approver_attach(self)`` — we must NOT
-        fabricate a ready entry with no unsubscribe left to remove
-        it (would leak a stale connection into ``driver_chain``
-        forever). Re-notify on an already-ready client is also a
-        no-op for state.
-
-        Subscribers fire either way — a spurious wake-up is
-        harmless because the approval shim re-snapshots the chain
-        and re-parks if nothing changed.
-        """
-        try:
-            self._pending_clients.remove(client)
-        except ValueError:
-            # Client isn't pending. Either already promoted
-            # (re-notify; leave _clients alone) or gone (unsub
-            # raced; do NOT fabricate a ready entry).
-            pass
-        else:
-            # We DID remove from pending, so this is a real
-            # first-time promotion. Safe to add to ready.
-            if client not in self._clients:
-                self._clients.append(client)
-        for cb in list(self._attach_subscribers):
-            try:
-                cb()
-            except Exception:
-                logger.exception("approver_attach subscriber raised; continuing")
-
-    def mark_active(self, client: ApproverClient) -> None:
-        """Promote ``client`` to be the driver for subsequent approvals.
-
-        Called by the connection handler when it forwards a
-        ``session/prompt`` OR completes a bind. Accepts clients in
-        EITHER ``_pending_clients`` or ``_clients`` — bind-time
-        promotion fires while the client is still pending (the
-        ``notify_attach`` call right after will move it to ready).
-        Silently no-ops if the client isn't in either list (race
-        with detach).
-        """
-        if client in self._clients or client in self._pending_clients:
-            self._last_active = client
-
-    def driver_chain(self) -> list[ApproverClient]:
-        """Clients in fallback order: driver first, then others by attach order.
-
-        Reads from READY clients only — pending (half-bound) clients
-        are invisible. The approval shim tries each client in turn;
-        if the driver's request raises (typically ``ConnectionError``
-        on mid-prompt disconnect), the shim moves on to the next
-        attached client. Returns a snapshot copy so iteration stays
-        stable against concurrent attach / detach.
-        """
-        if not self._clients:
-            return []
-        driver = self._last_active
-        if driver is None or driver not in self._clients:
-            # No driver yet (or marked driver is still pending) →
-            # first-attached is the fallback driver.
-            return list(self._clients)
-        return [driver] + [c for c in self._clients if c is not driver]
+        for reg in self._all():
+            reg.mark_active(client)
 
     def clear(self) -> None:
-        self._clients.clear()
-        self._pending_clients.clear()
-        self._last_active = None
-        self._attach_subscribers.clear()
+        for reg in self._all():
+            reg.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -660,7 +520,7 @@ class LiveAcpTransport:
         self._interrupt = _InterruptCoordinator()
         self._transcript_capture = _TranscriptCapture()
         self._turn_cancel = _TurnCancelMachinery()
-        self._approvers = _ApproverClientRegistry()
+        self._clients = _SessionClientRegistries()
         # When True, the live router drops events emitted inside
         # sub-agents (depth>0). Standard ACP semantic for editor clients.
         # Disabled by consumers (debugging tooling, raw-stream TUIs) that
@@ -909,8 +769,8 @@ class LiveAcpTransport:
             # so scoring events still flow.
             with acp_guard("ACP session: interrupt clear_subscribers failed"):
                 self._interrupt.clear_subscribers()
-            with acp_guard("ACP session: approvers clear failed"):
-                self._approvers.clear()
+            with acp_guard("ACP session: client registries clear failed"):
+                self._clients.clear()
             return
 
         # Unbound — full immediate teardown. Reached in two cases:
@@ -938,8 +798,8 @@ class LiveAcpTransport:
         # would otherwise try to call into a closed connection.
         with acp_guard("ACP session: interrupt clear_subscribers failed"):
             self._interrupt.clear_subscribers()
-        with acp_guard("ACP session: approvers clear failed"):
-            self._approvers.clear()
+        with acp_guard("ACP session: client registries clear failed"):
+            self._clients.clear()
 
     async def finalize(self) -> None:
         """Deferred teardown for split-phase exit. Idempotent.
@@ -1161,7 +1021,7 @@ class LiveAcpTransport:
             "ACP attach_approver_client raised; approval routing disabled "
             "for this client"
         ):
-            return self._approvers.attach(client)
+            return self._clients.approvers.attach(client)
         return lambda: None
 
     def has_approver_clients(self) -> bool:
@@ -1174,7 +1034,7 @@ class LiveAcpTransport:
         with acp_guard(
             "ACP has_approver_clients raised; falling back to in-proc approval"
         ):
-            return self._approvers.has_clients()
+            return self._clients.approvers.has_clients()
         return False
 
     def has_ever_had_approver_client(self) -> bool:
@@ -1192,7 +1052,7 @@ class LiveAcpTransport:
         with acp_guard(
             "ACP has_ever_had_approver_client raised; falling back to in-proc approval"
         ):
-            return self._approvers.has_ever_attached()
+            return self._clients.approvers.has_ever_attached()
         return False
 
     def subscribe_approver_attach(
@@ -1212,7 +1072,7 @@ class LiveAcpTransport:
         with acp_guard(
             "ACP subscribe_approver_attach raised; attach notifications disabled"
         ):
-            return self._approvers.subscribe_attach(callback)
+            return self._clients.approvers.subscribe_attach(callback)
         return lambda: None
 
     def notify_approver_attach(self, client: ApproverClient) -> None:
@@ -1223,7 +1083,7 @@ class LiveAcpTransport:
         the client as PENDING — invisible to
         :meth:`approver_driver_chain`). The connection handler
         invokes this from ``_post_bind_setup_locked`` after replay
-        completes AND after :meth:`mark_active_approver_client`
+        completes AND after :meth:`mark_active_session_client`
         promotes the connection.
 
         Only the named client is promoted. A second connection that
@@ -1240,33 +1100,38 @@ class LiveAcpTransport:
             "ACP notify_approver_attach raised; "
             "parked approval shim may miss this attach"
         ):
-            self._approvers.notify_attach(client)
+            self._clients.approvers.notify_attach(client)
 
-    def mark_active_approver_client(self, client: ApproverClient) -> None:
-        """Promote ``client`` to be the active driver for approvals.
+    def mark_active_session_client(self, client: object) -> None:
+        """Promote ``client`` as active driver across every registry it belongs to.
 
         Called by the connection handler after it forwards a
-        ``session/prompt`` — that's the strongest signal the client
-        is the operator's current surface. The next
-        ``session/request_permission`` will route to this client
-        first; if the client has since disconnected, the shim falls
+        ``session/prompt`` — the strongest signal the client is the
+        operator's current surface. The next
+        ``session/request_permission`` (and the next
+        ``elicitation/create``) will route to this client first; if
+        the client has since disconnected, the dispatch shim falls
         through to the next attached client in attach order.
 
-        Silently no-ops if the client isn't (or is no longer) in
-        the registry. On internal error, logs a warning and continues
-        — the worst case is the approval routes to a stale-but-
-        present client, which the shim's per-client fallback handles.
+        Fans out across every registry the client belongs to. Each
+        registry's :meth:`mark_active` is a no-op when the client
+        isn't in its lists, so this is safe to call regardless of
+        which registries the connection actually attached to (an
+        approver-only client gracefully no-ops in the elicitation
+        registry).
+
+        On internal error, logs a warning and continues.
         """
         with acp_guard(
-            "ACP mark_active_approver_client raised; driver selection unchanged"
+            "ACP mark_active_session_client raised; driver selection unchanged"
         ):
-            self._approvers.mark_active(client)
+            self._clients.mark_active(client)
 
     def approver_driver_chain(self) -> list[ApproverClient]:
         """Approver clients in fallback order: driver first, then others.
 
         The driver is the client whose ``session/prompt`` most
-        recently landed (via :meth:`mark_active_approver_client`);
+        recently landed (via :meth:`mark_active_session_client`);
         when no prompt has been sent yet on this session, the
         fallback is first-attached. Subsequent entries are the
         remaining attached clients in attach order — the approval
@@ -1280,7 +1145,74 @@ class LiveAcpTransport:
         with acp_guard(
             "ACP approver_driver_chain raised; falling back to in-proc approval"
         ):
-            return self._approvers.driver_chain()
+            return self._clients.approvers.driver_chain()
+        return []
+
+    def attach_elicitation_client(
+        self, client: ElicitationClient
+    ) -> Callable[[], None]:
+        """Register ``client`` as a recipient for elicitation prompts.
+
+        Same idempotent unsubscribe semantics as
+        :meth:`attach_approver_client`. The connection handler gates
+        this call on the client's advertised ``elicitation.form``
+        capability — clients without that capability never attach
+        here.
+        """
+        if self._agent_completed:
+            return lambda: None
+        with acp_guard(
+            "ACP attach_elicitation_client raised; elicitation routing disabled "
+            "for this client"
+        ):
+            return self._clients.elicitations.attach(client)
+        return lambda: None
+
+    def has_elicitation_clients(self) -> bool:
+        """True if at least one elicitation client is currently attached."""
+        with acp_guard(
+            "ACP has_elicitation_clients raised; falling back to in-proc panel"
+        ):
+            return self._clients.elicitations.has_clients()
+        return False
+
+    def has_ever_had_elicitation_client(self) -> bool:
+        """True if any elicitation client has attached during this session."""
+        with acp_guard(
+            "ACP has_ever_had_elicitation_client raised; falling back to in-proc panel"
+        ):
+            return self._clients.elicitations.has_ever_attached()
+        return False
+
+    def subscribe_elicitation_attach(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Register ``callback`` to fire on every elicitation-client attach."""
+        with acp_guard(
+            "ACP subscribe_elicitation_attach raised; attach notifications disabled"
+        ):
+            return self._clients.elicitations.subscribe_attach(callback)
+        return lambda: None
+
+    def notify_elicitation_attach(self, client: ElicitationClient) -> None:
+        """Promote ``client`` from pending to ready and fire elicitation subscribers."""
+        with acp_guard(
+            "ACP notify_elicitation_attach raised; "
+            "parked elicitation shim may miss this attach"
+        ):
+            self._clients.elicitations.notify_attach(client)
+
+    def elicitation_driver_chain(self) -> list[ElicitationClient]:
+        """Elicitation clients in fallback order: driver first, then others.
+
+        Same semantics as :meth:`approver_driver_chain`. On internal
+        error, returns an empty list — caller falls back to in-proc
+        panel / console.
+        """
+        with acp_guard(
+            "ACP elicitation_driver_chain raised; falling back to in-proc panel"
+        ):
+            return self._clients.elicitations.driver_chain()
         return []
 
     def cancel_current_turn(

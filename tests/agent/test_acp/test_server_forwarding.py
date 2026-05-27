@@ -319,7 +319,7 @@ async def test_session_prompt_marks_connection_as_active_driver(
     """
     session, _tr = _make_live_session_with_transcript()
     mark_calls: list[Any] = []
-    session.mark_active_approver_client = (  # type: ignore[method-assign]
+    session.mark_active_session_client = (  # type: ignore[method-assign]
         lambda client: mark_calls.append(client)
     )
 
@@ -376,7 +376,7 @@ async def test_session_load_marks_connection_as_active_driver(
     """
     session, _tr = _make_live_session_with_transcript()
     mark_calls: list[Any] = []
-    session.mark_active_approver_client = (  # type: ignore[method-assign]
+    session.mark_active_session_client = (  # type: ignore[method-assign]
         lambda client: mark_calls.append(client)
     )
 

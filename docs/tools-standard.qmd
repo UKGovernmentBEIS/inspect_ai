@@ -660,7 +660,7 @@ def intercode_ctf():
 ```
 
 
-## Read-Only Tools {#sec-read-only-tools}
+## File Reading
 
 Inspect provides three read-only sandbox tools — `read_file()`, `list_files()`, and `grep()` — for agents that need filesystem access without write capabilities. These are the default tools for `research()` and `plan()` subagents in the deep agent system, but are useful in any eval where you want to give a model read-only access.
 
@@ -924,3 +924,45 @@ def swe_bench():
 ```
 
 Note that the effectivess of using the system prompt will vary considerably across tasks, tools, and models, so should definitely be the subject of experimentation.
+
+## Intervention {#sec-intervention}
+
+The `ask_user()` and `notify_user()` tools let models communicate with a human operator during a sample. They pair with Inspect's [Agent Intervention](intervention.qmd) features (the `inspect acp` client, the in-process task display, and out-of-band notifications).
+
+Both of these tools take advantage of notifications, which are delivered via [Apprise](https://github.com/caronc/apprise) (Slack, desktop, SMS, email, and many other services) when the eval is configured with a notification target. See the [Notifications](intervention.qmd#notifications) section of the Agent Intervention article for more details.
+
+### Ask User
+
+The `ask_user()` tool lets the model request structured information from the operator. It uses the [ACP Elicitation](https://agentclientprotocol.com/rfds/elicitation) standard, which supports text, boolean, enum, and other field types.
+
+``` python
+from inspect_ai.agent import agent, react
+from inspect_ai.tool import ask_user, bash, text_editor
+
+@agent
+def ctf_agent():
+    return react(
+        description="Expert at completing cybersecurity challenges.",
+        prompt="You are an expert at CTF challenges.",
+        tools=[bash(), text_editor(), ask_user()]
+    )
+```
+
+The prompt is dispatched to whichever surface is attached: an ACP client (e.g. `inspect acp`) if connected, otherwise the in-process Textual panel or the console. The sample pauses on the call until the operator responds.
+
+### Notify User
+
+The `notify_user()` tool lets the model send fire-and-forget status messages to the operator — useful for long-running agents that want to flag progress or surface a heads-up without waiting for a reply.
+
+``` python
+from inspect_ai.agent import agent, react
+from inspect_ai.tool import ask_user, notify_user, bash, text_editor
+
+@agent
+def ctf_agent():
+    return react(
+        description="Expert at completing cybersecurity challenges.",
+        prompt="You are an expert at CTF challenges.",
+        tools=[bash(), text_editor(), ask_user(), notify_user()]
+    )
+```
