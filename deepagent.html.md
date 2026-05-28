@@ -54,7 +54,7 @@ When you call [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) with
 
 ### Subagents
 
-The parent agent has a [task()](./reference/inspect_ai.html.md#task) tool that lets it delegate work to specialized subagents. Three are included by default:
+The parent agent has an [agent()](./reference/inspect_ai.agent.html.md#agent) tool that lets it delegate work to specialized subagents. Three are included by default:
 
 | Subagent | Role | Tools | Memory |
 |----|----|----|----|

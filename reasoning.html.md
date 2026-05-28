@@ -32,7 +32,7 @@ eval("math.py", model="openai/gpt-5", reasoning_effort="high")
 
 #### Anthropic Claude 4.6+
 
-Opus 4.6, Opus 4.7, Sonnet 4.6 all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter.
+Opus 4.6, Opus 4.7, Opus 4.8, and Sonnet 4.6 all use [adaptive thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking) with the `effort` parameter. When `reasoning_effort` is not set, Opus 4.6/4.7 and Sonnet 4.6 let the model auto-select effort; Opus 4.8 defaults to `high` server-side.
 
 | Inspect input     | API value                                |
 |-------------------|------------------------------------------|
@@ -130,6 +130,7 @@ When Inspect does not pass `reasoning_effort`, each provider applies its own def
 |--------------------------------------|-----------------|
 | anthropic/claude-opus-4-6            | adaptive        |
 | anthropic/claude-opus-4-7            | adaptive        |
+| anthropic/claude-opus-4-8            | high            |
 | anthropic/claude-sonnet-4-6          | adaptive        |
 | deepseek/deepseek-reasoner           | no effort scale |
 | google/gemini-3-flash-preview        | medium          |
