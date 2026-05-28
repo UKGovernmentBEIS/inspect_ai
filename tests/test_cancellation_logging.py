@@ -5,18 +5,55 @@ with fail_on_error, or due to a KeyboardInterrupt), the cancelled samples
 are fully logged with their errors in the eval log.
 """
 
+import contextlib
 import os
 import signal
 import threading
 from pathlib import Path
 
 import anyio
+import pytest
 
 from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.log import list_eval_logs, read_eval_log
 from inspect_ai.scorer import includes
 from inspect_ai.solver import Generate, TaskState, generate, solver, user_message
+
+
+@pytest.fixture(params=[True, False], ids=["with_sandbox", "no_sandbox"])
+def sandbox_kwarg(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> str | None:
+    """Run each cancellation test on both branches of `run.py`'s sandbox split.
+
+    `with_sandbox`: monkeypatches `sandboxenv_context` to a fake whose teardown
+    awaits, and returns `sandbox="local"` so the Task takes the `sandboxenv_cm`
+    branch -- the path whose unshielded `__aexit__` checkpoint drops in-flight
+    samples on cancel.
+
+    `no_sandbox`: returns `None` so the Task takes the `nullcontext()` branch.
+    No monkeypatch needed -- nullcontext's `__aexit__` has no await.
+
+    Each test uses `sandbox=sandbox_kwarg` on its `Task` so pytest runs it once
+    per branch, keeping the existing no-sandbox regression coverage while
+    adding the sandbox-path coverage that the bug requires.
+    """
+    if request.param:
+
+        @contextlib.asynccontextmanager
+        async def fake_sandboxenv_context(*args, **kwargs):
+            try:
+                yield
+            finally:
+                # any unshielded checkpoint here trips the still-cancelled scope
+                await anyio.sleep(0.05)
+
+        monkeypatch.setattr(
+            "inspect_ai._eval.task.run.sandboxenv_context", fake_sandboxenv_context
+        )
+        return "local"
+    return None
 
 
 @solver
@@ -63,13 +100,14 @@ def _make_samples(n: int) -> list[Sample]:
     return [Sample(input=f"Sample {i}", target="target", id=i) for i in range(1, n + 1)]
 
 
-def test_fail_on_error_logs_cancelled_samples():
+def test_fail_on_error_logs_cancelled_samples(sandbox_kwarg: str | None):
     """When fail_on_error=True and one sample errors, concurrent samples should be cancelled and all samples should appear in the log."""
     num_samples = 5
     task = Task(
         dataset=_make_samples(num_samples),
         solver=_conversation_then_error_solvers(),
         scorer=includes(),
+        sandbox=sandbox_kwarg,
         fail_on_error=True,
     )
 
@@ -105,7 +143,7 @@ def test_fail_on_error_logs_cancelled_samples():
         assert sample.error is not None
 
 
-def test_fail_on_error_threshold_logs_cancelled_samples():
+def test_fail_on_error_threshold_logs_cancelled_samples(sandbox_kwarg: str | None):
     """When fail_on_error is a count threshold and enough samples error, concurrent samples should be cancelled and logged."""
     num_samples = 6
 
@@ -126,6 +164,7 @@ def test_fail_on_error_threshold_logs_cancelled_samples():
         dataset=_make_samples(num_samples),
         solver=[error_first_three_solver()],
         scorer=includes(),
+        sandbox=sandbox_kwarg,
         # fail after 3 errors
         fail_on_error=3,
     )
@@ -148,13 +187,14 @@ def test_fail_on_error_threshold_logs_cancelled_samples():
     assert len(cancelled) > 0
 
 
-def test_all_concurrent_samples_accounted_for():
+def test_all_concurrent_samples_accounted_for(sandbox_kwarg: str | None):
     """When fail_on_error cancels concurrent samples, ALL samples should appear in the log."""
     num_samples = 5
     task = Task(
         dataset=_make_samples(num_samples),
         solver=[error_or_sleep_solver()],
         scorer=includes(),
+        sandbox=sandbox_kwarg,
         fail_on_error=True,
     )
 
@@ -176,13 +216,14 @@ def test_all_concurrent_samples_accounted_for():
     assert logged_ids == expected_ids
 
 
-def test_fail_on_error_no_retry_for_cancelled():
+def test_fail_on_error_no_retry_for_cancelled(sandbox_kwarg: str | None):
     """Cancelled samples should not be retried even when retry_on_error > 0."""
     num_samples = 3
     task = Task(
         dataset=_make_samples(num_samples),
         solver=[error_or_sleep_solver()],
         scorer=includes(),
+        sandbox=sandbox_kwarg,
         fail_on_error=True,
     )
 
@@ -195,18 +236,23 @@ def test_fail_on_error_no_retry_for_cancelled():
 
     # cancelled samples should not have retries (they should appear once)
     cancelled = [s for s in log.samples if s.id != 1 and s.error is not None]
+    # rule out vacuous pass: at least one cancelled sample must actually be present
+    assert len(cancelled) > 0
     for s in cancelled:
         # cancelled samples should have no error retries
         assert s.error_retries is None or len(s.error_retries) == 0
 
 
-def test_keyboard_interrupt_logs_cancelled_samples(tmp_path: Path):
+def test_keyboard_interrupt_logs_cancelled_samples(
+    tmp_path: Path, sandbox_kwarg: str | None
+):
     """When SIGINT (KeyboardInterrupt) occurs, all running samples should be cancelled and logged."""
     num_samples = 5
     task = Task(
         dataset=_make_samples(num_samples),
         solver=[sleep_solver()],
         scorer=includes(),
+        sandbox=sandbox_kwarg,
     )
 
     # send SIGINT from a background thread after samples have started
