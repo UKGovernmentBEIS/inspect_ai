@@ -2,10 +2,12 @@
 
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
 - Scoring: Set `Score.answer` on model_graded parse failure.
+- Task Display: Add column to indicate the agent/solver for each task.
 - Transcript: Various improvements to transcript event subscriber delivery.
 - Transcript: Complete samples from buffer history database rather than in-memory list.
 - Bugfix: Show View Log button on top right of sample display.
 - Bugfix: Prevent transcript subscriber-failure warnings from re-entering the subscriber loop and fanning out.
+- Bugfix: Don't mutate plan when calling `resolve_plan()`.
 - Bugfix: Align CLI --display and --effort type annotations with their choices.
 - Bugfix: Don't enter prompt mode when a sample is globally cancelled.
 - Bugfix: `write_eval_log(..., header_only=True)` now preserves on-disk samples for JSON logs and remote `.eval` logs (previously a header-only write to either erased the samples). On non-local filesystems the `.eval` zip is rewritten cleanly so old header bytes don't accumulate across edits.
