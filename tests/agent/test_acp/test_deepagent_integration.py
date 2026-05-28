@@ -8,7 +8,7 @@ under ACP because:
 2. The Phase 4-era sticky-``_acp_live_active`` flag installs no-op
    shadows for every nested ``acp_session()`` call — so a sub-agent's
    inner ``react()`` always gets a NoOp.
-3. Sub-agent dispatch via ``task_tool`` calls
+3. Sub-agent dispatch via ``agent_tool`` calls
    :func:`inspect_ai.agent._run.run`, which opens a
    ``span(name=..., type=AGENT_SPAN_TYPE)`` (verified in
    ``test_span_boundary.py`` for the bare ``run()`` path).
@@ -18,7 +18,7 @@ under ACP because:
 
 These tests verify the COMPOSITION — the individual pieces all
 have their own coverage. We test deepagent specifically because
-its ``task_tool`` is the one dispatch path
+its ``agent_tool`` is the one dispatch path
 ``test_span_boundary.py`` doesn't already exercise, and because the
 end-to-end "sub-agent activity is invisible to the editor" property
 is what the design doc promised in Phase 5.
@@ -92,12 +92,12 @@ def _depth_at_each_event(events: list) -> list[int]:
 
 
 # ---------------------------------------------------------------------------
-# Audit: task_tool dispatch emits the AGENT_SPAN_TYPE boundary
+# Audit: agent_tool dispatch emits the AGENT_SPAN_TYPE boundary
 # ---------------------------------------------------------------------------
 
 
-def test_deepagent_task_dispatch_emits_agent_boundary_span() -> None:
-    """Deepagent's task_tool dispatch wraps the sub-agent in an AGENT_SPAN_TYPE span.
+def test_deepagent_agent_dispatch_emits_agent_boundary_span() -> None:
+    """Deepagent's agent_tool dispatch wraps the sub-agent in an AGENT_SPAN_TYPE span.
 
     Complements ``test_span_boundary.py`` (which exercises ``run()``
     directly via ``test_run_emits_agent_boundary_span`` plus ``as_tool``
@@ -124,10 +124,10 @@ def test_deepagent_task_dispatch_emits_agent_boundary_span() -> None:
     model = get_model(
         "mockllm/model",
         custom_outputs=[
-            # 1. Outer model dispatches via task tool
+            # 1. Outer model dispatches via agent tool
             ModelOutput.for_tool_call(
                 model="mockllm/model",
-                tool_name="task",
+                tool_name="agent",
                 tool_arguments={
                     "subagent_type": "custom_sub",
                     "prompt": "Inner: do the thing.",
@@ -159,10 +159,10 @@ def test_deepagent_task_dispatch_emits_agent_boundary_span() -> None:
         if isinstance(e, SpanBeginEvent) and e.type == AGENT_SPAN_TYPE
     ]
     # We expect at least one boundary span carrying the subagent's
-    # name — that's what proves task_tool wrapped the dispatch in an
+    # name — that's what proves agent_tool wrapped the dispatch in an
     # AGENT_SPAN_TYPE span the Phase 6 router can use to filter.
     assert "custom_sub" in span_names, (
-        f"task_tool dispatch should emit AGENT_SPAN_TYPE span with the "
+        f"agent_tool dispatch should emit AGENT_SPAN_TYPE span with the "
         f"subagent's name; got spans: {span_names}"
     )
 
@@ -220,10 +220,10 @@ def test_deepagent_outer_gets_live_subagent_gets_noop() -> None:
                 tool_name="capture_session",
                 tool_arguments={},
             ),
-            # Outer turn 2: dispatch via task tool
+            # Outer turn 2: dispatch via agent tool
             ModelOutput.for_tool_call(
                 model="mockllm/model",
-                tool_name="task",
+                tool_name="agent",
                 tool_arguments={
                     "subagent_type": "custom_sub",
                     "prompt": "Capture your session and submit.",
@@ -290,7 +290,7 @@ def test_deepagent_subagent_events_are_nested_inside_agent_span() -> None:
     ``test_router.py``) proves the filter behaves correctly.
 
     Concretely: count AGENT_SPAN_TYPE nesting depth as events are
-    laid out in the transcript and assert (a) the outer ``task``
+    laid out in the transcript and assert (a) the outer ``agent``
     tool-call fires at depth 1 (inside deepagent's own outer agent
     span but outside any sub-agent — would publish in production),
     and (b) the sub-agent's submit + ModelEvents fire at depth ≥ 2
@@ -317,7 +317,7 @@ def test_deepagent_subagent_events_are_nested_inside_agent_span() -> None:
         custom_outputs=[
             ModelOutput.for_tool_call(
                 model="mockllm/model",
-                tool_name="task",
+                tool_name="agent",
                 tool_arguments={
                     "subagent_type": "custom_sub",
                     "prompt": "Inner: just submit.",
@@ -348,24 +348,24 @@ def test_deepagent_subagent_events_are_nested_inside_agent_span() -> None:
         for depth, e in zip(depths, transcript_events)
         if isinstance(e, ToolEvent)
     ]
-    task_calls = [(d, e) for d, e in tool_events_with_depth if e.function == "task"]
+    task_calls = [(d, e) for d, e in tool_events_with_depth if e.function == "agent"]
     submit_calls = [(d, e) for d, e in tool_events_with_depth if e.function == "submit"]
     assert len(task_calls) == 1, (
-        f"expected exactly one outer task tool-call; got {len(task_calls)}"
+        f"expected exactly one outer agent tool-call; got {len(task_calls)}"
     )
     assert len(submit_calls) == 2, (
         f"expected two submits (outer + inner); got {len(submit_calls)}"
     )
 
-    # Outer task tool-call is at depth 1 — inside deepagent's own
+    # Outer agent tool-call is at depth 1 — inside deepagent's own
     # @agent span, outside any sub-agent. The router (which attached
     # *inside* the deepagent body, after that outer span began)
     # sees this at its own depth=0 → publishes to the editor.
     assert task_calls[0][0] == 1, (
-        f"outer task tool-call should be at agent-depth 1 (inside deepagent, "
+        f"outer agent tool-call should be at agent-depth 1 (inside deepagent, "
         f"outside any sub-agent); was at depth {task_calls[0][0]}. If this "
         f"asserts != 1, the deepagent dispatch path is no longer wrapped "
-        f"in an outer agent span — recheck task_tool's run() invocation."
+        f"in an outer agent span — recheck agent_tool's run() invocation."
     )
 
     # Submits split: deepagent's own submit at depth 1; sub-agent's
@@ -478,7 +478,7 @@ def test_deepagent_cancel_propagates_through_subagent_dispatch() -> None:
 
     # Sub-agent immediately submits, outer immediately submits.
     # No actual cancel here — what we're verifying is that deepagent's
-    # task_tool teardown path doesn't leak state when wrapped in the
+    # agent_tool teardown path doesn't leak state when wrapped in the
     # ACP harness. The cancel pathway itself is tested in
     # test_react_integration.py and test_cancel.py.
     model = get_model(
@@ -486,7 +486,7 @@ def test_deepagent_cancel_propagates_through_subagent_dispatch() -> None:
         custom_outputs=[
             ModelOutput.for_tool_call(
                 model="mockllm/model",
-                tool_name="task",
+                tool_name="agent",
                 tool_arguments={
                     "subagent_type": "custom_sub",
                     "prompt": "Just submit.",

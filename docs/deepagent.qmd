@@ -57,7 +57,7 @@ When you call `deepagent()` with no configuration beyond tools, you get a fully 
 
 ### Subagents {#sec-subagent-delegation}
 
-The parent agent has a `task()` tool that lets it delegate work to specialized subagents. Three are included by default:
+The parent agent has an `agent()` tool that lets it delegate work to specialized subagents. Three are included by default:
 
 | Subagent | Role | Tools | Memory |
 |----------------------|-----------------|-----------------|-----------------|

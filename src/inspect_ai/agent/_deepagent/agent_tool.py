@@ -35,16 +35,21 @@ def _agent_viewer(call: ToolCall) -> ToolCallView:
     """Render an agent() dispatch as a markdown header + prompt body.
 
     The viewer's content uses ``{{key}}`` placeholders that the framework
-    substitutes with the actual tool arguments at render time, so each
-    dispatch shows the task description as a heading above the full
-    prompt.
+    substitutes with the actual tool arguments at render time. When the
+    model provides a ``task_description``, it renders as a heading above
+    the prompt; when absent, the heading is omitted (otherwise the
+    literal ``{{task_description}}`` would render).
     """
     subagent_type = call.arguments.get("subagent_type") or ""
+    has_description = bool(call.arguments.get("task_description"))
+    content = (
+        "### {{task_description}}\n\n{{prompt}}" if has_description else "{{prompt}}"
+    )
     return ToolCallView(
         call=ToolCallContent(
             title=f"agent: {subagent_type}",
             format="markdown",
-            content="### {{task_description}}\n\n{{prompt}}",
+            content=content,
         )
     )
 
