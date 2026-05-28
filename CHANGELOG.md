@@ -5,6 +5,7 @@
 - Task Display: Add column to indicate the agent/solver for each task.
 - Transcript: Various improvements to transcript event subscriber delivery.
 - Transcript: Complete samples from buffer history database rather than in-memory list.
+- Scoring: Flush the output recorder after each `--stream N` batch of scored samples.
 - Bugfix: Show View Log button on top right of sample display.
 - Bugfix: Prevent transcript subscriber-failure warnings from re-entering the subscriber loop and fanning out.
 - Bugfix: Don't mutate plan when calling `resolve_plan()`.
