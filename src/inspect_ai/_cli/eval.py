@@ -429,6 +429,20 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         envvar="INSPECT_EVAL_ACP_SERVER",
     )
     @click.option(
+        "--keep-alive",
+        is_flag=True,
+        default=False,
+        help=(
+            "Keep the process running after the eval finishes so external "
+            "clients (the `inspect ctl` CLI, scripted agents, TUIs) can still "
+            "query its state and read results. The process exits when "
+            "`inspect ctl shutdown` is run (or POST /shutdown is sent to the "
+            "control endpoint). Without this flag the process exits as soon "
+            "as the eval body returns, taking the control surface with it."
+        ),
+        envvar="INSPECT_EVAL_KEEP_ALIVE",
+    )
+    @click.option(
         "--limit",
         type=str,
         help="Limit samples to evaluate e.g. 10 or 10-20",
@@ -960,6 +974,7 @@ def _eval_command_impl(
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    keep_alive: bool,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1108,6 +1123,7 @@ def _eval_command_impl(
         no_score=no_score,
         no_score_display=no_score_display,
         acp_server=acp_server,
+        keep_alive=keep_alive,
         is_eval_set=False,
         **config,
     )
@@ -1223,6 +1239,7 @@ def eval_set_command(
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    keep_alive: bool,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1380,6 +1397,7 @@ def eval_set_command(
         no_score=no_score,
         no_score_display=no_score_display,
         acp_server=acp_server,
+        keep_alive=keep_alive,
         is_eval_set=True,
         retry_attempts=retry_attempts,
         retry_immediate=retry_immediate,
@@ -1592,6 +1610,7 @@ def eval_exec(
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
     acp_server: bool | int | str | None,
+    keep_alive: bool,
     epochs: int | None,
     epochs_reducer: str | None,
     no_epochs_reducer: bool | None,
@@ -1798,6 +1817,7 @@ def eval_exec(
             score=score,
             score_display=score_display,
             acp_server=acp_server,
+            keep_alive=keep_alive,
         )
         | kwargs
     )
@@ -2142,6 +2162,17 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     envvar="INSPECT_EVAL_ACP_SERVER",
 )
 @click.option(
+    "--keep-alive",
+    is_flag=True,
+    default=False,
+    help=(
+        "Keep the process running after the retried eval finishes so "
+        "external clients (the `inspect ctl` CLI, scripted agents) can "
+        "still query its state. Run `inspect ctl shutdown` to release."
+    ),
+    envvar="INSPECT_EVAL_KEEP_ALIVE",
+)
+@click.option(
     "--max-connections",
     type=int,
     help=MAX_CONNECTIONS_HELP,
@@ -2209,6 +2240,7 @@ def eval_retry_command(
     no_score: bool | None,
     no_score_display: bool | None,
     acp_server: bool | int | str | None,
+    keep_alive: bool,
     max_connections: int | None,
     adaptive_connections: str | None,
     max_retries: int | None,
@@ -2330,6 +2362,7 @@ def eval_retry_command(
         score=score,
         score_display=score_display,
         acp_server=acp_server,
+        keep_alive=keep_alive,
         scanner=eval_scanner,
         max_retries=max_retries,
         timeout=timeout,

@@ -391,7 +391,13 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
             # "how many samples queued / running / done?" without
             # polling active_samples() or scanning logs. Paired with
             # the unregister after the try/except block below.
-            register_eval(logger.eval.eval_id, total_samples)
+            register_eval(
+                logger.eval.eval_id,
+                total_samples,
+                task=logger.eval.task,
+                model=str(model),
+                run_id=logger.eval.run_id,
+            )
 
             # call early stopping if we have it
             stopping_manager: str = ""
@@ -739,7 +745,16 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # Runs after both the success and error paths in the try/except
     # above; if debug_errors re-raises we leak a state entry (debug
     # mode only — acceptable tradeoff).
-    unregister_eval(logger.eval.eval_id)
+    #
+    # Under keep-alive (eval / eval-set launched with ``--keep-alive``),
+    # the EvalState must stay registered so the eval remains visible
+    # in ``inspect ctl ls`` while the process lingers awaiting
+    # shutdown. The keep-alive teardown clears all states explicitly
+    # before the process exits.
+    from inspect_ai._control.server import keep_alive_active
+
+    if not keep_alive_active():
+        unregister_eval(logger.eval.eval_id)
 
     # cleanup disk sample store if used
     if isinstance(sample_store, DiskSampleStore):

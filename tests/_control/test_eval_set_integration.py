@@ -330,6 +330,150 @@ def test_ctl_ls_survives_fast_task_finishing_first(short_data_dir: Path) -> None
 
 
 @pytest.mark.slow
+def test_keep_alive_blocks_after_eval_set_until_shutdown(
+    short_data_dir: Path,
+) -> None:
+    """eval-set(--keep-alive) blocks after completion until /shutdown.
+
+    Pins three things together:
+
+    1. The eval-set body completes (all samples done, ``ls`` shows
+       ``samples.completed == total``) — so the agent has consistent
+       state to read.
+    2. The process does NOT exit immediately — the eval-set thread is
+       still blocking on the shutdown event.
+    3. Posting ``POST /shutdown`` (or running ``inspect ctl
+       shutdown``) releases the block; the eval-set thread returns.
+
+    Verifies the contract that makes the agent workflow safe:
+    "agent runs eval-set, inspects results, decides next step,
+    explicitly tells the process to exit." Without keep-alive the
+    process would race the agent and the discovery file would vanish
+    mid-inspection.
+    """
+
+    @task
+    def task_quick() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[generate()],
+            name="task_quick",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_quick()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                keep_alive=True,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_keep_alive")
+    thread.start()
+    try:
+        # 1. Eval completes: samples.completed reaches 1.
+        ready = _wait_until(
+            lambda: _eval_completed(),
+            timeout=30.0,
+        )
+        assert ready, (
+            f"eval didn't reach completed state. servers={list_discovered_servers()}, "
+            f"error={result_ref.get('error')}"
+        )
+
+        # 2. Process still alive, thread still running (blocking on shutdown).
+        assert thread.is_alive(), "process exited before shutdown was requested"
+        servers = list_discovered_servers()
+        assert len(servers) == 1, "discovery file vanished while keep-alive active"
+
+        # Give the eval-set wait a moment to settle, then re-confirm
+        # the thread really is parked (it hasn't just been slow to
+        # return). 0.5s is well under any timeout that would cause a
+        # flaky failure here.
+        time.sleep(0.5)
+        assert thread.is_alive(), (
+            "eval-set thread exited without an explicit shutdown — "
+            "keep-alive didn't actually block"
+        )
+
+        # 3. POST /shutdown should release the block.
+        transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            response = client.post("/shutdown")
+            response.raise_for_status()
+
+        thread.join(timeout=30.0)
+        assert not thread.is_alive(), (
+            "eval-set thread didn't exit within 30s after POST /shutdown"
+        )
+
+        # After shutdown the discovery file should be gone (server stopped).
+        assert not list_discovered_servers(), "discovery file lingered after shutdown"
+
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]
+        assert result_ref.get("ok") is True, "eval_set didn't report success"
+    finally:
+        # Belt-and-suspenders: if anything went wrong, make sure we
+        # tear down the eval-set thread so the test process can exit.
+        if thread.is_alive():
+            try:
+                servers = list_discovered_servers()
+                if servers:
+                    transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+                    with httpx.Client(
+                        transport=transport,
+                        base_url="http://localhost",
+                        timeout=2.0,
+                    ) as client:
+                        client.post("/shutdown")
+            except Exception:
+                pass
+            thread.join(timeout=30.0)
+
+
+def _eval_completed() -> bool:
+    """Predicate: is there a discovered server whose eval is complete?
+
+    Used by the keep-alive test to wait until the eval body has
+    finished (samples.completed == samples.total) before checking
+    that the process is parked.
+    """
+    servers = list_discovered_servers()
+    if not servers:
+        return False
+    try:
+        transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=1.0
+        ) as client:
+            response = client.get("/evals")
+            response.raise_for_status()
+            entries = response.json()
+    except (httpx.HTTPError, OSError):
+        return False
+    if not entries:
+        return False
+    samples = entries[0].get("samples", {})
+    total = samples.get("total", 0)
+    completed = samples.get("completed", 0)
+    return bool(total > 0 and completed >= total)
+
+
+@pytest.mark.slow
 def test_ctl_ls_server_survives_eval_set_retries(short_data_dir: Path) -> None:
     """The control server stays bound across an eval-set's retry attempts.
 

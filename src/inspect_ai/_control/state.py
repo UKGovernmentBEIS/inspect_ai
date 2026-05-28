@@ -73,14 +73,16 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         samples = samples_by_eval.get(eval_id, [])
         state = eval_states.get(eval_id)
 
-        # Per-eval metadata comes from the first sample. If there are
-        # no live samples (eg. between attempts on an eval-set), we
-        # leave the metadata empty — the EvalState carries enough to
-        # report counts but not the task/model labels.
+        # Per-eval metadata: prefer the live sample (most authoritative)
+        # but fall back to EvalState's stored labels when no samples
+        # remain (typical post-completion keep-alive state). EvalState
+        # is populated at task start, so it always has the labels.
         first_sample = samples[0] if samples else None
-        task_name = first_sample.task if first_sample else ""
-        model = first_sample.model if first_sample else ""
-        run_id = first_sample.run_id if first_sample else None
+        task_name = first_sample.task if first_sample else (state.task if state else "")
+        model = first_sample.model if first_sample else (state.model if state else "")
+        run_id = (
+            first_sample.run_id if first_sample else (state.run_id if state else None)
+        )
 
         # Eval-level start time = earliest sample start. Falls back
         # to the process started_at if no sample has started yet.

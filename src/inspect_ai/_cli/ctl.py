@@ -62,6 +62,59 @@ def ls_command(as_json: bool) -> None:
     _print_human_table(summaries)
 
 
+@ctl_command.command("shutdown")
+@click.option(
+    "--pid",
+    type=int,
+    default=None,
+    help=(
+        "PID of the inspect process to shut down. Required if more than one "
+        "process is currently lingering."
+    ),
+)
+def shutdown_command(pid: int | None) -> None:
+    """Release a lingering inspect process (started with --keep-alive).
+
+    Posts to the process's control endpoint /shutdown route. The eval
+    has already completed; this just lets the process exit. No-op if
+    the process isn't actually parked (it'll exit on its own anyway).
+    """
+    servers = list_discovered_servers()
+    if not servers:
+        click.echo("No running inspect processes found.", err=True)
+        raise click.exceptions.Exit(code=1)
+
+    if pid is not None:
+        matching = [s for s in servers if s.pid == pid]
+        if not matching:
+            click.echo(f"No running inspect process with pid {pid}.", err=True)
+            raise click.exceptions.Exit(code=1)
+        target = matching[0]
+    elif len(servers) == 1:
+        target = servers[0]
+    else:
+        pids = ", ".join(str(s.pid) for s in servers)
+        click.echo(
+            f"Multiple inspect processes are running (pids: {pids}). "
+            "Pass --pid to disambiguate.",
+            err=True,
+        )
+        raise click.exceptions.Exit(code=1)
+
+    try:
+        transport = httpx.HTTPTransport(uds=str(target.socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            response = client.post("/shutdown")
+            response.raise_for_status()
+    except (httpx.HTTPError, OSError) as exc:
+        click.echo(f"Failed to shut down pid {target.pid}: {exc}", err=True)
+        raise click.exceptions.Exit(code=1) from exc
+
+    click.echo(f"Shutdown requested for pid {target.pid}.")
+
+
 def _fetch_summaries(
     servers: list[DiscoveredControlServer],
 ) -> list[dict[str, Any]]:

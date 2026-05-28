@@ -86,6 +86,40 @@ def _set_outer_scope_owns_server(value: bool) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Keep-alive support
+# ---------------------------------------------------------------------------
+#
+# When an eval / eval-set is launched with ``keep_alive=True``, the
+# process should stay running after the eval body completes so
+# external agents can read state, request logs, and explicitly tear
+# the process down. The per-process flag below is consulted by
+# ``task_run.py`` to skip its ``unregister_eval`` call so EvalState
+# entries persist and stay visible via ``inspect ctl ls``.
+
+_keep_alive_active = False
+
+
+def keep_alive_active() -> bool:
+    """Return whether keep-alive mode is currently in effect.
+
+    Consumed by ``task_run.py``'s teardown logic to decide whether to
+    unregister an eval's :class:`EvalState` at task end (skipped under
+    keep-alive so the eval stays visible in ``inspect ctl ls``).
+    """
+    return _keep_alive_active
+
+
+def set_keep_alive_active(value: bool) -> None:
+    """Set the process-level keep-alive flag.
+
+    Called by the eval / eval-set entry points before the eval body
+    runs, and cleared after the shutdown wait ends.
+    """
+    global _keep_alive_active
+    _keep_alive_active = value
+
+
+# ---------------------------------------------------------------------------
 # Shared bind / serve / cleanup core
 # ---------------------------------------------------------------------------
 
@@ -106,10 +140,25 @@ class _ControlServerBase:
         self._socket_path: Path | None = None
         self._discovery_path: Path | None = None
         self._uvicorn_server: Any = None
+        # Signaled by ``POST /shutdown``. Used by keep-alive to know
+        # when the operator (or an agent) wants to release the
+        # lingering process. ``threading.Event`` (not asyncio.Event)
+        # so both the per-eval async waiter and the eval-set sync
+        # waiter can listen on the same primitive.
+        self._shutdown_event = threading.Event()
 
     @property
     def socket_path(self) -> Path | None:
         return self._socket_path
+
+    @property
+    def shutdown_event(self) -> threading.Event:
+        """Set when ``POST /shutdown`` is received.
+
+        Keep-alive callers block on this event to know when the
+        operator wants the process to exit.
+        """
+        return self._shutdown_event
 
     def _build_app(self) -> Any:
         """Build the FastAPI app.
@@ -121,10 +170,21 @@ class _ControlServerBase:
 
         app = FastAPI()
         started_at = self._started_at
+        shutdown_event = self._shutdown_event
 
         @app.get("/evals")
         async def list_evals() -> list[dict[str, Any]]:
             return current_eval_summaries(started_at)
+
+        @app.post("/shutdown")
+        async def shutdown() -> dict[str, bool]:
+            # Operator-requested release of a keep-alive process.
+            # Setting the event unblocks waiters in eval/eval_set
+            # (see :func:`wait_for_shutdown`). No-op if no caller is
+            # actually waiting — the process just exits when the eval
+            # body returns naturally.
+            shutdown_event.set()
+            return {"ok": True}
 
         return app
 
@@ -437,3 +497,36 @@ def control_server_for_eval_set(
         _set_outer_scope_owns_server(False)
         with contextlib.suppress(Exception):
             server.stop()
+
+
+# ---------------------------------------------------------------------------
+# Keep-alive wait helpers
+# ---------------------------------------------------------------------------
+
+
+def wait_for_shutdown_sync(server: _ControlServerBase | None) -> None:
+    """Block (sync) until the server receives ``POST /shutdown``.
+
+    No-ops when ``server`` is ``None`` (bind failed; the eval ran
+    without a control surface — nothing to wait on). Used by
+    :func:`eval_set` for keep-alive mode.
+    """
+    if server is None:
+        return
+    server.shutdown_event.wait()
+
+
+async def wait_for_shutdown_async(server: _ControlServerBase | None) -> None:
+    """Block (async) until the server receives ``POST /shutdown``.
+
+    Bridges the threading.Event to the caller's async loop via a
+    worker thread so we don't pin the event loop in a blocking wait.
+    """
+    if server is None:
+        return
+    import anyio
+
+    await anyio.to_thread.run_sync(
+        server.shutdown_event.wait,
+        abandon_on_cancel=True,
+    )

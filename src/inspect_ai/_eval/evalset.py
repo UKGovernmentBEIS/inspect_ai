@@ -20,7 +20,11 @@ from tenacity import (
 )
 from typing_extensions import Unpack
 
-from inspect_ai._control.server import control_server_for_eval_set
+from inspect_ai._control.server import (
+    control_server_for_eval_set,
+    set_keep_alive_active,
+    wait_for_shutdown_sync,
+)
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
@@ -42,6 +46,7 @@ from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
+from inspect_ai.log._eval_state import clear_all_eval_states
 from inspect_ai.log._file import (
     EvalLogInfo,
     ReadEvalLogsProgress,
@@ -118,6 +123,7 @@ def eval_set(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
+    keep_alive: bool = False,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -205,6 +211,10 @@ def eval_set(
             loopback port; a string is taken as a custom UNIX socket path;
             `None` (default) replays whatever transport (or no transport) was
             persisted in the original log's `EvalConfig.acp_server`.
+        keep_alive: Keep the process running after the eval-set finishes
+            so external clients (the `inspect ctl` CLI, scripted agents,
+            TUIs) can still query state and read results. Exit via
+            `inspect ctl shutdown` (or `POST /shutdown`). Defaults to `False`.
         solver: Alternative solver(s) for
             evaluating task(s). Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -630,8 +640,15 @@ def eval_set(
         # invocations inside `_eval_async_inner` detect this outer
         # scope and skip their own bind, so we keep one socket per
         # process.
-        control_server_for_eval_set(eval_set_id=eval_set_id),
+        control_server_for_eval_set(eval_set_id=eval_set_id) as ctl_server,
     ):
+        # Enable process-level keep-alive flag BEFORE the eval body
+        # runs so each task_run's teardown skips its per-eval
+        # EvalState unregister — the states persist for ``inspect ctl
+        # ls`` to see even after the eval-set completes.
+        if keep_alive:
+            set_keep_alive_active(True)
+
         # emit start event
         run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
 
@@ -646,6 +663,22 @@ def eval_set(
         if retry_cleanup:
             task_ids = {result.eval.task_id for result in results}
             cleanup_older_eval_logs(log_dir, task_ids)
+
+        # Keep-alive: block here until an external client POSTs
+        # /shutdown (or runs `inspect ctl shutdown`). The eval-set's
+        # results are already computed; we're just holding the
+        # process open for the agent to read state and tear it down
+        # on its own timeline.
+        if keep_alive and ctl_server is not None:
+            console.print(
+                "Eval-set finished. Keeping process alive — run "
+                "`inspect ctl shutdown` (or POST /shutdown) to release."
+            )
+            wait_for_shutdown_sync(ctl_server)
+
+        if keep_alive:
+            set_keep_alive_active(False)
+            clear_all_eval_states()
 
     # if specified, bundle the output directory
     if bundle_dir:

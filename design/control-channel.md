@@ -31,15 +31,19 @@ User: "Run my new task against gpt-5 and claude-opus. Cancel anything stalled
        which model did better."
 
 Agent (via Bash):
-  inspect eval my_task --model gpt-5         --log-dir ./logs/gpt5   --detach --json
-  inspect eval my_task --model claude-opus   --log-dir ./logs/opus   --detach --json
+  inspect eval my_task --model gpt-5  --log-dir ./logs/gpt5  --detach --keep-alive --json
+  inspect eval my_task --model claude --log-dir ./logs/opus  --detach --keep-alive --json
   inspect ctl ls --json                                                      # watch progress
   inspect ctl events <id> --since <cursor> --json                            # poll for stalls
   inspect ctl cancel-sample <eval-id> <sample-id> --action error --dry-run   # check before acting
   inspect ctl cancel-sample <eval-id> <sample-id> --action error
   inspect log summary ./logs/gpt5 --json                                     # after completion
   inspect log compare ./logs/gpt5 ./logs/opus --json                         # diff
+  inspect ctl shutdown --pid <pid>                                           # release the processes
+  inspect ctl shutdown --pid <pid>                                           # ...one for each
 ```
+
+The `--keep-alive` flag is load-bearing for this workflow: without it, each eval process exits the instant the eval body returns, taking its discovery file and control endpoint with it. The agent's later "inspect results" / "compare" / "decide" steps would race the process teardown and intermittently find no control surface to query. With `--keep-alive` the process parks after the eval body completes, the control endpoint stays bound, and `inspect ctl shutdown` is the explicit teardown signal the agent issues when it's done.
 
 The control channel provides the **middle four** of those commands (the live-eval surfaces — `ls`, `events`, `cancel-sample`); the surrounding commands come from the broader agent-enablement work (see Related work). For this scenario to work, every surface must be:
 
@@ -74,6 +78,7 @@ inspect ctl cancel-sample <eval-id> <sid>   # cancel one sample
 inspect ctl drain <eval-id>                 # stop accepting new samples; let in-flight finish
 inspect ctl requeue <eval-id> <sid>         # re-add a failed sample to the queue
 inspect ctl set-limit <eval-id> --time N    # modify a running eval's per-sample time limit
+inspect ctl shutdown [--pid PID]            # release a lingering --keep-alive process
 ```
 
 Each is a thin wrapper — autocomplete-friendly, scriptable, composable with shell tooling. Same operations as the TUI; same operations agents call. The CLI is the canonical surface — humans use it directly; agents use it via Bash.
@@ -391,6 +396,32 @@ The chmods are reapplied on every server start (idempotent) so a directory creat
 ## Implementation notes
 
 Cross-cutting details that apply across all phases.
+
+### Process keep-alive: `--keep-alive` on `inspect eval` / `inspect eval-set`
+
+Without help from the process lifecycle, LLM-agent workflows have a race condition: the eval process exits the instant the eval body returns, taking its control endpoint and discovery file with it. The agent's next step — read results, compare, decide what to do next — runs against a vanished surface. With many agents this manifests intermittently (sometimes the agent gets to `ctl ls` before teardown, sometimes not) and degrades trust in the surface.
+
+The fix is an explicit handoff: `--keep-alive` parks the process after the eval body completes, and `inspect ctl shutdown` is the signal the agent issues when it's done.
+
+**What the flag does.**
+
+- `inspect eval <task> --keep-alive` — after the eval body returns (including scoring + log write), the process blocks on the control endpoint's shutdown event. The control server stays bound. `inspect ctl ls` continues to show the eval (with `samples.completed == total` and a final status), and the log files are present at their final paths. `POST /shutdown` (issued by `inspect ctl shutdown` or any HTTP client) releases the block; the process tears down its server and exits.
+- `inspect eval-set <tasks> --keep-alive` — same, scoped to the entire eval-set. The control server lives through all retries and parks at the end. All evals in the set stay visible in `ls` until shutdown.
+
+**Why this isn't always-on.** Most invocations don't need it; the cost is "process doesn't exit on its own." For batch / CI workflows that explicitly want the process to die when done, no keep-alive is correct. The flag is opt-in.
+
+**Implementation sketch.**
+
+- `_ControlServerBase` exposes a `shutdown_event: threading.Event`. The `POST /shutdown` route sets it.
+- `wait_for_shutdown_sync(server)` / `wait_for_shutdown_async(server)` block until the event fires. Both eval-set's sync body and eval's async body use the appropriate one.
+- `EvalState` entries — which would normally be unregistered by `task_run.py` at task end — survive while keep-alive is active. This is what keeps `ctl ls` showing completed evals during the lingering window. A process-level `keep_alive_active()` flag tells `task_run.py` to skip the unregister; the keep-alive teardown clears all states explicitly before shutting down the server.
+- Eval-set's `control_server_for_eval_set` (the threaded variant) is naturally well-suited to keep-alive: the daemon thread holds the server up regardless of whether the main thread is in eval body or in the post-eval wait.
+
+**Failure modes worth naming.**
+
+- **Forgotten shutdown.** Agent crashes / loses track of the pid. The process lingers indefinitely. Mitigation: a future `--keep-alive-timeout` could auto-shutdown after N minutes of idle time. Not in v1.
+- **Multiple lingering processes.** Several agents each run their own keep-alive eval-set. `inspect ctl shutdown` with no args errors and lists pids; the agent disambiguates with `--pid`.
+- **External kill.** Operator kills the process while keep-alive is active. The discovery file is left behind; the next `prepare_discovery_dir` sweep picks it up and removes it (pid-liveness check fails).
 
 ### Server lifecycle: default on, opt-out
 

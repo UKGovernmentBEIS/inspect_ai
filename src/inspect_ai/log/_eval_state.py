@@ -54,6 +54,17 @@ class EvalState:
     errored: int = 0
     """Samples whose final attempt failed (also counted once per sample)."""
 
+    task: str = ""
+    """Task name. Carried here so consumers (control channel `ls`) can label
+    the eval even after all its samples have exited ``active_samples``
+    (typically: under keep-alive, after the eval body completes)."""
+
+    model: str = ""
+    """Primary model name. Same rationale as :attr:`task`."""
+
+    run_id: str | None = None
+    """Process-level run id. Same rationale as :attr:`task`."""
+
 
 # Module-level registry. Keyed by eval_id. A process can host multiple
 # evals concurrently (an eval-set passes all tasks to one ``eval()``
@@ -62,7 +73,14 @@ _eval_states: dict[str, EvalState] = {}
 _lock = Lock()
 
 
-def register_eval(eval_id: str, total: int) -> EvalState:
+def register_eval(
+    eval_id: str,
+    total: int,
+    *,
+    task: str = "",
+    model: str = "",
+    run_id: str | None = None,
+) -> EvalState:
     """Initialize tracking for a new eval.
 
     Idempotent on ``eval_id`` — re-registering an existing eval (eg.
@@ -74,7 +92,9 @@ def register_eval(eval_id: str, total: int) -> EvalState:
         existing = _eval_states.get(eval_id)
         if existing is not None:
             return existing
-        state = EvalState(eval_id=eval_id, total=total)
+        state = EvalState(
+            eval_id=eval_id, total=total, task=task, model=model, run_id=run_id
+        )
         _eval_states[eval_id] = state
         return state
 
@@ -119,3 +139,14 @@ def get_eval_states() -> list[EvalState]:
     """Snapshot of all currently-tracked eval states."""
     with _lock:
         return list(_eval_states.values())
+
+
+def clear_all_eval_states() -> None:
+    """Remove every tracked eval state.
+
+    Used by the keep-alive teardown to clear the registry on shutdown
+    (where per-task ``unregister_eval`` was skipped while keep-alive
+    was active).
+    """
+    with _lock:
+        _eval_states.clear()

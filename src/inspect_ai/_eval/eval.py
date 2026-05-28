@@ -9,11 +9,26 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._control.server import control_server as _control_server
+from inspect_ai._control.server import (
+    _outer_scope_owns_server,
+)
+from inspect_ai._control.server import (
+    control_server as _control_server,
+)
+from inspect_ai._control.server import (
+    keep_alive_active as _keep_alive_active,
+)
+from inspect_ai._control.server import (
+    set_keep_alive_active as _set_keep_alive_active,
+)
+from inspect_ai._control.server import (
+    wait_for_shutdown_async as _wait_for_shutdown_async,
+)
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
+from inspect_ai.log._eval_state import clear_all_eval_states as _clear_all_eval_states
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_info import set_model_cost
@@ -101,6 +116,7 @@ def eval(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
+    keep_alive: bool = False,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -174,6 +190,10 @@ def eval(
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
+        keep_alive: Keep the process running after the eval finishes so
+            external clients can still query the control endpoint. Exit
+            via `inspect ctl shutdown` (or `POST /shutdown`). Defaults
+            to `False`.
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -328,6 +348,7 @@ def eval(
                 score=score,
                 score_display=score_display,
                 acp_server=acp_server,
+                keep_alive=keep_alive,
                 eval_set_id=eval_set_id,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
@@ -371,6 +392,7 @@ async def eval_async(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
+    keep_alive: bool = False,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -436,6 +458,10 @@ async def eval_async(
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
             UNIX socket path; `None` (default) does not start an ACP server.
+        keep_alive: Keep the process running after the eval finishes so
+            external clients can still query the control endpoint. Exit
+            via `inspect ctl shutdown` (or `POST /shutdown`). Defaults
+            to `False`.
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the sample completes.
         tags: Tags to associate with this evaluation run.
@@ -569,6 +595,7 @@ async def eval_async(
                 score=score,
                 score_display=score_display,
                 acp_server=acp_server,
+                keep_alive=keep_alive,
                 eval_set_id=eval_set_id,
                 scan_id=scan_id,
                 task_retry_attempts=task_retry_attempts,
@@ -604,6 +631,7 @@ async def _eval_async_inner(
     sandbox_cleanup: bool | None = None,
     checkpoint: CheckpointConfig | None = None,
     acp_server: bool | int | str | None = None,
+    keep_alive: bool = False,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
     tags: list[str] | None = None,
@@ -872,8 +900,25 @@ async def _eval_async_inner(
         # TUIs, and agents. Bind failures are logged and swallowed —
         # eval correctness never depends on the control channel coming
         # up. See design/control-channel.md "Implementation notes".
+        # If keep_alive is requested AND we're the outermost scope
+        # (no eval-set above us), enable the process-level flag so
+        # task_run.py's teardown skips its per-eval unregister and
+        # the EvalState stays visible in ``inspect ctl ls`` after the
+        # eval body completes. Nested eval() calls inside an eval-set
+        # rely on the eval-set's own flag-management.
+        #
+        # On normal exit we clear the flag + EvalStates explicitly
+        # below. On exception, the flag survives but the process is
+        # about to die anyway (process-level state evaporates with
+        # the process), so we accept the leak.
+        _keep_alive_owned_here = (
+            keep_alive and not _outer_scope_owns_server() and not _keep_alive_active()
+        )
+        if _keep_alive_owned_here:
+            _set_keep_alive_active(True)
+
         async with (
-            _control_server(run_id=run_id),
+            _control_server(run_id=run_id) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
         ):
             with scan_cm:
@@ -940,6 +985,21 @@ async def _eval_async_inner(
                     )
                     logs = EvalLogs(results)
 
+            # Keep-alive: block here until an external client POSTs
+            # /shutdown (or runs `inspect ctl shutdown`). Only the
+            # outermost scope waits — see the flag setup at the top
+            # of the async-with block.
+            if _keep_alive_owned_here and _ctl_server is not None:
+                log.info(
+                    "Eval finished. Keeping process alive — run "
+                    "`inspect ctl shutdown` (or POST /shutdown) to release."
+                )
+                await _wait_for_shutdown_async(_ctl_server)
+
+        if _keep_alive_owned_here:
+            _set_keep_alive_active(False)
+            _clear_all_eval_states()
+
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)
 
@@ -986,6 +1046,7 @@ def eval_retry(
     score: bool = True,
     score_display: bool | None = None,
     acp_server: bool | int | str | None = None,
+    keep_alive: bool = False,
     scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
@@ -1044,6 +1105,10 @@ def eval_retry(
             to sync every 10 seconds, otherwise an integer to sync every `n` seconds.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        keep_alive: Keep the process running after the eval finishes so
+            external clients can still query the control endpoint. Exit
+            via `inspect ctl shutdown` (or `POST /shutdown`). Defaults
+            to `False`.
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
             loopback port; a string is taken as a custom UNIX socket path;
@@ -1112,6 +1177,7 @@ def eval_retry(
             score=score,
             score_display=score_display,
             acp_server=acp_server,
+            keep_alive=keep_alive,
             scanner=scanner,
             max_retries=max_retries,
             timeout=timeout,
@@ -1163,6 +1229,7 @@ async def eval_retry_async(
     score: bool = True,
     score_display: bool | None = None,
     acp_server: bool | int | str | None = None,
+    keep_alive: bool = False,
     scanner: "Scanners | None" = None,
     max_retries: int | None = None,
     timeout: int | None = None,
@@ -1213,6 +1280,10 @@ async def eval_retry_async(
             additional syncing of realtime log data for Inspect View.
         score: Score output (defaults to True)
         score_display: Show scoring metrics in realtime (defaults to True)
+        keep_alive: Keep the process running after the eval finishes so
+            external clients can still query the control endpoint. Exit
+            via `inspect ctl shutdown` (or `POST /shutdown`). Defaults
+            to `False`.
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
             loopback port; a string is taken as a custom UNIX socket path;
@@ -1505,6 +1576,7 @@ async def eval_retry_async(
                 score_display=score_display,
                 checkpoint=checkpoint,
                 acp_server=acp_server,
+                keep_alive=keep_alive,
                 **dict(config),
             )
         )[0]
