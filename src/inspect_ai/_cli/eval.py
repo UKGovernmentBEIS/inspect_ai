@@ -992,7 +992,7 @@ def _eval_command_impl(
     max_tool_output: int | None,
     cache_prompt: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
-    effort: Literal["low", "medium", "high"] | None,
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
@@ -1255,7 +1255,7 @@ def eval_set_command(
     max_tool_output: int | None,
     cache_prompt: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
-    effort: Literal["low", "medium", "high"] | None,
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
@@ -2180,7 +2180,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     flag_value="turn:5",
     default=None,
     help=CHECKPOINT_HELP
-    + " For resume to find sidecars, pass the same `--checkpoint` value used on the original eval.",
+    + " For resume to find checkpoint files, pass the same `--checkpoint` value used on the original eval.",
     envvar="INSPECT_EVAL_CHECKPOINT",
     hidden=True,
 )

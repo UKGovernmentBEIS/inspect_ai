@@ -260,7 +260,7 @@ class _TranscriptCapture:
                 return None
 
             return _noop_unsubscribe
-        return self._captured._add_subscriber(callback)
+        return self._captured._subscribe(callback)
 
     def snapshot(self) -> Sequence[Any]:
         if self._captured is None:
@@ -929,7 +929,7 @@ class LiveAcpTransport:
         """Register a sync callback on this session's captured transcript.
 
         Raw-event forwarder hook. Wraps
-        :meth:`Transcript._add_subscriber` so callers can subscribe
+        :meth:`Transcript._subscribe` so callers can subscribe
         without reaching into private session state and without the
         ContextVar-lookup gotcha (we run from the connection's task,
         not the sample's, so ``transcript()`` would return the empty

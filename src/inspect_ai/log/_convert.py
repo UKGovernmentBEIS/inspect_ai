@@ -14,9 +14,9 @@ from inspect_ai.log._file import (
     read_eval_log_async,
     write_eval_log,
 )
-from inspect_ai.log._pool import resolve_sample_events_data
 from inspect_ai.log._recorders import create_recorder_for_location
 from inspect_ai.log._recorders.create import recorder_type_for_location
+from inspect_ai.log._resolve import resolve_sample_events_data
 
 
 def convert_eval_logs(

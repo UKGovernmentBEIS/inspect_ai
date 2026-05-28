@@ -7,7 +7,6 @@ source(s)/target, and tag.
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Sequence
 from pathlib import Path
@@ -21,7 +20,9 @@ async def init_repo(restic: Path, repo: str, password: str) -> None:
     """Initialize a restic repo (idempotent).
 
     Skips if the repo is already initialized — important for callers
-    that may re-enter the same repo across retries.
+    that may re-enter the same repo across retries. ``repo`` is always
+    a local filesystem path; restic is never invoked against a remote
+    backend (see ``design/plans/checkpointing-remote-dest.md``).
     """
     Path(repo).mkdir(parents=True, exist_ok=True)
     if (Path(repo) / "config").exists():
@@ -72,58 +73,52 @@ async def run_backup(
 async def restore_repo(restic: Path, repo: str, password: str, target: str) -> None:
     """Restore the latest snapshot in ``repo`` into ``target``.
 
-    Restic stores files at their original absolute paths. Restoring with
-    ``--target T`` plus ``--include <source>`` lands files at
-    ``T/<source>/*``. To get the contents directly under ``T``, we read
-    the snapshot's source path from ``restic snapshots --json``, restore
-    with ``--include`` to filter to that path, then move the files up
-    one level so callers see ``T/<file>`` rather than
-    ``T/<deep absolute path>/<file>``. Assumes the latest snapshot backed
-    up exactly one source directory.
+    Restic preserves the source's directory structure under ``--target``
+    — exactly where the restored files land within that structure has
+    varied across restic versions and `--include` flag combinations.
+    Rather than try to predict the leaf path, we restore everything,
+    then walk down the single-child directory chain from ``target``
+    until we hit the leaf containing actual files, and move them up to
+    ``target`` so callers see the files directly. Assumes the latest
+    snapshot backed up exactly one source directory (the chain has
+    exactly one descent path).
     """
-    proc = await anyio.run_process(
-        [str(restic), "-r", repo, "snapshots", "latest", "--json"],
-        env=restic_env(password),
-        check=True,
-    )
-    snapshots = json.loads(proc.stdout.decode())
-    if not snapshots:
-        raise RuntimeError(f"restic repo {repo} has no snapshots to restore")
-    source_paths = snapshots[-1]["paths"]
-    if len(source_paths) != 1:
-        raise RuntimeError(
-            f"restic snapshot in {repo} backs up {len(source_paths)} paths; "
-            "expected exactly one"
-        )
-    source_path = source_paths[0]
+    target_dir = Path(target).resolve()
+    target_dir.mkdir(parents=True, exist_ok=True)
 
     await anyio.run_process(
-        [
-            str(restic),
-            "-r",
-            repo,
-            "restore",
-            "latest",
-            "--target",
-            target,
-            "--include",
-            source_path,
-        ],
+        [str(restic), "-r", repo, "restore", "latest", "--target", str(target_dir)],
         env=restic_env(password),
         check=True,
     )
 
-    # Files land at <target><source_path>/. Move them up to <target>/.
-    restored_dir = Path(target + source_path)
-    target_dir = Path(target)
-    for entry in restored_dir.iterdir():
-        entry.rename(target_dir / entry.name)
-    # Walk back up removing now-empty intermediate dirs.
-    current = restored_dir
-    while current != target_dir and current.is_dir() and not any(current.iterdir()):
-        parent = current.parent
-        current.rmdir()
-        current = parent
+    # Walk down through any single-child intermediate directories restic
+    # created to mirror the source path; stop when we find files.
+    leaf = target_dir
+    while True:
+        entries = list(leaf.iterdir())
+        if not entries:
+            raise RuntimeError(f"restic restore produced no files under {target_dir}")
+        if any(e.is_file() for e in entries):
+            break  # leaf reached
+        if len(entries) == 1 and entries[0].is_dir():
+            leaf = entries[0]
+            continue
+        raise RuntimeError(
+            f"restic restore: ambiguous layout under {target_dir} "
+            f"(expected single-child dir chain to file leaf, found "
+            f"{len(entries)} children at {leaf})"
+        )
+
+    if leaf != target_dir:
+        for entry in leaf.iterdir():
+            entry.rename(target_dir / entry.name)
+        # Walk back up removing the now-empty intermediate dirs.
+        current = leaf
+        while current != target_dir and current.is_dir() and not any(current.iterdir()):
+            parent = current.parent
+            current.rmdir()
+            current = parent
 
 
 def restic_env(password: str) -> dict[str, str]:

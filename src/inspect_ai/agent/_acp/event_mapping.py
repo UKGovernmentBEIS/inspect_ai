@@ -97,7 +97,7 @@ class SubagentDepthTracker:
     """Track depth into sub-agent boundary spans for event filtering.
 
     Sub-agent invocations (``@agent``-decorated functions called via
-    ``run()`` / ``as_tool()`` / ``handoff()`` / ``task_tool``) open a
+    ``run()`` / ``as_tool()`` / ``handoff()`` / ``agent_tool``) open a
     ``SpanBeginEvent(type=AGENT_SPAN_TYPE)`` and close it with the
     matching ``SpanEndEvent``. Events emitted **between** the two are
     considered "inside a sub-agent" and the ACP semantic forwarder
@@ -217,7 +217,7 @@ class _AcpEventRouter:
         # replay needs to mirror that view or the depth filter wipes
         # out every in-scope event downstream.
         self._session._router_attach_index = len(tr.events)
-        self._unsubscribe = tr._add_subscriber(self._process)
+        self._unsubscribe = tr._subscribe(self._process)
 
     def detach(self) -> None:
         """Unsubscribe from the transcript. Idempotent."""

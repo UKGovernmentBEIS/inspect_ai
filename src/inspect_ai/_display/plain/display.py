@@ -152,6 +152,8 @@ class PlainTaskDisplay(TaskDisplay):
             MAX_NAME_WIDTH = 12
             if self.show_task_names:
                 status_parts.append(truncate(self.task.profile.name, MAX_NAME_WIDTH))
+            if self.task.profile.agent:
+                status_parts.append(truncate(self.task.profile.agent, MAX_NAME_WIDTH))
             if self.show_model_names:
                 status_parts.append(
                     truncate(str(self.task.profile.model), MAX_NAME_WIDTH)

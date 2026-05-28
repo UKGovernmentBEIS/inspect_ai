@@ -961,6 +961,13 @@ class SampleToolbar(Horizontal):
         if sample.acp_transport.session_id != originating_session_id:
             # Sample switched between event-fire and execution.
             return
+        if sample.interrupt_action is not None:
+            # Terminal cancel (Cancel Score/Error) routes through the same
+            # cancel_current_turn() -> mark_interrupted() path as a
+            # pause-to-inject interrupt, but here the sample is being torn
+            # down and scored — popping the interject prompt would leave the
+            # input bar stuck on screen until scoring finishes.
+            return
         if not sample.acp_transport.interrupt_pending:
             # Already resolved (e.g. another client submitted the
             # resumption text first, or after_cancel drained a

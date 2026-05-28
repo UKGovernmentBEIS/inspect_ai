@@ -30,7 +30,7 @@ from .._log import (
     EvalStatus,
     sort_samples,
 )
-from .._pool import rebind_sample_timelines, resolve_sample_events_data
+from .._resolve import rebind_sample_timelines, resolve_sample_events_data
 from .eval import _s3_bucket_and_key, _write_s3_conditional
 from .file import FileRecorder
 
@@ -218,6 +218,15 @@ class JSONRecorder(FileRecorder):
     ) -> None:
         from inspect_ai.log._file import eval_log_json
 
+        if header_only:
+            # header_only contract: do not let sample-level state from the
+            # in-memory log reach disk. JSON has no in-place header swap, so
+            # read the on-disk samples and reductions and graft them onto
+            # the in-memory header before serializing. If the file doesn't
+            # exist yet, clear samples / reductions so the result is truly
+            # header-only.
+            log = await cls._merge_disk_samples_for_header_only(location, log)
+
         # sort samples before writing as they can come in out of order
         if log.samples:
             sort_samples(log.samples)
@@ -234,6 +243,29 @@ class JSONRecorder(FileRecorder):
             with trace_action(logger, "Log Write", location):
                 with file(location, "wb") as f:
                     f.write(log_bytes)
+
+    @classmethod
+    async def _merge_disk_samples_for_header_only(
+        cls, location: str, log: EvalLog
+    ) -> EvalLog:
+        """Return a copy of `log` whose samples come from the on-disk file.
+
+        If the target doesn't exist, returns a copy with samples and
+        reductions cleared so the resulting write is genuinely header-only.
+        """
+        fs = filesystem(location)
+        if not fs.exists(location):
+            return log.model_copy(
+                update={"samples": None, "reductions": None}, deep=False
+            )
+        existing = await cls.read_log(location, header_only=False)
+        return log.model_copy(
+            update={
+                "samples": existing.samples,
+                "reductions": existing.reductions,
+            },
+            deep=False,
+        )
 
     @classmethod
     async def _write_log_s3_conditional(
