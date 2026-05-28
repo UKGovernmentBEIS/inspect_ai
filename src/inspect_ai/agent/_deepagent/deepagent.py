@@ -38,6 +38,7 @@ def deepagent(
     memory: bool = True,
     todo_write: bool = True,
     web_search: bool | Tool = False,
+    background: bool | int = False,
     skills: list[str | Path | Skill] | None = None,
     model: str | Model | None = None,
     attempts: int | AgentAttempts = 1,
@@ -49,7 +50,6 @@ def deepagent(
     instructions: str | None = None,
     prompt: str | None = None,
     max_depth: int = 1,
-    background: bool | int = True,
 ) -> Agent:
     """Deep agent with subagent delegation, memory, and planning.
 
@@ -70,6 +70,14 @@ def deepagent(
         web_search: Include web_search tool for all agents. Pass True
             for default config, or a pre-configured web_search() tool
             instance for custom setup.
+        background: Background subagent dispatch. ``True``
+            enables background dispatch with a cap of 8 concurrent
+            running agents. ``False`` (the default) disables background dispatch — the
+            ``agent`` tool's schema omits the ``background`` parameter
+            and the lifecycle tools (agent_status, agent_wait, etc., in
+            Phase 2) are not surfaced. Pass a positive integer to enable
+            with that as the cap. ``0`` or negative values raise
+            ``ValueError`` — use ``False`` to disable.
         skills: Skills available to the agent.
         model: Model to use.
         attempts: Number of submission attempts.
@@ -91,14 +99,6 @@ def deepagent(
             {instructions}. When provided, replaces the default system
             prompt entirely.
         max_depth: Maximum subagent recursion depth.
-        background: Background subagent dispatch. ``True`` (default)
-            enables background dispatch with a cap of 8 concurrent
-            running agents. ``False`` disables background dispatch — the
-            ``agent`` tool's schema omits the ``background`` parameter
-            and the lifecycle tools (agent_status, agent_wait, etc., in
-            Phase 2) are not surfaced. Pass a positive integer to enable
-            with that as the cap. ``0`` or negative values raise
-            ``ValueError`` — use ``False`` to disable.
     """
     background_enabled, max_background = _resolve_background(background)
 
