@@ -788,3 +788,53 @@ async def test_subscribe_approver_attach_unsubscribe_is_idempotent() -> None:
         unsub = acp.subscribe_approver_attach(lambda: None)
         unsub()
         unsub()  # no raise
+
+
+# ---------------------------------------------------------------------------
+# AgentChannel.is_live wiring — only flipped when an ACP server is accepting
+# ---------------------------------------------------------------------------
+
+
+async def test_maybe_bind_marks_channel_live_when_server_accepting(
+    monkeypatch,
+) -> None:
+    """Channel flips live when the server is accepting at bind time.
+
+    Unbind then clears the marker.
+    """
+    from inspect_ai.agent._acp import server as server_module
+    from inspect_ai.agent._channel import agent_channel
+
+    monkeypatch.setattr(server_module, "acp_server_accepting_clients", lambda: True)
+    async with acp_session() as acp:
+        async with agent_channel() as ch:
+            ref = ch._ref()
+            assert acp.maybe_bind(ch, ref) is True
+            assert ch.is_live is True
+            acp.unbind(ref)
+            assert ch.is_live is False
+
+
+async def test_maybe_bind_leaves_channel_inert_when_server_not_accepting(
+    monkeypatch,
+) -> None:
+    """Channel stays inert when no server is accepting at bind time.
+
+    LiveAcpTransport is installed per-sample regardless of ``--acp-server``
+    (for in-proc / sub-agent reachability), but ``is_live`` must stay
+    False so consumers don't accidentally enable interactive plumbing
+    on non-server-enabled evals.
+    """
+    from inspect_ai.agent._acp import server as server_module
+    from inspect_ai.agent._channel import agent_channel
+
+    monkeypatch.setattr(server_module, "acp_server_accepting_clients", lambda: False)
+    async with acp_session() as acp:
+        async with agent_channel() as ch:
+            ref = ch._ref()
+            assert acp.maybe_bind(ch, ref) is True
+            assert ch.is_live is False
+            # subscribe_drained still happened — the bind succeeded —
+            # only mark_live was gated.
+            acp.unbind(ref)
+            assert ch.is_live is False  # idempotent on the unset case
