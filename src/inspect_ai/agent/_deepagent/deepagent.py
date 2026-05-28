@@ -70,14 +70,15 @@ def deepagent(
         web_search: Include web_search tool for all agents. Pass True
             for default config, or a pre-configured web_search() tool
             instance for custom setup.
-        background: Background subagent dispatch. ``True``
-            enables background dispatch with a cap of 8 concurrent
-            running agents. ``False`` (the default) disables background dispatch — the
-            ``agent`` tool's schema omits the ``background`` parameter
-            and the lifecycle tools (agent_status, agent_wait, etc., in
-            Phase 2) are not surfaced. Pass a positive integer to enable
-            with that as the cap. ``0`` or negative values raise
-            ``ValueError`` — use ``False`` to disable.
+        background: Background subagent dispatch. ``False`` (the
+            default) disables background dispatch — the ``agent``
+            tool's schema omits the ``background`` parameter and the
+            lifecycle tools (agent_status, agent_wait, agent_cancel,
+            agent_list) are not surfaced. ``True`` enables background
+            dispatch with a cap of 8 concurrent running agents. Pass a
+            positive integer to enable with that as the cap. ``0`` or
+            negative values raise ``ValueError`` — use ``False`` to
+            disable.
         skills: Skills available to the agent.
         model: Model to use.
         attempts: Number of submission attempts.
@@ -237,7 +238,7 @@ def deepagent(
 
         # Set the background registry only when background is enabled.
         # The ContextVar lives for the duration of inner(state) so the
-        # agent tool (and Phase 2 lifecycle tools) can read it. The
+        # agent tool (and the lifecycle tools) can read it. The
         # try/finally + reset(token) idiom mirrors src/inspect_ai/util/_span.py.
         if background_enabled:
             from inspect_ai.agent._deepagent.agent_tool import (

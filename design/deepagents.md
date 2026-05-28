@@ -293,7 +293,7 @@ Four lifecycle tools follow up on background dispatches:
 
 All four lifecycle tools return readable markdown and never raise — any problem (unknown id, no registry, empty input) is reported as content so the model can see it and adjust.
 
-**Switch and cap.** `deepagent(background=...)` controls the feature: `True` (default) enables it with a cap of 8 concurrent background agents; a positive int sets a custom cap; `False` disables it entirely (the `agent` tool's schema omits `background` and the lifecycle tools are not surfaced); `0`/negative raises `ValueError`. Only *running* agents count toward the cap; at cap, `agent(background=True)` rejects with a `ToolError` rather than blocking.
+**Switch and cap.** `deepagent(background=...)` controls the feature: `False` (default) disables it entirely (the `agent` tool's schema omits `background` and the lifecycle tools are not surfaced); `True` enables it with a cap of 8 concurrent background agents; a positive int sets a custom cap; `0`/negative raises `ValueError`. Only *running* agents count toward the cap; at cap, `agent(background=True)` rejects with a `ToolError` rather than blocking.
 
 **Lifetime: abandon on parent exit.** Background children run on `sample.tg` and are bounded by the sample, not the parent `react()` loop — when the parent returns, in-flight children keep running until they complete or the sample ends (at which point anyio cancels them). The parent does not drain. Each deepagent gets an isolated `BackgroundRegistry` (held in a ContextVar set in `deepagent.execute()`), so nested deepagents have independent `AGENT-N` namespaces. Sample-level limits propagate into background children via PEP 567 contextvar copy; per-subagent `limits` are deep-copied per dispatch.
 
