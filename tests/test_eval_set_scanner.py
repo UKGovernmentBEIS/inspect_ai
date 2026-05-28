@@ -1178,11 +1178,11 @@ def test_eval_set_resume_scans_when_finalize_did_not_run_cleanly() -> None:
     Final state — parquet rows: [1, 2 (error), 3, 4, 5]; all 5 ids
     present. summary.scans == 5, summary.errors == 1 (still just id 2).
     """
-    import inspect_ai._eval.task.run as run_mod
+    import inspect_ai._eval.task.scan as scan_mod
     from inspect_ai import ScannerConfig
 
     n = 5
-    orig_scan_eval_sample = run_mod.scan_eval_sample  # type: ignore[attr-defined]
+    orig_scan_eval_sample = scan_mod.scan_eval_sample
 
     async def skip_sample_3(eval_sample, scanner, **kwargs):
         # simulate a crash in the window between log_sample and
@@ -1210,7 +1210,7 @@ def test_eval_set_resume_scans_when_finalize_did_not_run_cleanly() -> None:
         # never started" gap); scanner naturally errors on id 2 (the
         # "scan started, errored" case); ids 4, 5 fail solver and are
         # filtered out of scanning entirely.
-        run_mod.scan_eval_sample = skip_sample_3  # type: ignore[attr-defined]
+        scan_mod.scan_eval_sample = skip_sample_3
         try:
             eval_set(
                 tasks=make_task(),
@@ -1223,7 +1223,7 @@ def test_eval_set_resume_scans_when_finalize_did_not_run_cleanly() -> None:
                 display="none",
             )
         finally:
-            run_mod.scan_eval_sample = orig_scan_eval_sample  # type: ignore[attr-defined]
+            scan_mod.scan_eval_sample = orig_scan_eval_sample
 
         scan_dir = _scan_dir(log_dir)
         summary_1 = _read_summary(scan_dir)
@@ -1362,7 +1362,6 @@ def test_eval_set_resume_scans_when_intermediate_run_crashed_after_clean_finaliz
     parquet/buffer state per sample rather than trusting the stale
     summary.
     """
-    import inspect_ai._eval.task.run as run_mod
     import inspect_ai._eval.task.scan as scan_mod
     from inspect_ai import ScannerConfig
 
@@ -1406,7 +1405,7 @@ def test_eval_set_resume_scans_when_intermediate_run_crashed_after_clean_finaliz
         # - scan_eval_sample is no-op for id 4 (sample logged, scan
         #   never started — the gap)
         # - scan_finalize is no-op (process killed before sync ran)
-        orig_scan_eval_sample = run_mod.scan_eval_sample  # type: ignore[attr-defined]
+        orig_scan_eval_sample = scan_mod.scan_eval_sample
         orig_scan_finalize = scan_mod.scan_finalize
 
         async def skip_sample_4(eval_sample, scanner, **kwargs):
@@ -1417,7 +1416,6 @@ def test_eval_set_resume_scans_when_intermediate_run_crashed_after_clean_finaliz
         async def no_finalize(*args, **kwargs):
             return
 
-        run_mod.scan_eval_sample = skip_sample_4  # type: ignore[attr-defined]
         scan_mod.scan_eval_sample = skip_sample_4
         scan_mod.scan_finalize = no_finalize
         try:
@@ -1431,7 +1429,6 @@ def test_eval_set_resume_scans_when_intermediate_run_crashed_after_clean_finaliz
                 display="none",
             )
         finally:
-            run_mod.scan_eval_sample = orig_scan_eval_sample  # type: ignore[attr-defined]
             scan_mod.scan_eval_sample = orig_scan_eval_sample
             scan_mod.scan_finalize = orig_scan_finalize
 
@@ -1542,8 +1539,6 @@ def test_eval_set_resume_short_circuits_when_prior_scan_clean() -> None:
     the success-logs → PreviousTask routing entirely. The scanner is
     never invoked again — confirms the fast-path optimization works.
     """
-    from unittest.mock import patch
-
     n = 3
 
     def make_task() -> Task:
@@ -1573,17 +1568,15 @@ def test_eval_set_resume_short_circuits_when_prior_scan_clean() -> None:
         # success_logs are returned directly and the scanner is never
         # called. We assert this by patching scan_eval_sample to track
         # invocations: it must NOT be called during run 2.
-        import inspect_ai._eval.task.run as run_mod
         import inspect_ai._eval.task.scan as scan_mod
 
         invocations: list[str] = []
-        orig = run_mod.scan_eval_sample  # type: ignore[attr-defined]
+        orig = scan_mod.scan_eval_sample
 
         async def tracking(eval_sample, scanner, **kwargs):
             invocations.append(str(eval_sample.id))
             return await orig(eval_sample, scanner, **kwargs)
 
-        run_mod.scan_eval_sample = tracking  # type: ignore[attr-defined]
         scan_mod.scan_eval_sample = tracking
         try:
             eval_set(
@@ -1595,7 +1588,6 @@ def test_eval_set_resume_short_circuits_when_prior_scan_clean() -> None:
                 display="none",
             )
         finally:
-            run_mod.scan_eval_sample = orig  # type: ignore[attr-defined]
             scan_mod.scan_eval_sample = orig
 
         assert invocations == [], (
@@ -1606,8 +1598,6 @@ def test_eval_set_resume_short_circuits_when_prior_scan_clean() -> None:
         # also: the on-disk scan output is unchanged (no extra rows)
         pf = _read_parquet(scan_dir / "echo_scanner.parquet")
         assert pf.metadata.num_rows == n
-        # silence unused-import warning
-        del patch
 
 
 def test_summary_complete_flips_to_false_when_resume_introduces_scan_errors() -> None:
