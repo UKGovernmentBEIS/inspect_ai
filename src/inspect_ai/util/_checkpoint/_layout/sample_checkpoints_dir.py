@@ -145,14 +145,17 @@ async def _list_checkpoint_ids(sample_dir: str) -> list[int]:
     ``has_sample_checkpoint``).
     """
     ids: list[int] = []
-    async for uri in get_async_filesystem().iter_files(
-        sample_dir, pattern="ckpt-*.json"
-    ):
-        name = uri.rsplit("/", 1)[-1]
-        try:
-            ids.append(int(name.removeprefix("ckpt-").removesuffix(".json")))
-        except ValueError:
-            continue
+    try:
+        async for uri in get_async_filesystem().iter_files(
+            sample_dir, pattern="ckpt-*.json"
+        ):
+            name = uri.rsplit("/", 1)[-1]
+            try:
+                ids.append(int(name.removeprefix("ckpt-").removesuffix(".json")))
+            except ValueError:
+                continue
+    except FileNotFoundError:
+        pass
     return ids
 
 

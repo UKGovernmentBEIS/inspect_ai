@@ -31,6 +31,7 @@ from ._checkpoint import (
     Manual,
     Retention,
     TimeInterval,
+    TokenInterval,
     TurnInterval,
     checkpointer,
 )
@@ -182,5 +183,6 @@ __all__ = [
     "Manual",
     "Retention",
     "TimeInterval",
+    "TokenInterval",
     "TurnInterval",
 ]

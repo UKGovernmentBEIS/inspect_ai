@@ -508,8 +508,16 @@ async def test_failure_recorded_as_info_event_and_warning(
 
     cp = _flaky(ResolvedCheckpointConfig(trigger=Manual()), dirs)
     cp.should_fail = True
-    with caplog.at_level(logging.WARNING):
-        await cp.checkpoint()
+    # A prior test may have called `eval()`, which sets `propagate=False`
+    # on the `inspect_ai` logger — restore propagation for caplog.
+    inspect_logger = logging.getLogger("inspect_ai")
+    saved_propagate = inspect_logger.propagate
+    inspect_logger.propagate = True
+    try:
+        with caplog.at_level(logging.WARNING):
+            await cp.checkpoint()
+    finally:
+        inspect_logger.propagate = saved_propagate
 
     infos = [
         e for e in dirs.events if isinstance(e, InfoEvent) and e.source == "checkpoint"
@@ -549,6 +557,9 @@ class _FakeActiveSample:
     checkpoint: ResolvedCheckpointConfig | None = None
     # E2E tests assign this after building via `build_impl`.
     checkpointer: object = field(default_factory=_NoopCheckpointer)
+    # Read by `SampleContextFilter` if a prior test has installed it on the
+    # inspect_ai log handler (e.g. via `eval()`).
+    task: str = "test_task"
 
 
 @contextmanager
