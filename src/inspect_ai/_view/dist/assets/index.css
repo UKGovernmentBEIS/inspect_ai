@@ -19098,20 +19098,20 @@ a._citationLink_1ggvf_9:hover {
   border-bottom: 5px solid var(--vscode-descriptionForeground, #717171);
   opacity: 0.7;
 }
-._title_3h2qq_1 {
+._title_1f23l_1 {
   font-weight: 600;
   padding-bottom: 0.25em;
   margin-bottom: 0.25em;
   border-bottom: solid 1px var(--bs-border-color);
 }
 
-._rows_3h2qq_8 {
+._rows_1f23l_8 {
   display: flex;
   flex-direction: column;
   row-gap: 0.15em;
 }
 
-._row_3h2qq_8 {
+._row_1f23l_8 {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -19122,8 +19122,22 @@ a._citationLink_1ggvf_9:hover {
   white-space: nowrap;
 }
 
-._row_3h2qq_8:hover {
+._row_1f23l_8:hover {
   background-color: var(--bs-secondary-bg);
+}
+
+._groupHeader_1f23l_29 {
+  font-weight: 600;
+  margin-top: 0.9em;
+  padding-bottom: 0.1em;
+  color: var(--bs-secondary-color);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.85em;
+}
+
+._groupHeader_1f23l_29:first-child {
+  margin-top: 0;
 }
 ._selectorContainer_djjmp_1 {
   position: relative;
@@ -19914,6 +19928,99 @@ a._citationLink_1ggvf_9:hover {
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
 }
+._branchPoint_m92x3_1 {
+  --bp-bg: var(--bs-tertiary-bg, #fafbfd);
+  --bp-hairline: var(--bs-border-color, #e5e7eb);
+  --bp-segmented-border: var(--bs-border-color, #d1d5db);
+  --bp-segmented-bg: var(--bs-body-bg, #ffffff);
+  --bp-label: var(--bs-secondary-color, #6b7280);
+  --bp-active-bg: var(--bs-secondary-bg, #e5e7eb);
+
+  background: var(--bp-bg);
+  border-top: 1px solid var(--bp-hairline);
+  border-bottom: 1px solid var(--bp-hairline);
+  padding: 6px 18px;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+._label_m92x3_20 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+._glyph_m92x3_27 {
+  display: inline-flex;
+  align-items: center;
+  color: var(--bp-label);
+  font-size: 14px;
+  line-height: 1;
+  flex: none;
+}
+
+._labelText_m92x3_36 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bp-label);
+}
+
+._segmented_m92x3_44 {
+  display: inline-flex;
+  border: 1px solid var(--bp-segmented-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bp-segmented-bg);
+}
+
+._segment_m92x3_44 {
+  all: unset;
+  padding: 3px 12px;
+  background: var(--bp-segmented-bg);
+  color: var(--bp-label);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-left: 1px solid var(--bp-segmented-border);
+  user-select: none;
+}
+._segment_m92x3_44:first-of-type {
+  border-left: 0;
+}
+._segment_m92x3_44:hover:not([aria-pressed="true"]):not(:disabled) {
+  background: var(--bp-active-bg);
+  color: var(--bs-body-color, inherit);
+}
+._segment_m92x3_44[aria-pressed="true"] {
+  background: var(--bp-active-bg);
+  color: var(--bs-body-color, inherit);
+  font-weight: 600;
+  cursor: default;
+}
+._segment_m92x3_44:disabled:not([aria-pressed="true"]) {
+  cursor: default;
+}
+._segment_m92x3_44:focus-visible {
+  outline: 2px solid var(--bp-segmented-border);
+  outline-offset: 2px;
+}
+
+._continuesGlyph_m92x3_87 {
+  width: 9px;
+  height: 9px;
+  fill: currentColor;
+  flex: none;
+  opacity: 0.85;
+}
 ._panel_1dnhl_1 {
   margin: 0.2em 0;
 }
@@ -19942,48 +20049,29 @@ a._citationLink_1ggvf_9:hover {
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
 }
-._nav_1tozt_1 {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 8px;
-  margin: 4px 0;
-  font-size: var(--inspect-font-size-smallest);
-  color: var(--vscode-descriptionForeground, #717171);
+._empty_f9al6_1 {
+  padding: 0 18px 14px;
+  color: var(--bs-secondary-color, #6b7280);
 }
 
-._icon_1tozt_12 {
-  font-size: 11px;
-  margin-right: 2px;
-  opacity: 0.7;
+._headline_f9al6_6 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
 }
 
-._pill_1tozt_18 {
-  border: 1px solid transparent;
-  background: none;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: inherit;
-  color: var(--vscode-descriptionForeground, #717171);
-  cursor: pointer;
+._detail_f9al6_12 {
+  font-size: 12.5px;
+  margin-top: 4px;
 }
 
-._pill_1tozt_18:hover {
-  border-color: var(--bs-border-color);
-  color: var(--vscode-foreground);
-}
-
-._selected_1tozt_33 {
-  border-color: var(--bs-border-color);
-  background: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.04));
-  color: var(--vscode-foreground);
-  font-weight: 500;
-  cursor: default;
-}
-
-._selected_1tozt_33:hover {
-  border-color: var(--bs-border-color);
+._detail_f9al6_12 code {
+  background: var(--bs-body-bg, #ffffff);
+  border: 1px solid var(--bs-border-color, #e5e7eb);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 11.5px;
+  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
 }
 ._panel_vz394_1 {
   margin: 0.2em 0;
@@ -21871,7 +21959,7 @@ pre._value_8citi_25 {
   color: var(--bs-warning-text-emphasis);
 }
 /* Shared chrome — variant-specific look in `.link` and `.pill` below. */
-._button_1pdin_2 {
+._button_u0dz8_2 {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -21882,7 +21970,7 @@ pre._value_8citi_25 {
   /* Matches TagChip's line-height so chips and pills auto-size to the
      same height and descenders aren't clipped. Keep in sync with
      TagChip.module.css `.chip`. */
-  line-height: 1.3;
+  line-height: 1.1;
   /* When the button sits in a flex row (the PrimaryBar tag strip),
      prevent it from being shrunk past its content width. */
   flex-shrink: 0;
@@ -21892,10 +21980,10 @@ pre._value_8citi_25 {
    where the action belongs next to the section title. Body-color text
    so it reads as part of the header rather than a link, with a hover
    tint to convey clickability. */
-._link_1pdin_1 {
+._link_u0dz8_1 {
   border: none;
   color: var(--bs-body-color);
-  padding: 0.125rem 0.4rem;
+  padding: 0.125rem 0.35rem;
   border-radius: 4px;
   /* Matches the pill variant's regular weight so the two Edit
      affordances (metadata card header, tag-strip pill) read at the
@@ -21904,11 +21992,11 @@ pre._value_8citi_25 {
   letter-spacing: 0;
 }
 
-._link_1pdin_1:hover {
+._link_u0dz8_1:hover {
   background: var(--bs-secondary-bg);
 }
 
-._link_1pdin_1:focus-visible {
+._link_u0dz8_1:focus-visible {
   outline: 2px solid var(--bs-border-color);
   outline-offset: 1px;
 }
@@ -21919,20 +22007,20 @@ pre._value_8citi_25 {
    them in sync if either changes. (Height auto-sizes from
    line-height + padding — no fixed height, so chip and pill stay
    visually aligned without drift if font-size changes.) */
-._pill_1pdin_1 {
+._pill_u0dz8_1 {
   color: var(--bs-body-color);
   border: 1px solid var(--bs-border-color);
   border-radius: 999px;
-  padding: 0.125rem 0.5rem;
+  padding: 0.125rem 0.35rem;
   font-weight: 400;
   letter-spacing: 0.01em;
 }
 
-._pill_1pdin_1:hover {
+._pill_u0dz8_1:hover {
   background: var(--bs-secondary-bg);
 }
 
-._pill_1pdin_1:focus-visible {
+._pill_u0dz8_1:focus-visible {
   outline: 2px solid var(--bs-border-color);
   outline-offset: 1px;
 }
@@ -22716,11 +22804,11 @@ pre._value_8citi_25 {
 ._addButton_yxwie_27 {
   white-space: nowrap;
 }
-._chip_1k2wf_1 {
+._chip_17zs5_1 {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.125rem 0.5rem;
+  padding: 0.125rem 0.35rem;
   /* Cap chip width so one giant tag can't push the inline Edit button
      off the right edge of the header. The label inside ellipsizes. */
   max-width: 18rem;
@@ -22743,10 +22831,10 @@ pre._value_8citi_25 {
      the font size and the bottom of descenders was clipped. The chip
      auto-sizes from this + padding instead of using a fixed height,
      so any future font-size change stays in proportion. */
-  line-height: 1.3;
+  line-height: 1.1;
 }
 
-._chipLabel_1k2wf_31 {
+._chipLabel_17zs5_31 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -22755,7 +22843,7 @@ pre._value_8citi_25 {
 
 /* Pending-add variant inside the editor: keep the green outline so it
    still reads as "new", but no fill (matches the saved-chip style). */
-._chipNew_1k2wf_40 {
+._chipNew_17zs5_40 {
   border-color: var(--bs-success-border-subtle);
   color: var(--bs-success-text-emphasis);
 }
@@ -22763,20 +22851,20 @@ pre._value_8citi_25 {
 /* Applied when the chip is rendered as a clickable <button> (header
    context). Mirrors the Edit/overflow pills' hover + focus treatment
    so the whole strip behaves consistently. */
-._chipClickable_1k2wf_48 {
+._chipClickable_17zs5_48 {
   cursor: pointer;
 }
 
-._chipClickable_1k2wf_48:hover {
+._chipClickable_17zs5_48:hover {
   background: var(--bs-secondary-bg);
 }
 
-._chipClickable_1k2wf_48:focus-visible {
+._chipClickable_17zs5_48:focus-visible {
   outline: 2px solid var(--bs-border-color);
   outline-offset: 1px;
 }
 
-._chipRemove_1k2wf_61 {
+._chipRemove_17zs5_61 {
   background: none;
   border: none;
   padding: 0;
@@ -22789,7 +22877,7 @@ pre._value_8citi_25 {
   line-height: 1;
 }
 
-._chipRemove_1k2wf_61:hover {
+._chipRemove_17zs5_61:hover {
   opacity: 1;
   color: var(--bs-danger);
 }
