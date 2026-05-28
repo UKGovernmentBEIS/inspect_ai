@@ -267,7 +267,7 @@ wheels = [
 
 [[package]]
 name = "anthropic"
-version = "0.96.0"
+version = "0.105.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -279,9 +279,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b9/7e/672f533dee813028d2c699bfd2a7f52c9118d7353680d9aa44b9e23f717f/anthropic-0.96.0.tar.gz", hash = "sha256:9de947b737f39452f68aa520f1c2239d44119c9b73b0fb6d4e6ca80f00279ee6", size = 658210, upload-time = "2026-04-16T14:28:02.846Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fb/8e/74a2c9c118c277cb1f39a1828139e919dfe0facc51a3b8f000dd2692eebc/anthropic-0.105.0.tar.gz", hash = "sha256:2cc60ee165948f2c45fd417d2e408dbd787349b17b2ab5520a487683b59aef5d", size = 853709, upload-time = "2026-05-28T16:52:55.769Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/48/5a/72f33204064b6e87601a71a6baf8d855769f8a0c1eaae8d06a1094872371/anthropic-0.96.0-py3-none-any.whl", hash = "sha256:9a6e335a354602a521cd9e777e92bfd46ba6e115bf9bbfe6135311e8fb2015b2", size = 635930, upload-time = "2026-04-16T14:28:01.436Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/90/a0a74482fd9a7fe6e8edfb4e4470e42ebce9e04d5a2052bda0a4a4cc98e7/anthropic-0.105.0-py3-none-any.whl", hash = "sha256:0565975f37a8ac7bdcf97c2002aa5b133376c157d9265997721c7f131e69724d", size = 837504, upload-time = "2026-05-28T16:52:53.971Z" },
 ]
 
 [[package]]
@@ -2081,7 +2081,7 @@ requires-dist = [
     { name = "adlfs", marker = "extra == 'dev'", specifier = ">=2025.8.0" },
     { name = "agent-client-protocol", specifier = ">=0.10.0" },
     { name = "aioboto3", specifier = ">=13.0.0" },
-    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.96.0" },
+    { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.105.0" },
     { name = "anyio", specifier = ">=4.8.0" },
     { name = "apprise", marker = "extra == 'dev'" },
     { name = "azure-ai-inference", marker = "extra == 'dev'" },
