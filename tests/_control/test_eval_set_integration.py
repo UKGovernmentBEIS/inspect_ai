@@ -327,3 +327,119 @@ def test_ctl_ls_survives_fast_task_finishing_first(short_data_dir: Path) -> None
         err = result_ref.get("error")
         if err is not None:
             raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_ls_server_survives_eval_set_retries(short_data_dir: Path) -> None:
+    """The control server stays bound across an eval-set's retry attempts.
+
+    With the eval-set-scoped (threaded) control server, the discovery
+    file present at the start of the first attempt is the SAME file
+    visible during a later retry attempt — there's no gap where the
+    surface disappears between ``eval()`` calls. Pin that.
+
+    Approach: an eval-set with one fail-once-then-succeed task plus
+    one hanging task. The fail-once task forces a retry boundary;
+    the hanging task keeps the eval-set alive while we observe the
+    discovery file's PATH stays identical across the boundary.
+    """
+    release = threading.Event()
+    fail_counter = {"calls": 0}
+
+    @solver
+    def hanging_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            while not release.is_set():
+                await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @solver
+    def fail_once_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            fail_counter["calls"] += 1
+            if fail_counter["calls"] == 1:
+                raise RuntimeError("synthetic first-attempt failure")
+            return state
+
+        return solve
+
+    @task
+    def task_holder() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[hanging_solver()],
+            name="task_holder",
+        )
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[fail_once_solver()],
+            name="task_flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_holder(), task_flaky()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                max_tasks=2,
+                retry_attempts=2,
+                retry_wait=0.05,
+                retry_immediate=True,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_retry_test")
+    thread.start()
+    try:
+        # Capture the socket path from the first attempt.
+        ready = _wait_until(lambda: bool(list_discovered_servers()))
+        assert ready, "no control server appeared during first attempt"
+        first_socket = list_discovered_servers()[0].socket_path
+
+        # Wait for the flaky task to fail at least once (triggers retry).
+        flaky_retried = _wait_until(lambda: fail_counter["calls"] >= 2)
+        assert flaky_retried, (
+            f"flaky task never retried; calls={fail_counter['calls']}, "
+            f"error={result_ref.get('error')}"
+        )
+
+        # The control server should STILL be bound at the same socket.
+        servers_after = list_discovered_servers()
+        assert len(servers_after) == 1, (
+            f"control surface vanished during retry; got {len(servers_after)} servers"
+        )
+        assert servers_after[0].socket_path == first_socket, (
+            f"socket path changed across retry "
+            f"({first_socket} → {servers_after[0].socket_path}); the "
+            f"server was torn down + rebuilt instead of staying bound"
+        )
+
+        # And the endpoint still answers — pin the live read path too.
+        transport = httpx.HTTPTransport(uds=str(first_socket))
+        with httpx.Client(
+            transport=transport,
+            base_url="http://localhost",
+            timeout=5.0,
+        ) as client:
+            response = client.get("/evals")
+            response.raise_for_status()
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]

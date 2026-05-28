@@ -20,6 +20,7 @@ from tenacity import (
 )
 from typing_extensions import Unpack
 
+from inspect_ai._control.server import control_server_for_eval_set
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
@@ -622,6 +623,14 @@ def eval_set(
     with (
         _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext(),
         scan_context(scanner, scan_id=eval_set_id, log_dir=log_dir),
+        # Stand up the control HTTP server for the entire eval-set
+        # lifetime — survives across tenacity retries (each retry is a
+        # fresh `eval()` call with its own anyio loop, but the threaded
+        # server is loop-independent). The per-eval `control_server()`
+        # invocations inside `_eval_async_inner` detect this outer
+        # scope and skip their own bind, so we keep one socket per
+        # process.
+        control_server_for_eval_set(eval_set_id=eval_set_id),
     ):
         # emit start event
         run_coroutine(emit_eval_set_start(eval_set_id, log_dir))

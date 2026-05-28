@@ -1,4 +1,4 @@
-"""Eval-level state extraction for the control channel.
+r"""Eval-level state extraction for the control channel.
 
 Reads from two sources at request time:
 
@@ -7,13 +7,20 @@ Reads from two sources at request time:
   ``active_samples``.
 - :func:`inspect_ai.log._samples.active_samples` for ``in_flight``
   (currently-executing samples), plus the per-eval ``task`` / ``model``
-  / ``started_at`` metadata.
+  / ``started_at`` / ``run_id`` metadata.
 
-One process can host multiple evals at once (an eval-set passes all
-tasks to a single ``eval()`` call, so they share the process and the
-``run_id`` but each carries its own ``eval_id``). The endpoint emits
-one summary per ``eval_id`` so consumers (the CLI, TUIs, agents) see
-each running eval as a distinct row.
+One process can host multiple evals at once. There are two ways this
+happens:
+
+- Inside a single ``eval()`` call with multiple tasks (an eval-set
+  passes all tasks in one call). All share the same ``run_id`` but
+  carry distinct ``eval_id``\s.
+- Across multiple ``eval()`` calls in an eval-set (across retries).
+  Each call has its own ``run_id``; the (eval-set-scoped) control
+  server stays bound across them.
+
+The endpoint emits one summary per ``eval_id`` so consumers see each
+running eval as a distinct row regardless of which case applies.
 """
 
 from __future__ import annotations
@@ -25,15 +32,17 @@ if TYPE_CHECKING:
     from inspect_ai.log._samples import ActiveSample
 
 
-def current_eval_summaries(run_id: str, started_at: float) -> list[dict[str, Any]]:
+def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     """Build per-eval summaries for the ``GET /evals`` endpoint.
 
+    No ``run_id`` filter — the discovery layer already scopes
+    visibility per process (each running inspect process has its own
+    AF_UNIX socket / discovery file), so all entries from
+    ``active_samples`` are this process's. Within the process, an
+    eval-set may span multiple ``run_id``s; we emit one entry per
+    ``eval_id`` and carry that eval's run_id along.
+
     Args:
-        run_id: This process's run id. Filters ``active_samples`` and
-            ``EvalState`` entries to this run so two co-resident
-            inspect processes don't bleed into each other (the
-            discovery layer also keeps them on separate sockets —
-            this is belt-and-suspenders).
         started_at: Fallback start time for evals whose samples
             haven't started yet.
 
@@ -48,39 +57,30 @@ def current_eval_summaries(run_id: str, started_at: float) -> list[dict[str, Any
     from inspect_ai.log._eval_state import get_eval_states
     from inspect_ai.log._samples import active_samples
 
-    # Group live samples by eval_id (run-scoped).
+    # Group live samples by eval_id.
     samples_by_eval: dict[str, list[ActiveSample]] = defaultdict(list)
     for sample in active_samples():
-        if sample.run_id != run_id:
-            continue
         samples_by_eval[sample.eval_id].append(sample)
 
     # EvalState entries — the source of truth for terminal counts.
-    # Filter by run_id where possible. The eval_state module doesn't
-    # store run_id (it's keyed by eval_id), so we cross-reference
-    # via the active samples we just collected. For an eval with no
-    # active samples (eg. between samples), we have to skip it here
-    # — it'll come back once another sample starts. The follow-up
-    # design is to put run_id directly on EvalState.
     eval_states = {state.eval_id: state for state in get_eval_states()}
 
-    # Eval ids to summarize: union of live samples and known states
-    # filtered to those that match this run via active_samples.
-    eval_ids = set(samples_by_eval.keys())
+    # Union: evals visible via either source.
+    eval_ids = set(samples_by_eval.keys()) | set(eval_states.keys())
 
     summaries: list[dict[str, Any]] = []
     for eval_id in eval_ids:
         samples = samples_by_eval.get(eval_id, [])
         state = eval_states.get(eval_id)
 
-        if not samples and state is None:
-            continue
-
-        # Per-eval metadata comes from the first sample (all samples
-        # in one eval share task name + model).
+        # Per-eval metadata comes from the first sample. If there are
+        # no live samples (eg. between attempts on an eval-set), we
+        # leave the metadata empty — the EvalState carries enough to
+        # report counts but not the task/model labels.
         first_sample = samples[0] if samples else None
         task_name = first_sample.task if first_sample else ""
         model = first_sample.model if first_sample else ""
+        run_id = first_sample.run_id if first_sample else None
 
         # Eval-level start time = earliest sample start. Falls back
         # to the process started_at if no sample has started yet.
