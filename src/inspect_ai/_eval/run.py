@@ -59,7 +59,13 @@ from .loader import (
 )
 from .task.log import TaskLogger
 from .task.resolved import ResolvedTask
-from .task.run import TaskRunOptions, eval_log_sample_source, task_run
+from .task.run import (
+    TaskRunOptions,
+    eval_log_sample_source,
+    plan_agent_name,
+    resolve_plan,
+    task_run,
+)
 from .task.sandbox import TaskSandboxEnvironment, resolve_sandbox_for_task_and_sample
 from .task.util import slice_dataset, task_run_dir
 
@@ -885,7 +891,11 @@ async def startup_sandbox_environments(
 
 def task_specs(tasks: list[TaskRunOptions]) -> list[TaskSpec]:
     return [
-        TaskSpec(task_display_name(task.task.name), ModelName(task.model))
+        TaskSpec(
+            task_display_name(task.task.name),
+            ModelName(task.model),
+            plan_agent_name(resolve_plan(task.task, task.solver)),
+        )
         for task in tasks
     ]
 
