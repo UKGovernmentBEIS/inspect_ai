@@ -97,6 +97,18 @@ class ActiveSample:
         # The Inspect TUI reads this to decide whether to render the
         # Interrupt button and to dispatch session/cancel + session/prompt.
         self.acp_transport: "AcpTransport | None" = None
+        # Pending human-in-the-loop interaction counts. Incremented by
+        # the ACP routing shims (approval/_human/acp.py, input/acp.py)
+        # on entry to their park-on-attach wait, decremented in
+        # `finally`. Stored as counters (not a single Literal slot)
+        # because `parallel=True` tool calls run concurrently within
+        # one sample (see `_call_tools.py`); two approvals can be
+        # in-flight at once, and a single-slot save/restore would clear
+        # the picker indicator while the second wait is still pending.
+        # The `pending_interaction` property below derives the
+        # picker-visible state from these counters.
+        self._pending_approvals: int = 0
+        self._pending_questions: int = 0
         # In-flight tool/model tracking observer for this sample.
         # Defaults to a no-op singleton; an intervention producer (the
         # ACP transport today, future supervisors) installs itself here
@@ -135,6 +147,22 @@ class ActiveSample:
 
     def complete(self) -> None:
         self.completed = datetime.now(timezone.utc).timestamp()
+
+    @property
+    def pending_interaction(self) -> Literal["approval", "question"] | None:
+        """Picker-visible pending state, derived from the counters.
+
+        Approval wins over question when both are in flight — approvals
+        gate tool execution, so they're the more urgent signal. The
+        property reads while any matching wait remains, so concurrent
+        ``parallel=True`` tool calls (which can fire multiple approvals
+        for one sample) don't clear the indicator early.
+        """
+        if self._pending_approvals > 0:
+            return "approval"
+        if self._pending_questions > 0:
+            return "question"
+        return None
 
     @property
     def running_time(self) -> float:

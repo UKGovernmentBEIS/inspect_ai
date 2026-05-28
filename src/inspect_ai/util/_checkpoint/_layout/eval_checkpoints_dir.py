@@ -38,9 +38,12 @@ def eval_checkpoints_dir(log_location: str, override_root: str | None) -> str:
 
     Strips a trailing ``.eval`` from the log basename and appends
     ``.checkpoints``. Parent is ``override_root`` (the *evals
-    checkpoints dir*) if provided, else the log's directory.
+    checkpoints dir*) if provided, else the log's directory. Any
+    trailing slash on the parent is stripped so the join never
+    produces an empty path segment (which S3 honors literally as an
+    extra "directory").
     """
-    parent = override_root if override_root else dirname(log_location)
+    parent = (override_root if override_root else dirname(log_location)).rstrip("/")
     return f"{parent}/{log_basename(log_location)}.checkpoints"
 
 

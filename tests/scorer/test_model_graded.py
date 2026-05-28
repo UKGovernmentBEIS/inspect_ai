@@ -12,7 +12,7 @@ from inspect_ai.log._condense import resolve_sample_attachments
 from inspect_ai.model import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.model._model import get_model
 from inspect_ai.model._model_output import ModelOutput
-from inspect_ai.scorer import model_graded_fact, model_graded_qa
+from inspect_ai.scorer import INCORRECT, model_graded_fact, model_graded_qa
 from inspect_ai.scorer._model import (
     DEFAULT_GRADE_PATTERN,
     neutralize_structural_delimiters,
@@ -146,6 +146,38 @@ def test_model_role_precedence_for_model_graded_scorer(
     )
 
     assert grading_event.role == expected_role
+
+
+def test_model_graded_answer_set_on_grade_parse_failure():
+    # issue #4025: when the grader output has no parseable GRADE: token the scorer
+    # falls into the parse-failure branch. value is INCORRECT, but the answer field
+    # must still carry the model's completion (matching the grade-found branch) so
+    # the log viewer doesn't show an empty answer.
+    subject_answer = "The capital of France is Paris."
+    grader_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content("mockllm/model", [ContentText(text="looks right")])
+        ],
+    )
+    subject_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.from_content(
+                "mockllm/model", [ContentText(text=subject_answer)]
+            )
+        ],
+    )
+    task = Task(
+        scorer=model_graded_fact(model=grader_model),
+        dataset=[Sample(input="What is the capital of France?", target="Paris")],
+    )
+    log = eval(task, model=subject_model)[0]
+
+    assert log.samples
+    score = log.samples[0].scores["model_graded_fact"]
+    assert score.value == INCORRECT
+    assert score.answer == subject_answer
 
 
 # Prompt injection tests (issue #3603)

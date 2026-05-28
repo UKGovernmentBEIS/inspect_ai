@@ -20,12 +20,12 @@ from inspect_ai.tool._tool import Tool, ToolSource
 from inspect_ai.tool._tool_def import ToolDef
 from inspect_ai.tool._tools._skill import Skill
 
+from .agent_tool import agent_tool
 from .general import general
 from .plan import plan
 from .prompt import build_system_prompt, expand_prompt_placeholders
 from .research import research
 from .subagent import Subagent
-from .task_tool import task_tool
 
 
 @agent(description="Autonomous agent for complex, multi-step tasks.")
@@ -52,9 +52,9 @@ def deepagent(
 
     A batteries-included agent that bundles the patterns popularized by
     Claude Code and Codex CLI into a single
-    entry point. Builds on `react()` with subagent delegation via a task
-    tool, persistent memory, structured planning, and an opinionated
-    system prompt.
+    entry point. Builds on `react()` with subagent delegation via an
+    agent tool, persistent memory, structured planning, and an
+    opinionated system prompt.
 
     Args:
         tools: Additional tools beyond defaults. Flow to the top-level
@@ -145,7 +145,7 @@ def deepagent(
         def get_messages() -> list[ChatMessage]:
             return list(state.messages)
 
-        task = task_tool(
+        agent = agent_tool(
             subagents=resolved_subagents,
             parent_tools=parent_tools,
             parent_model=model,
@@ -157,11 +157,11 @@ def deepagent(
             approval=approval,
         )
 
-        # Top-level tools = parent tools + task + memory + skills
+        # Top-level tools = parent tools + agent + memory + skills
         all_tools: list[Tool | ToolDef | ToolSource] = list(parent_tools)
-        all_tools.append(task)
+        all_tools.append(agent)
         if memory:
-            from inspect_ai.agent._deepagent.task_tool import _has_memory_tool
+            from inspect_ai.agent._deepagent.agent_tool import _has_memory_tool
             from inspect_ai.tool._tools._memory import memory as memory_tool
 
             if not _has_memory_tool(all_tools):

@@ -163,6 +163,8 @@ See these additional articles to learn more about creating agent evaluations wit
 
 -   [Deep Agent](deepagent.qmd) describes a batteries-included agent for long-horizon tasks.
 
+-   [Intervention](intervention.qmd) details features that support creating evaluations with a human in the loop.
+
 -   [Multi Agent](multi-agent.qmd) covers various ways to compose agents together in multi-agent architectures.
 
 -   [Custom Agents](agent-custom.qmd) describes Inspect APIs available for creating custom agents.

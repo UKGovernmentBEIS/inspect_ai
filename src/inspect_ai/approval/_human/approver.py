@@ -1,5 +1,6 @@
 from inspect_ai.model._chat_message import ChatMessage
 from inspect_ai.tool._tool_call import ToolCall, ToolCallView
+from inspect_ai.util._notify import notify
 
 from .._approval import Approval, ApprovalDecision
 from .._approver import Approver
@@ -28,6 +29,11 @@ def human_approver(
         view: ToolCallView,
         history: list[ChatMessage],
     ) -> Approval:
+        # Ping the operator out-of-band via Apprise (no-op when no
+        # notification target is configured) regardless of which
+        # surface ultimately collects the response.
+        await notify(message)
+
         # Phase 14: if ACP clients (Zed via `inspect acp --stdio`,
         # the Phase 15 TUI, etc.) are attached to this sample, route
         # the prompt through ACP `session/request_permission` so the

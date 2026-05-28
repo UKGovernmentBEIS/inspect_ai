@@ -51,7 +51,7 @@ class TestMultiStepDelegation:
             outputs=[
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Find background information.",
@@ -64,7 +64,7 @@ class TestMultiStepDelegation:
                 ),
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "general",
                         "prompt": "Execute based on findings.",
@@ -100,7 +100,7 @@ class TestMemoryIntegration:
                 # 2. Model delegates to research
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Check memory for context, then investigate further.",
@@ -139,7 +139,7 @@ class TestTodoWriteIntegration:
                 # 2. Model delegates research
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Research the topic.",
@@ -179,7 +179,7 @@ class TestSubmitIntegration:
                 # 1. Model delegates to research
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Find the answer.",
@@ -216,7 +216,7 @@ class TestCustomSubagents:
                 # 1. Model delegates to custom subagent
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "analyzer",
                         "prompt": "Analyze this data.",
@@ -318,7 +318,7 @@ class TestFullWorkflow:
                 # 3. Delegate to research
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Research X.",
@@ -360,7 +360,7 @@ class TestPlanSubagent:
             outputs=[
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "plan",
                         "prompt": "Create a plan for solving this problem.",
@@ -376,9 +376,9 @@ class TestPlanSubagent:
         )
         assert result["status"] == "success"
         tool_events = [e for e in result["events"] if isinstance(e, ToolEvent)]
-        task_events = [e for e in tool_events if e.function == "task"]
-        assert len(task_events) == 1
-        assert task_events[0].error is None
+        agent_events = [e for e in tool_events if e.function == "agent"]
+        assert len(agent_events) == 1
+        assert agent_events[0].error is None
 
 
 class TestGeneralInheritsParentTools:
@@ -392,7 +392,7 @@ class TestGeneralInheritsParentTools:
                 # Delegate to general which should have think() available
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "general",
                         "prompt": "Think carefully then answer.",
@@ -451,7 +451,7 @@ class TestMultipleCallsToSameSubagent:
                 # First research call
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Research topic A.",
@@ -465,7 +465,7 @@ class TestMultipleCallsToSameSubagent:
                 # Second research call
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Research topic B.",
@@ -482,8 +482,8 @@ class TestMultipleCallsToSameSubagent:
         )
         assert result["status"] == "success"
         tool_events = [e for e in result["events"] if isinstance(e, ToolEvent)]
-        task_events = [e for e in tool_events if e.function == "task"]
-        assert len(task_events) == 2
+        agent_events = [e for e in tool_events if e.function == "agent"]
+        assert len(agent_events) == 2
 
 
 class TestInterleavedToolUseAndDelegation:
@@ -501,7 +501,7 @@ class TestInterleavedToolUseAndDelegation:
                 # 2. Delegate to research
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Find data.",
@@ -536,7 +536,7 @@ class TestInterleavedToolUseAndDelegation:
                 # 5. Delegate to general
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "general",
                         "prompt": "Process the data.",
@@ -555,7 +555,7 @@ class TestInterleavedToolUseAndDelegation:
         tool_events = [e for e in result["events"] if isinstance(e, ToolEvent)]
         tool_names = [e.function for e in tool_events]
         assert "memory" in tool_names
-        assert "task" in tool_names
+        assert "agent" in tool_names
         assert "todo_write" in tool_names
 
 

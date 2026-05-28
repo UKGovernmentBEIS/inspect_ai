@@ -134,6 +134,23 @@ BATCH_HELP = "Batch requests together to reduce API calls when using a model tha
 CHECKPOINT_HELP = "Periodically checkpoint sample state so the eval can be resumed via `inspect eval retry`. Specify --checkpoint for default (every 5 turns), --checkpoint=turn:N / time:Ns/m/h/d / manual for a shorthand trigger, or pass a YAML/JSON file path for a full CheckpointConfig."
 
 
+def _notification_callback(
+    ctx: click.Context, param: click.Parameter, value: Any
+) -> bool | str | None:
+    """Resolve `--notification`: bare flag -> True, path -> str, absent -> None."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        return value if isinstance(value, bool) else None
+    if value == "__bare__":
+        return True
+    if value.lower() in ("true", "yes", "1"):
+        return True
+    if value.lower() in ("false", "no", "0"):
+        return None
+    return value
+
+
 def scanner_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
     """Click decorator: scanner CLI options shared by `eval` / `eval-set` / `eval-retry`."""
 
@@ -340,6 +357,35 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
         help="Config file for tool call approval.",
     )
     @click.option(
+        "--notification",
+        "notification",
+        is_flag=False,
+        flag_value="__bare__",
+        default=None,
+        callback=_notification_callback,
+        # Disable Click auto_envvar_prefix lookup for this option.
+        # The root CLI sets ``auto_envvar_prefix="INSPECT"``, which
+        # would otherwise auto-bind ``INSPECT_EVAL_NOTIFICATION`` as
+        # this option's value — colliding with the same env var
+        # ``build_apprise(True)`` reads as the URL/config payload.
+        # The collision would let a user who exports the URL turn
+        # notifications on without passing the flag, or crash plain
+        # ``inspect eval`` runs when the env var holds a URL string
+        # that ``build_apprise`` then rejects as a non-file path.
+        allow_from_autoenv=False,
+        help=(
+            "Send out-of-band notifications when a human-in-the-loop "
+            "interaction (`ask_user` or human approval) is posted. Bare "
+            "`--notification` reads URL(s) from the "
+            "`INSPECT_EVAL_NOTIFICATION` environment variable (a single "
+            "Apprise URL, a comma-separated list, or a path to an Apprise "
+            "config file). `--notification <path>` reads from an Apprise "
+            "YAML/text config file. URLs are not accepted directly on the "
+            "command line so secrets never end up in shell history. "
+            "Requires `pip install apprise`."
+        ),
+    )
+    @click.option(
         "--sandbox",
         type=str,
         help="Sandbox environment type (with optional config file). e.g. 'docker' or 'docker:compose.yml'",
@@ -373,7 +419,12 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "default AF_UNIX socket; pass an integer to bind a TCP loopback "
             "port (e.g. `--acp-server=4444`); pass `host:port` to bind on a "
             "specific interface (e.g. `--acp-server=0.0.0.0:4444`); pass a "
-            "filesystem path for a custom UNIX socket."
+            "filesystem path for a custom UNIX socket. When this flag is set, "
+            "all human-in-the-loop interactions (`approver: human` and the "
+            "`ask_user` tool) route exclusively through attached ACP clients; "
+            "the in-proc Textual panel and console handlers are bypassed. If "
+            "no client is connected when an interaction fires, the eval parks "
+            "until one attaches."
         ),
         envvar="INSPECT_EVAL_ACP_SERVER",
     )
@@ -904,6 +955,7 @@ def _eval_command_impl(
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
+    notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
@@ -940,7 +992,7 @@ def _eval_command_impl(
     max_tool_output: int | None,
     cache_prompt: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
-    effort: Literal["low", "medium", "high"] | None,
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
@@ -1019,6 +1071,7 @@ def _eval_command_impl(
         metadata=metadata,
         trace=trace,
         approval=approval,
+        notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         checkpoint=checkpoint,
@@ -1140,6 +1193,7 @@ def eval_set_command(
     solver: str | None,
     trace: bool | None,
     approval: str | None,
+    notification: bool | str | None,
     model: str | None,
     model_base_url: str | None,
     m: tuple[str, ...] | None,
@@ -1201,7 +1255,7 @@ def eval_set_command(
     max_tool_output: int | None,
     cache_prompt: str | None,
     verbosity: Literal["low", "medium", "high"] | None,
-    effort: Literal["low", "medium", "high"] | None,
+    effort: Literal["low", "medium", "high", "xhigh", "max"] | None,
     reasoning_effort: str | None,
     reasoning_tokens: int | None,
     reasoning_summary: Literal["none", "concise", "detailed", "auto"] | None,
@@ -1289,6 +1343,7 @@ def eval_set_command(
         metadata=metadata,
         trace=trace,
         approval=approval,
+        notification=notification,
         sandbox=sandbox,
         no_sandbox_cleanup=no_sandbox_cleanup,
         checkpoint=checkpoint,
@@ -1532,6 +1587,7 @@ def eval_exec(
     metadata: tuple[str, ...] | None,
     trace: bool | None,
     approval: str | None,
+    notification: bool | str | None,
     sandbox: str | None,
     no_sandbox_cleanup: bool | None,
     checkpoint: str | None,
@@ -1704,6 +1760,7 @@ def eval_exec(
             metadata=eval_metadata,
             trace=trace,
             approval=approval,
+            notification=notification,
             sandbox=parse_sandbox(sandbox),
             sandbox_cleanup=sandbox_cleanup,
             checkpoint=parse_checkpoint(checkpoint),
@@ -2123,7 +2180,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     flag_value="turn:5",
     default=None,
     help=CHECKPOINT_HELP
-    + " For resume to find sidecars, pass the same `--checkpoint` value used on the original eval.",
+    + " For resume to find checkpoint files, pass the same `--checkpoint` value used on the original eval.",
     envvar="INSPECT_EVAL_CHECKPOINT",
     hidden=True,
 )

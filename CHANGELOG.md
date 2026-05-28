@@ -1,5 +1,31 @@
 ## Unreleased
 
+- Deep Agent: Model-facing dispatch tool renamed from `task` to `agent` to align with Claude Code.
+- Agent Intervention: Add `is_live` property to agent channel for detecting whether channel is in use.
+- Deep Agent: `agent` dispatch tool now ships with a tool-call viewer.
+- OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
+- Scoring: Set `Score.answer` on model_graded parse failure.
+- Task Display: Add column to indicate the agent/solver for each task.
+- Transcript: Various improvements to transcript event subscriber delivery.
+- Transcript: Complete samples from buffer history database rather than in-memory list.
+- Scoring: Flush the output recorder after each `--stream N` batch of scored samples.
+- Bugfix: Show View Log button on top right of sample display.
+- Bugfix: Prevent transcript subscriber-failure warnings from re-entering the subscriber loop and fanning out.
+- Bugfix: Don't mutate plan when calling `resolve_plan()`.
+- Bugfix: Align CLI --display and --effort type annotations with their choices.
+- Bugfix: Don't enter prompt mode when a sample is globally cancelled.
+- Bugfix: `write_eval_log(..., header_only=True)` now preserves on-disk samples for JSON logs and remote `.eval` logs (previously a header-only write to either erased the samples). On non-local filesystems the `.eval` zip is rewritten cleanly so old header bytes don't accumulate across edits.
+
+## 0.3.228 (27 May 2026)
+
+- Anthropic: Improved merging of beta headers.
+
+## 0.3.227 (26 May 2026)
+
+- [`ask_user()`](https://inspect.aisi.org.uk/tools-standard.html#ask-user) tool: model can solicit a structured answer from the operator.
+- [`notify_user()`](https://inspect.aisi.org.uk/tools-standard.html#notify-user) tool: model can send status notifications to the operator.
+- [Notifications](https://inspect.aisi.org.uk/intervention.html#notifications) via [Apprise](https://appriseit.com) (Slack, desktop, SMS, email, webhook, ~90 services).
+- [`request_input()`](https://inspect.aisi.org.uk/interactivity.html) public API: programmatic structured prompts from solvers, agents, or tools, using the same dispatch surfaces as `ask_user()`.
 - Text Editor Tool: Cap undo history to 10 and no longer consider failures in undo history file operations fatal.
 - Inspect View: Add UI for editing log tags and metadata, with author/reason provenance recorded in `log_updates`. S3-backed logs use `If-Match` ETag protection against concurrent modification.
 

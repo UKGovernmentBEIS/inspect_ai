@@ -332,6 +332,68 @@ def test_subscribe_drained_broken_observer_does_not_break_drain() -> None:
 
 
 # ---------------------------------------------------------------------------
+# is_live / mark_live external-reach marker
+# ---------------------------------------------------------------------------
+
+
+def test_is_live_false_by_default() -> None:
+    """A bare channel has no externally-reachable producer attached."""
+    ch = AgentChannel()
+    assert ch.is_live is False
+
+
+def test_mark_live_flips_is_live_true() -> None:
+    """A single producer marking live makes the channel live."""
+    ch = AgentChannel()
+    ch.mark_live()
+    assert ch.is_live is True
+
+
+def test_mark_live_clear_returns_to_false() -> None:
+    """Calling the returned clear callable decrements the marker."""
+    ch = AgentChannel()
+    clear = ch.mark_live()
+    assert ch.is_live is True
+    clear()
+    assert ch.is_live is False
+
+
+def test_mark_live_clear_is_idempotent() -> None:
+    """Clearing twice on the same handle must not double-decrement."""
+    ch = AgentChannel()
+    clear = ch.mark_live()
+    clear()
+    clear()  # second call must be a no-op
+    assert ch.is_live is False
+    # Another independent producer still works correctly.
+    other_clear = ch.mark_live()
+    assert ch.is_live is True
+    other_clear()
+    assert ch.is_live is False
+
+
+def test_mark_live_supports_multiple_producers() -> None:
+    """Stays live until every producer's clear callable runs."""
+    ch = AgentChannel()
+    clear_a = ch.mark_live()
+    clear_b = ch.mark_live()
+    assert ch.is_live is True
+    clear_a()
+    assert ch.is_live is True  # second producer keeps it live
+    clear_b()
+    assert ch.is_live is False
+
+
+def test_inert_channel_is_never_live() -> None:
+    """The singleton must not be mutated by a stray ``mark_live`` call."""
+    # Calling mark_live on the inert singleton must not flip its state.
+    clear = _INERT_CHANNEL.mark_live()
+    assert _INERT_CHANNEL.is_live is False
+    clear()  # safe no-op
+    assert _INERT_CHANNEL.is_live is False
+
+
+# ---------------------------------------------------------------------------
 # High-level facade — before_turn / after_cancel
 # ---------------------------------------------------------------------------
 

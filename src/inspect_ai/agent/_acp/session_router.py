@@ -38,7 +38,11 @@ from inspect_ai.agent._acp.inspect_ext import (
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.connection import ConnectionState
-    from inspect_ai.agent._acp.transport import AcpTransport, ApproverClient
+    from inspect_ai.agent._acp.transport import (
+        AcpTransport,
+        ApproverClient,
+        ElicitationClient,
+    )
 
 logger = getLogger(__name__)
 
@@ -134,6 +138,7 @@ class Forwarders:
         state: "ConnectionState",
         connection: Connection,
         approver_client: "ApproverClient",
+        elicitation_client: "ElicitationClient | None" = None,
         *,
         target_session_id: str,
         wire_session_id: str,
@@ -141,6 +146,10 @@ class Forwarders:
         self._state = state
         self._connection = connection
         self._approver_client = approver_client
+        # Elicitation client is None when the peer didn't advertise
+        # ``elicitation.form`` capability in ``initialize`` — gated by
+        # ``ConnectionState.client_supports_elicitation_form``.
+        self._elicitation_client = elicitation_client
         # IDs captured at construction. Per-bind; immutable for the
         # lifetime of this Forwarders instance. Reading from
         # ``self._state.wire_session_id`` later would be incorrect on
@@ -160,6 +169,9 @@ class Forwarders:
         self._plan_policy = PlanPolicyTransformer(state)
         # Approver client unsubscribe callable.
         self._approver_unsub: Callable[[], None] | None = None
+        # Elicitation client unsubscribe callable (only set when the
+        # peer advertised ``elicitation.form`` capability).
+        self._elicitation_unsub: Callable[[], None] | None = None
         # Drain barrier — see :meth:`drain` and ``_run_semantic_forwarder``.
         # ``_notifications_sent`` counts items the forwarder has
         # fully processed (transform + send + finally tick). The
@@ -220,6 +232,13 @@ class Forwarders:
         # Register as an approver client so the configured
         # ``human_approver`` can route tool-approval prompts here.
         self._approver_unsub = target.attach_approver_client(self._approver_client)
+        # Register as an elicitation client only when the peer
+        # advertised ``elicitation.form`` capability — clients without
+        # that capability would silently drop ``elicitation/create``.
+        if self._elicitation_client is not None:
+            self._elicitation_unsub = target.attach_elicitation_client(
+                self._elicitation_client
+            )
 
         # REPLAY — emit historical notifications synchronously before
         # live ones. Raw replay (if enabled) first, then semantic.
@@ -275,15 +294,21 @@ class Forwarders:
         connection), so the task is parked in its main loop and
         would otherwise hit the full timeout for no benefit.
         """
-        # Deregister as an approver client so a pending or
-        # post-disconnect approval prompt doesn't try to send through
-        # a closed connection.
+        # Deregister as an approver / elicitation client so a pending
+        # or post-disconnect prompt doesn't try to send through a
+        # closed connection.
         if self._approver_unsub is not None:
             try:
                 self._approver_unsub()
             except Exception:
                 logger.exception("Error detaching ACP approver client")
             self._approver_unsub = None
+        if self._elicitation_unsub is not None:
+            try:
+                self._elicitation_unsub()
+            except Exception:
+                logger.exception("Error detaching ACP elicitation client")
+            self._elicitation_unsub = None
         if self._semantic_task is not None and not self._semantic_task.done():
             if graceful:
                 try:

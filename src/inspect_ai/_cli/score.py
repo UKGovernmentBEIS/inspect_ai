@@ -163,7 +163,9 @@ async def score(
     read_sample = None
     if stream:
         sample_map = await recorder.read_log_sample_ids(log_file)
-        semaphore = anyio.Semaphore(len(sample_map) if stream is True else stream)
+        stream_batch = len(sample_map) if stream is True else stream
+        semaphore = anyio.Semaphore(stream_batch)
+        samples_written = 0
 
         @contextlib.asynccontextmanager
         async def _read_sample(idx_sample: int) -> AsyncGenerator[EvalSample, None]:
@@ -173,6 +175,10 @@ async def score(
                 )
                 yield sample
                 await write_recorder.log_sample(eval_log.eval, sample)
+                nonlocal samples_written
+                samples_written += 1
+                if samples_written % stream_batch == 0:
+                    await write_recorder.flush(eval_log.eval)
                 del sample
 
         read_sample = _read_sample

@@ -16,6 +16,7 @@ from inspect_ai.model._model import (
     init_role_usage,
 )
 from inspect_ai.util._concurrency import init_concurrency
+from inspect_ai.util._input.manager import init_human_question_manager
 from inspect_ai.util._subprocess import init_max_subprocesses
 
 
@@ -39,6 +40,7 @@ def init_eval_context(
     init_refusal_tracking(log_refusals)
     init_active_samples()
     init_human_approval_manager()
+    init_human_question_manager()
     set_background_task_group(task_group)
 
 
