@@ -1,7 +1,6 @@
 ## Unreleased
 
 - Deep Agent: Model-facing dispatch tool renamed from `task` to `agent` to align with Claude Code.
-- Agent Intervention: Add `is_live` property to agent channel for detecting whether channel is in use.
 - Deep Agent: `agent` dispatch tool now ships with a tool-call viewer.
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
 - Scoring: Set `Score.answer` on model_graded parse failure.
@@ -16,6 +15,13 @@
 - Bugfix: Align CLI --display and --effort type annotations with their choices.
 - Bugfix: Don't enter prompt mode when a sample is globally cancelled.
 - Bugfix: `write_eval_log(..., header_only=True)` now preserves on-disk samples for JSON logs and remote `.eval` logs (previously a header-only write to either erased the samples). On non-local filesystems the `.eval` zip is rewritten cleanly so old header bytes don't accumulate across edits.
+
+## 0.3.229 (28 May 2026)
+
+- Anthropic: Update model database / feature enablement for [Opus 4.8](https://www.anthropic.com/news/claude-opus-4-8).
+- Anthropic: Support [mid-conversation](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages) system messages for Opus 4.8.
+- Anthrpoic: Support [cache diagnostics](https://inspect.aisi.org.uk/providers.html#anthropic-cache-diagnostics) mode (beta header `cache-diagnosis-2026-04-07`).
+- Agent Intervention: Add `is_live` property to agent channel for detecting whether channel is in use.
 
 ## 0.3.228 (27 May 2026)
 
