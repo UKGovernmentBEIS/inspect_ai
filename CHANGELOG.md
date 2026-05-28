@@ -2,7 +2,7 @@
 
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
 - Scoring: Set `Score.answer` on model_graded parse failure.
-- Task Display: Add column to indicate the agent/solver for each task. 
+- Task Display: Add column to indicate the agent/solver for each task.
 - Transcript: Various improvements to transcript event subscriber delivery.
 - Transcript: Complete samples from buffer history database rather than in-memory list.
 - Bugfix: Show View Log button on top right of sample display.

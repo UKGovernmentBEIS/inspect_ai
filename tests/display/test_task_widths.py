@@ -129,5 +129,31 @@ async def test_adding_wider_task_grows_existing_rows() -> None:
         }
         assert first["task-description"] == len("a_much_longer_task_name") + PAD
         assert first["task-agent"] == len("planner") + PAD
-        # displayed model "claude-sonnet-4-5" (17), not "anthropic/..." (27)
-        assert tv.model_name_width == len("claude-sonnet-4-5") + COLUMN_SPACING
+        # width fields hold the content width (no spacer folded in); displayed
+        # model is "claude-sonnet-4-5" (17), not "anthropic/..." (27)
+        assert tv.model_name_width == len("claude-sonnet-4-5")
+
+
+def test_overcap_name_truncates_to_max_and_keeps_spacer() -> None:
+    """A name longer than the cap truncates to MAX content; the spacer survives.
+
+    Regression: folding COLUMN_SPACING into the truncation width let content be
+    shown at MAX + 1 (spacer consumed).
+    """
+    from inspect_ai._display.core.progress import (
+        MAX_DESCRIPTION_WIDTH,
+        progress_description,
+    )
+    from inspect_ai._display.textual.widgets.tasks import _with_spacing
+
+    profile = _profile("x" * 100, "react")
+    rendered = _with_spacing(
+        progress_description(profile, MAX_DESCRIPTION_WIDTH, pad=True),
+        MAX_DESCRIPTION_WIDTH,
+    ).plain
+    assert len(rendered) == MAX_DESCRIPTION_WIDTH + COLUMN_SPACING
+    # spacer preserved at the end
+    assert rendered.endswith(" " * COLUMN_SPACING)
+    # content (excluding spacer) is exactly MAX wide and ends with an ellipsis
+    content = rendered[:MAX_DESCRIPTION_WIDTH]
+    assert content.endswith("…")

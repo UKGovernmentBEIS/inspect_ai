@@ -55,6 +55,18 @@ MAX_COUNT_WIDTH = 15
 COLUMN_SPACING = 1
 
 
+def _with_spacing(text: Text, content_width: int) -> Text:
+    """Append the inter-column spacer after content has been truncated/padded.
+
+    Adding the spacer here (rather than folding it into the truncation width)
+    ensures content is never shown past its configured max width. A collapsed
+    column (content_width == 0, e.g. no agents) gets no spacer.
+    """
+    if content_width > 0:
+        text.pad_right(COLUMN_SPACING)
+    return text
+
+
 class TasksView(Container):
     DEFAULT_CSS = """
     TasksView {
@@ -97,49 +109,36 @@ class TasksView(Container):
         # clear existing tasks
         self.tasks.remove_children()
 
-        # compute the column widths by looking all of the tasks — measure the
-        # text actually rendered (display name, bare model name) so columns
-        # don't reserve space for stripped package prefixes / model providers,
-        # then add COLUMN_SPACING so adjacent columns aren't flush. TaskSpec.name
-        # is already normalized via task_display_name, so use it as-is here.
-        self.description_width = (
-            min(
-                max([len(task.name) for task in tasks]),
-                MAX_DESCRIPTION_WIDTH,
-            )
-            + COLUMN_SPACING
+        # compute the column content widths by looking at all of the tasks —
+        # measure the text actually rendered (display name, bare model name) so
+        # columns don't reserve space for stripped package prefixes / model
+        # providers. TaskSpec.name is already normalized via task_display_name,
+        # so use it as-is here. The inter-column spacer is added at render time
+        # (see _with_spacing) so content is never truncated past its max width.
+        self.description_width = min(
+            max([len(task.name) for task in tasks]), MAX_DESCRIPTION_WIDTH
         )
-        agent_content = min(
+        self.agent_name_width = min(
             max([len(task.agent or "") for task in tasks]), MAX_AGENT_NAME_WIDTH
         )
-        self.agent_name_width = agent_content + COLUMN_SPACING if agent_content else 0
-        self.model_name_width = (
-            min(max([len(task.model.name) for task in tasks]), MAX_MODEL_NAME_WIDTH)
-            + COLUMN_SPACING
+        self.model_name_width = min(
+            max([len(task.model.name) for task in tasks]), MAX_MODEL_NAME_WIDTH
         )
         self.update_progress_widths()
 
     def add_task(self, task: TaskWithResult) -> TaskDisplay:
         self.update_count_width(task.profile.samples)
         new_description_width = min(
-            max(
-                self.description_width,
-                len(task_display_name(task.profile.name)) + COLUMN_SPACING,
-            ),
-            MAX_DESCRIPTION_WIDTH + COLUMN_SPACING,
+            max(self.description_width, len(task_display_name(task.profile.name))),
+            MAX_DESCRIPTION_WIDTH,
         )
-        agent_content = len(task.profile.agent or "")
-        new_agent_name_width = (
-            min(
-                max(self.agent_name_width, agent_content + COLUMN_SPACING),
-                MAX_AGENT_NAME_WIDTH + COLUMN_SPACING,
-            )
-            if agent_content
-            else self.agent_name_width
+        new_agent_name_width = min(
+            max(self.agent_name_width, len(task.profile.agent or "")),
+            MAX_AGENT_NAME_WIDTH,
         )
         new_model_name_width = min(
-            max(self.model_name_width, len(task.profile.model.name) + COLUMN_SPACING),
-            MAX_MODEL_NAME_WIDTH + COLUMN_SPACING,
+            max(self.model_name_width, len(task.profile.model.name)),
+            MAX_MODEL_NAME_WIDTH,
         )
         task_display = TaskProgressView(
             task,
@@ -300,20 +299,31 @@ class TaskProgressView(Widget):
             yield (self.toggle if self.display_metrics else Static())
             yield TaskStatusIcon()
             yield Static(
-                progress_description(self.t.profile, self.description_width, pad=True),
+                _with_spacing(
+                    progress_description(
+                        self.t.profile, self.description_width, pad=True
+                    ),
+                    self.description_width,
+                ),
                 id="task-description",
                 markup=False,
             )
             yield Static(
-                progress_agent_name(
-                    self.t.profile.agent, self.agent_name_width, pad=True
+                _with_spacing(
+                    progress_agent_name(
+                        self.t.profile.agent, self.agent_name_width, pad=True
+                    ),
+                    self.agent_name_width,
                 ),
                 id="task-agent",
                 markup=False,
             )
             yield Static(
-                progress_model_name(
-                    self.t.profile.model, self.model_name_width, pad=True
+                _with_spacing(
+                    progress_model_name(
+                        self.t.profile.model, self.model_name_width, pad=True
+                    ),
+                    self.model_name_width,
                 ),
                 id="task-model",
                 markup=False,
@@ -360,7 +370,11 @@ class TaskProgressView(Widget):
         self.description_width = width
         try:
             desc = self.query_one("#task-description", Static)
-            desc.update(progress_description(self.t.profile, width, pad=True))
+            desc.update(
+                _with_spacing(
+                    progress_description(self.t.profile, width, pad=True), width
+                )
+            )
         except NoMatches:
             pass
 
@@ -368,7 +382,11 @@ class TaskProgressView(Widget):
         self.agent_name_width = width
         try:
             agent = self.query_one("#task-agent", Static)
-            agent.update(progress_agent_name(self.t.profile.agent, width, pad=True))
+            agent.update(
+                _with_spacing(
+                    progress_agent_name(self.t.profile.agent, width, pad=True), width
+                )
+            )
         except NoMatches:
             pass
 
@@ -376,7 +394,11 @@ class TaskProgressView(Widget):
         self.model_name_width = width
         try:
             model = self.query_one("#task-model", Static)
-            model.update(progress_model_name(self.t.profile.model, width, pad=True))
+            model.update(
+                _with_spacing(
+                    progress_model_name(self.t.profile.model, width, pad=True), width
+                )
+            )
         except NoMatches:
             pass
 
