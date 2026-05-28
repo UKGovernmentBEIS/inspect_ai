@@ -9,6 +9,7 @@
 - Transcript: Various improvements to transcript event subscriber delivery.
 - Transcript: Complete samples from buffer history database rather than in-memory list.
 - Scoring: Flush the output recorder after each `--stream N` batch of scored samples.
+- Inspect View: Add UI for editing log tags and metadata, with author/reason provenance recorded in `log_updates`. S3-backed logs use `If-Match` ETag protection against concurrent modification.
 - Bugfix: Show View Log button on top right of sample display.
 - Bugfix: Prevent transcript subscriber-failure warnings from re-entering the subscriber loop and fanning out.
 - Bugfix: Don't mutate plan when calling `resolve_plan()`.
@@ -27,7 +28,6 @@
 - [Notifications](https://inspect.aisi.org.uk/intervention.html#notifications) via [Apprise](https://appriseit.com) (Slack, desktop, SMS, email, webhook, ~90 services).
 - [`request_input()`](https://inspect.aisi.org.uk/interactivity.html) public API: programmatic structured prompts from solvers, agents, or tools, using the same dispatch surfaces as `ask_user()`.
 - Text Editor Tool: Cap undo history to 10 and no longer consider failures in undo history file operations fatal.
-- Inspect View: Add UI for editing log tags and metadata, with author/reason provenance recorded in `log_updates`. S3-backed logs use `If-Match` ETag protection against concurrent modification.
 
 ## 0.3.226 (25 May 2026)
 
