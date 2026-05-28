@@ -58,13 +58,20 @@ class HostContext:
 async def write(working_dir: str, ctx: HostContext) -> None:
     """Write all host-context files to ``working_dir``, overwriting in place."""
     sample_dir = anyio.Path(working_dir)
-    await (sample_dir / EVENTS).write_text(_json_dump(ctx.condensed_events))
-    events_data = EventsData(messages=ctx.msg_pool, calls=ctx.call_pool)
-    await (sample_dir / EVENTS_DATA).write_text(_json_dump(events_data))
-    await (sample_dir / ATTACHMENTS).write_text(_json_dump(ctx.attachments))
-    await (sample_dir / STORE).write_text(_json_dump(ctx.store))
+    await _write_json(sample_dir / EVENTS, ctx.condensed_events)
+    await _write_json(
+        sample_dir / EVENTS_DATA,
+        EventsData(messages=ctx.msg_pool, calls=ctx.call_pool),
+    )
+    await _write_json(sample_dir / ATTACHMENTS, ctx.attachments)
+    await _write_json(sample_dir / STORE, ctx.store)
     if ctx.agent_state is not None:
-        await (sample_dir / AGENT_STATE).write_text(_json_dump(ctx.agent_state))
+        await _write_json(sample_dir / AGENT_STATE, ctx.agent_state)
+
+
+async def _write_json(path: anyio.Path, obj: object) -> None:
+    """Serialize ``obj`` to JSON and write to ``path`` (overwriting)."""
+    await path.write_text(_json_dump(obj))
 
 
 def read(working_dir: str) -> HostContext:
