@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import contextlib
 from contextvars import ContextVar
-from typing import AsyncIterator, Iterator, Sequence
+from typing import AsyncIterator, Callable, Iterator, Sequence
 
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageTool
 
@@ -78,6 +78,11 @@ class _InertAgentChannel(AgentChannel):
         self, messages: Sequence[ChatMessage], reason: CancelReason = "user_cancel"
     ) -> list[ChatMessageTool]:
         return []
+
+    def mark_live(self) -> "Callable[[], None]":
+        # Singleton — never live, never lets a stray producer mutate
+        # shared state by incrementing a counter on the inert instance.
+        return lambda: None
 
 
 _INERT_CHANNEL: AgentChannel = _InertAgentChannel()

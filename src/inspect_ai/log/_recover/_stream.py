@@ -8,13 +8,22 @@ import tempfile
 from logging import getLogger
 from typing import IO
 
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue
 
 from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai._util.error import EvalError
 from inspect_ai._util.json import to_json_safe
+from inspect_ai.event._pool import (
+    _build_call_index,
+    _build_msg_index,
+    condense_model_event_calls,
+    condense_model_event_inputs,
+    resolve_model_event_calls,
+    resolve_model_event_inputs,
+)
 from inspect_ai.event._sample_init import SampleInitEvent
 from inspect_ai.event._sample_limit import SampleLimitEvent
+from inspect_ai.event._validate import validate_chat_messages
 from inspect_ai.log._condense import (
     WalkContext,
     condense_event,
@@ -27,14 +36,6 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     EvalSpec,
     EventsData,
-)
-from inspect_ai.log._pool import (
-    _build_call_index,
-    _build_msg_index,
-    condense_model_event_calls,
-    condense_model_event_inputs,
-    resolve_model_event_calls,
-    resolve_model_event_inputs,
 )
 from inspect_ai.log._recorders.buffer.filestore import Manifest, SampleBufferFilestore
 from inspect_ai.log._recorders.eval import ZipLogFile, _sample_filename
@@ -49,8 +50,6 @@ from ._reconstruct import (
 )
 
 logger = getLogger(__name__)
-
-_CHAT_MESSAGES_ADAPTER: TypeAdapter[list[ChatMessage]] = TypeAdapter(list[ChatMessage])
 
 
 def _write_json_field(
@@ -179,7 +178,7 @@ def _write_sample_streaming(
                 # Segment files written by sync_to_filestore already carry
                 # condensed events; their pools live alongside the events.
                 if seg_data.message_pool:
-                    new_messages = _CHAT_MESSAGES_ADAPTER.validate_python(
+                    new_messages = validate_chat_messages(
                         [
                             json_module.loads(entry.data)
                             for entry in sorted(

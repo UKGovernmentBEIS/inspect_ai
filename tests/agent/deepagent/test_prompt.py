@@ -26,7 +26,7 @@ class TestBuildSystemPrompt:
         prompt = build_system_prompt(subagents=sas)
         assert "research" in prompt
         assert "Gather info." in prompt
-        assert "task tool" in prompt.lower() or "delegate" in prompt.lower()
+        assert "agent tool" in prompt.lower() or "delegate" in prompt.lower()
 
     def test_without_subagents(self) -> None:
         prompt = build_system_prompt(subagents=None)

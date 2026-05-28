@@ -260,7 +260,7 @@ class _TranscriptCapture:
                 return None
 
             return _noop_unsubscribe
-        return self._captured._add_subscriber(callback)
+        return self._captured._subscribe(callback)
 
     def snapshot(self) -> Sequence[Any]:
         if self._captured is None:
@@ -549,6 +549,17 @@ class LiveAcpTransport:
         # during :meth:`maybe_bind`. Stored so :meth:`unbind` can drop
         # the subscription cleanly; ``None`` when not currently bound.
         self._unsubscribe_drained: Callable[[], None] | None = None
+        # Clear handle for the channel's external-reach marker. Set in
+        # :meth:`maybe_bind` iff :func:`acp_server_accepting_clients`
+        # was True at bind time (i.e. an :class:`AcpServer` is up and
+        # accepting); ``None`` otherwise. The Live transport is opened
+        # per-sample regardless of ``--acp-server`` for sub-agent /
+        # in-proc plumbing reasons, but only the externally-reachable
+        # case should flip ``AgentChannel.is_live`` — that's the
+        # signal consumers use to decide whether to spin up
+        # interactive plumbing (e.g. an agent CLI in stdin-streaming
+        # mode).
+        self._clear_live: Callable[[], None] | None = None
         # Test-only override for :attr:`is_attachable`. Production code
         # leaves this at ``None`` (the property derives from ``_ref`` +
         # ``_agent_completed``). Test fixtures that hand-wire a session
@@ -609,6 +620,14 @@ class LiveAcpTransport:
             self._unsubscribe_drained = channel.subscribe_drained(
                 self._on_channel_drained
             )
+            # Mark the channel "live" iff an ACP server is up and
+            # accepting external connections — i.e. iff ``--acp-server``
+            # is enabled for this eval. Local import to avoid a
+            # module-load cycle (transport_live → server → ...).
+            from inspect_ai.agent._acp.server import acp_server_accepting_clients
+
+            if acp_server_accepting_clients():
+                self._clear_live = channel.mark_live()
             return True
         return False
 
@@ -625,6 +644,9 @@ class LiveAcpTransport:
             if self._unsubscribe_drained is not None:
                 self._unsubscribe_drained()
                 self._unsubscribe_drained = None
+            if self._clear_live is not None:
+                self._clear_live()
+                self._clear_live = None
 
     def _on_channel_drained(self, items: list[Any]) -> None:
         """Callback fired by the channel after a non-empty drain.
@@ -907,7 +929,7 @@ class LiveAcpTransport:
         """Register a sync callback on this session's captured transcript.
 
         Raw-event forwarder hook. Wraps
-        :meth:`Transcript._add_subscriber` so callers can subscribe
+        :meth:`Transcript._subscribe` so callers can subscribe
         without reaching into private session state and without the
         ContextVar-lookup gotcha (we run from the connection's task,
         not the sample's, so ``transcript()`` would return the empty

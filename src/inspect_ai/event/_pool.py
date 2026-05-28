@@ -15,25 +15,30 @@ content by definition).
 """
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Final, TypeVar
 
 from pydantic import JsonValue
 
 from inspect_ai._util.hash import mm3_hash
+from inspect_ai.event._validate import validate_events
 from inspect_ai.model._chat_message import ChatMessage
 
-from ..event._event import Event
-from ..event._model import ModelEvent
-from ._log import EvalSample
+from ._event import Event
+from ._model import ModelEvent
+
+
+def materialize_pooled_events(
+    events: Iterable[object],
+    message_pool: list[ChatMessage],
+    call_pool: list[JsonValue],
+) -> list[Event]:
+    materialized = validate_events(list(events))
+    materialized = resolve_model_event_inputs(materialized, message_pool)
+    return resolve_model_event_calls(materialized, call_pool)
 
 
 def _msg_hash(msg: ChatMessage) -> str:
-    """Compute a content hash for dedup keying.
-
-    Excludes the ``id`` field so that messages with identical content
-    but different UUIDs are treated as duplicates.
-    """
     data = json.loads(msg.model_dump_json(exclude={"id"}))
     return mm3_hash(json.dumps(data, sort_keys=True))
 
@@ -52,6 +57,24 @@ def _build_call_index(pool: list[JsonValue]) -> dict[str, int]:
     for i, call_msg in enumerate(pool):
         index[mm3_hash(json.dumps(call_msg, sort_keys=True))] = i
     return index
+
+
+def condense_model_event_inputs_with_lookup(
+    event: Event,
+    lookup_message: Callable[[ChatMessage], int],
+) -> Event:
+    """Replace a single ModelEvent.input with message_pool references."""
+    if not isinstance(event, ModelEvent):
+        return event
+    if event.input_refs is not None and not event.input:
+        return event
+    if not event.input:
+        return event
+
+    raw_indices = [lookup_message(message) for message in event.input]
+    return event.model_copy(
+        update={"input": [], "input_refs": _compress_refs(raw_indices)}
+    )
 
 
 def condense_model_event_inputs(
@@ -157,6 +180,33 @@ def _expand_refs(
     return result
 
 
+def condense_model_event_calls_with_lookup(
+    event: Event,
+    lookup_call: Callable[[JsonValue], int],
+) -> Event:
+    """Replace a single ModelEvent call request message list with call_refs."""
+    if not isinstance(event, ModelEvent) or event.call is None:
+        return event
+    if event.call.call_refs is not None:
+        return event
+
+    msg_key = next((k for k in _CALL_MESSAGE_KEYS if k in event.call.request), None)
+    msgs = event.call.request.get(msg_key) if msg_key else None
+    if not isinstance(msgs, list) or not msgs:
+        return event
+
+    raw_indices = [lookup_call(message) for message in msgs]
+    new_request = {k: v for k, v in event.call.request.items() if k != msg_key}
+    new_call = event.call.model_copy(
+        update={
+            "request": new_request,
+            "call_refs": _compress_refs(raw_indices),
+            "call_key": msg_key,
+        }
+    )
+    return event.model_copy(update={"call": new_call})
+
+
 def condense_model_event_calls(
     events: Sequence[Event],
     next_index: int,
@@ -258,40 +308,3 @@ def resolve_model_event_inputs(
             )
         result.append(event)
     return result
-
-
-def resolve_sample_events_data(sample: EvalSample) -> EvalSample:
-    """Resolve events_data pool references in model events.
-
-    Always called on read to ensure ModelEvent.input is populated,
-    regardless of the resolve_attachments setting.
-    """
-    if sample.events_data is None:
-        return sample
-    msg_pool = sample.events_data["messages"]
-    call_pool = sample.events_data["calls"]
-    resolved_events = resolve_model_event_inputs(sample.events, msg_pool)
-    resolved_events = resolve_model_event_calls(resolved_events, call_pool)
-    return sample.model_copy(
-        update={
-            "events": resolved_events,
-            "events_data": None,
-        }
-    )
-
-
-def rebind_sample_timelines(sample: EvalSample) -> EvalSample:
-    """Rebind timelines to the sample's current event objects."""
-    if not sample.timelines:
-        return sample
-
-    from inspect_ai.event._timeline import timeline_dump, timeline_load
-
-    return sample.model_copy(
-        update={
-            "timelines": [
-                timeline_load(timeline_dump(timeline), sample.events)
-                for timeline in sample.timelines
-            ],
-        }
-    )

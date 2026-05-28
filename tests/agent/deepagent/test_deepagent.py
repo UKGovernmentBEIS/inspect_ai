@@ -17,7 +17,7 @@ def test_deepagent_constructible() -> None:
 
 
 def test_deepagent_end_to_end() -> None:
-    """End-to-end: model calls task tool, subagent runs, returns result."""
+    """End-to-end: model calls agent tool, subagent runs, returns result."""
     task = Task(
         dataset=[Sample(input="Research something")],
         solver=deepagent(submit=True),
@@ -27,10 +27,10 @@ def test_deepagent_end_to_end() -> None:
     model = get_model(
         "mockllm/model",
         custom_outputs=[
-            # 1. Outer agent calls task tool
+            # 1. Outer agent calls agent tool
             ModelOutput.for_tool_call(
                 model="mockllm/model",
-                tool_name="task",
+                tool_name="agent",
                 tool_arguments={
                     "subagent_type": "research",
                     "prompt": "Find information.",
@@ -55,7 +55,7 @@ def test_deepagent_end_to_end() -> None:
     assert log.status == "success"
     tool_event = get_tool_event(log)
     assert tool_event is not None
-    assert tool_event.function == "task"
+    assert tool_event.function == "agent"
 
 
 def test_deepagent_memory_kill_switch() -> None:

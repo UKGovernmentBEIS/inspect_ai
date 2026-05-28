@@ -20,13 +20,41 @@ from inspect_ai.model._chat_message import (
 )
 from inspect_ai.model._model import Model
 from inspect_ai.tool._tool import Tool, ToolError, ToolSource, tool
+from inspect_ai.tool._tool_call import (
+    ToolCall,
+    ToolCallContent,
+    ToolCallView,
+)
 from inspect_ai.tool._tool_def import ToolDef
 
 from .prompt import SUBAGENT_SUBMIT_PROMPT
 from .subagent import Subagent
 
 
-def task_tool(
+def _agent_viewer(call: ToolCall) -> ToolCallView:
+    """Render an agent() dispatch as a markdown header + prompt body.
+
+    The viewer's content uses ``{{key}}`` placeholders that the framework
+    substitutes with the actual tool arguments at render time. When the
+    model provides a ``task_description``, it renders as a heading above
+    the prompt; when absent, the heading is omitted (otherwise the
+    literal ``{{task_description}}`` would render).
+    """
+    subagent_type = call.arguments.get("subagent_type") or ""
+    has_description = bool(call.arguments.get("task_description"))
+    content = (
+        "### {{task_description}}\n\n{{prompt}}" if has_description else "{{prompt}}"
+    )
+    return ToolCallView(
+        call=ToolCallContent(
+            title=f"agent: {subagent_type}",
+            format="markdown",
+            content=content,
+        )
+    )
+
+
+def agent_tool(
     subagents: list[Subagent],
     parent_tools: Sequence[Tool | ToolDef | ToolSource] | None = None,
     parent_model: str | Model | None = None,
@@ -37,7 +65,7 @@ def task_tool(
     retry_refusals: int | None = None,
     approval: list[ApprovalPolicy] | None = None,
 ) -> Tool:
-    """Create a task multiplexer tool for dispatching to subagents.
+    """Create an agent multiplexer tool for dispatching to subagents.
 
     Args:
         subagents: List of available subagent configurations.
@@ -55,11 +83,11 @@ def task_tool(
         approval: Approval policies for tool calls.
     """
     subagent_map = {s.name: s for s in subagents}
-    tool_description = _build_task_description(subagents)
+    tool_description = _build_agent_description(subagents)
     can_parallel = _subagents_parallel_safe(subagents, parent_skills)
 
-    @tool(parallel=can_parallel)
-    def task() -> Tool:
+    @tool(parallel=can_parallel, viewer=_agent_viewer)
+    def agent() -> Tool:
         """Delegate a task to a specialized subagent."""
 
         async def execute(
@@ -141,12 +169,12 @@ def task_tool(
         execute.__doc__ = tool_description
         return execute
 
-    result = task()
+    result = agent()
     _apply_subagent_type_enum(result, subagents)
     return result
 
 
-def _build_task_description(subagents: list[Subagent]) -> str:
+def _build_agent_description(subagents: list[Subagent]) -> str:
     lines = ["Delegate a task to a specialized subagent.\n"]
     lines.append("Available subagent types:\n")
     for sa in subagents:
@@ -185,7 +213,7 @@ def _build_task_description(subagents: list[Subagent]) -> str:
         )
     lines.append("")
     lines.append(
-        "The task tool returns the subagent's final text response. If you "
+        "The agent tool returns the subagent's final text response. If you "
         "need a specific format, ask for it explicitly in the prompt."
     )
     lines.append("")
@@ -245,7 +273,7 @@ def _prepare_forked_input(
         )
 
     # Keep parent system message (preserves prompt cache on all providers).
-    # Strip the trailing assistant message (in-flight task() call).
+    # Strip the trailing assistant message (in-flight agent() call).
     # Subagent instructions + task prompt go in a single user message
     # appended after the cached prefix.
     messages = list(get_messages())
@@ -375,7 +403,7 @@ def _resolve_tools(
         # subagents inherit the calling subagent's model, not the top-level
         effective_model = sa.model or parent_model
         tools.append(
-            task_tool(
+            agent_tool(
                 subagents,
                 parent_tools,
                 effective_model,
@@ -394,7 +422,7 @@ def _subagents_parallel_safe(
     subagents: list[Subagent],
     parent_skills: list[str | Path | Skill] | None,
 ) -> bool:
-    """Can multiple task() dispatches run concurrently?
+    """Can multiple agent() dispatches run concurrently?
 
     True iff every subagent's effective tool set is itself parallel-safe.
     `memory` and `skill` are both parallel-safe under the current
@@ -424,7 +452,7 @@ def _tool_is_parallel_safe(t: Tool | ToolDef | ToolSource) -> bool:
         return t.parallel
     if isinstance(t, ToolSource):
         # ToolSources resolve dynamically and we can't introspect their
-        # contents at task_tool() construction time — be conservative.
+        # contents at agent_tool() construction time — be conservative.
         return False
     if is_registry_object(t):
         return tool_def_fields(t).parallel

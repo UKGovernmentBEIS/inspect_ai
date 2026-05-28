@@ -307,8 +307,8 @@ class AcpTransport(Protocol):
 
         Used by the raw-event forwarder to stream Inspect-native
         events out to opt-in clients. Wraps the underlying
-        ``Transcript._add_subscriber`` so callers don't reach into
-        private session state. Returns an idempotent unsubscribe
+        ``Transcript._subscribe`` so callers don't reach into private
+        session state. Returns an idempotent unsubscribe
         callable (calling it removes the subscriber; safe to call
         multiple times).
 
