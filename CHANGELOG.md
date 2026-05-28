@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Deep Agent: Model-facing dispatch tool renamed from `task` to `agent` to align with Claude Code.
+- Agent Intervention: Add `is_live` property to agent channel for detecting whether channel is in use.
 - Deep Agent: `agent` dispatch tool now ships with a tool-call viewer.
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
 - Scoring: Set `Score.answer` on model_graded parse failure.

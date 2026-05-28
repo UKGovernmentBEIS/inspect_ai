@@ -71,15 +71,15 @@ class Checkpointer(Protocol):
 
         Spans are peers — siblings under whatever span was active when the
         agent opened ``async with checkpointer()``. Each span's name
-        matches the sidecar id it will fire under (1-indexed, same
+        matches the checkpoint id it will fire under (1-indexed, same
         numbering as ``ckpt-NNNNN.json``): ``checkpoint 1`` is the work
         that the first fire commits, ``checkpoint 2`` is the work that
         the second fire commits, and so on.
 
         On fire, the current span closes *before* ``write_host_context``
         (so the ``SpanEndEvent`` lands in this checkpoint's
-        ``events.json``), then the next span opens after the sidecar is
-        committed.
+        ``events.json``), then the next span opens after the checkpoint
+        file is committed.
 
         A sample that finishes without ever firing leaves an unclosed
         ``checkpoint 1`` span — expected and informative: it records the

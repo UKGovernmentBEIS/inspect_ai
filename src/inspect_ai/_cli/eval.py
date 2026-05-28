@@ -2180,7 +2180,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     flag_value="turn:5",
     default=None,
     help=CHECKPOINT_HELP
-    + " For resume to find sidecars, pass the same `--checkpoint` value used on the original eval.",
+    + " For resume to find checkpoint files, pass the same `--checkpoint` value used on the original eval.",
     envvar="INSPECT_EVAL_CHECKPOINT",
     hidden=True,
 )

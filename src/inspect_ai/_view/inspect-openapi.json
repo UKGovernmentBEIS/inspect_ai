@@ -1106,7 +1106,7 @@
       },
       "CheckpointEvent": {
         "additionalProperties": true,
-        "description": "A successful checkpoint commit.\n\nEmitted by the checkpointer immediately after the per-checkpoint\nsidecar JSON is written \u2014 see working.md \u00a78a. Carries the full\nsidecar payload flattened into top-level fields (via multiple\ninheritance from :class:`CheckpointDetails`), so a consumer of\n``transcript().events`` (or the ``.eval`` log) reads\n``event.checkpoint_id`` / ``event.trigger`` / ``event.host`` etc.\ndirectly \u2014 same data as someone reading\n``<sample>/ckpt-NNNNN.json`` from disk.",
+        "description": "A successful checkpoint commit.\n\nEmitted by the checkpointer immediately after the per-checkpoint\nfile JSON is written \u2014 see working.md \u00a78a. Carries the full\ncheckpoint payload flattened into top-level fields (via multiple\ninheritance from :class:`Checkpoint`), so a consumer of\n``transcript().events`` (or the ``.eval`` log) reads\n``event.checkpoint_id`` / ``event.trigger`` / ``event.host`` etc.\ndirectly \u2014 same data as someone reading\n``<sample>/ckpt-NNNNN.json`` from disk.",
         "properties": {
           "checkpoint_id": {
             "title": "Checkpoint Id",
@@ -8960,7 +8960,7 @@
       },
       "SnapshotDetails": {
         "additionalProperties": true,
-        "description": "Per-backup stats captured in the sidecar.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary \u2014 see :class:`ResticBackupSummary`.",
+        "description": "Per-backup stats captured in the checkpoint file.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary \u2014 see :class:`ResticBackupSummary`.",
         "properties": {
           "duration_ms": {
             "title": "Duration Ms",

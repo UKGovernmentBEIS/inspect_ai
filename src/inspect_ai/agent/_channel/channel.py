@@ -128,6 +128,15 @@ class AgentChannel:
         # transport clears its ``interrupt_pending`` flag when a
         # pre-queued operator message is drained).
         self._on_drained: list[Callable[[list[ChannelItem]], None]] = []
+        # External-reach marker count. Producers that represent a
+        # reachable external surface (e.g. an ACP socket server actually
+        # accepting client connections) call ``mark_live`` to flip
+        # ``is_live`` to True; other producers (sub-agent isolation,
+        # in-proc observers) do not. Distinct from ``_on_drained`` so
+        # the channel can distinguish "any producer attached" from
+        # "an externally-reachable producer attached" — only the
+        # latter motivates a consumer to enable interactive plumbing.
+        self._live_count: int = 0
 
     # ------------------------------------------------------------------
     # Producer-facing API (also exposed via AgentRef)
@@ -257,6 +266,48 @@ class AgentChannel:
                 pass
 
         return _unsubscribe
+
+    def mark_live(self) -> Callable[[], None]:
+        """Producer marker — call iff this producer has external reach.
+
+        Distinct from :meth:`subscribe_drained`: every producer subscribes
+        to drains for internal bookkeeping (e.g. clearing an
+        ``interrupt_pending`` flag), but only producers that represent
+        a reachable external surface — e.g. an ACP socket server actually
+        accepting client connections — call this. Consumers consult
+        :attr:`is_live` to decide whether to enable interactive plumbing
+        (e.g. open an agent CLI in streaming-stdin mode); they shouldn't
+        pay that cost just because an in-proc bookkeeping producer is
+        attached.
+
+        Returns an idempotent clear callable. The producer holds it for
+        the lifetime of its external reach and calls it on unbind /
+        teardown / loss of reach. Multiple producers may mark live
+        concurrently; ``is_live`` stays True until every clear runs.
+        """
+        self._live_count += 1
+        cleared = False
+
+        def _clear() -> None:
+            nonlocal cleared
+            if not cleared:
+                cleared = True
+                self._live_count -= 1
+
+        return _clear
+
+    @property
+    def is_live(self) -> bool:
+        """True if any externally-reachable producer is attached.
+
+        Inverts the "inert by default" state documented at the top of
+        this module. Use to gate interactive plumbing (e.g. switching
+        an agent CLI into streaming-stdin mode) on whether an external
+        client can actually reach this agent. False on inert channels,
+        on channels with only in-proc bookkeeping producers, and on
+        samples where the ACP server is not running.
+        """
+        return self._live_count > 0
 
     async def _recv(self) -> list[ChannelItem]:
         """Await at least one item, then drain.

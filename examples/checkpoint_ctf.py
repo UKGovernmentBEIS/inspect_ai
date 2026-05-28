@@ -146,7 +146,8 @@ def cp_ctf() -> Task:
         scorer=includes(),
         sandbox="docker",
         checkpoint=CheckpointConfig(
-            trigger=TokenInterval(5000),
+            # checkpoints_location="s3://epateytest2/checkpoints",
+            trigger=TokenInterval(4000),
             # trigger=TurnInterval(1),
             sandbox_paths={"default": ["/workspace"]},
         ),
@@ -175,7 +176,7 @@ if __name__ == "__main__":
 
     # Default log: a known-incomplete-with-sidecars cp_ctf run captured
     # for local debugging. Override by passing a log path as argv[1].
-    DEFAULT_LOG = "logs/2026-05-19T18-27-48-00-00_cp-ctf_evrSez33AVsudxeecu9DtJ.eval"
+    DEFAULT_LOG = "logs/2026-05-27T13-12-16-00-00_cp-ctf_BwXJKGp4xBy6XNMcby9AAd.eval"
     log_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_LOG
 
     print(f"Retrying {log_path}")
