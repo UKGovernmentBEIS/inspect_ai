@@ -98,9 +98,7 @@ class aexit_shielded_when(contextlib.AbstractAsyncContextManager[Any]):
     async def __aenter__(self) -> Any:
         return await self._inner.__aenter__()
 
-    async def __aexit__(
-        self, exc_type: Any, exc_value: Any, traceback: Any
-    ) -> Any:
+    async def __aexit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> Any:
         with anyio.CancelScope(shield=self._shield()):
             return await self._inner.__aexit__(exc_type, exc_value, traceback)
 

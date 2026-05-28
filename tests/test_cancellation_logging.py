@@ -175,14 +175,16 @@ def test_fail_on_error_threshold_logs_cancelled_samples(sandbox_kwarg: str | Non
     assert log.samples is not None
 
     # the errored samples should have ValueError
-    errored = [s for s in log.samples if s.id is not None and s.id <= 3]
+    errored = [s for s in log.samples if s.id is not None and int(s.id) <= 3]
     for s in errored:
         assert s.error is not None
         assert "Error in sample" in s.error.message
 
     # some sleeping samples should have been cancelled and logged
     cancelled = [
-        s for s in log.samples if s.id is not None and s.id > 3 and s.error is not None
+        s
+        for s in log.samples
+        if s.id is not None and int(s.id) > 3 and s.error is not None
     ]
     assert len(cancelled) > 0
 
