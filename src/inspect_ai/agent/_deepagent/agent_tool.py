@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
+from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Literal, Sequence
 
@@ -32,6 +33,8 @@ from inspect_ai.tool._tool_def import ToolDef
 
 from .prompt import SUBAGENT_SUBMIT_PROMPT
 from .subagent import Subagent
+
+logger = getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Background dispatch registry
@@ -608,13 +611,28 @@ async def _run_background(
             else:
                 future.result = _extract_result(state)
             future.status = "completed"
+        # If `agent_cancel` cancelled *our* scope, the CancelledError is
+        # absorbed at the `with` boundary (anyio scopes swallow their own
+        # cancellation) — so it never reaches the except below. Detect it
+        # via cancelled_caught and record the terminal state.
+        if future.cancel_scope.cancelled_caught:
+            future.status = "cancelled"
     except anyio.get_cancelled_exc_class():
+        # Outer cancellation (sample teardown) propagates *through* our
+        # inner scope rather than being absorbed. Record and re-raise —
+        # structured concurrency requires it to propagate.
         future.status = "cancelled"
         raise
     except Exception as ex:
+        # A background subagent failure is captured on the future and
+        # surfaced via agent_status / agent_wait — it must NOT propagate
+        # to sample.tg (that would fail the whole sample). Swallow after
+        # recording; log so the failure is still visible in the eval log.
         future.status = "errored"
         future.error = f"{type(ex).__name__}: {ex}"
-        raise
+        logger.warning(
+            f"Background agent '{future.agent_id}' ({sa.name}) errored: {ex}"
+        )
     finally:
         future.done.set()
 

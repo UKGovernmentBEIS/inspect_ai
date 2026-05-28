@@ -9,6 +9,7 @@ tool to introspect the registry where needed.
 
 from __future__ import annotations
 
+import anyio
 import pytest
 
 from inspect_ai import Task, eval
@@ -126,6 +127,112 @@ def _eval_deepagent(
         "messages": log.samples[0].messages if log.samples else [],
         "events": log.samples[0].events if log.samples else [],
     }
+
+
+@tool
+def _block_helper() -> Tool:
+    """Test-only tool that blocks until the sample is cancelled.
+
+    Used to keep a background subagent in 'running' state for the
+    duration of a test (e.g. while the parent peeks/cancels it).
+    """
+
+    async def execute() -> str:
+        """Block for a long time (returns only via cancellation)."""
+        import anyio
+
+        await anyio.sleep(60)
+        return "done"
+
+    return execute
+
+
+@tool
+def _say_helper() -> Tool:
+    """Test-only tool: emit a chunk of text, then block.
+
+    Lets a test seed a known last-assistant message before the subagent
+    parks in 'running' state so the status peek has content to report.
+    """
+
+    async def execute(text: str) -> str:
+        """Return the provided text (becomes a prior tool result).
+
+        Args:
+            text: Text to echo back as the tool result.
+        """
+        return text
+
+    return execute
+
+
+def _build_submit_subagent(name: str, answer: str):
+    """Build a subagent whose only model output submits ``answer``."""
+    from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+    bg_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": answer},
+            ),
+        ],
+    )
+    return subagent_factory(
+        name=name,
+        description=f"Background {name} subagent.",
+        prompt=f"You are a {name} agent.",
+        model=bg_model,
+    )
+
+
+def _build_blocking_subagent(name: str, outputs: list[ModelOutput] | None = None):
+    """Build a subagent that parks in 'running' state until cancellation.
+
+    By default its only model output calls ``_block_helper``. Pass
+    ``outputs`` to prepend other turns (e.g. a ``_say_helper`` call to
+    seed a last-assistant message) before it blocks.
+    """
+    from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+    block_call = ModelOutput.for_tool_call(
+        model="mockllm/model",
+        tool_name="_block_helper",
+        tool_arguments={},
+    )
+    custom_outputs = (outputs or []) + [block_call]
+    bg_model = get_model("mockllm/model", custom_outputs=custom_outputs)
+    return subagent_factory(
+        name=name,
+        description=f"Background {name} subagent.",
+        prompt=f"You are a {name} agent.",
+        model=bg_model,
+        extra_tools=[_block_helper(), _say_helper()],
+    )
+
+
+def _agent_call(
+    subagent_type: str, prompt: str = "go", background: bool = True
+) -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        model="mockllm/model",
+        tool_name="agent",
+        tool_arguments={
+            "subagent_type": subagent_type,
+            "prompt": prompt,
+            "background": background,
+        },
+    )
+
+
+def _tool_call(tool_name: str, **arguments) -> ModelOutput:
+    return ModelOutput.for_tool_call(
+        model="mockllm/model",
+        tool_name=tool_name,
+        tool_arguments=arguments,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -751,3 +858,421 @@ class TestRegistryIsolation:
             assert len(active_background_agents()) == 1
         finally:
             _reset_registry_for_test(outer_token)
+
+
+# ---------------------------------------------------------------------------
+# Phase 2 — lifecycle tools (agent_status / agent_wait / agent_cancel /
+# agent_list)
+# ---------------------------------------------------------------------------
+
+
+def _events_for(result: dict, function: str) -> list[ToolEvent]:
+    return [
+        e
+        for e in result["events"]
+        if isinstance(e, ToolEvent) and e.function == function
+    ]
+
+
+class TestLifecycleToolsSurfaced:
+    """The four lifecycle tools appear only when background is enabled."""
+
+    def _tool_names(self, da_kwargs: dict) -> set[str]:
+        from inspect_ai._util.registry import is_registry_object, registry_info
+        from inspect_ai.tool._tool_def import ToolDef
+
+        # Drive a no-op eval and inspect the tools the model was offered by
+        # reading the first model event's available tools is overkill; instead
+        # build the agent and introspect via a probe tool call is also complex.
+        # Simplest: run a minimal eval that immediately submits, then read the
+        # tools from the model event.
+        result = _eval_deepagent(
+            agent_kwargs=da_kwargs,
+            outputs=[_submit("done")],
+        )
+        names: set[str] = set()
+        from inspect_ai.event._model import ModelEvent
+
+        for e in result["events"]:
+            if isinstance(e, ModelEvent):
+                for t in e.tools:
+                    names.add(t.name)
+                break
+        # silence unused imports
+        _ = (is_registry_object, registry_info, ToolDef)
+        return names
+
+    def test_lifecycle_tools_present_when_enabled(self) -> None:
+        names = self._tool_names({})
+        assert {"agent_status", "agent_wait", "agent_cancel", "agent_list"} <= names
+
+    def test_lifecycle_tools_absent_when_disabled(self) -> None:
+        names = self._tool_names({"background": False})
+        assert "agent_status" not in names
+        assert "agent_wait" not in names
+        assert "agent_cancel" not in names
+        assert "agent_list" not in names
+
+
+class TestAgentStatus:
+    def test_status_completed_includes_result(self) -> None:
+        bg = _build_submit_subagent("research", "the findings")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg]},
+            outputs=[
+                _agent_call("research"),
+                # Wait for it first so it is completed when we check status.
+                _tool_call("agent_wait", agent_ids=["AGENT-1"]),
+                _tool_call("agent_status", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        status_events = _events_for(result, "agent_status")
+        assert len(status_events) == 1
+        body = str(status_events[0].result)
+        assert "AGENT-1" in body
+        assert "completed" in body
+        assert "the findings" in body
+
+    def test_status_running_includes_peek(self) -> None:
+        bg = _build_blocking_subagent(
+            "worker",
+            outputs=[_tool_call("_say_helper", text="searching the corpus")],
+        )
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg]},
+            outputs=[
+                _agent_call("worker"),
+                # Give the bg a moment to run its _say_helper turn, then peek.
+                _tool_call("agent_status", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        status_events = _events_for(result, "agent_status")
+        assert len(status_events) == 1
+        body = str(status_events[0].result)
+        assert "AGENT-1" in body
+        assert "running" in body
+        # Peek fields present
+        assert "elapsed" in body
+        assert "messages" in body
+
+    def test_status_unknown_id_reports_as_content(self) -> None:
+        # Lifecycle tools never raise — an unknown id is reported as
+        # content, and the tool call itself succeeds.
+        bg = _build_submit_subagent("research", "x")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg]},
+            outputs=[
+                _tool_call("agent_status", agent_id="AGENT-99"),
+                _submit("done"),
+            ],
+        )
+        status_events = _events_for(result, "agent_status")
+        assert len(status_events) == 1
+        assert status_events[0].error is None
+        assert "Unknown agent id" in str(status_events[0].result)
+
+
+class TestAgentWait:
+    def test_wait_all_returns_both(self) -> None:
+        bg_a = _build_submit_subagent("alpha", "alpha-result")
+        bg_b = _build_submit_subagent("beta", "beta-result")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg_a, bg_b]},
+            outputs=[
+                _agent_call("alpha"),
+                _agent_call("beta"),
+                _tool_call("agent_wait", agent_ids=["AGENT-1", "AGENT-2"], mode="all"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        wait_events = _events_for(result, "agent_wait")
+        assert len(wait_events) == 1
+        body = str(wait_events[0].result)
+        assert "AGENT-1" in body and "AGENT-2" in body
+        assert "alpha-result" in body
+        assert "beta-result" in body
+
+    def test_wait_any_returns_on_first(self) -> None:
+        # One completes (submit), one blocks. mode="any" must return without
+        # waiting for the blocker.
+        bg_fast = _build_submit_subagent("fast", "fast-result")
+        bg_slow = _build_blocking_subagent("slow")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg_fast, bg_slow]},
+            outputs=[
+                _agent_call("fast"),
+                _agent_call("slow"),
+                _tool_call("agent_wait", agent_ids=["AGENT-1", "AGENT-2"], mode="any"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        wait_events = _events_for(result, "agent_wait")
+        assert len(wait_events) == 1
+        body = str(wait_events[0].result)
+        # The fast one completed with its result.
+        assert "fast-result" in body
+
+    def test_wait_timeout_reports_running(self) -> None:
+        bg = _build_blocking_subagent("slow")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg]},
+            outputs=[
+                _agent_call("slow"),
+                _tool_call("agent_wait", agent_ids=["AGENT-1"], timeout=0.2),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        wait_events = _events_for(result, "agent_wait")
+        assert len(wait_events) == 1
+        body = str(wait_events[0].result)
+        # Did not lie — still running after timeout.
+        assert "AGENT-1" in body
+        assert "running" in body
+
+    def test_wait_empty_ids_reports_as_content(self) -> None:
+        bg = _build_submit_subagent("research", "x")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg]},
+            outputs=[
+                _tool_call("agent_wait", agent_ids=[]),
+                _submit("done"),
+            ],
+        )
+        wait_events = _events_for(result, "agent_wait")
+        assert len(wait_events) == 1
+        assert wait_events[0].error is None
+        assert "No agent_ids" in str(wait_events[0].result)
+
+    def test_wait_unknown_id_reports_as_content(self) -> None:
+        bg = _build_submit_subagent("research", "x")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg]},
+            outputs=[
+                _tool_call("agent_wait", agent_ids=["AGENT-77"]),
+                _submit("done"),
+            ],
+        )
+        wait_events = _events_for(result, "agent_wait")
+        assert len(wait_events) == 1
+        assert wait_events[0].error is None
+        assert "Unknown agent id" in str(wait_events[0].result)
+
+    def test_wait_mixed_known_and_unknown(self) -> None:
+        # A known completed agent plus an unknown id: the known result is
+        # returned and the unknown id is noted — no raise.
+        bg = _build_submit_subagent("research", "the-result")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg]},
+            outputs=[
+                _agent_call("research"),
+                _tool_call("agent_wait", agent_ids=["AGENT-1", "AGENT-X"]),
+                _submit("done"),
+            ],
+        )
+        wait_events = _events_for(result, "agent_wait")
+        assert len(wait_events) == 1
+        assert wait_events[0].error is None
+        body = str(wait_events[0].result)
+        assert "the-result" in body
+        assert "AGENT-X" in body
+
+
+class TestAgentCancel:
+    def test_cancel_running_agent(self) -> None:
+        bg = _build_blocking_subagent("slow")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg]},
+            outputs=[
+                _agent_call("slow"),
+                _tool_call("agent_cancel", agent_id="AGENT-1"),
+                # Confirm via status that it is cancelled.
+                _tool_call("agent_status", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        cancel_events = _events_for(result, "agent_cancel")
+        assert len(cancel_events) == 1
+        assert "AGENT-1" in str(cancel_events[0].result)
+        status_events = _events_for(result, "agent_status")
+        assert "cancelled" in str(status_events[0].result)
+
+    def test_cancel_completed_is_noop(self) -> None:
+        bg = _build_submit_subagent("research", "done-result")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg]},
+            outputs=[
+                _agent_call("research"),
+                _tool_call("agent_wait", agent_ids=["AGENT-1"]),
+                # Cancel after completion — should not error, reports completed.
+                _tool_call("agent_cancel", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        cancel_events = _events_for(result, "agent_cancel")
+        assert len(cancel_events) == 1
+        assert cancel_events[0].error is None
+        assert "completed" in str(cancel_events[0].result)
+
+
+class TestAgentList:
+    def test_list_empty(self) -> None:
+        bg = _build_submit_subagent("research", "x")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg]},
+            outputs=[
+                _tool_call("agent_list"),
+                _submit("done"),
+            ],
+        )
+        list_events = _events_for(result, "agent_list")
+        assert len(list_events) == 1
+        assert "No background agents" in str(list_events[0].result)
+
+    def test_list_populated(self) -> None:
+        bg_a = _build_submit_subagent("alpha", "a")
+        bg_b = _build_submit_subagent("beta", "b")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg_a, bg_b]},
+            outputs=[
+                _agent_call("alpha"),
+                _agent_call("beta"),
+                _tool_call("agent_wait", agent_ids=["AGENT-1", "AGENT-2"]),
+                _tool_call("agent_list"),
+                _submit("done"),
+            ],
+        )
+        list_events = _events_for(result, "agent_list")
+        assert len(list_events) == 1
+        body = str(list_events[0].result)
+        assert "AGENT-1" in body and "AGENT-2" in body
+
+    def test_list_status_filter(self) -> None:
+        # One completed, one running. Filter to running should show only the
+        # blocker.
+        bg_done = _build_submit_subagent("done_one", "r")
+        bg_run = _build_blocking_subagent("run_one")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg_done, bg_run]},
+            outputs=[
+                _agent_call("done_one"),
+                _agent_call("run_one"),
+                _tool_call("agent_wait", agent_ids=["AGENT-1"]),  # ensure 1 done
+                _tool_call("agent_list", status_filter="running"),
+                _submit("done"),
+            ],
+        )
+        list_events = _events_for(result, "agent_list")
+        assert len(list_events) == 1
+        body = str(list_events[0].result)
+        # AGENT-2 (run_one) is the only running one.
+        assert "AGENT-2" in body
+        assert "AGENT-1" not in body
+
+
+class TestFormatStatusUnit:
+    """Unit tests for _format_future_status / _peek_messages."""
+
+    async def test_running_block_truncates_last_message(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.agent._deepagent.lifecycle_tools import _format_future_status
+        from inspect_ai.model._chat_message import ChatMessageAssistant
+
+        future = AgentFuture(
+            agent_id="AGENT-1",
+            span_id="x",
+            subagent_name="research",
+            cancel_scope=anyio.CancelScope(),
+            started_at=anyio.current_time(),
+        )
+        big = "Z" * 5000
+        future.child_state = AgentState(messages=[ChatMessageAssistant(content=big)])
+        block = _format_future_status(future)
+        assert "AGENT-1" in block
+        assert "running" in block
+        # The latest line must be present but truncated well under 5000 chars.
+        assert "latest:" in block
+        assert len(block) < 4000
+
+    async def test_completed_block_has_result(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _format_future_status
+
+        future = AgentFuture(
+            agent_id="AGENT-2",
+            span_id="y",
+            subagent_name="general",
+            cancel_scope=anyio.CancelScope(),
+            started_at=anyio.current_time(),
+        )
+        future.status = "completed"
+        future.result = "the answer"
+        block = _format_future_status(future)
+        assert "AGENT-2" in block
+        assert "completed" in block
+        assert "the answer" in block
+
+    async def test_init_window_no_child_state(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _format_future_status
+
+        future = AgentFuture(
+            agent_id="AGENT-3",
+            span_id="z",
+            subagent_name="research",
+            cancel_scope=anyio.CancelScope(),
+            started_at=anyio.current_time(),
+        )
+        # child_state is None (default) — should not raise.
+        block = _format_future_status(future)
+        assert "AGENT-3" in block
+        assert "running" in block
+        assert "messages: 0" in block
+
+
+class TestLifecycleViewers:
+    """Custom ToolCallViewer titles render from call arguments."""
+
+    def test_status_viewer_title(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _status_viewer
+        from inspect_ai.tool._tool_call import ToolCall
+
+        view = _status_viewer(
+            ToolCall(id="1", function="agent_status", arguments={"agent_id": "AGENT-1"})
+        )
+        assert view.call is not None
+        assert view.call.title == "agent_status: AGENT-1"
+
+    def test_wait_viewer_title(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _wait_viewer
+        from inspect_ai.tool._tool_call import ToolCall
+
+        view = _wait_viewer(
+            ToolCall(
+                id="1",
+                function="agent_wait",
+                arguments={"agent_ids": ["AGENT-1", "AGENT-2"], "mode": "any"},
+            )
+        )
+        assert view.call is not None
+        assert view.call.title == "agent_wait: AGENT-1, AGENT-2 (any)"
+
+    def test_list_viewer_title_filtered(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _list_viewer
+        from inspect_ai.tool._tool_call import ToolCall
+
+        view = _list_viewer(
+            ToolCall(
+                id="1",
+                function="agent_list",
+                arguments={"status_filter": "running"},
+            )
+        )
+        assert view.call is not None
+        assert view.call.title == "agent_list: running"

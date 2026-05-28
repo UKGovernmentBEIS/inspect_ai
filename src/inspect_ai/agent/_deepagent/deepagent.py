@@ -170,9 +170,23 @@ def deepagent(
             background_enabled=background_enabled,
         )
 
-        # Top-level tools = parent tools + agent + memory + skills
+        # Top-level tools = parent tools + agent + lifecycle + memory + skills
         all_tools: list[Tool | ToolDef | ToolSource] = list(parent_tools)
         all_tools.append(agent)
+        # Background lifecycle tools are surfaced only when background
+        # dispatch is enabled — consistent with the agent tool's
+        # background parameter being hidden when background=False.
+        if background_enabled:
+            from inspect_ai.agent._deepagent.lifecycle_tools import (
+                agent_cancel,
+                agent_list,
+                agent_status,
+                agent_wait,
+            )
+
+            all_tools.extend(
+                [agent_status(), agent_wait(), agent_cancel(), agent_list()]
+            )
         if memory:
             from inspect_ai.agent._deepagent.agent_tool import _has_memory_tool
             from inspect_ai.tool._tools._memory import memory as memory_tool
