@@ -336,10 +336,14 @@ def _resolve_model_info(model: str | Model) -> ModelInfo | None:
 
 
 def get_model_input_tokens(model: Model) -> int | None:
+    from inspect_ai.model._compaction._compaction import DEFAULT_CONTEXT_WINDOW
+
     model_name = model.input_tokens_name()
     model_info = get_model_info(model_name)
     if model_info:
         return model_info.input_tokens
+    elif str(model).startswith("mockllm/"):
+        return DEFAULT_CONTEXT_WINDOW
     else:
         return None
 

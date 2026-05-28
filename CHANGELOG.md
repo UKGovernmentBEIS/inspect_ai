@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Deep Agent: Model-facing dispatch tool renamed from `task` to `agent` to align with Claude Code.
+- Deep Agent: `agent` dispatch tool now ships with a tool-call viewer.
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
 - Scoring: Set `Score.answer` on model_graded parse failure.
 - Task Display: Add column to indicate the agent/solver for each task.
