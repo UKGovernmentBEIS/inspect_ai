@@ -97,7 +97,7 @@ class SubagentDepthTracker:
     """Track depth into sub-agent boundary spans for event filtering.
 
     Sub-agent invocations (``@agent``-decorated functions called via
-    ``run()`` / ``as_tool()`` / ``handoff()`` / ``task_tool``) open a
+    ``run()`` / ``as_tool()`` / ``handoff()`` / ``agent_tool``) open a
     ``SpanBeginEvent(type=AGENT_SPAN_TYPE)`` and close it with the
     matching ``SpanEndEvent``. Events emitted **between** the two are
     considered "inside a sub-agent" and the ACP semantic forwarder
