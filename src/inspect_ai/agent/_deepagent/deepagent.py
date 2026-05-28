@@ -27,6 +27,8 @@ from .prompt import build_system_prompt, expand_prompt_placeholders
 from .research import research
 from .subagent import Subagent
 
+DEFAULT_MAX_BACKGROUND = 8
+
 
 @agent(description="Autonomous agent for complex, multi-step tasks.")
 def deepagent(
@@ -47,6 +49,7 @@ def deepagent(
     instructions: str | None = None,
     prompt: str | None = None,
     max_depth: int = 1,
+    background: bool | int = True,
 ) -> Agent:
     """Deep agent with subagent delegation, memory, and planning.
 
@@ -88,7 +91,16 @@ def deepagent(
             {instructions}. When provided, replaces the default system
             prompt entirely.
         max_depth: Maximum subagent recursion depth.
+        background: Background subagent dispatch. ``True`` (default)
+            enables background dispatch with a cap of 8 concurrent
+            running agents. ``False`` disables background dispatch — the
+            ``agent`` tool's schema omits the ``background`` parameter
+            and the lifecycle tools (agent_status, agent_wait, etc., in
+            Phase 2) are not surfaced. Pass a positive integer to enable
+            with that as the cap. ``0`` or negative values raise
+            ``ValueError`` — use ``False`` to disable.
     """
+    background_enabled, max_background = _resolve_background(background)
 
     async def execute(state: AgentState) -> AgentState:
         # All setup runs per-sample inside execute() so there is no
@@ -155,6 +167,7 @@ def deepagent(
             get_messages=get_messages,
             retry_refusals=retry_refusals,
             approval=approval,
+            background_enabled=background_enabled,
         )
 
         # Top-level tools = parent tools + agent + memory + skills
@@ -208,9 +221,54 @@ def deepagent(
             approval=approval,
         )
 
-        return await inner(state)
+        # Set the background registry only when background is enabled.
+        # The ContextVar lives for the duration of inner(state) so the
+        # agent tool (and Phase 2 lifecycle tools) can read it. The
+        # try/finally + reset(token) idiom mirrors src/inspect_ai/util/_span.py.
+        if background_enabled:
+            from inspect_ai.agent._deepagent.agent_tool import (
+                BackgroundRegistry,
+                reset_background_registry,
+                set_background_registry,
+            )
+
+            token = set_background_registry(
+                BackgroundRegistry(max_background=max_background)
+            )
+            try:
+                return await inner(state)
+            finally:
+                reset_background_registry(token)
+        else:
+            return await inner(state)
 
     return execute
+
+
+def _resolve_background(background: bool | int) -> tuple[bool, int]:
+    """Resolve ``background`` to ``(enabled, max_background)``.
+
+    ``True`` → (True, DEFAULT_MAX_BACKGROUND); ``False`` → (False, 0);
+    positive int → (True, that int). ``0`` or negative raises ValueError.
+
+    Validation order is critical: ``bool`` is a subclass of ``int`` in
+    Python, so ``isinstance(True, int)`` is True. We check ``is True`` /
+    ``is False`` first to disambiguate.
+    """
+    if background is True:
+        return True, DEFAULT_MAX_BACKGROUND
+    if background is False:
+        return False, 0
+    if isinstance(background, int):
+        if background < 1:
+            raise ValueError(
+                f"background must be True, False, or a positive integer, "
+                f"got {background!r}. Use False to disable background dispatch."
+            )
+        return True, background
+    raise ValueError(
+        f"background must be True, False, or a positive integer, got {background!r}."
+    )
 
 
 def _resolve_web_search(web_search: Tool | bool) -> Tool | None:
