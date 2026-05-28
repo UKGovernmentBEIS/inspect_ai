@@ -7,6 +7,7 @@
 - Transcript: Complete samples from buffer history database rather than in-memory list.
 - Bugfix: Show View Log button on top right of sample display.
 - Bugfix: Prevent transcript subscriber-failure warnings from re-entering the subscriber loop and fanning out.
+- Bugfix: Don't mutate plan when calling `resolve_plan()`.
 - Bugfix: Align CLI --display and --effort type annotations with their choices.
 - Bugfix: Don't enter prompt mode when a sample is globally cancelled.
 
