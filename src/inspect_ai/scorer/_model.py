@@ -55,8 +55,12 @@ def model_graded_fact(
       include_history:
         Whether to include the full chat history in the presented
         question. Defaults to `False`, which presents only the
-        original sample input. Optionally provide a function to
-        customise how the chat history is presented.
+        original sample input. When `True`, the history extends up
+        to and including the final assistant message; the grading
+        template's `{answer}` slot is filled independently, so the
+        final answer appears in both places by design. Optionally
+        provide a function to customise how the chat history is
+        presented.
       partial_credit: Whether to allow for "partial" credit for
          answers (by default assigned a score of 0.5). Defaults
          to `False`. Note that this parameter is only used
@@ -114,8 +118,12 @@ def model_graded_qa(
       include_history:
         Whether to include the full chat history in the presented
         question. Defaults to `False`, which presents only the
-        original sample input. Optionally provide a function to
-        customise how the chat history is presented.
+        original sample input. When `True`, the history extends up
+        to and including the final assistant message; the grading
+        template's `{answer}` slot is filled independently, so the
+        final answer appears in both places by design. Optionally
+        provide a function to customise how the chat history is
+        presented.
       partial_credit: Whether to allow for "partial" credit for
         answers (by default assigned a score of 0.5). Defaults
         to `False`. Note that this parameter is only used
@@ -310,8 +318,11 @@ def chat_history(state: TaskState) -> str:
         if not isinstance(message, ChatMessageSystem)
     ]
 
-    # present message history (removing the final assistant message
-    # and after as it will be contained in the 'Answer:'):
+    # present message history through the final assistant message;
+    # any trailing tool/user messages are dropped.
+    # (The final answer also lands in the {answer} slot,
+    # the resulting duplication is kept to preserve reproducibility
+    # of existing model-graded scores. Check #4017)
     messages = remove_last_match_and_after(
         messages, lambda message: isinstance(message, ChatMessageAssistant)
     )
