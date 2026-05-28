@@ -156,6 +156,22 @@ EvalSampleSource = Callable[[int | str, int], Awaitable[EvalSample | None]]
 SAMPLE_TOTAL_PROGRESS_UNITS = 1
 
 
+async def currently_canceled() -> bool:
+    """Probe whether the current (unshielded) cancel scope is in a cancelled state.
+
+    Uses `anyio.lowlevel.checkpoint_if_cancelled()`, which raises iff the
+    enclosing scope's cancel flag is set and we're not inside a shield. The
+    probe-raised CancelledError is swallowed; since that doesn't clear the
+    scope flag, behavior is unchanged -- the next real unshielded await still
+    re-cancels exactly as before.
+    """
+    try:
+        await anyio.lowlevel.checkpoint_if_cancelled()
+        return False
+    except anyio.get_cancelled_exc_class():
+        return True
+
+
 @dataclass
 class TaskRunOptions:
     task: Task
@@ -954,6 +970,10 @@ async def task_run_sample(
                         sample_summary,
                     )
 
+                # [ROOT B: UNSHIELDED-EXIT] this `async with` has NO surrounding
+                # CancelScope, so when the block exits normally (after [ROOT A]
+                # swallowed the cancel) its __aexit__ -- i.e. [ROOT C]'s teardown
+                # await -- runs UNSHIELDED under the still-cancelled scope.
                 async with sandboxenv_cm:
                     try:
                         # update active sample wth sandboxes now that we are initialised
@@ -963,6 +983,8 @@ async def task_run_sample(
                         finally:
                             await init_span.__aexit__(None, None, None)
                             cleanup_span = None
+
+                        print(f"[sid={sample_id}] got past sandbox_connections")
 
                         # record start time
                         start_time = time.monotonic()
@@ -1116,18 +1138,35 @@ async def task_run_sample(
                         state = sample_state() or state
                         limit = EvalSampleLimit(type="operator", limit=1)
 
+                    # [ROOT A: CANCEL-SWALLOWED] the sample's own CancelledError is
+                    # caught and SWALLOWED here (cancelled_error set), so [ROOT B]'s
+                    # `async with sandboxenv_cm` exits NORMALLY -- yet the enclosing
+                    # cancel scope is still in its cancelled state.
                     except anyio.get_cancelled_exc_class() as ex:
                         with anyio.CancelScope(shield=True):
                             cancelled_error = ex
+                            print(
+                                f"[sid={sample_id}] 1. sample cancel CAUGHT -> cancelled_error SET",
+                                flush=True,
+                            )
                             # convert to standard error
                             error = eval_error(ex, type(ex), ex, ex.__traceback__)
                             transcript()._event(ErrorEvent(error=error))
 
                     except Exception as ex:
+                        print(
+                            f"[sid={sample_id}] handling normal Exception : cancelled={await currently_canceled()}",
+                            flush=True,
+                        )
                         error, raise_error = handle_error(ex)
 
                     # mark completed
                     state.completed = True
+                    if await currently_canceled():
+                        print(
+                            f"[sid={sample_id}] !!!!! Entering cancelled and unshielded bug window",
+                            flush=True,
+                        )
 
                     # set timeout for scoring. if the original timeout was hit we still
                     # want to provide opportunity for scoring, but we don't necessarily
@@ -1144,6 +1183,15 @@ async def task_run_sample(
 
                     # scoring
                     with anyio.CancelScope(shield=cancelled_error is not None):
+                        extra_info = (
+                            "SHIELDED"
+                            if cancelled_error
+                            else f"UNSHIELDED and cancelled={await currently_canceled()}"
+                        )
+                        print(
+                            f"[sid={sample_id}] 2. SCORING enter {extra_info}",
+                            flush=True,
+                        )
                         await emit_sample_scoring(
                             eval_set_id,
                             run_id,
@@ -1274,16 +1322,40 @@ async def task_run_sample(
                                             exc_info=ex,
                                         )
 
+                    print(
+                        f"[sid={sample_id}] Immediately before unshielded aexit call: cancelled={await currently_canceled()}",
+                        flush=True,
+                    )
+
+                print(
+                    f"[sid={sample_id}] Immediately after aexit of `async with sandboxenv_cm` block."
+                )
             except Exception as ex:
+                print(
+                    f"[sid={sample_id}] OUTER except Exception (CancelledError is NOT caught here)",
+                    flush=True,
+                )
                 error, raise_error = handle_error(ex)
             finally:
+                print(
+                    f"[sid={sample_id}] 4. OUTER finally (init-try) runs",
+                    flush=True,
+                )
                 # cleanup the task init span if required
                 if cleanup_span is not None:
                     with anyio.CancelScope(shield=cancelled_error is not None):
                         await cleanup_span.__aexit__(None, None, None)
 
+            # [ROOT E: LOG-SKIPPED] the logging block IS shielded -- but it lives
+            # AFTER the try/finally above, so when [ROOT C]'s fresh CancelledError
+            # propagates out it never enters this block, and log_sample (below) is
+            # never reached. The shield is useless because we never get here.
             # complete the sample if there is no error or if there is no retry_on_error in play
             with anyio.CancelScope(shield=cancelled_error is not None):
+                print(
+                    f"[sid={sample_id}] 5. COMPLETION block reached (about to drain + log_sample)",
+                    flush=True,
+                )
                 # drain sample events for both completion and retry paths
                 await drain_sample_events()
 
@@ -1311,10 +1383,18 @@ async def task_run_sample(
                         started_at=sample_start_datetime(),
                     )
                     if logger:
+                        print(
+                            f"[sid={sample_id}] 6. about to log_sample",
+                            flush=True,
+                        )
                         await log_sample(
                             eval_sample=eval_sample,
                             logger=logger,
                             log_images=log_images,
+                        )
+                        print(
+                            f"[sid={sample_id}] 7. log_sample returned",
+                            flush=True,
                         )
                     await emit_attempt_end(will_retry=False)
                     await emit_sample_end(

@@ -120,7 +120,15 @@ async def sandboxenv_context(
         finally:
             # cleanup sandbox environment
             if environments and cleanup:
+                # [ROOT D: SHIELD-OFF] this guard only shields when `interrupted` is
+                # True, i.e. when the cancel was thrown INTO the `yield` above. But
+                # in the bug path [ROOT A] already swallowed the cancel upstream, so
+                # the generator resumed cleanly, `interrupted` stayed False, and this
+                # shield does NOT engage.
                 with anyio.CancelScope(shield=interrupted):
+                    # [ROOT C: FATAL-AWAIT] this await is the teardown checkpoint the
+                    # still-cancelled scope turns into a fresh CancelledError (the test
+                    # fake stands in for it with `await anyio.sleep(0.2)`).
                     await cleanup_sandbox_environments_sample(
                         type=sandbox.type,
                         task_name=task_name,
