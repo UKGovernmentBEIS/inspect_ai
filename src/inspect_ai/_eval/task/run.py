@@ -34,6 +34,7 @@ from inspect_ai._util.exception import TerminateTaskError
 from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
     is_registry_object,
+    registry_info,
     registry_log_name,
 )
 from inspect_ai._view.notify import view_notify_eval
@@ -167,9 +168,24 @@ def resolve_plan(task: Task, solver: Solver | None) -> Plan:
 
     # add setup solver(s) if specified
     if task.setup:
+        # avoid mutating a caller-supplied Plan: resolve_plan may run more than
+        # once for the same task (e.g. task-identity hashing in evalset, then the
+        # run itself), and prepending in place would stack setup steps each time.
+        # A shallow copy preserves finish/cleanup/name and registry identity.
+        if plan is solver:
+            plan = copy(plan)
         plan.steps = unroll(task.setup) + plan.steps
 
     return plan
+
+
+def plan_agent_name(plan: Plan) -> str | None:
+    """Unqualified name of the plan's terminal step (agent or solver)."""
+    if plan.steps:
+        last_step = plan.steps[-1]
+        if is_registry_object(last_step):
+            return registry_unqualified_name(registry_info(last_step).name)
+    return None
 
 
 async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
@@ -286,6 +302,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         name=options.display_name or task.name,
         file=logger.eval.task_file,
         model=model_name,
+        agent=plan_agent_name(plan),
         dataset=task.dataset.name or "(samples)",
         scorer=", ".join(scorer_profiles),
         samples=total_samples,
