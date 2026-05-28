@@ -27,6 +27,7 @@ import anyio
 from inspect_ai.util._restic.ops import restic_env
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
+from .._async_fs import async_mkdir
 from .repo import _SANDBOX_RESTIC_DIR, _SANDBOX_RESTIC_PATH, _SANDBOX_RESTIC_REPO
 
 _EGRESS_MANIFEST = f"{_SANDBOX_RESTIC_DIR}/egress-manifest.txt"
@@ -139,7 +140,7 @@ async def egress_sandbox(
     # enough that a one-shot read_file is the right default.
     tar_path = f"{_EGRESS_STAGING}/egress-{tag}.tar"
     tar_bytes = await env.read_file(tar_path, text=False)
-    Path(dest_repo).mkdir(parents=True, exist_ok=True)
+    await async_mkdir(dest_repo)
     await anyio.to_thread.run_sync(_extract_tar, tar_bytes, dest_repo)
 
     await _verify_destination(host_restic, dest_repo, password, snapshot_id)
