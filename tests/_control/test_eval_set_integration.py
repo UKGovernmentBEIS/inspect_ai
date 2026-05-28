@@ -199,6 +199,14 @@ def test_ctl_ls_lists_each_eval_in_an_eval_set(short_data_dir: Path) -> None:
             assert samples["completed"] == 0
             assert samples["errored"] == 0
             assert samples["queued"] == 0
+            # Status reflects "still running" while samples are in flight.
+            assert entry["status"] == "running", (
+                f"expected status='running' with samples in flight, got "
+                f"{entry['status']!r}"
+            )
+            assert entry["completed_at"] is None, (
+                "completed_at should be None while samples still in flight"
+            )
     finally:
         release.set()
         thread.join(timeout=60)
@@ -396,6 +404,28 @@ def test_keep_alive_blocks_after_eval_set_until_shutdown(
         servers = list_discovered_servers()
         assert len(servers) == 1, "discovery file vanished while keep-alive active"
 
+        # Status / completed_at should reflect "this eval is done" so
+        # an agent can tell when it's safe to stop polling.
+        transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            response = client.get("/evals")
+            response.raise_for_status()
+            entries = response.json()
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry["status"] == "completed", (
+            f"expected status='completed' under keep-alive after the eval "
+            f"finished, got {entry['status']!r}"
+        )
+        assert entry["completed_at"] is not None, (
+            "expected completed_at to be set; got None"
+        )
+        assert entry["completed_at"] >= entry["started_at"], (
+            "completed_at must be >= started_at"
+        )
+
         # Give the eval-set wait a moment to settle, then re-confirm
         # the thread really is parked (it hasn't just been slow to
         # return). 0.5s is well under any timeout that would cause a
@@ -407,7 +437,6 @@ def test_keep_alive_blocks_after_eval_set_until_shutdown(
         )
 
         # 3. POST /shutdown should release the block.
-        transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
         with httpx.Client(
             transport=transport, base_url="http://localhost", timeout=5.0
         ) as client:

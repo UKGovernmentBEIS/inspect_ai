@@ -25,6 +25,7 @@ Why a counter aggregate rather than computing on demand from
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from threading import Lock
 
@@ -64,6 +65,17 @@ class EvalState:
 
     run_id: str | None = None
     """Process-level run id. Same rationale as :attr:`task`."""
+
+    completed_at: float | None = None
+    """Unix timestamp when this eval's last sample finished (i.e. when
+    ``completed + errored`` first reached ``total``). ``None`` while the
+    eval is still running. Used by the control endpoint to surface
+    completion to agents without forcing them to derive it from counters."""
+
+    @property
+    def is_finished(self) -> bool:
+        """True once every sample has terminated (success or error)."""
+        return self.total > 0 and self.completed + self.errored >= self.total
 
 
 # Module-level registry. Keyed by eval_id. A process can host multiple
@@ -115,6 +127,7 @@ def record_sample_completed(eval_id: str) -> None:
         state = _eval_states.get(eval_id)
         if state is not None:
             state.completed += 1
+            _maybe_mark_finished(state)
 
 
 def record_sample_errored(eval_id: str) -> None:
@@ -127,6 +140,19 @@ def record_sample_errored(eval_id: str) -> None:
         state = _eval_states.get(eval_id)
         if state is not None:
             state.errored += 1
+            _maybe_mark_finished(state)
+
+
+def _maybe_mark_finished(state: EvalState) -> None:
+    """Stamp ``completed_at`` when every sample has terminated.
+
+    Fires the first time ``completed + errored`` reaches ``total``;
+    later updates are no-ops so a late counter update from a teardown
+    race doesn't overwrite the original finish time. Caller must hold
+    the registry lock.
+    """
+    if state.completed_at is None and state.is_finished:
+        state.completed_at = time.time()
 
 
 def get_eval_state(eval_id: str) -> EvalState | None:

@@ -96,6 +96,13 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
         completed = state.completed if state is not None else 0
         errored = state.errored if state is not None else 0
         queued = max(0, total - completed - errored - in_flight)
+        completed_at = state.completed_at if state is not None else None
+        # Status from the EvalState (authoritative — won't flip back
+        # to "running" if all samples have completed but the process
+        # is lingering under keep-alive). Errored / cancelled
+        # variants can be added later; for v1 the binary "still in
+        # flight vs done" distinction is what agents need to know.
+        status = "completed" if completed_at is not None else "running"
 
         summaries.append(
             {
@@ -103,8 +110,9 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                 "eval_id": eval_id,
                 "task": task_name,
                 "model": model,
-                "status": "running",
+                "status": status,
                 "started_at": eval_started_at,
+                "completed_at": completed_at,
                 "samples": {
                     "total": total,
                     "completed": completed,
