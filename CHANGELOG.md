@@ -9,6 +9,7 @@
 - Transcript: Various improvements to transcript event subscriber delivery.
 - Transcript: Complete samples from buffer history database rather than in-memory list.
 - Scoring: Flush the output recorder after each `--stream N` batch of scored samples.
+- Inspect View: Add UI for editing log tags and metadata, with author/reason provenance recorded in `log_updates`. S3-backed logs use `If-Match` ETag protection against concurrent modification.
 - Bugfix: Show View Log button on top right of sample display.
 - Bugfix: Prevent transcript subscriber-failure warnings from re-entering the subscriber loop and fanning out.
 - Bugfix: Don't mutate plan when calling `resolve_plan()`.
