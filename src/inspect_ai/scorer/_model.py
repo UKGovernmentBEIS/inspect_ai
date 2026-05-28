@@ -55,8 +55,11 @@ def model_graded_fact(
       include_history:
         Whether to include the full chat history in the presented
         question. Defaults to `False`, which presents only the
-        original sample input. Optionally provide a function to
-        customise how the chat history is presented.
+        original sample input. When `True`, the presented history
+        includes the final assistant message; the answer is still
+        supplied separately to the grading template. Optionally
+        provide a function to customise how the chat history is
+        presented.
       partial_credit: Whether to allow for "partial" credit for
          answers (by default assigned a score of 0.5). Defaults
          to `False`. Note that this parameter is only used
@@ -114,8 +117,11 @@ def model_graded_qa(
       include_history:
         Whether to include the full chat history in the presented
         question. Defaults to `False`, which presents only the
-        original sample input. Optionally provide a function to
-        customise how the chat history is presented.
+        original sample input. When `True`, the presented history
+        includes the final assistant message; the answer is still
+        supplied separately to the grading template. Optionally
+        provide a function to customise how the chat history is
+        presented.
       partial_credit: Whether to allow for "partial" credit for
         answers (by default assigned a score of 0.5). Defaults
         to `False`. Note that this parameter is only used
@@ -310,8 +316,9 @@ def chat_history(state: TaskState) -> str:
         if not isinstance(message, ChatMessageSystem)
     ]
 
-    # present message history (removing the final assistant message
-    # and after as it will be contained in the 'Answer:'):
+    # Present message history through the final assistant message, while
+    # dropping any later messages. The grading template still receives the
+    # final answer separately.
     messages = remove_last_match_and_after(
         messages, lambda message: isinstance(message, ChatMessageAssistant)
     )
