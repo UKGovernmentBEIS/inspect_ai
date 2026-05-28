@@ -1,17 +1,17 @@
-"""Tests for task() multiplexer tool."""
+"""Tests for agent() multiplexer tool."""
 
 from test_helpers.tool_call_utils import get_tool_event
 
 from inspect_ai import Task, eval
 from inspect_ai._util.content import Content, ContentText
 from inspect_ai._util.registry import is_registry_object, registry_info
-from inspect_ai.agent._deepagent.subagent import Subagent, subagent
-from inspect_ai.agent._deepagent.task_tool import (
-    _build_task_description,
+from inspect_ai.agent._deepagent.agent_tool import (
+    _build_agent_description,
     _prepare_forked_input,
     _resolve_tools,
-    task_tool,
+    agent_tool,
 )
+from inspect_ai.agent._deepagent.subagent import Subagent, subagent
 from inspect_ai.dataset import Sample
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.model._chat_message import (
@@ -32,14 +32,14 @@ def _test_subagent(
     )
 
 
-class TestBuildTaskDescription:
+class TestBuildAgentDescription:
     def test_includes_all_subagent_names(self) -> None:
         subagents = [
             _test_subagent("research", "Gather info."),
             _test_subagent("plan", "Make plans."),
             _test_subagent("general", "General work."),
         ]
-        desc = _build_task_description(subagents)
+        desc = _build_agent_description(subagents)
         assert "research" in desc
         assert "plan" in desc
         assert "general" in desc
@@ -48,20 +48,20 @@ class TestBuildTaskDescription:
         assert "General work." in desc
 
     def test_includes_delegation_guidance(self) -> None:
-        desc = _build_task_description([_test_subagent()])
+        desc = _build_agent_description([_test_subagent()])
         assert "Delegate" in desc or "delegate" in desc
 
 
-class TestTaskToolConstructibility:
+class TestAgentToolConstructibility:
     def test_constructible(self) -> None:
-        tool = task_tool(subagents=[_test_subagent()])
+        tool = agent_tool(subagents=[_test_subagent()])
         assert tool is not None
 
 
-class TestTaskToolDispatch:
+class TestAgentToolDispatch:
     def test_via_mockllm(self) -> None:
         sa = _test_subagent("research", "Read-only information gathering.")
-        tt = task_tool(subagents=[sa])
+        tt = agent_tool(subagents=[sa])
 
         task = Task(
             dataset=[Sample(input="Do some research")],
@@ -72,10 +72,10 @@ class TestTaskToolDispatch:
         model = get_model(
             "mockllm/model",
             custom_outputs=[
-                # 1. Outer agent calls task() tool
+                # 1. Outer agent calls agent() tool
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "research",
                         "prompt": "Find relevant information.",
@@ -97,11 +97,11 @@ class TestTaskToolDispatch:
 
         tool_event = get_tool_event(log)
         assert tool_event is not None
-        assert tool_event.function == "task"
+        assert tool_event.function == "agent"
 
     def test_invalid_subagent_type(self) -> None:
         sa = _test_subagent("research", "Gather info.")
-        tt = task_tool(subagents=[sa])
+        tt = agent_tool(subagents=[sa])
 
         task = Task(
             dataset=[Sample(input="Do something")],
@@ -114,7 +114,7 @@ class TestTaskToolDispatch:
             custom_outputs=[
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "nonexistent",
                         "prompt": "Do something.",
@@ -132,7 +132,7 @@ class TestTaskToolDispatch:
 
     def test_general_dispatch(self) -> None:
         sa = _test_subagent("general", "General work.")
-        tt = task_tool(subagents=[sa])
+        tt = agent_tool(subagents=[sa])
 
         task = Task(
             dataset=[Sample(input="Do work")],
@@ -145,7 +145,7 @@ class TestTaskToolDispatch:
             custom_outputs=[
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "general",
                         "prompt": "Do general work.",
@@ -176,23 +176,23 @@ class TestRecursionGuard:
                 names.append(name.split("/")[-1])
         return names
 
-    def test_task_tool_included_when_depth_allows(self) -> None:
-        """max_depth=2 at depth=0: child gets task tool (can delegate once)."""
+    def test_agent_tool_included_when_depth_allows(self) -> None:
+        """max_depth=2 at depth=0: child gets agent tool (can delegate once)."""
         sa = _test_subagent("research", "Gather info.")
         sas = [sa]
         tools = _resolve_tools(
             sa, sas, None, None, None, depth=0, max_depth=2, get_messages=None
         )
-        assert "task" in self._tool_registry_names(tools)
+        assert "agent" in self._tool_registry_names(tools)
 
-    def test_task_tool_excluded_at_default_depth(self) -> None:
-        """max_depth=1 (default) at depth=0: child does NOT get task tool."""
+    def test_agent_tool_excluded_at_default_depth(self) -> None:
+        """max_depth=1 (default) at depth=0: child does NOT get agent tool."""
         sa = _test_subagent("research", "Gather info.")
         sas = [sa]
         tools = _resolve_tools(
             sa, sas, None, None, None, depth=0, max_depth=1, get_messages=None
         )
-        assert "task" not in self._tool_registry_names(tools)
+        assert "agent" not in self._tool_registry_names(tools)
 
 
 class TestSkillComposition:
@@ -297,7 +297,7 @@ class TestExtractResult:
     def test_extract_result_with_content_text(self) -> None:
         """_extract_result handles list[ContentText] from providers like Anthropic."""
         from inspect_ai.agent._agent import AgentState
-        from inspect_ai.agent._deepagent.task_tool import _extract_result
+        from inspect_ai.agent._deepagent.agent_tool import _extract_result
         from inspect_ai.model._chat_message import ChatMessageAssistant
         from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
 
@@ -316,7 +316,7 @@ class TestExtractResult:
     def test_extract_result_with_str_content(self) -> None:
         """_extract_result handles plain string content."""
         from inspect_ai.agent._agent import AgentState
-        from inspect_ai.agent._deepagent.task_tool import _extract_result
+        from inspect_ai.agent._deepagent.agent_tool import _extract_result
         from inspect_ai.model._chat_message import ChatMessageAssistant
 
         msg = ChatMessageAssistant(content="Plain string answer.")
@@ -339,7 +339,7 @@ class TestForkedDispatch:
         parent_messages: list[ChatMessage] = [
             ChatMessageUser(content="Original context.", id="msg-1")
         ]
-        tt = task_tool(
+        tt = agent_tool(
             subagents=[sa],
             get_messages=lambda: parent_messages,
         )
@@ -355,7 +355,7 @@ class TestForkedDispatch:
             custom_outputs=[
                 ModelOutput.for_tool_call(
                     model="mockllm/model",
-                    tool_name="task",
+                    tool_name="agent",
                     tool_arguments={
                         "subagent_type": "forked_agent",
                         "prompt": "Continue the work.",
@@ -377,7 +377,7 @@ class TestForkedDispatch:
 
         tool_event = get_tool_event(log)
         assert tool_event is not None
-        assert tool_event.function == "task"
+        assert tool_event.function == "agent"
         assert tool_event.error is None
 
 
@@ -415,7 +415,7 @@ class TestPrepareForkedInput:
                 tool_calls=[
                     ToolCall(
                         id="call-task-1",
-                        function="task",
+                        function="agent",
                         arguments={"subagent_type": "forked", "prompt": "x"},
                         type="function",
                     ),
@@ -474,8 +474,8 @@ class TestPrepareForkedInput:
         assert "submit()" in str(last.content)
 
 
-class TestTaskToolParallelFlag:
-    """task()'s parallel flag is derived from the subagents' tool configs.
+class TestAgentToolParallelFlag:
+    """agent()'s parallel flag is derived from the subagents' tool configs.
 
     True iff every subagent's tools are themselves parallel-safe and no
     subagent pulls in stateful additions (memory/skills) whose underlying
@@ -490,7 +490,7 @@ class TestTaskToolParallelFlag:
     def test_default_subagents_use_parallel_safe_defaults(self) -> None:
         # sa.tools=None -> read_file/list_files/grep, all parallel=True now.
         sa = subagent(name="research", description="research", prompt="research.")
-        tool = task_tool(subagents=[sa])
+        tool = agent_tool(subagents=[sa])
         assert self._parallel_of(tool) is True
 
     def test_memory_remains_parallel_safe(self) -> None:
@@ -502,7 +502,7 @@ class TestTaskToolParallelFlag:
             prompt="research.",
             memory="readwrite",
         )
-        tool = task_tool(subagents=[sa])
+        tool = agent_tool(subagents=[sa])
         assert self._parallel_of(tool) is True
 
     def test_explicit_serial_tool_forces_serial(self) -> None:
@@ -526,7 +526,7 @@ class TestTaskToolParallelFlag:
             prompt="r.",
             tools=[serial_tool()],
         )
-        tool = task_tool(subagents=[sa])
+        tool = agent_tool(subagents=[sa])
         assert self._parallel_of(tool) is False
 
     def test_explicit_parallel_tool_keeps_parallel(self) -> None:
@@ -550,7 +550,7 @@ class TestTaskToolParallelFlag:
             prompt="r.",
             tools=[parallel_tool()],
         )
-        tool = task_tool(subagents=[sa])
+        tool = agent_tool(subagents=[sa])
         assert self._parallel_of(tool) is True
 
     def test_one_unsafe_subagent_disables_parallel(self) -> None:
@@ -572,5 +572,5 @@ class TestTaskToolParallelFlag:
         sa_unsafe = subagent(
             name="b", description="b", prompt="b.", tools=[serial_tool()]
         )
-        tool = task_tool(subagents=[sa_safe, sa_unsafe])
+        tool = agent_tool(subagents=[sa_safe, sa_unsafe])
         assert self._parallel_of(tool) is False

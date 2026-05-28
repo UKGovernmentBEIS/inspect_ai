@@ -14295,6 +14295,12 @@ pre[class*="language-"] {
   --bs-border-radius-lg: 4px;
   --bs-popover-max-width: 50%;
   --bs-code-color: #8b0000;
+  /* Secondary/italic guidance text (e.g. "optional" next to the Reason
+     label in the edit dialogs). Bootstrap's --bs-secondary-color is
+     readable on a light surface; in VS Code dark themes it disappears
+     against the dialog background, so this variable is re-pointed at
+     --vscode-descriptionForeground below. */
+  --inspect-hint-foreground: var(--bs-secondary-color);
   --inspect-find-background: var(--bs-body-bg);
   --inspect-find-foreground: var(--bs-body-color);
   --inspect-input-background: var(--bs-body-bg);
@@ -14494,6 +14500,10 @@ body[class^="vscode-"] {
   --inspect-input-background: var(--vscode-input-background);
   --inspect-input-foreground: var(--vscode-input-foreground);
   --inspect-input-border: var(--vscode-input-border);
+  /* descriptionForeground is the muted-but-readable text VS Code uses
+     for inline guidance (e.g. quick-pick descriptions). Matches the
+     editor's contrast tuning in both light and dark themes. */
+  --inspect-hint-foreground: var(--vscode-descriptionForeground);
   --inspect-diff-add-color: var(--vscode-diffEditor-insertedTextBackground);
   --inspect-diff-remove-color: var(--vscode-diffEditor-removedTextBackground);
   --inspect-glass-color: var(--vscode-editor-foreground);
@@ -14601,6 +14611,98 @@ body[class^="vscode-"] .btn-primary {
   --bs-btn-disabled-color: var(--vscode-button-foreground);
   --bs-btn-disabled-bg: var(--vscode-button-background);
   --bs-btn-disabled-border-color: var(--vscode-button-background);
+  --bs-btn-disabled-opacity: 0.8;
+}
+
+/* Inside modal dialogs (edit tags / edit metadata / scoring detail)
+   the editor-tuned `--vscode-editorGroup-border` reads as nearly
+   invisible against dark themes — chip strips, the metadata grid,
+   and form-control inputs all lose their visual containers. Re-point
+   `--bs-border-color` to a widget-grade border so anything Bootstrap
+   styles with the border-color token (chip outlines, input borders,
+   table dividers, etc.) becomes legible. The fallback chain prefers
+   widget/editorWidget borders (typically tuned by themes for popups)
+   and only drops back to editorGroup-border if nothing else is set. */
+body[class^="vscode-"] .modal {
+  --bs-border-color: var(
+    --vscode-widget-border,
+    var(--vscode-editorWidget-border, var(--vscode-editorGroup-border))
+  );
+  /* Error banner inside dialogs: the global vscode block only re-points
+     `--bs-danger-bg-subtle` (at the diff-editor red wash), leaving
+     `--bs-danger-text-emphasis` and `--bs-danger-border-subtle` at
+     Bootstrap's light-mode dark-red values — unreadable on a VS Code
+     dark dialog. Use the editor's input-validation tokens (designed
+     for exactly this purpose: a tinted background with readable
+     foreground and a visible border) with a fallback to
+     `errorForeground` for themes that only define the foreground.
+     Also re-point `--bs-danger` so the required-field asterisk picks
+     up the same readable red. */
+  --bs-danger: var(--vscode-errorForeground);
+  --bs-danger-bg-subtle: var(
+    --vscode-inputValidation-errorBackground,
+    var(--vscode-diffEditor-removedTextBackground)
+  );
+  --bs-danger-text-emphasis: var(
+    --vscode-inputValidation-errorForeground,
+    var(--vscode-errorForeground)
+  );
+  --bs-danger-border-subtle: var(
+    --vscode-inputValidation-errorBorder,
+    var(--vscode-errorForeground)
+  );
+  /* Change-tracking summary in the dialog footer uses these tokens
+     for the italic body, the "Adding" / "Editing" lines, and the
+     "No tags yet —" placeholder inside the chip box. Bootstrap's
+     light-mode values are unreadable on a dark VS Code modal; remap
+     to descriptionForeground (matches the hint label) plus the
+     editor's source-control accent colors so the categories stay
+     distinguishable. (Removing already inherits the readable red
+     from `--bs-danger` re-pointed above.) */
+  --bs-secondary-color: var(--vscode-descriptionForeground);
+  --bs-success-text-emphasis: var(
+    --vscode-gitDecoration-addedResourceForeground,
+    var(--vscode-charts-green)
+  );
+  --bs-warning-text-emphasis: var(
+    --vscode-gitDecoration-modifiedResourceForeground,
+    var(--vscode-charts-yellow)
+  );
+}
+
+/* Form-control inputs inside dialogs (Author, Reason, "Add a tag…",
+   "Add a key…") should look like native VS Code inputs rather than
+   editor-background panes: surface the input background/foreground
+   tokens, and use the input placeholder token so the placeholder
+   text stays readable in dark themes. */
+body[class^="vscode-"] .modal .form-control {
+  background-color: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border-color: var(
+    --vscode-input-border,
+    var(--vscode-widget-border, var(--vscode-editorGroup-border))
+  );
+}
+
+body[class^="vscode-"] .modal .form-control::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+  opacity: 1;
+}
+
+/* Mirror .btn-primary for .btn-secondary so Cancel buttons and the
+   "+ Add" pill (both rendered with Bootstrap's btn-secondary) read as
+   native VS Code secondary buttons rather than the washed-out
+   Bootstrap gray that has poor contrast in dark themes. */
+body[class^="vscode-"] .btn-secondary {
+  --bs-btn-bg: var(--vscode-button-secondaryBackground);
+  --bs-btn-border-color: var(--vscode-button-secondaryBackground);
+  --bs-btn-hover-bg: var(--vscode-button-secondaryHoverBackground);
+  --bs-btn-hover-border-color: var(--vscode-button-secondaryHoverBackground);
+  --bs-btn-color: var(--vscode-button-secondaryForeground);
+  --bs-btn-hover-color: var(--vscode-button-secondaryForeground);
+  --bs-btn-disabled-color: var(--vscode-button-secondaryForeground);
+  --bs-btn-disabled-bg: var(--vscode-button-secondaryBackground);
+  --bs-btn-disabled-border-color: var(--vscode-button-secondaryBackground);
   --bs-btn-disabled-opacity: 0.8;
 }
 
@@ -16193,40 +16295,46 @@ li > ul {
   margin-right: 0.5rem;
   color: var(--bs-red);
 }
-._headerContainer_gh2j2_1 {
-  display: grid;
-  grid-template-columns: max-content auto;
-  column-gap: 0rem;
+._headerContainer_19525_1 {
+  /* Flex (not grid) so an optional `children` action node sits inline
+     beside the label rather than wrapping onto a new row. The previous
+     2-column grid (`max-content auto`) treated icon / label-text /
+     children as three grid items in two columns, forcing the third
+     onto its own row. With flex, icon + label sit at the start and
+     any actions trailing in `children` flow inline (and can push
+     themselves to the far edge with `margin-left: auto`). */
+  display: flex;
+  align-items: center;
   padding: 0.5rem 0.5rem 0.5rem 0.5rem;
   font-size: var(--inspect-font-size-small);
   font-weight: 600;
   border-bottom: solid 1px var(--bs-light-border-subtle);
 }
 
-._headerContainer_gh2j2_1._headerModern_gh2j2_11 {
+._headerContainer_19525_1._headerModern_19525_17 {
   color: var(--bs-secondary);
   padding: 0.25rem 0.5rem 0rem 0.5rem;
   border-bottom: none;
   background-color: var(--bs-body-bg);
 }
 
-._headerIcon_gh2j2_18:not(._headerIconEmpty_gh2j2_18) {
+._headerIcon_19525_24:not(._headerIconEmpty_19525_24) {
   padding-right: 0.2rem;
 }
 
-._body_gh2j2_22 {
+._body_19525_28 {
   background-color: var(--bs-body-bg);
   padding: 0.5rem !important;
 }
 
-._card_gh2j2_27 {
+._card_19525_33 {
   background-color: var(--bs-body-bg);
   border: solid 1px var(--bs-light-border-subtle);
   border-radius: var(--bs-border-radius);
   overflow: hidden;
 }
 
-._body_gh2j2_22._noPadding_gh2j2_34 {
+._body_19525_28._noPadding_19525_40 {
   padding: 0;
 }
 ._copyButton_1goi8_1 {
@@ -16239,717 +16347,6 @@ li > ul {
 
 ._copyButton_1goi8_1:hover {
   opacity: 0.75;
-}
-.ap-default-term-ff {
-  --term-font-family: "Cascadia Code", "Source Code Pro", Menlo, Consolas, "DejaVu Sans Mono", monospace, "Symbols Nerd Font";
-}
-div.ap-wrapper {
-  outline: none;
-  height: 100%;
-  display: flex;
-  justify-content: center;
-}
-div.ap-wrapper .title-bar {
-  display: none;
-  top: -78px;
-  transition: top 0.15s linear;
-  position: absolute;
-  left: 0;
-  right: 0;
-  box-sizing: content-box;
-  font-size: 20px;
-  line-height: 1em;
-  padding: 15px;
-  font-family: sans-serif;
-  color: white;
-  background-color: rgba(0, 0, 0, 0.8);
-}
-div.ap-wrapper .title-bar img {
-  vertical-align: middle;
-  height: 48px;
-  margin-right: 16px;
-}
-div.ap-wrapper .title-bar a {
-  color: white;
-  text-decoration: underline;
-}
-div.ap-wrapper .title-bar a:hover {
-  text-decoration: none;
-}
-div.ap-wrapper:fullscreen {
-  background-color: #000;
-  width: 100%;
-  align-items: center;
-}
-div.ap-wrapper:fullscreen .title-bar {
-  display: initial;
-}
-div.ap-wrapper:fullscreen.hud .title-bar {
-  top: 0;
-}
-div.ap-wrapper div.ap-player {
-  text-align: left;
-  display: inline-block;
-  padding: 0px;
-  position: relative;
-  box-sizing: content-box;
-  overflow: hidden;
-  max-width: 100%;
-  border-radius: 4px;
-  font-size: 15px;
-  background-color: var(--term-color-background);
-}
-.ap-player {
-  --term-color-foreground: #ffffff;
-  --term-color-background: #000000;
-  --term-color-0: var(--term-color-foreground);
-  --term-color-1: var(--term-color-foreground);
-  --term-color-2: var(--term-color-foreground);
-  --term-color-3: var(--term-color-foreground);
-  --term-color-4: var(--term-color-foreground);
-  --term-color-5: var(--term-color-foreground);
-  --term-color-6: var(--term-color-foreground);
-  --term-color-7: var(--term-color-foreground);
-  --term-color-8: var(--term-color-0);
-  --term-color-9: var(--term-color-1);
-  --term-color-10: var(--term-color-2);
-  --term-color-11: var(--term-color-3);
-  --term-color-12: var(--term-color-4);
-  --term-color-13: var(--term-color-5);
-  --term-color-14: var(--term-color-6);
-  --term-color-15: var(--term-color-7);
-}
-div.ap-term {
-  position: relative;
-  font-family: var(--term-font-family);
-  border-width: 0.75em;
-  border-radius: 0;
-  border-style: solid;
-  border-color: var(--term-color-background);
-  box-sizing: content-box;
-}
-div.ap-term canvas {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-div.ap-term svg.ap-term-symbols {
-  position: absolute;
-  inset: 0;
-  display: block;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  pointer-events: none;
-}
-div.ap-term svg.ap-term-symbols use {
-  color: var(--term-color-foreground);
-}
-div.ap-term svg.ap-term-symbols:not(.ap-blink) .ap-blink {
-  opacity: 0;
-}
-div.ap-term pre.ap-term-text {
-  position: absolute;
-  inset: 0;
-  box-sizing: content-box;
-  overflow: hidden;
-  padding: 0;
-  margin: 0px;
-  display: block;
-  white-space: pre;
-  word-wrap: normal;
-  word-break: normal;
-  cursor: text;
-  color: var(--term-color-foreground);
-  outline: none;
-  line-height: var(--term-line-height);
-  font-family: inherit;
-  font-size: inherit;
-  font-variant-ligatures: none;
-  border: 0;
-  border-radius: 0;
-  background-color: transparent !important;
-}
-pre.ap-term-text .ap-line {
-  display: block;
-  width: 100%;
-  height: var(--term-line-height);
-  position: absolute;
-  top: calc(100% * var(--row) / var(--term-rows));
-  letter-spacing: normal;
-  overflow: hidden;
-}
-pre.ap-term-text .ap-line span {
-  position: absolute;
-  left: calc(100% * var(--offset) / var(--term-cols));
-  padding: 0;
-  display: inline-block;
-  height: 100%;
-}
-pre.ap-term-text:not(.ap-blink) .ap-line .ap-blink {
-  color: transparent;
-  border-color: transparent;
-}
-pre.ap-term-text .ap-bold {
-  font-weight: bold;
-}
-pre.ap-term-text .ap-faint {
-  opacity: 0.5;
-}
-pre.ap-term-text .ap-underline {
-  text-decoration: underline;
-}
-pre.ap-term-text .ap-italic {
-  font-style: italic;
-}
-pre.ap-term-text .ap-strike {
-  text-decoration: line-through;
-}
-.ap-line span {
-  color: var(--term-color-foreground);
-}
-div.ap-player div.ap-control-bar {
-  width: 100%;
-  height: 32px;
-  display: flex;
-  justify-content: space-between;
-  align-items: stretch;
-  color: var(--term-color-foreground);
-  box-sizing: content-box;
-  line-height: 1;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  opacity: 0;
-  transition: opacity 0.15s linear;
-  user-select: none;
-  border-top: 2px solid color-mix(in oklab, var(--term-color-background) 80%, var(--term-color-foreground));
-  z-index: 30;
-}
-div.ap-player div.ap-control-bar * {
-  box-sizing: inherit;
-}
-div.ap-control-bar svg.ap-icon path {
-  fill: var(--term-color-foreground);
-}
-div.ap-control-bar span.ap-button {
-  display: flex;
-  flex: 0 0 auto;
-  cursor: pointer;
-}
-div.ap-control-bar span.ap-playback-button {
-  width: 12px;
-  height: 12px;
-  padding: 10px;
-  margin: 0 0 0 2px;
-}
-div.ap-control-bar span.ap-playback-button svg {
-  height: 12px;
-  width: 12px;
-}
-div.ap-control-bar span.ap-timer {
-  display: flex;
-  flex: 0 0 auto;
-  min-width: 50px;
-  margin: 0 10px;
-  height: 100%;
-  text-align: center;
-  font-size: 13px;
-  line-height: 100%;
-  cursor: default;
-}
-div.ap-control-bar span.ap-timer span {
-  font-family: var(--term-font-family);
-  font-size: inherit;
-  font-weight: 600;
-  margin: auto;
-}
-div.ap-control-bar span.ap-timer .ap-time-remaining {
-  display: none;
-}
-div.ap-control-bar span.ap-timer:hover .ap-time-elapsed {
-  display: none;
-}
-div.ap-control-bar span.ap-timer:hover .ap-time-remaining {
-  display: flex;
-}
-div.ap-control-bar .ap-progressbar {
-  display: block;
-  flex: 1 1 auto;
-  height: 100%;
-  padding: 0 10px;
-}
-div.ap-control-bar .ap-progressbar .ap-bar {
-  display: block;
-  position: relative;
-  cursor: default;
-  height: 100%;
-  font-size: 0;
-}
-div.ap-control-bar .ap-progressbar .ap-bar .ap-gutter {
-  display: block;
-  position: absolute;
-  top: 15px;
-  left: 0;
-  right: 0;
-  height: 3px;
-}
-div.ap-control-bar .ap-progressbar .ap-bar .ap-gutter-empty {
-  background-color: color-mix(in oklab, var(--term-color-foreground) 20%, var(--term-color-background));
-}
-div.ap-control-bar .ap-progressbar .ap-bar .ap-gutter-full {
-  width: 100%;
-  transform-origin: left center;
-  background-color: var(--term-color-foreground);
-  border-radius: 3px;
-}
-div.ap-control-bar.ap-seekable .ap-progressbar .ap-bar {
-  cursor: pointer;
-}
-div.ap-control-bar .ap-fullscreen-button {
-  width: 14px;
-  height: 14px;
-  padding: 9px;
-  margin: 0 2px 0 4px;
-}
-div.ap-control-bar .ap-fullscreen-button svg {
-  width: 14px;
-  height: 14px;
-}
-div.ap-control-bar .ap-fullscreen-button svg.ap-icon-fullscreen-on {
-  display: inline;
-}
-div.ap-control-bar .ap-fullscreen-button svg.ap-icon-fullscreen-off {
-  display: none;
-}
-div.ap-control-bar .ap-fullscreen-button .ap-tooltip {
-  right: 5px;
-  left: initial;
-  transform: none;
-}
-div.ap-control-bar .ap-kbd-button {
-  height: 14px;
-  padding: 9px;
-  margin: 0 0 0 4px;
-}
-div.ap-control-bar .ap-kbd-button svg {
-  width: 26px;
-  height: 14px;
-}
-div.ap-control-bar .ap-kbd-button .ap-tooltip {
-  right: 5px;
-  left: initial;
-  transform: none;
-}
-div.ap-control-bar .ap-speaker-button {
-  width: 19px;
-  padding: 6px 9px;
-  margin: 0 0 0 4px;
-  position: relative;
-}
-div.ap-control-bar .ap-speaker-button svg {
-  width: 19px;
-}
-div.ap-control-bar .ap-speaker-button .ap-tooltip {
-  left: -50%;
-  transform: none;
-}
-div.ap-wrapper.ap-hud .ap-control-bar {
-  opacity: 1;
-}
-div.ap-wrapper:fullscreen .ap-fullscreen-button svg.ap-icon-fullscreen-on {
-  display: none;
-}
-div.ap-wrapper:fullscreen .ap-fullscreen-button svg.ap-icon-fullscreen-off {
-  display: inline;
-}
-span.ap-progressbar span.ap-marker-container {
-  display: block;
-  top: 0;
-  bottom: 0;
-  width: 21px;
-  position: absolute;
-  margin-left: -10px;
-}
-span.ap-marker-container span.ap-marker {
-  display: block;
-  top: 13px;
-  bottom: 12px;
-  left: 7px;
-  right: 7px;
-  background-color: color-mix(in oklab, var(--term-color-foreground) 33%, var(--term-color-background));
-  position: absolute;
-  transition: top 0.1s, bottom 0.1s, left 0.1s, right 0.1s, background-color 0.1s;
-  border-radius: 50%;
-}
-span.ap-marker-container span.ap-marker.ap-marker-past {
-  background-color: var(--term-color-foreground);
-}
-span.ap-marker-container span.ap-marker:hover,
-span.ap-marker-container:hover span.ap-marker {
-  background-color: var(--term-color-foreground);
-  top: 11px;
-  bottom: 10px;
-  left: 5px;
-  right: 5px;
-}
-.ap-tooltip-container span.ap-tooltip {
-  visibility: hidden;
-  background-color: var(--term-color-foreground);
-  color: var(--term-color-background);
-  font-family: var(--term-font-family);
-  font-weight: bold;
-  text-align: center;
-  padding: 0 0.5em;
-  border-radius: 4px;
-  position: absolute;
-  z-index: 1;
-  white-space: nowrap;
-  /* Prevents the text from wrapping and makes sure the tooltip width adapts to the text length */
-  font-size: 13px;
-  line-height: 2em;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-}
-.ap-tooltip-container:hover span.ap-tooltip {
-  visibility: visible;
-}
-.ap-player .ap-overlay {
-  z-index: 10;
-  background-repeat: no-repeat;
-  background-position: center;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.ap-player .ap-overlay-start {
-  cursor: pointer;
-}
-.ap-player .ap-overlay-start .ap-play-button {
-  font-size: 0px;
-  position: absolute;
-  left: 0;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  text-align: center;
-  color: white;
-  height: 80px;
-  max-height: 66%;
-  margin: auto;
-}
-.ap-player .ap-overlay-start .ap-play-button div {
-  height: 100%;
-}
-.ap-player .ap-overlay-start .ap-play-button div span {
-  height: 100%;
-  display: block;
-}
-.ap-player .ap-overlay-start .ap-play-button div span svg {
-  height: 100%;
-  display: inline-block;
-}
-.ap-player .ap-overlay-start .ap-play-button svg {
-  filter: drop-shadow(0px 0px 5px rgba(0, 0, 0, 0.4));
-}
-.ap-player .ap-overlay-loading .ap-loader {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  display: inline-block;
-  position: relative;
-  border: 10px solid;
-  border-color: rgba(255, 255, 255, 0.3) rgba(255, 255, 255, 0.5) rgba(255, 255, 255, 0.7) #ffffff;
-  border-color: color-mix(in srgb, var(--term-color-foreground) 30%, var(--term-color-background)) color-mix(in srgb, var(--term-color-foreground) 50%, var(--term-color-background)) color-mix(in srgb, var(--term-color-foreground) 70%, var(--term-color-background)) color-mix(in srgb, var(--term-color-foreground) 100%, var(--term-color-background));
-  box-sizing: border-box;
-  animation: ap-loader-rotation 1s linear infinite;
-}
-.ap-player .ap-overlay-info {
-  background-color: var(--term-color-background);
-}
-.ap-player .ap-overlay-info span {
-  font-family: var(--term-font-family);
-  font-size: 2em;
-  font-weight: bold;
-  color: var(--term-color-background);
-  background-color: var(--term-color-foreground);
-  padding: 0.5em 0.75em;
-  text-transform: uppercase;
-}
-.ap-player .ap-overlay-help {
-  background-color: rgba(0, 0, 0, 0.8);
-  container-type: inline-size;
-}
-.ap-player .ap-overlay-help > div {
-  font-family: var(--term-font-family);
-  max-width: 85%;
-  max-height: 85%;
-  font-size: 18px;
-  color: var(--term-color-foreground);
-  box-sizing: border-box;
-  margin-bottom: 32px;
-}
-.ap-player .ap-overlay-help > div div {
-  padding: calc(min(4cqw, 40px));
-  font-size: calc(min(1.9cqw, 18px));
-  background-color: var(--term-color-background);
-  border: 1px solid color-mix(in oklab, var(--term-color-background) 90%, var(--term-color-foreground));
-  border-radius: 6px;
-}
-.ap-player .ap-overlay-help > div div p {
-  font-weight: bold;
-  margin: 0 0 2em 0;
-}
-.ap-player .ap-overlay-help > div div ul {
-  list-style: none;
-  padding: 0;
-}
-.ap-player .ap-overlay-help > div div ul li {
-  margin: 0 0 0.75em 0;
-}
-.ap-player .ap-overlay-help > div div kbd {
-  color: var(--term-color-background);
-  background-color: var(--term-color-foreground);
-  padding: 0.2em 0.5em;
-  border-radius: 0.2em;
-  font-family: inherit;
-  font-size: 0.85em;
-  border: none;
-  margin: 0;
-}
-.ap-player .ap-overlay-error span {
-  font-size: 8em;
-}
-.ap-player .slide-enter-active {
-  transition: opacity 0.2s;
-}
-.ap-player .slide-enter-active.ap-was-playing {
-  transition: top 0.2s ease-out, opacity 0.2s;
-}
-.ap-player .slide-exit-active {
-  transition: top 0.2s ease-in, opacity 0.2s;
-}
-.ap-player .slide-enter {
-  top: -50%;
-  opacity: 0;
-}
-.ap-player .slide-enter-to {
-  top: 0%;
-}
-.ap-player .slide-enter,
-.ap-player .slide-enter-to,
-.ap-player .slide-exit,
-.ap-player .slide-exit-to {
-  bottom: auto;
-  height: 100%;
-}
-.ap-player .slide-exit {
-  top: 0%;
-}
-.ap-player .slide-exit-to {
-  top: -50%;
-  opacity: 0;
-}
-@keyframes ap-loader-rotation {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-.asciinema-player-theme-asciinema {
-  --term-color-foreground: #cccccc;
-  --term-color-background: #121314;
-  --term-color-0: #000000;
-  --term-color-1: #dd3c69;
-  --term-color-2: #4ebf22;
-  --term-color-3: #ddaf3c;
-  --term-color-4: #26b0d7;
-  --term-color-5: #b954e1;
-  --term-color-6: #54e1b9;
-  --term-color-7: #d9d9d9;
-  --term-color-8: #4d4d4d;
-  --term-color-9: #dd3c69;
-  --term-color-10: #4ebf22;
-  --term-color-11: #ddaf3c;
-  --term-color-12: #26b0d7;
-  --term-color-13: #b954e1;
-  --term-color-14: #54e1b9;
-  --term-color-15: #ffffff;
-}
-/*
-  Based on Dracula: https://draculatheme.com
- */
-.asciinema-player-theme-dracula {
-  --term-color-foreground: #f8f8f2;
-  --term-color-background: #282a36;
-  --term-color-0: #21222c;
-  --term-color-1: #ff5555;
-  --term-color-2: #50fa7b;
-  --term-color-3: #f1fa8c;
-  --term-color-4: #bd93f9;
-  --term-color-5: #ff79c6;
-  --term-color-6: #8be9fd;
-  --term-color-7: #f8f8f2;
-  --term-color-8: #6272a4;
-  --term-color-9: #ff6e6e;
-  --term-color-10: #69ff94;
-  --term-color-11: #ffffa5;
-  --term-color-12: #d6acff;
-  --term-color-13: #ff92df;
-  --term-color-14: #a4ffff;
-  --term-color-15: #ffffff;
-}
-/* Based on Monokai from base16 collection - https://github.com/chriskempson/base16 */
-.asciinema-player-theme-monokai {
-  --term-color-foreground: #f8f8f2;
-  --term-color-background: #272822;
-  --term-color-0: #272822;
-  --term-color-1: #f92672;
-  --term-color-2: #a6e22e;
-  --term-color-3: #f4bf75;
-  --term-color-4: #66d9ef;
-  --term-color-5: #ae81ff;
-  --term-color-6: #a1efe4;
-  --term-color-7: #f8f8f2;
-  --term-color-8: #75715e;
-  --term-color-15: #f9f8f5;
-}
-/*
-  Based on Nord: https://github.com/arcticicestudio/nord
-  Via: https://github.com/neilotoole/asciinema-theme-nord
- */
-.asciinema-player-theme-nord {
-  --term-color-foreground: #eceff4;
-  --term-color-background: #2e3440;
-  --term-color-0: #3b4252;
-  --term-color-1: #bf616a;
-  --term-color-2: #a3be8c;
-  --term-color-3: #ebcb8b;
-  --term-color-4: #81a1c1;
-  --term-color-5: #b48ead;
-  --term-color-6: #88c0d0;
-  --term-color-7: #eceff4;
-}
-.asciinema-player-theme-seti {
-  --term-color-foreground: #cacecd;
-  --term-color-background: #111213;
-  --term-color-0: #323232;
-  --term-color-1: #c22832;
-  --term-color-2: #8ec43d;
-  --term-color-3: #e0c64f;
-  --term-color-4: #43a5d5;
-  --term-color-5: #8b57b5;
-  --term-color-6: #8ec43d;
-  --term-color-7: #eeeeee;
-  --term-color-15: #ffffff;
-}
-/*
-  Based on Solarized Dark: https://ethanschoonover.com/solarized/
- */
-.asciinema-player-theme-solarized-dark {
-  --term-color-foreground: #839496;
-  --term-color-background: #002b36;
-  --term-color-0: #073642;
-  --term-color-1: #dc322f;
-  --term-color-2: #859900;
-  --term-color-3: #b58900;
-  --term-color-4: #268bd2;
-  --term-color-5: #d33682;
-  --term-color-6: #2aa198;
-  --term-color-7: #eee8d5;
-  --term-color-8: #002b36;
-  --term-color-9: #cb4b16;
-  --term-color-10: #586e75;
-  --term-color-11: #657b83;
-  --term-color-12: #839496;
-  --term-color-13: #6c71c4;
-  --term-color-14: #93a1a1;
-  --term-color-15: #fdf6e3;
-}
-/*
-  Based on Solarized Light: https://ethanschoonover.com/solarized/
- */
-.asciinema-player-theme-solarized-light {
-  --term-color-foreground: #657b83;
-  --term-color-background: #fdf6e3;
-  --term-color-0: #073642;
-  --term-color-1: #dc322f;
-  --term-color-2: #859900;
-  --term-color-3: #b58900;
-  --term-color-4: #268bd2;
-  --term-color-5: #d33682;
-  --term-color-6: #2aa198;
-  --term-color-7: #eee8d5;
-  --term-color-8: #002b36;
-  --term-color-9: #cb4b16;
-  --term-color-10: #586e75;
-  --term-color-11: #657c83;
-  --term-color-12: #839496;
-  --term-color-13: #6c71c4;
-  --term-color-14: #93a1a1;
-  --term-color-15: #fdf6e3;
-}
-.asciinema-player-theme-solarized-light .ap-overlay-start .ap-play-button svg .ap-play-btn-fill {
-  fill: var(--term-color-1);
-}
-.asciinema-player-theme-solarized-light .ap-overlay-start .ap-play-button svg .ap-play-btn-stroke {
-  stroke: var(--term-color-1);
-}
-/*
-  Based on Tango: https://en.wikipedia.org/wiki/Tango_Desktop_Project
- */
-.asciinema-player-theme-tango {
-  --term-color-foreground: #cccccc;
-  --term-color-background: #121314;
-  --term-color-0: #000000;
-  --term-color-1: #cc0000;
-  --term-color-2: #4e9a06;
-  --term-color-3: #c4a000;
-  --term-color-4: #3465a4;
-  --term-color-5: #75507b;
-  --term-color-6: #06989a;
-  --term-color-7: #d3d7cf;
-  --term-color-8: #555753;
-  --term-color-9: #ef2929;
-  --term-color-10: #8ae234;
-  --term-color-11: #fce94f;
-  --term-color-12: #729fcf;
-  --term-color-13: #ad7fa8;
-  --term-color-14: #34e2e2;
-  --term-color-15: #eeeeec;
-}
-/*
-  Based on gruvbox: https://github.com/morhetz/gruvbox
- */
-.asciinema-player-theme-gruvbox-dark {
-  --term-color-foreground: #fbf1c7;
-  --term-color-background: #282828;
-  --term-color-0: #282828;
-  --term-color-1: #cc241d;
-  --term-color-2: #98971a;
-  --term-color-3: #d79921;
-  --term-color-4: #458588;
-  --term-color-5: #b16286;
-  --term-color-6: #689d6a;
-  --term-color-7: #a89984;
-  --term-color-8: #7c6f65;
-  --term-color-9: #fb4934;
-  --term-color-10: #b8bb26;
-  --term-color-11: #fabd2f;
-  --term-color-12: #83a598;
-  --term-color-13: #d3869b;
-  --term-color-14: #8ec07c;
-  --term-color-15: #fbf1c7;
 }
 .json-panel {
   width: 100%;
@@ -19701,20 +19098,20 @@ a._citationLink_1ggvf_9:hover {
   border-bottom: 5px solid var(--vscode-descriptionForeground, #717171);
   opacity: 0.7;
 }
-._title_3h2qq_1 {
+._title_1f23l_1 {
   font-weight: 600;
   padding-bottom: 0.25em;
   margin-bottom: 0.25em;
   border-bottom: solid 1px var(--bs-border-color);
 }
 
-._rows_3h2qq_8 {
+._rows_1f23l_8 {
   display: flex;
   flex-direction: column;
   row-gap: 0.15em;
 }
 
-._row_3h2qq_8 {
+._row_1f23l_8 {
   display: flex;
   align-items: center;
   gap: 0.5em;
@@ -19725,8 +19122,22 @@ a._citationLink_1ggvf_9:hover {
   white-space: nowrap;
 }
 
-._row_3h2qq_8:hover {
+._row_1f23l_8:hover {
   background-color: var(--bs-secondary-bg);
+}
+
+._groupHeader_1f23l_29 {
+  font-weight: 600;
+  margin-top: 0.9em;
+  padding-bottom: 0.1em;
+  color: var(--bs-secondary-color);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.85em;
+}
+
+._groupHeader_1f23l_29:first-child {
+  margin-top: 0;
 }
 ._selectorContainer_djjmp_1 {
   position: relative;
@@ -20517,6 +19928,99 @@ a._citationLink_1ggvf_9:hover {
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
 }
+._branchPoint_m92x3_1 {
+  --bp-bg: var(--bs-tertiary-bg, #fafbfd);
+  --bp-hairline: var(--bs-border-color, #e5e7eb);
+  --bp-segmented-border: var(--bs-border-color, #d1d5db);
+  --bp-segmented-bg: var(--bs-body-bg, #ffffff);
+  --bp-label: var(--bs-secondary-color, #6b7280);
+  --bp-active-bg: var(--bs-secondary-bg, #e5e7eb);
+
+  background: var(--bp-bg);
+  border-top: 1px solid var(--bp-hairline);
+  border-bottom: 1px solid var(--bp-hairline);
+  padding: 6px 18px;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+._label_m92x3_20 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+._glyph_m92x3_27 {
+  display: inline-flex;
+  align-items: center;
+  color: var(--bp-label);
+  font-size: 14px;
+  line-height: 1;
+  flex: none;
+}
+
+._labelText_m92x3_36 {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--bp-label);
+}
+
+._segmented_m92x3_44 {
+  display: inline-flex;
+  border: 1px solid var(--bp-segmented-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bp-segmented-bg);
+}
+
+._segment_m92x3_44 {
+  all: unset;
+  padding: 3px 12px;
+  background: var(--bp-segmented-bg);
+  color: var(--bp-label);
+  font-size: 11.5px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-left: 1px solid var(--bp-segmented-border);
+  user-select: none;
+}
+._segment_m92x3_44:first-of-type {
+  border-left: 0;
+}
+._segment_m92x3_44:hover:not([aria-pressed="true"]):not(:disabled) {
+  background: var(--bp-active-bg);
+  color: var(--bs-body-color, inherit);
+}
+._segment_m92x3_44[aria-pressed="true"] {
+  background: var(--bp-active-bg);
+  color: var(--bs-body-color, inherit);
+  font-weight: 600;
+  cursor: default;
+}
+._segment_m92x3_44:disabled:not([aria-pressed="true"]) {
+  cursor: default;
+}
+._segment_m92x3_44:focus-visible {
+  outline: 2px solid var(--bp-segmented-border);
+  outline-offset: 2px;
+}
+
+._continuesGlyph_m92x3_87 {
+  width: 9px;
+  height: 9px;
+  fill: currentColor;
+  flex: none;
+  opacity: 0.85;
+}
 ._panel_1dnhl_1 {
   margin: 0.2em 0;
 }
@@ -20545,48 +20049,29 @@ a._citationLink_1ggvf_9:hover {
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
 }
-._nav_1tozt_1 {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 8px;
-  margin: 4px 0;
-  font-size: var(--inspect-font-size-smallest);
-  color: var(--vscode-descriptionForeground, #717171);
+._empty_f9al6_1 {
+  padding: 0 18px 14px;
+  color: var(--bs-secondary-color, #6b7280);
 }
 
-._icon_1tozt_12 {
-  font-size: 11px;
-  margin-right: 2px;
-  opacity: 0.7;
+._headline_f9al6_6 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
 }
 
-._pill_1tozt_18 {
-  border: 1px solid transparent;
-  background: none;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: inherit;
-  color: var(--vscode-descriptionForeground, #717171);
-  cursor: pointer;
+._detail_f9al6_12 {
+  font-size: 12.5px;
+  margin-top: 4px;
 }
 
-._pill_1tozt_18:hover {
-  border-color: var(--bs-border-color);
-  color: var(--vscode-foreground);
-}
-
-._selected_1tozt_33 {
-  border-color: var(--bs-border-color);
-  background: var(--vscode-list-hoverBackground, rgba(0, 0, 0, 0.04));
-  color: var(--vscode-foreground);
-  font-weight: 500;
-  cursor: default;
-}
-
-._selected_1tozt_33:hover {
-  border-color: var(--bs-border-color);
+._detail_f9al6_12 code {
+  background: var(--bs-body-bg, #ffffff);
+  border: 1px solid var(--bs-border-color, #e5e7eb);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 11.5px;
+  color: var(--bs-emphasis-color, var(--bs-body-color, #1a1a1a));
 }
 ._panel_vz394_1 {
   margin: 0.2em 0;
@@ -22473,6 +21958,413 @@ pre._value_8citi_25 {
 .message-band-btn.warning {
   color: var(--bs-warning-text-emphasis);
 }
+/* Shared chrome — variant-specific look in `.link` and `.pill` below. */
+._button_u0dz8_2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: transparent;
+  cursor: pointer;
+  text-decoration: none;
+  text-transform: none;
+  /* Matches TagChip's line-height so chips and pills auto-size to the
+     same height and descenders aren't clipped. Keep in sync with
+     TagChip.module.css `.chip`. */
+  line-height: 1.1;
+  /* When the button sits in a flex row (the PrimaryBar tag strip),
+     prevent it from being shrunk past its content width. */
+  flex-shrink: 0;
+}
+
+/* Link variant — used in card headers (e.g. the Metadata card header)
+   where the action belongs next to the section title. Body-color text
+   so it reads as part of the header rather than a link, with a hover
+   tint to convey clickability. */
+._link_u0dz8_1 {
+  border: none;
+  color: var(--bs-body-color);
+  padding: 0.125rem 0.35rem;
+  border-radius: 4px;
+  /* Matches the pill variant's regular weight so the two Edit
+     affordances (metadata card header, tag-strip pill) read at the
+     same visual weight. */
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+._link_u0dz8_1:hover {
+  background: var(--bs-secondary-bg);
+}
+
+._link_u0dz8_1:focus-visible {
+  outline: 2px solid var(--bs-border-color);
+  outline-offset: 1px;
+}
+
+/* Pill variant — matches TagChip's outline-only style so the Edit
+   button can sit at the end of a chip strip without competing for
+   attention. Values here mirror TagChip.module.css `.chip`; keep
+   them in sync if either changes. (Height auto-sizes from
+   line-height + padding — no fixed height, so chip and pill stay
+   visually aligned without drift if font-size changes.) */
+._pill_u0dz8_1 {
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  padding: 0.125rem 0.35rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+._pill_u0dz8_1:hover {
+  background: var(--bs-secondary-bg);
+}
+
+._pill_u0dz8_1:focus-visible {
+  outline: 2px solid var(--bs-border-color);
+  outline-offset: 1px;
+}
+._modal_8i1ew_1 {
+  margin-left: auto;
+  margin-right: auto;
+  display: flex;
+  flex: 1 1 auto;
+  justify-content: center;
+  max-width: 90vw;
+  margin-top: 3rem;
+  border-radius: var(--bs-border-radius);
+  position: relative;
+  z-index: 1050;
+}
+
+/* Even vertical whitespace above and below the title across every
+   Modal consumer (tags, metadata, scoring detail, …). An earlier
+   `height: 2em` rule clamped the header below its natural padding-
+   based height; the title still rendered, but how much of the
+   padding survived varied by CSS load order, so some surfaces ended
+   up visibly tighter than others. Setting padding explicitly removes
+   that dependency. */
+._header_8i1ew_21 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+._modalTitle_8i1ew_26 {
+  font-weight: 600;
+}
+
+._btnClose_8i1ew_30 {
+  height: 0.8em;
+  width: 0.8em;
+}
+
+/* Backdrop styling for the glass effect */
+._backdrop_8i1ew_36 {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: var(--inspect-glass-color);
+  opacity: var(--inspect-glass-opacity);
+
+  z-index: 1040;
+}
+
+._overflowVisible_8i1ew_48 {
+  overflow: visible;
+}
+
+._overflowHidden_8i1ew_52 {
+  overflow: hidden;
+}
+
+._overflowScroll_8i1ew_56 {
+  overflow: scroll;
+}
+
+._overflowAuto_8i1ew_60 {
+  overflow: auto;
+}
+
+._noPadding_8i1ew_64 {
+  padding: 0;
+}
+
+/* Used when a custom footer node is supplied via the `footer` prop —
+   provides the consistent padding for consumer-supplied buttons.
+   Background is left to the modal-content default (white) so this
+   footer matches other modals across the viewer rather than getting
+   the tinted rail look. */
+._footerSlot_8i1ew_73 {
+  padding: 0.75rem 1.125rem;
+}
+._textarea_8mbr9_1 {
+  font-family: var(--bs-font-monospace);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  padding: 0.4rem 0.625rem;
+  resize: none;
+  /* No inner scrollbar — the surrounding container (e.g. the metadata
+     table scroll wrapper) handles overflow. The height is matched to
+     scrollHeight, so a scrollbar would only appear from a transient
+     measurement glitch. */
+  overflow: hidden;
+  /* Borderless, transparent flat-cell look so the textarea reads as
+     part of the surrounding grid (and `rowNew` highlights bleed
+     through unbroken). Overrides Bootstrap `form-control`'s border,
+     border-radius, and focus box-shadow. */
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+._textarea_8mbr9_1:focus {
+  outline: none;
+  box-shadow: none;
+  /* Subtle tinted background as the focus indicator — replaces the
+     form-control blue ring with something that doesn't visually
+     interrupt the grid. */
+  background: var(--bs-tertiary-bg);
+}
+._container_13ofn_1 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  color: var(--bs-secondary-color);
+  font-style: italic;
+  /* When placed in the dialog footer next to the action buttons, the
+     summary needs to absorb the leftover horizontal space and shrink
+     below its content width so individual lines can ellipsize rather
+     than push the buttons off the right edge. `min-width: 0` is
+     required because a flex item's default `min-width: auto` resolves
+     to the intrinsic min-content width — which would defeat the
+     ellipsis on long add/edit/remove lists. */
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+._line_13ofn_18 {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+._label_13ofn_24 {
+  font-weight: 600;
+  font-style: normal;
+}
+
+._items_13ofn_29 {
+  color: var(--bs-secondary-color);
+}
+
+._accentAdding_13ofn_33 {
+  color: var(--bs-success-text-emphasis);
+}
+
+._accentEditing_13ofn_37 {
+  color: var(--bs-warning-text-emphasis);
+}
+
+._accentRemoving_13ofn_41 {
+  color: var(--bs-danger);
+}
+/* Shared chrome for EditTagsDialog and EditMetadataDialog. */
+
+._body_13gwg_3 {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+._section_13gwg_9 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+._labelRow_13gwg_15 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+._label_13gwg_15 {
+  font-weight: 600;
+  color: var(--bs-body-color);
+  margin: 0;
+}
+
+._hint_13gwg_27 {
+  /* `--inspect-hint-foreground` defaults to --bs-secondary-color but
+     resolves to --vscode-descriptionForeground inside VS Code so the
+     italic "optional" stays readable against dark editor themes. */
+  color: var(--inspect-hint-foreground);
+  font-weight: 400;
+  font-style: italic;
+}
+
+._required_13gwg_36 {
+  color: var(--bs-danger);
+  margin-left: 0.15rem;
+}
+
+._divider_13gwg_41 {
+  border: none;
+  border-top: 1px solid var(--bs-border-color);
+  margin: 0.15rem 0;
+}
+
+._provenance_13gwg_47 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+._error_13gwg_53 {
+  padding: 0.4rem 0.6rem;
+  background: var(--bs-danger-bg-subtle);
+  color: var(--bs-danger-text-emphasis);
+  border: 1px solid var(--bs-danger-border-subtle);
+  border-radius: var(--bs-border-radius);
+}
+
+/* Footer layout: optional change-summary on the left, action buttons
+   pinned to the right via `margin-left: auto` on `.footerActions` so
+   the buttons stay flush right whether or not the summary is showing
+   (it returns null when there are no pending changes). */
+._footer_13gwg_62 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+._footerActions_13gwg_62 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+/* The scroll wrapper bounds the table's vertical reach so the add-key
+   row, provenance fields, and footer stay on-screen no matter how many
+   keys the user has. The chrome (border, rounded corners) moves to
+   this element since the inner table now overflows scrollwise. */
+._tableScroll_1i84k_5 {
+  max-height: 40vh;
+  overflow-y: auto;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 6px;
+  background: var(--bs-body-bg);
+}
+
+/* Single grid spanning every row so columns line up uniformly across
+   the whole table. Each row is a subgrid inheriting the parent track
+   layout, which keeps row-level styling (divider, "new" highlight)
+   attached to a single wrapper element rather than every cell. */
+._table_1i84k_5 {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr auto;
+  column-gap: 0.625rem;
+}
+
+._empty_1i84k_23 {
+  padding: 0.75rem 0.875rem;
+  color: var(--bs-secondary-color);
+  /* Span all columns when the table is otherwise empty. */
+  grid-column: 1 / -1;
+}
+
+._row_1i84k_30 {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: flex-start;
+}
+
+._rowDivider_1i84k_37 {
+  border-top: 1px solid var(--bs-border-color);
+}
+
+._rowNew_1i84k_41 {
+  background: var(--bs-success-bg-subtle);
+}
+
+/* Padding lives on the individual cells (not the .row wrapper) so the
+   subgrid tracks stay aligned to the parent's column lines — putting
+   padding on the wrapper would shift its content inward and break the
+   subgrid alignment. The first and last cells absorb the horizontal
+   inset that previously came from `.row { padding-inline: 0.75rem }`.
+
+   No vertical padding on `.value`: the textarea's own internal padding
+   (0.4rem top/bottom from AutogrowText) already provides breathing
+   room within the edit box, and an outer pad makes the row feel
+   over-stuffed. `.key` and `.remove` use a top inset that lines them
+   up with the textarea's first text baseline. */
+._key_1i84k_54 {
+  font-family: var(--bs-font-monospace);
+  word-break: break-all;
+  padding: 0.4rem 0 0 0.75rem;
+}
+
+._value_1i84k_51 {
+  min-width: 0;
+  padding: 0;
+}
+
+._remove_1i84k_54 {
+  background: transparent;
+  border: none;
+  padding: 0.4rem 0.75rem 0 0.4rem;
+  color: var(--bs-secondary-color);
+  cursor: pointer;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+._remove_1i84k_54:hover {
+  color: var(--bs-danger);
+  background: var(--bs-tertiary-bg);
+}
+
+._remove_1i84k_54:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+._addRow_1i84k_87 {
+  margin-top: 0.625rem;
+  display: grid;
+  grid-template-columns: 1fr 7.5rem auto;
+  gap: 0.5rem;
+}
+
+._addKeyInput_1i84k_94 {
+  min-width: 0;
+}
+
+._typeSelect_1i84k_98 {
+  font-family: var(--bs-font-monospace);
+}
+
+._addButton_1i84k_102 {
+  white-space: nowrap;
+}
+._headerActions_1fn25_1 {
+  /* CardHeader is a flex row (icon → label → children); pushing this
+     wrapper with margin-left:auto sends the Edit affordance to the
+     right edge of the header. */
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+._emptyMetadata_1fn25_10 {
+  color: var(--bs-secondary-color);
+  font-style: italic;
+  padding: 0.25rem 0.5rem;
+}
 ._item_1uzhd_1 {
   margin-bottom: 0em;
 }
@@ -22883,11 +22775,132 @@ pre._value_8citi_25 {
 ._text_1yknn_20 {
   margin-top: -2px;
 }
-._grid_er9fb_1 {
+._chipBox_yxwie_1 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  min-height: 2.25rem;
+  padding: 0.375rem;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  background: var(--bs-body-bg);
+}
+
+._empty_yxwie_12 {
+  color: var(--bs-secondary-color);
+  padding: 0.2rem 0.25rem;
+}
+
+._addRow_yxwie_17 {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+._input_yxwie_23 {
+  flex: 1;
+}
+
+._addButton_yxwie_27 {
+  white-space: nowrap;
+}
+._chip_17zs5_1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.35rem;
+  /* Cap chip width so one giant tag can't push the inline Edit button
+     off the right edge of the header. The label inside ellipsizes. */
+  max-width: 18rem;
+  min-width: 0;
+  /* Outline-only look — transparent fill, body weight text. Keeps
+     the chips from competing with the task title for visual weight. */
+  background: transparent;
+  color: var(--bs-body-color);
+  border-radius: 999px;
+  border: 1px solid var(--bs-border-color);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  /* When the chip is rendered as a <button> (clickable header chip),
+     inherit the surrounding font so the user-agent button styling
+     doesn't switch the text to system fonts at the wrong size. */
+  font: inherit;
+  /* line-height > 1 so the label's `overflow: hidden` box (used for
+     ellipsis on long tags) contains the full glyph extent, including
+     descenders on g/p/q/y/j. With line-height: 1 the box was exactly
+     the font size and the bottom of descenders was clipped. The chip
+     auto-sizes from this + padding instead of using a fixed height,
+     so any future font-size change stays in proportion. */
+  line-height: 1.1;
+}
+
+._chipLabel_17zs5_31 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Pending-add variant inside the editor: keep the green outline so it
+   still reads as "new", but no fill (matches the saved-chip style). */
+._chipNew_17zs5_40 {
+  border-color: var(--bs-success-border-subtle);
+  color: var(--bs-success-text-emphasis);
+}
+
+/* Applied when the chip is rendered as a clickable <button> (header
+   context). Mirrors the Edit/overflow pills' hover + focus treatment
+   so the whole strip behaves consistently. */
+._chipClickable_17zs5_48 {
+  cursor: pointer;
+}
+
+._chipClickable_17zs5_48:hover {
+  background: var(--bs-secondary-bg);
+}
+
+._chipClickable_17zs5_48:focus-visible {
+  outline: 2px solid var(--bs-border-color);
+  outline-offset: 1px;
+}
+
+._chipRemove_17zs5_61 {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 0.125rem;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+._chipRemove_17zs5_61:hover {
+  opacity: 1;
+  color: var(--bs-danger);
+}
+/* Base rules for the tag chip strip. Layout primitives only — context
+   (alignment, margins, shrink behavior) is supplied by the consumer via
+   the `className` prop. */
+._tagRow_pg3wd_4 {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+._grid_q7chi_1 {
   display: grid;
   grid-template-columns: fit-content(50%) fit-content(50%);
   column-gap: 3em;
   align-items: flex-start;
+}
+
+/* TaskTab-context override for <TagStrip>. Centers chips vertically
+   inside the MetaDataGrid value cell so they line up with the "tags"
+   label on the left. Base flex rules come from TagStrip.module.css. */
+._tagPillAlign_q7chi_11 {
+  align-items: center;
 }
 ._button_12472_1 {
   display: flex;
@@ -22904,64 +22917,6 @@ pre._value_8citi_25 {
 
 ._label_12472_14 {
   margin-left: 0.4em;
-}
-._modal_1tj8p_1 {
-  margin-left: auto;
-  margin-right: auto;
-  display: flex;
-  flex: 1 1 auto;
-  justify-content: center;
-  max-width: 90vw;
-  margin-top: 3rem;
-  border-radius: var(--bs-border-radius);
-  position: relative;
-  z-index: 1050;
-}
-
-._header_1tj8p_14 {
-  height: 2em;
-}
-
-._modalTitle_1tj8p_18 {
-  font-weight: 600;
-}
-
-._btnClose_1tj8p_22 {
-  height: 0.8em;
-  width: 0.8em;
-}
-
-/* Backdrop styling for the glass effect */
-._backdrop_1tj8p_28 {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: var(--inspect-glass-color);
-  opacity: var(--inspect-glass-opacity);
-
-  z-index: 1040;
-}
-
-._overflowVisible_1tj8p_40 {
-  overflow: visible;
-}
-
-._overflowHidden_1tj8p_44 {
-  overflow: hidden;
-}
-
-._overflowScroll_1tj8p_48 {
-  overflow: scroll;
-}
-
-._overflowAuto_1tj8p_52 {
-  overflow: auto;
-}
-
-._noPadding_1tj8p_56 {
-  padding: 0;
 }
 ._container_w43k4_1 {
   display: grid;
@@ -23259,55 +23214,90 @@ thead th {
   gap: 0.1em;
   padding-right: 1em;
 }
-._container_17txe_1 {
+._container_1x0td_1 {
   display: flex;
   padding-top: 0;
   margin-left: 0.5rem;
   min-width: 250px;
 }
 
-._wrapper_17txe_8 {
+/* Body column expands to fill whatever space the right-hand results
+   panel doesn't claim. Previously the right column was a fixed `1fr`
+   share, so even on wide windows the title block was capped at ~half
+   the wrapper — which forced the inline tag strip to wrap chips long
+   before there was any real space pressure (large empty gap between
+   the Edit button and the right column). With `auto` the results
+   panel takes its natural width and the body absorbs the rest. */
+._wrapper_1x0td_15 {
   display: grid;
-  grid-template-columns: minmax(auto, 1fr) 1fr;
+  grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
 }
 
-._toggle_17txe_14 {
+._toggle_1x0td_21 {
   margin-top: 0.3em;
   font-size: 1em;
   padding: 0rem 0.1rem 0.1rem 0rem;
   display: flex;
 }
 
-._body_17txe_21 {
+._body_1x0td_28 {
   display: flex;
   flex-direction: column;
   margin-left: 0.2rem;
 }
 
-._bodyContainer_17txe_27 {
+/* Single-line flex row: title + model + tag chips. Items align by
+   text baseline so the eval name, model name, and first row of chips
+   all sit on the same line. (Subsequent wrapped chip rows fall below,
+   inside the tag row's own box.) A small bottom margin reserves
+   breathing room between the chip block and the secondary row
+   (filename / copy / download). */
+._bodyContainer_1x0td_40 {
   margin-top: 0.1rem;
-  display: grid;
-  grid-template-columns: minmax(30px, max-content) minmax(100px, max-content);
+  margin-bottom: 0.4rem;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: baseline;
+  column-gap: 0.5rem;
+  min-width: 0;
 }
 
-._taskTitle_17txe_33 {
+/* Header-context overrides for <TagStrip>. The base flex rules
+   (display/wrap/gap) live in TagStrip.module.css; this class adds the
+   bits that only make sense inside the title+chips flex contention:
+     - flex-shrink: 1 + min-width: 0 — the chip strip must shrink below
+       its content width so chips wrap instead of pushing the trailing
+       Edit pill past the right edge. (Default `min-width: auto`
+       resolves to the content's intrinsic min and would prevent
+       shrinking even with flex-shrink: 1.)
+   Vertical alignment to the title/model baseline is handled by the
+   parent `.bodyContainer`'s `align-items: baseline` — no margin or
+   internal `align-items` is needed here. */
+._tagRowHeader_1x0td_61 {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+._taskTitle_1x0td_66 {
   font-weight: 600;
-  margin-right: 0.3rem;
+  /* The eval name always renders in full — no ellipsis. The tag row
+     wraps to additional lines instead of squeezing the title. */
+  flex-shrink: 0;
 }
 
-._taskModel_17txe_38 {
-  padding-top: 0.4rem;
+._taskModel_1x0td_73 {
+  flex-shrink: 0;
 }
 
-._taskStatus_17txe_42 {
+._taskStatus_1x0td_77 {
   display: flex;
   justify-content: end;
   margin-right: 1em;
   margin-bottom: 0;
 }
 
-._secondaryContainer_17txe_49 {
+._secondaryContainer_1x0td_84 {
   opacity: 0.7;
   margin-top: -0.1rem;
   padding-bottom: 0;
@@ -23316,7 +23306,7 @@ thead th {
   gap: 0.5rem;
 }
 
-._buttonGroup_17txe_58 {
+._buttonGroup_1x0td_93 {
   display: flex;
   gap: 0.15rem;
   align-items: center;

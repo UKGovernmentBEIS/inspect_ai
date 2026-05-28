@@ -92,7 +92,7 @@ def build_subagent_dispatch(subagents: list[Subagent]) -> str:
         Prompt text listing subagents and delegation guidance.
     """
     lines = [
-        "You can delegate work to specialized subagents using the task tool.",
+        "You can delegate work to specialized subagents using the agent tool.",
         "",
         "Available subagents:",
     ]

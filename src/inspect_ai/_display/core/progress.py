@@ -34,6 +34,7 @@ class RichProgress(Progress):
         on_update: Callable[[], None] | None = None,
         count: str = "",
         score: str = "",
+        agent: str = "",
     ) -> None:
         self.total = total
         self.progress = progress
@@ -42,6 +43,7 @@ class RichProgress(Progress):
         self.task_id = progress.add_task(
             description,
             total=PROGRESS_TOTAL,
+            agent=agent,
             model=model,
             status=self.status(),
             count=count,
@@ -79,6 +81,7 @@ def rich_progress() -> RProgress:
     return RProgress(
         TextColumn("{task.fields[status]}"),
         TextColumn("{task.description}"),
+        TextColumn("{task.fields[agent]}"),
         TextColumn("{task.fields[model]}"),
         BarColumn(bar_width=40 if is_vscode_notebook(console) else None),
         TaskProgressColumn(),
@@ -93,6 +96,7 @@ def rich_progress() -> RProgress:
 
 MAX_MODEL_NAME_WIDTH = 25
 MAX_DESCRIPTION_WIDTH = 40
+MAX_AGENT_NAME_WIDTH = 16
 
 
 def progress_model_name(
@@ -101,6 +105,14 @@ def progress_model_name(
     model = Text(model_name.name)
     model.truncate(max_width, overflow="ellipsis", pad=pad)
     return model
+
+
+def progress_agent_name(
+    agent: str | None, max_width: int = MAX_AGENT_NAME_WIDTH, pad: bool = False
+) -> Text:
+    name = Text(agent or "")
+    name.truncate(max_width, overflow="ellipsis", pad=pad)
+    return name
 
 
 def progress_description(

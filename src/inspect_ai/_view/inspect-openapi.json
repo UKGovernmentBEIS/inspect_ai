@@ -1106,7 +1106,7 @@
       },
       "CheckpointEvent": {
         "additionalProperties": true,
-        "description": "A successful checkpoint commit.\n\nEmitted by the checkpointer immediately after the per-checkpoint\nsidecar JSON is written \u2014 see working.md \u00a78a. Carries the full\nsidecar payload flattened into top-level fields (via multiple\ninheritance from :class:`CheckpointDetails`), so a consumer of\n``transcript().events`` (or the ``.eval`` log) reads\n``event.checkpoint_id`` / ``event.trigger`` / ``event.host`` etc.\ndirectly \u2014 same data as someone reading\n``<sample>/ckpt-NNNNN.json`` from disk.",
+        "description": "A successful checkpoint commit.\n\nEmitted by the checkpointer immediately after the per-checkpoint\nfile JSON is written \u2014 see working.md \u00a78a. Carries the full\ncheckpoint payload flattened into top-level fields (via multiple\ninheritance from :class:`Checkpoint`), so a consumer of\n``transcript().events`` (or the ``.eval`` log) reads\n``event.checkpoint_id`` / ``event.trigger`` / ``event.host`` etc.\ndirectly \u2014 same data as someone reading\n``<sample>/ckpt-NNNNN.json`` from disk.",
         "properties": {
           "checkpoint_id": {
             "title": "Checkpoint Id",
@@ -6283,6 +6283,17 @@
             ],
             "title": "Direct Url"
           },
+          "etag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etag"
+          },
           "size": {
             "title": "Size",
             "type": "integer"
@@ -8960,7 +8971,7 @@
       },
       "SnapshotDetails": {
         "additionalProperties": true,
-        "description": "Per-backup stats captured in the sidecar.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary \u2014 see :class:`ResticBackupSummary`.",
+        "description": "Per-backup stats captured in the checkpoint file.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary \u2014 see :class:`ResticBackupSummary`.",
         "properties": {
           "duration_ms": {
             "title": "Duration Ms",
@@ -10452,6 +10463,35 @@
         "title": "UrlCitation",
         "type": "object"
       },
+      "UserInfo": {
+        "description": "Best-effort identity for the user running the view server.",
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "UserInfo",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -10881,6 +10921,45 @@
           }
         },
         "summary": "Api Log Download"
+      }
+    },
+    "/log-edit/{log}": {
+      "post": {
+        "operationId": "api_log_edit_log_edit__log__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "log",
+            "required": true,
+            "schema": {
+              "title": "Log",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LogUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvalLog"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api Log Edit"
       }
     },
     "/log-files": {
@@ -11642,6 +11721,24 @@
           }
         },
         "summary": " Tool Choice"
+      }
+    },
+    "/user-info": {
+      "get": {
+        "operationId": "api_user_info_user_info_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Api User Info"
       }
     }
   }

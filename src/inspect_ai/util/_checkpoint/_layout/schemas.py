@@ -1,9 +1,10 @@
 """Pydantic models for the on-disk checkpoint layout.
 
-Defines the shape of the per-sample ``sample.json`` and the per-checkpoint
-``ckpt-NNNNN.json`` sidecar files. See ``design/plans/checkpointing-working.md``
-§1 for the full layout description. These are pure data types — read/write
-helpers live with the Phase 3 write code.
+Defines the shape of the per-sample ``restic/restic-config.json`` and
+the per-checkpoint ``ckpt-NNNNN.json`` checkpoint files. See
+``design/plans/checkpointing-working.md`` §1 for the full layout
+description. These are pure data types — read/write helpers live with
+the Phase 3 write code.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from .._triggers import CheckpointTriggerKind
 
 
 class SnapshotDetails(BaseModel):
-    """Per-backup stats captured in the sidecar.
+    """Per-backup stats captured in the checkpoint file.
 
     One per repo (host repo + one per active sandbox repo). Values come
     from restic's backup summary — see :class:`ResticBackupSummary`.
@@ -35,12 +36,12 @@ class SnapshotDetails(BaseModel):
     """How long the restic invocation took, in milliseconds."""
 
 
-class CheckpointDetails(BaseModel):
+class Checkpoint(BaseModel):
     """Per-checkpoint metadata file (``<attempt>/ckpt-NNNNN.json``).
 
-    Written atomically at each successful checkpoint. The sidecar's existence
-    is the commit point — the checkpoint is visible to resume only when this
-    file is in place. See §1 and §4d.
+    Written atomically at each successful checkpoint. This file's
+    existence is the commit point — the checkpoint is visible to
+    resume only when this file is in place. See §1 and §4d.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -71,12 +72,13 @@ class CheckpointDetails(BaseModel):
     host-only."""
 
 
-class CheckpointSample(BaseModel):
-    """Per-sample state file (``<sample_checkpoints_dir>/sample.json``).
+class ResticConfig(BaseModel):
+    """Per-sample restic config file (``<sample-root>/restic/restic-config.json``).
 
-    Peer of the sidecars. Written once at first checkpoint setup for a
-    sample; never rewritten. Preserved across retries of the same sample
-    via the FS copy at resume — so the same password unlocks the FS-copied
+    Lives alongside the per-sample restic repos under ``restic/``.
+    Written once at first checkpoint setup for a sample; never
+    rewritten. Preserved across retries of the same sample via the FS
+    copy at resume — so the same password unlocks the FS-copied
     ``host/`` and ``sandboxes/<name>/`` repos in the new sample dir.
     """
 

@@ -1,7 +1,7 @@
 """Active checkpoint-session implementation (heavy).
 
 Contains the on-disk write path: fires checkpoints, runs restic backups
-(host + sandboxes), writes per-checkpoint sidecars. Imports the parts
+(host + sandboxes), writes per-checkpoint files. Imports the parts
 of ``inspect_ai`` that ultimately reach ``solver._task_state`` and
 ``dataset.Sample``, so this module must *not* be imported during
 initial inspect_ai package load — only at sample-run time, via the
@@ -18,15 +18,15 @@ from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timezone
 from functools import partial
 from logging import getLogger
-from pathlib import Path
 from typing import Any, TypeVar
 
-import anyio
 from pydantic import BaseModel, JsonValue, TypeAdapter
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.trace import trace_action
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.event._event import Event
+from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._pool import (
     _build_call_index,
     _build_msg_index,
@@ -41,7 +41,14 @@ from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._span import span
 from inspect_ai.util._store import Store, store_jsonable
 
-from ._layout import CheckpointDetails, SnapshotDetails, host_context, write_sidecar
+from ._host_egress import host_egress
+from ._layout import host_context
+from ._layout.sample_checkpoints_dir import (
+    _list_checkpoint_ids,
+    write_checkpoint_file,
+)
+from ._layout.schemas import Checkpoint, SnapshotDetails
+from ._layout.staging_dir import sandbox_repo_dir
 from ._sandbox_restic import egress_sandbox, run_sandbox_backup
 from ._triggers import CheckpointTriggerKind, create_trigger
 from .checkpointer import (
@@ -59,6 +66,16 @@ T = TypeVar("T")
 # `json.dumps`/`json.loads`, so `track()` can return them on resume
 # without a TypeAdapter.
 _JSON_PRIMITIVE_TYPES: tuple[type, ...] = (int, float, str, bool, type(None))
+
+
+class CheckpointFailureLimitExceeded(RuntimeError):
+    """Raised when a sample exceeds ``max_consecutive_failures``.
+
+    Chains the underlying fire error via ``__cause__`` (``raise ... from``).
+    Propagates to the agent loop, where inspect's normal sample-error
+    machinery (``fail_on_error`` / ``retry_on_error``) handles it like
+    any other ``Exception``.
+    """
 
 
 class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
@@ -126,7 +143,9 @@ class _EnteredCheckpointer:
     ) -> None:
         self._config = config
         self._sample_checkpoints_dir = hydration.sample_checkpoints_dir
-        self._sample_working_dir = hydration.sample_working_dir
+        self._sample_staging_dir = hydration.sample_staging_dir
+        self._sample_root = hydration.sample_root
+        self._context_dir = hydration.context_dir
         self._host_restic = hydration.host_restic
         self._host_repo = hydration.host_repo
         self._restic_password = hydration.restic_password
@@ -137,6 +156,10 @@ class _EnteredCheckpointer:
         # Sync per-session state — turn counters, callbacks, pools.
         self._on_checkpoint_callbacks: dict[str, Callable[[], Any]] = {}
         self._turn = 0
+        # Consecutive failed-fire count, against `max_consecutive_failures`.
+        # Reset to 0 on any successful fire. Fresh (0) per session, so a
+        # resumed attempt starts with a clean tolerance budget.
+        self._consecutive_failures = 0
         # Build the concrete trigger for this session. The user's
         # config carries a frozen-dataclass spec (immutable, safely
         # shared across many samples); per-session mutable state lives
@@ -193,14 +216,12 @@ class _EnteredCheckpointer:
             await self._close_current_span()
 
     async def _open_next_span(self) -> None:
-        # Span name matches the sidecar id this span will fire under
-        # (1-indexed, same as `ckpt-NNNNN.json`). Fresh run opens
+        # Span name matches the checkpoint id this span will fire
+        # under (1-indexed, same as `ckpt-NNNNN.json`). Fresh run opens
         # `checkpoint 1`; on resume of an attempt with M prior commits,
         # opens `checkpoint M+1`. A sample that ends without firing
         # leaves an unclosed span at whatever id was about to fire next.
-        next_id = await anyio.to_thread.run_sync(
-            _scan_next_checkpoint_id, self._sample_checkpoints_dir
-        )
+        next_id = await _scan_next_checkpoint_id(self._sample_root)
         # First-span lazy init for `_events_consumed`: capture the
         # transcript index where the about-to-open `span_begin` will land
         # so the persisted snapshot starts at the first checkpoint span.
@@ -263,94 +284,170 @@ class _EnteredCheckpointer:
         return initial_value
 
     async def _fire(self, trigger: CheckpointTriggerKind) -> None:
+        """Fire a checkpoint, enforcing ``max_consecutive_failures``.
+
+        Wraps :meth:`_fire_once` so a failed attempt is *non-fatal by
+        default* (working.md §8d): the failure is recorded and the
+        sample keeps running. ``max_consecutive_failures`` bounds the
+        tolerance — ``None`` = unlimited (default), ``N`` = fail on the
+        (N+1)th consecutive failure, ``0`` = any failure is fatal. A
+        successful fire resets the count. On breach we re-raise so the
+        sample fails through inspect's normal sample-error machinery.
+        """
+        try:
+            await self._fire_once(trigger)
+        except Exception as err:
+            self._consecutive_failures += 1
+            self._record_fire_failure(trigger, err)
+            max_failures = self._config.max_consecutive_failures
+            if max_failures is not None and self._consecutive_failures > max_failures:
+                raise CheckpointFailureLimitExceeded(
+                    f"checkpoint failed {self._consecutive_failures} consecutive "
+                    f"time(s) (max_consecutive_failures={max_failures})"
+                ) from err
+        else:
+            self._consecutive_failures = 0
+
+    def _record_fire_failure(
+        self, trigger: CheckpointTriggerKind, err: Exception
+    ) -> None:
+        """Record a failed checkpoint attempt (working.md §8d).
+
+        Emits a durable, structured ``InfoEvent`` into the transcript
+        (queryable by ``source="checkpoint"``) and logs a warning for
+        operator/stderr visibility. Used for tolerated failures *and*
+        the threshold-breaching one (recorded before the re-raise; the
+        raise itself becomes the sample's ``ErrorEvent``).
+        """
+        transcript()._event(
+            InfoEvent(
+                source="checkpoint",
+                data={
+                    "event": "checkpoint_failed",
+                    "trigger": trigger,
+                    "turn": self._turn,
+                    "consecutive_failures": self._consecutive_failures,
+                    "error": f"{type(err).__name__}: {err}",
+                },
+            )
+        )
+        logger.warning(
+            "Checkpoint attempt failed (trigger=%s, turn=%s, consecutive=%s): %s",
+            trigger,
+            self._turn,
+            self._consecutive_failures,
+            err,
+        )
+
+    async def _fire_once(self, trigger: CheckpointTriggerKind) -> None:
         # Phase 3 (in progress): writes placeholder host context, runs
         # restic backups (host + sandboxes in parallel), then writes
-        # the per-checkpoint sidecar.
+        # the per-checkpoint file.
         cycle_start = time.monotonic()
 
-        # Sidecar numbering continues from any sidecars already present
-        # in the dir (incl. those FS-copied from a prior eval on resume).
-        # Scanned per-fire rather than tracked in memory so the count
-        # naturally bridges resumed runs without an explicit handoff.
-        next_checkpoint_id = await anyio.to_thread.run_sync(
-            _scan_next_checkpoint_id, self._sample_checkpoints_dir
-        )
+        # Checkpoint file numbering continues from any checkpoint files
+        # already present in the dir (incl. those FS-copied from a prior
+        # eval on resume). Scanned per-fire rather than tracked in
+        # memory so the count naturally bridges resumed runs without an
+        # explicit handoff.
+        next_checkpoint_id = await _scan_next_checkpoint_id(self._sample_root)
 
-        # Close `checkpoint N` *before* `write_host_context` so the
-        # ``SpanEndEvent`` lands in this checkpoint's ``events.json`` —
-        # the persisted snapshot must show the span closing within it.
-        await self._close_current_span()
+        # Wrap the whole fire in a trace action so an in-progress fire is
+        # observable live (`inspect trace anomalies` Running Actions) and a
+        # hung/cancelled/errored fire is surfaced as an anomaly. The action
+        # lives here (not in `_fire`) so the error/cancel record is emitted
+        # before `_fire`'s `max_consecutive_failures` handling sees it.
+        with trace_action(
+            logger,
+            "Checkpoint",
+            f"fire {_restic_tag(next_checkpoint_id)} (trigger={trigger})",
+        ):
+            # Close `checkpoint N` *before* `write_host_context` so the
+            # ``SpanEndEvent`` lands in this checkpoint's ``events.json`` —
+            # the persisted snapshot must show the span closing within it.
+            await self._close_current_span()
 
-        state = sample_state()
-        if not state:
-            raise RuntimeError("Checkpointer must find sample state")
-        ts = transcript()
-        await self._write_host_context(
-            self._sample_working_dir,
-            ts.events,
-            ts.attachments,
-            state.store,
-        )
+            state = sample_state()
+            if not state:
+                raise RuntimeError("Checkpointer must find sample state")
+            ts = transcript()
+            await self._write_host_context(
+                self._context_dir,
+                ts.events,
+                ts.attachments,
+                state.store,
+            )
 
-        # Host + each sandbox (backup → egress) in parallel. The
-        # backup-then-egress pair for a given sandbox is sequential
-        # (egress diffs against what backup just wrote), but the pairs
-        # are independent across sandboxes and from the host backup.
-        # `tg_collect` takes thunks (zero-arg callables) so coroutines
-        # are only created at task-group start time.
-        sandbox_items = list((self._config.sandbox_paths or {}).items())
-        backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
-            partial(self._backup_host, next_checkpoint_id),
-            *[
-                partial(
-                    self._backup_and_egress_sandbox, name, paths, next_checkpoint_id
+            # Host + each sandbox (backup → egress) in parallel. The
+            # backup-then-egress pair for a given sandbox is sequential
+            # (egress diffs against what backup just wrote), but the pairs
+            # are independent across sandboxes and from the host backup.
+            # `tg_collect` takes thunks (zero-arg callables) so coroutines
+            # are only created at task-group start time.
+            sandbox_items = list((self._config.sandbox_paths or {}).items())
+            backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
+                partial(self._backup_host, next_checkpoint_id),
+                *[
+                    partial(
+                        self._backup_and_egress_sandbox, name, paths, next_checkpoint_id
+                    )
+                    for name, paths in sandbox_items
+                ],
+            ]
+            summaries = await tg_collect(backup_funcs)
+            host_info = _snapshot_info(summaries[0])
+            sandbox_infos = {
+                name: _snapshot_info(summary)
+                for (name, _), summary in zip(sandbox_items, summaries[1:])
+            }
+
+            # Cycle duration measured up to the checkpoint file write — the
+            # write itself is the commit point, so its cost lands on the
+            # next cycle's clock if anywhere.
+            duration_ms = int((time.monotonic() - cycle_start) * 1000)
+
+            checkpoint = Checkpoint(
+                checkpoint_id=next_checkpoint_id,
+                trigger=trigger,
+                turn=self._turn,
+                created_at=datetime.now(timezone.utc),
+                duration_ms=duration_ms,
+                size_bytes=host_info.size_bytes
+                + sum(s.size_bytes for s in sandbox_infos.values()),
+                host=host_info,
+                sandboxes=sandbox_infos,
+            )
+
+            await write_checkpoint_file(
+                sample_checkpoints_dir=self._sample_root,
+                checkpoint=checkpoint,
+            )
+
+            # Remote destination: ship the new staging-dir files (restic
+            # repo additions + checkpoint file) to the destination. The
+            # checkpoint file is shipped last in the safe order — its
+            # arrival at the destination is the remote commit point.
+            if self._sample_staging_dir is not None:
+                await host_egress(
+                    staging_dir=self._sample_staging_dir,
+                    destination_dir=self._sample_checkpoints_dir,
                 )
-                for name, paths in sandbox_items
-            ],
-        ]
-        summaries = await tg_collect(backup_funcs)
-        host_info = _snapshot_info(summaries[0])
-        sandbox_infos = {
-            name: _snapshot_info(summary)
-            for (name, _), summary in zip(sandbox_items, summaries[1:])
-        }
 
-        # Cycle duration measured up to the sidecar write — the write
-        # itself is the commit point, so its cost lands on the next
-        # cycle's clock if anywhere.
-        duration_ms = int((time.monotonic() - cycle_start) * 1000)
+            # Emit the CheckpointEvent now that the checkpoint file is
+            # committed (locally and, when remote, at the destination too).
+            # By construction the event is NOT in this fire's events.json
+            # (already written above); it IS captured in the next fire's
+            # events.json. On resume, hydrate synthesizes the trailing
+            # event from the latest checkpoint file (working.md §8a).
+            transcript()._event(CheckpointEvent.from_details(checkpoint))
 
-        sidecar = CheckpointDetails(
-            checkpoint_id=next_checkpoint_id,
-            trigger=trigger,
-            turn=self._turn,
-            created_at=datetime.now(timezone.utc),
-            duration_ms=duration_ms,
-            size_bytes=host_info.size_bytes
-            + sum(s.size_bytes for s in sandbox_infos.values()),
-            host=host_info,
-            sandboxes=sandbox_infos,
-        )
-
-        await write_sidecar(
-            sample_checkpoints_dir=self._sample_checkpoints_dir,
-            sidecar=sidecar,
-        )
-
-        # Emit the CheckpointEvent now that the sidecar is committed.
-        # By construction the event is NOT in this fire's events.json
-        # (already written above); it IS captured in the next fire's
-        # events.json. On resume, hydrate synthesizes the trailing
-        # event from the latest sidecar (working.md §8a).
-        transcript()._event(CheckpointEvent.from_details(sidecar))
-
-        # Sidecar is committed; open the next `checkpoint N+1` span so
-        # subsequent agent events nest under it.
-        await self._open_next_span()
+            # Checkpoint file is committed; open the next `checkpoint N+1`
+            # span so subsequent agent events nest under it.
+            await self._open_next_span()
 
     async def _write_host_context(
         self,
-        sample_working_dir: str,
+        context_dir: str,
         events: Sequence[Event],
         attachments: Mapping[str, str],
         store: Store,
@@ -413,7 +510,7 @@ class _EnteredCheckpointer:
             else None
         )
         await host_context.write(
-            sample_working_dir,
+            context_dir,
             host_context.HostContext(
                 condensed_events=self._condensed_events,
                 msg_pool=self._msg_pool,
@@ -425,52 +522,55 @@ class _EnteredCheckpointer:
         )
 
     async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
-        return await run_backup(
-            self._host_restic,
-            self._host_repo,
-            self._restic_password,
-            self._sample_working_dir,
-            _restic_tag(checkpoint_id),
-        )
+        with trace_action(
+            logger, "Checkpoint Backup", f"host {_restic_tag(checkpoint_id)}"
+        ):
+            return await run_backup(
+                self._host_restic,
+                self._host_repo,
+                self._restic_password,
+                self._context_dir,
+                _restic_tag(checkpoint_id),
+            )
 
     async def _backup_and_egress_sandbox(
         self, name: str, paths: list[str], checkpoint_id: int
     ) -> ResticBackupSummary:
         env = sandbox(name)
         tag = _restic_tag(checkpoint_id)
-        summary = await run_sandbox_backup(env, self._restic_password, paths, tag)
-        dest_repo = f"{self._sample_checkpoints_dir}/sandboxes/{name}"
-        await egress_sandbox(
-            env,
-            dest_repo=dest_repo,
-            password=self._restic_password,
-            host_restic=self._host_restic,
-            tag=tag,
-            snapshot_id=summary.snapshot_id,
-        )
+        with trace_action(logger, "Checkpoint Backup", f"sandbox {name} {tag}"):
+            summary = await run_sandbox_backup(env, self._restic_password, paths, tag)
+        dest_repo = sandbox_repo_dir(self._sample_root, name)
+        with trace_action(logger, "Checkpoint Egress", f"sandbox {name} {tag}"):
+            await egress_sandbox(
+                env,
+                dest_repo=dest_repo,
+                password=self._restic_password,
+                host_restic=self._host_restic,
+                tag=tag,
+                snapshot_id=summary.snapshot_id,
+            )
         return summary
 
 
-def _scan_next_checkpoint_id(sample_checkpoints_dir: str) -> int:
-    """Return the next sidecar ordinal for this sample.
+async def _scan_next_checkpoint_id(sample_root: str) -> int:
+    """Return the next checkpoint file ordinal for this sample.
 
-    Walks the sample checkpoints dir for ``ckpt-NNNNN.json`` filenames
-    and returns ``max(N) + 1`` — or 1 if none exist yet. Used by
-    ``_fire`` so the count continues across resume without an explicit
-    handoff through ``_hydrate``.
+    Walks the sample root for ``ckpt-NNNNN.json`` filenames and returns
+    ``max(N) + 1`` — or 1 if none exist yet. Used by ``_fire`` so the
+    count continues across resume without an explicit handoff through
+    ``_hydrate``.
     """
-    sample_dir = Path(sample_checkpoints_dir)
-    if not sample_dir.is_dir():
-        return 1
-    ids = [int(p.stem.removeprefix("ckpt-")) for p in sample_dir.glob("ckpt-*.json")]
-    return (max(ids) + 1) if ids else 1
+    ids = await _list_checkpoint_ids(sample_root)
+    next_id = (max(ids) + 1) if ids else 1
+    return next_id
 
 
 def _restic_tag(checkpoint_id: int) -> str:
     """Format the restic ``--tag`` for a checkpoint's snapshots.
 
-    Matches the sidecar filename's ``ckpt-NNNNN`` prefix, so a tag and a
-    sidecar share the same N for the same checkpoint.
+    Matches the checkpoint file's ``ckpt-NNNNN`` prefix, so a tag and a
+    checkpoint file share the same N for the same checkpoint.
     """
     return f"ckpt-{checkpoint_id:05d}"
 
