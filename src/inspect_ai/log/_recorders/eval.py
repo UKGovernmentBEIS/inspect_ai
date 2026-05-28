@@ -6,6 +6,7 @@ import os
 import tempfile
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
+from io import BytesIO
 from logging import getLogger
 from typing import (
     IO,
@@ -33,7 +34,7 @@ from inspect_ai._util.constants import (
     get_deserializing_context,
 )
 from inspect_ai._util.error import EvalError, WriteConflictError
-from inspect_ai._util.file import FileSystem, dirname, filesystem, local_path
+from inspect_ai._util.file import FileSystem, dirname, file, filesystem, local_path
 from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
@@ -419,7 +420,9 @@ class EvalRecorder(FileRecorder):
     ) -> None:
         if filesystem(location).is_s3() and if_match_etag:
             # Use S3 conditional write
-            await cls._write_log_s3_conditional(location, log, if_match_etag)
+            await cls._write_log_s3_conditional(
+                location, log, if_match_etag, header_only=header_only
+            )
         else:
             # Standard write using the recorder (so we get all of the extra streams)
             await _write_eval_log_with_recorder(
@@ -428,26 +431,33 @@ class EvalRecorder(FileRecorder):
 
     @classmethod
     async def _write_log_s3_conditional(
-        cls, location: str, log: EvalLog, etag: str
+        cls,
+        location: str,
+        log: EvalLog,
+        etag: str,
+        header_only: bool = False,
     ) -> None:
         """Perform S3 conditional write for .eval format using boto3."""
-        import tempfile
-
         bucket, key = _s3_bucket_and_key(location)
 
-        # create the eval log in a temporary directory first
-        import os
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            # create a temporary eval file name
-            temp_eval_file = os.path.join(tmpdir, "temp_log.eval")
-
-            # write using the normal recorder to get proper .eval format
-            await _write_eval_log_with_recorder(log, tmpdir, temp_eval_file)
-
-            # read the created file in bytes
-            with open(temp_eval_file, "rb") as f:
-                log_bytes = f.read()
+        if header_only:
+            # Download the existing object, rewrite the zip in memory with a
+            # fresh header.json. Sample entries are untouched; any sample
+            # mutations on the in-memory log are discarded, matching the
+            # local .eval contract.
+            async with AsyncFilesystem() as async_fs:
+                s3_client = await async_fs.s3_client_async()
+                response = await s3_client.get_object(Bucket=bucket, Key=key)
+                body = await response["Body"].read()
+            log_bytes = _rewrite_eval_zip_with_new_header(body, log)
+        else:
+            # Full recreate goes through the recorder, which needs a
+            # filesystem path; read the result back into memory for upload.
+            with tempfile.TemporaryDirectory() as tmpdir:
+                temp_eval_file = os.path.join(tmpdir, "temp_log.eval")
+                await _write_eval_log_with_recorder(log, tmpdir, temp_eval_file)
+                with open(temp_eval_file, "rb") as f:
+                    log_bytes = f.read()
 
         async with AsyncFilesystem() as async_fs:
             await _write_s3_conditional(
@@ -461,31 +471,86 @@ class EvalRecorder(FileRecorder):
             )
 
 
+def _replace_eval_header_in_place(zip_path: str, log: EvalLog) -> None:
+    """Replace `header.json` inside a local `.eval` zip in place.
+
+    Opens the zip in append mode, drops the old header entry from the
+    central directory, then writes the new one. The old header bytes
+    become unreferenced — a small size leak that's acceptable for local
+    files since we're not paying for a re-upload on every edit. Sample
+    entries are untouched.
+    """
+    eval_header = _eval_log_header(log)
+    with ZipFile(zip_path, "a", **zipfile_compress_kwargs) as zf:
+        zf.filelist = [i for i in zf.filelist if i.filename != HEADER_JSON]
+        zf.NameToInfo.pop(HEADER_JSON, None)
+        zf.writestr(HEADER_JSON, to_json_safe(eval_header, indent=None))
+
+
+def _rewrite_eval_zip_with_new_header(zip_bytes: bytes, log: EvalLog) -> bytes:
+    """Return new zip bytes with header.json replaced; no dead bytes.
+
+    Copies every non-header entry from the source zip and appends a fresh
+    header.json at the end. Used for remote-filesystem header_only writes
+    where dead bytes would otherwise accumulate across re-uploads.
+    """
+    eval_header = _eval_log_header(log)
+    out = BytesIO()
+    with (
+        ZipFile(BytesIO(zip_bytes), "r") as src,
+        ZipFile(out, "w", **zipfile_compress_kwargs) as dst,
+    ):
+        for info in src.infolist():
+            if info.filename == HEADER_JSON:
+                continue
+            # writestr with a ZipInfo preserves the original compression
+            # type / date_time / external_attr. The data still round-trips
+            # through decompress + recompress, but member metadata is
+            # carried over verbatim.
+            dst.writestr(info, src.read(info.filename))
+        dst.writestr(HEADER_JSON, to_json_safe(eval_header, indent=None))
+    return out.getvalue()
+
+
+def _eval_log_header(log: EvalLog) -> EvalLog:
+    """Build a header-only EvalLog (no samples / reductions) for header.json."""
+    return EvalLog(
+        version=log.version,
+        invalidated=log.invalidated,
+        log_updates=log.log_updates,
+        eval=log.eval,
+        plan=log.plan,
+        results=log.results,
+        stats=log.stats,
+        status=log.status,
+        error=log.error,
+    )
+
+
+def _rewrite_eval_zip_via_filesystem(location: str, log: EvalLog) -> None:
+    """Read a remote .eval, rewrite zip with a new header, write it back.
+
+    Works for any fsspec-backed filesystem (S3, GCS, abfs, …). Used by the
+    unconditional header_only write path — the S3 conditional path inlines
+    the equivalent steps so it can route the upload through
+    `_write_s3_conditional` with `If-Match`.
+    """
+    with file(location, "rb") as f:
+        existing_bytes = f.read()
+    new_bytes = _rewrite_eval_zip_with_new_header(existing_bytes, log)
+    with file(location, "wb") as f:
+        f.write(new_bytes)
+
+
 async def _write_eval_log_with_recorder(
     log: EvalLog, recorder_dir: str, output_file: str, header_only: bool = False
 ) -> None:
     """Helper function to write EvalLog using EvalRecorder pattern."""
-    if header_only and filesystem(output_file).is_local():
-        # Replace the header entry in the existing zip without rewriting
-        # sample data. Opens in append mode, removes the old header.json
-        # from the central directory, then writes the new one. The old
-        # header bytes become unreferenced but sample entries are untouched.
-        eval_header = EvalLog(
-            version=log.version,
-            invalidated=log.invalidated,
-            log_updates=log.log_updates,
-            eval=log.eval,
-            plan=log.plan,
-            results=log.results,
-            stats=log.stats,
-            status=log.status,
-            error=log.error,
-        )
-        with ZipFile(local_path(output_file), "a", **zipfile_compress_kwargs) as zf:
-            # Remove old header entry from the central directory
-            zf.filelist = [i for i in zf.filelist if i.filename != HEADER_JSON]
-            zf.NameToInfo.pop(HEADER_JSON, None)
-            zf.writestr(HEADER_JSON, to_json_safe(eval_header, indent=None))
+    if header_only:
+        if filesystem(output_file).is_local():
+            _replace_eval_header_in_place(local_path(output_file), log)
+        else:
+            _rewrite_eval_zip_via_filesystem(output_file, log)
         return
 
     recorder = EvalRecorder(recorder_dir)
