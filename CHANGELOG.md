@@ -1,3 +1,7 @@
+## 0.3.229 (28 May 2026)
+
+- Agent Intervention: Add `is_live` property to agent channel for detecting whether channel is in use.
+
 ## 0.3.228 (27 May 2026)
 
 - Anthropic: Improved merging of beta headers.
