@@ -1,10 +1,11 @@
 import os
 import tempfile
+from collections.abc import Iterator
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterator, Literal
+from typing import TYPE_CHECKING, Literal
 from zipfile import ZipFile
 
 from pydantic import BaseModel, Field
@@ -18,7 +19,7 @@ from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.log._file import read_eval_log
 
 from ..._log import EvalSampleSummary
-from .types import SampleBuffer, SampleData, Samples
+from .types import SampleBuffer, SampleData, SampleEventHistorySink, Samples
 
 if TYPE_CHECKING:
     from .history import SampleHistory
@@ -347,6 +348,16 @@ class SampleBufferFilestore(SampleBuffer):
 
     @override
     def sample_event_count(self, id: str | int, epoch: int) -> int:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
+
+    @override
+    def sample_has_event(self, id: str | int, epoch: int, event_id: str) -> bool:
+        raise NotImplementedError("Sample history is only available for buffer DBs")
+
+    @override
+    def import_checkpoint_events(
+        self, id: str | int, epoch: int, transcript_store: SampleEventHistorySink
+    ) -> int:
         raise NotImplementedError("Sample history is only available for buffer DBs")
 
     @override
