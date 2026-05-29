@@ -283,6 +283,275 @@ def test_write_header_only_with_file_uri(original_log, temp_dir):
     assert len(restored.samples) == len(original_log.samples)
 
 
+def test_write_json_header_only_no_samples(original_log, temp_dir):
+    """Writing a JSON log whose EvalLog carries only a header must succeed.
+
+    Build a header-only EvalLog (samples=None) and write it as JSON, then
+    read it back. The on-disk file must be parseable and round-trip with
+    samples still None — no spurious empty list, no exception on write.
+    """
+    header_only_log = original_log.model_copy(update={"samples": None})
+
+    json_log_path = (temp_dir / "header_only_fresh.json").as_posix()
+    write_eval_log(header_only_log, json_log_path, format="json")
+
+    restored = read_eval_log(json_log_path, format="json")
+    assert restored.samples is None
+    assert restored.eval.task == original_log.eval.task
+    assert restored.status == original_log.status
+
+
+def test_write_json_header_only_to_new_file_drops_samples(original_log, temp_dir):
+    """A header_only write to a new JSON file must not persist in-memory samples.
+
+    If the caller passes `header_only=True`, the resulting file should contain
+    only the header — sample data carried on the in-memory EvalLog must be
+    dropped, not serialized. Today JSONRecorder.write_log ignores `header_only`
+    and writes the full object, so the new file would contain every sample.
+    """
+    assert original_log.samples is not None and len(original_log.samples) > 0
+
+    json_log_path = (temp_dir / "json_header_only_new.json").as_posix()
+    write_eval_log(original_log, json_log_path, format="json", header_only=True)
+
+    restored = read_eval_log(json_log_path, format="json")
+    assert restored.samples is None, (
+        "header_only write to a new JSON file wrote samples to disk"
+    )
+    # Sanity: the rest of the header is still there.
+    assert restored.eval.task == original_log.eval.task
+    assert restored.status == original_log.status
+
+
+def test_write_json_header_only_preserves_samples(original_log, temp_dir):
+    """JSON regression: header_only write must not erase existing samples.
+
+    Reproduces the destructive chain reported on PR #4014:
+      1. Write a full JSON log with samples.
+      2. Read it with header_only=True (samples becomes None on the in-memory log).
+      3. Write that header-only log back with header_only=True.
+      4. Re-read the file in full.
+
+    The samples on disk must be untouched. Today JSONRecorder.write_log ignores
+    `header_only` and serializes the (sample-less) in-memory object, erasing
+    the samples on disk.
+    """
+    json_log_path = (temp_dir / "json_header_only.json").as_posix()
+
+    write_eval_log(original_log, json_log_path, format="json")
+    assert original_log.samples is not None and len(original_log.samples) > 0
+    original_sample_count = len(original_log.samples)
+
+    header = read_eval_log(json_log_path, header_only=True, format="json")
+    assert header.samples is None
+
+    header = edit_eval_log(
+        header,
+        [TagsEdit(tags_add=["json_header_only_tag"])],
+        ProvenanceData(author="test", reason="test json header_only"),
+    )
+    write_eval_log(header, json_log_path, format="json", header_only=True)
+
+    restored = read_eval_log(json_log_path, format="json")
+    assert "json_header_only_tag" in restored.tags
+    assert restored.samples is not None, "header_only write erased samples on disk"
+    assert len(restored.samples) == original_sample_count
+    for orig, rest in zip(original_log.samples, restored.samples):
+        assert orig.id == rest.id
+        assert orig.epoch == rest.epoch
+
+
+@pytest.mark.parametrize("format", ["json", "eval"])
+def test_write_header_only_ignores_in_memory_sample_changes(
+    original_log, temp_dir, format
+):
+    """header_only writes must use on-disk samples, not the in-memory log's.
+
+    Contract guard for the JSON read-modify-write fix and the .eval in-place
+    header swap: if a caller mutates `log.samples` in memory before a
+    header_only write, those mutations must NOT leak to disk. Only a
+    subsequent header_only=False write should persist sample changes.
+
+    The risk is a "helpful" fix that grabs samples off the in-memory object
+    when they're present (instead of from disk), silently honoring caller
+    mutations that the header_only contract says to discard.
+    """
+    assert original_log.samples is not None and len(original_log.samples) > 0
+    original_input = original_log.samples[0].input
+
+    log_path = (temp_dir / f"in_memory_mutation.{format}").as_posix()
+    write_eval_log(original_log, log_path, format=format)
+
+    # Read back as a full log (so samples are loaded), then mutate both the
+    # header (via edit_eval_log) and the in-memory samples.
+    log = read_eval_log(log_path, format=format)
+    log = edit_eval_log(
+        log,
+        [TagsEdit(tags_add=["mutation_tag"])],
+        ProvenanceData(author="test", reason="mutation guard"),
+    )
+    sentinel = "MUTATED IN MEMORY — must not reach disk on header_only write"
+    log.samples[0].input = sentinel
+
+    # header_only write: header lands on disk, sample mutation does NOT.
+    write_eval_log(log, log_path, format=format, header_only=True)
+
+    after_header_only = read_eval_log(log_path, format=format)
+    assert "mutation_tag" in after_header_only.tags
+    assert after_header_only.samples is not None
+    assert len(after_header_only.samples) == len(original_log.samples)
+    assert after_header_only.samples[0].input == original_input, (
+        "header_only write leaked in-memory sample mutation to disk"
+    )
+
+    # full write of the same in-memory log: sample mutation now lands.
+    write_eval_log(log, log_path, format=format, header_only=False)
+
+    after_full = read_eval_log(log_path, format=format)
+    assert "mutation_tag" in after_full.tags
+    assert after_full.samples is not None
+    assert after_full.samples[0].input == sentinel
+
+
+def test_write_s3_eval_header_only_ignores_in_memory_sample_changes(
+    original_log, mock_s3
+):
+    """Same in-memory-mutation guard as the local-format test, but on S3 .eval.
+
+    The S3 fix (download → in-place header swap → upload) must read samples
+    from the downloaded copy, not from the in-memory log handed in.
+    """
+    assert original_log.samples is not None and len(original_log.samples) > 0
+    original_input = original_log.samples[0].input
+
+    log_path = "s3://test-bucket/s3_in_memory_mutation.eval"
+    write_eval_log(original_log, log_path, format="eval")
+
+    log = read_eval_log(log_path, format="eval")
+    log = edit_eval_log(
+        log,
+        [TagsEdit(tags_add=["s3_mutation_tag"])],
+        ProvenanceData(author="test", reason="s3 mutation guard"),
+    )
+    sentinel = "MUTATED IN MEMORY (S3) — must not reach disk on header_only write"
+    log.samples[0].input = sentinel
+
+    write_eval_log(
+        log, log_path, format="eval", header_only=True, if_match_etag=log.etag
+    )
+
+    after_header_only = read_eval_log(log_path, format="eval")
+    assert "s3_mutation_tag" in after_header_only.tags
+    assert after_header_only.samples is not None
+    assert len(after_header_only.samples) == len(original_log.samples)
+    assert after_header_only.samples[0].input == original_input, (
+        "S3 header_only write leaked in-memory sample mutation to disk"
+    )
+
+    # full write should persist the in-memory sample mutation.
+    write_eval_log(
+        log,
+        log_path,
+        format="eval",
+        header_only=False,
+        if_match_etag=after_header_only.etag,
+    )
+
+    after_full = read_eval_log(log_path, format="eval")
+    assert "s3_mutation_tag" in after_full.tags
+    assert after_full.samples is not None
+    assert after_full.samples[0].input == sentinel
+
+
+def test_write_s3_eval_header_only_compacts_zip(original_log, mock_s3):
+    """S3 header_only write must compact the .eval zip, not leave dead bytes.
+
+    The local in-place trick uses `ZipFile(..., "a")` which removes the old
+    `header.json` from the central directory but leaves its compressed bytes
+    in the file. That's a tolerable size leak locally. On S3 we re-upload
+    the whole object on every edit, so dead bytes accumulate across the
+    network — the rewrite there should produce a compact zip with no
+    orphan data.
+
+    The test compares the post-edit file size to a baseline written from
+    scratch with the same final state. They should match within a small
+    tolerance (zip timestamps / entry ordering).
+    """
+    from inspect_ai._util.file import filesystem
+
+    edits = [TagsEdit(tags_add=["compact_tag"])]
+    provenance = ProvenanceData(author="test", reason="compaction test")
+
+    # Baseline: write the final log state directly.
+    baseline_path = "s3://test-bucket/compact_baseline.eval"
+    baseline_log = edit_eval_log(original_log, edits, provenance)
+    write_eval_log(baseline_log, baseline_path, format="eval")
+    fs = filesystem(baseline_path)
+    baseline_size = fs.info(baseline_path).size
+
+    # Test: write original, header_only-swap to the same final state.
+    test_path = "s3://test-bucket/compact_test.eval"
+    write_eval_log(original_log, test_path, format="eval")
+    header = read_eval_log(test_path, header_only=True, format="eval")
+    header = edit_eval_log(header, edits, provenance)
+    write_eval_log(
+        header, test_path, format="eval", header_only=True, if_match_etag=header.etag
+    )
+    test_size = fs.info(test_path).size
+
+    # Allow a small tolerance for zip metadata jitter; the test fixture's
+    # header is ~1.5KB compressed, so any dead-header leak will easily
+    # exceed this threshold.
+    growth = test_size - baseline_size
+    assert growth < 256, (
+        f"after header_only edit on S3, file is {growth} bytes larger "
+        f"than the from-scratch baseline ({test_size} vs {baseline_size}) "
+        f"— old header.json bytes are likely retained as dead data"
+    )
+
+
+def test_write_s3_eval_header_only_preserves_samples(original_log, mock_s3):
+    """S3 .eval regression: header_only write must not erase existing samples.
+
+    Same destructive chain as the JSON case, but on S3 with an `If-Match`
+    ETag. The S3 conditional write path in EvalRecorder ignores `header_only`
+    and rewrites the object from the in-memory header-only EvalLog, writing
+    `log.samples or []` (= zero samples) into the new object.
+    """
+    log_path = "s3://test-bucket/s3_eval_header_only.eval"
+
+    write_eval_log(original_log, log_path, format="eval")
+    assert original_log.samples is not None and len(original_log.samples) > 0
+    original_sample_count = len(original_log.samples)
+
+    header = read_eval_log(log_path, header_only=True, format="eval")
+    assert header.samples is None
+    assert header.etag is not None, (
+        "S3 header_only read should return an ETag for conditional write"
+    )
+
+    header = edit_eval_log(
+        header,
+        [TagsEdit(tags_add=["s3_header_only_tag"])],
+        ProvenanceData(author="test", reason="test s3 eval header_only"),
+    )
+    write_eval_log(
+        header,
+        log_path,
+        format="eval",
+        header_only=True,
+        if_match_etag=header.etag,
+    )
+
+    restored = read_eval_log(log_path, format="eval")
+    assert "s3_header_only_tag" in restored.tags
+    assert restored.samples is not None, "header_only S3 write erased samples on disk"
+    assert len(restored.samples) == original_sample_count
+    for orig, rest in zip(original_log.samples, restored.samples):
+        assert orig.id == rest.id
+        assert orig.epoch == rest.epoch
+
+
 def compare_zip_contents(zip_file1: Path, zip_file2: Path) -> bool:
     """Compare the contents of two zip files."""
     with (

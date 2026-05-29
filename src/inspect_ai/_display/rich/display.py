@@ -36,6 +36,7 @@ from ..core.footer import task_footer
 from ..core.panel import task_panel, task_title, tasks_title
 from ..core.progress import (
     RichProgress,
+    progress_agent_name,
     progress_description,
     progress_model_name,
     progress_status_icon,
@@ -275,6 +276,7 @@ class RichTaskDisplay(TaskDisplay):
     ) -> None:
         self.status = status
         model = progress_model_name(self.status.profile.model)
+        agent = progress_agent_name(self.status.profile.agent)
         description = progress_description(self.status.profile)
 
         def task_status() -> str:
@@ -284,6 +286,7 @@ class RichTaskDisplay(TaskDisplay):
             total=self.status.profile.steps,
             progress=self.status.progress,
             description=f"{description.markup}",
+            agent=f"{agent.markup} " if agent.plain else "",
             model=f"{model.markup} ",
             status=task_status,
             on_update=on_update,

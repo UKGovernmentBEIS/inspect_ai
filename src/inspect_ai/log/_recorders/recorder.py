@@ -1,5 +1,5 @@
 import abc
-from typing import IO
+from typing import IO, TYPE_CHECKING
 
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.error import EvalError
@@ -15,6 +15,10 @@ from inspect_ai.log._log import (
     EvalStats,
     EvalStatus,
 )
+from inspect_ai.log._recorders.streaming import materialize_streaming_sample
+
+if TYPE_CHECKING:
+    from inspect_ai.log._recorders.buffer.history import SampleHistory
 
 
 class Recorder(abc.ABC):
@@ -40,6 +44,11 @@ class Recorder(abc.ABC):
 
     @abc.abstractmethod
     async def log_sample(self, eval: EvalSpec, sample: EvalSample) -> None: ...
+
+    async def log_sample_streaming(
+        self, eval: EvalSpec, sample: EvalSample, history: "SampleHistory"
+    ) -> None:
+        await self.log_sample(eval, materialize_streaming_sample(sample, history))
 
     @abc.abstractmethod
     async def flush(self, eval: EvalSpec) -> None: ...
