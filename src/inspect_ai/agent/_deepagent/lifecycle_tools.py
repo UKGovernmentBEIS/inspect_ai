@@ -32,7 +32,6 @@ from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 from .agent_tool import (
     AgentFuture,
     BackgroundRegistry,
-    active_background_agents,
     current_background_registry,
 )
 
@@ -135,6 +134,23 @@ def _unknown_agent(registry: BackgroundRegistry, agent_id: str) -> str:
     return f"Unknown agent id {agent_id!r}. Known agents: {known}."
 
 
+def _note_seen_terminal(
+    registry: BackgroundRegistry, futures: list[AgentFuture]
+) -> None:
+    """Record agents the model has now seen finish, for eager-push dedup.
+
+    Snapshots the status the tool actually rendered at this moment: only
+    agents currently in a terminal (completed/errored) state are recorded,
+    so an agent shown as *running* (e.g. agent_status on a live agent, or an
+    agent_wait that timed out / returned on a sibling) is NOT recorded and
+    its later completion is still pushed. ``notified`` gates only the eager
+    push — it never affects what a tool displays.
+    """
+    for f in futures:
+        if f.status in ("completed", "errored"):
+            registry.notified.add(f.agent_id)
+
+
 # ---------------------------------------------------------------------------
 # Tool viewers
 # ---------------------------------------------------------------------------
@@ -198,6 +214,7 @@ def agent_status() -> Tool:
         future = registry.futures.get(agent_id)
         if future is None:
             return _unknown_agent(registry, agent_id)
+        _note_seen_terminal(registry, [future])
         return _format_future_status(future)
 
     return execute
@@ -259,6 +276,7 @@ def agent_wait() -> Tool:
                         for f in futures:
                             tg.start_soon(_wait_one, f)
 
+        _note_seen_terminal(registry, futures)
         blocks = [_format_future_status(f) for f in futures]
         if unknown:
             known = ", ".join(registry.futures.keys()) or "(none)"
@@ -305,6 +323,7 @@ def agent_cancel() -> Tool:
                     "terminate at its next checkpoint. Re-check with "
                     f"`agent_status({agent_id!r})`."
                 )
+        _note_seen_terminal(registry, [future])
         return _format_future_status(future)
 
     return execute
@@ -336,6 +355,7 @@ def agent_list() -> Tool:
         futures = list(registry.futures.values())
         if status_filter is not None:
             futures = [f for f in futures if f.status == status_filter]
+        _note_seen_terminal(registry, futures)
         return _format_many(futures)
 
     return execute
@@ -355,6 +375,13 @@ def agent_list() -> Tool:
 # Turns the model may go without touching a background tool before a reminder
 # is injected (provided it has active background agents).
 REMINDER_INTERVAL = 5
+
+# Push a one-time notification the turn a background agent finishes
+# (completed/errored), so the parent learns of results without polling. The
+# notification is terse and collection-only — the result itself is still
+# fetched on demand via agent_status. Set False to fall back to surfacing
+# finishes solely through the periodic reminder (REMINDER_INTERVAL).
+EAGER_COMPLETION_NOTIFY = True
 
 # Model-facing names of the background lifecycle tools. Touching any of these
 # (or dispatching via agent(background=True)) counts as the model managing its
@@ -385,6 +412,7 @@ def _used_background_tool(state: AgentState) -> bool:
 
 def background_reminder_message(
     futures: list[AgentFuture],
+    notified: set[str] | None = None,
 ) -> ChatMessageUser | None:
     """Build a passive reminder of the model's background agents.
 
@@ -392,9 +420,21 @@ def background_reminder_message(
     results are worth collecting. Returns None when there is nothing worth
     reminding about (e.g. only cancelled agents remain), so the caller can
     skip injection.
+
+    Args:
+        futures: Snapshot of the registry's futures.
+        notified: Agent ids the model has already been shown finished. When
+            provided, those finishes are dropped from the "collect" list so
+            the backstop never re-nags about a result the model already saw —
+            the running section is unaffected (it is just current state).
     """
+    seen = notified or set()
     running = [f for f in futures if f.status == "running"]
-    finished = [f for f in futures if f.status in ("completed", "errored")]
+    finished = [
+        f
+        for f in futures
+        if f.status in ("completed", "errored") and f.agent_id not in seen
+    ]
     if not running and not finished:
         return None
 
@@ -420,17 +460,56 @@ def background_reminder_message(
     return ChatMessageUser(content="\n".join(lines))
 
 
+def background_completion_message(
+    finished: list[AgentFuture],
+) -> str | None:
+    """Terse one-time notice that background agents have finished.
+
+    ``finished`` is the set of newly-terminal (completed/errored) agents the
+    model has not yet seen. Returns None when empty. Notification-only — the
+    result itself is fetched on demand via ``agent_status``.
+    """
+    if not finished:
+        return None
+    lines = [
+        "[Automatic update] Background agent(s) finished — collect the result "
+        "when relevant:"
+    ]
+    for f in finished:
+        lines.append(
+            f"- {f.agent_id} ({f.subagent_name}) — {f.status}; "
+            f"call agent_status('{f.agent_id}')"
+        )
+    return "\n".join(lines)
+
+
 def background_on_continue(
     on_continue: str | AgentContinue | None,
 ) -> AgentContinue:
-    """Wrap ``on_continue`` to inject a periodic background-agent reminder.
+    """Wrap ``on_continue`` to inject background-agent awareness.
 
-    A forgetting *backstop*: a per-sample counter resets whenever the model
-    touches a background tool and a passive reminder is injected only after
-    ``REMINDER_INTERVAL`` turns of ignoring active background agents. The
-    wrapper preserves ``react()``'s on_continue protocol for the
-    None / str / callable / AgentState forms — composing the reminder into
-    the inner result rather than mutating state directly.
+    Two layers, both composed into the inner result rather than mutating
+    state directly (preserving ``react()``'s on_continue protocol for the
+    None / str / callable / AgentState forms):
+
+    - **Eager completion push** (``EAGER_COMPLETION_NOTIFY``): the turn a
+      background agent finishes (completed/errored), a one-time terse notice
+      is injected so the parent learns of the result without polling. Dedup
+      is driven by ``registry.notified`` — the set of agents the model has
+      actually been *shown* in a terminal state (by a lifecycle tool
+      rendering that status, or by a prior push). So an ``agent_status`` on a
+      still-running agent, or an ``agent_wait`` that returns on a sibling /
+      times out, does NOT suppress the later completion push.
+    - **Periodic reminder** (forgetting *backstop*): a per-sample counter
+      resets whenever the model touches a background tool, and a passive
+      reminder is injected only after ``REMINDER_INTERVAL`` turns of ignoring
+      active background agents. Its "collect" list also honors
+      ``registry.notified`` so it never re-nags about a finish the model was
+      already shown.
+
+    ``registry.notified`` gates both injected nudges (the eager push and the
+    reminder's "collect" list); it never filters what ``agent_status`` /
+    ``agent_list`` display.
 
     Args:
         on_continue: The user-configured continuation behavior to wrap.
@@ -459,26 +538,53 @@ def background_on_continue(
         else:
             reminder_idle_turns += 1
 
-        # pass the inner result through unchanged when the agent is stopping
-        # or no reminder is due yet
-        if result is False or reminder_idle_turns < REMINDER_INTERVAL:
+        # nothing to inject when the agent is stopping
+        if result is False:
             return result
 
-        reminder = background_reminder_message(active_background_agents())
-        if reminder is None:
-            return result
-        reminder_idle_turns = 0
+        registry = current_background_registry()
+        futures = list(registry.futures.values()) if registry is not None else []
 
-        # compose the reminder into the inner result, honoring react's
-        # on_continue protocol:
-        # - AgentState: append the reminder to the messages it carries
-        # - str: append the reminder text to the continue string
-        # - True: return the reminder text as the continue message
+        parts: list[str] = []
+
+        # eager completion push: agents now terminal that the model has not yet
+        # been shown finished (dedup via registry.notified — see docstring)
+        if EAGER_COMPLETION_NOTIFY and registry is not None:
+            newly_finished = [
+                f
+                for f in futures
+                if f.status in ("completed", "errored")
+                and f.agent_id not in registry.notified
+            ]
+            completion = background_completion_message(newly_finished)
+            if completion is not None:
+                parts.append(completion)
+                registry.notified.update(f.agent_id for f in newly_finished)
+
+        # periodic forgetting backstop: only after REMINDER_INTERVAL idle turns.
+        # Exclude finishes the model has already been shown (registry.notified)
+        # so the backstop never re-nags about a collected/pushed result.
+        if reminder_idle_turns >= REMINDER_INTERVAL:
+            seen = registry.notified if registry is not None else None
+            reminder = background_reminder_message(futures, seen)
+            if reminder is not None:
+                parts.append(reminder.text)
+                reminder_idle_turns = 0
+
+        if not parts:
+            return result
+
+        injection = "\n\n".join(parts)
+
+        # compose into the inner result, honoring react's on_continue protocol:
+        # - AgentState: append the injection to the messages it carries
+        # - str: append the injection text to the continue string
+        # - True: return the injection text as the continue message
         if isinstance(result, AgentState):
-            result.messages.append(reminder)
+            result.messages.append(ChatMessageUser(content=injection))
             return result
         if isinstance(result, str):
-            return f"{result}\n\n{reminder.text}"
-        return reminder.text
+            return f"{result}\n\n{injection}"
+        return injection
 
     return execute

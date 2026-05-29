@@ -95,6 +95,13 @@ class BackgroundRegistry:
     max_background: int
     counter: int = 0
     futures: dict[str, AgentFuture] = field(default_factory=dict)
+    notified: set[str] = field(default_factory=set)
+    """Agent ids the model has already been shown in a terminal
+    (completed/errored) state — either by a lifecycle tool rendering that
+    status or by the eager completion push. Gates the injected nudges (the
+    eager push and the periodic reminder's "collect" list) so neither
+    re-announces a finish the model already saw; never filters what any tool
+    displays."""
 
     def next_id(self) -> str:
         """Allocate the next AGENT-N handle. Counter never reuses."""

@@ -366,3 +366,41 @@ Phases 1–4 shipped with 49 tests, but a full audit (implementation surface vs.
 4. `ruff format` + `ruff check --fix` + `mypy --exclude tests/test_package src tests` clean (the last confirms no new duplicate-module / typing regressions).
 5. Sanity: each new Tier-1 test, when its production guard is reverted locally, should fail (i.e. the tests actually exercise the safety property) — spot-check the errored-doesn't-kill-sample and sa.limits tests.
 
+---
+
+## Phase 6 — Eager completion notifications (push)
+
+### Context
+
+Phases 1–4 made result delivery **pull-based**: the model fetches results via `agent_status`/`agent_wait`, with the periodic reminder (Phase 4) as a *forgetting* backstop that only fires after `REMINDER_INTERVAL` turns of neglect. A survey of OpenClaw (`sessions_spawn` + `sessions_yield`, "completion is push-based; do not poll") showed the main alternative: **push** finished results into the parent's turn as they complete. The gap in pure-pull is latency — a finished result the parent doesn't poll for sits unseen for up to N turns, and an uncollected result is wasted work.
+
+Decision (after discussion): add an **eager completion notification** *in addition to* pull — but notification-only, not OpenClaw's full-result push. Completions are high-value / low-risk to push (the work is done; a one-liner is cheap; ignoring it wastes work); results and running-status stay pull (pushing them risks derailing the parent off its current task — the whole point of backgrounding). Errors are pushed too; cancellations are not (self-inflicted — the parent already knows).
+
+### Design
+
+In a turn-based `react()` loop the parent is never idle, so "push" can only mean **inject at the next turn boundary** (i.e. in the existing `on_continue` wrapper) — no mid-generation interrupt, none of OpenClaw's wake/steer/queue-routing machinery. The feature is therefore a small extension of `background_on_continue`.
+
+- **`EAGER_COMPLETION_NOTIFY = True`** (module constant, sibling of `REMINDER_INTERVAL`). `False` restores Phase-4 behavior (finishes surface only via the periodic reminder).
+- **`BackgroundRegistry.notified: set[str]`** — the dedup source. It holds agents the model has actually been *shown* in a terminal (completed/errored) state. An id enters `notified` two ways: (1) the eager push announces it, (2) a lifecycle tool **rendered** that agent's terminal status to the model — recorded by `_note_seen_terminal(registry, shown_futures)` at the end of `agent_status` / `agent_wait` / `agent_cancel` / `agent_list`, snapshotting the status the tool *actually displayed*. Eager push = futures with status ∈ {`completed`,`errored`} whose id ∉ `registry.notified`.
+- **Why a render-time snapshot, not reference-time.** An early version marked an id "seen" merely because the latest assistant turn *referenced* it (`agent_status("AGENT-1")`, `agent_wait([...])`). That was wrong: `agent_status` on a *running* agent, an `agent_wait(mode="any")` that returns on a sibling, or a timed-out wait would permanently suppress the agent's later completion push — violating the "learn it once" goal. Recording only agents the tool *rendered terminal* fixes this: a running agent shown by a tool is not recorded, so its later finish is still pushed.
+- **Invariant:** `notified` gates **only** injected nudges (the eager push and the periodic reminder's "collect" list). It never filters what `agent_status` / `agent_list` display — those stay authoritative and complete, so a deliberate query is always the full truth.
+- **Periodic backstop excludes collected finishes.** The periodic reminder's "Finished — collect" list drops agents in `registry.notified`, so it never re-nags about a result the model was already shown (eagerly pushed or seen via a tool). Its "Still running" list is unaffected — that's current state, not a collectible result. With eager push on, the finished list is therefore usually empty and the backstop is effectively the running-agents reminder; with eager off it nudges uncollected finishes until they're seen. (This reverses the earlier "leave the periodic formatter untouched" call — safe now that `notified` is an accurate render-time signal rather than the fuzzy reference-based one.)
+- **Composition.** Eager push (checked every turn) and the periodic reminder (counter-gated) are computed independently into a `parts` list and merged into **one** `ChatMessageUser` per turn, composed through `react()`'s existing on_continue protocol (`AgentState` / `str` / `True`).
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/inspect_ai/agent/_deepagent/agent_tool.py` | `BackgroundRegistry` gains a `notified: set[str]` field. |
+| `src/inspect_ai/agent/_deepagent/lifecycle_tools.py` | `EAGER_COMPLETION_NOTIFY` constant; `background_completion_message(finished) -> str \| None` (terse, collection-only formatter); `_note_seen_terminal(registry, futures)` (records rendered-terminal agents) wired into all four lifecycle tools; `background_on_continue` extended with the eager block (dedup via `registry.notified`) + merge; `background_reminder_message` gained an optional `notified` arg so its "collect" list drops already-seen finishes. The tool *display* paths (`agent_status` / `agent_list` output) are untouched. |
+
+### Tests (`test_deepagent_background.py`)
+
+- `TestBackgroundCompletionMessage` — formatter lists completed/errored, collection-only, empty → None.
+- `TestNoteSeenTerminal` — the recorder captures only currently-terminal agents (never running, never cancelled).
+- `TestEagerCompletionOnContinue` — drives the wrapper against a real registry (deterministic): pushes once on completion, pushes errored, skips cancelled, skips already-notified, `EAGER_COMPLETION_NOTIFY=False` suppresses, eager+periodic merge into one message.
+- `TestEagerDedupAcrossTools` — the High-fix regression: `agent_status` on a *running* agent that later completes still pushes; `agent_wait(mode="any")` returning on a sibling leaves the still-running one pushable when it later finishes.
+- `TestEagerCompletionE2E` — real `eval()`: completion and error pushes fire exactly once (uses the non-lifecycle `_wait_test_helper` to block for completion deterministically without rendering the agent's status).
+
+**SHIPPED.** All of the above. Initial cut deduped on *referenced* ids (a closure `announced` set + `_referenced_agent_ids`); code review found this suppressed legitimate pushes after a status/wait on a still-running agent. Reworked to dedup on `registry.notified`, recorded from the status each lifecycle tool actually renders. Full deepagent suite green; ruff + mypy clean.
+
