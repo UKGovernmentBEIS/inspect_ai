@@ -20,9 +20,9 @@ This plan adds background dispatch to Inspect's `deepagent()` with the **minimum
 
 **Lifetime semantics: abandon on parent exit.** Background children spawn via `background()` onto `sample.tg`. When the parent's `react()` loop returns, in-flight children continue under the sample until they complete or the sample itself ends (at which point anyio cancels them). The parent does *not* drain.
 
-**Top-level switch + cap, unified.** New `background: bool | int = True` parameter on `deepagent()`:
-- `True` (default): enabled with default cap of 8.
-- `False`: disabled — the `agent` tool's parameter schema does not include `background`, and the four lifecycle tools (`agent_status`, `agent_wait`, `agent_cancel`, `agent_list`) are absent from the top-level tool list. Returns deepagent to today's synchronous-only surface.
+**Top-level switch + cap, unified.** New `background: bool | int = False` parameter on `deepagent()` (background dispatch is opt-in):
+- `False` (default): disabled — the `agent` tool's parameter schema does not include `background`, and the four lifecycle tools (`agent_status`, `agent_wait`, `agent_cancel`, `agent_list`) are absent from the top-level tool list. This is today's synchronous-only surface.
+- `True`: enabled with default cap of 8.
 - Positive `int` (e.g. `background=4`): enabled with that as the cap.
 - `0` or negative: `ValueError` — for "disabled" pass `False` explicitly.
 
@@ -160,12 +160,12 @@ The cap check + register is synchronous (no `await` between read and write), so 
 
 Four plain `@tool` factories in `agent_tool.py`, each reading the registry via `_background_registry.get()`:
 
-- `agent_status_tool()` — `parallel=True`. Looks up future by id; returns `_format_future_status(future)`.
-- `agent_wait_tool()` — `parallel=False` (serialise to avoid stacked waits). Validates non-empty `agent_ids`; for `mode="any"` uses an anyio task group with a shared `done_event` that cancels the group on first child completion; for `mode="all"` uses `anyio.move_on_after(timeout)` wrapping a sequential `await f.done.wait()` loop (each already-set event returns instantly). On timeout, returns *honest* status for still-running entries (`status: "running"` with peek).
-- `agent_cancel_tool()` — `parallel=True`. Calls `future.cancel_scope.cancel()` (safe from any task per anyio docs); returns the current status dict. No-op on terminal-state futures.
-- `agent_list_tool()` — `parallel=True`. Optional `status_filter: Literal["running","completed","errored","cancelled"] | None = None`. Iterates the registry's `futures.values()` (insertion order, which is `AGENT-1`, `AGENT-2`, ...), applies the filter, returns `[_format_future_status(f) for f in matching]`. Returns `[]` (not an error) when the registry is empty. Cheap — ~20 lines including the filter parameter.
+- `agent_status_tool()` — looks up future by id; returns `_format_future_status(future)`.
+- `agent_wait_tool()` — validates non-empty `agent_ids`; for `mode="any"` uses an anyio task group with a shared `done_event` that cancels the group on first child completion; for `mode="all"` uses `anyio.move_on_after(timeout)` wrapping a sequential `await f.done.wait()` loop (each already-set event returns instantly). On timeout, returns *honest* status for still-running entries (`status: "running"` with peek).
+- `agent_cancel_tool()` — calls `future.cancel_scope.cancel()` (safe from any task per anyio docs); returns the current status. No-op on terminal-state futures.
+- `agent_list_tool()` — optional `status_filter: Literal["running","completed","errored","cancelled"] | None = None`. Iterates the registry's `futures.values()` (insertion order, which is `AGENT-1`, `AGENT-2`, ...), applies the filter, formats each matching future. Returns an empty list (not an error) when the registry is empty.
 
-All four return `ToolError("agent_status is only available inside deepagent().")` (etc.) when the ContextVar is unset, and `ToolError(f"Unknown agent id {id!r}.")` when an id doesn't exist (only applies to `agent_status`, `agent_wait`, `agent_cancel` — `agent_list` doesn't take ids).
+None of the lifecycle tools take an explicit `parallel=` opt-in (they do in-memory reads of the registry — no I/O to overlap). They **never raise**: when the ContextVar is unset they report "background dispatch is not enabled" as content, and an unknown id is reported as content too (applies to `agent_status`, `agent_wait`, `agent_cancel` — `agent_list` doesn't take ids). Problems are surfaced in the returned markdown so the model can read and react to them.
 
 ### `_format_future_status` and `_peek_messages`
 
@@ -200,7 +200,7 @@ Follow the convention established in `design/deepagents.md`:
 
 **Phase 1 — Registry + background spawn (no lifecycle tools yet)**
 - Add `BackgroundRegistry`, `AgentFuture`, ContextVar + helpers in `agent_tool.py`.
-- `background: bool | int = True` param on `deepagent()`. Resolve to `(background_enabled, max_background)` at the top of `execute()` — check `is True` / `is False` before `isinstance(..., int)`; `0` or negative ints raise `ValueError`. When disabled, skip ContextVar setup entirely and pass `background_enabled=False` through to `agent_tool()`.
+- `background: bool | int = False` param on `deepagent()` (opt-in). Resolve to `(background_enabled, max_background)` at the top of `execute()` — check `is True` / `is False` before `isinstance(..., int)`; `0` or negative ints raise `ValueError`. When disabled, skip ContextVar setup entirely and pass `background_enabled=False` through to `agent_tool()`.
 - `background_enabled: bool = True` param on `agent_tool()` factory — selects between two near-identical `execute()` function definitions, one with `background: bool` parameter and one without (cleaner than dynamic decorator manipulation; gives the model a parameter schema that accurately reflects what's available).
 - ContextVar setup in `execute()` with `try/finally: reset(token)` (only when enabled).
 - `background: bool` param on the `agent` tool's `execute()` (background-enabled variant only); cap check → `ToolError` on overflow.
@@ -214,11 +214,11 @@ Follow the convention established in `design/deepagents.md`:
 - **Custom `ToolCallViewer`s** give each *call* line a clean title (e.g. `agent_status: AGENT-1`, `agent_wait: AGENT-1, AGENT-2 (all)`, `agent_cancel: AGENT-1`, `agent_list` / `agent_list: running`). This mirrors the existing `_agent_viewer` (`agent_tool.py`). Note the `ToolCallViewer` contract is `Callable[[ToolCall], ToolCallView]` (`_tool_call.py:93`) — it only sees the **call** (args), not the result. So the viewer governs the call line; the markdown return value governs the result body (rendered by each viewer's normal tool-result path).
 - **New file `src/inspect_ai/agent/_deepagent/lifecycle_tools.py`** holds the four `@tool` factories + their viewers + `_format_future_status` + `_peek_messages`. It imports the registry primitives (`current_background_registry`, `AgentFuture`, `BackgroundStatus`) from `agent_tool.py`. Keeps `agent_tool.py` focused on dispatch; no circular import (lifecycle imports from agent_tool, not vice versa).
 
-*Tools (all return markdown `str`):*
-- `agent_status(agent_id)` — `parallel=True`. Markdown block for one agent. `ToolError` on unknown id / no registry. Viewer title `agent_status: {agent_id}`.
-- `agent_wait(agent_ids, mode="any"|"all"=", timeout=None)` — `parallel=False`. Validates non-empty ids + each exists + valid mode. `any`: anyio task group, first `done` cancels the group. `all`: `anyio.move_on_after(timeout)` over sequential `await f.done.wait()`. On timeout returns honest per-agent markdown (running entries include the live peek). Joins per-agent blocks. Viewer title `agent_wait: {ids} ({mode})`.
-- `agent_cancel(agent_id)` — `parallel=True`. Fires `future.cancel_scope.cancel()` (safe cross-task per anyio); idempotent no-op on terminal futures. Returns the post-cancel markdown block. Viewer title `agent_cancel: {agent_id}`.
-- `agent_list(status_filter=None)` — `parallel=True`. Markdown list of agents in `AGENT-N` insertion order. `"No background agents."` (not an error) when empty. Viewer title `agent_list` / `agent_list: {filter}`.
+*Tools (all return markdown `str`; none take an explicit `parallel=` opt-in; none raise — problems are reported as content):*
+- `agent_status(agent_id)` — markdown block for one agent. Unknown id / no registry reported as content. Viewer title `agent_status: {agent_id}`.
+- `agent_wait(agent_ids, mode="any"|"all", timeout=None)` — validates non-empty ids + each exists + valid mode (problems reported as content). `any`: anyio task group, first `done` cancels the group. `all`: `anyio.move_on_after(timeout)` over sequential `await f.done.wait()`. On timeout returns honest per-agent markdown (running entries include the live peek). Joins per-agent blocks. Viewer title `agent_wait: {ids} ({mode})`.
+- `agent_cancel(agent_id)` — fires `future.cancel_scope.cancel()` (safe cross-task per anyio); idempotent no-op on terminal futures. Returns the post-cancel markdown block. Viewer title `agent_cancel: {agent_id}`.
+- `agent_list(status_filter=None)` — markdown list of agents in `AGENT-N` insertion order. `"No background agents."` (not an error) when empty. Viewer title `agent_list` / `agent_list: {filter}`.
 
 *Status markdown (`_format_future_status(future) -> str`), one block per agent:*
 - running: header `**AGENT-1** (research) — running`, then bullet lines: elapsed seconds, message count, tool-call count, and `latest:` = the most recent **assistant** message text, truncated to 2000 bytes via `truncate_string_to_bytes` (`_util/text.py:52`). Defensive `list(future.child_state.messages)` snapshot; handle `child_state is None` (init window) → zero counts / empty latest.
@@ -235,7 +235,7 @@ Follow the convention established in `design/deepagents.md`:
 - `agent_wait` `any` returns on first, `all` waits for both, timeout returns honest partial
 - `agent_cancel` terminates a running child; idempotent on already-terminal
 - `agent_list` empty / populated / status_filter
-- invalid id → ToolError; empty `agent_ids` → ToolError; tools when `background=False`/no registry → ToolError
+- invalid id → reported as content; empty `agent_ids` → reported as content; tools when `background=False`/no registry → "not enabled" content (never raise)
 - soft-peek `latest` truncated to ≤2000 bytes
 - viewer titles render expected strings from call args
 - Phase 1's deferred `_wait_test_helper` e2e re-expressed against real `agent_wait`/`agent_status`.

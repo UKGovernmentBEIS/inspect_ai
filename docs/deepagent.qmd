@@ -288,15 +288,15 @@ deepagent(
 )
 ```
 
-This enables background processing with the default cap of 8 concurrently running background agents Pass an integer to set the cap explicitly.
+This enables background processing with the default cap of 8 concurrently running background agents. Pass an integer to set the cap explicitly.
 
 When enabled, the `agent()` tool gains a `background` argument. Calling `agent(subagent_type, prompt, background=True)` returns an `AGENT-N` handle immediately while the subagent runs concurrently. Four lifecycle tools let the parent follow up on a handle:
 
 | Tool | Description |
 |-------------------------------|-----------------------------------------|
-| `agent_status(id)` | Non-blocking peek — status, and for a running agent a brief progress snapshot (elapsed time, message/tool-call counts, latest message); for a finished agent, its result. |
-| `agent_wait(ids, mode, timeout)` | Block until the listed agents finish. `mode="all"` (default) waits for every agent; `mode="any"` returns on the first. On `timeout`, still-running agents are reported honestly. |
-| `agent_cancel(id)` | Terminate a running agent. No-op on an already-finished agent. |
+| `agent_status(agent_id)` | Non-blocking peek — status, and for a running agent a brief progress snapshot (elapsed time, message/tool-call counts, latest message); for a finished agent, its result. |
+| `agent_wait(agent_ids, mode, timeout)` | Block until the listed agents finish. `mode="all"` (default) waits for every agent; `mode="any"` returns on the first. On `timeout`, still-running agents are reported honestly. |
+| `agent_cancel(agent_id)` | Terminate a running agent. No-op on an already-finished agent. |
 | `agent_list(status_filter)` | Enumerate all dispatched agents (optionally filtered by status) — useful for recovering handles after a long stretch of work or context compaction. |
 
 : {tbl-colwidths=\[35,65\]}
