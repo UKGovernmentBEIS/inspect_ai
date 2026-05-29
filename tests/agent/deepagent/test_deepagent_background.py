@@ -1490,6 +1490,55 @@ class TestBackgroundReminderMessage:
 
         assert background_reminder_message([]) is None
 
+    async def test_excludes_notified_finished(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            background_reminder_message,
+        )
+
+        # a finish the model has already been shown (notified) is dropped from
+        # the "collect" list; the uncollected one is still listed
+        msg = background_reminder_message(
+            [
+                self._future("AGENT-1", "research", "completed"),
+                self._future("AGENT-2", "general", "completed"),
+            ],
+            notified={"AGENT-1"},
+        )
+        assert msg is not None
+        assert "AGENT-2" in msg.text
+        assert "AGENT-1" not in msg.text
+
+    async def test_all_finished_notified_returns_none(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            background_reminder_message,
+        )
+
+        # nothing running, the only finish already seen -> nothing to remind
+        assert (
+            background_reminder_message(
+                [self._future("AGENT-1", "general", "completed")],
+                notified={"AGENT-1"},
+            )
+            is None
+        )
+
+    async def test_running_listed_even_when_finish_notified(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            background_reminder_message,
+        )
+
+        # the running section is unaffected by notified (it is current state)
+        msg = background_reminder_message(
+            [
+                self._future("AGENT-1", "research", "completed"),
+                self._future("AGENT-2", "general", "running"),
+            ],
+            notified={"AGENT-1"},
+        )
+        assert msg is not None
+        assert "AGENT-2" in msg.text and "Still running" in msg.text
+        assert "AGENT-1" not in msg.text
+
 
 class TestReminderE2E:
     """End-to-end: the on_continue forgetting-backstop reminder."""
@@ -1868,6 +1917,318 @@ class TestReminderComposition:
         )
         assert calls["n"] >= 6
         assert _reminder_messages(result) == []
+
+
+# ---------------------------------------------------------------------------
+# Eager completion notification (push) — option C
+# ---------------------------------------------------------------------------
+
+
+def _completion_messages(result: dict) -> list:
+    """Parent ChatMessageUser eager completion notices injected by on_continue."""
+    from inspect_ai.model._chat_message import ChatMessageUser
+
+    return [
+        m
+        for m in result["messages"]
+        if isinstance(m, ChatMessageUser) and "Automatic update" in m.text
+    ]
+
+
+def _mk_future(agent_id: str, name: str, status: str = "running") -> AgentFuture:
+    # started_at/cancel_scope left at loop-free defaults so this helper works
+    # in both sync and async unit tests (no running event loop required).
+    f = AgentFuture(
+        agent_id=agent_id,
+        span_id="x",
+        subagent_name=name,
+    )
+    f.status = status  # type: ignore[assignment]
+    return f
+
+
+class TestBackgroundCompletionMessage:
+    """Unit tests for the terse eager completion formatter."""
+
+    def test_lists_completed_and_errored(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            background_completion_message,
+        )
+
+        msg = background_completion_message(
+            [
+                _mk_future("AGENT-1", "research", "completed"),
+                _mk_future("AGENT-2", "audit", "errored"),
+            ]
+        )
+        assert msg is not None
+        assert "Automatic update" in msg
+        assert "AGENT-1" in msg and "research" in msg and "completed" in msg
+        assert "AGENT-2" in msg and "audit" in msg and "errored" in msg
+        # collection-only: points at agent_status, never inlines the result
+        assert "agent_status('AGENT-1')" in msg
+
+    def test_empty_returns_none(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            background_completion_message,
+        )
+
+        assert background_completion_message([]) is None
+
+
+class TestNoteSeenTerminal:
+    """Unit tests for the terminal-seen recorder (the eager-push dedup source).
+
+    It records the status the tool ACTUALLY rendered: only currently-terminal
+    (completed/errored) agents — never running (so a peek at a live agent does
+    not suppress its later completion push) and never cancelled (never pushed).
+    """
+
+    def test_records_only_terminal(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _note_seen_terminal
+
+        reg = BackgroundRegistry(max_background=8)
+        _note_seen_terminal(
+            reg,
+            [
+                _mk_future("AGENT-1", "r", "completed"),
+                _mk_future("AGENT-2", "r", "running"),
+                _mk_future("AGENT-3", "r", "errored"),
+                _mk_future("AGENT-4", "r", "cancelled"),
+            ],
+        )
+        assert reg.notified == {"AGENT-1", "AGENT-3"}
+
+
+class TestEagerCompletionOnContinue:
+    """Drive the on_continue wrapper against a real registry.
+
+    A real ``BackgroundRegistry`` (installed via ``background_registry``) gives
+    deterministic control over the eager push (registry futures + the
+    ``notified`` dedup set) and the periodic backstop (the idle-turn counter),
+    without depending on background completion timing.
+    """
+
+    def _registry(self, *futures: AgentFuture) -> BackgroundRegistry:
+        reg = BackgroundRegistry(max_background=8)
+        for f in futures:
+            reg.futures[f.agent_id] = f
+        return reg
+
+    def _idle_state(self, *tool_calls):
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.model._chat_message import ChatMessageAssistant
+
+        return AgentState(
+            messages=[
+                ChatMessageAssistant(
+                    content="working", tool_calls=list(tool_calls) or None
+                )
+            ]
+        )
+
+    def _call(self, function: str, **arguments):
+        from inspect_ai.tool._tool_call import ToolCall
+
+        return ToolCall(id="1", function=function, arguments=arguments)
+
+    async def test_pushes_on_completion_once(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import background_on_continue
+
+        reg = self._registry(_mk_future("AGENT-1", "research", "completed"))
+        with background_registry(reg):
+            execute = background_on_continue(None)
+            first = await execute(self._idle_state())
+            assert isinstance(first, str)
+            assert "[Automatic update]" in first
+            assert "AGENT-1" in first and "research" in first and "completed" in first
+            # not re-announced on a subsequent turn
+            assert await execute(self._idle_state()) is True
+
+    async def test_pushes_errored(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import background_on_continue
+
+        reg = self._registry(_mk_future("AGENT-2", "audit", "errored"))
+        with background_registry(reg):
+            res = await background_on_continue(None)(self._idle_state())
+        assert isinstance(res, str)
+        assert "[Automatic update]" in res and "AGENT-2" in res and "errored" in res
+
+    async def test_cancelled_not_pushed(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import background_on_continue
+
+        reg = self._registry(_mk_future("AGENT-3", "x", "cancelled"))
+        with background_registry(reg):
+            # cancelled is excluded from the eager push (and the periodic reminder)
+            assert await background_on_continue(None)(self._idle_state()) is True
+
+    async def test_already_notified_not_pushed(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import background_on_continue
+
+        # a finish the model was already shown (notified) is not re-pushed
+        reg = self._registry(_mk_future("AGENT-1", "research", "completed"))
+        reg.notified.add("AGENT-1")
+        with background_registry(reg):
+            assert await background_on_continue(None)(self._idle_state()) is True
+
+    async def test_disabled_constant_no_push(self, monkeypatch) -> None:
+        from inspect_ai.agent._deepagent import lifecycle_tools
+
+        monkeypatch.setattr(lifecycle_tools, "EAGER_COMPLETION_NOTIFY", False)
+        reg = self._registry(_mk_future("AGENT-1", "research", "completed"))
+        with background_registry(reg):
+            assert (
+                await lifecycle_tools.background_on_continue(None)(self._idle_state())
+                is True
+            )
+
+    async def test_merges_with_periodic_reminder(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import background_on_continue
+
+        running = _mk_future("AGENT-1", "research", "running")
+        finishing = _mk_future("AGENT-2", "audit", "running")
+        reg = self._registry(running, finishing)
+        with background_registry(reg):
+            execute = background_on_continue(None)
+            # 4 idle turns: both running, counter climbs to 4 -> nothing injected
+            for _ in range(4):
+                assert await execute(self._idle_state()) is True
+
+            # turn 5: AGENT-2 finishes AND the counter hits REMINDER_INTERVAL, so
+            # the eager push (AGENT-2) and periodic reminder (AGENT-1) merge
+            finishing.status = "completed"
+            res = await execute(self._idle_state())
+        assert isinstance(res, str)
+        assert "[Automatic update]" in res  # eager completion (AGENT-2)
+        assert "Automatic reminder" in res  # periodic backstop (AGENT-1)
+        assert "AGENT-1" in res and "AGENT-2" in res
+
+    async def test_periodic_reminder_excludes_collected_finish(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import background_on_continue
+
+        # AGENT-1 finished (gets eagerly pushed -> notified); AGENT-2 keeps running
+        done = _mk_future("AGENT-1", "research", "completed")
+        running = _mk_future("AGENT-2", "audit", "running")
+        reg = self._registry(done, running)
+        with background_registry(reg):
+            execute = background_on_continue(None)
+            # turn 1: eager push announces AGENT-1, marking it notified
+            first = await execute(self._idle_state())
+            assert isinstance(first, str) and "AGENT-1" in first
+            # turns 2-5: idle; the periodic backstop fires at REMINDER_INTERVAL
+            last: bool | str | object = True
+            for _ in range(4):
+                last = await execute(self._idle_state())
+        assert isinstance(last, str)
+        assert "Automatic reminder" in last
+        assert "AGENT-2" in last  # still running -> listed
+        # already collected/pushed -> the backstop does NOT re-nag about it
+        assert "AGENT-1" not in last
+
+
+class TestEagerDedupAcrossTools:
+    """Dedup is driven by what a lifecycle tool ACTUALLY showed the model.
+
+    Closes the High review gap: referencing an id is not the same as seeing it
+    finish. A status/wait that showed an agent as *running* must NOT suppress
+    the later completion push.
+    """
+
+    def _idle_state(self):
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.model._chat_message import ChatMessageAssistant
+
+        return AgentState(messages=[ChatMessageAssistant(content="working")])
+
+    async def test_status_while_running_then_completes_still_pushes(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            agent_status,
+            background_on_continue,
+        )
+
+        running = _mk_future("AGENT-1", "research", "running")
+        reg = BackgroundRegistry(max_background=8)
+        reg.futures["AGENT-1"] = running
+        with background_registry(reg):
+            # model peeks at the still-running agent: shows "running", records nothing
+            shown = str(await agent_status()(agent_id="AGENT-1"))
+            assert "running" in shown
+            assert reg.notified == set()
+
+            # the agent later completes -> the completion is still pushed
+            running.status = "completed"
+            res = await background_on_continue(None)(self._idle_state())
+        assert isinstance(res, str)
+        assert "[Automatic update]" in res and "AGENT-1" in res
+
+    async def test_wait_any_returns_on_sibling_other_still_pushes(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            agent_wait,
+            background_on_continue,
+        )
+
+        first = _mk_future("AGENT-1", "research", "completed")
+        first.done.set()  # already finished -> agent_wait(any) returns immediately
+        second = _mk_future("AGENT-2", "audit", "running")
+        reg = BackgroundRegistry(max_background=8)
+        reg.futures["AGENT-1"] = first
+        reg.futures["AGENT-2"] = second
+        with background_registry(reg):
+            # wait(any) returns as soon as AGENT-1 is done; AGENT-2 shown running
+            shown = str(
+                await agent_wait()(
+                    agent_ids=["AGENT-1", "AGENT-2"], mode="any", timeout=2.0
+                )
+            )
+            assert "AGENT-2" in shown and "running" in shown
+            # only the agent shown terminal is recorded
+            assert reg.notified == {"AGENT-1"}
+
+            # AGENT-2 later completes -> still pushed; AGENT-1 already seen, not
+            second.status = "completed"
+            res = await background_on_continue(None)(self._idle_state())
+        assert isinstance(res, str)
+        assert "[Automatic update]" in res
+        assert "AGENT-2" in res and "AGENT-1" not in res
+
+
+class TestEagerCompletionE2E:
+    """End-to-end: the eager completion push through a real eval()."""
+
+    def test_pushes_completion(self) -> None:
+        done = _build_submit_subagent("done_one", "result-A")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [done], "tools": [_wait_test_helper()]},
+            outputs=[
+                _agent_call("done_one"),
+                # _wait_test_helper is not a lifecycle tool, so it deterministically
+                # blocks until completion WITHOUT marking AGENT-1 as collected
+                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                _idle(),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        msgs = _completion_messages(result)
+        assert len(msgs) == 1
+        text = msgs[0].text
+        assert "AGENT-1" in text and "done_one" in text and "completed" in text
+
+    def test_pushes_error(self) -> None:
+        boom = _build_erroring_subagent("err_one", "kaboom")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [boom], "tools": [_wait_test_helper()]},
+            outputs=[
+                _agent_call("err_one"),
+                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                _idle(),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        msgs = _completion_messages(result)
+        assert len(msgs) == 1
+        assert "AGENT-1" in msgs[0].text and "errored" in msgs[0].text
 
 
 class TestErroredCancelledDisplay:

@@ -301,7 +301,12 @@ When enabled, the `agent()` tool gains a `background` argument. Calling `agent(s
 
 : {tbl-colwidths=\[35,65\]}
 
-The system prompt teaches the model the dispatch discipline: do useful independent work while waiting, prefer a single `agent_wait` over a polling loop of `agent_status` calls, and call `agent_list()` to recover handles if it loses track of them. As a backstop, if the agent goes several turns without touching its background agents, a passive reminder of what is still running is injected automatically.
+The system prompt teaches the model the dispatch discipline: do useful independent work while waiting, prefer a single `agent_wait` over a polling loop of `agent_status` calls, and call `agent_list()` to recover handles if it loses track of them.
+
+Two automatic signals keep the parent aware of its background agents without forcing it to poll:
+
+- Completion notifications: The turn a background agent finishes (or fails), a one-line user message is injected (it is notification-only: the result itself is still fetched on demand).
+- Forgetting backstop:  If the agent goes several turns without touching its background agents, a passive reminder is injected — listing what is still running, plus any finished agents whose results are still worth collecting.
 
 ### Fork Mode {#sec-fork-mode}
 
