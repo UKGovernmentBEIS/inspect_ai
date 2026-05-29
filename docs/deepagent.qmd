@@ -5,11 +5,11 @@ llms-description: Using and customizing the built-in deep agent with subagent de
 
 ## Overview
 
-The `deepagent()` is a batteries-included entry point for long-horizon tasks. It builds on the [ReAct Agent](react-agent.qmd) with four additions: subagent delegation, persistent memory, structured planning, and an opinionated system prompt that teaches the model when to use each.
+The `deepagent()` is a batteries-included entry point for long-horizon tasks. It builds on the [ReAct Agent](react-agent.qmd) with five additions: subagent delegation, persistent memory, structured planning, an opinionated system prompt that teaches the model when to use each, and optional background dispatch of subagents.
 
 The `react()` agent handles short-horizon tasks well, but can degrade in performance under longer horizons, losing context and not reliably decomposing work. The `deepagent()` bundles the patterns that address this, drawing from Claude Code, Codex CLI, and other deep agent frameworks:
 
-1.  Subagent delegation. Spawn isolated workers (`research()`, `plan()`, and `general()`) with their own context windows. Only their summary returns to the parent.
+1.  Subagent delegation. Spawn isolated workers (`research()`, `plan()`, and `general()`) with their own context windows. Only their summary returns to the parent. Optionally run subagents in the background.
 
 2.  Persistent memory. A `memory()` tool for offloading intermediate results out of the message history so they survive context compaction.
 
@@ -271,6 +271,38 @@ The `subagent()` factory accepts the same customization parameters as the built-
 
 By default, subagents cannot delegate to further subagents (`max_depth=1`). Set `max_depth=2` on `deepagent()` to allow one level of nested delegation. Higher values increase token usage and latency; `max_depth=1` is sufficient for most tasks.
 
+
+### Background Dispatch {#sec-background-dispatch}
+
+By default, subagent dispatch is *synchronous*: when the parent calls the `agent()` tool, it blocks until the subagent returns. Background dispatch lets the parent kick off a subagent and keep working while it runs — useful when the parent has independent work to do, or wants to fan out several long-running investigations at once.
+
+Background processing is disabled by default, enable it with the `background` parameter on `deepagent()`:
+
+``` python
+from inspect_ai.agent import deepagent
+from inspect_ai.tool import bash, text_editor
+
+deepagent(
+    tools=[bash(), text_editor()],
+    background=True
+)
+```
+
+This enables background processing with the default cap of 8 concurrently running background agents. Pass an integer to set the cap explicitly.
+
+When enabled, the `agent()` tool gains a `background` argument. Calling `agent(subagent_type, prompt, background=True)` returns an `AGENT-N` handle immediately while the subagent runs concurrently. Four lifecycle tools let the parent follow up on a handle:
+
+| Tool | Description |
+|-------------------------------|-----------------------------------------|
+| `agent_status(agent_id)` | Non-blocking peek — status, and for a running agent a brief progress snapshot (elapsed time, message/tool-call counts, latest message); for a finished agent, its result. |
+| `agent_wait(agent_ids, mode, timeout)` | Block until the listed agents finish. `mode="all"` (default) waits for every agent; `mode="any"` returns on the first. On `timeout`, still-running agents are reported honestly. |
+| `agent_cancel(agent_id)` | Terminate a running agent. No-op on an already-finished agent. |
+| `agent_list(status_filter)` | Enumerate all dispatched agents (optionally filtered by status) — useful for recovering handles after a long stretch of work or context compaction. |
+
+: {tbl-colwidths=\[35,65\]}
+
+The system prompt teaches the model the dispatch discipline: do useful independent work while waiting, prefer a single `agent_wait` over a polling loop of `agent_status` calls, and call `agent_list()` to recover handles if it loses track of them. As a backstop, if the agent goes several turns without touching its background agents, a passive reminder of what is still running is injected automatically.
+
 ### Fork Mode {#sec-fork-mode}
 
 By default, subagents run in isolated context: they start with a fresh message history and only their summary returns to the parent. This is the standard pattern used by Claude Code, LangChain, and Codex CLI, and it prevents context rot in long-running conversations.
@@ -302,6 +334,7 @@ Fork mode also preserves prompt cache efficiency: the forked subagent reuses the
 ::: {.callout-note appearance="simple"}
 Use the same model or model family when forking to preserve the prompt cache and avoid errors from incompatible tool call formats or reasoning content in the inherited message history. Fork mode is not supported with `max_depth > 1`. If compaction has run on the parent, the forked subagent inherits the compacted messages, not the original history.
 :::
+
 
 ## System Prompt {#sec-prompt}
 

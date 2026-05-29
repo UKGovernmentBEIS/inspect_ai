@@ -282,7 +282,20 @@ LangChain's `TASK_SYSTEM_PROMPT` heavily emphasizes launching multiple subagents
 
 Claude Code, Codex CLI, LangChain, and Pydantic Deep Agents all support some form of background or async subagent work: launch a long-running worker, continue in the parent, inspect status, and optionally steer or cancel the child.
 
-**Inspect status:** Out of scope for v1. `deepagent()` dispatch is synchronous: the parent blocks until the child returns its summary. Async/background subagents require new lifecycle concepts (task handles, status, cancellation, UI/log presentation, and possibly durable state) and should be designed as a separate feature.
+**Inspect status:** Shipped. The `agent` tool gained a `background` parameter: `agent(subagent_type, prompt, background=True)` returns an `AGENT-N` handle immediately and runs the child concurrently on the sample task group (`inspect_ai.util.background()`), rather than blocking until the child returns.
+
+Four lifecycle tools follow up on background dispatches:
+
+- `agent_status(agent_id)` — instant non-blocking peek (status, and for a running agent a soft progress snapshot: elapsed seconds, message/tool-call counts, and the latest assistant message truncated to ~2000 bytes; for a finished agent the full result).
+- `agent_wait(agent_ids, mode="any"|"all", timeout=None)` — block until the listed agents finish (or the timeout elapses); on timeout still-running agents are reported honestly with their current progress.
+- `agent_cancel(agent_id)` — terminate a running agent; idempotent on terminal agents.
+- `agent_list(status_filter=None)` — enumerate all dispatched agents (useful for recovering handles after a long stretch of work or context compaction).
+
+All four lifecycle tools return readable markdown and never raise — any problem (unknown id, no registry, empty input) is reported as content so the model can see it and adjust.
+
+**Switch and cap.** `deepagent(background=...)` controls the feature: `False` (default) disables it entirely (the `agent` tool's schema omits `background` and the lifecycle tools are not surfaced); `True` enables it with a cap of 8 concurrent background agents; a positive int sets a custom cap; `0`/negative raises `ValueError`. Only *running* agents count toward the cap; at cap, `agent(background=True)` rejects with a `ToolError` rather than blocking.
+
+**Lifetime: abandon on parent exit.** Background children run on `sample.tg` and are bounded by the sample, not the parent `react()` loop — when the parent returns, in-flight children keep running until they complete or the sample ends (at which point anyio cancels them). The parent does not drain. Each deepagent gets an isolated `BackgroundRegistry` (held in a ContextVar set in `deepagent.execute()`), so nested deepagents have independent `AGENT-N` namespaces. Sample-level limits propagate into background children via PEP 567 contextvar copy; per-subagent `limits` are deep-copied per dispatch.
 
 #### Cost-aware model routing
 

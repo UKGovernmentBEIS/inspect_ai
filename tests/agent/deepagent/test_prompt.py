@@ -69,6 +69,15 @@ class TestBuildSystemPrompt:
         )
         assert prompt.index(CORE_BEHAVIOR) < prompt.index("Custom instructions here.")
 
+    def test_background_default_on_with_subagents(self) -> None:
+        prompt = build_system_prompt(subagents=[_test_subagent()])
+        assert "background=True" in prompt
+
+    def test_background_disabled_omits_paragraph(self) -> None:
+        prompt = build_system_prompt(subagents=[_test_subagent()], background=False)
+        assert "background=True" not in prompt
+        assert "agent_status" not in prompt
+
 
 class TestBuildSubagentDispatch:
     def test_includes_all_subagents(self) -> None:
@@ -85,6 +94,27 @@ class TestBuildSubagentDispatch:
 
     def test_includes_delegation_guidance(self) -> None:
         dispatch = build_subagent_dispatch([_test_subagent()])
+        assert "delegate" in dispatch.lower() or "Delegate" in dispatch
+
+    def test_background_paragraph_default_on(self) -> None:
+        dispatch = build_subagent_dispatch([_test_subagent()])
+        assert "background=True" in dispatch
+        assert "AGENT-N" in dispatch
+        # mentions each lifecycle tool
+        assert "agent_status" in dispatch
+        assert "agent_wait" in dispatch
+        assert "agent_cancel" in dispatch
+        assert "agent_list" in dispatch
+
+    def test_background_paragraph_omitted_when_disabled(self) -> None:
+        dispatch = build_subagent_dispatch([_test_subagent()], background=False)
+        assert "background=True" not in dispatch
+        assert "AGENT-N" not in dispatch
+        assert "agent_status" not in dispatch
+        assert "agent_wait" not in dispatch
+        assert "agent_cancel" not in dispatch
+        assert "agent_list" not in dispatch
+        # the base delegation guidance is still present
         assert "delegate" in dispatch.lower() or "Delegate" in dispatch
 
 
@@ -129,6 +159,15 @@ class TestExpandPromptPlaceholders:
         template = "Before {memory_instructions} After"
         result = expand_prompt_placeholders(template, memory=False, todo_write=False)
         assert "Before  After" in result
+
+    def test_background_flag_threads_into_dispatch_placeholder(self) -> None:
+        template = "{subagent_dispatch}"
+        on = expand_prompt_placeholders(template, subagents=[_test_subagent()])
+        assert "background=True" in on
+        off = expand_prompt_placeholders(
+            template, subagents=[_test_subagent()], background=False
+        )
+        assert "background=True" not in off
 
 
 class TestTaskAgnosticPrompts:
