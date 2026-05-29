@@ -2,7 +2,7 @@ r"""Eval-level state extraction for the control channel.
 
 Reads from two sources at request time:
 
-- :func:`inspect_ai.log._eval_state.get_eval_states` for ``total`` /
+- :func:`inspect_ai._control.eval_state.get_eval_states` for ``total`` /
   ``completed`` / ``errored`` counters that survive a sample exiting
   ``active_samples``.
 - :func:`inspect_ai.log._samples.active_samples` for ``in_flight``
@@ -54,7 +54,7 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     # Lazy imports to avoid pulling the full log/event/scorer chain at
     # module-import time (control server module is imported during
     # eval bootstrap before those packages finish initialising).
-    from inspect_ai.log._eval_state import get_eval_states
+    from inspect_ai._control.eval_state import get_eval_states
     from inspect_ai.log._samples import active_samples
 
     # Group live samples by eval_id.

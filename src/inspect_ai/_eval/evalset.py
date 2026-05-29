@@ -20,6 +20,10 @@ from tenacity import (
 )
 from typing_extensions import Unpack
 
+from inspect_ai._control.eval_state import (
+    clear_all_eval_states,
+    register_completed_eval,
+)
 from inspect_ai._control.server import (
     control_server_for_eval_set,
     set_keep_alive_active,
@@ -46,10 +50,6 @@ from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
-from inspect_ai.log._eval_state import (
-    clear_all_eval_states,
-    register_completed_eval,
-)
 from inspect_ai.log._file import (
     EvalLogInfo,
     ReadEvalLogsProgress,

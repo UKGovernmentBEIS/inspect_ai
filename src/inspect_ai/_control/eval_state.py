@@ -1,16 +1,18 @@
 """Process-level per-eval state aggregate.
 
-Sibling concept to :class:`inspect_ai.log._samples.ActiveSample` — that
-tracks one in-flight sample; this tracks the running totals across
-samples within one eval (``eval_id``-keyed).
+Tracks running totals across the samples of each in-flight eval
+(``eval_id``-keyed). Consumed by the control-channel ``GET /evals``
+endpoint to surface counts that ``active_samples()`` alone can't
+provide.
 
 The eval runner calls :func:`register_eval` at task start (when the
 total sample count is known) and :func:`unregister_eval` at task end,
-plus :func:`record_sample_started` / :func:`record_sample_completed` /
-:func:`record_sample_errored` at each sample's lifecycle transitions.
+plus :func:`record_sample_completed` / :func:`record_sample_errored`
+at each sample's terminal outcome.
 
-The control channel reads these states to populate ``GET /evals``.
-The viewer / TUI could too; nothing here is control-channel-specific.
+Lives under ``_control/`` because the control channel is currently
+the only consumer; if other surfaces (TUI, view server) ever need
+process-level eval counters, this can move up.
 
 Why a counter aggregate rather than computing on demand from
 ``active_samples()``:

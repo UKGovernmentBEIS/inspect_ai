@@ -14,6 +14,12 @@ import anyio
 from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
+from inspect_ai._control.eval_state import (
+    record_sample_completed,
+    record_sample_errored,
+    register_eval,
+    unregister_eval,
+)
 from inspect_ai._display import (
     TaskCancelled,
     TaskError,
@@ -64,12 +70,6 @@ from inspect_ai.log import (
     EvalStats,
 )
 from inspect_ai.log._condense import condense_sample
-from inspect_ai.log._eval_state import (
-    record_sample_completed,
-    record_sample_errored,
-    register_eval,
-    unregister_eval,
-)
 from inspect_ai.log._file import (
     EvalLogInfo,
     eval_log_json_str,

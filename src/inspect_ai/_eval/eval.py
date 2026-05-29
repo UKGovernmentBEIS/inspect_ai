@@ -9,6 +9,9 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
+from inspect_ai._control.eval_state import (
+    clear_all_eval_states as _clear_all_eval_states,
+)
 from inspect_ai._control.server import (
     _outer_scope_owns_server,
 )
@@ -28,7 +31,6 @@ from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
 from inspect_ai.agent._as_solver import as_solver
-from inspect_ai.log._eval_state import clear_all_eval_states as _clear_all_eval_states
 from inspect_ai.model._model_config import model_roles_config_to_model_roles
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_info import set_model_cost
