@@ -320,3 +320,49 @@ End-to-end verification after Phase 2:
 7. **Reminder staleness / cadence.** `REMINDER_INTERVAL=5` is a fixed constant for v1 (not user-configurable). Elapsed times in a reminder are a point-in-time snapshot; the model gets fresh data from `agent_status` on demand. Revisit exposing the interval if real evals show 5 is too sparse/frequent.
 8. **`on_continue` composition.** Wrapping a user-supplied `on_continue` must preserve `react()`'s str/None/callable/AgentState semantics (see Phase 4 "composition" note); the wrapper injects the reminder as a side effect on the correct target state. Covered by composition tests.
 
+---
+
+## Phase 5 — Comprehensive Test Coverage Hardening
+
+### Context
+
+Phases 1–4 shipped with 49 tests, but a full audit (implementation surface vs. test inventory, verified against the file) found gaps in exactly the async/concurrency and safety-critical areas that matter most before field use. Two are acute: (a) **limit propagation into background subagents is unverified** — this was an explicit Phase 1 requirement ("limits should still be checked inside `background()` — verify that"); the test file only ever sets `message_limit` on the parent Task. (b) **The Phase 2 bug fix — a background exception must not kill the sample — has no regression test.** Other gaps cover untested branches (`fork=True`+background, `agent_wait` partial timeouts, errored/cancelled formatting, `on_continue` returning `AgentState`/`False`). Goal: close every verified gap that can be tested deterministically; document the rest. All tests go in `tests/agent/deepagent/test_deepagent_background.py` reusing its per-subagent-mockllm + `_eval_deepagent` + `_block_helper` patterns.
+
+### New test helpers (top of the test file)
+
+- `_build_erroring_subagent(name)` — subagent whose own mockllm `custom_outputs` is a callable that raises `RuntimeError` during generate (so the failure originates inside the background child's `react`). `RuntimeError` is an `Exception` (not `BaseException`), so it exercises the swallow-and-record path in `_run_background` (`agent_tool.py:623-632`), not the cancellation path.
+- `_build_limited_subagent(name, limits)` — subagent with `limits=[...]` (e.g. `token_limit(1)`) plus a normal submit output, to trigger the `apply_limits(catch_errors=True)` → `"Subagent '…' stopped: …"` result path (`agent_tool.py:604-607`).
+- Reuse `check_limit_event` / `find_limit_event` from `tests/test_helpers/limits.py`, `token_limit`/`time_limit` from `inspect_ai.util`, and existing `_build_blocking_subagent` / `_build_submit_subagent` / `_wait_test_helper`.
+
+### Tier 1 — correctness-critical (new classes)
+
+- **`TestBackgroundLimits`**
+  - *sa.limits enforced inside background* — dispatch `_build_limited_subagent("capped", [token_limit(1)])` in background; wait; assert its result/status reflects `"stopped"` (limit checked inside the background child). Directly verifies the Phase 1 limits requirement.
+  - *usage/contextvar propagation* — dispatch a background child that records model usage; after eval, assert the child's usage appears in `log.stats.model_usage` (proves the child ran under the sample's accounting context that limits share — the PEP 567 contextvar copy works). Deterministic; avoids racy overshoot-timing assertions.
+- **`TestBackgroundErrors`**
+  - *error does not kill the sample* — dispatch `_build_erroring_subagent`; parent waits then submits; assert `log.status == "success"`, the future is `errored`, and the error text is surfaced via `agent_status`/`_wait_test_helper`. Regression test for the Phase 2 fix.
+- **`TestForkedBackground`**
+  - *fork=True + background=True* — a `fork=True` subagent dispatched in background (parent has conversation history via `get_messages`); assert it completes with its result. Exercises the untested `timeline_branch` forked branch in `_run_background` (`agent_tool.py:596-602`).
+- **`TestAbandonOnExit`**
+  - *parent exits while child running* — spawn a blocking child, parent submits immediately without waiting; assert `log.status == "success"` and the parent did not block on the child (last action is submit; test completes well under the child's 60s sleep — a hang would trip the 300s test timeout). Note the primitive-level teardown/cancellation is already covered by `tests/util/test_background.py::test_background_termination`; this asserts the deepagent-level integration.
+
+### Tier 2 — async edge branches (extend existing classes / small new ones)
+
+- **`agent_wait` partial timeouts** (extend `TestAgentWait`): `mode="all"` with one completed + one blocking at `timeout=0.2` → both blocks returned honestly (one completed, one running); `mode="any"` with two blocking at `timeout=0.2` → returns after timeout with both shown running (exercises the task-group + `move_on_after` partial paths, `lifecycle_tools.py:240-253`). Short timeout vs 60s blockers → low flake risk.
+- **Formatter branches** (extend `TestFormatStatusUnit`): `_format_future_status` on an **errored** future (shows error text) and a **cancelled** future (header only) — `lifecycle_tools.py:99-103`.
+- **`on_continue` composition** (extend `TestReminderE2E`): a callable `on_continue` returning a fresh **`AgentState`** → reminder appended to that state's messages (`lifecycle_tools.py:461-462`); a callable returning `True`×4 then **`False`** at the interval turn → reminder suppressed and loop ends (`lifecycle_tools.py:448-449`).
+- **Errored/cancelled display e2e** (extend `TestAgentStatus`/`TestAgentList`): `agent_status` and `agent_list` show an **errored** agent (reuse `_build_erroring_subagent`) and a **cancelled** agent (spawn blocking → `agent_cancel` → list).
+
+### Tier 3 — document / verify (no fragile tests)
+
+- **Cap-check race**: keep as a documented invariant (already Risk #1) — add a one-line code comment at the cap-check/insert site in `_dispatch_background` noting the no-`await`-between-read-and-write atomicity and that v1 tool execution is sequential. No test.
+- **Trio backend**: run the async *unit* tests under `--runtrio` (`pytest tests/agent/deepagent/test_deepagent_background.py --runtrio`); if any rely on asyncio-specifics, annotate with `@skip_if_trio` (from `test_helpers.utils`). Confirms the anyio primitives (`Event`, `CancelScope`, `move_on_after`) behave under both backends.
+
+### Verification
+
+1. `pytest tests/agent/deepagent/test_deepagent_background.py -v` — all (existing + new) pass under asyncio.
+2. `pytest tests/agent/deepagent/test_deepagent_background.py --runtrio` — async unit tests pass under trio (or are explicitly skipped).
+3. `pytest tests/agent/deepagent/ -q` — full deepagent suite green.
+4. `ruff format` + `ruff check --fix` + `mypy --exclude tests/test_package src tests` clean (the last confirms no new duplicate-module / typing regressions).
+5. Sanity: each new Tier-1 test, when its production guard is reverted locally, should fail (i.e. the tests actually exercise the safety property) — spot-check the errored-doesn't-kill-sample and sa.limits tests.
+

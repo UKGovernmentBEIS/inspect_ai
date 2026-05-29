@@ -1,10 +1,11 @@
-"""Tests for Phase 1 background dispatch.
+"""Tests for background subagent dispatch (Phases 1–5).
 
 Covers ``agent(background=True)``, the registry, ``_run_background``,
-cap behaviour, and ``background=True|False|int`` parameter resolution.
-The full lifecycle tools (agent_status, agent_wait, agent_cancel,
-agent_list) land in Phase 2 — tests here use a small in-file helper
-tool to introspect the registry where needed.
+cap behaviour, ``background=True|False|int`` resolution, the lifecycle
+tools (agent_status, agent_wait, agent_cancel, agent_list), the
+``on_continue`` forgetting-backstop reminder, and the safety/async
+edge cases (limit propagation, errors not killing the sample, fork +
+background, abandon-on-exit, timeout partials).
 """
 
 from __future__ import annotations
@@ -29,6 +30,7 @@ from inspect_ai.dataset import Sample
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model import ModelOutput, get_model
 from inspect_ai.tool import Tool, tool
+from inspect_ai.util import message_limit
 
 # ---------------------------------------------------------------------------
 # Test-only helper: wait for a specific AgentFuture to complete and report
@@ -215,6 +217,57 @@ def _build_blocking_subagent(name: str, outputs: list[ModelOutput] | None = None
         prompt=f"You are a {name} agent.",
         model=bg_model,
         extra_tools=[_block_helper(), _say_helper()],
+    )
+
+
+def _build_erroring_subagent(name: str, message: str = "boom"):
+    """Build a subagent whose model raises during generate.
+
+    The raise is a plain ``RuntimeError`` (an ``Exception``, not a
+    ``BaseException``), so it exercises ``_run_background``'s
+    swallow-and-record path: the sample must survive and the future must
+    settle as ``errored`` with the message surfaced.
+    """
+    from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+    def _raise(input, tools, tool_choice, config):
+        raise RuntimeError(message)
+
+    bg_model = get_model("mockllm/model", custom_outputs=_raise)
+    return subagent_factory(
+        name=name,
+        description=f"Erroring {name} subagent.",
+        prompt=f"You are a {name} agent.",
+        model=bg_model,
+    )
+
+
+def _build_limited_subagent(name: str, limits):
+    """Build a subagent with scoped ``limits`` and a single submit output.
+
+    With a tight limit (e.g. ``message_limit(1)``) the subagent trips the
+    limit before completing; the ``apply_limits(catch_errors=True)`` scope
+    in ``_run_background`` converts it to a ``"Subagent '…' stopped: …"``
+    result, proving limits are enforced inside the background child.
+    """
+    from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+    bg_model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "should-not-reach"},
+            ),
+        ],
+    )
+    return subagent_factory(
+        name=name,
+        description=f"Limited {name} subagent.",
+        prompt=f"You are a {name} agent.",
+        model=bg_model,
+        limits=limits,
     )
 
 
@@ -1203,6 +1256,41 @@ class TestFormatStatusUnit:
         assert "running" in block
         assert "messages: 0" in block
 
+    async def test_errored_block_has_error(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _format_future_status
+
+        future = AgentFuture(
+            agent_id="AGENT-4",
+            span_id="e",
+            subagent_name="general",
+            cancel_scope=anyio.CancelScope(),
+            started_at=anyio.current_time(),
+        )
+        future.status = "errored"
+        future.error = "RuntimeError: boom"
+        block = _format_future_status(future)
+        assert "AGENT-4" in block
+        assert "errored" in block
+        assert "boom" in block
+
+    async def test_cancelled_block_header_only(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _format_future_status
+
+        future = AgentFuture(
+            agent_id="AGENT-5",
+            span_id="c",
+            subagent_name="general",
+            cancel_scope=anyio.CancelScope(),
+            started_at=anyio.current_time(),
+        )
+        future.status = "cancelled"
+        block = _format_future_status(future)
+        assert "AGENT-5" in block
+        assert "cancelled" in block
+        # header only — no elapsed/peek/result lines
+        assert "elapsed" not in block
+        assert "latest" not in block
+
 
 class TestLifecycleViewers:
     """Custom ToolCallViewer titles render from call arguments."""
@@ -1537,3 +1625,276 @@ class TestReminderE2E:
             if "Carry on with the plan." in t and "Automatic reminder" in t
         ]
         assert len(combined) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 Tier 1 — correctness-critical: limits, errors, fork, abandon
+# ---------------------------------------------------------------------------
+
+
+class TestBackgroundLimits:
+    """Limits are enforced inside background subagents (Phase 1 requirement)."""
+
+    def test_sa_limits_stop_background_child(self) -> None:
+        # A scoped limit on the subagent is checked inside background() and
+        # converts to a "stopped" result via apply_limits(catch_errors=True).
+        capped = _build_limited_subagent("capped", [message_limit(1)])
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [capped], "tools": [_wait_test_helper()]},
+            outputs=[
+                _agent_call("capped", "go"),
+                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        waits = _events_for(result, "_wait_test_helper")
+        assert len(waits) == 1
+        body = str(waits[0].result)
+        assert "stopped" in body
+        assert "limit" in body.lower()
+
+    def test_background_child_runs_in_sample_context(self) -> None:
+        # The child's agent span and model usage are recorded in the sample —
+        # evidence it ran under the sample's contextvar tree (the same
+        # propagation path sample-level limits rely on).
+        worker = _build_submit_subagent("worker", "the-bg-answer")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [worker], "tools": [_wait_test_helper()]},
+            outputs=[
+                _agent_call("worker", "go"),
+                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        span_names = [
+            getattr(e, "name", None)
+            for e in result["events"]
+            if e.event == "span_begin"
+        ]
+        assert "worker" in span_names
+        total = sum(u.total_tokens for u in result["log"].stats.model_usage.values())
+        assert total > 0
+
+
+class TestBackgroundErrors:
+    """A background subagent error must not fail the sample (Phase 2 fix)."""
+
+    def test_error_does_not_kill_sample(self) -> None:
+        boomer = _build_erroring_subagent("boomer", "kaboom")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [boomer], "tools": [_wait_test_helper()]},
+            outputs=[
+                _agent_call("boomer", "go"),
+                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+        # sample survives despite the background exception
+        assert result["status"] == "success"
+        waits = _events_for(result, "_wait_test_helper")
+        assert len(waits) == 1
+        body = str(waits[0].result)
+        # error is surfaced (status errored + message), not silently swallowed
+        assert body.startswith("errored:")
+        assert "kaboom" in body
+
+
+class TestForkedBackground:
+    """fork=True works with background=True (forked timeline-branch path)."""
+
+    def test_forked_background_completes(self) -> None:
+        from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+        bg_model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "forked-result"},
+                ),
+            ],
+        )
+        forked = subagent_factory(
+            name="forked_worker",
+            description="Forked worker subagent.",
+            prompt="You are a forked worker.",
+            model=bg_model,
+            fork=True,
+        )
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [forked], "tools": [_wait_test_helper()]},
+            outputs=[
+                _agent_call("forked_worker", "investigate"),
+                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        waits = _events_for(result, "_wait_test_helper")
+        assert len(waits) == 1
+        body = str(waits[0].result)
+        assert "forked-result" in body
+
+
+class TestAbandonOnExit:
+    """The parent may exit while a background child is still running."""
+
+    def test_parent_exits_without_waiting(self) -> None:
+        # Spawn a 60s blocker, then submit immediately without waiting. The
+        # sample completes successfully and the child is abandoned (cancelled
+        # at sample teardown). If abandonment were broken the test would stall
+        # on the blocker rather than returning promptly.
+        blocker = _build_blocking_subagent("runner")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [blocker]},
+            outputs=[
+                _agent_call("runner", "go"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        agent_events = _events_for(result, "agent")
+        assert len(agent_events) == 1
+        assert "AGENT-1" in str(agent_events[0].result)
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 Tier 2 — async edge branches
+# ---------------------------------------------------------------------------
+
+
+class TestAgentWaitPartialTimeout:
+    """agent_wait timeout paths that return honest partial results."""
+
+    def test_wait_all_partial_on_timeout(self) -> None:
+        # mode="all" with one completed + one still blocking → on timeout,
+        # both are reported honestly (one completed, one running).
+        done = _build_submit_subagent("done_one", "done-1")
+        run = _build_blocking_subagent("run_one")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [done, run]},
+            outputs=[
+                _agent_call("done_one"),
+                _agent_call("run_one"),
+                # ensure AGENT-1 has completed before the partial wait
+                _tool_call("agent_wait", agent_ids=["AGENT-1"]),
+                _tool_call(
+                    "agent_wait",
+                    agent_ids=["AGENT-1", "AGENT-2"],
+                    mode="all",
+                    timeout=0.2,
+                ),
+                _submit("done"),
+            ],
+        )
+        body = str(_events_for(result, "agent_wait")[-1].result)
+        assert "AGENT-1" in body and "completed" in body
+        assert "AGENT-2" in body and "running" in body
+
+    def test_wait_any_all_blocking_times_out(self) -> None:
+        # mode="any" where every agent blocks → returns after the timeout with
+        # all reported running (no hang, no false completion).
+        a = _build_blocking_subagent("blk_a")
+        b = _build_blocking_subagent("blk_b")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [a, b]},
+            outputs=[
+                _agent_call("blk_a"),
+                _agent_call("blk_b"),
+                _tool_call(
+                    "agent_wait",
+                    agent_ids=["AGENT-1", "AGENT-2"],
+                    mode="any",
+                    timeout=0.2,
+                ),
+                _submit("done"),
+            ],
+        )
+        body = str(_events_for(result, "agent_wait")[-1].result)
+        assert "AGENT-1" in body and "AGENT-2" in body
+        assert "running" in body
+
+
+class TestReminderComposition:
+    """on_continue composition branches the existing reminder tests don't hit."""
+
+    def test_on_continue_returning_agentstate(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.model._chat_message import ChatMessageUser
+
+        async def my_continue(state: AgentState) -> AgentState:
+            # return a fresh AgentState (replaces messages); the reminder must
+            # be appended to the messages THIS state carries
+            return AgentState(
+                messages=list(state.messages)
+                + [ChatMessageUser(content="custom-state-marker")]
+            )
+
+        blocker = _build_blocking_subagent("run_one")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [blocker], "on_continue": my_continue},
+            outputs=[_agent_call("run_one")] + [_idle()] * 5 + [_submit("done")],
+        )
+        user_texts = [
+            m.text for m in result["messages"] if isinstance(m, ChatMessageUser)
+        ]
+        assert any("custom-state-marker" in t for t in user_texts)
+        assert len(_reminder_messages(result)) >= 1
+
+    def test_on_continue_false_suppresses_reminder(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+
+        calls = {"n": 0}
+
+        async def my_continue(state: AgentState) -> bool:
+            calls["n"] += 1
+            # True for the dispatch turn + 4 idles, then False on the turn the
+            # counter reaches REMINDER_INTERVAL (5) — exercising the
+            # `result is False` suppression branch with the counter at threshold
+            return calls["n"] < 6
+
+        blocker = _build_blocking_subagent("run_one")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [blocker], "on_continue": my_continue},
+            outputs=[_agent_call("run_one")] + [_idle()] * 5 + [_submit("done")],
+        )
+        assert calls["n"] >= 6
+        assert _reminder_messages(result) == []
+
+
+class TestErroredCancelledDisplay:
+    """agent_status / agent_list render errored and cancelled agents."""
+
+    def test_status_and_list_show_errored(self) -> None:
+        boomer = _build_erroring_subagent("boomer2", "splat")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [boomer], "tools": [_wait_test_helper()]},
+            outputs=[
+                _agent_call("boomer2"),
+                _tool_call("_wait_test_helper", agent_id="AGENT-1"),
+                _tool_call("agent_status", agent_id="AGENT-1"),
+                _tool_call("agent_list"),
+                _submit("done"),
+            ],
+        )
+        status = str(_events_for(result, "agent_status")[0].result)
+        assert "AGENT-1" in status and "errored" in status and "splat" in status
+        listing = str(_events_for(result, "agent_list")[0].result)
+        assert "AGENT-1" in listing and "errored" in listing
+
+    def test_list_shows_cancelled(self) -> None:
+        blocker = _build_blocking_subagent("run_c")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [blocker]},
+            outputs=[
+                _agent_call("run_c"),
+                _tool_call("agent_cancel", agent_id="AGENT-1"),
+                _tool_call("agent_list"),
+                _submit("done"),
+            ],
+        )
+        listing = str(_events_for(result, "agent_list")[0].result)
+        assert "AGENT-1" in listing and "cancelled" in listing

@@ -510,6 +510,11 @@ def _dispatch_background(
             "(No deepagent background registry on the current ContextVar.)"
         )
 
+    # Cap check + registration is a single synchronous critical section:
+    # there is no `await` between reading running_count() and inserting the
+    # future, so the cooperative scheduler cannot interleave a sibling
+    # dispatch between the check and the insert (no cap-overrun race). In v1
+    # tool calls also execute sequentially, so siblings never even contend.
     if registry.running_count() >= registry.max_background:
         raise ToolError(
             f"Maximum {registry.max_background} background agents reached. "
