@@ -1898,3 +1898,231 @@ class TestErroredCancelledDisplay:
         )
         listing = str(_events_for(result, "agent_list")[0].result)
         assert "AGENT-1" in listing and "cancelled" in listing
+
+
+# ---------------------------------------------------------------------------
+# Code-review fixes — regression tests
+# ---------------------------------------------------------------------------
+
+
+@tool
+def _loop_helper() -> Tool:
+    """Test-only no-op tool used to grow a child's conversation length."""
+
+    async def execute() -> str:
+        """Return a constant so the child keeps looping."""
+        return "ok"
+
+    return execute
+
+
+def _build_looping_subagent(name: str):
+    """A subagent that calls ``_loop_helper`` forever (until a limit stops it).
+
+    Its model is a callable that always returns the same tool call, so the
+    child's react loop never submits — it grows its conversation until a
+    message/token limit fires inside the background child.
+    """
+    from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+    def _always_loop(input, tools, tool_choice, config):
+        return ModelOutput.for_tool_call(
+            model="mockllm/model",
+            tool_name="_loop_helper",
+            tool_arguments={},
+        )
+
+    bg_model = get_model("mockllm/model", custom_outputs=_always_loop)
+    return subagent_factory(
+        name=name,
+        description=f"Looping {name} subagent.",
+        prompt=f"You are a {name} agent.",
+        model=bg_model,
+        extra_tools=[_loop_helper()],
+    )
+
+
+@tool
+def _shield_block_helper() -> Tool:
+    """Test-only tool that ignores cancellation for ~1s, then parks.
+
+    The shielded sleep makes the child slow to settle after a cancel so
+    ``agent_cancel``'s bounded settle-wait elapses and reports "pending".
+    """
+
+    async def execute() -> str:
+        """Sleep shielded (delays cancellation), then block."""
+        import anyio
+
+        with anyio.CancelScope(shield=True):
+            await anyio.sleep(1.0)
+        await anyio.sleep(60)
+        return "done"
+
+    return execute
+
+
+def _build_shielded_subagent(name: str):
+    """A subagent that parks in ``_shield_block_helper`` (slow to cancel)."""
+    from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
+
+    block_call = ModelOutput.for_tool_call(
+        model="mockllm/model",
+        tool_name="_shield_block_helper",
+        tool_arguments={},
+    )
+    bg_model = get_model("mockllm/model", custom_outputs=[block_call])
+    return subagent_factory(
+        name=name,
+        description=f"Shielded {name} subagent.",
+        prompt=f"You are a {name} agent.",
+        model=bg_model,
+        extra_tools=[_shield_block_helper()],
+    )
+
+
+class TestPromptReflectsBackgroundSetting:
+    """The model-facing system prompt matches the background switch.
+
+    Regression: deepagent() built the system prompt without threading the
+    ``background`` flag, so a default (background=False) deepagent hid the
+    parameter and lifecycle tools yet still instructed the model to use
+    ``background=True`` / ``agent_status`` / ``agent_wait``.
+    """
+
+    def test_disabled_prompt_omits_background_instructions(self) -> None:
+        from inspect_ai.model._chat_message import ChatMessageSystem
+
+        sa = _build_submit_subagent("worker", "x")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [sa], "background": False},
+            outputs=[_submit("done")],
+        )
+        system = "\n".join(
+            m.text for m in result["messages"] if isinstance(m, ChatMessageSystem)
+        )
+        # subagent dispatch is still described (synchronous) ...
+        assert "worker" in system
+        # ... but no background-dispatch surface leaks into the prompt
+        assert "background=True" not in system
+        assert "agent_status" not in system
+        assert "agent_wait" not in system
+
+    def test_enabled_prompt_includes_background_instructions(self) -> None:
+        from inspect_ai.model._chat_message import ChatMessageSystem
+
+        sa = _build_submit_subagent("worker", "x")
+        # _eval_deepagent defaults background=True
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [sa]},
+            outputs=[_submit("done")],
+        )
+        system = "\n".join(
+            m.text for m in result["messages"] if isinstance(m, ChatMessageSystem)
+        )
+        assert "background=True" in system
+        assert "agent_status" in system
+
+
+class TestNestedBackgroundDisabled:
+    """Nested subagents must not expose ``background`` (no lifecycle tools there).
+
+    Regression: agent_tool threaded ``background_enabled`` into the nested
+    agent_tool, so a ``max_depth>=2`` subagent saw an ``agent`` tool with a
+    ``background`` parameter it could never status/wait/cancel/list.
+    """
+
+    def test_nested_agent_tool_omits_background_param(self) -> None:
+        from inspect_ai.agent._deepagent.agent_tool import _resolve_tools
+        from inspect_ai.tool._tool_info import parse_tool_info
+
+        sa = subagent(
+            name="research",
+            description="Gather info.",
+            prompt="You are a research assistant.",
+        )
+        tools = _resolve_tools(
+            sa,
+            [sa],
+            None,  # parent_tools
+            None,  # parent_model
+            None,  # parent_skills
+            0,  # depth
+            2,  # max_depth -> a nested agent tool is included
+            None,  # get_messages
+        )
+        infos = [parse_tool_info(t) for t in tools]  # type: ignore[arg-type]
+        agent_infos = [i for i in infos if "subagent_type" in i.parameters.properties]
+        assert agent_infos, (
+            "a nested agent tool should be present when depth < max_depth"
+        )
+        assert "background" not in agent_infos[0].parameters.properties
+
+
+class TestBackgroundControlExceptionsPropagate:
+    """Sample-level control flow inside a background child is not swallowed.
+
+    Regression: ``_run_background``'s generic ``except Exception`` caught
+    foreign-scope ``LimitExceededError`` / ``TerminateSampleError`` (which
+    ``apply_limits(catch_errors=True)`` deliberately re-raises), downgrading
+    a sample limit into a per-agent "errored" result and letting the sample
+    run past its limit. The fix re-raises control exceptions so the sample
+    runner records/enforces them.
+    """
+
+    def test_sample_message_limit_in_child_stops_sample(self) -> None:
+        # The child loops forever; with no sa.limits of its own, the
+        # most-recent message limit it checks is the SAMPLE's, whose source
+        # is foreign to the child -> apply_limits re-raises it. The parent
+        # parks in a 60s blocker; if the error were swallowed the child would
+        # just be "errored" and the parent would hang on the blocker. With
+        # the fix the limit propagates, cancels the parent, and the sample is
+        # recorded with the message limit (so the test returns promptly).
+        looper = _build_looping_subagent("looper")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [looper], "tools": [_block_helper()]},
+            input="go",
+            message_limit=15,
+            outputs=[
+                _agent_call("looper"),
+                _tool_call("_block_helper"),
+                _submit("done"),
+            ],
+        )
+        sample = result["log"].samples[0]
+        assert sample.limit is not None
+        assert sample.limit.type == "message"
+
+
+class TestAgentCancelBoundedWait:
+    """agent_cancel does not block indefinitely on an un-yielding child.
+
+    Regression: agent_cancel awaited ``future.done`` with no timeout, so a
+    child stuck in a shielded / un-yielding section could hang the parent
+    inside the cancel tool. The fix caps the settle-wait and reports the
+    cancellation as pending if the child has not stopped in time.
+    """
+
+    def test_cancel_reports_pending_when_child_slow_to_settle(
+        self, monkeypatch
+    ) -> None:
+        from inspect_ai.agent._deepagent import lifecycle_tools
+
+        # tiny settle window << the child's 1s shielded sleep, so the bounded
+        # wait elapses and agent_cancel returns the "pending" message
+        monkeypatch.setattr(lifecycle_tools, "_CANCEL_SETTLE_TIMEOUT", 0.2)
+        slow = _build_shielded_subagent("slow")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [slow]},
+            outputs=[
+                _agent_call("slow"),
+                _tool_call("agent_cancel", agent_id="AGENT-1"),
+                _submit("done"),
+            ],
+        )
+        assert result["status"] == "success"
+        cancels = _events_for(result, "agent_cancel")
+        assert len(cancels) == 1
+        body = str(cancels[0].result)
+        assert "cancellation requested" in body.lower()
+        assert "AGENT-1" in body

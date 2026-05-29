@@ -40,6 +40,13 @@ from .agent_tool import (
 # agent's status peek.
 _PEEK_MAX_BYTES = 2000
 
+# Bounded wait (seconds) for an agent_cancel to settle. Cancellation is
+# cooperative, so a child stuck in a shielded or un-yielding call may not
+# stop promptly; rather than block the parent indefinitely we cap the wait
+# and report the cancellation as pending. A cooperative child settles in
+# milliseconds (it hits an await checkpoint), so this rarely elapses.
+_CANCEL_SETTLE_TIMEOUT = 5.0
+
 
 # ---------------------------------------------------------------------------
 # Status formatting
@@ -167,7 +174,7 @@ def _list_viewer(call: ToolCall) -> ToolCallView:
 # ---------------------------------------------------------------------------
 
 
-@tool(parallel=True, viewer=_status_viewer)
+@tool(viewer=_status_viewer)
 def agent_status() -> Tool:
     """Check the status of a background agent without blocking."""
 
@@ -196,7 +203,7 @@ def agent_status() -> Tool:
     return execute
 
 
-@tool(parallel=False, viewer=_wait_viewer)
+@tool(viewer=_wait_viewer)
 def agent_wait() -> Tool:
     """Wait for one or more background agents to complete."""
 
@@ -263,7 +270,7 @@ def agent_wait() -> Tool:
     return execute
 
 
-@tool(parallel=True, viewer=_cancel_viewer)
+@tool(viewer=_cancel_viewer)
 def agent_cancel() -> Tool:
     """Cancel a running background agent."""
 
@@ -284,17 +291,26 @@ def agent_cancel() -> Tool:
             return _unknown_agent(registry, agent_id)
         if future.status == "running" and future.cancel_scope is not None:
             future.cancel_scope.cancel()
-            # Wait for the cancellation to actually be delivered so the
+            # Wait (bounded) for the cancellation to be delivered so the
             # returned status reflects the settled state rather than the
-            # stale "running". _run_background always sets `done` in its
-            # finally, so this is bounded by the child's next checkpoint.
-            await future.done.wait()
+            # stale "running". Cancellation is cooperative — a child stuck
+            # in a shielded or un-yielding call may not stop promptly — so
+            # cap the wait instead of blocking the parent indefinitely.
+            with anyio.move_on_after(_CANCEL_SETTLE_TIMEOUT):
+                await future.done.wait()
+            if not future.done.is_set():
+                return (
+                    f"**{agent_id}** ({future.subagent_name}) — cancellation "
+                    "requested. The agent has not stopped yet and will "
+                    "terminate at its next checkpoint. Re-check with "
+                    f"`agent_status({agent_id!r})`."
+                )
         return _format_future_status(future)
 
     return execute
 
 
-@tool(parallel=True, viewer=_list_viewer)
+@tool(viewer=_list_viewer)
 def agent_list() -> Tool:
     """List background agents and their statuses."""
 

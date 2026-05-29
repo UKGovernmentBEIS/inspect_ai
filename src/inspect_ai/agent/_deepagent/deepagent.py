@@ -201,6 +201,7 @@ def deepagent(
                 memory=memory,
                 todo_write=todo_write,
                 instructions=instructions,
+                background=background_enabled,
             )
         else:
             system_prompt = build_system_prompt(
@@ -208,6 +209,7 @@ def deepagent(
                 memory=memory,
                 todo_write=todo_write,
                 instructions=instructions,
+                background=background_enabled,
             )
 
         agent_prompt = AgentPrompt(

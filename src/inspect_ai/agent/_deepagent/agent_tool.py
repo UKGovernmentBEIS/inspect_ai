@@ -251,7 +251,6 @@ def agent_tool(
             get_messages,
             retry_refusals,
             approval,
-            background_enabled=background_enabled,
         )
 
         agent_span_id = shortuuid()
@@ -569,8 +568,9 @@ async def _run_background(
     """
     from copy import copy, deepcopy
 
+    from inspect_ai._util.exception import TerminateSampleError
     from inspect_ai.event._timeline import timeline_branch
-    from inspect_ai.util._limit import apply_limits
+    from inspect_ai.util._limit import LimitExceededError, apply_limits
     from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
     assert future.cancel_scope is not None, (
@@ -624,6 +624,14 @@ async def _run_background(
         # inner scope rather than being absorbed. Record and re-raise —
         # structured concurrency requires it to propagate.
         future.status = "cancelled"
+        raise
+    except (LimitExceededError, TerminateSampleError):
+        # Sample-level control flow must propagate so the sample runner
+        # records/enforces it (run.py catches these off sample.tg). The
+        # subagent's OWN limits were already caught into limit_scope by
+        # apply_limits(catch_errors=True), so any LimitExceededError that
+        # reaches here belongs to an outer (sample/parent) scope and must
+        # not be downgraded to a per-agent "errored" result.
         raise
     except Exception as ex:
         # A background subagent failure is captured on the future and
@@ -764,7 +772,6 @@ def _resolve_tools(
     get_messages: Callable[[], list[ChatMessage]] | None,
     retry_refusals: int | None = None,
     approval: list[ApprovalPolicy] | None = None,
-    background_enabled: bool = True,
 ) -> list[Tool | ToolDef | ToolSource]:
     tools: list[Tool | ToolDef | ToolSource] = []
     if sa.tools is not None:
@@ -794,6 +801,11 @@ def _resolve_tools(
         # Pass the effective model (sa.model or parent_model) so nested
         # subagents inherit the calling subagent's model, not the top-level
         effective_model = sa.model or parent_model
+        # Background dispatch is a top-level orchestration capability only:
+        # the BackgroundRegistry and the agent_status/wait/cancel/list tools
+        # live solely at the top level (deepagent.execute). Nested subagents
+        # therefore get synchronous dispatch — no `background` parameter —
+        # so they can never spawn AGENT-N work they have no tools to manage.
         tools.append(
             agent_tool(
                 subagents,
@@ -805,7 +817,7 @@ def _resolve_tools(
                 get_messages,
                 retry_refusals=retry_refusals,
                 approval=approval,
-                background_enabled=background_enabled,
+                background_enabled=False,
             )
         )
     return tools
