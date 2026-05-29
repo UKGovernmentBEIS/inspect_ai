@@ -1292,6 +1292,25 @@ def test_log_read_missing_file_returns_404(test_client: TestClient) -> None:
     assert response.status_code == 404
 
 
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        pytest.param("/log-size/{path}", id="log-size"),
+        pytest.param("/log-info/{path}", id="log-info"),
+    ],
+)
+def test_missing_file_returns_404_not_500(
+    view_client: ViewTestClient, endpoint: str
+) -> None:
+    """Endpoints return 404 (not 500) when the log file has been deleted."""
+    fname = "2025-01-01T00-00-00+00-00_task_taskid.eval"
+    full_path = write_eval_log(view_client.log_dir, fname)
+    Path(full_path).unlink()
+    url = endpoint.replace("{path}", full_path)
+    resp = view_client.request("GET", url)
+    assert resp.status_code == 404
+
+
 def test_get_direct_url_returns_none_for_local_path(tmp_path: Path) -> None:
     f = tmp_path / "x.txt"
     f.write_text("hi")

@@ -105,6 +105,10 @@ def view_server_app(
 ) -> "FastAPI":
     app = FastAPI()
 
+    @app.exception_handler(FileNotFoundError)
+    async def _file_not_found(_request: Request, _exc: FileNotFoundError) -> Response:
+        return Response(status_code=HTTP_404_NOT_FOUND)
+
     async def _map_file(request: Request, file: str) -> str:
         if mapping_policy is not None:
             return await mapping_policy.map(request, file)
@@ -143,10 +147,7 @@ def view_server_app(
     ) -> Response:
         file = normalize_uri(log)
         await _validate_read(request, file)
-        try:
-            body, etag = await get_log_file(await _map_file(request, file), header_only)
-        except FileNotFoundError:
-            return Response(status_code=HTTP_404_NOT_FOUND)
+        body, etag = await get_log_file(await _map_file(request, file), header_only)
         headers = {"ETag": etag} if etag is not None else {}
         return Response(content=body, media_type="application/json", headers=headers)
 
