@@ -3,6 +3,7 @@
 - Deep Agent: Model-facing dispatch tool renamed from `task` to `agent` to align with Claude Code.
 - Deep Agent: Support for running subagents in the background.
 - Deep Agent: `agent` dispatch tool now ships with a tool-call viewer.
+- Parallel tools: Strengthened system-prompt guidance encouraging `react()` and `deepagent()` to issue independent tool calls in parallel.
 - Bash tool: Add `background` option to prompt the model to use `nohup` for long-running commands.
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
 - Scoring: Set `Score.answer` on model_graded parse failure.

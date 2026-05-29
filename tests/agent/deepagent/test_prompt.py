@@ -170,6 +170,33 @@ class TestExpandPromptPlaceholders:
         assert "background=True" not in off
 
 
+class TestParallelToolsPrompt:
+    def test_core_behavior_includes_parallel_guidance(self) -> None:
+        from inspect_ai.agent._types import PARALLEL_TOOLS_PROMPT
+
+        assert PARALLEL_TOOLS_PROMPT in CORE_BEHAVIOR
+
+    def test_assembled_prompt_includes_guidance_once(self) -> None:
+        # the per-subagent "Batch parallel" lines were removed in favor of the
+        # single shared constant — guidance should appear exactly once.
+        from inspect_ai.agent._types import PARALLEL_TOOLS_PROMPT
+
+        prompt = build_system_prompt(subagents=[_test_subagent()])
+        assert prompt.count(PARALLEL_TOOLS_PROMPT) == 1
+
+    def test_builtin_subagent_prompts_have_no_duplicate_line(self) -> None:
+        from inspect_ai.agent._deepagent.general import DEFAULT_GENERAL_PROMPT
+        from inspect_ai.agent._deepagent.plan import DEFAULT_PLAN_PROMPT
+        from inspect_ai.agent._deepagent.research import DEFAULT_RESEARCH_PROMPT
+
+        for prompt in (
+            DEFAULT_RESEARCH_PROMPT,
+            DEFAULT_PLAN_PROMPT,
+            DEFAULT_GENERAL_PROMPT,
+        ):
+            assert "Batch parallel" not in prompt
+
+
 class TestTaskAgnosticPrompts:
     def test_core_behavior_no_code_references(self) -> None:
         assert "codebase" not in CORE_BEHAVIOR.lower()

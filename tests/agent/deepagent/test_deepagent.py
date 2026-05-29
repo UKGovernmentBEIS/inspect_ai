@@ -58,6 +58,146 @@ def test_deepagent_end_to_end() -> None:
     assert tool_event.function == "agent"
 
 
+def _resolve_attachment(sample, text: str) -> str:
+    """Resolve a persisted `attachment://<id>` message text to its content."""
+    prefix = "attachment://"
+    if text.startswith(prefix):
+        return sample.attachments.get(text[len(prefix) :], text)
+    return text
+
+
+def test_deepagent_subagent_dispatch_includes_parallel_guidance() -> None:
+    """A dispatched isolated subagent's system message carries parallel guidance."""
+    from inspect_ai.agent._deepagent.research import DEFAULT_RESEARCH_PROMPT
+    from inspect_ai.agent._types import PARALLEL_TOOLS_PROMPT
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.model._chat_message import ChatMessageSystem
+
+    task = Task(
+        dataset=[Sample(input="Research something")],
+        solver=deepagent(submit=True),
+        message_limit=10,
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="agent",
+                tool_arguments={
+                    "subagent_type": "research",
+                    "prompt": "Find information.",
+                },
+            ),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "Found the info."},
+            ),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "done"},
+            ),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+
+    # find the subagent's system message among all model-event inputs: it is the
+    # one carrying the research prompt (isolated context, distinct from parent).
+    subagent_system_texts = [
+        resolved
+        for event in sample.events
+        if isinstance(event, ModelEvent)
+        for m in event.input
+        if isinstance(m, ChatMessageSystem)
+        for resolved in [_resolve_attachment(sample, m.text)]
+        if DEFAULT_RESEARCH_PROMPT[:40] in resolved
+    ]
+    assert subagent_system_texts, "no subagent system message found"
+    assert all(PARALLEL_TOOLS_PROMPT in text for text in subagent_system_texts)
+
+
+def test_deepagent_forked_subagent_inherits_parallel_guidance() -> None:
+    """A forked subagent inherits the parent system prompt (with parallel guidance).
+
+    Forked dispatch is a transparent continuation of the parent — it keeps the
+    parent's system message rather than building its own. So the parallel
+    guidance reaches forked children via the inherited CORE_BEHAVIOR, not via an
+    explicit injection (which would duplicate it in the common case).
+    """
+    from inspect_ai.agent import subagent
+    from inspect_ai.agent._types import PARALLEL_TOOLS_PROMPT
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.model._chat_message import ChatMessageSystem, ChatMessageUser
+
+    forked = subagent(
+        name="forked_helper",
+        description="A forked helper.",
+        prompt="FORKED_SUBAGENT_MARKER instructions.",
+        fork=True,
+    )
+    task = Task(
+        dataset=[Sample(input="Do the thing")],
+        solver=deepagent(subagents=[forked], submit=True),
+        message_limit=10,
+    )
+    model = get_model(
+        "mockllm/model",
+        custom_outputs=[
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="agent",
+                tool_arguments={
+                    "subagent_type": "forked_helper",
+                    "prompt": "Help me.",
+                },
+            ),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "child done"},
+            ),
+            ModelOutput.for_tool_call(
+                model="mockllm/model",
+                tool_name="submit",
+                tool_arguments={"answer": "done"},
+            ),
+        ],
+    )
+
+    log = eval(task, model=model)[0]
+    assert log.status == "success"
+    assert log.samples
+    sample = log.samples[0]
+
+    # the forked child's generate input carries the synthetic forked user message
+    # (with the marker) and must include the inherited parent system message that
+    # holds the parallel guidance.
+    found = False
+    for event in sample.events:
+        if not isinstance(event, ModelEvent):
+            continue
+        has_marker = any(
+            isinstance(m, ChatMessageUser)
+            and "FORKED_SUBAGENT_MARKER" in _resolve_attachment(sample, m.text)
+            for m in event.input
+        )
+        if has_marker:
+            sys_texts = [
+                _resolve_attachment(sample, m.text)
+                for m in event.input
+                if isinstance(m, ChatMessageSystem)
+            ]
+            assert any(PARALLEL_TOOLS_PROMPT in t for t in sys_texts)
+            found = True
+    assert found, "forked child generate not found"
+
+
 def test_deepagent_memory_kill_switch() -> None:
     """memory=False disables memory for all subagents."""
     agent = deepagent(memory=False)
