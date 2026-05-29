@@ -23,13 +23,16 @@ from typing import Literal
 import anyio
 
 from inspect_ai._util.text import truncate_string_to_bytes
-from inspect_ai.model._chat_message import ChatMessageAssistant
+from inspect_ai.agent._agent import AgentState
+from inspect_ai.agent._types import AgentContinue
+from inspect_ai.model._chat_message import ChatMessageAssistant, ChatMessageUser
 from inspect_ai.tool._tool import Tool, tool
 from inspect_ai.tool._tool_call import ToolCall, ToolCallContent, ToolCallView
 
 from .agent_tool import (
     AgentFuture,
     BackgroundRegistry,
+    active_background_agents,
     current_background_registry,
 )
 
@@ -318,5 +321,148 @@ def agent_list() -> Tool:
         if status_filter is not None:
             futures = [f for f in futures if f.status == status_filter]
         return _format_many(futures)
+
+    return execute
+
+
+# ---------------------------------------------------------------------------
+# Periodic background-agent reminder (Phase 4)
+#
+# A forgetting *backstop*, not a periodic nag. deepagent.execute() wraps
+# on_continue with a composer that resets a per-sample counter whenever the
+# model touches a background tool, and injects a passive reminder only after
+# REMINDER_INTERVAL turns of *ignoring* its background agents. The reminder
+# reads as ambient awareness ("no action needed") to avoid pulling the model
+# off-task into needless polling/waiting.
+# ---------------------------------------------------------------------------
+
+# Turns the model may go without touching a background tool before a reminder
+# is injected (provided it has active background agents).
+REMINDER_INTERVAL = 5
+
+# Model-facing names of the background lifecycle tools. Touching any of these
+# (or dispatching via agent(background=True)) counts as the model managing its
+# background agents and resets the reminder counter.
+_BACKGROUND_LIFECYCLE_TOOLS = frozenset(
+    {"agent_status", "agent_wait", "agent_cancel", "agent_list"}
+)
+
+
+def _used_background_tool(state: AgentState) -> bool:
+    """Whether the latest assistant turn managed a background agent.
+
+    True if the most recent assistant message called any lifecycle tool or
+    dispatched a new background agent via ``agent(background=True)``. Only the
+    most recent assistant turn is inspected — the question is "did the model
+    just interact?", which gates the reminder counter.
+    """
+    for m in reversed(state.messages):
+        if isinstance(m, ChatMessageAssistant):
+            for tc in m.tool_calls or []:
+                if tc.function in _BACKGROUND_LIFECYCLE_TOOLS:
+                    return True
+                if tc.function == "agent" and tc.arguments.get("background"):
+                    return True
+            return False
+    return False
+
+
+def background_reminder_message(
+    futures: list[AgentFuture],
+) -> ChatMessageUser | None:
+    """Build a passive reminder of the model's background agents.
+
+    Lists still-running agents (no action needed) and finished agents whose
+    results are worth collecting. Returns None when there is nothing worth
+    reminding about (e.g. only cancelled agents remain), so the caller can
+    skip injection.
+    """
+    running = [f for f in futures if f.status == "running"]
+    finished = [f for f in futures if f.status in ("completed", "errored")]
+    if not running and not finished:
+        return None
+
+    lines = [
+        "[Automatic reminder — no action needed.] You have background agents "
+        "from earlier. Keep working on your current task; only use "
+        "`agent_wait` when you actually need a result before continuing."
+    ]
+    if running:
+        lines.append("")
+        lines.append("Still running (let them work):")
+        for f in running:
+            elapsed = max(0, int(anyio.current_time() - f.started_at))
+            lines.append(f"- {f.agent_id} ({f.subagent_name}) — {elapsed}s")
+    if finished:
+        lines.append("")
+        lines.append("Finished — collect when you need the result:")
+        for f in finished:
+            lines.append(
+                f"- {f.agent_id} ({f.subagent_name}) — {f.status}; "
+                f"call agent_status('{f.agent_id}')"
+            )
+    return ChatMessageUser(content="\n".join(lines))
+
+
+def background_on_continue(
+    on_continue: str | AgentContinue | None,
+) -> AgentContinue:
+    """Wrap ``on_continue`` to inject a periodic background-agent reminder.
+
+    A forgetting *backstop*: a per-sample counter resets whenever the model
+    touches a background tool and a passive reminder is injected only after
+    ``REMINDER_INTERVAL`` turns of ignoring active background agents. The
+    wrapper preserves ``react()``'s on_continue protocol for the
+    None / str / callable / AgentState forms — composing the reminder into
+    the inner result rather than mutating state directly.
+
+    Args:
+        on_continue: The user-configured continuation behavior to wrap.
+
+    Returns:
+        An ``AgentContinue`` to pass to ``react()``.
+    """
+    reminder_idle_turns = 0
+
+    async def execute(st: AgentState) -> bool | str | AgentState:
+        nonlocal reminder_idle_turns
+
+        # delegate to the configured on_continue, preserving its semantics
+        if on_continue is None:
+            result: bool | str | AgentState = True
+        elif isinstance(on_continue, str):
+            # react only injects a str-continue on a stop (no tool calls);
+            # returning it unconditionally would change that.
+            result = on_continue if not st.output.message.tool_calls else True
+        else:
+            result = await on_continue(st)
+
+        # reset on interaction this turn, otherwise advance the counter
+        if _used_background_tool(st):
+            reminder_idle_turns = 0
+        else:
+            reminder_idle_turns += 1
+
+        # pass the inner result through unchanged when the agent is stopping
+        # or no reminder is due yet
+        if result is False or reminder_idle_turns < REMINDER_INTERVAL:
+            return result
+
+        reminder = background_reminder_message(active_background_agents())
+        if reminder is None:
+            return result
+        reminder_idle_turns = 0
+
+        # compose the reminder into the inner result, honoring react's
+        # on_continue protocol:
+        # - AgentState: append the reminder to the messages it carries
+        # - str: append the reminder text to the continue string
+        # - True: return the reminder text as the continue message
+        if isinstance(result, AgentState):
+            result.messages.append(reminder)
+            return result
+        if isinstance(result, str):
+            return f"{result}\n\n{reminder.text}"
+        return reminder.text
 
     return execute

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from contextvars import ContextVar, Token
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Literal, Sequence
+from typing import TYPE_CHECKING, Callable, Iterator, Literal, Sequence
 
 if TYPE_CHECKING:
     from inspect_ai.approval._policy import ApprovalPolicy
@@ -115,29 +116,25 @@ _background_registry: ContextVar[BackgroundRegistry | None] = ContextVar(
 )
 
 
-def set_background_registry(
-    registry: BackgroundRegistry,
-) -> Token[BackgroundRegistry | None]:
-    """Set the per-deepagent registry on the ContextVar.
+@contextmanager
+def background_registry(registry: BackgroundRegistry) -> Iterator[BackgroundRegistry]:
+    """Install ``registry`` on the ContextVar for the duration of the block.
 
-    Returns a token the caller must pass to ``reset_background_registry``
-    at cleanup.
+    The agent tool and lifecycle tools read it via
+    ``current_background_registry()``. Nested deepagents get isolated
+    namespaces because ContextVars carry per-task semantics. Mirrors the
+    set/reset idiom in ``src/inspect_ai/util/_span.py``.
     """
-    return _background_registry.set(registry)
-
-
-def reset_background_registry(token: Token[BackgroundRegistry | None]) -> None:
-    """Reset the registry ContextVar.
-
-    Use in a finally block to mirror the idiom in
-    ``src/inspect_ai/util/_span.py``.
-    """
+    token = _background_registry.set(registry)
     try:
-        _background_registry.reset(token)
-    except ValueError:
-        # Token belonged to a different context (cleanup across async
-        # boundary). Best-effort — matches the pattern in _span.py.
-        pass
+        yield registry
+    finally:
+        try:
+            _background_registry.reset(token)
+        except ValueError:
+            # Token belonged to a different context (cleanup across an async
+            # boundary). Best-effort — matches the pattern in _span.py.
+            pass
 
 
 def current_background_registry() -> BackgroundRegistry | None:

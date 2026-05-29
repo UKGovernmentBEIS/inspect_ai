@@ -7,6 +7,7 @@ from typing import Literal, Sequence
 from inspect_ai.agent._agent import Agent, AgentState, agent
 from inspect_ai.agent._react import react
 from inspect_ai.agent._types import (
+    DEFAULT_SUBMIT_PROMPT,
     AgentAttempts,
     AgentContinue,
     AgentPrompt,
@@ -14,14 +15,29 @@ from inspect_ai.agent._types import (
 )
 from inspect_ai.approval._policy import ApprovalPolicy
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.model._compaction import CompactionStrategy
+from inspect_ai.model._compaction import CompactionAuto, CompactionStrategy
 from inspect_ai.model._model import Model
 from inspect_ai.tool._tool import Tool, ToolSource
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.tool._tools._memory import memory as memory_tool
 from inspect_ai.tool._tools._skill import Skill
+from inspect_ai.tool._tools._skill import skill as skill_fn
+from inspect_ai.tool._tools._todo_write import todo_write as todo_write_tool
 
-from .agent_tool import agent_tool
+from .agent_tool import (
+    BackgroundRegistry,
+    _has_memory_tool,
+    agent_tool,
+    background_registry,
+)
 from .general import general
+from .lifecycle_tools import (
+    agent_cancel,
+    agent_list,
+    agent_status,
+    agent_wait,
+    background_on_continue,
+)
 from .plan import plan
 from .prompt import build_system_prompt, expand_prompt_placeholders
 from .research import research
@@ -106,8 +122,6 @@ def deepagent(
     async def execute(state: AgentState) -> AgentState:
         # All setup runs per-sample inside execute() so there is no
         # shared mutable state across concurrent samples.
-        from inspect_ai.model._compaction import CompactionAuto
-
         resolved_compaction = CompactionAuto() if compaction == "auto" else compaction
 
         resolved_subagents = (
@@ -147,10 +161,6 @@ def deepagent(
         if ws_tool_instance:
             parent_tools.append(ws_tool_instance)
         if todo_write:
-            from inspect_ai.tool._tools._todo_write import (
-                todo_write as todo_write_tool,
-            )
-
             parent_tools.append(todo_write_tool())
 
         _apply_parent_tools_to_general(resolved_subagents, parent_tools)
@@ -174,29 +184,14 @@ def deepagent(
         # Top-level tools = parent tools + agent + lifecycle + memory + skills
         all_tools: list[Tool | ToolDef | ToolSource] = list(parent_tools)
         all_tools.append(agent)
-        # Background lifecycle tools are surfaced only when background
-        # dispatch is enabled — consistent with the agent tool's
-        # background parameter being hidden when background=False.
         if background_enabled:
-            from inspect_ai.agent._deepagent.lifecycle_tools import (
-                agent_cancel,
-                agent_list,
-                agent_status,
-                agent_wait,
-            )
-
             all_tools.extend(
                 [agent_status(), agent_wait(), agent_cancel(), agent_list()]
             )
         if memory:
-            from inspect_ai.agent._deepagent.agent_tool import _has_memory_tool
-            from inspect_ai.tool._tools._memory import memory as memory_tool
-
             if not _has_memory_tool(all_tools):
                 all_tools.append(memory_tool())
         if skills:
-            from inspect_ai.tool._tools._skill import skill as skill_fn
-
             all_tools.append(skill_fn(skills))
 
         if prompt is not None:
@@ -215,14 +210,20 @@ def deepagent(
                 instructions=instructions,
             )
 
-        from inspect_ai.agent._types import DEFAULT_SUBMIT_PROMPT
-
         agent_prompt = AgentPrompt(
             instructions=system_prompt,
             handoff_prompt=None,
             assistant_prompt=DEFAULT_SUBMIT_PROMPT if submit is not False else None,
             submit_prompt=None,
         )
+
+        # When background dispatch is enabled, wrap on_continue with a
+        # forgetting-backstop reminder of any active background agents.
+        effective_on_continue: str | AgentContinue | None
+        if background_enabled:
+            effective_on_continue = background_on_continue(on_continue)
+        else:
+            effective_on_continue = on_continue
 
         inner = react(
             tools=all_tools,
@@ -231,29 +232,16 @@ def deepagent(
             submit=submit,
             attempts=attempts,
             compaction=resolved_compaction,
-            on_continue=on_continue,
+            on_continue=effective_on_continue,
             retry_refusals=retry_refusals,
             approval=approval,
         )
 
-        # Set the background registry only when background is enabled.
-        # The ContextVar lives for the duration of inner(state) so the
-        # agent tool (and the lifecycle tools) can read it. The
-        # try/finally + reset(token) idiom mirrors src/inspect_ai/util/_span.py.
+        # The background registry lives for the duration of inner(state) so
+        # the agent tool and lifecycle tools can read it via the ContextVar.
         if background_enabled:
-            from inspect_ai.agent._deepagent.agent_tool import (
-                BackgroundRegistry,
-                reset_background_registry,
-                set_background_registry,
-            )
-
-            token = set_background_registry(
-                BackgroundRegistry(max_background=max_background)
-            )
-            try:
+            with background_registry(BackgroundRegistry(max_background=max_background)):
                 return await inner(state)
-            finally:
-                reset_background_registry(token)
         else:
             return await inner(state)
 

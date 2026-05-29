@@ -18,6 +18,7 @@ from inspect_ai.agent._deepagent.agent_tool import (
     AgentFuture,
     BackgroundRegistry,
     active_background_agents,
+    background_registry,
     current_background_registry,
 )
 from inspect_ai.agent._deepagent.deepagent import (
@@ -113,6 +114,10 @@ def _eval_deepagent(
     message_limit: int = 30,
 ) -> dict:
     agent_kwargs.setdefault("submit", True)
+    # These are background-dispatch tests; deepagent()'s production default is
+    # background=False, so enable it here unless a test opts out explicitly
+    # (e.g. the disabled-surface and ValueError cases pass background=...).
+    agent_kwargs.setdefault("background", True)
     da = deepagent(**agent_kwargs)
     task = Task(
         dataset=[Sample(input=input)],
@@ -435,8 +440,7 @@ class TestDispatchBackground:
     async def test_counter_monotonic_across_spawns(self) -> None:
         """Sequential next_id() calls produce AGENT-1, AGENT-2, AGENT-3."""
         reg = BackgroundRegistry(max_background=8)
-        token = _set_registry_for_test(reg)
-        try:
+        with background_registry(reg):
             f1 = self._stub_future(reg)
             f2 = self._stub_future(reg)
             f3 = self._stub_future(reg)
@@ -444,20 +448,15 @@ class TestDispatchBackground:
             assert f2.agent_id == "AGENT-2"
             assert f3.agent_id == "AGENT-3"
             assert list(reg.futures.keys()) == ["AGENT-1", "AGENT-2", "AGENT-3"]
-        finally:
-            _reset_registry_for_test(token)
 
     async def test_counter_never_reuses_after_completion(self) -> None:
         """Completing AGENT-1 doesn't free the name — the next spawn is AGENT-2."""
         reg = BackgroundRegistry(max_background=8)
-        token = _set_registry_for_test(reg)
-        try:
+        with background_registry(reg):
             f1 = self._stub_future(reg)
             f1.status = "completed"
             f2 = self._stub_future(reg)
             assert f2.agent_id == "AGENT-2"
-        finally:
-            _reset_registry_for_test(token)
 
     async def test_cap_check_blocks_at_max(self) -> None:
         """When running_count() >= max_background, _dispatch_background raises."""
@@ -465,8 +464,7 @@ class TestDispatchBackground:
         from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
 
         reg = BackgroundRegistry(max_background=2)
-        token = _set_registry_for_test(reg)
-        try:
+        with background_registry(reg):
             self._stub_future(reg)
             self._stub_future(reg)
             # Both running; cap is 2 → next dispatch should raise.
@@ -490,16 +488,13 @@ class TestDispatchBackground:
                 )
             assert "Maximum 2" in str(exc_info.value)
             assert "agent_wait" in str(exc_info.value)
-        finally:
-            _reset_registry_for_test(token)
 
     async def test_cap_check_excludes_terminal_futures(self) -> None:
         """Completed/cancelled/errored futures don't count toward the cap."""
         from inspect_ai.agent._deepagent.subagent import subagent as subagent_factory
 
         reg = BackgroundRegistry(max_background=2)
-        token = _set_registry_for_test(reg)
-        try:
+        with background_registry(reg):
             # 5 futures, but only 1 running — cap of 2 still has 1 slot left.
             f1 = self._stub_future(reg)
             f2 = self._stub_future(reg)
@@ -515,8 +510,6 @@ class TestDispatchBackground:
             # A new dispatch should NOT be blocked (1 < 2).
             # (We don't actually dispatch — just verify the count.)
             _ = subagent_factory  # marker; subagent factory imported for parity
-        finally:
-            _reset_registry_for_test(token)
 
     async def test_no_registry_raises_clear_error(self) -> None:
         """Calling _dispatch_background outside a deepagent context raises."""
@@ -539,19 +532,6 @@ class TestDispatchBackground:
                 from_message=None,
             )
         assert "Background dispatch is not available" in str(exc_info.value)
-
-
-def _set_registry_for_test(reg: BackgroundRegistry):
-    """Wrapper around set_background_registry for tests."""
-    from inspect_ai.agent._deepagent.agent_tool import set_background_registry
-
-    return set_background_registry(reg)
-
-
-def _reset_registry_for_test(token):
-    from inspect_ai.agent._deepagent.agent_tool import reset_background_registry
-
-    reset_background_registry(token)
 
 
 class TestBackgroundExecution:
@@ -800,8 +780,7 @@ class TestRegistryIsolation:
         Resetting the inner token restores the outer registry intact.
         """
         outer = BackgroundRegistry(max_background=8)
-        outer_token = _set_registry_for_test(outer)
-        try:
+        with background_registry(outer):
             # Allocate in outer registry
             outer.next_id()  # AGENT-1
             outer.next_id()  # AGENT-2
@@ -809,22 +788,17 @@ class TestRegistryIsolation:
 
             # Set inner registry — outer is shadowed
             inner = BackgroundRegistry(max_background=4)
-            inner_token = _set_registry_for_test(inner)
-            try:
+            with background_registry(inner):
                 assert current_background_registry() is inner
                 # Inner allocations start from 1
                 inner.next_id()  # AGENT-1
                 assert inner.counter == 1
                 # Outer is untouched
                 assert outer.counter == 2
-            finally:
-                _reset_registry_for_test(inner_token)
 
             # After resetting inner, outer is restored
             assert current_background_registry() is outer
             assert outer.counter == 2
-        finally:
-            _reset_registry_for_test(outer_token)
 
     async def test_active_background_agents_reads_current(self) -> None:
         """active_background_agents() returns only the current scope's futures.
@@ -832,8 +806,7 @@ class TestRegistryIsolation:
         Outer scope's futures are invisible from inner.
         """
         outer = BackgroundRegistry(max_background=8)
-        outer_token = _set_registry_for_test(outer)
-        try:
+        with background_registry(outer):
             # Stub one running future in outer
             import anyio
 
@@ -847,17 +820,12 @@ class TestRegistryIsolation:
             assert len(active_background_agents()) == 1
 
             inner = BackgroundRegistry(max_background=4)
-            inner_token = _set_registry_for_test(inner)
-            try:
+            with background_registry(inner):
                 # Inner sees no agents (its own registry is empty)
                 assert active_background_agents() == []
-            finally:
-                _reset_registry_for_test(inner_token)
 
             # Restored: outer's one agent is visible again
             assert len(active_background_agents()) == 1
-        finally:
-            _reset_registry_for_test(outer_token)
 
 
 # ---------------------------------------------------------------------------
@@ -1276,3 +1244,296 @@ class TestLifecycleViewers:
         )
         assert view.call is not None
         assert view.call.title == "agent_list: running"
+
+
+# ---------------------------------------------------------------------------
+# Phase 4: periodic background-agent reminder (via on_continue)
+# ---------------------------------------------------------------------------
+
+
+def _idle(text: str = "still working") -> ModelOutput:
+    """A parent turn with no tool calls (advances the reminder counter)."""
+    return ModelOutput.from_content(model="mockllm/model", content=text)
+
+
+def _reminder_messages(result: dict) -> list:
+    """Parent ChatMessageUser reminders injected by the on_continue wrapper."""
+    from inspect_ai.model._chat_message import ChatMessageUser
+
+    return [
+        m
+        for m in result["messages"]
+        if isinstance(m, ChatMessageUser) and "Automatic reminder" in m.text
+    ]
+
+
+class TestUsedBackgroundTool:
+    """Unit tests for the interaction detector that gates the counter."""
+
+    def _state(self, *tool_calls):
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.model._chat_message import ChatMessageAssistant
+
+        return AgentState(
+            messages=[
+                ChatMessageAssistant(
+                    content="thinking", tool_calls=list(tool_calls) or None
+                )
+            ]
+        )
+
+    def _call(self, function: str, **arguments):
+        from inspect_ai.tool._tool_call import ToolCall
+
+        return ToolCall(id="1", function=function, arguments=arguments)
+
+    def test_lifecycle_tool_detected(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _used_background_tool
+
+        for name in ("agent_status", "agent_wait", "agent_cancel", "agent_list"):
+            assert _used_background_tool(self._state(self._call(name))) is True
+
+    def test_background_dispatch_detected(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _used_background_tool
+
+        st = self._state(
+            self._call("agent", subagent_type="r", prompt="go", background=True)
+        )
+        assert _used_background_tool(st) is True
+
+    def test_sync_dispatch_not_detected(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _used_background_tool
+
+        st = self._state(
+            self._call("agent", subagent_type="r", prompt="go", background=False)
+        )
+        assert _used_background_tool(st) is False
+
+    def test_neutral_tool_not_detected(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _used_background_tool
+
+        assert _used_background_tool(self._state(self._call("bash"))) is False
+
+    def test_text_only_turn_not_detected(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import _used_background_tool
+
+        assert _used_background_tool(self._state()) is False
+
+    def test_no_assistant_message(self) -> None:
+        from inspect_ai.agent._agent import AgentState
+        from inspect_ai.agent._deepagent.lifecycle_tools import _used_background_tool
+
+        assert _used_background_tool(AgentState(messages=[])) is False
+
+
+class TestBackgroundReminderMessage:
+    """Unit tests for the passive reminder formatter."""
+
+    def _future(self, agent_id: str, name: str, status: str = "running") -> AgentFuture:
+        future = AgentFuture(
+            agent_id=agent_id,
+            span_id="x",
+            subagent_name=name,
+            cancel_scope=anyio.CancelScope(),
+            started_at=anyio.current_time(),
+        )
+        future.status = status  # type: ignore[assignment]
+        return future
+
+    async def test_running_is_passive_no_collect_line(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            background_reminder_message,
+        )
+
+        msg = background_reminder_message([self._future("AGENT-1", "research")])
+        assert msg is not None
+        text = msg.text
+        assert "AGENT-1" in text and "research" in text
+        assert "no action needed" in text.lower()
+        assert "Still running" in text
+        # running agents must not be framed as something to collect
+        assert "collect" not in text.lower()
+
+    async def test_completed_has_collect_line(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            background_reminder_message,
+        )
+
+        msg = background_reminder_message(
+            [self._future("AGENT-2", "general", "completed")]
+        )
+        assert msg is not None
+        assert "collect" in msg.text.lower()
+        assert "agent_status('AGENT-2')" in msg.text
+
+    async def test_errored_listed_as_finished(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            background_reminder_message,
+        )
+
+        msg = background_reminder_message(
+            [self._future("AGENT-3", "general", "errored")]
+        )
+        assert msg is not None
+        assert "AGENT-3" in msg.text
+        assert "errored" in msg.text
+
+    async def test_only_cancelled_returns_none(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            background_reminder_message,
+        )
+
+        assert (
+            background_reminder_message(
+                [self._future("AGENT-4", "general", "cancelled")]
+            )
+            is None
+        )
+
+    async def test_empty_returns_none(self) -> None:
+        from inspect_ai.agent._deepagent.lifecycle_tools import (
+            background_reminder_message,
+        )
+
+        assert background_reminder_message([]) is None
+
+
+class TestReminderE2E:
+    """End-to-end: the on_continue forgetting-backstop reminder."""
+
+    def test_fires_after_idle_turns(self) -> None:
+        bg_run = _build_blocking_subagent("run_one")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg_run]},
+            outputs=[
+                _agent_call("run_one"),  # dispatch (counter resets to 0)
+                _idle(),  # 1
+                _idle(),  # 2
+                _idle(),  # 3
+                _idle(),  # 4
+                _idle(),  # 5 -> reminder injected
+                _submit("done"),
+            ],
+        )
+        reminders = _reminder_messages(result)
+        assert len(reminders) >= 1
+        text = reminders[0].text
+        assert "AGENT-1" in text
+        assert "run_one" in text
+        assert "Still running" in text
+
+    def test_resets_on_interaction(self) -> None:
+        # 4 idles, an agent_status interaction (resets), then 4 more idles.
+        # The counter never reaches REMINDER_INTERVAL (5), so no reminder.
+        bg_run = _build_blocking_subagent("run_one")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg_run]},
+            outputs=[
+                _agent_call("run_one"),
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _tool_call("agent_status", agent_id="AGENT-1"),  # resets counter
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _submit("done"),
+            ],
+            message_limit=40,
+        )
+        assert _reminder_messages(result) == []
+
+    def test_no_reminder_when_no_agents(self) -> None:
+        # Background enabled but nothing dispatched -> never inject.
+        result = _eval_deepagent(
+            agent_kwargs={"background": True},
+            outputs=[
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _submit("done"),
+            ],
+        )
+        assert _reminder_messages(result) == []
+
+    def test_no_reminder_when_disabled(self) -> None:
+        # background=False installs no wrapper at all.
+        result = _eval_deepagent(
+            agent_kwargs={"background": False},
+            outputs=[
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _submit("done"),
+            ],
+        )
+        assert _reminder_messages(result) == []
+
+    def test_composes_with_callable_on_continue(self) -> None:
+        # A user-supplied on_continue is still invoked, and the reminder
+        # rides along on top of it.
+        from inspect_ai.agent._agent import AgentState
+
+        calls = {"n": 0}
+
+        async def my_continue(state: AgentState) -> bool:
+            calls["n"] += 1
+            return True
+
+        bg_run = _build_blocking_subagent("run_one")
+        result = _eval_deepagent(
+            agent_kwargs={"subagents": [bg_run], "on_continue": my_continue},
+            outputs=[
+                _agent_call("run_one"),
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _submit("done"),
+            ],
+        )
+        assert calls["n"] >= 5
+        assert len(_reminder_messages(result)) >= 1
+
+    def test_composes_with_str_on_continue(self) -> None:
+        # A str on_continue is injected on idle (stop) turns; when a reminder
+        # is due it is appended to that string (same user message).
+        bg_run = _build_blocking_subagent("run_one")
+        result = _eval_deepagent(
+            agent_kwargs={
+                "subagents": [bg_run],
+                "on_continue": "Carry on with the plan.",
+            },
+            outputs=[
+                _agent_call("run_one"),
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _idle(),
+                _submit("done"),
+            ],
+        )
+        from inspect_ai.model._chat_message import ChatMessageUser
+
+        user_texts = [
+            m.text for m in result["messages"] if isinstance(m, ChatMessageUser)
+        ]
+        # the custom continue string is used on idle turns
+        assert any("Carry on with the plan." in t for t in user_texts)
+        # the reminder rides along in the same message it is appended to
+        combined = [
+            t
+            for t in user_texts
+            if "Carry on with the plan." in t and "Automatic reminder" in t
+        ]
+        assert len(combined) >= 1
