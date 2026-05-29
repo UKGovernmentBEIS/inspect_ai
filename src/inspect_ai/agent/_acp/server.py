@@ -158,11 +158,6 @@ class AcpServer:
         # server" entry point.
         install_acp_disconnect_log_filter()
 
-        # Create the discovery directory at 0700 and sweep stale
-        # entries / orphan sockets before binding. The 0700 lockdown
-        # is defence-in-depth: other users on the same machine can't
-        # traverse into the directory and reach the socket / read the
-        # discovery JSON. See design/control-channel.md "Security model".
         prepare_discovery_dir(discovery_dir())
 
         if self._transport is True:
@@ -181,10 +176,7 @@ class AcpServer:
             # us via the asynccontextmanager guard. Defensive check.
             raise ValueError(f"Unsupported acp_server transport: {self._transport!r}")
 
-        # Write the discovery file (0600). The helper handles the
-        # chmod; bare ``write_text`` would inherit umask and could end
-        # up 0644, leaking the socket path / eval_id to other users on
-        # a multi-user box.
+        # Write the discovery file describing this server.
         self._discovery_path = write_discovery_file(
             discovery_dir(),
             os.getpid(),

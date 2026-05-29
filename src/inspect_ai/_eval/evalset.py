@@ -732,53 +732,45 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
     confusing for an agent driving an eval-set under ``--keep-alive``
     that expects to see what the eval-set returned.
 
-    Best-effort: a malformed / partial header (missing results,
-    missing fields) is skipped rather than failing the eval-set.
+    Only the ISO timestamp parse is fallible; everything else is
+    Pydantic-validated typed attribute access on already-parsed
+    headers.
     """
     from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 
     for log_entry in success_logs:
-        try:
-            header = log_entry.header
-            eval_spec = header.eval
-            results = header.results
-            stats = header.stats
+        header = log_entry.header
+        eval_spec = header.eval
+        results = header.results
+        stats = header.stats
 
-            total = results.total_samples if results is not None else 0
-            completed = results.completed_samples if results is not None else total
-            # success_logs are by definition logs whose final
-            # status was success — no terminal errors. Any
-            # in-attempt sample errors are captured in the log's
-            # error fields but aren't relevant to the high-level
-            # `errored` counter the control endpoint surfaces.
-            errored = 0
+        total = results.total_samples if results is not None else 0
+        completed = results.completed_samples if results is not None else total
+        # success_logs are by definition logs whose final
+        # status was success — no terminal errors. Any
+        # in-attempt sample errors are captured in the log's
+        # error fields but aren't relevant to the high-level
+        # `errored` counter the control endpoint surfaces.
+        errored = 0
 
-            completed_at: float | None = None
-            completed_str = stats.completed_at if stats is not None else ""
-            if completed_str:
-                try:
-                    completed_at = datetime_from_iso_format_safe(
-                        completed_str
-                    ).timestamp()
-                except (ValueError, TypeError):
-                    completed_at = None
+        completed_at: float | None = None
+        completed_str = stats.completed_at if stats is not None else ""
+        if completed_str:
+            try:
+                completed_at = datetime_from_iso_format_safe(completed_str).timestamp()
+            except (ValueError, TypeError):
+                completed_at = None
 
-            register_completed_eval(
-                eval_spec.eval_id,
-                total=total,
-                completed=completed,
-                errored=errored,
-                task=eval_spec.task,
-                model=str(eval_spec.model) if eval_spec.model else "",
-                run_id=eval_spec.run_id,
-                completed_at=completed_at,
-            )
-        except Exception:
-            logger.debug(
-                "Could not register reused log as completed EvalState",
-                exc_info=True,
-            )
-            continue
+        register_completed_eval(
+            eval_spec.eval_id,
+            total=total,
+            completed=completed,
+            errored=errored,
+            task=eval_spec.task,
+            model=str(eval_spec.model) if eval_spec.model else "",
+            run_id=eval_spec.run_id,
+            completed_at=completed_at,
+        )
 
 
 def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:
