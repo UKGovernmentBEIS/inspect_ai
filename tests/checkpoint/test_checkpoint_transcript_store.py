@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import cast
 from unittest.mock import patch
 
+import pytest
 from pydantic import JsonValue
 from test_helpers.transcript import make_model_event
 
@@ -467,16 +468,44 @@ def test_checkpoint_transcript_store_deduplicates_messages_using_pool_hash(
     assert events[1]["input_refs"] == [[0, 1]]
 
 
-def test_checkpoint_transcript_store_ignores_events_after_close(tmp_path: Path) -> None:
+def test_checkpoint_transcript_store_rejects_events_after_close(tmp_path: Path) -> None:
     transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
     transcript_store.close()
 
-    transcript_store.merge_event(
-        InfoEvent(data="late"), attachment_lookup=_no_attachment
+    with pytest.raises(RuntimeError, match="CheckpointTranscriptStore is closed"):
+        transcript_store.merge_event(
+            InfoEvent(data="late"), attachment_lookup=_no_attachment
+        )
+
+
+def test_checkpoint_transcript_store_rejects_pool_import_after_close(
+    tmp_path: Path,
+) -> None:
+    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+
+    assert (
+        transcript_store.merge_message_pool_entry(
+            "first-message", ChatMessageUser(content="first").model_dump_json()
+        )
+        == 0
+    )
+    assert (
+        transcript_store.merge_call_pool_entry(
+            "first-call", json.dumps({"role": "user", "content": "first"})
+        )
+        == 0
     )
 
-    reopened = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
-    assert reopened.counts().events == 0
+    transcript_store.close()
+
+    with pytest.raises(RuntimeError, match="CheckpointTranscriptStore is closed"):
+        transcript_store.merge_message_pool_entry(
+            "late-message", ChatMessageUser(content="late").model_dump_json()
+        )
+    with pytest.raises(RuntimeError, match="CheckpointTranscriptStore is closed"):
+        transcript_store.merge_call_pool_entry(
+            "late-call", json.dumps({"role": "user", "content": "late"})
+        )
 
 
 def test_checkpoint_transcript_store_reuses_stored_attachment_on_update(

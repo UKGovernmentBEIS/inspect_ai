@@ -79,6 +79,7 @@ class CheckpointTranscriptStore:
 
     def counts(self) -> CheckpointTranscriptStoreCounts:
         with self._lock:
+            self._ensure_open()
             return CheckpointTranscriptStoreCounts(
                 events=self._count_rows("events"),
                 message_pool=self._count_rows("message_pool"),
@@ -94,12 +95,15 @@ class CheckpointTranscriptStore:
             self._conn.close()
             self._closed = True
 
+    def _ensure_open(self) -> None:
+        if self._closed:
+            raise RuntimeError("CheckpointTranscriptStore is closed")
+
     def merge_event(
         self, event: Event, attachment_lookup: Callable[[str], str | None]
     ) -> None:
         with self._lock:
-            if self._closed:
-                return
+            self._ensure_open()
             if event.uuid is None:
                 event.uuid = uuid()
             logical_id = event.uuid
@@ -142,8 +146,7 @@ class CheckpointTranscriptStore:
         event_jsonable.setdefault("uuid", logical_id)
         event_json = json.dumps(event_jsonable, separators=(",", ":"))
         with self._lock:
-            if self._closed:
-                return
+            self._ensure_open()
             with self._conn:
                 self._upsert_event(logical_id, event_json)
                 self._merge_attachment_refs(
@@ -152,30 +155,26 @@ class CheckpointTranscriptStore:
 
     def merge_message_pool_entry(self, hash_value: str, json_text: str) -> int:
         with self._lock:
-            if self._closed:
-                return 0
+            self._ensure_open()
             with self._conn:
                 return self._pool_pos("message_pool", hash_value, json_text)
 
     def merge_message_pool(self, messages: Iterable[ChatMessage]) -> None:
         with self._lock:
-            if self._closed:
-                return
+            self._ensure_open()
             with self._conn:
                 for message in messages:
                     self._message_pos(message)
 
     def merge_call_pool_entry(self, hash_value: str, json_text: str) -> int:
         with self._lock:
-            if self._closed:
-                return 0
+            self._ensure_open()
             with self._conn:
                 return self._pool_pos("call_pool", hash_value, json_text)
 
     def merge_call_pool(self, calls: Iterable[JsonValue]) -> None:
         with self._lock:
-            if self._closed:
-                return
+            self._ensure_open()
             with self._conn:
                 for call in calls:
                     self._call_pos(call)
@@ -221,8 +220,7 @@ class CheckpointTranscriptStore:
 
     def attachment(self, ref: str) -> str | None:
         with self._lock:
-            if self._closed:
-                return None
+            self._ensure_open()
             row = self._conn.execute(
                 "SELECT content FROM attachments WHERE hash = ?",
                 (ref,),
@@ -231,8 +229,7 @@ class CheckpointTranscriptStore:
 
     def has_event(self, logical_id: str) -> bool:
         with self._lock:
-            if self._closed:
-                return False
+            self._ensure_open()
             row = self._conn.execute(
                 "SELECT 1 FROM events WHERE logical_id = ?",
                 (logical_id,),
@@ -250,8 +247,7 @@ class CheckpointTranscriptStore:
         if not attachments:
             return
         with self._lock:
-            if self._closed:
-                return
+            self._ensure_open()
             with self._conn:
                 self._insert_attachments(attachments)
 
@@ -267,8 +263,7 @@ class CheckpointTranscriptStore:
         self, refs: Iterable[str], attachment_lookup: Callable[[str], str | None]
     ) -> None:
         with self._lock:
-            if self._closed:
-                return
+            self._ensure_open()
             with self._conn:
                 self._merge_attachment_refs(refs, attachment_lookup)
 
@@ -293,6 +288,7 @@ class CheckpointTranscriptStore:
     ) -> None:
         sample_dir = Path(sample_working_dir)
         with self._lock:
+            self._ensure_open()
             self._write_text_atomic(sample_dir / STORE, to_json_str_safe(store_json))
             if agent_state is not None:
                 self._write_text_atomic(
