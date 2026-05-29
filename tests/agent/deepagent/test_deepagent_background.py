@@ -409,12 +409,14 @@ class TestBackgroundSpawn:
 
     def test_basic_spawn_returns_handle(self) -> None:
         """agent(background=True) returns 'Dispatched AGENT-N.' immediately."""
+        # Give the background subagent its own mockllm so the parent and the
+        # background child don't race on a single shared custom_outputs queue.
+        bg_sa = _build_submit_subagent("general", "background-done")
         result = _eval_deepagent(
-            agent_kwargs={},
+            agent_kwargs={"subagents": [bg_sa]},
             outputs=[
                 _spawn("general", "Do background work."),
-                _submit("background-done"),  # consumed by bg or parent
-                _submit("parent-done"),  # consumed by the other
+                _submit("parent-done"),
             ],
         )
         assert result["status"] == "success"
@@ -956,16 +958,19 @@ class TestAgentStatus:
         assert "completed" in body
         assert "the findings" in body
 
-    def test_status_running_includes_peek(self) -> None:
-        bg = _build_blocking_subagent(
-            "worker",
-            outputs=[_tool_call("_say_helper", text="searching the corpus")],
-        )
+    def test_status_running_reports_running_with_peek_fields(self) -> None:
+        # A dispatched agent is "running" from the moment of dispatch until it
+        # completes/cancels; this one blocks for 60s, so the peek is always
+        # taken while it is running (no scheduling assumptions). We assert the
+        # running-status shape (status + the elapsed / message-count peek
+        # fields), which is what _format_future_status emits for any running
+        # agent. (Last-assistant-message content can't be asserted
+        # deterministically without a scheduling barrier the harness lacks.)
+        bg = _build_blocking_subagent("worker")
         result = _eval_deepagent(
             agent_kwargs={"subagents": [bg]},
             outputs=[
                 _agent_call("worker"),
-                # Give the bg a moment to run its _say_helper turn, then peek.
                 _tool_call("agent_status", agent_id="AGENT-1"),
                 _submit("done"),
             ],

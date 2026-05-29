@@ -631,7 +631,10 @@ async def _run_background(
         # subagent's OWN limits were already caught into limit_scope by
         # apply_limits(catch_errors=True), so any LimitExceededError that
         # reaches here belongs to an outer (sample/parent) scope and must
-        # not be downgraded to a per-agent "errored" result.
+        # not be downgraded to a per-agent "errored" result. The sample is
+        # terminating; record a terminal status so the `finally: done.set()`
+        # below never wakes a waiter with a stale "running" status.
+        future.status = "cancelled"
         raise
     except Exception as ex:
         # A background subagent failure is captured on the future and
