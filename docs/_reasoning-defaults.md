@@ -2,6 +2,7 @@
 |---|---|
 | anthropic/claude-opus-4-6 | adaptive |
 | anthropic/claude-opus-4-7 | adaptive |
+| anthropic/claude-opus-4-8 | high |
 | anthropic/claude-sonnet-4-6 | adaptive |
 | deepseek/deepseek-reasoner | no effort scale |
 | google/gemini-3-flash-preview | medium |
