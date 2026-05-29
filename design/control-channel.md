@@ -406,22 +406,34 @@ The fix is an explicit handoff: `--keep-alive` parks the process after the eval 
 **What the flag does.**
 
 - `inspect eval <task> --keep-alive` — after the eval body returns (including scoring + log write), the process blocks on the control endpoint's shutdown event. The control server stays bound. `inspect ctl ls` continues to show the eval (with `samples.completed == total` and a final status), and the log files are present at their final paths. `POST /shutdown` (issued by `inspect ctl shutdown` or any HTTP client) releases the block; the process tears down its server and exits.
-- `inspect eval-set <tasks> --keep-alive` — same, scoped to the entire eval-set. The control server lives through all retries and parks at the end. All evals in the set stay visible in `ls` until shutdown.
+- `inspect eval-set <tasks> --keep-alive` — same. With `retry_immediate=True` (the default), eval-set makes exactly one `eval()` call; per-task retries happen inside that one call, so the control server and the keep-alive park both live in the same single async context.
 
 **Why this isn't always-on.** Most invocations don't need it; the cost is "process doesn't exit on its own." For batch / CI workflows that explicitly want the process to die when done, no keep-alive is correct. The flag is opt-in.
+
+### Server lifecycle aligned with `eval()` (and why no threads)
+
+The control server's lifetime matches a single `eval()` call — same as the existing `task_display().run_task_app(...)` async boundary. One `anyio.run`, one `async with control_server(...)`, one keep-alive wait. No daemon threads, no cross-loop synchronisation, no per-thread state. This keeps the control-channel code aligned with the rest of the (anyio-native, single-loop) codebase.
+
+This works because in the common case `eval_set` is *also* a single `eval()` call:
+
+- **`retry_immediate=True` (the default).** Eval-set invokes `eval()` exactly once. Per-task retries happen *inside* that single `eval()` call (via `task_retry_attempts` and the failed-sample-reuse path). The control server's lifetime — bound at the start of `eval()`, parked through keep-alive, torn down on shutdown — wraps the entire eval-set's actual work. Identical effective behaviour to a "threaded eval-set-scoped server" but without any threads.
+- **`retry_immediate=False` (legacy batch-retry mode).** Eval-set invokes `eval()` repeatedly via tenacity. Each attempt is its own `eval()` call → its own `anyio.run` → its own control server. Between attempts the server is briefly torn down (`inspect ctl ls` returns "no running evals" for that window). This is a documented limitation of the legacy mode.
+
+**`--keep-alive` is incompatible with `retry_immediate=False`.** The post-retry-loop park would need its own async context outside any single `eval()`, which is exactly the multi-loop bridging problem the alignment chooses to avoid. Eval-set raises `PrerequisiteError` at startup if both are set, with a message pointing at `--retry-immediate` (or dropping `--keep-alive`).
 
 **Implementation sketch.**
 
 - `_ControlServerBase` exposes a `shutdown_event: threading.Event`. The `POST /shutdown` route sets it.
-- `wait_for_shutdown_sync(server)` / `wait_for_shutdown_async(server)` block until the event fires. Both eval-set's sync body and eval's async body use the appropriate one.
-- `EvalState` entries — which would normally be unregistered by `task_run.py` at task end — survive while keep-alive is active. This is what keeps `ctl ls` showing completed evals during the lingering window. A process-level `keep_alive_active()` flag tells `task_run.py` to skip the unregister; the keep-alive teardown clears all states explicitly before shutting down the server.
-- Eval-set's `control_server_for_eval_set` (the threaded variant) is naturally well-suited to keep-alive: the daemon thread holds the server up regardless of whether the main thread is in eval body or in the post-eval wait.
+- `wait_for_shutdown_async(server)` parks on that event via `anyio.to_thread.run_sync` so the eval's async loop stays free. Only the async variant exists — there's no longer a sync caller that needs to wait on shutdown.
+- `EvalState` entries that would normally be unregistered by `task_run.py` at task end survive while keep-alive is active, so `ctl ls` keeps showing completed evals during the lingering window. A process-level `keep_alive_active()` flag tells `task_run.py` to skip the unregister; the keep-alive teardown clears all states explicitly before the server stops.
+- Keep-alive ownership lives in `_eval_async_inner` (the per-`eval()` async function). For standalone `inspect eval`, it's the only scope. For `inspect eval-set` with `retry_immediate=True`, eval-set forwards `keep_alive=True` to its single inner `eval()` call and the same code path handles the park.
 
 **Failure modes worth naming.**
 
 - **Forgotten shutdown.** Agent crashes / loses track of the pid. The process lingers indefinitely. Mitigation: a future `--keep-alive-timeout` could auto-shutdown after N minutes of idle time. Not in v1.
-- **Multiple lingering processes.** Several agents each run their own keep-alive eval-set. `inspect ctl shutdown` with no args errors and lists pids; the agent disambiguates with `--pid`.
+- **Multiple lingering processes.** Several agents each run their own keep-alive eval. `inspect ctl shutdown` with no args errors and lists pids; the agent disambiguates with `--pid`.
 - **External kill.** Operator kills the process while keep-alive is active. The discovery file is left behind; the next `prepare_discovery_dir` sweep picks it up and removes it (pid-liveness check fails).
+- **`retry_immediate=False` + keep-alive.** Rejected at startup with a clear error rather than silently giving a broken keep-alive experience.
 
 ### Server lifecycle: default on, opt-out
 

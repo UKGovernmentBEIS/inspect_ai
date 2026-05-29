@@ -1,43 +1,34 @@
 """HTTP control server embedded in each running eval process.
 
-Two flavours of lifecycle, both built on the same bind / serve /
-cleanup core (:class:`_ControlServerBase`):
-
-- :func:`control_server` — async context manager scoped to one
-  ``eval()`` call. Runs uvicorn as a task on the caller's anyio loop.
-  Used for standalone ``inspect eval`` invocations.
-- :func:`control_server_for_eval_set` — sync context manager scoped
-  to one ``eval_set()`` call. Runs uvicorn in a daemon thread with
-  its own asyncio loop, so it outlives the multiple per-attempt
-  ``eval()`` event loops created via tenacity retries.
-
-The two are mutually exclusive within one process. When the eval-set
-flavour is active, the per-eval flavour detects that (via a
-thread-local marker) and yields ``None`` without binding — there's
-only ever one socket per process.
+Lifecycle matches one ``eval()`` call: the async context manager
+:func:`control_server` runs uvicorn as a task on the eval's anyio
+loop, lives for the duration of the eval body, and tears down on
+exit. Used by both standalone ``inspect eval`` and ``inspect
+eval-set`` (the latter via its single ``eval()`` call under
+``retry_immediate=True``, which is the default).
 
 Default-on with graceful degradation: bind failures (read-only
 filesystem, restricted sandbox, etc.) log a warning and continue
 without the surface — eval correctness never depends on the control
-channel coming up. See design/control-channel.md "Implementation
+channel coming up. See ``design/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
 MVP scope: a single ``GET /evals`` read-only endpoint sufficient for
-``inspect ctl ls``. Directives, sample-level endpoints, and event
-subscription land in subsequent phases.
+``inspect ctl ls`` plus a ``POST /shutdown`` route for keep-alive
+release. Directives, sample-level endpoints, and event subscription
+land in subsequent phases.
 """
 
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import os
 import threading
 import time
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
-from typing import Any, AsyncIterator, Iterator
+from typing import Any, AsyncIterator
 
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.state import current_eval_summaries
@@ -61,38 +52,13 @@ logger = getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Outer-scope ownership marker
-# ---------------------------------------------------------------------------
-#
-# When an eval-set has opened its own (threaded) control server,
-# nested ``eval()`` calls within that set must NOT bind their own
-# server — they'd collide on the PID-keyed paths. The thread-local
-# flag below is set by :func:`control_server_for_eval_set` and
-# inspected by :func:`control_server`.
-#
-# Thread-local (not module-global) so concurrent eval-sets in
-# different threads stay isolated — not a likely use case but it
-# costs nothing.
-
-_outer_owner = threading.local()
-
-
-def _outer_scope_owns_server() -> bool:
-    return getattr(_outer_owner, "active", False)
-
-
-def _set_outer_scope_owns_server(value: bool) -> None:
-    _outer_owner.active = value
-
-
-# ---------------------------------------------------------------------------
 # Keep-alive support
 # ---------------------------------------------------------------------------
 #
 # When an eval / eval-set is launched with ``keep_alive=True``, the
 # process should stay running after the eval body completes so
 # external agents can read state, request logs, and explicitly tear
-# the process down. The per-process flag below is consulted by
+# the process down. The process-level flag below is consulted by
 # ``task_run.py`` to skip its ``unregister_eval`` call so EvalState
 # entries persist and stay visible via ``inspect ctl ls``.
 
@@ -112,39 +78,38 @@ def keep_alive_active() -> bool:
 def set_keep_alive_active(value: bool) -> None:
     """Set the process-level keep-alive flag.
 
-    Called by the eval / eval-set entry points before the eval body
-    runs, and cleared after the shutdown wait ends.
+    Called by the eval entry point before the eval body runs, and
+    cleared after the shutdown wait ends.
     """
     global _keep_alive_active
     _keep_alive_active = value
 
 
 # ---------------------------------------------------------------------------
-# Shared bind / serve / cleanup core
+# Control server
 # ---------------------------------------------------------------------------
 
 
-class _ControlServerBase:
-    """Bind / serve / cleanup logic shared by both server lifecycle flavors.
+class ControlServer:
+    """FastAPI control server for the live eval.
 
-    Subclasses provide the lifecycle driver — async context manager
-    on the caller's loop (:class:`ControlServer`), or daemon thread
-    with its own loop (:class:`ThreadedControlServer`). The base
-    class owns all the uvicorn / filesystem / discovery details so
-    those don't drift between flavors.
+    One instance per ``eval()`` call. Runs uvicorn as an asyncio task
+    on the caller's anyio loop; tears down when the enclosing
+    ``async with`` exits.
     """
 
-    def __init__(self, payload_extra: dict[str, Any]) -> None:
-        self._payload_extra = payload_extra
+    def __init__(self, *, run_id: str) -> None:
+        self._run_id = run_id
         self._started_at = time.time()
         self._socket_path: Path | None = None
         self._discovery_path: Path | None = None
         self._uvicorn_server: Any = None
+        self._serve_task: asyncio.Task[None] | None = None
         # Signaled by ``POST /shutdown``. Used by keep-alive to know
-        # when the operator (or an agent) wants to release the
-        # lingering process. ``threading.Event`` (not asyncio.Event)
-        # so both the per-eval async waiter and the eval-set sync
-        # waiter can listen on the same primitive.
+        # when the operator (or an agent) wants the lingering process
+        # to exit. ``threading.Event`` so :func:`wait_for_shutdown_async`
+        # can park on it via ``anyio.to_thread.run_sync`` without
+        # blocking the eval loop.
         self._shutdown_event = threading.Event()
 
     @property
@@ -178,23 +143,13 @@ class _ControlServerBase:
 
         @app.post("/shutdown")
         async def shutdown() -> dict[str, bool]:
-            # Operator-requested release of a keep-alive process.
-            # Setting the event unblocks waiters in eval/eval_set
-            # (see :func:`wait_for_shutdown`). No-op if no caller is
-            # actually waiting — the process just exits when the eval
-            # body returns naturally.
             shutdown_event.set()
             return {"ok": True}
 
         return app
 
-    async def _bind_and_publish(self) -> asyncio.Task[None]:
-        """Bind uvicorn, wait for started, chmod, publish discovery file.
-
-        Runs on the current event loop. Returns the serve task so the
-        caller can either leave it running (per-eval async variant) or
-        await it (threaded variant).
-        """
+    async def start(self) -> None:
+        """Bind the AF_UNIX socket, write the discovery file, start serving."""
         import uvicorn
 
         # Lock dir to 0700 + sweep stale entries.
@@ -224,8 +179,9 @@ class _ControlServerBase:
 
         self._socket_path = socket_path
         self._uvicorn_server = server
-
-        serve_task = asyncio.create_task(server.serve(), name="inspect-ctl-server")
+        self._serve_task = asyncio.create_task(
+            server.serve(), name="inspect-ctl-server"
+        )
 
         # Wait until uvicorn reports started so the discovery file is
         # only published after the socket is actually accepting.
@@ -250,63 +206,17 @@ class _ControlServerBase:
             os.getpid(),
             {
                 "pid": os.getpid(),
+                "run_id": self._run_id,
                 "socket_path": str(socket_path),
                 "started_at": self._started_at,
-                **self._payload_extra,
             },
         )
-
-        return serve_task
-
-    def _request_shutdown(self) -> None:
-        """Flip uvicorn's ``should_exit`` flag.
-
-        Cross-thread callers must run this on the worker loop via
-        :meth:`asyncio.AbstractEventLoop.call_soon_threadsafe`.
-        """
-        if self._uvicorn_server is not None:
-            self._uvicorn_server.should_exit = True
-
-    def _cleanup_files(self) -> None:
-        """Remove the discovery JSON + AF_UNIX socket node. Best-effort."""
-        if self._discovery_path is not None:
-            try:
-                self._discovery_path.unlink(missing_ok=True)
-            except OSError:
-                pass
-        if self._socket_path is not None:
-            try:
-                self._socket_path.unlink(missing_ok=True)
-            except OSError:
-                pass
-
-
-# ---------------------------------------------------------------------------
-# Per-eval control server (async, runs on caller's loop)
-# ---------------------------------------------------------------------------
-
-
-class ControlServer(_ControlServerBase):
-    """Control server with one-``eval()``-call lifetime.
-
-    Runs uvicorn as a task on the caller's anyio loop. When the
-    enclosing ``async with`` exits, we flip ``should_exit`` and await
-    the serve task to drain.
-    """
-
-    def __init__(self, *, run_id: str) -> None:
-        super().__init__(payload_extra={"run_id": run_id})
-        self._run_id = run_id
-        self._serve_task: asyncio.Task[None] | None = None
-
-    async def start(self) -> None:
-        """Bind + publish; leave serve task running."""
-        self._serve_task = await self._bind_and_publish()
 
     async def stop(self) -> None:
         """Signal shutdown, await drain, remove discovery files."""
         try:
-            self._request_shutdown()
+            if self._uvicorn_server is not None:
+                self._uvicorn_server.should_exit = True
             if self._serve_task is not None and not self._serve_task.done():
                 try:
                     await asyncio.wait_for(self._serve_task, timeout=5.0)
@@ -319,7 +229,16 @@ class ControlServer(_ControlServerBase):
                 except (asyncio.CancelledError, Exception):
                     pass
         finally:
-            self._cleanup_files()
+            if self._discovery_path is not None:
+                try:
+                    self._discovery_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            if self._socket_path is not None:
+                try:
+                    self._socket_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
 
 @asynccontextmanager
@@ -336,19 +255,8 @@ async def control_server(
     Bind failures are logged and swallowed — yields ``None`` and the
     eval runs without the control surface. Eval correctness never
     depends on the control channel coming up.
-
-    Also yields ``None`` (without binding) when an outer scope —
-    typically :func:`control_server_for_eval_set` for an eval-set
-    spanning retries — has already opened a control server in this
-    process. The PID-keyed socket path can only host one server at a
-    time.
     """
     if not enabled:
-        yield None
-        return
-
-    if _outer_scope_owns_server():
-        # Outer (eval-set) scope owns the socket; bind nothing.
         yield None
         return
 
@@ -374,161 +282,20 @@ async def control_server(
 
 
 # ---------------------------------------------------------------------------
-# Eval-set-scoped control server (threaded, own loop)
+# Keep-alive wait helper
 # ---------------------------------------------------------------------------
 
 
-class ThreadedControlServer(_ControlServerBase):
-    """Control server with eval-set lifetime.
-
-    Runs uvicorn in a daemon thread with its own asyncio event loop.
-    Outlives the multiple per-attempt ``eval()`` calls inside an
-    eval-set, each of which spins up its own anyio loop and would
-    otherwise tear the per-eval server down between attempts.
-
-    Lifecycle is sync (:meth:`start` / :meth:`stop`) so it composes
-    with eval-set's synchronous body + tenacity retries without
-    forcing the caller to be async.
-    """
-
-    def __init__(self, *, eval_set_id: str | None = None) -> None:
-        super().__init__(payload_extra={"eval_set_id": eval_set_id})
-        self._eval_set_id = eval_set_id
-        self._thread: threading.Thread | None = None
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._ready = threading.Event()
-        self._error: BaseException | None = None
-
-    def _thread_main(self) -> None:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        self._loop = loop
-        try:
-            loop.run_until_complete(self._async_lifecycle())
-        except BaseException as exc:
-            self._error = exc
-            # Unblock the spawning thread even on failure so start()
-            # raises rather than hanging.
-            self._ready.set()
-        finally:
-            try:
-                loop.close()
-            except Exception:
-                pass
-
-    async def _async_lifecycle(self) -> None:
-        serve_task = await self._bind_and_publish()
-        # Signal the spawning thread before blocking on serve.
-        self._ready.set()
-        await serve_task
-
-    def start(self) -> None:
-        """Spawn the worker thread and wait until the server is bound."""
-        self._thread = threading.Thread(
-            target=self._thread_main,
-            name="inspect-ctl-server",
-            daemon=True,
-        )
-        self._thread.start()
-        if not self._ready.wait(timeout=10.0):
-            raise RuntimeError("Control server didn't become ready within 10s")
-        if self._error is not None:
-            raise RuntimeError(
-                f"Control server thread failed: {self._error!r}"
-            ) from self._error
-
-    def stop(self) -> None:
-        """Signal shutdown across the thread boundary, join, cleanup."""
-        try:
-            if self._uvicorn_server is not None and self._loop is not None:
-                # Flip should_exit on the worker thread's loop (we
-                # can't touch the uvicorn server state from this
-                # thread directly).
-                try:
-                    self._loop.call_soon_threadsafe(self._request_shutdown)
-                except RuntimeError:
-                    # Loop already closed — worker thread already exited.
-                    pass
-            if self._thread is not None:
-                self._thread.join(timeout=10.0)
-        finally:
-            self._cleanup_files()
-
-
-@contextmanager
-def control_server_for_eval_set(
-    *,
-    eval_set_id: str | None = None,
-    enabled: bool = True,
-) -> Iterator[ThreadedControlServer | None]:
-    """Sync context manager: control server scoped to one eval-set.
-
-    Opens a daemon-thread uvicorn server before the eval-set body
-    runs (including all tenacity retries), tears it down on exit.
-    Sets the outer-scope marker so nested per-eval ``control_server``
-    invocations skip their own bind.
-
-    Default-on with graceful degradation: bind failures log a warning
-    and yield ``None`` (the eval-set runs normally; only the control
-    surface is missing).
-    """
-    if not enabled:
-        yield None
-        return
-
-    server = ThreadedControlServer(eval_set_id=eval_set_id)
-    try:
-        server.start()
-    except Exception as exc:
-        logger.warning(
-            "Control server (eval-set) failed to start (eval-set will "
-            "run without control surface): %s",
-            exc,
-        )
-        yield None
-        return
-
-    # Mark the outer scope as owning the server BEFORE yielding so any
-    # nested eval() that opens control_server() detects it and skips.
-    _set_outer_scope_owns_server(True)
-    try:
-        yield server
-    finally:
-        _set_outer_scope_owns_server(False)
-        with contextlib.suppress(Exception):
-            server.stop()
-
-
-# ---------------------------------------------------------------------------
-# Keep-alive wait helpers
-# ---------------------------------------------------------------------------
-
-
-def wait_for_shutdown_sync(server: _ControlServerBase | None) -> None:
-    """Block (sync) until the server receives ``POST /shutdown``.
+async def wait_for_shutdown_async(server: ControlServer | None) -> None:
+    """Block until the server receives ``POST /shutdown``.
 
     No-ops when ``server`` is ``None`` (bind failed; the eval ran
-    without a control surface — nothing to wait on). Used by
-    :func:`eval_set` for keep-alive mode.
-
-    Ctrl+C (KeyboardInterrupt) is *not* caught here — letting it
-    propagate runs the surrounding ``with`` / ``finally`` cleanup
-    (clear EvalStates, stop server, unlink files) on the way out,
-    which is exactly the teardown we want. Suppressing it would just
-    hide the signal from any outer code that might care.
-    """
-    if server is None:
-        return
-    server.shutdown_event.wait()
-
-
-async def wait_for_shutdown_async(server: _ControlServerBase | None) -> None:
-    """Block (async) until the server receives ``POST /shutdown``.
+    without a control surface — nothing to wait on).
 
     Bridges the threading.Event to the caller's async loop via a
     worker thread so we don't pin the event loop in a blocking wait.
-    Ctrl+C handling: same as :func:`wait_for_shutdown_sync` — let it
-    propagate so the eval-set / eval teardown runs naturally.
+    Ctrl+C (KeyboardInterrupt) propagates naturally — the eval's
+    ``async with`` / ``finally`` cleanup runs on the way out.
     """
     if server is None:
         return

@@ -8,7 +8,7 @@ even when several share a parent process (the eval-set lifecycle).
 import tempfile
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import anyio
@@ -60,7 +60,7 @@ def short_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
             pass
 
 
-def _wait_until(predicate: callable, timeout: float = 30.0) -> bool:
+def _wait_until(predicate: Callable[[], bool], timeout: float = 30.0) -> bool:
     """Poll ``predicate`` until it returns truthy or ``timeout`` elapses.
 
     Cooperative wait (50ms tick) — used in lieu of a fixed sleep so the
@@ -93,10 +93,7 @@ def test_ctl_ls_lists_each_eval_in_an_eval_set(short_data_dir: Path) -> None:
 
     @solver
     def hanging_solver() -> Solver:
-        async def solve(state: TaskState, generate) -> TaskState:  # type: ignore[no-untyped-def]
-            # Cooperative wait — yields the eval's event loop so the
-            # sample registers as in-flight, but doesn't complete
-            # until the test releases us.
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
             while not release.is_set():
                 await anyio.sleep(0.05)
             return state
@@ -507,28 +504,31 @@ def test_ctl_ls_shows_reused_logs_as_completed(short_data_dir: Path) -> None:
     """Pre-existing successful eval logs should appear in ``ctl ls``.
 
     When ``eval_set()`` is re-invoked over a log_dir that already
-    contains successful logs for the requested tasks, those tasks are
-    NOT re-run — their logs are reused as-is (see ``try_eval`` in
-    ``evalset.py``; the early-return at the "no tasks to run" branch).
+    contains successful logs for some of the requested tasks, those
+    tasks are NOT re-run — their logs are reused as-is. The remaining
+    fresh tasks run through ``eval()`` normally, bringing up the
+    control server.
 
-    For an agent driving an eval-set with ``--keep-alive``, this
-    creates a confusing gap: the second invocation reports success
-    and parks the process, but ``inspect ctl ls`` shows zero entries
-    because the reused tasks never went through ``task_run.py`` (and
-    so never called ``register_eval``). The agent has no way to see
-    "yes, these tasks are present and complete" from the control
-    surface — only by reading the log files separately.
+    Without ``_register_reused_logs`` (the synthetic ``EvalState``
+    publication path), the agent has no way to see "yes, these reused
+    tasks are present and complete" via the control surface during
+    the keep-alive park — only by reading the log files separately.
 
     This test:
 
     1. Runs eval_set once with two tasks. Both succeed; logs persist.
-    2. Runs eval_set again over the same log_dir + tasks (so the
-       second invocation reuses both logs) with ``keep_alive=True``.
-    3. Asserts ``inspect ctl ls`` shows both reused evals as
-       ``status="completed"`` with matching task names.
+    2. Runs eval_set again over the same log_dir with three tasks —
+       the original two plus a fresh ``task_c`` — under
+       ``keep_alive=True``. ``task_c`` triggers a real ``eval()``
+       call (which brings up the control server); ``task_a`` and
+       ``task_b`` are reused.
+    3. Asserts ``inspect ctl ls`` shows all three evals as
+       ``status="completed"`` with matching task names during the
+       keep-alive park.
 
-    Currently RED — failing exposes the bug. See "Proposed fix"
-    block at the end of this file for the recommended change.
+    Aligns with the per-``eval()`` control-server lifecycle: the
+    all-reused-only case is out of scope (no ``eval()`` call → no
+    server to host the surface).
     """
 
     @task
@@ -547,10 +547,18 @@ def test_ctl_ls_shows_reused_logs_as_completed(short_data_dir: Path) -> None:
             name="task_b",
         )
 
+    @task
+    def task_c() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[generate()],
+            name="task_c",
+        )
+
     log_dir = str(short_data_dir / "logs")
     Path(log_dir).mkdir()
 
-    # 1. Prime the log_dir with successful logs (no keep-alive).
+    # 1. Prime the log_dir with successful logs for task_a + task_b.
     ok_first, logs_first = eval_set(
         tasks=[task_a(), task_b()],
         log_dir=log_dir,
@@ -560,13 +568,13 @@ def test_ctl_ls_shows_reused_logs_as_completed(short_data_dir: Path) -> None:
     assert ok_first, f"first eval_set didn't succeed: logs={logs_first}"
     assert len(logs_first) == 2
 
-    # 2. Re-run with keep-alive — both tasks should be reused.
+    # 2. Re-run with keep-alive — task_a + task_b reused, task_c fresh.
     result_ref: dict[str, object] = {}
 
     def run_second_eval_set() -> None:
         try:
             ok, _logs = eval_set(
-                tasks=[task_a(), task_b()],
+                tasks=[task_a(), task_b(), task_c()],
                 log_dir=log_dir,
                 model="mockllm/model",
                 retry_attempts=0,
@@ -581,9 +589,9 @@ def test_ctl_ls_shows_reused_logs_as_completed(short_data_dir: Path) -> None:
     try:
         # Wait until the control server is up AND the eval-set body
         # has registered its reused logs (which happens inside
-        # try_eval, AFTER the server binds but BEFORE the keep-alive
-        # park). Without this composite predicate we'd race the
-        # body and query an empty registry.
+        # try_eval, AFTER the server binds but BEFORE task_c finishes
+        # and the keep-alive park begins). Without this composite
+        # predicate we'd race the body and query an empty registry.
         def _ready() -> bool:
             servers = list_discovered_servers()
             if not servers:
@@ -597,20 +605,20 @@ def test_ctl_ls_shows_reused_logs_as_completed(short_data_dir: Path) -> None:
                 ) as client:
                     response = client.get("/evals")
                     response.raise_for_status()
-                    return len(response.json()) >= 2
+                    return len(response.json()) >= 3
             except (httpx.HTTPError, OSError):
                 return False
 
         ready = _wait_until(_ready)
         assert ready, (
-            "control server didn't surface the 2 reused evals; "
+            "control server didn't surface all 3 evals (2 reused + 1 fresh); "
             f"error={result_ref.get('error')}"
         )
 
         servers = list_discovered_servers()
         assert len(servers) == 1
 
-        # 3. ls should show both reused evals as completed.
+        # 3. ls should show all three evals as completed.
         transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
         with httpx.Client(
             transport=transport, base_url="http://localhost", timeout=5.0
@@ -620,14 +628,14 @@ def test_ctl_ls_shows_reused_logs_as_completed(short_data_dir: Path) -> None:
             entries = response.json()
 
         task_names = sorted(e["task"] for e in entries)
-        assert task_names == ["task_a", "task_b"], (
-            f"expected both reused tasks in ls; got tasks={task_names}, "
+        assert task_names == ["task_a", "task_b", "task_c"], (
+            f"expected reused + fresh tasks in ls; got tasks={task_names}, "
             f"full response={entries}"
         )
         for entry in entries:
             assert entry["status"] == "completed", (
-                f"reused task {entry['task']!r} should be 'completed'; "
-                f"got status={entry['status']!r}"
+                f"task {entry['task']!r} should be 'completed' during "
+                f"keep-alive park; got status={entry['status']!r}"
             )
             assert entry["completed_at"] is not None
     finally:
@@ -763,3 +771,40 @@ def test_ctl_ls_server_survives_eval_set_retries(short_data_dir: Path) -> None:
         err = result_ref.get("error")
         if err is not None:
             raise err  # type: ignore[misc]
+
+
+def test_keep_alive_with_retry_immediate_false_is_rejected(
+    short_data_dir: Path,
+) -> None:
+    """``keep_alive=True`` + ``retry_immediate=False`` should raise PrerequisiteError.
+
+    Pins the architectural decision documented in
+    ``design/control-channel.md`` ("Server lifecycle aligned with
+    eval()"): the control server lives for one ``eval()`` call.
+    ``retry_immediate=False`` (legacy batch-retry mode) makes
+    multiple ``eval()`` calls via tenacity, each with its own
+    short-lived server — there's no single place to host the
+    keep-alive park, so the combination is refused at startup.
+    """
+    from inspect_ai._util.error import PrerequisiteError
+
+    @task
+    def task_quick() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[generate()],
+            name="task_quick",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    with pytest.raises(PrerequisiteError, match="--keep-alive is incompatible"):
+        eval_set(
+            tasks=[task_quick()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            retry_immediate=False,
+            keep_alive=True,
+        )

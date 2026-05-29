@@ -13,13 +13,7 @@ from inspect_ai._control.eval_state import (
     clear_all_eval_states as _clear_all_eval_states,
 )
 from inspect_ai._control.server import (
-    _outer_scope_owns_server,
-)
-from inspect_ai._control.server import (
     control_server as _control_server,
-)
-from inspect_ai._control.server import (
-    keep_alive_active as _keep_alive_active,
 )
 from inspect_ai._control.server import (
     set_keep_alive_active as _set_keep_alive_active,
@@ -902,21 +896,19 @@ async def _eval_async_inner(
         # TUIs, and agents. Bind failures are logged and swallowed —
         # eval correctness never depends on the control channel coming
         # up. See design/control-channel.md "Implementation notes".
-        # If keep_alive is requested AND we're the outermost scope
-        # (no eval-set above us), enable the process-level flag so
-        # task_run.py's teardown skips its per-eval unregister and
-        # the EvalState stays visible in ``inspect ctl ls`` after the
-        # eval body completes. Nested eval() calls inside an eval-set
-        # rely on the eval-set's own flag-management.
+        # If keep_alive is requested, enable the process-level flag so
+        # task_run.py's teardown skips its per-eval unregister and the
+        # EvalState stays visible in ``inspect ctl ls`` after the eval
+        # body completes. Eval-set with retry_immediate=True forwards
+        # its own keep_alive=True down to this single eval() call;
+        # retry_immediate=False is rejected at eval-set startup before
+        # we get here.
         #
         # On normal exit we clear the flag + EvalStates explicitly
         # below. On exception, the flag survives but the process is
         # about to die anyway (process-level state evaporates with
         # the process), so we accept the leak.
-        _keep_alive_owned_here = (
-            keep_alive and not _outer_scope_owns_server() and not _keep_alive_active()
-        )
-        if _keep_alive_owned_here:
+        if keep_alive:
             _set_keep_alive_active(True)
 
         async with (
@@ -987,18 +979,14 @@ async def _eval_async_inner(
                     )
                     logs = EvalLogs(results)
 
-            # Keep-alive: block here until an external client POSTs
-            # /shutdown (or runs `inspect ctl shutdown`). Only the
-            # outermost scope waits — see the flag setup at the top
-            # of the async-with block.
-            if _keep_alive_owned_here and _ctl_server is not None:
+            if keep_alive and _ctl_server is not None:
                 log.info(
                     "Eval finished. Keeping process alive — press Ctrl+C "
                     "or run `inspect ctl shutdown` to release."
                 )
                 await _wait_for_shutdown_async(_ctl_server)
 
-        if _keep_alive_owned_here:
+        if keep_alive:
             _set_keep_alive_active(False)
             _clear_all_eval_states()
 
