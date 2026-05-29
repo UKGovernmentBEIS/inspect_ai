@@ -46,7 +46,10 @@ from inspect_ai.agent._as_solver import as_solver
 from inspect_ai.approval._policy import ApprovalPolicy, ApprovalPolicyConfig
 from inspect_ai.log import EvalLog
 from inspect_ai.log._bundle import bundle_log_dir, embed_log_dir
-from inspect_ai.log._eval_state import clear_all_eval_states
+from inspect_ai.log._eval_state import (
+    clear_all_eval_states,
+    register_completed_eval,
+)
 from inspect_ai.log._file import (
     EvalLogInfo,
     ReadEvalLogsProgress,
@@ -602,6 +605,8 @@ def eval_set(
             ]
             tasks_to_run = combined_tasks
 
+            _register_reused_logs(success_logs)
+
             if not tasks_to_run:
                 return [log.header for log in success_logs]
 
@@ -671,8 +676,8 @@ def eval_set(
         # on its own timeline.
         if keep_alive and ctl_server is not None:
             console.print(
-                "Eval-set finished. Keeping process alive — run "
-                "`inspect ctl shutdown` (or POST /shutdown) to release."
+                "Eval-set finished. Keeping process alive — press Ctrl+C "
+                "or run `inspect ctl shutdown` to release."
             )
             wait_for_shutdown_sync(ctl_server)
 
@@ -735,6 +740,66 @@ def _embed_viewer(log_dir: str, interval: float = 30) -> Iterator[None]:
     finally:
         stop_event.set()
         write_log_listing(log_dir)
+
+
+def _register_reused_logs(success_logs: list[Log]) -> None:
+    """Publish synthetic :class:`EvalState`s for reused successful logs.
+
+    Reused tasks bypass ``task_run.py`` (their results are read from
+    disk rather than re-computed), so the per-task ``register_eval``
+    that normally publishes state never fires for them. Without an
+    explicit registration here, ``inspect ctl ls`` would show zero
+    entries for an eval-set whose tasks all came from prior logs —
+    confusing for an agent driving an eval-set under ``--keep-alive``
+    that expects to see what the eval-set returned.
+
+    Best-effort: a malformed / partial header (missing results,
+    missing fields) is skipped rather than failing the eval-set.
+    """
+    from inspect_ai._util.dateutil import datetime_from_iso_format_safe
+
+    for log_entry in success_logs:
+        try:
+            header = log_entry.header
+            eval_spec = header.eval
+            results = header.results
+            stats = header.stats
+
+            total = results.total_samples if results is not None else 0
+            completed = results.completed_samples if results is not None else total
+            # success_logs are by definition logs whose final
+            # status was success — no terminal errors. Any
+            # in-attempt sample errors are captured in the log's
+            # error fields but aren't relevant to the high-level
+            # `errored` counter the control endpoint surfaces.
+            errored = 0
+
+            completed_at: float | None = None
+            completed_str = stats.completed_at if stats is not None else ""
+            if completed_str:
+                try:
+                    completed_at = datetime_from_iso_format_safe(
+                        completed_str
+                    ).timestamp()
+                except (ValueError, TypeError):
+                    completed_at = None
+
+            register_completed_eval(
+                eval_spec.eval_id,
+                total=total,
+                completed=completed,
+                errored=errored,
+                task=eval_spec.task,
+                model=str(eval_spec.model) if eval_spec.model else "",
+                run_id=eval_spec.run_id,
+                completed_at=completed_at,
+            )
+        except Exception:
+            logger.debug(
+                "Could not register reused log as completed EvalState",
+                exc_info=True,
+            )
+            continue
 
 
 def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:

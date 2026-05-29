@@ -991,8 +991,8 @@ async def _eval_async_inner(
             # of the async-with block.
             if _keep_alive_owned_here and _ctl_server is not None:
                 log.info(
-                    "Eval finished. Keeping process alive — run "
-                    "`inspect ctl shutdown` (or POST /shutdown) to release."
+                    "Eval finished. Keeping process alive — press Ctrl+C "
+                    "or run `inspect ctl shutdown` to release."
                 )
                 await _wait_for_shutdown_async(_ctl_server)
 

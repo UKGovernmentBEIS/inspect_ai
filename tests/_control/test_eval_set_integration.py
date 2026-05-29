@@ -503,6 +503,153 @@ def _eval_completed() -> bool:
 
 
 @pytest.mark.slow
+def test_ctl_ls_shows_reused_logs_as_completed(short_data_dir: Path) -> None:
+    """Pre-existing successful eval logs should appear in ``ctl ls``.
+
+    When ``eval_set()`` is re-invoked over a log_dir that already
+    contains successful logs for the requested tasks, those tasks are
+    NOT re-run — their logs are reused as-is (see ``try_eval`` in
+    ``evalset.py``; the early-return at the "no tasks to run" branch).
+
+    For an agent driving an eval-set with ``--keep-alive``, this
+    creates a confusing gap: the second invocation reports success
+    and parks the process, but ``inspect ctl ls`` shows zero entries
+    because the reused tasks never went through ``task_run.py`` (and
+    so never called ``register_eval``). The agent has no way to see
+    "yes, these tasks are present and complete" from the control
+    surface — only by reading the log files separately.
+
+    This test:
+
+    1. Runs eval_set once with two tasks. Both succeed; logs persist.
+    2. Runs eval_set again over the same log_dir + tasks (so the
+       second invocation reuses both logs) with ``keep_alive=True``.
+    3. Asserts ``inspect ctl ls`` shows both reused evals as
+       ``status="completed"`` with matching task names.
+
+    Currently RED — failing exposes the bug. See "Proposed fix"
+    block at the end of this file for the recommended change.
+    """
+
+    @task
+    def task_a() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[generate()],
+            name="task_a",
+        )
+
+    @task
+    def task_b() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[generate()],
+            name="task_b",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    # 1. Prime the log_dir with successful logs (no keep-alive).
+    ok_first, logs_first = eval_set(
+        tasks=[task_a(), task_b()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=0,
+    )
+    assert ok_first, f"first eval_set didn't succeed: logs={logs_first}"
+    assert len(logs_first) == 2
+
+    # 2. Re-run with keep-alive — both tasks should be reused.
+    result_ref: dict[str, object] = {}
+
+    def run_second_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_a(), task_b()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                keep_alive=True,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_second_eval_set, name="eval_set_reuse")
+    thread.start()
+    try:
+        # Wait until the control server is up AND the eval-set body
+        # has registered its reused logs (which happens inside
+        # try_eval, AFTER the server binds but BEFORE the keep-alive
+        # park). Without this composite predicate we'd race the
+        # body and query an empty registry.
+        def _ready() -> bool:
+            servers = list_discovered_servers()
+            if not servers:
+                return False
+            try:
+                transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+                with httpx.Client(
+                    transport=transport,
+                    base_url="http://localhost",
+                    timeout=1.0,
+                ) as client:
+                    response = client.get("/evals")
+                    response.raise_for_status()
+                    return len(response.json()) >= 2
+            except (httpx.HTTPError, OSError):
+                return False
+
+        ready = _wait_until(_ready)
+        assert ready, (
+            "control server didn't surface the 2 reused evals; "
+            f"error={result_ref.get('error')}"
+        )
+
+        servers = list_discovered_servers()
+        assert len(servers) == 1
+
+        # 3. ls should show both reused evals as completed.
+        transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            response = client.get("/evals")
+            response.raise_for_status()
+            entries = response.json()
+
+        task_names = sorted(e["task"] for e in entries)
+        assert task_names == ["task_a", "task_b"], (
+            f"expected both reused tasks in ls; got tasks={task_names}, "
+            f"full response={entries}"
+        )
+        for entry in entries:
+            assert entry["status"] == "completed", (
+                f"reused task {entry['task']!r} should be 'completed'; "
+                f"got status={entry['status']!r}"
+            )
+            assert entry["completed_at"] is not None
+    finally:
+        # Tear down the keep-alive process.
+        servers = list_discovered_servers()
+        if servers:
+            try:
+                transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+                with httpx.Client(
+                    transport=transport, base_url="http://localhost", timeout=2.0
+                ) as client:
+                    client.post("/shutdown")
+            except Exception:
+                pass
+        thread.join(timeout=30.0)
+        assert not thread.is_alive(), "eval_set thread didn't exit"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
 def test_ctl_ls_server_survives_eval_set_retries(short_data_dir: Path) -> None:
     """The control server stays bound across an eval-set's retry attempts.
 

@@ -15,6 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Types**: Strict typing is required. All functions must have type annotations
 - **Naming**: Use snake_case for variables, functions, methods; PascalCase for classes
 - **Docstrings**: Google-style docstrings required for public APIs
+- **Comments at call sites**: Don't describe what a function does at the call site — the function's name and docstring already document that, and the comment will drift if the function evolves. Document rationale in the function's docstring instead. A call-site comment is appropriate only when the *reason this caller specifically invokes it* isn't obvious from surrounding context (eg. an unusual ordering constraint, a workaround for a known bug in this code path). When in doubt, write the docstring and leave the call site uncommented.
 - **Error Handling**: Use appropriate exception types; include context in error messages
 - **Testing**: Write tests with pytest; maintain high coverage. See "Testing Async Code" below for async test conventions.
 

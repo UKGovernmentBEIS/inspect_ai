@@ -510,6 +510,12 @@ def wait_for_shutdown_sync(server: _ControlServerBase | None) -> None:
     No-ops when ``server`` is ``None`` (bind failed; the eval ran
     without a control surface — nothing to wait on). Used by
     :func:`eval_set` for keep-alive mode.
+
+    Ctrl+C (KeyboardInterrupt) is *not* caught here — letting it
+    propagate runs the surrounding ``with`` / ``finally`` cleanup
+    (clear EvalStates, stop server, unlink files) on the way out,
+    which is exactly the teardown we want. Suppressing it would just
+    hide the signal from any outer code that might care.
     """
     if server is None:
         return
@@ -521,6 +527,8 @@ async def wait_for_shutdown_async(server: _ControlServerBase | None) -> None:
 
     Bridges the threading.Event to the caller's async loop via a
     worker thread so we don't pin the event loop in a blocking wait.
+    Ctrl+C handling: same as :func:`wait_for_shutdown_sync` — let it
+    propagate so the eval-set / eval teardown runs naturally.
     """
     if server is None:
         return

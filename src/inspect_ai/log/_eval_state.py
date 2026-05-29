@@ -117,6 +117,46 @@ def unregister_eval(eval_id: str) -> None:
         _eval_states.pop(eval_id, None)
 
 
+def register_completed_eval(
+    eval_id: str,
+    *,
+    total: int,
+    completed: int,
+    errored: int = 0,
+    task: str = "",
+    model: str = "",
+    run_id: str | None = None,
+    completed_at: float | None = None,
+) -> EvalState:
+    """Register an eval that has already finished.
+
+    Used by ``eval_set`` to publish synthetic state for tasks whose
+    successful logs were reused from a prior run — those tasks never
+    enter ``task_run.py``, so the per-sample counter path that would
+    normally maintain the state never fires. This bulk-equivalent
+    sets the terminal counters up-front so ``current_eval_summaries``
+    surfaces the eval as completed.
+
+    If an :class:`EvalState` for ``eval_id`` already exists, its
+    fields are overwritten (the reused-log data is authoritative —
+    we never reuse an eval that's also actively running).
+    ``completed_at`` defaults to "now" when not supplied.
+    """
+    with _lock:
+        state = EvalState(
+            eval_id=eval_id,
+            total=total,
+            completed=completed,
+            errored=errored,
+            task=task,
+            model=model,
+            run_id=run_id,
+            completed_at=completed_at if completed_at is not None else time.time(),
+        )
+        _eval_states[eval_id] = state
+        return state
+
+
 def record_sample_completed(eval_id: str) -> None:
     """Mark a sample as having finished successfully.
 
