@@ -1,6 +1,6 @@
 import contextvars
-import logging
 from typing import Sequence
+from unittest.mock import patch
 
 import pytest
 from test_helpers.transcript import FakeTranscriptHistoryProvider
@@ -634,17 +634,13 @@ def test_transcript_subscriber_exception_does_not_skip_processing(
     transcript._subscribe(received.append)
     event = _model_event_with_call_payload("event-1", "large payload" * 100)
 
-    transcript_logger = logging.getLogger("inspect_ai.log._transcript")
-    caplog.set_level(logging.WARNING, logger="inspect_ai.log._transcript")
-    original_propagate = transcript_logger.propagate
-    transcript_logger.propagate = True
-    try:
+    with patch("inspect_ai.log._transcript.logger.warning") as warning:
         transcript._event(event)
-    finally:
-        transcript_logger.propagate = original_propagate
 
     assert received == [event]
-    assert "Transcript subscriber failed" in caplog.text
+    warning.assert_called_once()
+    assert warning.call_args.args[0] == "Transcript subscriber failed"
+    assert warning.call_args.kwargs["exc_info"] is True
     assert event.call is not None
     messages = event.call.request["messages"]
     assert isinstance(messages, list)

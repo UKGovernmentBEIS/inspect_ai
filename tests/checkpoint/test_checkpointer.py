@@ -1015,28 +1015,31 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
     init_transcript(Transcript(bounded=False))
     cp = _EnteredCheckpointer(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
-        hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
+        hydration=_fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "context")),
         resume_checkpoint=None,
         reset_transcript_store=True,
     )
-    for event in fire1_events:
-        cp._track_transcript_event(event)
-    await cp._write_host_context(str(work), Store())
-    pool_after_1 = json.loads((work / "events_data.json").read_text())["messages"]
-    events_after_1 = json.loads((work / "events.json").read_text())
-    assert len(pool_after_1) == 3  # sys, u1, a1
-    assert len(events_after_1) == 2
+    try:
+        for event in fire1_events:
+            cp._track_transcript_event(event)
+        await cp._write_host_context(str(work), Store())
+        pool_after_1 = json.loads((work / "events_data.json").read_text())["messages"]
+        events_after_1 = json.loads((work / "events.json").read_text())
+        assert len(pool_after_1) == 3  # sys, u1, a1
+        assert len(events_after_1) == 2
 
-    for event in fire2_events:
-        cp._track_transcript_event(event)
-    await cp._write_host_context(str(work), Store())
-    pool_after_2 = json.loads((work / "events_data.json").read_text())["messages"]
-    events_after_2 = json.loads((work / "events.json").read_text())
-    # Append-only: pool grew by exactly one (u2); first 3 entries unchanged.
-    assert pool_after_2[:3] == pool_after_1
-    assert len(pool_after_2) == 4
-    assert events_after_2[:2] == events_after_1
-    assert len(events_after_2) == 3
+        for event in fire2_events:
+            cp._track_transcript_event(event)
+        await cp._write_host_context(str(work), Store())
+        pool_after_2 = json.loads((work / "events_data.json").read_text())["messages"]
+        events_after_2 = json.loads((work / "events.json").read_text())
+        # Append-only: pool grew by exactly one (u2); first 3 entries unchanged.
+        assert pool_after_2[:3] == pool_after_1
+        assert len(pool_after_2) == 4
+        assert events_after_2[:2] == events_after_1
+        assert len(events_after_2) == 3
+    finally:
+        cp.close()
 
     # Full round-trip still works on the cumulative output.
     expanded = expand_events(
