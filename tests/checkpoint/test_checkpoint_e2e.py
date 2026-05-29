@@ -178,6 +178,7 @@ def resume_decode_task() -> Task:
 
 
 @skip_if_no_docker
+@pytest.mark.slow
 def test_checkpoint_resume_runs_to_completion(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
