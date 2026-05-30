@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.230 (30 May 2026)
 
 - Deep Agent: Support for running subagents in the background.
 - Deep Agent: `agent` dispatch tool now ships with a tool-call viewer.
