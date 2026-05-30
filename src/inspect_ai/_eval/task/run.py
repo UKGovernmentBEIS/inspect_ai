@@ -23,7 +23,7 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
-from inspect_ai._util._async import tg_collect
+from inspect_ai._util._async import aexit_shielded_when, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import (
@@ -907,9 +907,19 @@ async def task_run_sample(
         init_sample_assistant_internal()
 
         # use sandbox if provided
+        #
+        # The sandbox CM's `__aexit__` is wrapped so its teardown runs shielded
+        # whenever the sample's own cancel was caught upstream (`cancelled_error`
+        # set). Otherwise, the eval-level scope's still-cancelled state would
+        # re-cancel the first await inside `cleanup_sandbox_environments_sample`,
+        # propagating a fresh CancelledError out past the (already shielded)
+        # logging block and dropping the in-flight sample from the eval log.
         sandboxenv_cm = (
-            sandboxenv_context(
-                task_name, sandbox, max_sandboxes, sandbox_cleanup, sample
+            aexit_shielded_when(
+                sandboxenv_context(
+                    task_name, sandbox, max_sandboxes, sandbox_cleanup, sample
+                ),
+                lambda: cancelled_error is not None,
             )
             if sandbox or sample.sandbox is not None
             else contextlib.nullcontext()
@@ -1618,8 +1628,8 @@ def eval_log_sample_source(
     # take care of no log or no samples in log. Note we still proceed when
     # in-memory samples and `eval_log_info` are both absent if a
     # `eval_checkpoints_dir` is available — the prior eval may have been
-    # killed before writing any sample, and on-disk sidecars can still
-    # drive resume detection in `read_from_memory` below.
+    # killed before writing any sample, and on-disk checkpoint files
+    # can still drive resume detection in `read_from_memory` below.
     if not eval_log:
         return no_sample_source
     elif not eval_log.samples and not eval_log_info and not eval_checkpoints_dir:

@@ -643,9 +643,12 @@ def walk_tool_call(
         parse_error=tool_call.parse_error,
         view=tool_call.view.model_copy(
             update=dict(
+                # ToolCallContent.content is a non-optional str (default ""),
+                # so preserve an empty content as "" — nulling it here breaks
+                # readback validation (e.g. title-only lifecycle-tool views).
                 content=content_fn(tool_call.view.content)
-                if tool_call.view and tool_call.view.content
-                else None,
+                if tool_call.view.content
+                else tool_call.view.content,
             )
         )
         if tool_call.view
