@@ -6,6 +6,7 @@
 - Parallel tools: Strengthened agent prompts to encouraging independent tool calls in parallel.
 - Bash tool: Add `background` option to prompt the model to use `nohup` for long-running commands.
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
+- OpenRouter: Always replay `reasoning_content` in addition to `reasoning_details` for Deepseek v4.
 - Scoring: Set `Score.answer` on model_graded parse failure.
 - Task Display: Add column to indicate the agent/solver for each task.
 - Transcript: Various improvements to transcript event subscriber delivery.
