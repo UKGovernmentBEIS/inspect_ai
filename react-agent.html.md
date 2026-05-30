@@ -66,9 +66,11 @@ In the examples above we provide a `prompt` to the agent. This prompt is layered
 DEFAULT_ASSISTANT_PROMPT = """
 You are a helpful assistant attempting to submit the best possible answer.
 You have several tools available to help with finding the answer. You will
-see the result of tool calls right after sending the message. If you need
-to perform multiple actions, you can always send more messages with additional
-tool calls. Do some reasoning before your actions, describing what tool calls
+see the result of tool calls right after sending the message. Prioritize
+parallel tool calls: when operations are independent, run them in one
+response — e.g. reading several files or running several searches at once —
+rather than one at a time. Only sequence calls when one depends on another's
+result. Do some reasoning before your actions, describing what tool calls
 you are going to use and how they fit into your plan.
 
 When you have completed the task and have an answer, call the {submit}()

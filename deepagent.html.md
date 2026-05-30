@@ -2,11 +2,11 @@
 
 ## Overview
 
-The [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) is a batteries-included entry point for long-horizon tasks. It builds on the [ReAct Agent](./react-agent.html.md) with four additions: subagent delegation, persistent memory, structured planning, and an opinionated system prompt that teaches the model when to use each.
+The [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) is a batteries-included entry point for long-horizon tasks. It builds on the [ReAct Agent](./react-agent.html.md) with five additions: subagent delegation, persistent memory, structured planning, an opinionated system prompt that teaches the model when to use each, and optional background dispatch of subagents.
 
 The [react()](./reference/inspect_ai.agent.html.md#react) agent handles short-horizon tasks well, but can degrade in performance under longer horizons, losing context and not reliably decomposing work. The [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) bundles the patterns that address this, drawing from Claude Code, Codex CLI, and other deep agent frameworks:
 
-1.  Subagent delegation. Spawn isolated workers ([research()](./reference/inspect_ai.agent.html.md#research), [plan()](./reference/inspect_ai.agent.html.md#plan), and [general()](./reference/inspect_ai.agent.html.md#general)) with their own context windows. Only their summary returns to the parent.
+1.  Subagent delegation. Spawn isolated workers ([research()](./reference/inspect_ai.agent.html.md#research), [plan()](./reference/inspect_ai.agent.html.md#plan), and [general()](./reference/inspect_ai.agent.html.md#general)) with their own context windows. Only their summary returns to the parent. Optionally run subagents in the background.
 
 2.  Persistent memory. A [memory()](./reference/inspect_ai.tool.html.md#memory) tool for offloading intermediate results out of the message history so they survive context compaction.
 
@@ -271,6 +271,40 @@ Use a stronger model for review — the parent can consult this subagent for a s
 The [subagent()](./reference/inspect_ai.agent.html.md#subagent) factory accepts the same customization parameters as the built-in factories (`model`, `limits`, `memory`, `skills`, `fork`, `compaction`) plus the required `name`, `description`, and `prompt`.
 
 By default, subagents cannot delegate to further subagents (`max_depth=1`). Set `max_depth=2` on [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) to allow one level of nested delegation. Higher values increase token usage and latency; `max_depth=1` is sufficient for most tasks.
+
+### Background Dispatch
+
+By default, subagent dispatch is *synchronous*: when the parent calls the [agent()](./reference/inspect_ai.agent.html.md#agent) tool, it blocks until the subagent returns. Background dispatch lets the parent kick off a subagent and keep working while it runs — useful when the parent has independent work to do, or wants to fan out several long-running investigations at once.
+
+Background processing is disabled by default, enable it with the `background` parameter on [deepagent()](./reference/inspect_ai.agent.html.md#deepagent):
+
+``` python
+from inspect_ai.agent import deepagent
+from inspect_ai.tool import bash, text_editor
+
+deepagent(
+    tools=[bash(), text_editor()],
+    background=True
+)
+```
+
+This enables background processing with the default cap of 8 concurrently running background agents. Pass an integer to set the cap explicitly.
+
+When enabled, the [agent()](./reference/inspect_ai.agent.html.md#agent) tool gains a `background` argument. Calling `agent(subagent_type, prompt, background=True)` returns an `AGENT-N` handle immediately while the subagent runs concurrently. Four lifecycle tools let the parent follow up on a handle:
+
+| Tool | Description |
+|----|----|
+| `agent_status(agent_id)` | Non-blocking peek — status, and for a running agent a brief progress snapshot (elapsed time, message/tool-call counts, latest message); for a finished agent, its result. |
+| `agent_wait(agent_ids, mode, timeout)` | Block until the listed agents finish. `mode="all"` (default) waits for every agent; `mode="any"` returns on the first. On `timeout`, still-running agents are reported honestly. |
+| `agent_cancel(agent_id)` | Terminate a running agent. No-op on an already-finished agent. |
+| `agent_list(status_filter)` | Enumerate all dispatched agents (optionally filtered by status) — useful for recovering handles after a long stretch of work or context compaction. |
+
+The system prompt teaches the model the dispatch discipline: do useful independent work while waiting, prefer a single `agent_wait` over a polling loop of `agent_status` calls, and call `agent_list()` to recover handles if it loses track of them.
+
+Two automatic signals keep the parent aware of its background agents without forcing it to poll:
+
+- Completion notifications: The turn a background agent finishes (or fails), a one-line user message is injected (it is notification-only: the result itself is still fetched on demand).
+- Forgetting backstop: If the agent goes several turns without touching its background agents, a passive reminder is injected — listing what is still running, plus any finished agents whose results are still worth collecting.
 
 ### Fork Mode
 

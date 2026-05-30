@@ -575,6 +575,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul class="collapse">
   <li><a href="#sec-customizing-builtins" id="toc-sec-customizing-builtins" class="nav-link" data-scroll-target="#sec-customizing-builtins">Built-in Subagents</a></li>
   <li><a href="#sec-custom-subagents" id="toc-sec-custom-subagents" class="nav-link" data-scroll-target="#sec-custom-subagents">Custom Subagents</a></li>
+  <li><a href="#sec-background-dispatch" id="toc-sec-background-dispatch" class="nav-link" data-scroll-target="#sec-background-dispatch">Background Dispatch</a></li>
   <li><a href="#sec-fork-mode" id="toc-sec-fork-mode" class="nav-link" data-scroll-target="#sec-fork-mode">Fork Mode</a></li>
   </ul></li>
   <li><a href="#sec-prompt" id="toc-sec-prompt" class="nav-link" data-scroll-target="#sec-prompt">System Prompt</a>
@@ -610,10 +611,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="overview" class="level2">
 <h2 class="anchored" data-anchor-id="overview">Overview</h2>
-<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> is a batteries-included entry point for long-horizon tasks. It builds on the <a href="./react-agent.html">ReAct Agent</a> with four additions: subagent delegation, persistent memory, structured planning, and an opinionated system prompt that teaches the model when to use each.</p>
+<p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> is a batteries-included entry point for long-horizon tasks. It builds on the <a href="./react-agent.html">ReAct Agent</a> with five additions: subagent delegation, persistent memory, structured planning, an opinionated system prompt that teaches the model when to use each, and optional background dispatch of subagents.</p>
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#react">react()</a></span> agent handles short-horizon tasks well, but can degrade in performance under longer horizons, losing context and not reliably decomposing work. The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> bundles the patterns that address this, drawing from Claude Code, Codex CLI, and other deep agent frameworks:</p>
 <ol type="1">
-<li><p>Subagent delegation. Spawn isolated workers (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#research">research()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#plan">plan()</a></span>, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#general">general()</a></span>) with their own context windows. Only their summary returns to the parent.</p></li>
+<li><p>Subagent delegation. Spawn isolated workers (<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#research">research()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#plan">plan()</a></span>, and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#general">general()</a></span>) with their own context windows. Only their summary returns to the parent. Optionally run subagents in the background.</p></li>
 <li><p>Persistent memory. A <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#memory">memory()</a></span> tool for offloading intermediate results out of the message history so they survive context compaction.</p></li>
 <li><p>Structured planning. A <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.tool.html#todo_write">todo_write()</a></span> tool for explicit task decomposition and progress tracking.</p></li>
 <li><p>Opinionated system prompt. Goal-oriented instructions that teach the model to act autonomously, delegate effectively, and verify its work.</p></li>
@@ -921,30 +922,80 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>The <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#subagent">subagent()</a></span> factory accepts the same customization parameters as the built-in factories (<code>model</code>, <code>limits</code>, <code>memory</code>, <code>skills</code>, <code>fork</code>, <code>compaction</code>) plus the required <code>name</code>, <code>description</code>, and <code>prompt</code>.</p>
 <p>By default, subagents cannot delegate to further subagents (<code>max_depth=1</code>). Set <code>max_depth=2</code> on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> to allow one level of nested delegation. Higher values increase token usage and latency; <code>max_depth=1</code> is sufficient for most tasks.</p>
 </section>
+<section id="sec-background-dispatch" class="level3">
+<h3 class="anchored" data-anchor-id="sec-background-dispatch">Background Dispatch</h3>
+<p>By default, subagent dispatch is <em>synchronous</em>: when the parent calls the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">agent()</a></span> tool, it blocks until the subagent returns. Background dispatch lets the parent kick off a subagent and keep working while it runs — useful when the parent has independent work to do, or wants to fan out several long-running investigations at once.</p>
+<p>Background processing is disabled by default, enable it with the <code>background</code> parameter on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> deepagent</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    background<span class="op">=</span><span class="va">True</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This enables background processing with the default cap of 8 concurrently running background agents. Pass an integer to set the cap explicitly.</p>
+<p>When enabled, the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent">agent()</a></span> tool gains a <code>background</code> argument. Calling <code>agent(subagent_type, prompt, background=True)</code> returns an <code>AGENT-N</code> handle immediately while the subagent runs concurrently. Four lifecycle tools let the parent follow up on a handle:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 35%">
+<col style="width: 65%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Tool</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>agent_status(agent_id)</code></td>
+<td>Non-blocking peek — status, and for a running agent a brief progress snapshot (elapsed time, message/tool-call counts, latest message); for a finished agent, its result.</td>
+</tr>
+<tr class="even">
+<td><code>agent_wait(agent_ids, mode, timeout)</code></td>
+<td>Block until the listed agents finish. <code>mode="all"</code> (default) waits for every agent; <code>mode="any"</code> returns on the first. On <code>timeout</code>, still-running agents are reported honestly.</td>
+</tr>
+<tr class="odd">
+<td><code>agent_cancel(agent_id)</code></td>
+<td>Terminate a running agent. No-op on an already-finished agent.</td>
+</tr>
+<tr class="even">
+<td><code>agent_list(status_filter)</code></td>
+<td>Enumerate all dispatched agents (optionally filtered by status) — useful for recovering handles after a long stretch of work or context compaction.</td>
+</tr>
+</tbody>
+</table>
+<p>The system prompt teaches the model the dispatch discipline: do useful independent work while waiting, prefer a single <code>agent_wait</code> over a polling loop of <code>agent_status</code> calls, and call <code>agent_list()</code> to recover handles if it loses track of them.</p>
+<p>Two automatic signals keep the parent aware of its background agents without forcing it to poll:</p>
+<ul>
+<li>Completion notifications: The turn a background agent finishes (or fails), a one-line user message is injected (it is notification-only: the result itself is still fetched on demand).</li>
+<li>Forgetting backstop: If the agent goes several turns without touching its background agents, a passive reminder is injected — listing what is still running, plus any finished agents whose results are still worth collecting.</li>
+</ul>
+</section>
 <section id="sec-fork-mode" class="level3">
 <h3 class="anchored" data-anchor-id="sec-fork-mode">Fork Mode</h3>
 <p>By default, subagents run in isolated context: they start with a fresh message history and only their summary returns to the parent. This is the standard pattern used by Claude Code, LangChain, and Codex CLI, and it prevents context rot in long-running conversations.</p>
 <p>Forked dispatch (<code>fork=True</code>) is an alternative where the subagent inherits the parent’s full conversation history:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-8"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-8-1"><a href="#annotated-cell-8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> deepagent, research, plan, general</span>
-<span id="annotated-cell-8-2"><a href="#annotated-cell-8-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor</span>
-<span id="annotated-cell-8-3"><a href="#annotated-cell-8-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="annotated-cell-8-4"><a href="#annotated-cell-8-4" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
-<span id="annotated-cell-8-5"><a href="#annotated-cell-8-5" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
-<span id="annotated-cell-8-6"><a href="#annotated-cell-8-6" aria-hidden="true" tabindex="-1"></a>    subagents<span class="op">=</span>[</span>
-<span id="annotated-cell-8-7"><a href="#annotated-cell-8-7" aria-hidden="true" tabindex="-1"></a>        research(),</span>
-<span id="annotated-cell-8-8"><a href="#annotated-cell-8-8" aria-hidden="true" tabindex="-1"></a>        plan(),</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-8" data-target-annotation="1">1</button><span id="annotated-cell-8-9" class="code-annotation-target"><a href="#annotated-cell-8-9" aria-hidden="true" tabindex="-1"></a>        general(fork<span class="op">=</span><span class="va">True</span>),</span>
-<span id="annotated-cell-8-10"><a href="#annotated-cell-8-10" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-8" data-target-annotation="2">2</button><span id="annotated-cell-8-11" class="code-annotation-target"><a href="#annotated-cell-8-11" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"anthropic/claude-sonnet-4-6"</span>,</span>
-<span id="annotated-cell-8-12"><a href="#annotated-cell-8-12" aria-hidden="true" tabindex="-1"></a>)</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-9"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-9-1"><a href="#annotated-cell-9-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> deepagent, research, plan, general</span>
+<span id="annotated-cell-9-2"><a href="#annotated-cell-9-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor</span>
+<span id="annotated-cell-9-3"><a href="#annotated-cell-9-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="annotated-cell-9-4"><a href="#annotated-cell-9-4" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
+<span id="annotated-cell-9-5"><a href="#annotated-cell-9-5" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
+<span id="annotated-cell-9-6"><a href="#annotated-cell-9-6" aria-hidden="true" tabindex="-1"></a>    subagents<span class="op">=</span>[</span>
+<span id="annotated-cell-9-7"><a href="#annotated-cell-9-7" aria-hidden="true" tabindex="-1"></a>        research(),</span>
+<span id="annotated-cell-9-8"><a href="#annotated-cell-9-8" aria-hidden="true" tabindex="-1"></a>        plan(),</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-9" data-target-annotation="1">1</button><span id="annotated-cell-9-9" class="code-annotation-target"><a href="#annotated-cell-9-9" aria-hidden="true" tabindex="-1"></a>        general(fork<span class="op">=</span><span class="va">True</span>),</span>
+<span id="annotated-cell-9-10"><a href="#annotated-cell-9-10" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-9" data-target-annotation="2">2</button><span id="annotated-cell-9-11" class="code-annotation-target"><a href="#annotated-cell-9-11" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"anthropic/claude-sonnet-4-6"</span>,</span>
+<span id="annotated-cell-9-12"><a href="#annotated-cell-9-12" aria-hidden="true" tabindex="-1"></a>)</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-8" data-target-annotation="1">1</dt>
+<dt data-target-cell="annotated-cell-9" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-8" data-code-lines="9" data-code-annotation="1">The <code>general</code> subagent inherits the parent’s full message history.</span>
+<span data-code-cell="annotated-cell-9" data-code-lines="9" data-code-annotation="1">The <code>general</code> subagent inherits the parent’s full message history.</span>
 </dd>
-<dt data-target-cell="annotated-cell-8" data-target-annotation="2">2</dt>
+<dt data-target-cell="annotated-cell-9" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-8" data-code-lines="11" data-code-annotation="2">Use the same model for parent and forked subagents.</span>
+<span data-code-cell="annotated-cell-9" data-code-lines="11" data-code-annotation="2">Use the same model for parent and forked subagents.</span>
 </dd>
 </dl>
 <p>Fork mode is useful when the subagent needs substantial background from the parent conversation without re-explanation, and when the parent’s context is still fresh (well under context window limits).</p>
@@ -964,27 +1015,27 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="sec-prompt" class="level2">
 <h2 class="anchored" data-anchor-id="sec-prompt">System Prompt</h2>
 <p>When <code>instructions=</code> is not sufficient, use the <code>prompt=</code> parameter for full system prompt replacement. Named placeholders are expanded at assembly time:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> deepagent</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    prompt<span class="op">=</span><span class="st">"""You are a security assessment agent.</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="sc">{core_behavior}</span></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="sc">{subagent_dispatch}</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="sc">{memory_instructions}</span></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="st">Security-specific rules:</span></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="st">- Prioritize high-severity findings</span></span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="st">- Document evidence for each vulnerability</span></span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="st">- Test remediation before reporting</span></span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="sc">{instructions}</span><span class="st">"""</span>,</span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a>    instructions<span class="op">=</span><span class="st">"Target system runs Ubuntu 22.04."</span>,</span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> deepagent</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.tool <span class="im">import</span> bash, text_editor</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    prompt<span class="op">=</span><span class="st">"""You are a security assessment agent.</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="sc">{core_behavior}</span></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="sc">{subagent_dispatch}</span></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a><span class="sc">{memory_instructions}</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a><span class="st">Security-specific rules:</span></span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a><span class="st">- Prioritize high-severity findings</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a><span class="st">- Document evidence for each vulnerability</span></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="st">- Test remediation before reporting</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a><span class="sc">{instructions}</span><span class="st">"""</span>,</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>    instructions<span class="op">=</span><span class="st">"Target system runs Ubuntu 22.04."</span>,</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Available placeholders:</p>
 <table class="caption-top table">
 <colgroup>
@@ -1020,19 +1071,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="disabling-defaults" class="level3">
 <h3 class="anchored" data-anchor-id="disabling-defaults">Disabling Defaults</h3>
 <p>You can disable the memory and planning tools:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-10"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-10-1"><a href="#annotated-cell-10-1" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
-<span id="annotated-cell-10-2"><a href="#annotated-cell-10-2" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-10" data-target-annotation="1">1</button><span id="annotated-cell-10-3" class="code-annotation-target"><a href="#annotated-cell-10-3" aria-hidden="true" tabindex="-1"></a>    memory<span class="op">=</span><span class="va">False</span>,</span>
-<button class="code-annotation-anchor" data-target-cell="annotated-cell-10" data-target-annotation="2">2</button><span id="annotated-cell-10-4" class="code-annotation-target"><a href="#annotated-cell-10-4" aria-hidden="true" tabindex="-1"></a>    todo_write<span class="op">=</span><span class="va">False</span>,</span>
-<span id="annotated-cell-10-5"><a href="#annotated-cell-10-5" aria-hidden="true" tabindex="-1"></a>)</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="annotated-cell-11"><pre class="sourceCode python code-annotation-code code-with-copy code-annotated"><code class="sourceCode python"><span id="annotated-cell-11-1"><a href="#annotated-cell-11-1" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
+<span id="annotated-cell-11-2"><a href="#annotated-cell-11-2" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-11" data-target-annotation="1">1</button><span id="annotated-cell-11-3" class="code-annotation-target"><a href="#annotated-cell-11-3" aria-hidden="true" tabindex="-1"></a>    memory<span class="op">=</span><span class="va">False</span>,</span>
+<button class="code-annotation-anchor" data-target-cell="annotated-cell-11" data-target-annotation="2">2</button><span id="annotated-cell-11-4" class="code-annotation-target"><a href="#annotated-cell-11-4" aria-hidden="true" tabindex="-1"></a>    todo_write<span class="op">=</span><span class="va">False</span>,</span>
+<span id="annotated-cell-11-5"><a href="#annotated-cell-11-5" aria-hidden="true" tabindex="-1"></a>)</span><div class="code-annotation-gutter-bg"></div><div class="code-annotation-gutter"></div></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl class="code-annotation-container-hidden code-annotation-container-grid">
-<dt data-target-cell="annotated-cell-10" data-target-annotation="1">1</dt>
+<dt data-target-cell="annotated-cell-11" data-target-annotation="1">1</dt>
 <dd>
-<span data-code-cell="annotated-cell-10" data-code-lines="3" data-code-annotation="1">Disables the automatically added memory tool for the top-level agent and all subagents.</span>
+<span data-code-cell="annotated-cell-11" data-code-lines="3" data-code-annotation="1">Disables the automatically added memory tool for the top-level agent and all subagents.</span>
 </dd>
-<dt data-target-cell="annotated-cell-10" data-target-annotation="2">2</dt>
+<dt data-target-cell="annotated-cell-11" data-target-annotation="2">2</dt>
 <dd>
-<span data-code-cell="annotated-cell-10" data-code-lines="4" data-code-annotation="2">Disables the todo_write planning tool.</span>
+<span data-code-cell="annotated-cell-11" data-code-lines="4" data-code-annotation="2">Disables the todo_write planning tool.</span>
 </dd>
 </dl>
 </section>
@@ -1040,10 +1091,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="submission" class="level2">
 <h2 class="anchored" data-anchor-id="submission">Submission</h2>
 <p>By default, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#deepagent">deepagent()</a></span> includes a <code>submit()</code> tool that the model calls to report its final answer. You can configure multiple attempts so that if the score is incorrect the model is allowed to continue and try again:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    attempts<span class="op">=</span><span class="dv">3</span>,</span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    attempts<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Pass <code>submit=False</code> to disable the submit tool entirely (the agent will terminate when it stops calling tools). For more advanced configuration, pass an <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentsubmit">AgentSubmit</a></span> or <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agentattempts">AgentAttempts</a></span> instance. See the <a href="./react-agent.html#attempts">ReAct Agent</a> documentation for details.</p>
 </section>
 <section id="more-options" class="level2">
@@ -1055,15 +1106,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><code>approval</code> — Apply approval policies for tool calls. Applies to the top-level agent and all subagents. See <a href="./approval.html">Approval</a> for details.</p></li>
 </ul>
 <p>For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    retry_refusals<span class="op">=</span><span class="dv">3</span>,</span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    on_continue<span class="op">=</span><span class="st">"Please continue working on the task."</span>,</span>
-<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    approval<span class="op">=</span>[</span>
-<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(human_approver(), <span class="st">"bash"</span>),</span>
-<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(auto_approver(), <span class="st">"*"</span>),</span>
-<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>deepagent(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    tools<span class="op">=</span>[bash(), text_editor()],</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    retry_refusals<span class="op">=</span><span class="dv">3</span>,</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    on_continue<span class="op">=</span><span class="st">"Please continue working on the task."</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>    approval<span class="op">=</span>[</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(human_approver(), <span class="st">"bash"</span>),</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>        ApprovalPolicy(auto_approver(), <span class="st">"*"</span>),</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 
 
 </section>

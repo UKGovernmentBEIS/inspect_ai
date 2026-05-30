@@ -196,6 +196,18 @@ We specify a 3-minute timeout for execution of the bash and python tools to ensu
 
 See the [Agents](#sec-agents) section for more details on how to build evaluations that allow models to take arbitrary actions over a longer time horizon.
 
+### Background Tasks
+
+The [bash()](./reference/inspect_ai.tool.html.md#bash) tool can be configured to encourage the model to run long operations in the background and poll for progress in later calls rather than blocking:
+
+``` python
+use_tools([bash(timeout=180, background=True)])
+```
+
+The `background` option is prompt-only, it doesn’t change how commands execute, it only augments the tool’s description with guidance to launch long-running commands detached (e.g. `nohup <command> > /tmp/task.log 2>&1 &`), record the process id, and check on progress with subsequent calls (`ps`, `tail`).
+
+This works because a detached process keeps running between [bash()](./reference/inspect_ai.tool.html.md#bash) calls even though each call executes in a fresh shell. For interactive long-running commands (e.g. ones you need to send input to or interrupt), prefer the [Bash Session](#sec-bash-session) tool instead.
+
 ## Bash Session
 
 The [bash_session()](./reference/inspect_ai.tool.html.md#bash_session) tool provides a bash shell that retains its state across calls from the model (as distinct from the [bash()](./reference/inspect_ai.tool.html.md#bash) tool which executes each command in a fresh session). The prompt, working directory, and environment variables are all retained across calls. The tool also supports a `restart` action that enables the model to reset its state and work in a fresh session.
