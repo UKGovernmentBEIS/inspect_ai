@@ -3,7 +3,7 @@
 - Deep Agent: Model-facing dispatch tool renamed from `task` to `agent` to align with Claude Code.
 - Deep Agent: Support for running subagents in the background.
 - Deep Agent: `agent` dispatch tool now ships with a tool-call viewer.
-- Parallel tools: Strengthened system-prompt guidance encouraging `react()` and `deepagent()` to issue independent tool calls in parallel.
+- Parallel tools: Strengthened agent prompts to encouraging independent tool calls in parallel.
 - Bash tool: Add `background` option to prompt the model to use `nohup` for long-running commands.
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
 - Scoring: Set `Score.answer` on model_graded parse failure.
@@ -11,13 +11,12 @@
 - Transcript: Various improvements to transcript event subscriber delivery.
 - Transcript: Complete samples from buffer history database rather than in-memory list.
 - Scoring: Flush the output recorder after each `--stream N` batch of scored samples.
-- Inspect View: Add UI for editing log tags and metadata, with author/reason provenance recorded in `log_updates`. S3-backed logs use `If-Match` ETag protection against concurrent modification.
+- Inspect View: Add UI for editing log tags and metadata.
 - Bugfix: Show View Log button on top right of sample display.
-- Bugfix: Prevent transcript subscriber-failure warnings from re-entering the subscriber loop and fanning out.
 - Bugfix: Don't mutate plan when calling `resolve_plan()`.
 - Bugfix: Align CLI --display and --effort type annotations with their choices.
 - Bugfix: Don't enter prompt mode when a sample is globally cancelled.
-- Bugfix: `write_eval_log(..., header_only=True)` now preserves on-disk samples for JSON logs and remote `.eval` logs (previously a header-only write to either erased the samples). On non-local filesystems the `.eval` zip is rewritten cleanly so old header bytes don't accumulate across edits.
+- Bugfix: `write_eval_log(..., header_only=True)` now preserves on-disk samples for JSON logs and remote `.eval` logs.
 
 ## 0.3.229 (28 May 2026)
 
