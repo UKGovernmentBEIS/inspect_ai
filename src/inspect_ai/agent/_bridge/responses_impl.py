@@ -327,7 +327,7 @@ def tool_from_responses_tool(
     tool_param: ToolParam,
     web_search_providers: WebSearchProviders,
     code_execution_providers: CodeExecutionProviders,
-) -> ToolInfo | Tool:
+) -> ToolInfo | Tool | None:
     if is_function_tool_param(tool_param):
         return ToolInfo(
             name=tool_param["name"],
@@ -375,7 +375,18 @@ def tool_from_responses_tool(
             options=config.model_dump(),
         )
     else:
-        raise RuntimeError(f"ToolParam of type {tool_param.get('type')} not supported.")
+        # Unsupported tool type: skip it rather than failing the entire request
+        # so the model can still run with the tools we do support. 'tool_search'
+        # is a scaffold-side tool discovery helper that is harmless to drop, so
+        # we omit it silently; warn for anything else unexpected.
+        tool_type = tool_param.get("type")
+        if tool_type != "tool_search":
+            warn_once(
+                logger,
+                f"ToolParam of type '{tool_type}' not supported by the "
+                "agent bridge; ignoring this tool.",
+            )
+        return None
 
 
 def tools_from_responses_tool(
@@ -396,17 +407,16 @@ def tools_from_responses_tool(
         flattened: list[ToolInfo | Tool] = []
         for inner in tool_param.get("tools", []):
             inner_param = cast(ToolParam, inner)
-            flattened.append(
-                tool_from_responses_tool(
-                    inner_param, web_search_providers, code_execution_providers
-                )
+            inner_tool = tool_from_responses_tool(
+                inner_param, web_search_providers, code_execution_providers
             )
+            if inner_tool is not None:
+                flattened.append(inner_tool)
         return flattened
-    return [
-        tool_from_responses_tool(
-            tool_param, web_search_providers, code_execution_providers
-        )
-    ]
+    tool = tool_from_responses_tool(
+        tool_param, web_search_providers, code_execution_providers
+    )
+    return [tool] if tool is not None else []
 
 
 def resolve_code_interpreter_providers(
