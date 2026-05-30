@@ -1,5 +1,9 @@
 # changelog – Inspect
 
+## 0.3.231 (30 May 2026)
+
+- OpenAI: Drop `tool_search` tool types from native scaffolds (e.g. Codex CLI).
+
 ## 0.3.230 (30 May 2026)
 
 - Deep Agent: Support for running subagents in the background.
