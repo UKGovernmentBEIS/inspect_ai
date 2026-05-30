@@ -50,7 +50,6 @@ from inspect_ai._util.dateutil import datetime_from_iso_format_safe
 from inspect_ai._util.exception import TerminateSampleError
 from inspect_ai._util.format import format_function_call
 from inspect_ai._util.logger import warn_once
-from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai._util.text import truncate_string_to_bytes
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.working import sample_waiting_time
@@ -682,12 +681,13 @@ async def call_tool(
 async def agent_handoff(
     tool_def: ToolDef, call: ToolCall, conversation: list[ChatMessage]
 ) -> tuple[ToolResult, list[ChatMessage], ModelOutput | None, str]:
-    from inspect_ai.agent._agent import AgentState
+    from inspect_ai.agent._agent import AgentState, agent_display_name
     from inspect_ai.agent._handoff import AgentTool
 
-    # alias agent tool and get agent name
+    # alias agent tool and get agent name (display name, consistent with the
+    # agent's transcript spans and the transfer_to_<name> tool the model sees)
     agent_tool = cast(AgentTool, tool_def.tool)
-    agent_name = registry_unqualified_name(agent_tool.agent)
+    agent_name = agent_display_name(agent_tool.agent)
 
     # copy list
     agent_conversation = copy(conversation)

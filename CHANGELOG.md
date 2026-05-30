@@ -1,9 +1,9 @@
 ## Unreleased
 
-- Deep Agent: Model-facing dispatch tool renamed from `task` to `agent` to align with Claude Code.
 - Deep Agent: Support for running subagents in the background.
 - Deep Agent: `agent` dispatch tool now ships with a tool-call viewer.
-- Parallel tools: Strengthened agent prompts to encouraging independent tool calls in parallel.
+- Deep Agent: Dispatch tool renamed from `task` to `agent`.
+- Parallel tools: Strengthened agent prompts to encourage independent tool calls in parallel.
 - Bash tool: Add `background` option to prompt the model to use `nohup` for long-running commands.
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
 - OpenRouter: Always replay `reasoning_content` in addition to `reasoning_details` for Deepseek v4.
@@ -19,12 +19,13 @@
 - Bugfix: Don't enter prompt mode when a sample is globally cancelled.
 - Bugfix: `write_eval_log(..., header_only=True)` now preserves on-disk samples for JSON logs and remote `.eval` logs.
 - Bugfix: Consistent derivation of `agent_name` for samples (always consult plan).
+- Bugfix: An agent's display name (`agent_with(name=...)`) no longer overrides its registry identity.
 
 ## 0.3.229 (28 May 2026)
 
 - Anthropic: Update model database / feature enablement for [Opus 4.8](https://www.anthropic.com/news/claude-opus-4-8).
 - Anthropic: Support [mid-conversation](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages) system messages for Opus 4.8.
-- Anthrpoic: Support [cache diagnostics](https://inspect.aisi.org.uk/providers.html#anthropic-cache-diagnostics) mode (beta header `cache-diagnosis-2026-04-07`).
+- Anthropic: Support [cache diagnostics](https://inspect.aisi.org.uk/providers.html#anthropic-cache-diagnostics) mode (beta header `cache-diagnosis-2026-04-07`).
 - Agent Intervention: Add `is_live` property to agent channel for detecting whether channel is in use.
 
 ## 0.3.228 (27 May 2026)
