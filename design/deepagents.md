@@ -276,7 +276,7 @@ The reference frameworks implement a mix of context-management strategies to kee
 
 LangChain's `TASK_SYSTEM_PROMPT` heavily emphasizes launching multiple subagents in parallel: "Whenever you have independent steps to complete — kick off tasks in parallel to accomplish them faster." Claude Code does the same — models can invoke the `agent()` tool multiple times in a single response.
 
-**Inspect status:** Inspect's current `execute_tools` processes tool calls sequentially, but `agent()` is marked `parallel=True` (the default). Multiple `agent()` calls in one response execute one at a time in v1 but are architecturally safe — forked dispatch strips the trailing assistant message entirely (rather than repairing specific tool calls), so each child sees the same clean conversation prefix regardless of sibling calls. When parallel tool execution lands, `agent()` will benefit without changes.
+**Inspect status:** Shipped. `execute_tools` now partitions a turn's tool calls into ordered stages and runs consecutive `parallel=True` calls concurrently (`src/inspect_ai/model/_call_tools.py`). `agent()` is marked `parallel=True` (when its subagents are parallel-safe), so multiple `agent()` calls in one response run concurrently — forked dispatch strips the trailing assistant message entirely, so each child sees the same clean conversation prefix regardless of sibling calls. The system prompt also encourages the model to emit independent tool calls together (see `PARALLEL_TOOLS_PROMPT`, shared by `react()` and `deepagent()`).
 
 #### Async / background subagents
 
@@ -543,17 +543,17 @@ Modified files:
 - `src/inspect_ai/tool/_tools/_update_plan.py` — deprecate with alias to `todo_write()`.
 - `src/inspect_ai/tool/_tools/_memory.py` — add `readonly=True` mode that exposes only read operations.
 
-#### 8. Parallel tool execution (deferred)
+#### 8. Parallel tool execution (shipped)
 
-The current `_execute_tools_impl` in `src/inspect_ai/model/_call_tools.py:300` processes tool calls sequentially. Parallel tool execution would benefit all agents — including `react()` — and would unblock concurrent subagent dispatch for `deepagent()`.
+`execute_tools` (`src/inspect_ai/model/_call_tools.py`) partitions a turn's tool calls into ordered stages: consecutive `parallel=True` calls coalesce into one concurrent stage, while each serial call is its own one-element stage that acts as a barrier preserving the model's declared ordering between stateful and stateless calls. This benefits all agents — including `react()` — and enables concurrent subagent dispatch for `deepagent()` (the `agent()` tool is `parallel=True` when its subagents are parallel-safe).
 
-However, this is a significant infrastructure change with nontrivial risks:
+The original concerns were addressed as follows:
 
-- **Breaking change.** `@tool` defaults `parallel=True` and `ToolDef` defaults unspecified tools to parallel-capable, but current execution is sequential. Flipping to concurrent would silently change behavior for existing tools whose authors never had to consider races.
-- **Output conflicts.** Current execution tracks a single `result_output`. Parallel batches with multiple tools returning `ExecuteToolsResult.output` need conflict resolution semantics.
-- **Approval flows.** Approval policies and interactive tools may not be safe to run concurrently even if the underlying tool is marked `parallel=True`.
+- **Breaking change.** Only tools that are `parallel=True` (the `@tool` default) coalesce; serial tools still run one at a time and act as barriers, so ordering between stateful and stateless calls is preserved.
+- **Output conflicts.** Resolved within the staged execution model.
+- **Approval flows.** Handled within the stage execution path.
 
-**Decision.** Defer parallel tool execution to a separate project. `deepagent()` v1 dispatches subagents sequentially. Both isolated and forked dispatch are architecturally safe to parallelize (forked subagents receive a copy of the parent's messages), so when parallel execution lands, `agent()` can opt in without design changes.
+To complement execution, the system prompt encourages the model to actually emit independent tool calls together — see `PARALLEL_TOOLS_PROMPT` in `src/inspect_ai/agent/_types.py`, shared by `react()`'s `DEFAULT_ASSISTANT_PROMPT`, `deepagent()`'s `CORE_BEHAVIOR`, and the dispatched subagents' assistant prompt.
 
 #### 9. Testing strategy
 

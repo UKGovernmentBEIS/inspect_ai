@@ -4,6 +4,8 @@ Composes layered system prompts from string constants and dynamic
 content (subagent list, memory/plan configuration, user instructions).
 """
 
+from inspect_ai.agent._types import PARALLEL_TOOLS_PROMPT
+
 from .subagent import Subagent
 
 SUBAGENT_SUBMIT_PROMPT = """
@@ -14,7 +16,7 @@ information that will be returned. Include all relevant findings, evidence,
 and conclusions in your submission.
 """.strip()
 
-CORE_BEHAVIOR = """
+CORE_BEHAVIOR = f"""
 Complete tasks autonomously using your available tools. Act rather than
 narrate intent — don't say what you plan to do, just do it.
 
@@ -28,8 +30,7 @@ Be concise and direct. Avoid preamble, unnecessary explanation, and
 restating what you've already done. When you need information, use
 your tools rather than making assumptions.
 
-When multiple independent tool calls are needed, batch them in a single
-response rather than making sequential round-trips.
+{PARALLEL_TOOLS_PROMPT}
 
 Plan when the task is complex or multi-step. Break large tasks into
 smaller pieces and track your progress. Verify your work before

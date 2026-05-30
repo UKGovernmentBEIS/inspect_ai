@@ -17,7 +17,11 @@ from shortuuid import uuid as shortuuid
 from inspect_ai.agent._agent import Agent, AgentState
 from inspect_ai.agent._react import react
 from inspect_ai.agent._run import run
-from inspect_ai.agent._types import AgentPrompt, AgentSubmit
+from inspect_ai.agent._types import (
+    PARALLEL_TOOLS_PROMPT,
+    AgentPrompt,
+    AgentSubmit,
+)
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -284,7 +288,7 @@ def agent_tool(
                 description=sa.description,
                 prompt=AgentPrompt(
                     instructions=sa.prompt,
-                    assistant_prompt=SUBAGENT_SUBMIT_PROMPT,
+                    assistant_prompt=f"{PARALLEL_TOOLS_PROMPT}\n\n{SUBAGENT_SUBMIT_PROMPT}",
                     submit_prompt=None,
                     handoff_prompt=None,
                 ),
