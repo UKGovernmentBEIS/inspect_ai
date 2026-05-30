@@ -18,6 +18,7 @@
 - Bugfix: Align CLI --display and --effort type annotations with their choices.
 - Bugfix: Don't enter prompt mode when a sample is globally cancelled.
 - Bugfix: `write_eval_log(..., header_only=True)` now preserves on-disk samples for JSON logs and remote `.eval` logs.
+- Bugfix: Consistent derivation of `agent_name` for samples (always consult plan).
 
 ## 0.3.229 (28 May 2026)
 
