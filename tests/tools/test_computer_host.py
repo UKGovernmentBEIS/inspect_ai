@@ -255,6 +255,34 @@ async def test_type_text(stub_deps: MagicMock) -> None:
     assert args[0] == "hello"
 
 
+async def test_type_non_ascii_uses_clipboard_paste(
+    stub_deps: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pyperclip_stub = MagicMock(name="pyperclip")
+    pyperclip_stub.paste.return_value = "previous clipboard"
+    monkeypatch.setattr(_host, "pyperclip", pyperclip_stub)
+
+    await _host.type("héllo — 你好")
+
+    # typewrite must NOT be called for non-ASCII text
+    stub_deps.typewrite.assert_not_called()
+    # clipboard was set to the text, then paste hotkey fired, then restored
+    copy_calls = [c.args[0] for c in pyperclip_stub.copy.call_args_list]
+    assert copy_calls[0] == "héllo — 你好"
+    assert copy_calls[-1] == "previous clipboard"
+    # one of ctrl+v / cmd+v was sent
+    hotkey_args = stub_deps.hotkey.call_args.args
+    assert hotkey_args in (("command", "v"), ("ctrl", "v"))
+
+
+async def test_type_non_ascii_without_pyperclip_raises(
+    stub_deps: MagicMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(_host, "pyperclip", None)
+    with pytest.raises(ToolError, match="pyperclip"):
+        await _host.type("naïve")
+
+
 async def test_wait_sleeps_and_returns_screenshot(
     stub_deps: MagicMock, monkeypatch: pytest.MonkeyPatch
 ) -> None:
