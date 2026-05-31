@@ -7,7 +7,7 @@ import regex
 from inspect_ai._util.error import pip_dependency_error
 from inspect_ai.solver._task_state import TaskState
 
-from ._metric import CORRECT, INCORRECT, Score
+from ._metric import CORRECT, INCORRECT, NOANSWER, Score
 from ._metrics import accuracy, stderr
 from ._scorer import Scorer, scorer
 from ._target import Target
@@ -966,6 +966,17 @@ def math() -> Scorer:
             return Score(
                 value=CORRECT,
                 answer=str(result),
+                explanation=state.output.completion,
+            )
+
+        # Parse failure: the completion contained no mathematical expression
+        # we could extract. Record NOANSWER so it's not silently counted as
+        # an INCORRECT answer in aggregate metrics. Same family as #4026
+        # (model_graded_qa / _fact), addressed by #4048 for that scorer.
+        if result is None:
+            return Score(
+                value=NOANSWER,
+                answer=state.output.completion,
                 explanation=state.output.completion,
             )
 

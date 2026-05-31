@@ -3,7 +3,7 @@
 import pytest
 from test_helpers.utils import simple_task_state
 
-from inspect_ai.scorer import CORRECT, INCORRECT, Target, math
+from inspect_ai.scorer import CORRECT, INCORRECT, NOANSWER, Target, math
 from inspect_ai.scorer._math import (
     extract_last_integer,
     find_last_boxed_content,
@@ -60,7 +60,7 @@ async def test_sqrt(output, target, expected):
         ("1.5 * 10^3", "1500", CORRECT),  # scientific notation
         ("2*(1 + 2) * 3", "18", CORRECT),  # multiple operations
         ("x^2 - x^2", "0", CORRECT),  # algebraic simplification
-        ("not a number", "None", INCORRECT),  # invalid expression
+        ("not a number", "None", NOANSWER),  # invalid expression → parse fail
         ("sqrt(2) + sqrt(2)", "2.8284271247461903", CORRECT),  # symbolic expression
         ("2(1 + 2) * 3", "18", CORRECT),  # multiple operations
         (
@@ -119,10 +119,12 @@ async def test_list_valued_answers(output, target, expected):
 @pytest.mark.parametrize("output", [r"\boxed{inf}", r"\boxed{Infinity}", "-inf"])
 async def test_infinite_float_does_not_crash(output):
     # float("inf") must not crash the scorer with OverflowError from int(inf).
+    # extract_answer returns None for these (no finite mathematical
+    # expression to compare), so the parse-failure branch records NOANSWER.
     scorer = math()
     state = simple_task_state(model_output=output)
     result = await scorer(state, Target(["0"]))
-    assert result.value == INCORRECT
+    assert result.value == NOANSWER
 
 
 # ============================================================================
@@ -229,3 +231,47 @@ def test_remove_invalid_characters():
 
     # Multiple spacing commands
     assert remove_invalid_characters(r"a\:b\!c") == "abc"
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        pytest.param("I'm not sure how to solve this.", id="no_numeric_content"),
+        pytest.param("The answer is somewhere around forty-two.", id="words_only"),
+        pytest.param("", id="empty_completion"),
+        pytest.param("Let me think... the result is = = = ", id="ambiguous_equals"),
+    ],
+)
+async def test_parse_failure_yields_noanswer(output):
+    """Return NOANSWER when extract_answer returns None.
+
+    When the model's completion contains no parseable mathematical
+    expression, record NOANSWER rather than INCORRECT. Same silent-failure
+    family as #4026 (model_graded_qa / _fact), addressed for the
+    model-graded scorers in #4048. Without this fix, a sample where the
+    model gave no answer at all is silently counted as a wrong answer in
+    aggregate metrics, conflating "no signal" with "scored 0".
+    """
+    scorer = math()
+    state = simple_task_state(model_output=output)
+    result = await scorer(state, Target(["42"]))
+
+    assert result.value == NOANSWER, (
+        f"expected NOANSWER when extract_answer returns None for "
+        f"completion {output!r}, got {result.value!r}"
+    )
+    # The completion is preserved as the answer for downstream observability,
+    # rather than the literal string "None" that the prior code emitted.
+    assert result.answer == output
+
+
+async def test_parse_success_with_wrong_value_yields_incorrect():
+    """Parseable but wrong answer still gets INCORRECT.
+
+    NOANSWER is reserved for the parse-failure case.
+    """
+    scorer = math()
+    state = simple_task_state(model_output="The answer is \\boxed{5}")
+    result = await scorer(state, Target(["42"]))
+
+    assert result.value == INCORRECT
