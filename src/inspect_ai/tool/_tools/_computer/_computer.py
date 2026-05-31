@@ -93,9 +93,11 @@ def computer(
         pyautogui (requires ``pip install pyautogui mss Pillow``).
     """
     if backend == "host":
-        from . import _host as impl
+        from . import _host
+
+        impl = _host
     else:
-        impl = _sandbox_backend
+        impl = _sandbox_backend  # type: ignore[misc]
 
     # NOTE: Models with native computer use (Anthropic, OpenAI) never see this
     # docstring or parameter schema — they use provider-specific tool params

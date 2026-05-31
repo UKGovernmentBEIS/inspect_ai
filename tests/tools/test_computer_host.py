@@ -70,7 +70,7 @@ def _make_pil_stub() -> Any:
     # use the real PIL.Image since Pillow is in requirements-dev anyway,
     # but fall back to a stub if it isn't installed
     try:
-        from PIL import Image  # type: ignore[import-not-found]
+        from PIL import Image
 
         return Image
     except ImportError:  # pragma: no cover - dev env always has Pillow
@@ -263,7 +263,9 @@ async def test_wait_sleeps_and_returns_screenshot(
     async def fake_sleep(seconds: float) -> None:
         slept.append(seconds)
 
-    monkeypatch.setattr(_host.asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(
+        "inspect_ai.tool._tools._computer._host.anyio.sleep", fake_sleep
+    )
     result = await _host.wait(2)
     assert 2 in slept
     assert isinstance(result, list)
@@ -331,7 +333,7 @@ def test_host_module_imports_without_optional_deps(
     # Block imports of optional deps
     real_import = (
         __builtins__["__import__"] if isinstance(__builtins__, dict) else __import__
-    )  # type: ignore[index]
+    )
 
     def blocked_import(
         name: str,

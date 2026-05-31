@@ -19,21 +19,20 @@ from typing import Literal
 
 import anyio
 
+from inspect_ai._util.content import ContentText
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model import ContentImage
 from inspect_ai.tool import ToolError, ToolResult
 
-from ._common import ContentText
-
 try:
-    import pyautogui
+    import pyautogui  # type: ignore[import-untyped]
 
     pyautogui.FAILSAFE = True
 except ImportError:
     pyautogui = None  # type: ignore[assignment]
 
 try:
-    import mss as _mss
+    import mss as _mss  # type: ignore[import-not-found]
 except ImportError:
     _mss = None  # type: ignore[assignment]
 
@@ -43,7 +42,7 @@ except ImportError:
     Image = None  # type: ignore[assignment]
 
 try:
-    import pyperclip
+    import pyperclip  # type: ignore[import-untyped]
 except ImportError:
     pyperclip = None  # type: ignore[assignment]
 
