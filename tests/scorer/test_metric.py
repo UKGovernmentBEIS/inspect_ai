@@ -1,3 +1,4 @@
+import math
 from typing import Any, Callable, cast
 
 import pytest
@@ -673,7 +674,7 @@ def test_aggregate_stderr_composes():
 
 def test_aggregate_missing_key_error_by_default():
     metric = aggregate("element_acc", agg=mean())
-    with pytest.raises(ValueError, match="missing key"):
+    with pytest.raises(ValueError, match="is missing"):
         metric(
             [
                 SampleScore(score=Score(value={"element_acc": 1})),
@@ -728,3 +729,50 @@ def test_aggregate_to_float_applied():
         ]
     )
     assert result == 0.75
+
+
+def test_aggregate_none_value_treated_as_missing_error():
+    # A present-but-None value is treated the same as a missing key
+    # (matches inspect_evals.utils.metrics.mean_of).
+    metric = aggregate("element_acc", agg=mean())
+    with pytest.raises(ValueError, match="is None"):
+        metric(
+            [
+                SampleScore(score=Score(value={"element_acc": 1})),
+                SampleScore(score=Score(value={"element_acc": None})),
+            ]
+        )
+
+
+def test_aggregate_none_value_treated_as_missing_skip():
+    result = aggregate("element_acc", agg=mean(), on_missing="skip")(
+        [
+            SampleScore(score=Score(value={"element_acc": 1})),
+            SampleScore(score=Score(value={"element_acc": None})),  # skipped
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_none_value_treated_as_missing_zero():
+    result = aggregate("element_acc", agg=mean(), on_missing="zero")(
+        [
+            SampleScore(score=Score(value={"element_acc": 3})),
+            SampleScore(score=Score(value={"element_acc": None})),  # treated as 0.0
+            SampleScore(score=Score(value={"element_acc": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_all_skipped_returns_nan():
+    # When skip filters every sample, return NaN rather than calling agg([])
+    # (which most built-in metrics raise on).
+    result = aggregate("element_acc", agg=mean(), on_missing="skip")(
+        [
+            SampleScore(score=Score(value={"action_f1": 0.5})),
+            SampleScore(score=Score(value={"action_f1": 0.6})),
+        ]
+    )
+    assert isinstance(result, float) and math.isnan(result)
