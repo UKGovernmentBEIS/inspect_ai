@@ -1,3 +1,7 @@
+## Unreleased
+
+- Scoring: `math()` now returns `NOANSWER` (not `INCORRECT`) when `extract_answer()` cannot parse a mathematical expression from the model output, so parse failures no longer silently inflate the `INCORRECT` count in aggregate metrics. Sister fix to #4048 (`model_graded_qa` / `model_graded_fact`); same silent-failure family flagged in #4026.
+
 ## 0.3.231 (30 May 2026)
 
 - OpenAI: Drop `tool_search` tool types from native scaffolds (e.g. Codex CLI).
