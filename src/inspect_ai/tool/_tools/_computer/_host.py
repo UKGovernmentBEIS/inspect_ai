@@ -12,11 +12,12 @@ Requires: ``pip install pyautogui mss Pillow``
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import io
 import platform
 from typing import Literal
+
+import anyio
 
 from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.model import ContentImage
@@ -76,11 +77,11 @@ async def _take_screenshot() -> str:
         img.save(buf, format="PNG")
         return base64.b64encode(buf.getvalue()).decode()
 
-    return await asyncio.get_event_loop().run_in_executor(None, _grab)
+    return await anyio.to_thread.run_sync(_grab)
 
 
 async def _screenshot_after_delay() -> str:
-    await asyncio.sleep(_SCREENSHOT_DELAY)
+    await anyio.sleep(_SCREENSHOT_DELAY)
     return await _take_screenshot()
 
 
@@ -153,6 +154,35 @@ _KEY_MAP: dict[str, str] = {
 for _i in range(1, 13):
     _KEY_MAP[f"F{_i}"] = f"f{_i}"
 
+# Keypad / numpad keys (xdotool KP_* -> pyautogui)
+for _i in range(10):
+    _KEY_MAP[f"KP_{_i}"] = f"num{_i}"
+_KEY_MAP.update(
+    {
+        "KP_Add": "add",
+        "KP_Subtract": "subtract",
+        "KP_Multiply": "multiply",
+        "KP_Divide": "divide",
+        "KP_Decimal": "decimal",
+        "KP_Separator": "separator",
+        "KP_Enter": "enter",
+        "KP_Equal": "=",
+        "KP_Space": "space",
+        "KP_Tab": "tab",
+        "KP_Home": "home",
+        "KP_End": "end",
+        "KP_Up": "up",
+        "KP_Down": "down",
+        "KP_Left": "left",
+        "KP_Right": "right",
+        "KP_Page_Up": "pageup",
+        "KP_Page_Down": "pagedown",
+        "KP_Insert": "insert",
+        "KP_Delete": "delete",
+        "KP_Begin": "clear",
+    }
+)
+
 
 def _translate_key(name: str) -> str:
     """Map an xdotool keysym name to a pyautogui key name."""
@@ -182,7 +212,7 @@ async def screenshot(timeout: int | None = None) -> ToolResult:
 
 
 async def wait(duration: int, timeout: int | None = None) -> ToolResult:
-    await asyncio.sleep(duration)
+    await anyio.sleep(duration)
     return await screenshot()
 
 
@@ -294,7 +324,7 @@ async def hold_key(key: str, duration: int, timeout: int | None = None) -> ToolR
     keys = _parse_combo(key)
     for k in keys:
         pyautogui.keyDown(k)  # type: ignore[union-attr]
-    await asyncio.sleep(duration)
+    await anyio.sleep(duration)
     for k in reversed(keys):
         pyautogui.keyUp(k)  # type: ignore[union-attr]
     return await _result_with_screenshot()
@@ -324,7 +354,7 @@ async def zoom(region: list[int], timeout: int | None = None) -> ToolResult:
         img.save(buf, format="PNG")
         return base64.b64encode(buf.getvalue()).decode()
 
-    b64 = await asyncio.get_event_loop().run_in_executor(None, _grab_region)
+    b64 = await anyio.to_thread.run_sync(_grab_region)
     return _make_result(base64_image=b64)
 
 
@@ -333,7 +363,7 @@ async def open_web_browser(timeout: int | None = None) -> ToolResult:
     import webbrowser
 
     webbrowser.open("about:blank")
-    await asyncio.sleep(2)
+    await anyio.sleep(2)
     return await screenshot()
 
 
@@ -345,8 +375,8 @@ async def navigate(text: str, timeout: int | None = None) -> ToolResult:
         pyautogui.hotkey("command", "l")  # type: ignore[union-attr]
     else:
         pyautogui.hotkey("ctrl", "l")  # type: ignore[union-attr]
-    await asyncio.sleep(0.5)
+    await anyio.sleep(0.5)
     pyautogui.typewrite(text, interval=0.012)  # type: ignore[union-attr]
     pyautogui.press("enter")  # type: ignore[union-attr]
-    await asyncio.sleep(1)
+    await anyio.sleep(1)
     return await screenshot()
