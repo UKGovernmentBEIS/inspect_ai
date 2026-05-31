@@ -269,16 +269,18 @@ async def _openai_input_item_from_chat_message(
             message, model_info, synthesize_phase
         )
     elif message.role == "tool":
-        # client-resolved tool_search: replay the discovered tools (carried as
-        # JSON in the tool message content) as a native tool_search_output item
-        if message.function == TOOL_SEARCH_NAME:
-            return [_tool_search_output_param_from_tool_message(message)]
-
-        # see if we need to recover the call id for the computer tool calls
+        # recover the original call (by call_id) to replay the matching output item
         responses_tool_call = assistant_internal().tool_calls.get(
             message.tool_call_id or str(message.function)
         )
         if (
+            responses_tool_call is not None
+            and responses_tool_call["type"] == "tool_search_call"
+        ):
+            # client-resolved tool_search: replay the discovered tools (carried as
+            # JSON in the tool message content) as a native tool_search_output item
+            return [_tool_search_output_param_from_tool_message(message)]
+        elif (
             responses_tool_call is not None
             and responses_tool_call["type"] == "computer_call"
         ):
@@ -1412,23 +1414,11 @@ def _tool_call_items_from_assistant_message(
 
     # now standard tool calls
     for call in message.tool_calls or []:
-        # see if we have it in assistant_internal
+        # see if we have it in assistant_internal (computer/custom/tool_search are
+        # cached at parse time, and the bridge seeds tool_search calls on replay)
         assistant_internal_call = assistant_internal().tool_calls.get(call.id, None)
         if assistant_internal_call is not None:
             tool_calls.append(assistant_internal_call)
-        elif call.function == TOOL_SEARCH_NAME:
-            # client-resolved built-in tool: emit a native tool_search_call
-            # (cold-cache fallback, e.g. replaying scaffold-provided history)
-            tool_calls.append(
-                ToolSearchCall(
-                    type="tool_search_call",
-                    id=call.id,
-                    call_id=call.id,
-                    arguments=call.arguments,
-                    execution="client",
-                    status="completed",
-                )
-            )
         else:
             # create param
             tool_call_param: ResponseFunctionToolCallParam = dict(

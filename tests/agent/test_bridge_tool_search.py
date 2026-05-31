@@ -508,6 +508,47 @@ def test_process_response_output_items_tool_search_call() -> None:
     assert cached["type"] == "tool_search_call"
 
 
+# 7b. tool-message replay only emits native tool_search_output when the original
+# call was a tool_search_call. A user/function tool named "tool_search" (cached as
+# a function_call, or uncached) must replay as a normal function_call_output.
+
+
+async def test_tool_search_output_replay_gated_on_cached_call() -> None:
+    from inspect_ai.model._openai_responses import (
+        assistant_internal,
+        init_sample_openai_assistant_internal,
+    )
+
+    init_sample_openai_assistant_internal()  # cold cache
+
+    # an ordinary function tool that happens to be named "tool_search"
+    ordinary = ChatMessageTool(
+        tool_call_id="c1", function="tool_search", content="ordinary result"
+    )
+    items = await _openai_input_item_from_chat_message(ordinary)
+    assert len(items) == 1
+    assert items[0]["type"] == "function_call_output"
+
+    # once the original call is cached as a tool_search_call, replay is native
+    assistant_internal().tool_calls["c2"] = {
+        "type": "tool_search_call",
+        "id": "c2",
+        "call_id": "c2",
+        "arguments": {"query": "x"},
+        "execution": "client",
+        "status": "completed",
+    }
+    native = ChatMessageTool(
+        tool_call_id="c2",
+        function="tool_search",
+        content=json.dumps([_discoverable_function_tool()]),
+    )
+    items2 = await _openai_input_item_from_chat_message(native)
+    assert len(items2) == 1
+    assert items2[0]["type"] == "tool_search_output"
+    assert list(items2[0]["tools"]) == [_discoverable_function_tool()]
+
+
 # 8. compaction does not clear tool_search results (tool definitions = context)
 
 

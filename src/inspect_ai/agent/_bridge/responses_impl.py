@@ -234,7 +234,7 @@ async def inspect_responses_api_request_impl(
     # Harvest those too so outgoing function calls carry the right `namespace`.
     if isinstance(input, list):
         for item in input:
-            if is_tool_search_output(item):
+            if isinstance(item, dict) and is_tool_search_output(item):
                 for discovered in item.get("tools", []) or []:
                     if is_namespace_tool_param(discovered):
                         _harvest_tool_namespaces(discovered, tool_namespaces)
@@ -322,6 +322,28 @@ def _seed_function_call_namespace(param: ResponseFunctionToolCallParam) -> None:
         name=param["name"],
         arguments=param["arguments"],
         namespace=namespace,
+    )
+
+
+def _seed_tool_search_call(call_id: str, arguments: dict[str, Any]) -> None:
+    """Cache an inbound tool_search call so cross-process replay stays native.
+
+    Within a sample the provider already caches the parsed call; seeding only
+    matters when replaying scaffold-provided history in a fresh process (e.g.
+    codex --resume), so the result replays as a native tool_search_output rather
+    than a function_call_output. The `call_id in cache` guard ensures we never
+    clobber a richer in-sample entry.
+    """
+    cache = assistant_internal().tool_calls
+    if call_id in cache:
+        return
+    cache[call_id] = ToolSearchCall(
+        type="tool_search_call",
+        id=call_id,
+        call_id=call_id,
+        arguments=arguments,
+        execution="client",
+        status="completed",
     )
 
 
@@ -777,6 +799,9 @@ def messages_from_responses_input(
                     tool_call = tool_call_from_openai_tool_search_call(tool_search_call)
                     # record so the following tool_search_output recovers the name
                     function_calls_by_id[tool_call.id] = TOOL_SEARCH_NAME
+                    # seed the provider cache so replay (incl. fresh-process
+                    # resume) emits native tool_search items, not function calls
+                    _seed_tool_search_call(tool_call.id, tool_call.arguments)
                     tool_calls.append(tool_call)
 
                 elif is_response_reasoning_item(param):
