@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.232 (31 May 2026)
 
 - OpenAI: Support `tool_search` tool type from native scaffolds (e.g. Codex CLI).
 - Inspect View: Improvements to Codex CLI agent rendering.
