@@ -225,18 +225,19 @@ async def inspect_responses_api_request_impl(
     )
     tool_choice = tool_choice_from_responses_tool_choice(responses_tool_choice)
 
-    # convert to inspect messages
-    input: list[ResponseInputItemParam] = json_data["input"]
+    # convert to inspect messages (input may be a plain string or a list of items)
+    input: str | list[ResponseInputItemParam] = json_data["input"]
 
     # deferred namespace tools (e.g. codex multi_agent) are not declared in the
     # top-level `tools` array; they are discovered via tool_search and appear as
     # namespace entries inside tool_search_output items in the conversation.
     # Harvest those too so outgoing function calls carry the right `namespace`.
-    for item in input:
-        if is_tool_search_output(item):
-            for discovered in item.get("tools", []) or []:
-                if is_namespace_tool_param(discovered):
-                    _harvest_tool_namespaces(discovered, tool_namespaces)
+    if isinstance(input, list):
+        for item in input:
+            if is_tool_search_output(item):
+                for discovered in item.get("tools", []) or []:
+                    if is_namespace_tool_param(discovered):
+                        _harvest_tool_namespaces(discovered, tool_namespaces)
 
     debug_log("SCAFFOLD INPUT", input)
 

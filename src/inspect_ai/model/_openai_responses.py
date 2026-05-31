@@ -1720,7 +1720,9 @@ def is_response_tool_search_call(
 def is_tool_search_output(
     param: ResponseInputItemParam,
 ) -> TypeGuard[ResponseToolSearchOutputItemParamParam]:
-    return param["type"] == "tool_search_output"
+    # tolerate items without a "type" key (e.g. simple user messages) since this
+    # is scanned over raw input items, some of which omit "type"
+    return param.get("type") == "tool_search_output"
 
 
 def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:
