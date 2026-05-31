@@ -1,6 +1,7 @@
 ## Unreleased
 
 - OpenAI: Support `tool_search` tool type from native scaffolds (e.g. Codex CLI).
+- Inspect View: Improvements to Codex CLI agent rendering.
 - Bugfix: Don't show Interrupt button in task display unless agent is interruptible.
 
 ## 0.3.231 (30 May 2026)
