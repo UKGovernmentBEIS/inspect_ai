@@ -2,6 +2,10 @@ import pytest
 
 from inspect_ai._util.content import ContentReasoning, ContentText
 from inspect_ai.model._openai import messages_from_openai
+from inspect_ai.model._openai_responses import (
+    _openai_input_items_from_chat_message_assistant,
+)
+from inspect_ai.model._providers.openai_compatible import ModelInfo
 
 
 # Minimal stubs for OpenAI message params
@@ -91,6 +95,47 @@ async def test_assistant_tool_call_with_smuggled_reasoning_only():
     assert msg.content[0].reasoning == "encrypted"
     assert msg.content[0].signature == "sig"
     assert msg.content[0].redacted is True
+
+
+async def test_assistant_tool_call_with_list_smuggled_reasoning_only():
+    messages = [
+        DummyMessage(
+            "assistant",
+            content=[
+                {
+                    "type": "text",
+                    "text": '<think signature="sig" redacted="true">encrypted</think>',
+                }
+            ],
+        ),
+    ]
+    messages[0]["tool_calls"] = [
+        {
+            "id": "call_123",
+            "type": "function",
+            "function": {"name": "lookup", "arguments": "{}"},
+        }
+    ]
+
+    chat_msgs = await messages_from_openai(messages)
+
+    assert len(chat_msgs) == 1
+    msg = chat_msgs[0]
+    assert msg.tool_calls is not None
+    assert msg.tool_calls[0].function == "lookup"
+    assert isinstance(msg.content, list)
+    assert [type(c) for c in msg.content] == [ContentReasoning, ContentText]
+    assert msg.content[0].reasoning == "encrypted"
+    assert msg.content[0].signature == "sig"
+    assert msg.content[0].redacted is True
+    assert msg.content[1].text == ""
+
+    items = _openai_input_items_from_chat_message_assistant(
+        msg, ModelInfo(), synthesize_phase=True
+    )
+    assert [item.get("type") for item in items] == ["reasoning", "function_call"]
+    assert items[0]["encrypted_content"] == "encrypted"
+    assert items[0]["id"] == "sig"
 
 
 async def test_assistant_message_with_openrouter_reasoning_details():

@@ -510,6 +510,7 @@ async def messages_from_openai(
             # resolve content
             refusal: Literal[True] | None = None
             smuggled_reasoning = None
+            parsed_reasoning_content = False
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
                 asst_content, smuggled_reasoning = parse_content_with_reasoning(
@@ -540,14 +541,19 @@ async def messages_from_openai(
             else:
                 content = []
                 for ac in asst_content:
-                    content.extend(content_from_openai(ac, parse_reasoning=True))
+                    parsed_content = content_from_openai(ac, parse_reasoning=True)
+                    parsed_reasoning_content = parsed_reasoning_content or any(
+                        isinstance(c, ContentReasoning) for c in parsed_content
+                    )
+                    content.extend(parsed_content)
 
             # resolve reasoning (OpenAI doesn't suport this however OpenAI-compatible
             # interfaces e.g. DeepSeek do include this field so we pluck it out)
             # note that we already handled <think> tags so we only care about the
             # other sources
             parse_result = parse_reasoning_content(
-                message, parse_think=smuggled_reasoning is None
+                message,
+                parse_think=smuggled_reasoning is None and not parsed_reasoning_content,
             )
             if parse_result is not None:
                 reasoning: ContentReasoning | None = (
