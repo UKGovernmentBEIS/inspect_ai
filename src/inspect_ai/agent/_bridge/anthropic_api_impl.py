@@ -175,11 +175,21 @@ def debug_log(caption: str, o: Any) -> None:
     pass
 
 
+def anthropic_system_to_text(value: Any) -> str:
+    """Flatten an Anthropic ``system`` value (``str`` or ``list[TextBlockParam]``) to text."""
+    if isinstance(value, str):
+        return value
+    return "\n\n".join(
+        str(b.get("text", "")) for b in value if isinstance(b, dict) and b.get("type") == "text"
+    )
+
+
 def generate_config_from_anthropic(json_data: dict[str, Any]) -> GenerateConfig:
     config = GenerateConfig()
     config.max_tokens = json_data.get("max_tokens", None)
     config.stop_seqs = json_data.get("stop_sequences", None) or None
-    config.system_message = json_data.get("system", None)
+    if (system := json_data.get("system")) is not None:
+        config.system_message = anthropic_system_to_text(system)
     config.temperature = json_data.get("temperature", None)
     config.top_k = json_data.get("top_k", None)
     config.top_p = json_data.get("top_p", None)
@@ -425,19 +435,9 @@ async def messages_from_anthropic_input(
                 flush_pending_user_content()
 
         elif param["role"] == "system":
-            if isinstance(param["content"], str):
-                messages.append(ChatMessageSystem(content=param["content"]))
-            else:
-                text_blocks = [
-                    cast(TextBlockParam, c)
-                    for c in param["content"]
-                    if isinstance(c, dict) and c.get("type") == "text"
-                ]
-                messages.append(
-                    ChatMessageSystem(
-                        content=[content_block_to_content(b) for b in text_blocks]
-                    )
-                )
+            messages.append(
+                ChatMessageSystem(content=anthropic_system_to_text(param["content"]))
+            )
 
         else:
             raise RuntimeError(f"Unexpected message role: {param['role']}")

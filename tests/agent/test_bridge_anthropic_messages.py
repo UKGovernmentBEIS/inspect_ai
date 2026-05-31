@@ -1,6 +1,9 @@
 import pytest
 
-from inspect_ai.agent._bridge.anthropic_api_impl import messages_from_anthropic_input
+from inspect_ai.agent._bridge.anthropic_api_impl import (
+    anthropic_system_to_text,
+    messages_from_anthropic_input,
+)
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageSystem,
@@ -43,3 +46,13 @@ async def test_inline_system_role_block_content() -> None:
     )
     assert isinstance(messages[1], ChatMessageSystem)
     assert messages[1].text == "reminder"
+
+
+def test_anthropic_system_to_text() -> None:
+    assert anthropic_system_to_text("plain") == "plain"
+    assert (
+        anthropic_system_to_text(
+            [{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]
+        )
+        == "a\n\nb"
+    )
