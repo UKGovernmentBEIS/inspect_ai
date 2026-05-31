@@ -1,3 +1,7 @@
+## Unreleased
+
+- Agent Bridge: Accept inline `role: "system"` messages from bridged Anthropic-API clients (Claude 4.8+ mid-conversation system messages).
+
 ## 0.3.232 (31 May 2026)
 
 - OpenAI: Support `tool_search` tool type from native scaffolds (e.g. Codex CLI).

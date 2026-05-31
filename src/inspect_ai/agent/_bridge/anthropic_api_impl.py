@@ -424,6 +424,21 @@ async def messages_from_anthropic_input(
 
                 flush_pending_user_content()
 
+        elif param["role"] == "system":
+            if isinstance(param["content"], str):
+                messages.append(ChatMessageSystem(content=param["content"]))
+            else:
+                text_blocks = [
+                    cast(TextBlockParam, c)
+                    for c in param["content"]
+                    if isinstance(c, dict) and c.get("type") == "text"
+                ]
+                messages.append(
+                    ChatMessageSystem(
+                        content=[content_block_to_content(b) for b in text_blocks]
+                    )
+                )
+
         else:
             raise RuntimeError(f"Unexpected message role: {param['role']}")
 
