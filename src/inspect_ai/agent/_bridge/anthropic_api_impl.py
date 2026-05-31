@@ -180,7 +180,9 @@ def anthropic_system_to_text(value: Any) -> str:
     if isinstance(value, str):
         return value
     return "\n\n".join(
-        str(b.get("text", "")) for b in value if isinstance(b, dict) and b.get("type") == "text"
+        str(b.get("text", ""))
+        for b in value
+        if isinstance(b, dict) and b.get("type") == "text"
     )
 
 

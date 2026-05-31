@@ -10,6 +10,15 @@ resolution-markers = [
     "python_full_version < '3.11'",
 ]
 
+[options]
+exclude-newer = "2027-01-01T00:00:00Z"
+
+[options.exclude-newer-package]
+inspect-petri = false
+inspect-ai = false
+inspect-scout = false
+inspect-swe = false
+
 [[package]]
 name = "adlfs"
 version = "2026.4.0"
