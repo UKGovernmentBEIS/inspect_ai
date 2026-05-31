@@ -245,6 +245,109 @@ def responses_computer_agent() -> Agent:
     return execute
 
 
+READ_FILE_TOOL: dict[str, Any] = {
+    "type": "function",
+    "name": "read_file",
+    "description": "Read the contents of a file given its path",
+    "parameters": {
+        "type": "object",
+        "properties": {"path": {"type": "string"}},
+        "required": ["path"],
+        "additionalProperties": False,
+    },
+    "strict": True,
+}
+
+TOOL_SEARCH_TOOL: dict[str, Any] = {
+    "type": "tool_search",
+    "execution": "client",
+    "description": "Search the local tool registry for tools matching a query",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Natural language description of the desired tool",
+            }
+        },
+        "required": ["query"],
+        "additionalProperties": False,
+    },
+}
+
+
+@agent
+def responses_tool_search_agent() -> Agent:
+    """Exercises the full tool_search (execution=client) round-trip.
+
+    Round 1 advertises only the tool_search tool and expects the model to emit a
+    tool_search_call. We then do client-side "discovery" (return a read_file tool
+    via tool_search_output) and, on round 2, expect the model to call the
+    discovered tool. This verifies the bridge passes tool_search end-to-end.
+    """
+
+    async def execute(state: AgentState) -> AgentState:
+        async with agent_bridge():
+            async with AsyncOpenAI() as client:
+                input_items: list[Any] = [
+                    {
+                        "role": "user",
+                        "content": (
+                            "You have a tool_search tool. First search for a tool "
+                            "to read files, then use the discovered tool to read "
+                            "'/tmp/example.txt'."
+                        ),
+                    }
+                ]
+
+                # round 1: only tool_search is available
+                response = await client.responses.create(  # type: ignore[call-overload]
+                    model="inspect",
+                    input=input_items,
+                    tools=[TOOL_SEARCH_TOOL],
+                    tool_choice="auto",
+                )
+                search_calls = [
+                    o for o in response.output if o.type == "tool_search_call"
+                ]
+                assert len(search_calls) >= 1, "expected a tool_search_call"
+
+                # client-side discovery: echo the model output and return the
+                # discovered tool via tool_search_output
+                input_items.extend(o.model_dump() for o in response.output)
+                for call in search_calls:
+                    input_items.append(
+                        {
+                            "type": "tool_search_output",
+                            "call_id": call.call_id,
+                            "tools": [READ_FILE_TOOL],
+                            "execution": "client",
+                            "status": "completed",
+                        }
+                    )
+
+                # round 2: the discovered tool is now available
+                response2 = await client.responses.create(  # type: ignore[call-overload]
+                    model="inspect",
+                    input=input_items,
+                    tools=[TOOL_SEARCH_TOOL, READ_FILE_TOOL],
+                    tool_choice="auto",
+                )
+                fn_calls = [o for o in response2.output if o.type == "function_call"]
+                assert any(c.name == "read_file" for c in fn_calls), (
+                    "expected a call to the discovered read_file tool"
+                )
+
+                message = ChatMessageAssistant(
+                    content=response2.output_text or "ok", source="generate"
+                )
+                state.messages.append(message)
+                state.output = ModelOutput.from_message(message)
+                return state
+
+    return execute
+
+
 @agent
 def anthropic_agent(tools: bool) -> Agent:
     async def execute(state: AgentState) -> AgentState:
@@ -663,6 +766,13 @@ def test_bridged_web_search_tool_openai():
     log_json = log.model_dump_json(exclude_none=True, indent=2)
     assert '"search_context_size": "low"' in log_json
     check_server_tool_use(log, "web_search")
+
+
+@skip_if_no_openai
+def test_bridged_tool_search_openai():
+    # tool_search is only supported on newer models (e.g. gpt-5.2+)
+    log = eval(bridged_task(responses_tool_search_agent()), model="openai/gpt-5.2")[0]
+    assert log.status == "success"
 
 
 @skip_if_no_openai

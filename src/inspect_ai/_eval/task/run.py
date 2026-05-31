@@ -23,7 +23,7 @@ from inspect_ai._display import (
 )
 from inspect_ai._display.core.display import TaskCancel, TaskDisplayMetric
 from inspect_ai._eval.task.scan import Scanners
-from inspect_ai._util._async import tg_collect
+from inspect_ai._util._async import aexit_shielded_when, tg_collect
 from inspect_ai._util.async_zip import AsyncZipReader
 from inspect_ai._util.asyncfiles import get_async_filesystem
 from inspect_ai._util.constants import (
@@ -39,6 +39,7 @@ from inspect_ai._util.notgiven import NOT_GIVEN
 from inspect_ai._util.registry import (
     has_registry_params,
     is_registry_object,
+    registry_info,
     registry_log_name,
     registry_params,
     registry_unqualified_name,
@@ -75,6 +76,7 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     eval_error,
 )
+from inspect_ai.log._recorders.streaming import materialize_streaming_sample
 from inspect_ai.log._samples import (
     active_sample,
 )
@@ -212,9 +214,24 @@ def resolve_plan(task: Task, solver: Solver | None) -> Plan:
 
     # add setup solver(s) if specified
     if task.setup:
+        # avoid mutating a caller-supplied Plan: resolve_plan may run more than
+        # once for the same task (e.g. task-identity hashing in evalset, then the
+        # run itself), and prepending in place would stack setup steps each time.
+        # A shallow copy preserves finish/cleanup/name and registry identity.
+        if plan is solver:
+            plan = copy(plan)
         plan.steps = unroll(task.setup) + plan.steps
 
     return plan
+
+
+def plan_agent_name(plan: Plan) -> str | None:
+    """Unqualified name of the plan's terminal step (agent or solver)."""
+    if plan.steps:
+        last_step = plan.steps[-1]
+        if is_registry_object(last_step):
+            return registry_unqualified_name(registry_info(last_step).name)
+    return None
 
 
 async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> EvalLog:
@@ -331,6 +348,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         name=options.display_name or task.name,
         file=logger.eval.task_file,
         model=model_name,
+        agent=plan_agent_name(plan),
         dataset=task.dataset.name or "(samples)",
         scorer=", ".join(scorer_profiles),
         samples=total_samples,
@@ -889,9 +907,19 @@ async def task_run_sample(
         init_sample_assistant_internal()
 
         # use sandbox if provided
+        #
+        # The sandbox CM's `__aexit__` is wrapped so its teardown runs shielded
+        # whenever the sample's own cancel was caught upstream (`cancelled_error`
+        # set). Otherwise, the eval-level scope's still-cancelled state would
+        # re-cancel the first await inside `cleanup_sandbox_environments_sample`,
+        # propagating a fresh CancelledError out past the (already shielded)
+        # logging block and dropping the in-flight sample from the eval log.
         sandboxenv_cm = (
-            sandboxenv_context(
-                task_name, sandbox, max_sandboxes, sandbox_cleanup, sample
+            aexit_shielded_when(
+                sandboxenv_context(
+                    task_name, sandbox, max_sandboxes, sandbox_cleanup, sample
+                ),
+                lambda: cancelled_error is not None,
             )
             if sandbox or sample.sandbox is not None
             else contextlib.nullcontext()
@@ -935,14 +963,8 @@ async def task_run_sample(
                 transcript()._event(ErrorEvent(error=err[0]))
                 return err
 
-        # Derive agent name for the ACP picker / TUI meta row. Mirrors
-        # inspect_scout's `_agent(log)` heuristic: prefer the configured
-        # eval-level solver string, fall back to the last plan step.
-        agent_name: str | None = None
-        if logger is not None and logger.eval.solver is not None:
-            agent_name = logger.eval.solver
-        elif plan.steps:
-            agent_name = registry_log_name(plan.steps[-1])
+        # Derive agent name for the ACP picker / TUI meta row.
+        agent_name = plan_agent_name(plan)
 
         async with active_sample(
             task=task_name,
@@ -1381,22 +1403,29 @@ async def task_run_sample(
                         state = state_without_base64_content(state)
 
                     # emit/log sample end
-                    eval_sample = create_eval_sample(
-                        start_time=start_time,
-                        sample=sample,
-                        state=state,
-                        scores=results,
-                        error=error,
-                        limit=limit,
-                        error_retries=error_retries,
-                        started_at=sample_start_datetime(),
-                    )
+                    def make_eval_sample(include_events: bool = True) -> EvalSample:
+                        return create_eval_sample(
+                            start_time=start_time,
+                            sample=sample,
+                            state=state,
+                            scores=results,
+                            error=error,
+                            limit=limit,
+                            error_retries=error_retries,
+                            started_at=sample_start_datetime(),
+                            include_events=include_events,
+                        )
+
                     if logger:
-                        await log_sample(
-                            eval_sample=eval_sample,
+                        eval_sample = await log_sample(
+                            eval_sample=make_eval_sample(
+                                include_events=logger.buffer_db is None
+                            ),
                             logger=logger,
                             log_images=log_images,
                         )
+                    else:
+                        eval_sample = make_eval_sample()
                     await scan_eval_sample(
                         eval_sample,
                         scanner,
@@ -1495,6 +1524,7 @@ def create_eval_sample(
     limit: EvalSampleLimit | None,
     error_retries: list[EvalRetryError],
     started_at: datetime | None = None,
+    include_events: bool = True,
 ) -> EvalSample:
     # sample must have id to be logged
     id = sample.id
@@ -1523,7 +1553,7 @@ def create_eval_sample(
         scores={k: v.score for k, v in scores.items()},
         store=dict(state.store.items()),
         uuid=state.uuid,
-        events=list(transcript().events),
+        events=list(transcript().events) if include_events else [],
         timelines=list(transcript().timelines) or None,
         attachments=dict(transcript().attachments),
         model_usage=sample_model_usage(),
@@ -1541,9 +1571,26 @@ def create_eval_sample(
 
 
 async def log_sample(
-    eval_sample: EvalSample, logger: TaskLogger, log_images: bool
-) -> None:
-    await logger.complete_sample(condense_sample(eval_sample, log_images), flush=True)
+    eval_sample: EvalSample,
+    logger: TaskLogger,
+    log_images: bool,
+) -> EvalSample:
+    if logger.buffer_db is None:
+        await logger.complete_sample(
+            condense_sample(eval_sample, log_images), flush=True
+        )
+        return eval_sample
+
+    logging_sample = condense_sample(
+        eval_sample.model_copy(update={"events": [], "events_data": None}),
+        log_images,
+    )
+    with logger.buffer_db.open_sample_history(
+        eval_sample.id, eval_sample.epoch
+    ) as history:
+        materialized_sample = materialize_streaming_sample(eval_sample, history)
+        await logger.complete_sample_streaming(logging_sample, history, flush=True)
+    return materialized_sample
 
 
 # we can reuse samples from a previous eval_log if and only if:
@@ -1575,8 +1622,8 @@ def eval_log_sample_source(
     # take care of no log or no samples in log. Note we still proceed when
     # in-memory samples and `eval_log_info` are both absent if a
     # `eval_checkpoints_dir` is available — the prior eval may have been
-    # killed before writing any sample, and on-disk sidecars can still
-    # drive resume detection in `read_from_memory` below.
+    # killed before writing any sample, and on-disk checkpoint files
+    # can still drive resume detection in `read_from_memory` below.
     if not eval_log:
         return no_sample_source
     elif not eval_log.samples and not eval_log_info and not eval_checkpoints_dir:

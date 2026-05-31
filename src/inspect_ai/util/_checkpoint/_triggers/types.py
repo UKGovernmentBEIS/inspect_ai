@@ -94,7 +94,7 @@ class BudgetPercent:
 
 
 CheckpointTriggerKind = Literal["time", "turn", "manual", "token", "cost", "budget"]
-"""Identifier of which trigger fired, as recorded on the sidecar."""
+"""Identifier of which trigger fired, as recorded on the checkpoint file."""
 
 CheckpointTrigger = (
     Manual | TurnInterval | TimeInterval | TokenInterval | CostInterval | BudgetPercent

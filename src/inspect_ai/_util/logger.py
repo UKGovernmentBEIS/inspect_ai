@@ -31,6 +31,7 @@ from .constants import (
     HTTP,
     HTTP_LOG_LEVEL,
     PKG_NAME,
+    SKIP_TRANSCRIPT_DISPATCH,
     TRACE,
     TRACE_LOG_LEVEL,
 )
@@ -114,8 +115,13 @@ class LogHandler(RichHandler):
         if self.trace_logger and record.levelno >= self.trace_logger_level:
             self.trace_logger.emit(record)
 
-        # eval log gets transcript level or higher
-        if record.levelno >= self.transcript_levelno:
+        # eval log gets transcript level or higher (unless the record is
+        # explicitly marked to skip transcript dispatch — e.g. transcript
+        # subscriber-failure warnings, which would otherwise re-enter the
+        # subscriber loop and fan out)
+        if record.levelno >= self.transcript_levelno and not getattr(
+            record, SKIP_TRANSCRIPT_DISPATCH, False
+        ):
             log_to_transcript(record)
 
     def emit_display(self, record: LogRecord) -> None:

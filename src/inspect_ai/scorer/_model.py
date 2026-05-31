@@ -224,6 +224,7 @@ def _model_graded_qa_single(
         else:
             return Score(
                 value=INCORRECT,
+                answer=state.output.completion,
                 explanation="Grade not found in model output: "
                 + f"{result.completion}",
                 metadata=dict(

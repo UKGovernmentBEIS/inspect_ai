@@ -22,6 +22,7 @@ from __future__ import annotations
 import contextlib
 import math
 from contextvars import ContextVar
+from dataclasses import dataclass
 from types import TracebackType
 from typing import (
     TYPE_CHECKING,
@@ -39,11 +40,47 @@ from anyio.streams.memory import MemoryObjectReceiveStream
 from inspect_ai.model._chat_message import ChatMessageUser
 
 if TYPE_CHECKING:
-    from acp.schema import RequestPermissionRequest, RequestPermissionResponse
+    from acp.schema import (
+        AcceptElicitationResponse,
+        CancelElicitationResponse,
+        DeclineElicitationResponse,
+        ElicitationSchema,
+        RequestPermissionRequest,
+        RequestPermissionResponse,
+    )
 
     from inspect_ai.agent._channel import AgentChannel, AgentRef
     from inspect_ai.event._model import ModelEvent
     from inspect_ai.event._tool import ToolEvent
+
+    ElicitationResponse = (
+        AcceptElicitationResponse
+        | DeclineElicitationResponse
+        | CancelElicitationResponse
+    )
+
+
+@dataclass(frozen=True)
+class ElicitationRequest:
+    """All fields the standard ACP ``elicitation/create`` wire payload needs.
+
+    The installed ``acp.schema`` (0.10) splits these across two
+    Pydantic types — ``CreateFormElicitationRequest`` carries
+    ``message`` + ``mode``; ``ElicitationFormSessionMode`` carries
+    ``sessionId`` + ``toolCallId`` + ``requestedSchema`` — but on the
+    wire it's one flat object. This Inspect-side container carries the
+    full set so ``ConnectionHandler.request_elicitation`` can perform
+    target-session validation, ``wire_session_id`` rewriting, and emit
+    the standard ACP wire shape in one place. No protocol divergence:
+    the wire JSON we serialize is spec-conformant ``elicitation/create``
+    that any compliant 0.10 client renders.
+    """
+
+    message: str
+    session_id: str
+    requested_schema: "ElicitationSchema"
+    tool_call_id: str | None = None
+
 
 # Loose heterogeneous payload — early tests publish dicts; the live
 # router publishes ``acp.SessionNotification`` Pydantic instances. The
@@ -111,6 +148,52 @@ class ApproverClient(Protocol):
         Implementations must return promptly when there's nothing
         to drain (forwarder caught up, or no forwarder running).
         Stubs in tests can no-op. Cancellation propagates.
+        """
+        ...
+
+
+@runtime_checkable
+class ElicitationClient(Protocol):
+    """A client capable of handling ``elicitation/create``.
+
+    An attached ACP client that can render a structured-form request
+    (``ask_user``) to the user and return their submission. The
+    Phase 6 ``acp_handler`` routes elicitation prompts through ACP
+    when at least one client is attached AND that client advertised
+    the ``elicitation.form`` capability during ``initialize``,
+    falling back to the in-proc panel / console flow otherwise.
+
+    Implementations: ``ConnectionHandler`` in ``connection.py`` (wraps
+    ``conn.send_request("elicitation/create", ...)``); tests pass
+    small stubs to exercise the driver-fallback semantics without a
+    real socket.
+    """
+
+    async def request_elicitation(
+        self, request: ElicitationRequest
+    ) -> "ElicitationResponse":
+        """Send the elicitation request and await the response.
+
+        Raises (typically :class:`ConnectionError`) if the client
+        disconnected before responding — the driver-fallback loop in
+        ``_input/acp.py`` treats that as a fallback signal and tries
+        the next client in the chain. Also raises if the implementation
+        is bound to a target session other than ``request.session_id``;
+        the shim treats that the same way (try the next client).
+        """
+        ...
+
+    async def drain_notifications(self) -> None:
+        """Wait until pending ``session/update`` notifications have been sent.
+
+        Called by the elicitation shim immediately before
+        :meth:`request_elicitation` so the operator sees the model's
+        accompanying ``agent_message_chunk`` (the contextual "why"
+        the agent is asking) BEFORE the form appears. Same rationale
+        as :meth:`ApproverClient.drain_notifications`.
+
+        Implementations must return promptly when there's nothing to
+        drain. Stubs in tests can no-op. Cancellation propagates.
         """
         ...
 
@@ -224,8 +307,8 @@ class AcpTransport(Protocol):
 
         Used by the raw-event forwarder to stream Inspect-native
         events out to opt-in clients. Wraps the underlying
-        ``Transcript._add_subscriber`` so callers don't reach into
-        private session state. Returns an idempotent unsubscribe
+        ``Transcript._subscribe`` so callers don't reach into private
+        session state. Returns an idempotent unsubscribe
         callable (calling it removes the subscriber; safe to call
         multiple times).
 
@@ -356,26 +439,30 @@ class AcpTransport(Protocol):
         Decoupled from :meth:`attach_approver_client` (which runs
         before replay and registers as pending) so subscribers wake
         only after replay completes AND the connection has promoted
-        itself via :meth:`mark_active_approver_client`. Half-bound
+        itself via :meth:`mark_active_session_client`. Half-bound
         clients are invisible to :meth:`approver_driver_chain` until
         this notification fires. The connection handler invokes this
         from its post-bind setup. No-op session does nothing.
         """
         ...
 
-    def mark_active_approver_client(self, client: ApproverClient) -> None:
-        """Promote ``client`` to be the active driver for approvals.
+    def mark_active_session_client(self, client: object) -> None:
+        """Promote ``client`` as the active driver across every registry it belongs to.
 
         Called by the connection handler after a ``session/prompt``
         forwards to this session — the strongest signal that this
         client is the operator's current surface. The next
-        ``session/request_permission`` will route to this client
-        first; if it raises (typically ``ConnectionError`` on
-        mid-prompt disconnect), the shim falls through to the next
+        ``session/request_permission`` (and the next
+        ``elicitation/create``) will route to this client first; if
+        it raises (typically ``ConnectionError`` on mid-prompt
+        disconnect), the dispatch shim falls through to the next
         attached client.
 
-        Silently no-ops if the client isn't (or is no longer) in
-        the registry. No-op session does nothing.
+        Fans out to every client-driver registry on the session
+        (approver, elicitation, future additions). Each registry's
+        promotion silently no-ops when the client isn't in its
+        lists, so this is safe to call unconditionally. No-op
+        session does nothing.
         """
         ...
 
@@ -386,6 +473,63 @@ class AcpTransport(Protocol):
         recently landed; subsequent entries are the remaining
         attached clients in attach order. Returns a snapshot copy
         so iteration is stable against concurrent attach/detach.
+        """
+        ...
+
+    def attach_elicitation_client(
+        self, client: "ElicitationClient"
+    ) -> Callable[[], None]:
+        """Register an ACP client capable of handling ``elicitation/create``.
+
+        Same single-driver-with-fallback semantics as
+        :meth:`attach_approver_client`. The connection handler gates
+        the call on the client's advertised ``elicitation.form``
+        capability; clients without that capability are never
+        attached here. Returns an idempotent unsubscribe callable.
+        No-op session returns a no-op unsubscribe.
+        """
+        ...
+
+    def has_elicitation_clients(self) -> bool:
+        """True if at least one :class:`ElicitationClient` is currently attached.
+
+        Cheap predicate used by the Phase 6 elicitation shim to
+        decide whether to route via ACP. No-op session always
+        returns False.
+        """
+        ...
+
+    def has_ever_had_elicitation_client(self) -> bool:
+        """True if any elicitation client has attached during this session.
+
+        One-way bit; same semantics as
+        :meth:`has_ever_had_approver_client`.
+        """
+        ...
+
+    def subscribe_elicitation_attach(
+        self, callback: Callable[[], None]
+    ) -> Callable[[], None]:
+        """Register ``callback`` to fire on :meth:`notify_elicitation_attach`.
+
+        Same semantics as :meth:`subscribe_approver_attach`. No-op
+        session returns a no-op unsubscribe.
+        """
+        ...
+
+    def notify_elicitation_attach(self, client: "ElicitationClient") -> None:
+        """Promote ``client`` from pending to ready and fire subscribers.
+
+        Same semantics as :meth:`notify_approver_attach`. The
+        connection handler invokes this from its post-bind setup
+        when the client advertised elicitation form capability.
+        """
+        ...
+
+    def elicitation_driver_chain(self) -> list["ElicitationClient"]:
+        """Elicitation clients in fallback order: driver first, then others.
+
+        Same semantics as :meth:`approver_driver_chain`.
         """
         ...
 

@@ -858,16 +858,16 @@ def _is_separator_block(block: object) -> bool:
 # Approval section (inline on the tool-call card)
 #
 # The card hosts the CONTEXT PREVIEW (``_ApprovalContent`` below). The
-# action buttons live in :class:`_ApprovalBar` (composer area) and
-# post :class:`ApprovalDecisionRequested` using the
+# action buttons live on :class:`_ApprovalCard` (inline below the
+# transcript) and post :class:`ApprovalDecisionRequested` using the
 # ``_BUTTON_ID_PREFIX`` id convention defined here.
 # ----------------------------------------------------------------------
 
 
 class ApprovalDecisionRequested(Message):
-    """Posted up from :class:`_ApprovalBar` when an action button is pressed.
+    """Posted up from :class:`_ApprovalCard` when an action button is pressed.
 
-    Routes to :meth:`SessionScreen.on_tool_call_approval_decision_requested`
+    Routes to :meth:`SessionScreen.on_approval_decision_requested`
     which calls :meth:`SessionState.resolve_approval` — that fires the
     pending event the client-side JSON-RPC handler is parked on, and
     the response goes back over the wire.
@@ -888,9 +888,10 @@ class _ApprovalContent(Vertical):
     Renders the ``view.context`` / separator / ``view.call`` halves
     that the server baked into the approval request's markdown so
     the operator can see WHAT they're being asked to approve. The
-    action buttons live in :class:`_ApprovalBar` (composer area) —
-    keeping them out of the card prevents the "scroll up to find
-    the buttons" issue on long tool cards with diffs / code blocks.
+    action buttons live on :class:`_ApprovalCard` (inline below the
+    transcript) — keeping them out of the card prevents the "scroll
+    up to find the buttons" issue on long tool cards with diffs /
+    code blocks.
 
     Mirrors the structure of the in-proc
     :class:`ApprovalRequestContent` from

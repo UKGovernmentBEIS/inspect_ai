@@ -28,6 +28,7 @@ since both are Inspect-specific extensions on a standard ACP payload.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from inspect_ai.log._samples import active_samples
 
@@ -156,6 +157,12 @@ class SampleListing:
     total_messages: int = 0
     total_tokens: int = 0
     fails_on_error: bool = False
+    pending: Literal["approval", "question"] | None = None
+    """Set when the sample is parked on a human-in-the-loop request
+    routed through ACP — ``"approval"`` for tool-call permission,
+    ``"question"`` for ``ask_user``. ``None`` otherwise. The Inspect
+    TUI's picker reads this to surface a "pending" column and float
+    waiting samples to the top of the table."""
 
 
 def list_all_samples() -> list[SampleListing]:
@@ -196,6 +203,7 @@ def list_all_samples() -> list[SampleListing]:
                 total_messages=sample.total_messages,
                 total_tokens=sample.total_tokens,
                 fails_on_error=sample.fails_on_error,
+                pending=sample.pending_interaction,
             )
         )
     return listings

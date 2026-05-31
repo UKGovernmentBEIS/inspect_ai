@@ -230,6 +230,7 @@ class OpenRouterAPI(OpenAICompatibleAPI):
         # (Anthropic / Grok / OpenAI reasoning models) retain reasoning
         # replay since they require it for correct CoT continuation.
         _strip_reasoning_details = "gemini" in self.model_name.lower()
+        _replay_reasoning_content = _requires_reasoning_content(self.model_name)
 
         # convert reasoning_details to an extra body parameter
         def handle_reasoning_details(
@@ -238,6 +239,11 @@ class OpenRouterAPI(OpenAICompatibleAPI):
             if _strip_reasoning_details:
                 return reasoning_to_think_tag(content)
             details = reasoning_to_openrouter_reasoning_details(content)
+            if _replay_reasoning_content:
+                reasoning_content: dict[str, JsonValue] = {
+                    "reasoning_content": content.reasoning
+                }
+                return (details or {}) | reasoning_content
             if details is not None:
                 return details
             else:
@@ -372,6 +378,11 @@ class OpenRouterAPI(OpenAICompatibleAPI):
                 params[EXTRA_BODY]["reasoning"] = reasoning
 
         return params
+
+
+def _requires_reasoning_content(model_name: str) -> bool:
+    name = model_name.removeprefix("openrouter/").lower()
+    return name.startswith("deepseek/deepseek-v4")
 
 
 def _ephemeral() -> dict[str, str]:

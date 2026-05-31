@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import inspect
 import os
 import sys
@@ -74,6 +75,32 @@ async def tg_collect(
             raise
         else:
             raise ex.exceptions[0] from None
+
+
+class aexit_shielded_when(contextlib.AbstractAsyncContextManager[Any]):
+    """Wrap an async context manager so its `__aexit__` runs shielded when `shield()` is True.
+
+    Lets a caller keep `async with X:` syntax while making the inner CM's
+    teardown uninterruptible under a still-cancelled enclosing scope. `shield`
+    is a callable so it can read state that is only set inside the `async with`
+    body (e.g. a `cancelled_error` local that's `None` at construction time
+    and assigned later).
+    """
+
+    def __init__(
+        self,
+        inner: contextlib.AbstractAsyncContextManager[Any],
+        shield: Callable[[], bool],
+    ) -> None:
+        self._inner = inner
+        self._shield = shield
+
+    async def __aenter__(self) -> Any:
+        return await self._inner.__aenter__()
+
+    async def __aexit__(self, exc_type: Any, exc_value: Any, traceback: Any) -> Any:
+        with anyio.CancelScope(shield=self._shield()):
+            return await self._inner.__aexit__(exc_type, exc_value, traceback)
 
 
 async def coro_print_exceptions(

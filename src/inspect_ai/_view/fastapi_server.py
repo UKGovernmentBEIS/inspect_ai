@@ -26,6 +26,7 @@ from typing_extensions import override
 from inspect_ai._display.core.active import display
 from inspect_ai._eval.evalset import EvalSet, read_eval_set_info
 from inspect_ai._util.constants import DEFAULT_SERVER_HOST, DEFAULT_VIEW_PORT
+from inspect_ai._util.error import WriteConflictError
 from inspect_ai._util.file import filesystem
 from inspect_ai._util.local_server import get_machine_ip
 from inspect_ai._view import notify
@@ -34,7 +35,9 @@ from inspect_ai._view.common import (
     LogDirResponse,
     LogFilesResponse,
     LogInfo,
+    LogInProgressError,
     LogListingResponse,
+    apply_log_edits,
     build_pending_sample_urls,
     delete_log,
     get_log_dir,
@@ -48,7 +51,9 @@ from inspect_ai._view.common import (
     stream_log_bytes,
 )
 from inspect_ai._view.scout_routes import get_scout_search_router
+from inspect_ai._view.user_info import UserInfo, user_info
 from inspect_ai.log import EvalLog
+from inspect_ai.log._edit import LogUpdate
 from inspect_ai.log._file import read_eval_log_headers_async
 from inspect_ai.log._recorders.buffer import sample_buffer
 from inspect_ai.log._recorders.buffer.types import (
@@ -66,6 +71,8 @@ class AccessPolicy(Protocol):
     async def can_delete(self, request: Request, file: str) -> bool: ...
 
     async def can_list(self, request: Request, dir: str) -> bool: ...
+
+    async def can_write(self, request: Request, file: str) -> bool: ...
 
 
 class FileMappingPolicy(Protocol):
@@ -98,6 +105,10 @@ def view_server_app(
 ) -> "FastAPI":
     app = FastAPI()
 
+    @app.exception_handler(FileNotFoundError)
+    async def _file_not_found(_request: Request, _exc: FileNotFoundError) -> Response:
+        return Response(status_code=HTTP_404_NOT_FOUND)
+
     async def _map_file(request: Request, file: str) -> str:
         if mapping_policy is not None:
             return await mapping_policy.map(request, file)
@@ -118,6 +129,11 @@ def view_server_app(
             if not await access_policy.can_delete(request, file):
                 raise HTTPException(status_code=HTTP_403_FORBIDDEN)
 
+    async def _validate_write(request: Request, file: str) -> None:
+        if access_policy is not None:
+            if not await access_policy.can_write(request, file):
+                raise HTTPException(status_code=HTTP_403_FORBIDDEN)
+
     async def _validate_list(request: Request, file: str) -> None:
         if access_policy is not None:
             if not await access_policy.can_list(request, file):
@@ -131,11 +147,9 @@ def view_server_app(
     ) -> Response:
         file = normalize_uri(log)
         await _validate_read(request, file)
-        try:
-            body = await get_log_file(await _map_file(request, file), header_only)
-        except FileNotFoundError:
-            return Response(status_code=HTTP_404_NOT_FOUND)
-        return Response(content=body, media_type="application/json")
+        body, etag = await get_log_file(await _map_file(request, file), header_only)
+        headers = {"ETag": etag} if etag is not None else {}
+        return Response(content=body, media_type="application/json", headers=headers)
 
     @app.get("/log-size/{log:path}")
     async def api_log_size(request: Request, log: str) -> int:
@@ -158,6 +172,28 @@ def view_server_app(
         await _validate_delete(request, file)
         await delete_log(await _map_file(request, file))
         return True
+
+    @app.post("/log-edit/{log:path}", response_model=EvalLog)
+    async def api_log_edit(request: Request, log: str, update: LogUpdate) -> Response:
+        file = normalize_uri(log)
+        await _validate_write(request, file)
+        if_match = request.headers.get("If-Match")
+        try:
+            contents, new_etag = await apply_log_edits(
+                await _map_file(request, file), update, if_match_etag=if_match
+            )
+        except LogInProgressError as ex:
+            # 409 Conflict — the recorder still owns the file. Distinct
+            # from 412 (stale ETag) and 400 (bad input).
+            raise HTTPException(status_code=409, detail=str(ex))
+        except ValueError as ex:
+            raise HTTPException(status_code=400, detail=str(ex))
+        except WriteConflictError as ex:
+            raise HTTPException(status_code=412, detail=str(ex))
+        headers = {"ETag": new_etag} if new_etag is not None else {}
+        return Response(
+            content=contents, media_type="application/json", headers=headers
+        )
 
     @app.get("/log-bytes/{log:path}")
     async def api_log_bytes(
@@ -372,6 +408,10 @@ def view_server_app(
 
         return await read_eval_log_headers_async(mapped_files)
 
+    @app.get("/user-info", response_model_exclude_none=True)
+    async def api_user_info() -> UserInfo:
+        return user_info()
+
     @app.get("/events")
     async def api_events(
         last_eval_time: str | None = None,
@@ -556,6 +596,9 @@ class OnlyDirAccessPolicy(AccessPolicy):
 
     async def can_list(self, request: Request, dir: str) -> bool:
         return self._validate_log_dir(dir)
+
+    async def can_write(self, request: Request, file: str) -> bool:
+        return self._validate_log_dir(file)
 
 
 def view_server(

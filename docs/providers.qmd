@@ -27,6 +27,7 @@ The following environment variables are supported by the OpenAI provider
 | `OPENAI_BASE_URL` | Base URL for requests (optional, defaults to `https://api.openai.com/v1`) |
 | `OPENAI_ORG_ID` | OpenAI organization ID (optional) |
 | `OPENAI_PROJECT_ID` | OpenAI project ID (optional) |
+| `OPENAI_SAFETY_IDENTIFIER` | Default `safety_identifier` passed with each request (optional; overridden by the `safety_identifier` model arg if set). |
 
 ### Model Args
 
@@ -172,6 +173,16 @@ If there are other beta features you want to enable, use the `betas` model arg (
 ``` bash
 inspect eval arc.py --model anthropic/claude-sonnet-4-0 -M betas=context-1m-2025-08-07
 ```
+
+#### Cache Diagnostics {#anthropic-cache-diagnostics}
+
+Include the `cache-diagnosis-2026-04-07` beta header to produce diagnostics for prompt cachijng. Diagnostics are automatically included in `ChatMessageAssistant.metadata["diagnostics"]` (which you can see in the viewer) and a warning message is printed for cache misses. For example:
+
+``` bash
+inspect eval arc.py --model anthropic/claude-sonnet-4-6 -M betas=cache-diagnosis-2026-04-07
+```
+
+Learn more about cache diagnostics at <https://platform.claude.com/docs/en/build-with-claude/cache-diagnostics>.
 
 ### Streaming
 

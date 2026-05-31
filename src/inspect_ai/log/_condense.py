@@ -1,6 +1,5 @@
 import json
 from collections.abc import MutableMapping
-from functools import lru_cache
 from logging import getLogger
 from typing import (
     Callable,
@@ -8,7 +7,7 @@ from typing import (
     Sequence,
 )
 
-from pydantic import JsonValue, TypeAdapter
+from pydantic import JsonValue
 from typing_extensions import TypedDict
 
 from inspect_ai._util.constants import BASE_64_DATA_REMOVED
@@ -27,6 +26,15 @@ from inspect_ai._util.hash import mm3_hash
 from inspect_ai._util.json import JsonChange
 from inspect_ai._util.url import is_data_uri
 from inspect_ai.dataset._dataset import Sample
+from inspect_ai.event._pool import (
+    _build_call_index,
+    _build_msg_index,
+    condense_model_event_calls,
+    condense_model_event_inputs,
+    resolve_model_event_calls,
+    resolve_model_event_inputs,
+)
+from inspect_ai.event._validate import validate_chat_messages, validate_events_json
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageAssistant
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput
@@ -44,25 +52,6 @@ from ..event._store import StoreEvent
 from ..event._subtask import SubtaskEvent
 from ..event._tool import ToolEvent
 from ._log import EvalSample, EventsData
-from ._pool import (
-    _build_call_index,
-    _build_msg_index,
-    condense_model_event_calls,
-    condense_model_event_inputs,
-    resolve_model_event_calls,
-    resolve_model_event_inputs,
-)
-
-
-@lru_cache(maxsize=1)
-def _events_adapter() -> TypeAdapter[list[Event]]:
-    return TypeAdapter(list[Event])
-
-
-@lru_cache(maxsize=1)
-def _chat_messages_adapter() -> TypeAdapter[list[ChatMessage]]:
-    return TypeAdapter(list[ChatMessage])
-
 
 logger = getLogger(__name__)
 
@@ -73,6 +62,24 @@ ATTACHMENT_PROTOCOL = "attachment://"
 class WalkContext(TypedDict):
     message_cache: dict[str, ChatMessage]
     only_core: bool
+
+
+def attachment_refs_from_value(value: object) -> set[str]:
+    refs: set[str] = set()
+
+    def collect(value: object) -> None:
+        if isinstance(value, str):
+            if value.startswith(ATTACHMENT_PROTOCOL):
+                refs.add(value.removeprefix(ATTACHMENT_PROTOCOL))
+        elif isinstance(value, dict):
+            for item in value.values():
+                collect(item)
+        elif isinstance(value, (list, tuple, set)):
+            for item in value:
+                collect(item)
+
+    collect(value)
+    return refs
 
 
 def condense_events(
@@ -112,11 +119,11 @@ def expand_events(
         Events with full message inputs and call request messages restored.
     """
     if isinstance(events, str):
-        events = _events_adapter().validate_json(events)
+        events = validate_events_json(events)
     if isinstance(data, str):
         raw = json.loads(data)
         data = EventsData(
-            messages=_chat_messages_adapter().validate_python(raw.get("messages", [])),
+            messages=validate_chat_messages(raw.get("messages", [])),
             calls=raw.get("calls", []),
         )
     result = resolve_model_event_inputs(list(events), data["messages"])
@@ -636,9 +643,12 @@ def walk_tool_call(
         parse_error=tool_call.parse_error,
         view=tool_call.view.model_copy(
             update=dict(
+                # ToolCallContent.content is a non-optional str (default ""),
+                # so preserve an empty content as "" — nulling it here breaks
+                # readback validation (e.g. title-only lifecycle-tool views).
                 content=content_fn(tool_call.view.content)
-                if tool_call.view and tool_call.view.content
-                else None,
+                if tool_call.view.content
+                else tool_call.view.content,
             )
         )
         if tool_call.view
