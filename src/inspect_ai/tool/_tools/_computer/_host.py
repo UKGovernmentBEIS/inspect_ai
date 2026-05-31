@@ -179,7 +179,6 @@ _KEY_MAP.update(
         "KP_Page_Down": "pagedown",
         "KP_Insert": "insert",
         "KP_Delete": "delete",
-        "KP_Begin": "clear",
     }
 )
 
