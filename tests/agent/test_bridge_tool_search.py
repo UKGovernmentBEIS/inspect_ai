@@ -237,7 +237,10 @@ def test_resume_namespaced_call_replays_with_namespace() -> None:
     assistant = next(m for m in messages if isinstance(m, ChatMessageAssistant))
 
     replayed = _tool_call_items_from_assistant_message(assistant)
-    call = next(i for i in replayed if i.get("type") == "function_call")
+    call = cast(
+        dict[str, Any],
+        next(i for i in replayed if i.get("type") == "function_call"),
+    )
     assert call["name"] == "spawn_agent"
     assert call.get("namespace") == "multi_agent_v1"
 
