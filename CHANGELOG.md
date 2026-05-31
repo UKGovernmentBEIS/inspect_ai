@@ -1,3 +1,7 @@
+## Unreleased
+
+- OpenAI: Support `tool_search` tool type from native scaffolds (e.g. Codex CLI).
+
 ## 0.3.231 (30 May 2026)
 
 - OpenAI: Drop `tool_search` tool types from native scaffolds (e.g. Codex CLI).

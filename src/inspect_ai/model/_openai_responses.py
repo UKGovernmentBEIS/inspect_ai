@@ -36,11 +36,13 @@ from openai.types.responses import (
     ResponseOutputTextParam,
     ResponseReasoningItem,
     ResponseReasoningItemParam,
+    ResponseToolSearchCall,
     ResponseUsage,
     ToolChoiceFunctionParam,
     ToolChoiceMcpParam,
     ToolChoiceTypesParam,
     ToolParam,
+    ToolSearchToolParam,
     WebSearchToolParam,
 )
 from openai.types.responses import Response as OpenAIResponse
@@ -72,6 +74,7 @@ from openai.types.responses.response_input_item_param import (
     ComputerCallOutput,
     FunctionCallOutput,
     Message,
+    ToolSearchCall,
 )
 from openai.types.responses.response_input_item_param import McpCall as McpCallParam
 from openai.types.responses.response_input_item_param import (
@@ -105,6 +108,9 @@ from openai.types.responses.response_output_text_param import (
 )
 from openai.types.responses.response_reasoning_item_param import Content as ContentParam
 from openai.types.responses.response_reasoning_item_param import Summary as SummaryParam
+from openai.types.responses.response_tool_search_output_item_param_param import (
+    ResponseToolSearchOutputItemParamParam,
+)
 from openai.types.responses.response_usage import (
     InputTokensDetails,
     OutputTokensDetails,
@@ -263,6 +269,11 @@ async def _openai_input_item_from_chat_message(
             message, model_info, synthesize_phase
         )
     elif message.role == "tool":
+        # client-resolved tool_search: replay the discovered tools (carried as
+        # JSON in the tool message content) as a native tool_search_output item
+        if message.function == TOOL_SEARCH_NAME:
+            return [_tool_search_output_param_from_tool_message(message)]
+
         # see if we need to recover the call id for the computer tool calls
         responses_tool_call = assistant_internal().tool_calls.get(
             message.tool_call_id or str(message.function)
@@ -304,6 +315,38 @@ async def _openai_input_item_from_chat_message(
 
     else:
         raise ValueError(f"Unexpected message role '{message.role}'")
+
+
+def _tool_search_output_param_from_tool_message(
+    message: ChatMessageTool,
+) -> ResponseToolSearchOutputItemParamParam:
+    # tools were carried as JSON in the tool message content; parse them back
+    content = message.content
+    tools_json = (
+        content
+        if isinstance(content, str)
+        else "".join(c.text for c in content if isinstance(c, ContentText))
+    )
+    try:
+        validated = tool_search_tools_adapter.validate_json(tools_json)
+        # validate_json yields lazy `ValidatorIterator`s for namespace tools
+        # (NamespaceToolParam.tools is typed `Iterable`). Such an iterator is
+        # single-consumption: inspect serializes the request for the transcript
+        # before the OpenAI client serializes it for the wire, so the iterator is
+        # exhausted on the first pass and the wire body carries an empty `tools`
+        # array (OpenAI then rejects it as "empty array"). dump_python
+        # materializes the iterators into plain lists that survive re-serialization.
+        tools = tool_search_tools_adapter.dump_python(validated, mode="json")
+    except (ValidationError, ValueError):
+        # e.g. content cleared by compaction; fall back to an empty tool list
+        tools = []
+    return ResponseToolSearchOutputItemParamParam(
+        type="tool_search_output",
+        call_id=message.tool_call_id or str(message.function),
+        tools=tools,
+        execution="client",
+        status="completed",
+    )
 
 
 async def _openai_responses_function_call_output(
@@ -518,7 +561,8 @@ class _AssistantInternal:
         | ResponseCustomToolCallParam
         | ResponseComputerToolCallParam
         | ResponseFunctionWebSearchParam
-        | ResponseCodeInterpreterToolCallParam,
+        | ResponseCodeInterpreterToolCallParam
+        | ToolSearchCall,
     ] = field(default_factory=dict)
     server_tool_uses: dict[str, ResponseInputItemParam] = field(default_factory=dict)
 
@@ -737,6 +781,16 @@ def _process_response_output_items(
                 if output.status == "completed" and output.result is not None:
                     data_uri = f"data:image/png;base64,{output.result}"
                     message_content.append(ContentImage(image=data_uri))
+            case ResponseToolSearchCall():
+                # client-resolved built-in tool (like computer): represent as a
+                # standard ToolCall the scaffold will resolve. Cache the raw param
+                # (keyed by call_id) for verbatim replay within the sample.
+                has_tool_calls = True
+                tool_call = tool_call_from_openai_tool_search_call(output)
+                assistant_internal().tool_calls[tool_call.id] = cast(
+                    ToolSearchCall, output.model_dump(exclude_none=True)
+                )
+                tool_calls.append(tool_call)
             case _:
                 raise ValueError(f"Unexpected output type: {output.__class__}")
 
@@ -906,6 +960,23 @@ def responses_reasoning_from_reasoning(
 
 
 mcp_tool_adapter = TypeAdapter(list[McpListToolsToolParam])
+
+
+def tool_call_from_openai_tool_search_call(output: ResponseToolSearchCall) -> ToolCall:
+    # arguments may arrive as a dict (typed `object`) or a JSON string
+    arguments = output.arguments
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments) if arguments else {}
+        except json.JSONDecodeError:
+            arguments = {}
+    if not isinstance(arguments, dict):
+        arguments = {"query": arguments}
+    return ToolCall(
+        id=output.call_id or output.id,
+        function=TOOL_SEARCH_NAME,
+        arguments=arguments,
+    )
 
 
 def web_search_to_tool_use(output: ResponseFunctionWebSearch) -> ContentToolUse:
@@ -1276,6 +1347,44 @@ def _model_tool_call_for_internal(
             raise NotImplementedError(f"Unsupported tool call type: {x}")
 
 
+# tool_search is a native Responses tool used by scaffolds (e.g. codex-cli) to do
+# client-side tool discovery. It is represented in inspect as a built-in tool the
+# scaffold resolves (like `computer`): the model emits a `tool_search_call`, the
+# scaffold returns a `tool_search_output` carrying the discovered tool defs.
+TOOL_SEARCH_NAME = "tool_search"
+TOOL_SEARCH_OUTPUT_NAME = "tool_search_output"
+# options-bag marker so we can recognize the synthesized tool_search ToolInfo
+TOOL_SEARCH_OPTIONS_MARKER = "tool_search"
+
+tool_search_tools_adapter = TypeAdapter(list[ToolParam])
+
+
+def is_tool_search_server_tool(tool: ToolInfo) -> bool:
+    return (
+        tool.name == TOOL_SEARCH_NAME
+        and tool.options is not None
+        and tool.options.get(TOOL_SEARCH_OPTIONS_MARKER) is True
+    )
+
+
+def maybe_tool_search_tool(tool: ToolInfo) -> ToolSearchToolParam | None:
+    if is_tool_search_server_tool(tool):
+        options = tool.options or {}
+        param: ToolSearchToolParam = {"type": "tool_search"}
+        description = options.get("description")
+        if description is not None:
+            param["description"] = description
+        execution = options.get("execution")
+        if execution is not None:
+            param["execution"] = execution
+        parameters = options.get("parameters")
+        if parameters is not None:
+            param["parameters"] = parameters
+        return param
+    else:
+        return None
+
+
 def _maybe_native_tool_param(
     tool: ToolInfo,
     model_name: str,
@@ -1287,6 +1396,7 @@ def _maybe_native_tool_param(
             or maybe_web_search_tool(model_name, tool)
             or maybe_mcp_tool(tool)
             or maybe_code_interpreter_tool(model_name, tool)
+            or maybe_tool_search_tool(tool)
             # or self.text_editor_tool_param(tool)
             # or self.bash_tool_param(tool)
         )
@@ -1306,6 +1416,19 @@ def _tool_call_items_from_assistant_message(
         assistant_internal_call = assistant_internal().tool_calls.get(call.id, None)
         if assistant_internal_call is not None:
             tool_calls.append(assistant_internal_call)
+        elif call.function == TOOL_SEARCH_NAME:
+            # client-resolved built-in tool: emit a native tool_search_call
+            # (cold-cache fallback, e.g. replaying scaffold-provided history)
+            tool_calls.append(
+                ToolSearchCall(
+                    type="tool_search_call",
+                    id=call.id,
+                    call_id=call.id,
+                    arguments=call.arguments,
+                    execution="client",
+                    status="completed",
+                )
+            )
         else:
             # create param
             tool_call_param: ResponseFunctionToolCallParam = dict(
@@ -1499,6 +1622,7 @@ def is_assistant_message_param(
         or is_response_reasoning_item(param)
         or is_response_mcp_list_tools(param)
         or is_response_mcp_call(param)
+        or is_response_tool_search_call(param)
     )
 
 
@@ -1587,6 +1711,20 @@ def is_response_custom_tool_call(
     return param["type"] == "custom_tool_call"
 
 
+def is_response_tool_search_call(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ToolSearchCall]:
+    return param["type"] == "tool_search_call"
+
+
+def is_tool_search_output(
+    param: ResponseInputItemParam,
+) -> TypeGuard[ResponseToolSearchOutputItemParamParam]:
+    # tolerate items without a "type" key (e.g. simple user messages) since this
+    # is scanned over raw input items, some of which omit "type"
+    return param.get("type") == "tool_search_output"
+
+
 def is_function_tool_param(tool_param: ToolParam) -> TypeGuard[FunctionToolParam]:
     return tool_param.get("type") == "function"
 
@@ -1599,6 +1737,12 @@ def is_code_interpreter_tool_param(
     tool_param: ToolParam,
 ) -> TypeGuard[CodeInterpreter]:
     return tool_param.get("type") == "code_interpreter"
+
+
+def is_tool_search_tool_param(
+    tool_param: ToolParam,
+) -> TypeGuard[ToolSearchToolParam]:
+    return tool_param.get("type") == "tool_search"
 
 
 def is_mcp_tool_param(tool_param: ToolParam) -> TypeGuard[Mcp]:
