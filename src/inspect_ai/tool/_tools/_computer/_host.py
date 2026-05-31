@@ -42,6 +42,11 @@ try:
 except ImportError:
     Image = None  # type: ignore[assignment]
 
+try:
+    import pyperclip
+except ImportError:
+    pyperclip = None  # type: ignore[assignment]
+
 
 def _require_deps() -> None:
     missing: list[str] = []
@@ -193,6 +198,40 @@ def _parse_combo(combo: str) -> list[str]:
     return [_translate_key(p) for p in combo.split("+")]
 
 
+def _type_text(text: str) -> None:
+    """Type text, falling back to clipboard paste for non-ASCII characters.
+
+    pyautogui.typewrite silently drops anything outside its ASCII keymap,
+    so for strings containing non-ASCII we use the system clipboard plus
+    Cmd/Ctrl+V. The previous clipboard contents are saved and restored.
+    """
+    if text.isascii():
+        pyautogui.typewrite(text, interval=0.012)  # type: ignore[union-attr]
+        return
+
+    if pyperclip is None:
+        raise ToolError(
+            "Typing non-ASCII text requires pyperclip. Install with: pip install pyperclip"
+        )
+
+    try:
+        saved = pyperclip.paste()
+    except Exception:
+        saved = None
+    try:
+        pyperclip.copy(text)
+        if platform.system() == "Darwin":
+            pyautogui.hotkey("command", "v")  # type: ignore[union-attr]
+        else:
+            pyautogui.hotkey("ctrl", "v")  # type: ignore[union-attr]
+    finally:
+        if saved is not None:
+            try:
+                pyperclip.copy(saved)
+            except Exception:
+                pass
+
+
 # ---------------------------------------------------------------------------
 # Public action functions – mirror _common.py signatures
 # ---------------------------------------------------------------------------
@@ -331,7 +370,7 @@ async def hold_key(key: str, duration: int, timeout: int | None = None) -> ToolR
 
 async def type(text: str, timeout: int | None = None) -> ToolResult:
     _require_deps()
-    pyautogui.typewrite(text, interval=0.012)  # type: ignore[union-attr]
+    _type_text(text)
     return await _result_with_screenshot()
 
 
@@ -375,7 +414,7 @@ async def navigate(text: str, timeout: int | None = None) -> ToolResult:
     else:
         pyautogui.hotkey("ctrl", "l")  # type: ignore[union-attr]
     await anyio.sleep(0.5)
-    pyautogui.typewrite(text, interval=0.012)  # type: ignore[union-attr]
+    _type_text(text)
     pyautogui.press("enter")  # type: ignore[union-attr]
     await anyio.sleep(1)
     return await screenshot()
