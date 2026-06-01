@@ -26,7 +26,7 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import Transcript, expand_events
-from inspect_ai.log._transcript import init_transcript, transcript
+from inspect_ai.log._transcript import init_transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
 from inspect_ai.model._chat_message import (
     ChatMessage,
@@ -377,7 +377,10 @@ async def test_fire_includes_events_emitted_before_checkpointer_construction(
     dirs: _Dirs,
 ) -> None:
     preexisting = InfoEvent(data="before-checkpointer")
-    active_transcript = transcript()
+    # Fresh transcript, not the ambient `transcript()`: in a full-suite run
+    # the shared ContextVar transcript holds leftover events from prior tests,
+    # which would sort ahead of `preexisting` in the dumped events.json.
+    active_transcript = Transcript(bounded=False)
     active_transcript._event(preexisting)
 
     with patch(
