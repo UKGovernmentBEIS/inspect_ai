@@ -395,6 +395,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 logger.eval.eval_id,
                 total_samples,
                 task=logger.eval.task,
+                task_id=logger.eval.task_id,
                 model=str(model),
                 run_id=logger.eval.run_id,
             )
@@ -533,6 +534,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 eval_spec=logger.eval,
                             )
                             await sample_complete(sample_id, epoch, sample_scores)
+                            record_sample_completed(logger.eval.eval_id)
                             return sample_scores
                         elif isinstance(previous_sample, ResumeCheckpoint):
                             # signal intent — agent code can branch on

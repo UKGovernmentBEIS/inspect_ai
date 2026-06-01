@@ -45,10 +45,19 @@ class EvalState:
     """
 
     eval_id: str
-    """The eval's id (matches ``ActiveSample.eval_id``)."""
+    """The eval's id (matches ``ActiveSample.eval_id``). Per-attempt
+    on retries — see :attr:`task_id` for the stable across-retry key."""
 
     total: int
     """Total samples this eval expects to run (``len(dataset) * epochs``)."""
+
+    task_id: str = ""
+    """Stable task identifier across retries.
+
+    On task retry, ``eval_id`` is regenerated (see
+    :meth:`TaskLogger.reinit`) but ``task_id`` is preserved. Used by
+    the control endpoint to fold retry attempts of the same task
+    into a single row."""
 
     completed: int = 0
     """Samples that finished without error (counted once per sample, at the
@@ -92,6 +101,7 @@ def register_eval(
     total: int,
     *,
     task: str = "",
+    task_id: str = "",
     model: str = "",
     run_id: str | None = None,
 ) -> EvalState:
@@ -107,7 +117,12 @@ def register_eval(
         if existing is not None:
             return existing
         state = EvalState(
-            eval_id=eval_id, total=total, task=task, model=model, run_id=run_id
+            eval_id=eval_id,
+            total=total,
+            task=task,
+            task_id=task_id,
+            model=model,
+            run_id=run_id,
         )
         _eval_states[eval_id] = state
         return state
@@ -126,6 +141,7 @@ def register_completed_eval(
     completed: int,
     errored: int = 0,
     task: str = "",
+    task_id: str = "",
     model: str = "",
     run_id: str | None = None,
     completed_at: float | None = None,
@@ -151,6 +167,7 @@ def register_completed_eval(
             completed=completed,
             errored=errored,
             task=task,
+            task_id=task_id,
             model=model,
             run_id=run_id,
             completed_at=completed_at if completed_at is not None else time.time(),

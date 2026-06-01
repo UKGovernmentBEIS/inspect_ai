@@ -19,8 +19,15 @@ happens:
   Each call has its own ``run_id``; the (eval-set-scoped) control
   server stays bound across them.
 
-The endpoint emits one summary per ``eval_id`` so consumers see each
-running eval as a distinct row regardless of which case applies.
+The endpoint folds task retries into a single entry per
+``(run_id, task_id)``: when a task is retried by
+``task_retry_attempts`` (or eval-set-level retries), each attempt
+mints a fresh ``eval_id`` but ``task_id`` is preserved. Without
+folding, a task that failed twice and succeeded on attempt three
+would appear as three rows. The aggregated row reports the latest
+attempt's state (its counters subsume reused samples from prior
+attempts) and an ``attempts`` count so consumers can surface retry
+activity.
 """
 
 from __future__ import annotations
@@ -29,6 +36,7 @@ from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from inspect_ai._control.eval_state import EvalState
     from inspect_ai.log._samples import ActiveSample
 
 
@@ -40,16 +48,19 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     AF_UNIX socket / discovery file), so all entries from
     ``active_samples`` are this process's. Within the process, an
     eval-set may span multiple ``run_id``s; we emit one entry per
-    ``eval_id`` and carry that eval's run_id along.
+    ``(run_id, task_id)`` group and carry that group's
+    ``eval_id`` (latest attempt) along.
 
     Args:
         started_at: Fallback start time for evals whose samples
             haven't started yet.
 
     Returns:
-        One dict per running eval, sorted by start time (oldest
-        first). Each entry includes a nested ``samples`` block:
-        ``{total, completed, errored, in_flight, queued}``.
+        One dict per (run_id, task_id) group, sorted by start time
+        (oldest first). Each entry includes a nested ``samples``
+        block: ``{total, completed, errored, in_flight, queued}`` and
+        an ``attempts`` count (1 for tasks without retries, >1 when
+        retries occurred).
     """
     # Lazy imports to avoid pulling the full log/event/scorer chain at
     # module-import time (control server module is imported during
@@ -57,68 +68,91 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     from inspect_ai._control.eval_state import get_eval_states
     from inspect_ai.log._samples import active_samples
 
-    # Group live samples by eval_id.
+    # Group live samples by eval_id (per-attempt, not folded).
     samples_by_eval: dict[str, list[ActiveSample]] = defaultdict(list)
     for sample in active_samples():
         samples_by_eval[sample.eval_id].append(sample)
 
-    # EvalState entries — the source of truth for terminal counts.
-    eval_states = {state.eval_id: state for state in get_eval_states()}
+    # Group EvalStates by (run_id, task_id) so retry attempts of the
+    # same task collapse into a single group. Fallback grouping by
+    # eval_id keeps pre-task_id states (or any record missing a
+    # task_id) on their own row.
+    states_by_group: dict[tuple[str | None, str], list[EvalState]] = defaultdict(list)
+    for state in get_eval_states():
+        key = (state.run_id, state.task_id) if state.task_id else (None, state.eval_id)
+        states_by_group[key].append(state)
 
-    # Union: evals visible via either source.
-    eval_ids = set(samples_by_eval.keys()) | set(eval_states.keys())
+    # eval_ids covered by some grouped state — used to attribute live
+    # samples to their group when building the per-group summary.
+    eval_id_to_group: dict[str, tuple[str | None, str]] = {}
+    for group_key, states in states_by_group.items():
+        for state in states:
+            eval_id_to_group[state.eval_id] = group_key
+
+    # Live samples whose eval has no registered EvalState (eg. a brand-
+    # new attempt that hasn't yet hit ``register_eval``) still need to
+    # show up — give each its own one-off group keyed by eval_id.
+    orphan_sample_eval_ids = set(samples_by_eval.keys()) - set(eval_id_to_group.keys())
 
     summaries: list[dict[str, Any]] = []
-    for eval_id in eval_ids:
-        samples = samples_by_eval.get(eval_id, [])
-        state = eval_states.get(eval_id)
 
-        # Per-eval metadata: prefer the live sample (most authoritative)
-        # but fall back to EvalState's stored labels when no samples
-        # remain (typical post-completion keep-alive state). EvalState
-        # is populated at task start, so it always has the labels.
-        first_sample = samples[0] if samples else None
-        task_name = first_sample.task if first_sample else (state.task if state else "")
-        model = first_sample.model if first_sample else (state.model if state else "")
-        run_id = (
-            first_sample.run_id if first_sample else (state.run_id if state else None)
+    for group_key, states in states_by_group.items():
+        # Latest attempt by registration order — completed_at, or
+        # fallback to position in the list (later registrations are
+        # appended, so the tail is the most recent). Using
+        # completed_at where available avoids confusion if a retry
+        # finishes faster than the original.
+        latest = max(
+            states,
+            key=lambda s: (
+                s.completed_at if s.completed_at is not None else 0.0,
+                states.index(s),
+            ),
         )
+        attempts = len(states)
 
-        # Eval-level start time = earliest sample start. Falls back
-        # to the process started_at if no sample has started yet.
-        sample_starts = [s.started for s in samples if s.started is not None]
-        eval_started_at = min(sample_starts) if sample_starts else started_at
-
-        in_flight = sum(
-            1 for s in samples if s.started is not None and s.completed is None
-        )
-        total = state.total if state is not None else 0
-        completed = state.completed if state is not None else 0
-        errored = state.errored if state is not None else 0
-        queued = max(0, total - completed - errored - in_flight)
-        completed_at = state.completed_at if state is not None else None
-        # Status from the EvalState (authoritative — won't flip back
-        # to "running" if all samples have completed but the process
-        # is lingering under keep-alive). Errored / cancelled
-        # variants can be added later; for v1 the binary "still in
-        # flight vs done" distinction is what agents need to know.
-        status = "completed" if completed_at is not None else "running"
+        # Live samples: pull from every attempt in the group (only the
+        # latest will normally have any, but be defensive).
+        group_samples: list[ActiveSample] = []
+        for state in states:
+            group_samples.extend(samples_by_eval.get(state.eval_id, []))
 
         summaries.append(
+            _build_summary(
+                latest=latest,
+                samples=group_samples,
+                attempts=attempts,
+                started_at_fallback=started_at,
+            )
+        )
+
+    for eval_id in orphan_sample_eval_ids:
+        samples = samples_by_eval[eval_id]
+        first = samples[0]
+        summaries.append(
             {
-                "run_id": run_id,
+                "run_id": first.run_id,
                 "eval_id": eval_id,
-                "task": task_name,
-                "model": model,
-                "status": status,
-                "started_at": eval_started_at,
-                "completed_at": completed_at,
+                "task": first.task,
+                "task_id": "",
+                "model": first.model,
+                "status": "running",
+                "started_at": min(
+                    (s.started for s in samples if s.started is not None),
+                    default=started_at,
+                ),
+                "completed_at": None,
+                "attempts": 1,
                 "samples": {
-                    "total": total,
-                    "completed": completed,
-                    "errored": errored,
-                    "in_flight": in_flight,
-                    "queued": queued,
+                    "total": 0,
+                    "completed": 0,
+                    "errored": 0,
+                    "in_flight": sum(
+                        1
+                        for s in samples
+                        if s.started is not None and s.completed is None
+                    ),
+                    "queued": 0,
                 },
                 "total_tokens": sum(s.total_tokens for s in samples),
                 "total_messages": sum(s.total_messages for s in samples),
@@ -127,3 +161,57 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
 
     summaries.sort(key=lambda s: s["started_at"])
     return summaries
+
+
+def _build_summary(
+    *,
+    latest: "EvalState",
+    samples: list["ActiveSample"],
+    attempts: int,
+    started_at_fallback: float,
+) -> dict[str, Any]:
+    """Build one summary entry from the latest attempt + its live samples.
+
+    The latest attempt's counters are authoritative — under
+    ``retry_immediate=True`` each retry's ``completed`` includes the
+    reused successes from prior attempts, so summing across attempts
+    would double-count. ``errored`` likewise reflects the latest
+    attempt only (a sample that errored on attempt 1 and succeeded on
+    attempt 2 shouldn't read as "errored" in the surface).
+    """
+    first_sample = samples[0] if samples else None
+    task_name = first_sample.task if first_sample else latest.task
+    model = first_sample.model if first_sample else latest.model
+    run_id = first_sample.run_id if first_sample else latest.run_id
+
+    sample_starts = [s.started for s in samples if s.started is not None]
+    eval_started_at = min(sample_starts) if sample_starts else started_at_fallback
+
+    in_flight = sum(1 for s in samples if s.started is not None and s.completed is None)
+    total = latest.total
+    completed = latest.completed
+    errored = latest.errored
+    queued = max(0, total - completed - errored - in_flight)
+    completed_at = latest.completed_at
+    status = "completed" if completed_at is not None else "running"
+
+    return {
+        "run_id": run_id,
+        "eval_id": latest.eval_id,
+        "task": task_name,
+        "task_id": latest.task_id,
+        "model": model,
+        "status": status,
+        "started_at": eval_started_at,
+        "completed_at": completed_at,
+        "attempts": attempts,
+        "samples": {
+            "total": total,
+            "completed": completed,
+            "errored": errored,
+            "in_flight": in_flight,
+            "queued": queued,
+        },
+        "total_tokens": sum(s.total_tokens for s in samples),
+        "total_messages": sum(s.total_messages for s in samples),
+    }

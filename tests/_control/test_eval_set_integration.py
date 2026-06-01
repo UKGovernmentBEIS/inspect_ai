@@ -808,3 +808,284 @@ def test_keep_alive_with_retry_immediate_false_is_rejected(
             retry_immediate=False,
             keep_alive=True,
         )
+
+
+@pytest.mark.slow
+def test_ctl_ls_aggregates_task_retries(short_data_dir: Path) -> None:
+    """A flaky task retried by ``task_retry_attempts`` should appear once in ls.
+
+    Today the control endpoint emits one row per ``eval_id``, and
+    each retry attempt has a fresh ``eval_id`` (see
+    ``TaskLogger.reinit``). Under keep-alive (which skips
+    ``unregister_eval`` so completed evals stay visible) every retry
+    therefore leaves a stale row behind — a single flaky task with
+    two retries shows up as three rows in ``inspect ctl ls``.
+
+    The desired behaviour: group by ``(run_id, task_id)`` so retries
+    fold into one row reflecting the latest attempt's progress.
+    ``task_id`` is stable across ``reinit`` so it's the right key.
+
+    Approach: a fail-once-then-succeed solver inside an eval-set
+    with ``task_retry_attempts >= 1`` and ``keep_alive=True``.
+    After the eval body finishes, ``/evals`` should return ONE
+    entry for the flaky task — status ``completed``, an
+    ``attempts`` count of 2.
+    """
+    fail_counter = {"calls": 0}
+
+    @solver
+    def fail_once_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            fail_counter["calls"] += 1
+            if fail_counter["calls"] == 1:
+                raise RuntimeError("synthetic first-attempt failure")
+            return state
+
+        return solve
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[fail_once_solver()],
+            name="task_flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_flaky()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=2,
+                retry_immediate=True,
+                keep_alive=True,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_retry_agg")
+    thread.start()
+    try:
+        # Wait for both attempts to register and the keep-alive park.
+        ready = _wait_until(
+            lambda: fail_counter["calls"] >= 2 and bool(list_discovered_servers()),
+        )
+        assert ready, (
+            f"didn't reach 'second attempt registered' state. "
+            f"calls={fail_counter['calls']}, "
+            f"servers={len(list_discovered_servers())}, "
+            f"error={result_ref.get('error')}"
+        )
+
+        servers = list_discovered_servers()
+        assert len(servers) == 1
+        transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+
+        # Wait for the eval to reach a settled 'completed' state under
+        # keep-alive (the retry has fully finished).
+        def _settled() -> bool:
+            try:
+                with httpx.Client(
+                    transport=transport, base_url="http://localhost", timeout=1.0
+                ) as client:
+                    response = client.get("/evals")
+                    response.raise_for_status()
+                    entries = response.json()
+            except (httpx.HTTPError, OSError):
+                return False
+            # Whatever the aggregation, we want every visible entry to
+            # be in a terminal state before asserting.
+            return bool(entries) and all(e["status"] == "completed" for e in entries)
+
+        ready = _wait_until(_settled, timeout=30.0)
+        assert ready, "eval didn't settle into completed state under keep-alive"
+
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            response = client.get("/evals")
+            response.raise_for_status()
+            entries = response.json()
+
+        # The core assertion: retries fold into ONE row, not two.
+        assert len(entries) == 1, (
+            f"expected retries to aggregate into a single entry; got "
+            f"{len(entries)} entries: {entries}"
+        )
+        entry = entries[0]
+        assert entry["task"] == "task_flaky"
+        assert entry["status"] == "completed"
+        # Two attempts were made (the original + 1 retry).
+        assert entry.get("attempts") == 2, (
+            f"expected attempts=2 (original + 1 retry); got "
+            f"attempts={entry.get('attempts')!r}, full entry={entry}"
+        )
+    finally:
+        # Tear down keep-alive.
+        servers = list_discovered_servers()
+        if servers:
+            try:
+                transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+                with httpx.Client(
+                    transport=transport, base_url="http://localhost", timeout=2.0
+                ) as client:
+                    client.post("/shutdown")
+            except Exception:
+                pass
+        thread.join(timeout=30.0)
+        assert not thread.is_alive(), "eval_set thread didn't exit"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_ls_counts_reused_samples_on_retry(short_data_dir: Path) -> None:
+    """Reused successful samples on a retry must count toward ``completed``.
+
+    Bug: when a task is retried by ``task_retry_attempts``, the new
+    attempt's ``run_sample`` short-circuits to reuse successful
+    samples from the prior log (see the ``sample_source`` early-return
+    inside ``run_sample`` in ``_eval/task/run.py``). That fast path
+    skips ``task_run_sample`` entirely — which means the
+    :class:`EvalState` counter (``record_sample_completed``, called
+    only inside ``task_run_sample``) never sees the reused samples.
+
+    Visible symptom: ``inspect ctl ls`` reports e.g. ``4/40`` for a
+    task whose final attempt reused 36 prior successes and freshly
+    ran 4 — and ``status`` stays ``running`` because
+    ``completed + errored < total`` keeps ``completed_at`` ``None``.
+
+    Approach: a 2-sample task with stable sample IDs; a solver that
+    fails the second sample on the first attempt only. With
+    ``fail_on_error=True`` and ``max_samples=1`` (so sample 1
+    finishes and is written to the log before sample 2 errors and
+    aborts the task), the retry's sample_source replays sample 1 as
+    reused. After the retry succeeds, the aggregated row should
+    report ``2/2`` completed and ``status="completed"``.
+    """
+    counter = {"sample_2_calls": 0}
+
+    @solver
+    def flaky_second_sample_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if state.sample_id == 2:
+                counter["sample_2_calls"] += 1
+                if counter["sample_2_calls"] == 1:
+                    raise RuntimeError("synthetic failure on first call to sample 2")
+            return state
+
+        return solve
+
+    @task
+    def task_partial_fail() -> Task:
+        return Task(
+            dataset=[
+                Sample(id=1, input="x", target="y"),
+                Sample(id=2, input="x", target="y"),
+            ],
+            solver=[flaky_second_sample_solver()],
+            name="task_partial_fail",
+            fail_on_error=True,
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_partial_fail()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=2,
+                retry_immediate=True,
+                keep_alive=True,
+                max_samples=1,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_reuse_count")
+    thread.start()
+    try:
+        servers_ready = _wait_until(
+            lambda: bool(list_discovered_servers()) and counter["sample_2_calls"] >= 2,
+            timeout=30.0,
+        )
+        assert servers_ready, (
+            f"didn't reach 'retry completed' state. "
+            f"sample_2_calls={counter['sample_2_calls']}, "
+            f"servers={len(list_discovered_servers())}, "
+            f"error={result_ref.get('error')}"
+        )
+
+        servers = list_discovered_servers()
+        assert len(servers) == 1
+        transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+
+        # Wait for keep-alive park: every entry should be terminal.
+        def _settled() -> bool:
+            try:
+                with httpx.Client(
+                    transport=transport, base_url="http://localhost", timeout=1.0
+                ) as client:
+                    response = client.get("/evals")
+                    response.raise_for_status()
+                    entries = response.json()
+            except (httpx.HTTPError, OSError):
+                return False
+            return bool(entries) and all(e["status"] == "completed" for e in entries)
+
+        ready = _wait_until(_settled, timeout=30.0)
+        assert ready, "eval didn't settle into completed state under keep-alive"
+
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            response = client.get("/evals")
+            response.raise_for_status()
+            entries = response.json()
+
+        assert len(entries) == 1, f"expected single aggregated entry, got {entries}"
+        entry = entries[0]
+        samples = entry["samples"]
+        assert samples["total"] == 2, f"expected total=2, got {samples}"
+        # Core regression: counter must include the reused sample 1.
+        assert samples["completed"] == 2, (
+            f"expected completed=2 (sample 1 reused + sample 2 retried), got "
+            f"completed={samples['completed']}, full samples={samples}"
+        )
+        assert entry["status"] == "completed", (
+            f"expected status='completed' when all samples done, got "
+            f"status={entry['status']!r}; samples={samples}"
+        )
+        assert entry["completed_at"] is not None
+        # Sanity: two attempts were made.
+        assert entry["attempts"] == 2
+    finally:
+        servers = list_discovered_servers()
+        if servers:
+            try:
+                transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+                with httpx.Client(
+                    transport=transport, base_url="http://localhost", timeout=2.0
+                ) as client:
+                    client.post("/shutdown")
+            except Exception:
+                pass
+        thread.join(timeout=30.0)
+        assert not thread.is_alive(), "eval_set thread didn't exit"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]

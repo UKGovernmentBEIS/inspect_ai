@@ -145,27 +145,32 @@ def _fetch_summaries(
 
 def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     """Render summaries as a simple aligned table on stdout."""
-    # Build all rows first so we can decide whether to show the
-    # errors column (only when at least one eval has errors > 0).
+    # Show errors / attempts columns only when at least one row has
+    # something interesting to report there — keeps the common case
+    # (no errors, no retries) uncluttered.
     any_errors = any((s.get("samples") or {}).get("errored", 0) > 0 for s in summaries)
+    any_retries = any(int(s.get("attempts", 1) or 1) > 1 for s in summaries)
 
     rows = []
     for s in summaries:
         samples = s.get("samples") or {}
-        errors_cell = str(samples.get("errored", 0)) if any_errors else None
         cells = [
             _short_id(s.get("eval_id", "")),
             s.get("task", "?") or "?",
             _format_samples(samples),
             _format_started(s.get("started_at", 0)),
         ]
-        if errors_cell is not None:
-            cells.insert(3, errors_cell)
+        if any_errors:
+            cells.insert(3, str(samples.get("errored", 0)))
+        if any_retries:
+            cells.append(str(int(s.get("attempts", 1) or 1)))
         rows.append(tuple(cells))
 
     headers_list = ["eval_id", "task", "samples", "started"]
     if any_errors:
         headers_list.insert(3, "errors")
+    if any_retries:
+        headers_list.append("attempts")
     headers = tuple(headers_list)
 
     widths = [
