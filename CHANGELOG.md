@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Together: Support the `stream` model arg (e.g. `-M stream=true`) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to `stop_reason="max_tokens"` instead of raising.
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
 - Docker Compose: accept `platform`, `extra_hosts`, `cap_add`, `cap_drop`, `security_opt`, and `tmpfs` in ComposeService.
 - Docker Sandbox: `SandboxTimeoutError` now carries `truncated_output` with the partial command output captured before a timeout (surfaced to tool callers), instead of discarding it.

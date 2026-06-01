@@ -18,6 +18,7 @@ from inspect_ai.model import (
     get_model,
 )
 from inspect_ai.model._providers.openai_compatible import OpenAICompatibleAPI
+from inspect_ai.model._providers.together import TogetherAIAPI
 from inspect_ai.tool import ToolInfo
 
 
@@ -298,3 +299,34 @@ def test_user_supplied_http_client_not_overridden() -> None:
     # user-supplied client should be used as-is
     assert api.http_client is custom_client
     assert api.http_client.timeout.read == 42.0
+
+
+def _together_api(stream: bool | None = None) -> TogetherAIAPI:
+    return TogetherAIAPI(
+        model_name="together/meta-llama/Llama-3.1-8B-Instruct-Turbo",
+        api_key="test",
+        base_url="https://example.com",
+        stream=stream,
+    )
+
+
+def test_together_stream_defaults_to_false() -> None:
+    assert _together_api().stream is False
+
+
+@pytest.mark.parametrize("stream", [True, False])
+def test_together_stream_model_arg_forwarded(stream: bool) -> None:
+    assert _together_api(stream=stream).stream is stream
+
+
+@skip_if_no_together
+async def test_together_stream_end_to_end() -> None:
+    model = get_model(
+        "together/meta-llama/Llama-3.1-8B-Instruct-Turbo",
+        stream=True,
+        config=GenerateConfig(max_tokens=50, temperature=0.0),
+    )
+    response = await model.generate(
+        input=[ChatMessageUser(content="This is a test string. What are you?")]
+    )
+    assert len(response.completion) >= 1
