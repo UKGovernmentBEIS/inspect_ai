@@ -590,8 +590,9 @@ def test_samples_view_coexists_with_other_top_level_fields() -> None:
 
 
 # ---------------------------------------------------------------------------
-# `.score()` classmethods build the `score__{scorer}__{name}` wire id so
-# authors don't hand-assemble the string.
+# `.score()` classmethods build the `score__{scorer}__{score}` wire id so
+# authors don't hand-assemble the string. The sub-score key defaults to the
+# scorer name for the common single-value-scorer case.
 # ---------------------------------------------------------------------------
 
 
@@ -602,6 +603,13 @@ def test_task_samples_column_score_builds_wire_id() -> None:
     assert (
         TaskSamplesColumn.score("judge", "correctness", visible=False).visible is False
     )
+
+
+def test_task_samples_column_score_defaults_to_scorer() -> None:
+    # Omitting the sub-score key targets the scalar score keyed by the
+    # scorer name itself — the common single-value-scorer case.
+    assert TaskSamplesColumn.score("match").id == "score__match__match"
+    assert TaskSamplesSort.score("match").column == "score__match__match"
 
 
 def test_task_samples_sort_score_builds_wire_id() -> None:

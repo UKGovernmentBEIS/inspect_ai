@@ -98,8 +98,8 @@ Score columns are referenced via `TaskSamplesColumn.score()` /
 forward-compatible ids."""
 
 
-def _score_column_id(scorer: str, name: str) -> str:
-    return f"score__{scorer}__{name}"
+def _score_column_id(scorer: str, score: str | None) -> str:
+    return f"score__{scorer}__{score if score is not None else scorer}"
 
 
 class TaskSamplesSort(BaseModel):
@@ -116,12 +116,23 @@ class TaskSamplesSort(BaseModel):
     def score(
         cls,
         scorer: str,
-        name: str,
+        score: str | None = None,
         *,
         dir: Literal["asc", "desc"] = "asc",
     ) -> "TaskSamplesSort":
-        """Sort entry referencing a score column by scorer + score name."""
-        return cls(column=_score_column_id(scorer, name), dir=dir)
+        """Sort entry referencing a score column.
+
+        Args:
+            scorer: Scorer name (the key under `sample.scores`).
+            score: Sub-score key, used only when a scorer emits a
+                dictionary of named values. Defaults to `scorer`, which is
+                correct for the common case of a scorer producing a single
+                value. This is *not* a metric such as `accuracy` or
+                `stderr` — those are aggregated across samples and do not
+                appear as per-sample columns.
+            dir: Sort direction.
+        """
+        return cls(column=_score_column_id(scorer, score), dir=dir)
 
 
 class TaskSamplesColumn(BaseModel):
@@ -138,12 +149,23 @@ class TaskSamplesColumn(BaseModel):
     def score(
         cls,
         scorer: str,
-        name: str,
+        score: str | None = None,
         *,
         visible: bool = True,
     ) -> "TaskSamplesColumn":
-        """Column entry referencing a score by scorer + score name."""
-        return cls(id=_score_column_id(scorer, name), visible=visible)
+        """Column entry referencing a score column.
+
+        Args:
+            scorer: Scorer name (the key under `sample.scores`).
+            score: Sub-score key, used only when a scorer emits a
+                dictionary of named values. Defaults to `scorer`, which is
+                correct for the common case of a scorer producing a single
+                value. This is *not* a metric such as `accuracy` or
+                `stderr` — those are aggregated across samples and do not
+                appear as per-sample columns.
+            visible: Whether the column is visible by default.
+        """
+        return cls(id=_score_column_id(scorer, score), visible=visible)
 
 
 class ScoreColorScale(BaseModel):

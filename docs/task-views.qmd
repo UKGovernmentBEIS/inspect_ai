@@ -1,0 +1,223 @@
+---
+title: Custom Views
+llms-description: Use ViewerConfig to customize how a task's samples, scores, and scanner results render in the Inspect log viewer.
+format:
+  html:
+    include-in-header:
+      - text: "<style>
+          figcaption {
+            text-align: center;
+          }
+          .figure-img { 
+            margin-bottom: 0;
+          }
+          </style>"
+---
+
+## Overview
+
+By default the log viewer chooses sensible defaults for how a task's samples are listed, how their scores are summarized, and how scanner results are displayed. For your own task, however you have a better idea which scores matter, which columns are worth showing, and more. Your task can customize the view directly by using the `viewer` arg of the `Task`. 
+
+For example, the following customizes the Task's view by passing a set of columns, a default sort, and enables multiline display (which may be better for long textual fields):
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.viewer import ViewerConfig, TaskSamplesView, TaskSamplesColumn
+
+@task
+def my_task():
+    return Task(
+        dataset=dataset,
+        solver=solver,
+        scorer=my_scorer(),
+        viewer=ViewerConfig(
+            task_samples_view=TaskSamplesView(
+                name="Default",
+                columns=[
+                    TaskSamplesColumn(id="input"),
+                    TaskSamplesColumn.score("my_scorer"),
+                    ...
+                ],
+                sort=[TaskSamplesSort.score("my_scorer", dir="desc")],
+                multiline=True,
+            )
+        ),
+    )
+```
+
+The configuration that you specify in your task will be serialized into the eval log when it is written, so the configuration will be used for anyone viewing the log file produced using the configuration.
+
+`ViewerConfig` covers three areas, each configured independently:
+
+| Field | Configures |
+|---|---|
+| `task_samples_view` | The task's sample list — the grid of samples shown for an eval log. |
+| `sample_score_view` | The score panel in an individual sample's score display. |
+| `scanner_result_view` | The scanner results sidebar (for [scanners](scanners.qmd)). |
+
+::: {.callout-note}
+These settings are defaults, not overrides. The viewer honors them only until a reviewer customizes the view in their own browser. The resolution priority is `user override > view configuration > viewer built-in`, so a user's hand-picked columns or sort always win and are never clobbered by the eval default.
+:::
+
+
+## The Sample List
+
+`task_samples_view` configures the grid of samples shown for an eval log. A `TaskSamplesView` requires a `name` and accepts optional column, sort, and presentation settings — any field left unset falls back to the viewer's built-in behaviour.
+
+``` python
+from inspect_ai.viewer import (
+    ViewerConfig,
+    TaskSamplesView,
+    TaskSamplesColumn,
+    TaskSamplesSort,
+)
+
+ViewerConfig(
+    task_samples_view=TaskSamplesView(
+        name="Triage",
+        columns=[
+            TaskSamplesColumn(id="sampleId"),
+            TaskSamplesColumn(id="input"),
+            TaskSamplesColumn.score("my_scorer"),
+            TaskSamplesColumn(id="target", visible=False),
+        ],
+        sort=[TaskSamplesSort.score("my_scorer", dir="desc")],
+        multiline=True,
+    )
+)
+```
+### Columns
+
+`columns` is an ordered list of `TaskSamplesColumn` entries which controls the order which the columns will be rendered. Use `visible=False` to hide a column by default Leaving `columns` as `None` uses the viewer's built-in column set for that log's shape.
+
+Built-in column ids are:
+
+`sampleStatus`, `sampleId`, `sampleUuid`, `epoch`, `input`, `target`, `answer`, `tokens`, `duration`, `retries`, `error`, `limit`.
+
+### Score columns
+
+Score columns are addressed by scorer name with the `score()` helpers. Pass just the scorer name — that's all you need for a scorer that produces a single value:
+
+``` python
+TaskSamplesColumn.score("my_scorer")
+TaskSamplesSort.score("my_scorer", dir="desc")
+```
+
+Pass a second argument only when a scorer emits a dictionary of named sub-scores, to target one of them:
+
+``` python
+TaskSamplesColumn.score("my_scorer", "calibration")
+```
+
+The second argument is the sub-score key — **not** a metric like `accuracy` or `stderr`. Metrics are aggregated across all samples and don't appear as per-sample columns.
+
+### Sort
+
+`sort` is a list of `TaskSamplesSort` entries (each a `column` id and a `dir` of `"asc"` or `"desc"`), applied in order. Use `TaskSamplesSort.score(...)` to sort on a score column.
+
+### Score labels
+
+`score_labels` renames score column headers for display, keyed by score name. Lookup falls back to the scorer name when no override is set.
+
+``` python
+TaskSamplesView(
+    name="Audit",
+    score_labels={
+        "situational_awareness": "Situational Awareness",
+        "ascii-art": "ASCII Art",
+    },
+)
+```
+
+### Color scales
+
+Numeric score cells can be shaded with a background heat scale. `score_color_scales` is keyed by score name, and each entry is either a named palette, a `ScoreColorScale` (a palette with an explicit value range), or — for categorical scores — a map from value to a semantic role.
+
+``` python
+from inspect_ai.viewer import TaskSamplesView, ScoreColorScale
+
+TaskSamplesView(
+    name="Heat",
+    score_color_scales={
+        # named palette anchored to the observed data range
+        "accuracy": "good-high",
+        # palette pinned to a known 1..10 rubric so middling values
+        # aren't paint-clamped when the data clusters at one end
+        "concerning": ScoreColorScale(palette="good-low", min=1, max=10),
+        # categorical score → semantic roles
+        "verdict": {"yes": "bad", "no": "good", "maybe": "warn"},
+    },
+    color_scales_enabled=True,
+)
+```
+
+Palettes are `good-high`, `good-low`, `neutral`, and `diverging`; categorical roles are `good`, `bad`, `warn`, `info`, and `muted`. Pass/fail and boolean scores ignore this config — their pre-coloured pills already encode the result. `color_scales_enabled` seeds the toolbar heatmap toggle's initial state.
+
+::: {.callout-note appearance="simple"}
+**Screenshot:** the sample list with the colour-scale heatmap enabled across several score columns. *(Suggested: `images/task-views-color-scales.png`)*
+:::
+
+### Row layout
+
+`multiline` controls row density: `True` (the default) gives list-style multi-line rows; `False` gives compact single-line rows. `compact_scores` narrows score columns and rotates their headers 45° to fit many scores side by side.
+
+## The Score Panel
+
+`sample_score_view` configures the score panel shown in an individual sample's detail view (distinct from the score *columns* in the sample list above). It applies when a sample has three or more scores.
+
+``` python
+from inspect_ai.viewer import ViewerConfig, SampleScoreView, SampleScoreViewSort
+
+ViewerConfig(
+    sample_score_view=SampleScoreView(
+        default="chips",
+        sort=SampleScoreViewSort(column="value", dir="desc"),
+    )
+)
+```
+
+- `default` chooses the initial rendering mode: `chips` (wrapping pills) or `grid` (a sortable table). When unset, the viewer picks based on the number of scores.
+- `sort` sets the initial sort by `name` (scorer name) or `value`, with a direction of `asc` or `desc`.
+
+!['Chips' score panel](images/inspect-view-chips-score.png){width=400}
+
+
+## Scanner Results
+
+`scanner_result_view` customizes the scanner results sidebar for samples produced with [scanners](scanners.qmd). It is a glob-keyed map from scanner-name pattern to a `ScannerResultView`, so you can target specific scanners or apply one configuration to all of them:
+
+``` python
+from inspect_ai.viewer import (
+    ViewerConfig,
+    ScannerResultView,
+    ScannerResultField,
+    MetadataField,
+)
+
+ViewerConfig(
+    scanner_result_view={
+        "*": ScannerResultView(
+            fields=[
+                ScannerResultField(name="explanation", label="Rationale"),
+                MetadataField(key="summary", label="Summary"),
+                "value",
+            ],
+            exclude_fields=["validation"],
+        ),
+    }
+)
+```
+
+Keys are fnmatch-style globs (`"*"`, `"audit_*"`, or exact scanner names). As a shorthand, you can pass a bare `ScannerResultView` instead of a map to apply a single configuration to every scanner.
+
+`fields` is an ordered list of sections to render; entries are:
+
+- A `ScannerResultField` — a built-in section (`explanation`, `label`, `value`, `validation`, `answer`, or `metadata`), with an optional `label` override and `collapsed` default.
+- A `MetadataField` — promotes a single `metadata[key]` entry into its own top-level section.
+- A bare string — shorthand for the matching `ScannerResultField` name.
+
+`exclude_fields` subtracts sections from the resolved set. Excluding a `MetadataField` also removes that key from the generic `metadata` dump.
+
+## Reference
+
+See the [`inspect_ai.viewer`](reference/inspect_ai.viewer.qmd) reference for the complete field list of every type described here.
