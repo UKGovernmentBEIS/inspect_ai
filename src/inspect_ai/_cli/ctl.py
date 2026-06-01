@@ -103,10 +103,11 @@ def samples_command(task: str | None, as_json: bool) -> None:
         click.echo(json_lib.dumps(samples, indent=2))
         return
 
+    click.echo(_task_header(target))
     if not samples:
-        click.echo(f"No samples yet for task '{target.get('task') or '?'}'.")
+        click.echo("(no samples started yet)")
         return
-
+    click.echo()
     _print_samples_table(samples)
 
 
@@ -321,6 +322,26 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         headers_list.append("attempts")
 
     _render_table(tuple(headers_list), rows)
+
+
+def _task_header(target: dict[str, Any]) -> str:
+    """One-line summary of the task above its sample table.
+
+    e.g. ``inspect_evals/gpqa_diamond (ZByxJpK4bKSz)  ·  openai/gpt-5-nano
+    ·  running  ·  12/40 (3 running)``.
+    """
+    name = target.get("task") or "?"
+    short = _short_id(str(target.get("task_id", "")))
+    parts = [f"{name} ({short})" if short else name]
+    if target.get("model"):
+        parts.append(str(target["model"]))
+    if target.get("status"):
+        parts.append(str(target["status"]))
+    parts.append(_format_samples(target.get("samples") or {}))
+    attempts = int(target.get("attempts", 1) or 1)
+    if attempts > 1:
+        parts.append(f"{attempts} attempts")
+    return "  ·  ".join(parts)
 
 
 def _print_samples_table(samples: list[dict[str, Any]]) -> None:

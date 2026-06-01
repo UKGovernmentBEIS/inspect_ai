@@ -1339,13 +1339,16 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
 
         runner = CliRunner()
 
-        # Default resolution (exactly one task running → no id needed).
+        # Default resolution (exactly one task running → no id needed). The
+        # output leads with a task-summary header, then the sample rows.
         result = runner.invoke(ctl_command, ["samples"])
         assert result.exit_code == 0, result.output
+        assert "task_multi" in result.output  # header names the task
         assert "sample" in result.output and "status" in result.output
-        assert result.output.count("running") == 3
+        # 3 running sample rows (the header also mentions "running").
+        assert result.output.count("running") >= 3
 
-        # --json returns the same per-sample array.
+        # --json returns the bare per-sample array (no header).
         result_json = runner.invoke(ctl_command, ["samples", "--json"])
         assert result_json.exit_code == 0, result_json.output
         data = json_lib.loads(result_json.output)
@@ -1354,12 +1357,12 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
         # task_id prefix (as shown truncated by `ls`, stable across retries).
         result_prefix = runner.invoke(ctl_command, ["samples", task_id[:12]])
         assert result_prefix.exit_code == 0, result_prefix.output
-        assert result_prefix.output.count("running") == 3
+        assert result_prefix.output.count("running") >= 3
 
         # Task name (prefix) resolves too, falling back from the id match.
         result_name = runner.invoke(ctl_command, ["samples", "task_mul"])
         assert result_name.exit_code == 0, result_name.output
-        assert result_name.output.count("running") == 3
+        assert result_name.output.count("running") >= 3
 
         # Unknown id is a clean error.
         result_missing = runner.invoke(ctl_command, ["samples", "nope"])
