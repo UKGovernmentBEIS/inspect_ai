@@ -199,6 +199,13 @@ _MID_CONV_SYSTEM_HOISTED_WARNING = (
     "user turn or an assistant turn ending in server tool use, and must "
     "either end the message array or precede an assistant turn)."
 )
+_REMINDER_SYSTEM_HOISTED_WARNING = (
+    "anthropic: {count} mid-conversation system message(s) were hoisted to the "
+    "top-level system field because they sit adjacent to a tool result. "
+    "Rendering them as user turns would merge them into the tool-result turn "
+    "(tool results map to user-role messages), which strips prior thinking and "
+    "cache context on tool-use continuations."
+)
 _CACHE_DIAGNOSIS_BETA = "cache-diagnosis-2026-04-07"
 _CACHE_MISS_WARNING = (
     "anthropic cache diagnostics: cache miss detected (reason: {reason})."
@@ -1940,6 +1947,13 @@ def _split_system_as_reminders(
     would bust the prompt cache on every new injection. The tag matches the
     convention Claude Code uses for pre-4.8 models, so models post-trained on
     those transcripts recognize it as an instruction signal.
+
+    Exception: a system message adjacent to a tool result is hoisted instead.
+    Tool results map to user-role wire messages, and the consecutive-user
+    reducer merges adjacent user turns, so a reminder placed next to a tool
+    result would fold into the tool-result turn. Non-tool-result content in a
+    tool-result turn restarts the assistant loop and strips prior thinking /
+    cache context on tool-use continuations, so those reminders are hoisted.
     """
     top: list[ChatMessageSystem] = []
     i = 0
@@ -1947,18 +1961,42 @@ def _split_system_as_reminders(
         top.append(cast(ChatMessageSystem, input[i]))
         i += 1
 
-    rest: list[ChatMessage] = []
-    for m in input[i:]:
-        if isinstance(m, ChatMessageSystem):
-            rest.append(
+    rest = input[i:]
+    result: list[ChatMessage] = []
+    hoisted = 0
+    for idx, m in enumerate(rest):
+        if not isinstance(m, ChatMessageSystem):
+            result.append(m)
+            continue
+
+        # neighbors that determine the user-role run this reminder would join:
+        # the last already-emitted message, and the next non-system message
+        # (consecutive systems are evaluated independently).
+        prev_msg = result[-1] if result else None
+        next_msg = next(
+            (
+                later
+                for later in rest[idx + 1 :]
+                if not isinstance(later, ChatMessageSystem)
+            ),
+            None,
+        )
+        if isinstance(prev_msg, ChatMessageTool) or isinstance(
+            next_msg, ChatMessageTool
+        ):
+            top.append(m)
+            hoisted += 1
+        else:
+            result.append(
                 ChatMessageUser(
                     content=f"<system-reminder>\n{m.text}\n</system-reminder>"
                 )
             )
-        else:
-            rest.append(m)
 
-    return top, rest
+    if hoisted:
+        warn_once(logger, _REMINDER_SYSTEM_HOISTED_WARNING.format(count=hoisted))
+
+    return top, result
 
 
 def _split_for_mid_conversation_system(

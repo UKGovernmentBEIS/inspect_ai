@@ -194,6 +194,99 @@ async def test_mid_conv_reminder_merges_with_adjacent_user_4_7() -> None:
 
 
 @pytest.mark.anyio
+async def test_reminder_hoisted_when_before_tool_result_4_7(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A system between an assistant tool call and its tool result must be
+    # hoisted, not rendered as a user turn — the reducer would merge it into
+    # the tool-result turn and strip thinking/cache context.
+    from inspect_ai.model._providers import anthropic as anthropic_mod
+
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        anthropic_mod, "warn_once", lambda _logger, msg: warnings.append(str(msg))
+    )
+
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content="lead"),
+        ChatMessageUser(content="hi"),
+        ChatMessageAssistant(
+            content="ok",
+            tool_calls=[ToolCall(id="t1", function="f", arguments={})],
+        ),
+        ChatMessageSystem(content="be brief"),
+        ChatMessageTool(content="result", tool_call_id="t1"),
+    ]
+    system_param, msgs = await _resolve_system(api, input)
+    assert system_param is not None
+    assert [b["text"] for b in system_param] == ["lead", "be brief"]
+    # tool-result turn stays pure (no reminder text merged in)
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
+    # the tool-result turn contains only the tool_result block (no merged text)
+    assert [b["type"] for b in msgs[-1]["content"]] == ["tool_result"]
+    assert any("tool result" in w for w in warnings)
+
+
+@pytest.mark.anyio
+async def test_reminder_hoisted_when_after_tool_result_4_7(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A system immediately following a tool result is also hoisted: it would
+    # merge into the (user-role) tool-result turn.
+    from inspect_ai.model._providers import anthropic as anthropic_mod
+
+    monkeypatch.setattr(anthropic_mod, "warn_once", lambda _logger, msg: None)
+
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content="lead"),
+        ChatMessageUser(content="hi"),
+        ChatMessageAssistant(
+            content="ok",
+            tool_calls=[ToolCall(id="t1", function="f", arguments={})],
+        ),
+        ChatMessageTool(content="result", tool_call_id="t1"),
+        ChatMessageSystem(content="be brief"),
+    ]
+    system_param, msgs = await _resolve_system(api, input)
+    assert system_param is not None
+    assert [b["text"] for b in system_param] == ["lead", "be brief"]
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
+    # the tool-result turn contains only the tool_result block (no merged text)
+    assert [b["type"] for b in msgs[-1]["content"]] == ["tool_result"]
+
+
+@pytest.mark.anyio
+async def test_reminder_kept_after_tool_result_followed_by_assistant_4_7() -> None:
+    # When a real assistant turn separates the system from the tool result, the
+    # reminder is safe to render (it joins a tool-result-free user run).
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content="lead"),
+        ChatMessageUser(content="hi"),
+        ChatMessageAssistant(
+            content="ok",
+            tool_calls=[ToolCall(id="t1", function="f", arguments={})],
+        ),
+        ChatMessageTool(content="result", tool_call_id="t1"),
+        ChatMessageAssistant(content="done"),
+        ChatMessageSystem(content="be brief"),
+    ]
+    system_param, msgs = await _resolve_system(api, input)
+    assert system_param is not None
+    assert [b["text"] for b in system_param] == ["lead"]
+    assert [m["role"] for m in msgs] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+    ]
+    assert msgs[-1]["content"] == "<system-reminder>\nbe brief\n</system-reminder>"
+
+
+@pytest.mark.anyio
 async def test_mid_conv_reminder_used_for_bedrock_4_8() -> None:
     # Bedrock has no mid-conv support even on 4.8, so it uses the reminder
     # fallback rather than native role="system" turns.
