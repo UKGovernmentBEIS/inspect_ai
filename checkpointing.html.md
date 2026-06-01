@@ -14,20 +14,20 @@ Checkpointing does not save arbitrary in-memory process state, running tools, or
 
 When Inspect retries a failed sample, checkpointed data is automatically restored and the sample continued from where it left off. Note that checkpointing needs explicit support in agent scaffolds. Built-in agents like [react()](./reference/inspect_ai.agent.html.md#react) and [deepagent()](./reference/inspect_ai.agent.html.md#deepagent) support checkpointing natively, see the section below on [Custom Agents](#custom-agents) for details on how to add checkpointing to your own agents.
 
-## Configuration
+## Basic Usage
 
 To enable checkpointing for an evaluation, use the `--checkpoint` CLI option. For example:
 
 ``` bash
 # checkpoint with default trigger (every 5 turns)
-inspect eval arc.py --checkpoint
+inspect eval ctf.py --checkpoint
 
 # shorthand triggers
-inspect eval arc.py --checkpoint=turn:10
-1inspect eval arc.py --checkpoint=time:15m
+inspect eval ctf.py --checkpoint=turn:10
+1inspect eval ctf.py --checkpoint=time:15m
 
 # pass a yaml or json config file
-inspect eval arc.py --checkpoint=checkpoint.yaml
+inspect eval ctf.py --checkpoint=checkpoint.yaml
 ```
 
 1  
@@ -40,16 +40,61 @@ from inspect_ai import eval
 from inspect_ai.util import CheckpointConfig, TurnInterval
 
 eval(
-    "arc.py", model="openai/gpt-5",
+    "ctf.py", model="openai/gpt-5",
     checkpoint=CheckpointConfig(
         trigger=TurnInterval(every=10)
     )
 )
 ```
 
-TODO: Task and sample level configuration
+> **IMPORTANT: ImportantAgent Compatibility**
+>
+> Note that the above example assumes that you are using a checkpointing-aware agent (e.g. the built-in [react()](./reference/inspect_ai.agent.html.md#react) and [deepagent()](./reference/inspect_ai.agent.html.md#deepagent)). You can add checkpointing to your own agents by following the recipe described in [Custom Agents](#custom-agents).
 
-## Triggers
+### Recovery
+
+If a crash occurs during an evaluation that was configured for checkpointing, recovery occurs when the sample is retried. For both [eval_set()](./reference/inspect_ai.html.md#eval_set) and [eval_retry()](./reference/inspect_ai.html.md#eval_retry) this occurs automatically:
+
+``` bash
+inspect eval-set arc.py ctf.py --checkpoint # CRASH!
+inspect eval-set arc.py ctf.py --checkpoint # recover
+
+inspect eval arc.py --checkpoint             # CRASH!
+insepct evan-retry logs/<log-file-name>.eval # recover
+```
+
+By default checkpoints are deleted after recovery, use `retention = "retain"` in the [CheckpointConfig](./reference/inspect_ai.util.html.md#checkpointconfig) to preserve them.
+
+### Triggers
+
+Checkpoints are recorded according to the configured `trigger`. All triggers fire at the next turn boundary after the trigger condition is reached. Agents are never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint.
+
+For example, here we configure an eval to checkpoint every 1M tokens:
+
+``` python
+from inspect_ai import eval
+from inspect_ai.util import CheckpointConfig, TokenInterval
+
+eval(
+    "arc.py", model="openai/gpt-5",
+    checkpoint=CheckpointConfig(
+        trigger=TokenInterval(every=1_000_000)
+    )
+)
+```
+
+You can configure triggers based on turns, time, or tokens, or can alternatively specify manual only checkpointing (applicable for [Custom Agents](#custom-agents)):
+
+| Trigger | Description |
+|----|----|
+| [TurnInterval](./reference/inspect_ai.util.html.md#turninterval) | Fire every N agent turns. |
+| [TimeInterval](./reference/inspect_ai.util.html.md#timeinterval) | Fire after approximately N seconds/minutes of wall-clock time has elapsed since the last fire. Effective interval is `≥ N` because firing waits for the next turn boundary. |
+| [TokenInterval](./reference/inspect_ai.util.html.md#tokeninterval) | Fire each time the sample’s running total token usage crosses another N-token boundary. Sample total tokens are read from `sample_total_tokens()`. |
+| [Manual](./reference/inspect_ai.util.html.md#manual) | Never fires automatically. The agent (or another caller) requests a checkpoint with `await cp.checkpoint()`. |
+
+## Task and Sample
+
+TODO: Task and sample level configuration
 
 ## Enabling Checkpointing
 
@@ -108,7 +153,7 @@ def my_task():
 
 ### Sample layer
 
-An individual sample can specialize the task’s default — e.g. when one sample needs an extra directory captured that the rest of the task’s samples don’t. Sample-layer configs use `CheckpointSampleConfig`, which omits the eval-wide fields (`checkpoints_location`, `retention`) that a sample physically cannot influence:
+An individual sample can specialize the task’s default — e.g. when one sample needs an extra directory captured that the rest of the task’s samples don’t. Sample-layer configs use [CheckpointSampleConfig](./reference/inspect_ai.util.html.md#checkpointsampleconfig), which omits the eval-wide fields (`checkpoints_location`, `retention`) that a sample physically cannot influence:
 
 ``` python
 from inspect_ai.dataset import Sample
@@ -142,7 +187,7 @@ Additional trigger types — including cost-based and budget-percentage triggers
 
 ## Configuration
 
-`CheckpointConfig` is the full configuration object. All fields default to `None` so that partial configs can be layered (see [Configuration Layers](#configuration-layers) below).
+[CheckpointConfig](./reference/inspect_ai.util.html.md#checkpointconfig) is the full configuration object. All fields default to `None` so that partial configs can be layered (see [Configuration Layers](#configuration-layers) below).
 
 | Field | Description |
 |----|----|
@@ -266,7 +311,7 @@ The built-in React agent handles this automatically. Custom agents that don’t 
 
 ## Custom Agents
 
-A custom agent participates in checkpointing by entering a `Checkpointer()` session and calling `tick()` at each turn boundary. The harness installs the resolved `CheckpointConfig` into an ambient context before the agent runs, so the agent does **not** receive or thread a config — `checkpointer()` is zero-argument.
+A custom agent participates in checkpointing by entering a `Checkpointer()` session and calling `tick()` at each turn boundary. The harness installs the resolved [CheckpointConfig](./reference/inspect_ai.util.html.md#checkpointconfig) into an ambient context before the agent runs, so the agent does **not** receive or thread a config — [checkpointer()](./reference/inspect_ai.util.html.md#checkpointer) is zero-argument.
 
 The key affordance is **`cp.track`**, which gives the agent a single-call way to declare “this variable is important state — capture it at each checkpoint and restore it for me on retry.” On a fresh run, `track` returns the `initial_value` the agent passes in. On a retry of the same sample, `track` returns whatever the registered callback captured at the most recent checkpoint of the prior run — so the agent’s important state comes back automatically and the agent picks up where it left off, without any custom save/load code:
 
@@ -320,7 +365,7 @@ The `Checkpointer` surface:
 
 `cp.track` is generic over the value type. Single Pydantic models and JSON primitives are auto-handled; for other shapes (collections, generics, dataclasses, lists of models) pass `value_type=...`.
 
-When no `CheckpointConfig` is installed (checkpointing disabled), the session is a no-op: `tick()` does nothing, `track()` always returns `initial_value`, `attempt` is `Attempt.INITIAL`.
+When no [CheckpointConfig](./reference/inspect_ai.util.html.md#checkpointconfig) is installed (checkpointing disabled), the session is a no-op: `tick()` does nothing, `track()` always returns `initial_value`, `attempt` is `Attempt.INITIAL`.
 
 ## Details and Limitations
 
