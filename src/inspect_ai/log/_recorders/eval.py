@@ -163,6 +163,13 @@ class EvalRecorder(FileRecorder):
         await log.buffer_sample_streaming(sample, history)
 
     @override
+    async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            return None
+        return await log.sample_summaries()
+
+    @override
     async def flush(self, eval: EvalSpec) -> None:
         # get the zip log
         log = self.data[self._log_file_key(eval)]
@@ -768,6 +775,15 @@ class ZipLogFile:
                     s for s in self._summaries if (s.id, s.epoch) not in new_keys
                 ]
                 self._summaries.extend(summaries)
+
+    async def sample_summaries(self) -> list[EvalSampleSummary]:
+        """All sample summaries recorded so far (gap-free, ahead of disk).
+
+        Unions ``_summaries`` (already journalled) with the not-yet-flushed
+        ``_samples`` so a just-completed sample isn't missed between flushes.
+        """
+        async with self._lock:
+            return [*self._summaries, *(sample.summary() for sample in self._samples)]
 
     async def write(self, filename: str, data: Any) -> None:
         async with self._lock:

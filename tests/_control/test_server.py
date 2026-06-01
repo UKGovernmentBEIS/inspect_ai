@@ -11,6 +11,9 @@ import asyncio
 import contextlib
 import threading
 
+import httpx
+import pytest
+
 
 def _worker_threads() -> int:
     return sum(1 for t in threading.enumerate() if t.name == "AnyIO worker thread")
@@ -62,3 +65,50 @@ def test_wait_for_shutdown_returns_when_event_set() -> None:
             await asyncio.gather(_set_soon(), wait_for_shutdown_async(server))
 
     asyncio.run(scenario())
+
+
+def test_endpoint_error_becomes_structured_500(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An exception in an endpoint is converted to a client-displayable error.
+
+    The endpoint handlers let errors propagate; the app-level handler
+    turns them into a ``500`` with a ``{"error": ...}`` body (carrying the
+    exception type + message) rather than a bare 500, so the CLI/agent can
+    show the cause.
+    """
+    from inspect_ai._control import server as server_mod
+
+    async def _boom(eval_id: str) -> list:
+        raise RuntimeError("kaboom")
+
+    monkeypatch.setattr(server_mod, "current_sample_summaries", _boom)
+
+    async def scenario() -> httpx.Response:
+        app = server_mod.ControlServer(run_id="test")._build_app()
+        # raise_app_exceptions=False models the real client's view: Starlette
+        # sends our 500 response, then re-raises for server-side logging
+        # (which uvicorn handles in production); we want the response.
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://localhost"
+        ) as client:
+            return await client.get("/evals/abc/samples")
+
+    response = asyncio.run(scenario())
+    assert response.status_code == 500
+    error = response.json()["error"]
+    assert "RuntimeError" in error and "kaboom" in error
+
+
+def test_error_detail_prefers_server_body() -> None:
+    """The CLI surfaces the server's ``{"error": ...}`` over the bare HTTP error."""
+    from inspect_ai._cli.ctl import _error_detail
+
+    request = httpx.Request("GET", "http://localhost/evals/x/samples")
+    response = httpx.Response(
+        500, json={"error": "RuntimeError: kaboom"}, request=request
+    )
+    status_error = httpx.HTTPStatusError("500", request=request, response=response)
+    assert _error_detail(status_error) == "RuntimeError: kaboom"
+
+    # No response attached → fall back to the exception string.
+    assert "plain failure" in _error_detail(OSError("plain failure"))

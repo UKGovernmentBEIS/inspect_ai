@@ -163,6 +163,165 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     return summaries
 
 
+async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
+    """Per-sample summaries for one eval (``GET /evals/<eval_id>/samples``).
+
+    Lists *all* of the eval's samples — running and completed — from two
+    sources, since neither is complete on its own for a live eval:
+
+    - **running** ← ``active_samples`` (the only place a running sample
+      exists; freshest live detail).
+    - **completed** ← the recorder's in-memory summaries while the eval
+      runs (gap-free, ahead of disk; via ``EvalState.summaries_provider``),
+      falling back to the finalized on-disk log once the recorder is gone
+      (eval finished / torn down).
+
+    Merged and deduped by ``(sample_id, epoch)``; a terminal record
+    (completed / error) always wins over a still-running one. Sorted
+    running-first, then by start time.
+
+    Not-yet-started samples aren't listed individually (neither source
+    holds them); the eval-level ``GET /evals`` summary carries the queued
+    count. Returns an empty list when the eval isn't in this process.
+
+    Each entry has: ``sample_id``, ``epoch``, ``status`` (running /
+    completed / error), ``started_at``, ``completed_at``, ``total_time``,
+    ``total_tokens``, ``message_count``, ``error``, ``retries``,
+    ``limit``.
+    """
+    by_key: dict[tuple[Any, int], dict[str, Any]] = {}
+
+    def _merge(summary: dict[str, Any]) -> None:
+        key = (summary["sample_id"], summary["epoch"])
+        existing = by_key.get(key)
+        # Keep the first record for a key, except let a terminal record
+        # supersede a still-running one (a sample that has since finished).
+        if existing is None or (
+            existing["status"] == "running" and summary["status"] != "running"
+        ):
+            by_key[key] = summary
+
+    # Running first (the freshest source for in-flight samples), then the
+    # completed records (which supersede any now-finished running entry).
+    for summary in _sample_summaries_from_active(eval_id):
+        _merge(summary)
+    for summary in await _completed_sample_summaries(eval_id):
+        _merge(summary)
+
+    return _sorted_samples(list(by_key.values()))
+
+
+def _sorted_samples(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    # Running samples first (the live ones a monitor cares about), then
+    # by start time so the longest-running leads within each group.
+    summaries.sort(key=lambda r: (r["status"] != "running", r["started_at"] or 0.0))
+    return summaries
+
+
+async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
+    """The eval's completed-sample summaries (recorder, else on-disk log)."""
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+
+    # Prefer the live recorder: gap-free and independent of realtime
+    # logging. It returns None once torn down (eval finished) — a clean
+    # signal to fall back to the log. Any other failure is unexpected and
+    # propagates to the API entry point.
+    if state is not None and state.summaries_provider is not None:
+        summaries = await state.summaries_provider()
+        if summaries is not None:
+            return [_summary_from_eval_sample_summary(s) for s in summaries]
+
+    # Fallback: the on-disk log. The log_location is always set on the
+    # state by the time we get here (register_eval / register_completed_eval
+    # set it before any sample runs), so there's no need to also consult
+    # active_samples.
+    if state is not None and state.log_location:
+        return await _sample_summaries_from_log(state.log_location)
+    return []
+
+
+async def _sample_summaries_from_log(location: str) -> list[dict[str, Any]]:
+    """Completed-sample summaries read from the on-disk log.
+
+    Only reached when the live recorder is unavailable (a reused eval, or
+    a finished eval whose recorder was torn down), so the log is finalized
+    and fully readable — a read error here is unexpected and propagates to
+    the API entry point.
+    """
+    from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+    summaries = await read_eval_log_sample_summaries_async(location)
+    return [_summary_from_eval_sample_summary(s) for s in summaries]
+
+
+def _summary_from_eval_sample_summary(summary: Any) -> dict[str, Any]:
+    if summary.error is not None:
+        status = "error"
+    elif summary.completed:
+        status = "completed"
+    else:
+        status = "running"
+
+    return {
+        "sample_id": summary.id,
+        "epoch": summary.epoch,
+        "status": status,
+        "started_at": _iso_to_timestamp(summary.started_at),
+        "completed_at": _iso_to_timestamp(summary.completed_at),
+        "total_time": summary.total_time,
+        "total_tokens": sum(u.total_tokens for u in summary.model_usage.values()),
+        "message_count": summary.message_count,
+        "error": summary.error,
+        "retries": summary.retries,
+        "limit": summary.limit,
+    }
+
+
+def _sample_summaries_from_active(eval_id: str) -> list[dict[str, Any]]:
+    """The eval's currently in-flight samples (the running source)."""
+    from inspect_ai.log._samples import active_samples
+
+    summaries: list[dict[str, Any]] = []
+    for s in active_samples():
+        if s.eval_id != eval_id:
+            continue
+        if s.completed is not None:
+            status = "completed"
+        elif s.started is not None:
+            status = "running"
+        else:
+            status = "queued"
+        summaries.append(
+            {
+                "sample_id": s.sample.id,
+                "epoch": s.epoch,
+                "status": status,
+                "started_at": s.started,
+                "completed_at": s.completed,
+                "total_time": s.running_time,
+                "total_tokens": s.total_tokens,
+                "message_count": s.total_messages,
+                "error": None,
+                "retries": None,
+                "limit": None,
+            }
+        )
+    return summaries
+
+
+def _iso_to_timestamp(value: str | None) -> float | None:
+    if not value:
+        return None
+    from inspect_ai._util.dateutil import datetime_from_iso_format_safe
+
+    try:
+        return datetime_from_iso_format_safe(value).timestamp()
+    except (ValueError, TypeError):
+        return None
+
+
 def _build_summary(
     *,
     latest: "EvalState",

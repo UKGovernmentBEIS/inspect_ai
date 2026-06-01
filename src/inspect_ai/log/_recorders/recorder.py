@@ -50,6 +50,19 @@ class Recorder(abc.ABC):
     ) -> None:
         await self.log_sample(eval, materialize_streaming_sample(sample, history))
 
+    async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
+        """Live per-sample summaries for an in-progress eval, if available.
+
+        Returns the recorder's in-memory record of every sample logged so
+        far (i.e. completed samples) — gap-free and ahead of what's been
+        flushed to disk. Used by the control channel to list an eval's
+        samples while it runs. Returns ``None`` when the recorder can't
+        serve them in-memory (eg. the eval has finished and been torn
+        down, or this recorder type doesn't retain summaries); callers
+        then fall back to reading the on-disk log.
+        """
+        return None
+
     @abc.abstractmethod
     async def flush(self, eval: EvalSpec) -> None: ...
 

@@ -28,8 +28,14 @@ Why a counter aggregate rather than computing on demand from
 from __future__ import annotations
 
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from threading import Lock
+from typing import Any
+
+# Async accessor for an eval's completed-sample summaries (a list of
+# ``EvalSampleSummary``, typed loosely to keep this module dependency-free).
+SummariesProvider = Callable[[], Awaitable[list[Any] | None]]
 
 
 @dataclass
@@ -74,6 +80,17 @@ class EvalState:
     model: str = ""
     """Primary model name. Same rationale as :attr:`task`."""
 
+    log_location: str = ""
+    """This eval's log file location. The per-sample listing reads
+    completed samples from here once the live recorder is gone (see
+    :attr:`summaries_provider`)."""
+
+    summaries_provider: SummariesProvider | None = None
+    """Live accessor for completed-sample summaries from the recorder.
+    The per-sample listing prefers this and falls back to
+    :attr:`log_location` when it's ``None`` (reused/synthetic eval) or
+    returns ``None`` (recorder torn down)."""
+
     run_id: str | None = None
     """Process-level run id. Same rationale as :attr:`task`."""
 
@@ -103,6 +120,8 @@ def register_eval(
     task: str = "",
     task_id: str = "",
     model: str = "",
+    log_location: str = "",
+    summaries_provider: SummariesProvider | None = None,
     run_id: str | None = None,
 ) -> EvalState:
     """Initialize tracking for a new eval.
@@ -122,6 +141,8 @@ def register_eval(
             task=task,
             task_id=task_id,
             model=model,
+            log_location=log_location,
+            summaries_provider=summaries_provider,
             run_id=run_id,
         )
         _eval_states[eval_id] = state
@@ -143,6 +164,7 @@ def register_completed_eval(
     task: str = "",
     task_id: str = "",
     model: str = "",
+    log_location: str = "",
     run_id: str | None = None,
     completed_at: float | None = None,
 ) -> EvalState:
@@ -169,6 +191,7 @@ def register_completed_eval(
             task=task,
             task_id=task_id,
             model=model,
+            log_location=log_location,
             run_id=run_id,
             completed_at=completed_at if completed_at is not None else time.time(),
         )

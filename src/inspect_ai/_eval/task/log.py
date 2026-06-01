@@ -325,6 +325,10 @@ class TaskLogger:
         if self._buffer_db is not None:
             self._buffer_db.remove_samples([(id, epoch)])
 
+    async def sample_summaries(self) -> list[EvalSampleSummary] | None:
+        """Live completed-sample summaries (handed to the control channel via ``register_eval``)."""
+        return await self.recorder.sample_summaries(self.eval)
+
     async def complete_sample(self, sample: EvalSample, *, flush: bool) -> None:
         await self.recorder.log_sample(self.eval, sample)
         await self._finalize_sample(sample, flush=flush)

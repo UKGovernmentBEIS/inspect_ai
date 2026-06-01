@@ -1243,3 +1243,350 @@ def test_keep_alive_works_when_all_logs_reused(short_data_dir: Path) -> None:
                 except Exception:
                     pass
             thread.join(timeout=30.0)
+
+
+@pytest.mark.slow
+def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
+    """`inspect ctl samples` lists an eval's currently-running samples.
+
+    Exercises the whole stack: the ``GET /evals/<id>/samples`` endpoint
+    (per-sample summaries from ``active_samples``) and the CLI command
+    on top of it — default single-eval resolution, ``--json``, and
+    eval-id prefix matching.
+    """
+    import json as json_lib
+
+    from click.testing import CliRunner
+
+    from inspect_ai._cli.ctl import ctl_command
+
+    release = threading.Event()
+
+    @solver
+    def hanging_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            while not release.is_set():
+                await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def task_multi() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[hanging_solver()],
+            name="task_multi",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_multi()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                max_samples=3,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_samples")
+    thread.start()
+    try:
+        ready = _wait_until(
+            lambda: (
+                len([s for s in active_samples() if s.started is not None]) >= 3
+                and bool(list_discovered_servers())
+            )
+        )
+        assert ready, (
+            f"didn't reach 3 in-flight samples + a control server. "
+            f"active={len(active_samples())}, "
+            f"servers={len(list_discovered_servers())}, "
+            f"error={result_ref.get('error')}"
+        )
+
+        servers = list_discovered_servers()
+        assert len(servers) == 1
+        transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            evals = client.get("/evals").json()
+            assert len(evals) == 1
+            eval_id = evals[0]["eval_id"]
+            samples = client.get(f"/evals/{eval_id}/samples").json()
+
+        # Endpoint shape: one entry per in-flight sample.
+        assert len(samples) == 3
+        assert sorted(s["sample_id"] for s in samples) == [1, 2, 3]
+        for s in samples:
+            assert s["status"] == "running"
+            assert s["epoch"] == 1
+            assert s["started_at"] is not None
+            assert s["completed_at"] is None
+            assert s["total_time"] >= 0
+            assert "total_tokens" in s
+            assert "message_count" in s
+
+        runner = CliRunner()
+
+        # Default resolution (exactly one eval running → no id needed).
+        result = runner.invoke(ctl_command, ["samples"])
+        assert result.exit_code == 0, result.output
+        assert "sample" in result.output and "status" in result.output
+        assert result.output.count("running") == 3
+
+        # --json returns the same per-sample array.
+        result_json = runner.invoke(ctl_command, ["samples", "--json"])
+        assert result_json.exit_code == 0, result_json.output
+        data = json_lib.loads(result_json.output)
+        assert sorted(s["sample_id"] for s in data) == [1, 2, 3]
+
+        # Eval-id prefix (as shown truncated by `ls`) resolves.
+        result_prefix = runner.invoke(ctl_command, ["samples", eval_id[:12]])
+        assert result_prefix.exit_code == 0, result_prefix.output
+        assert result_prefix.output.count("running") == 3
+
+        # Unknown id is a clean error.
+        result_missing = runner.invoke(ctl_command, ["samples", "nope"])
+        assert result_missing.exit_code == 1
+        assert "No running eval matching" in result_missing.output
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_samples_includes_completed_samples(short_data_dir: Path) -> None:
+    """`inspect ctl samples` lists completed-so-far samples, not just running.
+
+    Pins the "all samples" contract: completed samples come from the
+    eval's live sample buffer while running ones come from
+    ``active_samples``, merged into one listing. A solver completes the
+    even-id samples immediately and hangs the odd-id ones; once two have
+    completed and two are still running, the endpoint must report all
+    four with the right statuses.
+    """
+    release = threading.Event()
+
+    @solver
+    def gated_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            # Odd-id samples hang until released; even-id complete now.
+            if int(state.sample_id) % 2 == 1:
+                while not release.is_set():
+                    await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def task_gated() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3, 4)],
+            solver=[gated_solver()],
+            name="task_gated",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_gated()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                max_samples=4,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_samples_mixed")
+    thread.start()
+
+    def _samples_via_endpoint() -> list[dict[str, object]]:
+        servers = list_discovered_servers()
+        if not servers:
+            return []
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+                if not evals:
+                    return []
+                eval_id = evals[0]["eval_id"]
+                return client.get(f"/evals/{eval_id}/samples").json()
+        except (httpx.HTTPError, OSError):
+            return []
+
+    try:
+        # Wait until 2 samples have completed (even ids) AND 2 are still
+        # running (odd ids, hanging) — surfaced together by the endpoint.
+        def _two_done_two_running() -> bool:
+            rows = _samples_via_endpoint()
+            done = [r for r in rows if r["status"] == "completed"]
+            running = [r for r in rows if r["status"] == "running"]
+            return len(done) == 2 and len(running) == 2
+
+        ready = _wait_until(_two_done_two_running, timeout=30.0)
+        assert ready, (
+            f"didn't reach 2-completed + 2-running. "
+            f"rows={_samples_via_endpoint()}, error={result_ref.get('error')}"
+        )
+
+        rows = _samples_via_endpoint()
+        assert sorted(r["sample_id"] for r in rows) == [1, 2, 3, 4]
+        by_id = {r["sample_id"]: r for r in rows}
+        # Even ids completed (with a completed_at); odd ids still running.
+        for sid in (2, 4):
+            assert by_id[sid]["status"] == "completed"
+            assert by_id[sid]["completed_at"] is not None
+        for sid in (1, 3):
+            assert by_id[sid]["status"] == "running"
+            assert by_id[sid]["completed_at"] is None
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_samples_recorder_ahead_of_disk(short_data_dir: Path) -> None:
+    """Completed samples show up before they're flushed to the on-disk log.
+
+    Pins the gap-free property of reading completed summaries from the
+    recorder's in-memory state rather than the log file. With 9 samples,
+    ``.eval`` flush_buffer is 3; completing only 2 (the rest hang) leaves
+    those 2 buffered in the recorder (``_samples``) and **not yet written
+    to disk**. The endpoint must still list them, while a direct read of
+    the on-disk log does not yet see them.
+    """
+    release = threading.Event()
+    completed_ids = (1, 2)
+
+    @solver
+    def gated_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if int(state.sample_id) not in completed_ids:
+                while not release.is_set():
+                    await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def task_nine() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in range(1, 10)],
+            solver=[gated_solver()],
+            name="task_nine",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_nine()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                max_samples=9,  # all start; flush_buffer stays at the default (3)
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_ahead_of_disk")
+    thread.start()
+
+    def _endpoint_samples() -> list[dict[str, object]]:
+        servers = list_discovered_servers()
+        if not servers:
+            return []
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+                if not evals:
+                    return []
+                return client.get(f"/evals/{evals[0]['eval_id']}/samples").json()
+        except (httpx.HTTPError, OSError):
+            return []
+
+    try:
+        # Stable state: exactly 2 completed (held below flush_buffer by the
+        # 7 hanging samples), so no flush ever fires.
+        def _two_done_seven_running() -> bool:
+            rows = _endpoint_samples()
+            done = sum(1 for r in rows if r["status"] == "completed")
+            running = sum(1 for r in rows if r["status"] == "running")
+            return done == 2 and running == 7
+
+        ready = _wait_until(_two_done_seven_running, timeout=30.0)
+        assert ready, (
+            f"didn't reach 2-completed + 7-running. rows={_endpoint_samples()}, "
+            f"error={result_ref.get('error')}"
+        )
+
+        rows = _endpoint_samples()
+        assert sorted(r["sample_id"] for r in rows) == list(range(1, 10))
+        endpoint_completed = {
+            r["sample_id"] for r in rows if r["status"] == "completed"
+        }
+        assert endpoint_completed == set(completed_ids)
+
+        # The on-disk log has NOT seen these completed samples yet (no flush
+        # has fired) — proving the endpoint served them from the recorder's
+        # in-memory state, not the file.
+        from inspect_ai._control.eval_state import get_eval_states
+        from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+        location = next(s.log_location for s in get_eval_states() if s.log_location)
+
+        async def _read_disk() -> list:
+            try:
+                return await read_eval_log_sample_summaries_async(location)
+            except Exception:
+                return []
+
+        on_disk = anyio.run(_read_disk)
+        on_disk_completed = {s.id for s in on_disk if s.completed}
+        assert on_disk_completed < endpoint_completed, (
+            f"expected the recorder to be ahead of disk; on_disk={on_disk_completed}, "
+            f"endpoint={endpoint_completed}"
+        )
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]

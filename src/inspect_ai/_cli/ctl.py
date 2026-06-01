@@ -4,13 +4,15 @@ The ``ctl`` group hosts every command that operates on a *running*
 Inspect eval (list, status, cancel, drain, requeue, events, ...). See
 ``design/control-channel.md`` for the design.
 
-MVP scope: a single ``ls`` subcommand that enumerates live evals by
-querying each discovered control server's ``GET /evals`` endpoint.
+Current scope: ``ls`` (enumerate live evals), ``samples`` (list an
+eval's in-flight samples), and ``shutdown`` (release a ``--keep-alive``
+process). Each talks to the per-process control server's HTTP endpoints.
 """
 
 from __future__ import annotations
 
 import json as json_lib
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Any
 
@@ -60,6 +62,53 @@ def ls_command(as_json: bool) -> None:
         return
 
     _print_human_table(summaries)
+
+
+@ctl_command.command("samples")
+@click.argument("eval_id", required=False)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (one array of sample summaries).",
+)
+def samples_command(eval_id: str | None, as_json: bool) -> None:
+    """List the in-flight samples of a running eval.
+
+    EVAL_ID selects the eval (as shown by `inspect ctl ls`; a unique
+    prefix is enough). If omitted and exactly one eval is running, that
+    eval is used.
+
+    Only currently-running samples are shown — completed samples are
+    summarised by `inspect ctl ls`, not listed here.
+    """
+    summaries = _fetch_summaries(list_discovered_servers())
+    if not summaries:
+        if as_json:
+            click.echo("[]")
+            return
+        click.echo(
+            f"No running evals found in {discovery_dir()}.\n"
+            "Start an eval with `inspect eval <task>` and try again."
+        )
+        return
+
+    target = _resolve_target_eval(summaries, eval_id)
+    samples = _fetch_samples(target["socket_path"], target["eval_id"])
+
+    if as_json:
+        click.echo(json_lib.dumps(samples, indent=2))
+        return
+
+    if not samples:
+        click.echo(
+            f"No in-flight samples for eval {_short_id(target['eval_id'])} "
+            f"({target.get('task') or '?'})."
+        )
+        return
+
+    _print_samples_table(samples)
 
 
 @ctl_command.command("shutdown")
@@ -143,8 +192,77 @@ def _fetch_summaries(
     return summaries
 
 
+def _resolve_target_eval(
+    summaries: list[dict[str, Any]], eval_id: str | None
+) -> dict[str, Any]:
+    """Pick the eval a per-eval command targets, or exit with an error.
+
+    With ``eval_id``, match by full id or unique prefix (``ls`` shows
+    truncated ids). Without it, default to the sole running eval.
+    """
+    if eval_id is not None:
+        matches = [s for s in summaries if s.get("eval_id") == eval_id] or [
+            s for s in summaries if str(s.get("eval_id", "")).startswith(eval_id)
+        ]
+        if not matches:
+            click.echo(f"No running eval matching '{eval_id}'.", err=True)
+            raise click.exceptions.Exit(code=1)
+        if len(matches) > 1:
+            ids = ", ".join(_short_id(s.get("eval_id", "")) for s in matches)
+            click.echo(
+                f"'{eval_id}' is ambiguous (matches: {ids}). Use a longer id.",
+                err=True,
+            )
+            raise click.exceptions.Exit(code=1)
+        return matches[0]
+
+    if len(summaries) == 1:
+        return summaries[0]
+
+    listing = ", ".join(
+        f"{_short_id(s.get('eval_id', ''))} ({s.get('task') or '?'})" for s in summaries
+    )
+    click.echo(
+        f"Multiple evals are running ({listing}). Pass an eval id to choose one.",
+        err=True,
+    )
+    raise click.exceptions.Exit(code=1)
+
+
+def _fetch_samples(socket_path: str, eval_id: str) -> list[dict[str, Any]]:
+    """Query one control server for an eval's in-flight samples."""
+    try:
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            response = client.get(f"/evals/{eval_id}/samples")
+            response.raise_for_status()
+            rows = response.json()
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        click.echo(
+            f"Failed to read samples for eval {eval_id}: {_error_detail(exc)}",
+            err=True,
+        )
+        raise click.exceptions.Exit(code=1) from exc
+    return rows if isinstance(rows, list) else []
+
+
+def _error_detail(exc: Exception) -> str:
+    """Prefer the server's ``{"error": ...}`` body over the bare HTTP error."""
+    response = getattr(exc, "response", None)
+    if response is not None:
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        if isinstance(body, dict) and body.get("error"):
+            return str(body["error"])
+    return str(exc)
+
+
 def _print_human_table(summaries: list[dict[str, Any]]) -> None:
-    """Render summaries as a simple aligned table on stdout."""
+    """Render eval summaries as a simple aligned table on stdout."""
     # Show errors / attempts columns only when at least one row has
     # something interesting to report there — keeps the common case
     # (no errors, no retries) uncluttered.
@@ -171,8 +289,28 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
         headers_list.insert(3, "errors")
     if any_retries:
         headers_list.append("attempts")
-    headers = tuple(headers_list)
 
+    _render_table(tuple(headers_list), rows)
+
+
+def _print_samples_table(samples: list[dict[str, Any]]) -> None:
+    """Render per-sample summaries as a simple aligned table on stdout."""
+    rows = [
+        (
+            str(s["sample_id"]) if s.get("sample_id") is not None else "?",
+            str(s.get("epoch", "")),
+            s.get("status", "") or "",
+            _format_duration(s.get("total_time")),
+            str(s.get("total_tokens", 0)),
+            str(s.get("message_count") or 0),
+        )
+        for s in samples
+    ]
+    _render_table(("sample", "epoch", "status", "time", "tokens", "messages"), rows)
+
+
+def _render_table(headers: tuple[str, ...], rows: Sequence[tuple[str, ...]]) -> None:
+    """Print an aligned, dashed-underline table to stdout."""
     widths = [
         max(len(h), max((len(r[i]) for r in rows), default=0))
         for i, h in enumerate(headers)
@@ -235,3 +373,15 @@ def _format_started(started_at: float) -> str:
         )
     except (TypeError, ValueError, OSError):
         return ""
+
+
+def _format_duration(seconds: float | None) -> str:
+    """Compact elapsed time: ``M:SS`` (under an hour) or ``H:MM:SS``."""
+    if not seconds or seconds < 0:
+        return ""
+    total = int(seconds)
+    hours, rem = divmod(total, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"

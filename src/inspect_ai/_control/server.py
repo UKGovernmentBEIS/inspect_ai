@@ -33,7 +33,10 @@ import anyio
 
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.eval_state import clear_all_eval_states
-from inspect_ai._control.state import current_eval_summaries
+from inspect_ai._control.state import (
+    current_eval_summaries,
+    current_sample_summaries,
+)
 from inspect_ai._util.discovery import (
     DISCOVERY_FILE_MODE,
     prepare_discovery_dir,
@@ -131,15 +134,33 @@ class ControlServer:
         Imported lazily so module import doesn't pay the FastAPI cost
         when control is disabled.
         """
-        from fastapi import FastAPI
+        from fastapi import FastAPI, Request
+        from fastapi.responses import JSONResponse
 
         app = FastAPI()
         started_at = self._started_at
         shutdown_event = self._shutdown_event
 
+        @app.exception_handler(Exception)
+        async def on_error(request: Request, exc: Exception) -> JSONResponse:
+            # Endpoint handlers let errors propagate; convert them here, at
+            # the API boundary, into a structured response the client (CLI,
+            # agent) can surface instead of a bare 500. The server log keeps
+            # the full traceback.
+            logger.warning(
+                "Control endpoint %s failed", request.url.path, exc_info=True
+            )
+            return JSONResponse(
+                status_code=500, content={"error": f"{type(exc).__name__}: {exc}"}
+            )
+
         @app.get("/evals")
         async def list_evals() -> list[dict[str, Any]]:
             return current_eval_summaries(started_at)
+
+        @app.get("/evals/{eval_id}/samples")
+        async def list_eval_samples(eval_id: str) -> list[dict[str, Any]]:
+            return await current_sample_summaries(eval_id)
 
         @app.post("/shutdown")
         async def shutdown() -> dict[str, bool]:
