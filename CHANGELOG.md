@@ -1,3 +1,7 @@
+## Unreleased
+
+- Docker Sandbox: `SandboxTimeoutError` now carries `truncated_output` with the partial command output captured before a timeout (surfaced to tool callers), instead of discarding it.
+
 ## 0.3.233 (01 June 2026)
 
 - Anthropic: Render mid-conversation system messages as `<system-reminder>` user turns for pre-4.8 models.
