@@ -4,8 +4,8 @@ The ``ctl`` group hosts every command that operates on a *running*
 Inspect eval (list, status, cancel, drain, requeue, events, ...). See
 ``design/control-channel.md`` for the design.
 
-Current scope: ``ls`` (enumerate live evals), ``samples`` (list an
-eval's in-flight samples), and ``shutdown`` (release a ``--keep-alive``
+Current scope: ``ls`` (enumerate live evals), ``samples`` (list a
+task's samples), and ``shutdown`` (release a ``--keep-alive``
 process). Each talks to the per-process control server's HTTP endpoints.
 """
 
@@ -65,7 +65,7 @@ def ls_command(as_json: bool) -> None:
 
 
 @ctl_command.command("samples")
-@click.argument("eval_id", required=False)
+@click.argument("task_id", required=False)
 @click.option(
     "--json",
     "as_json",
@@ -73,15 +73,13 @@ def ls_command(as_json: bool) -> None:
     default=False,
     help="Output as JSON (one array of sample summaries).",
 )
-def samples_command(eval_id: str | None, as_json: bool) -> None:
-    """List the in-flight samples of a running eval.
+def samples_command(task_id: str | None, as_json: bool) -> None:
+    """List the samples (running and completed) of a running eval.
 
-    EVAL_ID selects the eval (as shown by `inspect ctl ls`; a unique
-    prefix is enough). If omitted and exactly one eval is running, that
-    eval is used.
-
-    Only currently-running samples are shown — completed samples are
-    summarised by `inspect ctl ls`, not listed here.
+    TASK_ID selects the task (as shown by `inspect ctl ls`; a unique
+    prefix is enough). It's stable across retries — unlike a per-attempt
+    eval id, it still resolves after a task errors and is retried. If
+    omitted and exactly one task is running, that task is used.
     """
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
@@ -94,7 +92,9 @@ def samples_command(eval_id: str | None, as_json: bool) -> None:
         )
         return
 
-    target = _resolve_target_eval(summaries, eval_id)
+    target = _resolve_target_eval(summaries, task_id)
+    # Query by the task's current eval id (resolved fresh each invocation,
+    # so this still works after a retry minted a new one).
     samples = _fetch_samples(target["socket_path"], target["eval_id"])
 
     if as_json:
@@ -102,10 +102,7 @@ def samples_command(eval_id: str | None, as_json: bool) -> None:
         return
 
     if not samples:
-        click.echo(
-            f"No in-flight samples for eval {_short_id(target['eval_id'])} "
-            f"({target.get('task') or '?'})."
-        )
+        click.echo(f"No samples yet for task '{target.get('task') or '?'}'.")
         return
 
     _print_samples_table(samples)
@@ -193,24 +190,25 @@ def _fetch_summaries(
 
 
 def _resolve_target_eval(
-    summaries: list[dict[str, Any]], eval_id: str | None
+    summaries: list[dict[str, Any]], task_id: str | None
 ) -> dict[str, Any]:
-    """Pick the eval a per-eval command targets, or exit with an error.
+    """Pick the task a per-eval command targets, or exit with an error.
 
-    With ``eval_id``, match by full id or unique prefix (``ls`` shows
-    truncated ids). Without it, default to the sole running eval.
+    With ``task_id``, match by full id or unique prefix (``ls`` shows
+    truncated ids). ``task_id`` is stable across retries. Without it,
+    default to the sole running task.
     """
-    if eval_id is not None:
-        matches = [s for s in summaries if s.get("eval_id") == eval_id] or [
-            s for s in summaries if str(s.get("eval_id", "")).startswith(eval_id)
+    if task_id is not None:
+        matches = [s for s in summaries if s.get("task_id") == task_id] or [
+            s for s in summaries if str(s.get("task_id", "")).startswith(task_id)
         ]
         if not matches:
-            click.echo(f"No running eval matching '{eval_id}'.", err=True)
+            click.echo(f"No running task matching '{task_id}'.", err=True)
             raise click.exceptions.Exit(code=1)
         if len(matches) > 1:
-            ids = ", ".join(_short_id(s.get("eval_id", "")) for s in matches)
+            ids = ", ".join(_short_id(s.get("task_id", "")) for s in matches)
             click.echo(
-                f"'{eval_id}' is ambiguous (matches: {ids}). Use a longer id.",
+                f"'{task_id}' is ambiguous (matches: {ids}). Use a longer id.",
                 err=True,
             )
             raise click.exceptions.Exit(code=1)
@@ -220,10 +218,10 @@ def _resolve_target_eval(
         return summaries[0]
 
     listing = ", ".join(
-        f"{_short_id(s.get('eval_id', ''))} ({s.get('task') or '?'})" for s in summaries
+        f"{_short_id(s.get('task_id', ''))} ({s.get('task') or '?'})" for s in summaries
     )
     click.echo(
-        f"Multiple evals are running ({listing}). Pass an eval id to choose one.",
+        f"Multiple tasks are running ({listing}). Pass a task id to choose one.",
         err=True,
     )
     raise click.exceptions.Exit(code=1)
@@ -272,8 +270,10 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
     rows = []
     for s in summaries:
         samples = s.get("samples") or {}
+        # task_id (not eval_id): stable across retries, and the handle
+        # `inspect ctl samples` takes.
         cells = [
-            _short_id(s.get("eval_id", "")),
+            _short_id(s.get("task_id", "")),
             s.get("task", "?") or "?",
             _format_samples(samples),
             _format_started(s.get("started_at", 0)),
@@ -284,7 +284,7 @@ def _print_human_table(summaries: list[dict[str, Any]]) -> None:
             cells.append(str(int(s.get("attempts", 1) or 1)))
         rows.append(tuple(cells))
 
-    headers_list = ["eval_id", "task", "samples", "started"]
+    headers_list = ["task_id", "task", "samples", "started"]
     if any_errors:
         headers_list.insert(3, "errors")
     if any_retries:

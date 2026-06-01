@@ -1322,6 +1322,7 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
             evals = client.get("/evals").json()
             assert len(evals) == 1
             eval_id = evals[0]["eval_id"]
+            task_id = evals[0]["task_id"]
             samples = client.get(f"/evals/{eval_id}/samples").json()
 
         # Endpoint shape: one entry per in-flight sample.
@@ -1338,7 +1339,7 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
 
         runner = CliRunner()
 
-        # Default resolution (exactly one eval running → no id needed).
+        # Default resolution (exactly one task running → no id needed).
         result = runner.invoke(ctl_command, ["samples"])
         assert result.exit_code == 0, result.output
         assert "sample" in result.output and "status" in result.output
@@ -1350,15 +1351,15 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
         data = json_lib.loads(result_json.output)
         assert sorted(s["sample_id"] for s in data) == [1, 2, 3]
 
-        # Eval-id prefix (as shown truncated by `ls`) resolves.
-        result_prefix = runner.invoke(ctl_command, ["samples", eval_id[:12]])
+        # task_id prefix (as shown truncated by `ls`, stable across retries).
+        result_prefix = runner.invoke(ctl_command, ["samples", task_id[:12]])
         assert result_prefix.exit_code == 0, result_prefix.output
         assert result_prefix.output.count("running") == 3
 
         # Unknown id is a clean error.
         result_missing = runner.invoke(ctl_command, ["samples", "nope"])
         assert result_missing.exit_code == 1
-        assert "No running eval matching" in result_missing.output
+        assert "No running task matching" in result_missing.output
     finally:
         release.set()
         thread.join(timeout=60)
@@ -1588,6 +1589,119 @@ def test_ctl_samples_recorder_ahead_of_disk(short_data_dir: Path) -> None:
             f"expected the recorder to be ahead of disk; on_disk={on_disk_completed}, "
             f"endpoint={endpoint_completed}"
         )
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_samples_task_id_stable_across_retry(short_data_dir: Path) -> None:
+    """`inspect ctl samples <task_id>` keeps resolving after an error + retry.
+
+    A task's per-attempt ``eval_id`` is regenerated on retry, but its
+    ``task_id`` is stable — which is why `ls` shows ``task_id`` and
+    `samples` takes it. Here the task fails on its first attempt then
+    hangs on the retry (so it stays registered and running). After the
+    retry — when the eval_id has changed — `samples <task_id>` still
+    resolves and lists the running sample.
+    """
+    release = threading.Event()
+    fail_counter = {"calls": 0}
+
+    @solver
+    def fail_then_hang_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            fail_counter["calls"] += 1
+            if fail_counter["calls"] == 1:
+                raise RuntimeError("synthetic first-attempt failure")
+            while not release.is_set():
+                await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def task_flaky() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[fail_then_hang_solver()],
+            name="task_flaky",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_flaky()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=2,
+                retry_immediate=True,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_retry_stable")
+    thread.start()
+
+    def _flaky_summary() -> dict[str, object] | None:
+        servers = list_discovered_servers()
+        if not servers:
+            return None
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+        except (httpx.HTTPError, OSError):
+            return None
+        return next((e for e in evals if e["task"] == "task_flaky"), None)
+
+    try:
+        # Wait until the retry (attempt 2) is the registered, running eval.
+        def _retry_running() -> bool:
+            entry = _flaky_summary()
+            return (
+                fail_counter["calls"] >= 2
+                and entry is not None
+                and entry["status"] == "running"
+            )
+
+        ready = _wait_until(_retry_running, timeout=30.0)
+        assert ready, (
+            f"flaky task's retry isn't running. calls={fail_counter['calls']}, "
+            f"entry={_flaky_summary()}, error={result_ref.get('error')}"
+        )
+
+        entry = _flaky_summary()
+        assert entry is not None
+        task_id = entry["task_id"]
+        assert task_id, "expected a stable task_id on the entry"
+
+        # The stable task_id resolves via the CLI even though the eval_id
+        # is now the retry's (different from the failed first attempt).
+        import json as json_lib
+
+        from click.testing import CliRunner
+
+        from inspect_ai._cli.ctl import ctl_command
+
+        runner = CliRunner()
+        result = runner.invoke(ctl_command, ["samples", "--json", str(task_id)[:12]])
+        assert result.exit_code == 0, result.output
+        rows = json_lib.loads(result.output)
+        assert len(rows) == 1
+        assert rows[0]["status"] == "running"
     finally:
         release.set()
         thread.join(timeout=60)
