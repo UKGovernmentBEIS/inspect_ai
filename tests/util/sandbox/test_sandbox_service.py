@@ -249,6 +249,95 @@ async def test_ensure_service_dir_checks_root_service_dir_when_instance_set() ->
     assert issued[3] == ["test", "-O", f"{SERVICES_DIR}/multi"]
 
 
+async def test_ensure_service_dir_raises_prereq_when_parent_unwritable() -> None:
+    """Raise PrerequisiteError when mkdir fails on an unwritable parent.
+
+    When step 1's chmod silently no-ops (e.g. SERVICES_DIR exists root-owned
+    0755 and the default user is non-root) the next mkdir fails with a
+    generic permission error that blames the service dir. Diagnose the parent
+    so the user sees the real culprit.
+    """
+    fake = FakeSandboxEnvironment(
+        results=[
+            FakeExecResult(),  # 1. mkdir + chmod SERVICES_DIR (best-effort)
+            FakeExecResult(
+                success=False, returncode=1, stderr="mkdir: Permission denied"
+            ),  # 2. mkdir <service_dir>
+            FakeExecResult(
+                success=False, returncode=1
+            ),  # 3. test -w <parent> -> not writable
+        ],
+    )
+    service = SandboxService(
+        name="blocked",
+        sandbox=cast(SandboxEnvironment, fake),
+        user="agent",
+    )
+
+    with pytest.raises(PrerequisiteError) as excinfo:
+        await service.start()
+
+    msg = str(excinfo.value)
+    assert "blocked" in msg
+    assert "agent" in msg
+    # Parent of /var/tmp/sandbox-services/blocked is SERVICES_DIR itself,
+    # which is what the user actually needs to look at.
+    assert f"parent directory '{SERVICES_DIR}'" in msg
+
+    issued = [call["cmd"] for call in fake.calls]
+    assert len(issued) == 3, f"expected 3 exec calls, got {len(issued)}: {issued}"
+    assert issued[2] == ["test", "-w", SERVICES_DIR]
+
+
+async def test_ensure_service_dir_raises_runtime_when_parent_writable_but_mkdir_fails() -> (
+    None
+):
+    """Fall through to RuntimeError when mkdir fails but the parent is writable.
+
+    Falls through to RuntimeError with the original mkdir stderr — could be
+    ENOSPC, ENAMETOOLONG, etc. The diagnostic must not mislead the user
+    into thinking it's a squat.
+    """
+    fake = FakeSandboxEnvironment(
+        results=[
+            FakeExecResult(),  # 1. chmod 1777 OK
+            FakeExecResult(
+                success=False, returncode=1, stderr="mkdir: No space left on device"
+            ),  # 2. mkdir <service_dir>
+            FakeExecResult(),  # 3. test -w <parent> -> writable (returns success)
+        ],
+    )
+    service = SandboxService(
+        name="diskfull",
+        sandbox=cast(SandboxEnvironment, fake),
+        user="agent",
+    )
+
+    with pytest.raises(RuntimeError, match="No space left on device") as excinfo:
+        await service.start()
+
+    assert not isinstance(excinfo.value, PrerequisiteError)
+    assert "diskfull" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("bad_instance", ["", ".", "..", "../etc", "foo/bar"])
+def test_sandbox_service_rejects_invalid_instance(bad_instance: str) -> None:
+    """Path-traversal and empty/dot instance values are rejected at __init__.
+
+    An attacker-controlled instance must not be able to escape SERVICES_DIR
+    (e.g. '../../etc') or silently collapse to the non-instanced path
+    (e.g. '', '.'), which would also bypass the parent squat check.
+    """
+    fake = FakeSandboxEnvironment()
+    with pytest.raises(ValueError, match="invalid instance"):
+        SandboxService(
+            name="x",
+            sandbox=cast(SandboxEnvironment, fake),
+            user="agent",
+            instance=bad_instance,
+        )
+
+
 @pytest.mark.slow
 @skip_if_no_docker
 def test_sandbox_service_nonroot_after_root_setup() -> None:

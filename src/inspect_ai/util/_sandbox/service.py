@@ -220,6 +220,14 @@ class SandboxService:
         self._service_dir = PurePosixPath(SERVICES_DIR, self._name)
         self._root_service_dir = self._service_dir
         if instance is not None:
+            # An attacker-controlled instance must not be able to escape
+            # SERVICES_DIR (path traversal) or silently collapse to the
+            # non-instanced path (".", "").
+            if not instance or "/" in instance or instance in (".", ".."):
+                raise ValueError(
+                    f"invalid instance: {instance!r} (must be a non-empty "
+                    "string with no '/' or path-traversal components)"
+                )
             self._service_dir = self._service_dir / instance
         self._methods: dict[str, SandboxServiceMethod] = {}
         self._requests_dir: str = ""
@@ -401,6 +409,25 @@ class SandboxService:
         service_dir = self._service_dir.as_posix()
         result = await self._exec(["mkdir", "-p", service_dir])
         if not result.success:
+            # mkdir failed. Most common cause: the immediate parent is
+            # not writable by self._user (either SERVICES_DIR is still
+            # 0755 root-owned because step 1's chmod no-op'd, or a
+            # different user pre-created our <name> with restrictive
+            # perms). Surface that as a PrerequisiteError pointing at
+            # the parent — the squat-check below only fires when mkdir
+            # *succeeds* on a squatted but world-writable dir, which is
+            # rarer.
+            parent = self._service_dir.parent.as_posix()
+            writable = await self._exec(["test", "-w", parent])
+            if not writable.success:
+                user = self._user or "the sandbox default user"
+                raise PrerequisiteError(
+                    f"Sandbox service '{self._name}' cannot create "
+                    f"'{service_dir}': its parent directory '{parent}' is "
+                    f"not writable by user '{user}'. Another service may "
+                    "have created it with restrictive permissions, or "
+                    "claimed this name."
+                )
             raise RuntimeError(
                 f"Error creating service directory '{service_dir}' "
                 f"for sandbox service '{self._name}': {result.stderr}"
