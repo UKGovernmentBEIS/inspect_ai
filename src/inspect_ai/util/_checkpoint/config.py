@@ -24,15 +24,6 @@ from ._triggers import CheckpointTrigger
 
 
 @dataclass
-class Retention:
-    """Controls when checkpoint data is deleted."""
-
-    after_eval: Literal["delete", "retain"] = "delete"
-    """``"delete"`` (default) removes the checkpoint directory after successful
-    eval completion; ``"retain"`` keeps it for later inspection or replay."""
-
-
-@dataclass
 class CheckpointSampleConfig:
     """Checkpoint configuration fields that may be set at the sample layer.
 
@@ -89,10 +80,12 @@ class CheckpointConfig(CheckpointSampleConfig):
     Supports any fsspec-resolvable path (``s3://``, ``gs://``, plain
     local). Eval-wide — settable only at the task or eval layer."""
 
-    retention: Retention | None = None
-    """Controls when checkpoint data is deleted. ``None`` = inherit /
-    use the default :class:`Retention` (``after_eval="delete"``).
-    Eval-wide — settable only at the task or eval layer."""
+    retention: Literal["delete", "retain"] | None = None
+    """Controls when checkpoint data is deleted after eval completion.
+    ``"delete"`` removes the checkpoint directory after successful eval
+    completion; ``"retain"`` keeps it for later inspection or replay.
+    ``None`` = inherit / use the default (``"delete"``). Eval-wide —
+    settable only at the task or eval layer."""
 
 
 @dataclass
@@ -111,7 +104,7 @@ class ResolvedCheckpointConfig:
 
     trigger: CheckpointTrigger
     sandbox_paths: dict[str, list[str]] = field(default_factory=dict)
-    retention: Retention = field(default_factory=Retention)
+    retention: Literal["delete", "retain"] = "delete"
     checkpoints_location: str | None = None
     max_consecutive_failures: int | None = None
 
@@ -162,7 +155,7 @@ def merge_checkpoint_configs(
             max_consecutive_failures = layer.max_consecutive_failures
 
     checkpoints_location: str | None = None
-    retention: Retention | None = None
+    retention: Literal["delete", "retain"] | None = None
     for layer in (task, eval_):
         if layer is None:
             continue
@@ -179,7 +172,7 @@ def merge_checkpoint_configs(
     return ResolvedCheckpointConfig(
         trigger=trigger,
         sandbox_paths=sandbox_paths if sandbox_paths is not None else {},
-        retention=retention if retention is not None else Retention(),
+        retention=retention if retention is not None else "delete",
         checkpoints_location=checkpoints_location,
         max_consecutive_failures=max_consecutive_failures,
     )

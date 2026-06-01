@@ -75,13 +75,13 @@ def test_yaml_file(tmp_path: Path) -> None:
         "trigger:\n  type: turn\n  every: 8\n"
         "sandbox_paths:\n  default: ['/workspace']\n"
         "max_consecutive_failures: 2\n"
-        "retention:\n  after_eval: retain\n"
+        "retention: retain\n"
     )
     cfg = _parse(str(path))
     assert isinstance(cfg.trigger, TurnInterval) and cfg.trigger.every == 8
     assert cfg.sandbox_paths == {"default": ["/workspace"]}
     assert cfg.max_consecutive_failures == 2
-    assert cfg.retention is not None and cfg.retention.after_eval == "retain"
+    assert cfg.retention == "retain"
 
 
 def test_yaml_file_manual_trigger(tmp_path: Path) -> None:

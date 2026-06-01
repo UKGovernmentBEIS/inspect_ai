@@ -79,6 +79,17 @@ description: Miscellaneous utility functions.
 ### InputResult
 ### InputResult
 
+## Checkpointing
+
+### checkpointer
+### CheckpointConfig
+### CheckpointSampleConfig
+### CheckpointTrigger
+### TimeInterval
+### TokenInterval
+### TurnInterval
+### Manual
+
 ## Registry
 
 ### registry_info
@@ -107,3 +118,5 @@ description: Miscellaneous utility functions.
 ### ComposeService
 ### ComposeBuild
 ### ComposeHealthcheck
+
+

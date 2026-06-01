@@ -16,20 +16,20 @@ Checkpointing does not save arbitrary in-memory process state, running tools, or
 
 When Inspect retries a failed sample, checkpointed data is automatically restored and the sample continued from where it left off. Note that checkpointing needs explicit support in agent scaffolds. Built-in agents like `react()` and `deepagent()` support checkpointing natively, see the section below on [Custom Agents](#custom-agents) for details on how to add checkpointing to your own agents.
 
-## Configuration
+## Basic Usage
 
 To enable checkpointing for an evaluation, use the `--checkpoint` CLI option. For example:
 
 ``` bash
 # checkpoint with default trigger (every 5 turns)
-inspect eval arc.py --checkpoint
+inspect eval ctf.py --checkpoint
 
 # shorthand triggers
-inspect eval arc.py --checkpoint=turn:10
-inspect eval arc.py --checkpoint=time:15m # <1>
+inspect eval ctf.py --checkpoint=turn:10
+inspect eval ctf.py --checkpoint=time:15m # <1>
 
 # pass a yaml or json config file
-inspect eval arc.py --checkpoint=checkpoint.yaml
+inspect eval ctf.py --checkpoint=checkpoint.yaml
 ```
 
 1.  Time-value suffixes are `s`, `m`, `h`, `d` (case-insensitive); a bare integer is seconds.
@@ -41,16 +41,65 @@ from inspect_ai import eval
 from inspect_ai.util import CheckpointConfig, TurnInterval
 
 eval(
-    "arc.py", model="openai/gpt-5",
+    "ctf.py", model="openai/gpt-5",
     checkpoint=CheckpointConfig(
         trigger=TurnInterval(every=10)
     )
 )
 ```
 
-TODO: Task and sample level configuration
+::: callout-important
+## Agent Compatibility
 
-## Triggers
+Note that the above example assumes that you are using a checkpointing-aware agent (e.g. the built-in `react()` and `deepagent()`). You can add checkpointing to your own agents by following the recipe described in [Custom Agents](#custom-agents).
+:::
+
+### Recovery
+
+If a crash occurs during an evaluation that was configured for checkpointing, recovery occurs when the sample is retried. For both `eval_set()` and `eval_retry()` this occurs automatically:
+
+``` bash
+inspect eval-set arc.py ctf.py --checkpoint # CRASH!
+inspect eval-set arc.py ctf.py --checkpoint # recover
+
+inspect eval arc.py --checkpoint             # CRASH!
+insepct evan-retry logs/<log-file-name>.eval # recover
+```
+
+By default checkpoints are deleted after recovery, use `retention = "retain"` in the `CheckpointConfig` to preserve them.
+
+### Triggers
+
+Checkpoints are recorded according to the configured `trigger`. All triggers fire at the next turn boundary after the trigger condition is reached. Agents are never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint.
+
+For example, here we configure an eval to checkpoint every 1M tokens:
+
+``` python
+from inspect_ai import eval
+from inspect_ai.util import CheckpointConfig, TokenInterval
+
+eval(
+    "arc.py", model="openai/gpt-5",
+    checkpoint=CheckpointConfig(
+        trigger=TokenInterval(every=1_000_000)
+    )
+)
+```
+
+You can configure triggers based on turns, time, or tokens, or can alternatively specify manual only checkpointing (applicable for [Custom Agents](#custom-agents)):
+
+| Trigger | Description |
+|------------------------------|------------------------------------------|
+| `TurnInterval` | Fire every N agent turns. |
+| `TimeInterval` | Fire after approximately N seconds/minutes of wall-clock time has elapsed since the last fire. Effective interval is `≥ N` because firing waits for the next turn boundary. |
+| `TokenInterval` | Fire each time the sample's running total token usage crosses another N-token boundary. Sample total tokens are read from `sample_total_tokens()`. |
+| `Manual` | Never fires automatically. The agent (or another caller) requests a checkpoint with `await cp.checkpoint()`. |
+
+: {tbl-colwidths=\[30,70\]}
+
+## Task and Sample
+
+TODO: Task and sample level configuration
 
 ## Enabling Checkpointing
 
@@ -133,7 +182,7 @@ Note that `sandbox_paths` is replaced whole-dict, not merged per-key — to add 
 A trigger decides *when* a checkpoint fires. All triggers fire at the next **turn boundary** after the trigger condition is reached — agents are never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint.
 
 | Trigger | Description |
-|------------------------------------|------------------------------------|
+|-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
 | `TurnInterval(every=N)` | Fire every N agent turns. |
 | `TimeInterval(every=timedelta(...))` | Fire after approximately N seconds/minutes of wall-clock time has elapsed since the last fire. Effective interval is `≥ N` because firing waits for the next turn boundary. |
 | `TokenInterval(every=N)` | Fire each time the sample's running total token usage crosses another N-token boundary. Sample total tokens are read from `sample_total_tokens()`. |
