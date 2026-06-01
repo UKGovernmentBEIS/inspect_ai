@@ -32,6 +32,9 @@ class _NoopCheckpointer(contextlib.AbstractAsyncContextManager[Checkpointer]):
     def span_session(self) -> contextlib.AbstractAsyncContextManager[None]:
         return contextlib.nullcontext()
 
+    def close(self) -> None:
+        return None
+
     def track(
         self,
         key: str,

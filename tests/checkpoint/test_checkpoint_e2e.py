@@ -44,7 +44,7 @@ from inspect_ai.model import (
 from inspect_ai.model._providers.mockllm import MockLLM
 from inspect_ai.scorer import CORRECT, includes
 from inspect_ai.tool import Tool, ToolChoice, ToolInfo, bash, tool
-from inspect_ai.util import CheckpointConfig, Retention, TurnInterval, store
+from inspect_ai.util import CheckpointConfig, TurnInterval, store
 
 LAYER1_CONTENT = "plain1"
 STORE_KEY = "answer"
@@ -172,7 +172,7 @@ def resume_decode_task() -> Task:
         checkpoint=CheckpointConfig(
             trigger=TurnInterval(every=1),
             sandbox_paths={"default": ["/workspace"]},
-            retention=Retention(after_eval="retain"),
+            retention="retain",
         ),
     )
 
