@@ -21,6 +21,7 @@ from tenacity import (
 from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import register_completed_eval
+from inspect_ai._control.server import control_server, keep_alive_session
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
@@ -503,12 +504,17 @@ def eval_set(
             status.stop()
             status = None
 
+    # Set when try_eval invokes the inner eval(); stays False if every task
+    # was reused, which triggers the all-reused keep-alive fallback below.
+    eval_was_invoked = False
+
     # function which will be called repeatedly to attempt to complete
     # the evaluations. for this purpose we will divide tasks into:
     #   - tasks with no log at all (they'll be attempted for the first time)
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
     def try_eval() -> list[EvalLog]:
+        nonlocal eval_was_invoked
         config = GenerateConfig(**kwargs)
         # resolve tasks
         resolved_tasks, _ = eval_resolve_tasks(
@@ -621,6 +627,7 @@ def eval_set(
                 return [log.header for log in success_logs]
 
         # run the tasks
+        eval_was_invoked = True
         run_logs = run_eval(eval_set_id, tasks_to_run)
 
         # if this was the entire list of resolved tasks, return results
@@ -663,6 +670,9 @@ def eval_set(
         if retry_cleanup:
             task_ids = {result.eval.task_id for result in results}
             cleanup_older_eval_logs(log_dir, task_ids)
+
+        if keep_alive and not eval_was_invoked:
+            run_coroutine(_keep_alive_park_for_reused(eval_set_id))
 
     # if specified, bundle the output directory
     if bundle_dir:
@@ -772,6 +782,32 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             run_id=eval_spec.run_id,
             completed_at=completed_at,
         )
+
+
+async def _keep_alive_park_for_reused(eval_set_id: str) -> None:
+    """Park the eval-set process when every task is reused.
+
+    The all-reused branch of ``try_eval`` short-circuits before the
+    inner ``eval()`` call, so the keep-alive park that normally lives
+    inside ``eval()`` never fires. Reproduce it here: bring up a
+    standalone control server and run the shared keep-alive session
+    around an empty body. Reused EvalStates are already registered (via
+    :func:`_register_reused_logs`), so the surface looks identical to
+    the post-``eval()`` lingering case.
+    """
+    async with (
+        control_server(run_id=eval_set_id) as ctl_server,
+        keep_alive_session(
+            ctl_server,
+            enabled=True,
+            park_message=(
+                "Eval-set finished (all tasks reused from prior logs). "
+                "Keeping process alive — press Ctrl+C or run "
+                "`inspect ctl shutdown` to release."
+            ),
+        ),
+    ):
+        pass
 
 
 def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:

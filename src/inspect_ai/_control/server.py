@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator
 
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
+from inspect_ai._control.eval_state import clear_all_eval_states
 from inspect_ai._control.state import current_eval_summaries
 from inspect_ai._util.discovery import (
     DISCOVERY_FILE_MODE,
@@ -305,3 +306,52 @@ async def wait_for_shutdown_async(server: ControlServer | None) -> None:
         server.shutdown_event.wait,
         abandon_on_cancel=True,
     )
+
+
+@asynccontextmanager
+async def keep_alive_session(
+    server: ControlServer | None,
+    *,
+    enabled: bool,
+    park_message: str,
+) -> AsyncIterator[None]:
+    """Manage the keep-alive flag and post-body park around an eval body.
+
+    Enter this *before* running the eval body and let the body execute
+    inside the ``async with``. While ``enabled``:
+
+    - On enter, set the process-level keep-alive flag so ``task_run``'s
+      teardown keeps each eval's :class:`EvalState` registered — that's
+      what lets ``inspect ctl ls`` keep showing completed evals during
+      the lingering window.
+    - After the body completes cleanly, print ``park_message`` to the
+      console and block until ``POST /shutdown`` arrives.
+    - On exit (any path), clear the flag and all EvalStates.
+
+    Owns the keep-alive lifecycle but NOT the control server: the
+    caller creates :func:`control_server` (it wraps the eval body and
+    is shared with the ACP server) and passes the bound instance here.
+    Make this the innermost context manager so the park runs while the
+    control / ACP servers are still up. ``server=None`` (bind failed)
+    or ``enabled=False`` makes the park a no-op — the body still runs,
+    nothing lingers.
+
+    The park runs only after a clean body completion: if the body
+    raises or is cancelled (eg. Ctrl+C mid-eval), we skip straight to
+    teardown rather than parking on a half-finished eval.
+    """
+    if enabled:
+        set_keep_alive_active(True)
+    try:
+        yield
+        if enabled and server is not None:
+            import rich
+
+            # Print to the console (not the logger) so the park notice
+            # always reaches the user regardless of the console log level.
+            rich.get_console().print(park_message, markup=False, highlight=False)
+            await wait_for_shutdown_async(server)
+    finally:
+        if enabled:
+            set_keep_alive_active(False)
+            clear_all_eval_states()

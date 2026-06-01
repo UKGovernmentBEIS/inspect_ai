@@ -9,17 +9,11 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._control.eval_state import (
-    clear_all_eval_states as _clear_all_eval_states,
-)
 from inspect_ai._control.server import (
     control_server as _control_server,
 )
 from inspect_ai._control.server import (
-    set_keep_alive_active as _set_keep_alive_active,
-)
-from inspect_ai._control.server import (
-    wait_for_shutdown_async as _wait_for_shutdown_async,
+    keep_alive_session as _keep_alive_session,
 )
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
@@ -896,24 +890,20 @@ async def _eval_async_inner(
         # TUIs, and agents. Bind failures are logged and swallowed —
         # eval correctness never depends on the control channel coming
         # up. See design/control-channel.md "Implementation notes".
-        # If keep_alive is requested, enable the process-level flag so
-        # task_run.py's teardown skips its per-eval unregister and the
-        # EvalState stays visible in ``inspect ctl ls`` after the eval
-        # body completes. Eval-set with retry_immediate=True forwards
-        # its own keep_alive=True down to this single eval() call;
-        # retry_immediate=False is rejected at eval-set startup before
-        # we get here.
         #
-        # On normal exit we clear the flag + EvalStates explicitly
-        # below. On exception, the flag survives but the process is
-        # about to die anyway (process-level state evaporates with
-        # the process), so we accept the leak.
-        if keep_alive:
-            _set_keep_alive_active(True)
-
+        # _keep_alive_session must be innermost so its post-body park
+        # runs while the control / ACP servers are still up.
         async with (
             _control_server(run_id=run_id) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
+            _keep_alive_session(
+                _ctl_server,
+                enabled=keep_alive,
+                park_message=(
+                    "Eval finished. Keeping process alive — press Ctrl+C "
+                    "or run `inspect ctl shutdown` to release."
+                ),
+            ),
         ):
             with scan_cm:
                 # single task definition (could be multi-model) or max_tasks capped to 1
@@ -978,17 +968,6 @@ async def _eval_async_inner(
                         **kwargs,
                     )
                     logs = EvalLogs(results)
-
-            if keep_alive and _ctl_server is not None:
-                log.info(
-                    "Eval finished. Keeping process alive — press Ctrl+C "
-                    "or run `inspect ctl shutdown` to release."
-                )
-                await _wait_for_shutdown_async(_ctl_server)
-
-        if keep_alive:
-            _set_keep_alive_active(False)
-            _clear_all_eval_states()
 
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)

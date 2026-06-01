@@ -1089,3 +1089,157 @@ def test_ctl_ls_counts_reused_samples_on_retry(short_data_dir: Path) -> None:
         err = result_ref.get("error")
         if err is not None:
             raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_keep_alive_works_when_all_logs_reused(short_data_dir: Path) -> None:
+    """``keep_alive=True`` must park the process even when every task is reused.
+
+    Bug: ``try_eval`` early-returns at "no tasks to run" when every
+    requested task has a successful prior log in the log dir (see
+    ``_eval/evalset.py``). The early return skips the inner ``eval()``
+    call entirely — which is where the keep-alive park lives. With
+    no ``eval()`` invocation the process exits immediately, taking
+    the control endpoint with it; an agent that re-invoked
+    ``inspect eval-set --keep-alive`` to inspect prior results
+    finds nothing to attach to.
+
+    Approach: prime the log_dir with successful logs, then re-run
+    eval_set over the same tasks with ``keep_alive=True``. The
+    second run should park (thread alive, discovery file present,
+    ``/evals`` reports the reused tasks) until ``POST /shutdown``
+    releases it.
+    """
+
+    @task
+    def task_a() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[generate()],
+            name="task_a",
+        )
+
+    @task
+    def task_b() -> Task:
+        return Task(
+            dataset=[Sample(input="x", target="y")],
+            solver=[generate()],
+            name="task_b",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    # 1. Prime the log_dir.
+    ok_first, _ = eval_set(
+        tasks=[task_a(), task_b()],
+        log_dir=log_dir,
+        model="mockllm/model",
+        retry_attempts=0,
+    )
+    assert ok_first
+
+    # 2. Re-run with --keep-alive — every task should be reused.
+    result_ref: dict[str, object] = {}
+
+    def run_second_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_a(), task_b()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                keep_alive=True,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(
+        target=run_second_eval_set, name="eval_set_all_reused_keep_alive"
+    )
+    thread.start()
+    try:
+        # Wait for the control server to come up AND for /evals to
+        # report both reused tasks (proves _register_reused_logs has
+        # run and the surface is queryable).
+        def _ready() -> bool:
+            servers = list_discovered_servers()
+            if not servers:
+                return False
+            try:
+                transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+                with httpx.Client(
+                    transport=transport,
+                    base_url="http://localhost",
+                    timeout=1.0,
+                ) as client:
+                    response = client.get("/evals")
+                    response.raise_for_status()
+                    return len(response.json()) >= 2
+            except (httpx.HTTPError, OSError):
+                return False
+
+        ready = _wait_until(_ready, timeout=30.0)
+        assert ready, (
+            f"control server didn't surface the reused logs under --keep-alive; "
+            f"error={result_ref.get('error')}"
+        )
+
+        servers = list_discovered_servers()
+        assert len(servers) == 1
+        socket_path = servers[0].socket_path
+
+        # The defining assertion: the process must still be parked.
+        # Without the fix, the eval_set thread exits immediately after
+        # the second invocation returns (since no eval() ran, no
+        # keep-alive wait happened).
+        time.sleep(0.5)
+        assert thread.is_alive(), (
+            "eval_set returned without parking — keep-alive didn't take "
+            "effect for the all-reused case"
+        )
+        assert list_discovered_servers(), (
+            "discovery file vanished after eval_set returned"
+        )
+
+        # Sanity: both reused tasks visible as completed.
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            response = client.get("/evals")
+            response.raise_for_status()
+            entries = response.json()
+        assert sorted(e["task"] for e in entries) == ["task_a", "task_b"]
+        for entry in entries:
+            assert entry["status"] == "completed"
+
+        # POST /shutdown releases the park.
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            response = client.post("/shutdown")
+            response.raise_for_status()
+
+        thread.join(timeout=30.0)
+        assert not thread.is_alive(), (
+            "eval_set thread didn't exit within 30s after POST /shutdown"
+        )
+        assert not list_discovered_servers(), "discovery file lingered after shutdown"
+        assert result_ref.get("ok") is True
+    finally:
+        if thread.is_alive():
+            servers = list_discovered_servers()
+            if servers:
+                try:
+                    transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+                    with httpx.Client(
+                        transport=transport,
+                        base_url="http://localhost",
+                        timeout=2.0,
+                    ) as client:
+                        client.post("/shutdown")
+                except Exception:
+                    pass
+            thread.join(timeout=30.0)
