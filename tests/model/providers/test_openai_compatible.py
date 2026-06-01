@@ -321,10 +321,13 @@ def test_together_stream_model_arg_forwarded(stream: bool) -> None:
 
 @skip_if_no_together
 async def test_together_stream_end_to_end() -> None:
+    # Use a generous max_tokens: reasoning models (e.g. gpt-oss) spend their
+    # budget on the reasoning channel and emit no answer content if it is too
+    # low, producing an empty completion (regardless of streaming).
     model = get_model(
-        "together/meta-llama/Llama-3.1-8B-Instruct-Turbo",
+        "together/openai/gpt-oss-20b",
         stream=True,
-        config=GenerateConfig(max_tokens=50, temperature=0.0),
+        config=GenerateConfig(max_tokens=1024, temperature=0.0),
     )
     response = await model.generate(
         input=[ChatMessageUser(content="This is a test string. What are you?")]
