@@ -1717,3 +1717,116 @@ def test_ctl_samples_task_id_stable_across_retry(short_data_dir: Path) -> None:
         err = result_ref.get("error")
         if err is not None:
             raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_samples_shows_score_for_single_scorer(short_data_dir: Path) -> None:
+    """A completed sample's score is surfaced (endpoint field + CLI column).
+
+    A single-scorer task where sample 1 completes (and is scored) while
+    sample 2 hangs. The completed sample's summary carries ``scores``, and
+    the human table shows a ``score`` column with the value.
+    """
+    from inspect_ai.scorer import Score, Target, accuracy, scorer
+
+    release = threading.Event()
+
+    @scorer(metrics=[accuracy()])
+    def const_scorer():  # type: ignore[no-untyped-def]
+        async def score(state: TaskState, target: Target) -> Score:
+            return Score(value="C")
+
+        return score
+
+    @solver
+    def gated_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if int(state.sample_id) == 2:
+                while not release.is_set():
+                    await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def task_scored() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="C") for i in (1, 2)],
+            solver=[gated_solver()],
+            scorer=const_scorer(),
+            name="task_scored",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_scored()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                max_samples=2,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_scored")
+    thread.start()
+
+    def _endpoint_samples() -> list[dict[str, object]]:
+        servers = list_discovered_servers()
+        if not servers:
+            return []
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+                if not evals:
+                    return []
+                return client.get(f"/evals/{evals[0]['eval_id']}/samples").json()
+        except (httpx.HTTPError, OSError):
+            return []
+
+    try:
+        # Wait until sample 1 has completed (and been scored) while 2 hangs.
+        def _one_scored() -> bool:
+            rows = _endpoint_samples()
+            done = [r for r in rows if r["status"] == "completed"]
+            return len(done) == 1 and bool(done[0].get("scores"))
+
+        ready = _wait_until(_one_scored, timeout=30.0)
+        assert ready, (
+            f"no scored completed sample. rows={_endpoint_samples()}, "
+            f"error={result_ref.get('error')}"
+        )
+
+        rows = _endpoint_samples()
+        completed = next(r for r in rows if r["status"] == "completed")
+        scores = completed["scores"]
+        assert len(scores) == 1, f"expected a single scorer, got {scores}"
+        assert next(iter(scores.values())) == "C"
+
+        # The CLI renders a score column with the value.
+        from click.testing import CliRunner
+
+        from inspect_ai._cli.ctl import ctl_command
+
+        result = CliRunner().invoke(ctl_command, ["samples", "task_scored"])
+        assert result.exit_code == 0, result.output
+        header = result.output.splitlines()[2]  # task header, blank, table header
+        assert "score" in header
+        assert "C" in result.output
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]

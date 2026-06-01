@@ -345,19 +345,38 @@ def _task_header(target: dict[str, Any]) -> str:
 
 
 def _print_samples_table(samples: list[dict[str, Any]]) -> None:
-    """Render per-sample summaries as a simple aligned table on stdout."""
-    rows = [
-        (
+    """Render per-sample summaries as a simple aligned table on stdout.
+
+    A ``score`` column is shown only when the samples have exactly one
+    scorer (multi-scorer rendering is a later refinement). Running samples
+    have no score yet, so their cell is blank.
+    """
+    scorers = sorted({name for s in samples for name in (s.get("scores") or {})})
+    score_col = scorers[0] if len(scorers) == 1 else None
+
+    rows: list[tuple[str, ...]] = []
+    for s in samples:
+        row = [
             str(s["sample_id"]) if s.get("sample_id") is not None else "?",
             str(s.get("epoch", "")),
             s.get("status", "") or "",
-            _format_duration(s.get("total_time")),
-            str(s.get("total_tokens", 0)),
-            str(s.get("message_count") or 0),
+        ]
+        if score_col is not None:
+            row.append(_format_score((s.get("scores") or {}).get(score_col)))
+        row.extend(
+            [
+                _format_duration(s.get("total_time")),
+                str(s.get("total_tokens", 0)),
+                str(s.get("message_count") or 0),
+            ]
         )
-        for s in samples
-    ]
-    _render_table(("sample", "epoch", "status", "time", "tokens", "messages"), rows)
+        rows.append(tuple(row))
+
+    headers = ["sample", "epoch", "status"]
+    if score_col is not None:
+        headers.append("score")
+    headers.extend(["time", "tokens", "messages"])
+    _render_table(tuple(headers), rows)
 
 
 def _render_table(headers: tuple[str, ...], rows: Sequence[tuple[str, ...]]) -> None:
@@ -436,3 +455,12 @@ def _format_duration(seconds: float | None) -> str:
     if hours:
         return f"{hours}:{minutes:02d}:{secs:02d}"
     return f"{minutes}:{secs:02d}"
+
+
+def _format_score(value: Any) -> str:
+    """Compact score-value cell (floats trimmed; other values stringified)."""
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return f"{value:.4g}"
+    return str(value)

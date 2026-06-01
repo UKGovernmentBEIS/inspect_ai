@@ -3,7 +3,7 @@
 import click
 import pytest
 
-from inspect_ai._cli.ctl import _resolve_target_eval
+from inspect_ai._cli.ctl import _print_samples_table, _resolve_target_eval
 
 
 def _summary(task_id: str, task: str) -> dict[str, str]:
@@ -73,3 +73,49 @@ def test_no_query_with_multiple_exits(capsys: pytest.CaptureFixture[str]) -> Non
     with pytest.raises(click.exceptions.Exit):
         _resolve_target_eval(summaries, None)
     assert "Multiple tasks are running" in capsys.readouterr().err
+
+
+def _sample(
+    sample_id: int, status: str, scores: dict[str, object]
+) -> dict[str, object]:
+    return {
+        "sample_id": sample_id,
+        "epoch": 1,
+        "status": status,
+        "total_time": 1.0,
+        "total_tokens": 0,
+        "message_count": 1,
+        "scores": scores,
+    }
+
+
+def test_score_column_shown_for_single_scorer(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    samples = [
+        _sample(1, "completed", {"match": "C"}),
+        _sample(2, "running", {}),  # not scored yet → blank cell
+    ]
+    _print_samples_table(samples)
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert "score" in lines[0]  # header row has the column
+    # The completed sample shows its score; the running one is blank.
+    completed_row = next(ln for ln in lines if ln.startswith("1 "))
+    assert "C" in completed_row
+
+
+def test_score_column_hidden_for_multiple_scorers(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    samples = [_sample(1, "completed", {"match": "C", "f1": 0.5})]
+    _print_samples_table(samples)
+    assert "score" not in capsys.readouterr().out.splitlines()[0]
+
+
+def test_score_column_hidden_when_no_scores(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    samples = [_sample(1, "running", {})]
+    _print_samples_table(samples)
+    assert "score" not in capsys.readouterr().out.splitlines()[0]

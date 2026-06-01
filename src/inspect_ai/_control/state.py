@@ -186,8 +186,8 @@ async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
 
     Each entry has: ``sample_id``, ``epoch``, ``status`` (running /
     completed / error), ``started_at``, ``completed_at``, ``total_time``,
-    ``total_tokens``, ``message_count``, ``error``, ``retries``,
-    ``limit``.
+    ``total_tokens``, ``message_count``, ``scores`` (``{scorer: value}``,
+    empty until scored), ``error``, ``retries``, ``limit``.
     """
     by_key: dict[tuple[Any, int], dict[str, Any]] = {}
 
@@ -273,6 +273,7 @@ def _summary_from_eval_sample_summary(summary: Any) -> dict[str, Any]:
         "total_time": summary.total_time,
         "total_tokens": sum(u.total_tokens for u in summary.model_usage.values()),
         "message_count": summary.message_count,
+        "scores": {name: score.value for name, score in (summary.scores or {}).items()},
         "error": summary.error,
         "retries": summary.retries,
         "limit": summary.limit,
@@ -303,6 +304,7 @@ def _sample_summaries_from_active(eval_id: str) -> list[dict[str, Any]]:
                 "total_time": s.running_time,
                 "total_tokens": s.total_tokens,
                 "message_count": s.total_messages,
+                "scores": {},  # running samples aren't scored yet
                 "error": None,
                 "retries": None,
                 "limit": None,
