@@ -14,7 +14,7 @@ from __future__ import annotations
 import json as json_lib
 from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, NoReturn
 
 import click
 import httpx
@@ -65,7 +65,7 @@ def ls_command(as_json: bool) -> None:
 
 
 @ctl_command.command("samples")
-@click.argument("task_id", required=False)
+@click.argument("task", required=False)
 @click.option(
     "--json",
     "as_json",
@@ -73,13 +73,15 @@ def ls_command(as_json: bool) -> None:
     default=False,
     help="Output as JSON (one array of sample summaries).",
 )
-def samples_command(task_id: str | None, as_json: bool) -> None:
+def samples_command(task: str | None, as_json: bool) -> None:
     """List the samples (running and completed) of a running eval.
 
-    TASK_ID selects the task (as shown by `inspect ctl ls`; a unique
-    prefix is enough). It's stable across retries — unlike a per-attempt
-    eval id, it still resolves after a task errors and is retried. If
-    omitted and exactly one task is running, that task is used.
+    TASK selects the task (as shown by `inspect ctl ls`): a task id (or
+    unique prefix), or a task name. A task id is stable across retries —
+    unlike a per-attempt eval id, it still resolves after a task errors
+    and is retried. A name matches at the start of the task name or after
+    a `/` (so `gpqa` matches `inspect_evals/gpqa_diamond`). If omitted and
+    exactly one task is running, that task is used.
     """
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
@@ -92,7 +94,7 @@ def samples_command(task_id: str | None, as_json: bool) -> None:
         )
         return
 
-    target = _resolve_target_eval(summaries, task_id)
+    target = _resolve_target_eval(summaries, task)
     # Query by the task's current eval id (resolved fresh each invocation,
     # so this still works after a retry minted a new one).
     samples = _fetch_samples(target["socket_path"], target["eval_id"])
@@ -190,40 +192,68 @@ def _fetch_summaries(
 
 
 def _resolve_target_eval(
-    summaries: list[dict[str, Any]], task_id: str | None
+    summaries: list[dict[str, Any]], query: str | None
 ) -> dict[str, Any]:
     """Pick the task a per-eval command targets, or exit with an error.
 
-    With ``task_id``, match by full id or unique prefix (``ls`` shows
-    truncated ids). ``task_id`` is stable across retries. Without it,
+    ``query`` matches a task id first (full, then unique prefix — ``ls``
+    shows truncated ids; ids are stable across retries), then falls back
+    to the task name (see :func:`_match_by_task_name`). Without a query,
     default to the sole running task.
     """
-    if task_id is not None:
-        matches = [s for s in summaries if s.get("task_id") == task_id] or [
-            s for s in summaries if str(s.get("task_id", "")).startswith(task_id)
-        ]
+    if query is not None:
+        matches = (
+            [s for s in summaries if s.get("task_id") == query]
+            or [s for s in summaries if str(s.get("task_id", "")).startswith(query)]
+            or _match_by_task_name(summaries, query)
+        )
         if not matches:
-            click.echo(f"No running task matching '{task_id}'.", err=True)
+            click.echo(f"No running task matching '{query}'.", err=True)
             raise click.exceptions.Exit(code=1)
         if len(matches) > 1:
-            ids = ", ".join(_short_id(s.get("task_id", "")) for s in matches)
-            click.echo(
-                f"'{task_id}' is ambiguous (matches: {ids}). Use a longer id.",
-                err=True,
-            )
-            raise click.exceptions.Exit(code=1)
+            _exit_ambiguous(matches, f"'{query}' matches multiple tasks")
         return matches[0]
 
     if len(summaries) == 1:
         return summaries[0]
 
+    _exit_ambiguous(summaries, "Multiple tasks are running")
+
+
+def _match_by_task_name(
+    summaries: list[dict[str, Any]], query: str
+) -> list[dict[str, Any]]:
+    """Match summaries by task name, anchored at the name start or after a ``/``.
+
+    So ``gpqa`` matches ``inspect_evals/gpqa_diamond`` (leaf prefix) but
+    not ``failing_gpqa_diamond`` (mid-name). An exact name/leaf match wins
+    over prefix matches, so ``gpqa`` resolves cleanly even when both
+    ``gpqa`` and ``gpqa_diamond`` are running.
+    """
+
+    def leaf(name: str) -> str:
+        return name.rsplit("/", 1)[-1]
+
+    prefix = [
+        s
+        for s in summaries
+        if str(s.get("task", "")).startswith(query)
+        or leaf(str(s.get("task", ""))).startswith(query)
+    ]
+    exact = [
+        s
+        for s in prefix
+        if str(s.get("task", "")) == query or leaf(str(s.get("task", ""))) == query
+    ]
+    return exact or prefix
+
+
+def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:
+    """Echo an ambiguity error listing ``task_id (name)`` and exit."""
     listing = ", ".join(
-        f"{_short_id(s.get('task_id', ''))} ({s.get('task') or '?'})" for s in summaries
+        f"{_short_id(s.get('task_id', ''))} ({s.get('task') or '?'})" for s in matches
     )
-    click.echo(
-        f"Multiple tasks are running ({listing}). Pass a task id to choose one.",
-        err=True,
-    )
+    click.echo(f"{prefix} ({listing}). Pass a task id to choose one.", err=True)
     raise click.exceptions.Exit(code=1)
 
 

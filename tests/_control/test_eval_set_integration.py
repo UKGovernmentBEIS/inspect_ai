@@ -1356,6 +1356,11 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
         assert result_prefix.exit_code == 0, result_prefix.output
         assert result_prefix.output.count("running") == 3
 
+        # Task name (prefix) resolves too, falling back from the id match.
+        result_name = runner.invoke(ctl_command, ["samples", "task_mul"])
+        assert result_name.exit_code == 0, result_name.output
+        assert result_name.output.count("running") == 3
+
         # Unknown id is a clean error.
         result_missing = runner.invoke(ctl_command, ["samples", "nope"])
         assert result_missing.exit_code == 1
