@@ -166,8 +166,8 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
 async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     """Per-sample summaries for one eval (``GET /evals/<eval_id>/samples``).
 
-    Lists *all* of the eval's samples — running and completed — from two
-    sources, since neither is complete on its own for a live eval:
+    Lists *all* of the eval's samples — running, completed, and pending —
+    from three sources, since none is complete on its own for a live eval:
 
     - **running** ← ``active_samples`` (the only place a running sample
       exists; freshest live detail).
@@ -175,19 +175,20 @@ async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
       runs (gap-free, ahead of disk; via ``EvalState.summaries_provider``),
       falling back to the finalized on-disk log once the recorder is gone
       (eval finished / torn down).
+    - **pending** ← synthesized from the eval's registered planned
+      ``(sample_id, epoch)`` pairs (``EvalState.sample_ids`` × ``epochs``)
+      that aren't yet running or done — no live source holds these.
 
     Merged and deduped by ``(sample_id, epoch)``; a terminal record
-    (completed / error) always wins over a still-running one. Sorted
-    running-first, then by start time.
-
-    Not-yet-started samples aren't listed individually (neither source
-    holds them); the eval-level ``GET /evals`` summary carries the queued
-    count. Returns an empty list when the eval isn't in this process.
+    (completed / error) supersedes a running one, which supersedes a
+    pending one. Sorted running → terminal → pending. Returns an empty
+    list when the eval isn't in this process.
 
     Each entry has: ``sample_id``, ``epoch``, ``status`` (running /
-    completed / error), ``started_at``, ``completed_at``, ``total_time``,
-    ``total_tokens``, ``message_count``, ``scores`` (``{scorer: value}``,
-    empty until scored), ``error``, ``retries``, ``limit``.
+    completed / error / pending), ``started_at``, ``completed_at``,
+    ``total_time``, ``total_tokens``, ``message_count``, ``scores``
+    (``{scorer: value}``, empty until scored), ``error``, ``retries``,
+    ``limit``.
     """
     by_key: dict[tuple[Any, int], dict[str, Any]] = {}
 
@@ -208,13 +209,57 @@ async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     for summary in await _completed_sample_summaries(eval_id):
         _merge(summary)
 
+    # Pending: planned samples not yet running or done. No live source
+    # holds these, so synthesize them from the registered planned ids.
+    _add_pending_samples(eval_id, by_key)
+
     return _sorted_samples(list(by_key.values()))
 
 
+def _add_pending_samples(
+    eval_id: str, by_key: dict[tuple[Any, int], dict[str, Any]]
+) -> None:
+    """Fill in not-yet-started samples from the eval's planned identities."""
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    if state is None or not state.sample_ids:
+        return
+    for sample_id in state.sample_ids:
+        for epoch in range(1, max(1, state.epochs) + 1):
+            key = (sample_id, epoch)
+            if key not in by_key:
+                by_key[key] = _pending_summary(sample_id, epoch)
+
+
+def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
+    return {
+        "sample_id": sample_id,
+        "epoch": epoch,
+        "status": "pending",
+        "started_at": None,
+        "completed_at": None,
+        "total_time": None,
+        "total_tokens": 0,
+        "message_count": None,
+        "scores": {},
+        "error": None,
+        "retries": None,
+        "limit": None,
+    }
+
+
 def _sorted_samples(summaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    # Running samples first (the live ones a monitor cares about), then
-    # by start time so the longest-running leads within each group.
-    summaries.sort(key=lambda r: (r["status"] != "running", r["started_at"] or 0.0))
+    # Running first (the live ones a monitor cares about), then terminal
+    # (by start time, longest-running leading), then pending last.
+    def _rank(status: str) -> int:
+        if status == "running":
+            return 0
+        if status == "pending":
+            return 2
+        return 1  # completed / error
+
+    summaries.sort(key=lambda r: (_rank(r["status"]), r["started_at"] or 0.0))
     return summaries
 
 

@@ -119,3 +119,17 @@ def test_score_column_hidden_when_no_scores(
     samples = [_sample(1, "running", {})]
     _print_samples_table(samples)
     assert "score" not in capsys.readouterr().out.splitlines()[0]
+
+
+def test_sorted_samples_orders_running_then_terminal_then_pending() -> None:
+    from inspect_ai._control.state import _sorted_samples
+
+    rows = [
+        {"status": "pending", "started_at": None},
+        {"status": "completed", "started_at": 100.0},
+        {"status": "running", "started_at": 200.0},
+        {"status": "error", "started_at": 50.0},
+    ]
+    ordered = [r["status"] for r in _sorted_samples(rows)]
+    # running first; terminal (completed/error) by start time; pending last.
+    assert ordered == ["running", "error", "completed", "pending"]

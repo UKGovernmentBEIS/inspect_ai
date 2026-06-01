@@ -1830,3 +1830,106 @@ def test_ctl_samples_shows_score_for_single_scorer(short_data_dir: Path) -> None
         err = result_ref.get("error")
         if err is not None:
             raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_samples_includes_pending_samples(short_data_dir: Path) -> None:
+    """Pending (not-yet-started) samples are listed alongside running ones.
+
+    With ``max_samples=1`` and a hanging solver, sample 1 runs while
+    samples 2 and 3 stay queued. They aren't in any live source, so they
+    come from the eval's registered planned ids — the endpoint reports
+    them as ``pending``.
+    """
+    release = threading.Event()
+
+    @solver
+    def hanging_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            while not release.is_set():
+                await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def task_many() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3)],
+            solver=[hanging_solver()],
+            name="task_many",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_many()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                max_samples=1,  # one runs; the rest stay pending
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_pending")
+    thread.start()
+
+    def _endpoint_samples() -> list[dict[str, object]]:
+        servers = list_discovered_servers()
+        if not servers:
+            return []
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+                if not evals:
+                    return []
+                return client.get(f"/evals/{evals[0]['eval_id']}/samples").json()
+        except (httpx.HTTPError, OSError):
+            return []
+
+    try:
+
+        def _one_running_two_pending() -> bool:
+            rows = _endpoint_samples()
+            running = sum(1 for r in rows if r["status"] == "running")
+            pending = sum(1 for r in rows if r["status"] == "pending")
+            return running == 1 and pending == 2
+
+        ready = _wait_until(_one_running_two_pending, timeout=30.0)
+        assert ready, (
+            f"didn't reach 1-running + 2-pending. rows={_endpoint_samples()}, "
+            f"error={result_ref.get('error')}"
+        )
+
+        rows = _endpoint_samples()
+        assert sorted(r["sample_id"] for r in rows) == [1, 2, 3]
+        for r in rows:
+            if r["status"] == "pending":
+                assert r["started_at"] is None
+                assert r["total_time"] is None
+
+        # The CLI lists the pending rows too.
+        from click.testing import CliRunner
+
+        from inspect_ai._cli.ctl import ctl_command
+
+        result = CliRunner().invoke(ctl_command, ["samples", "task_many"])
+        assert result.exit_code == 0, result.output
+        assert result.output.count("pending") == 2
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]

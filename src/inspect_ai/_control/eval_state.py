@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import Lock
 from typing import Any
 
@@ -91,6 +91,17 @@ class EvalState:
     :attr:`log_location` when it's ``None`` (reused/synthetic eval) or
     returns ``None`` (recorder torn down)."""
 
+    sample_ids: list[str | int] = field(default_factory=list)
+    """The eval's planned sample ids (after slicing). With :attr:`epochs`,
+    the full set of planned ``(sample_id, epoch)`` pairs — which lets the
+    per-sample listing surface *pending* (not-yet-started) samples, since
+    no live source otherwise holds them. Empty for reused/synthetic evals
+    (which have no pending samples)."""
+
+    epochs: int = 1
+    """Epoch count, paired with :attr:`sample_ids` to enumerate the
+    planned ``(sample_id, epoch)`` pairs."""
+
     run_id: str | None = None
     """Process-level run id. Same rationale as :attr:`task`."""
 
@@ -122,6 +133,8 @@ def register_eval(
     model: str = "",
     log_location: str = "",
     summaries_provider: SummariesProvider | None = None,
+    sample_ids: list[str | int] | None = None,
+    epochs: int = 1,
     run_id: str | None = None,
 ) -> EvalState:
     """Initialize tracking for a new eval.
@@ -143,6 +156,8 @@ def register_eval(
             model=model,
             log_location=log_location,
             summaries_provider=summaries_provider,
+            sample_ids=sample_ids or [],
+            epochs=epochs,
             run_id=run_id,
         )
         _eval_states[eval_id] = state
