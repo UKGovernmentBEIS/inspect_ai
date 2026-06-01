@@ -26,6 +26,7 @@ logger = getLogger(__name__)
 REQUESTS_DIR = "requests"
 RESPONSES_DIR = "responses"
 SERVICES_DIR = "/var/tmp/sandbox-services"
+SERVICES_DIR_MODE = "1777"
 
 ID = "id"
 METHOD = "method"
@@ -236,6 +237,10 @@ class SandboxService:
 
     async def start(self) -> None:
         """Start running the service."""
+        # ensure shared parent exists with sticky-1777 perms and that
+        # <service_dir> is owned by us (squat-check)
+        await self._ensure_service_dir()
+
         # requests dir
         assert not self._requests_dir
         self._requests_dir = await self._create_rpc_dir(REQUESTS_DIR)
@@ -367,6 +372,55 @@ class SandboxService:
                 err_traceback = traceback.format_exc()
                 await write_error_response(
                     f"Error calling method {method_name}: {err}: {err_traceback}"
+                )
+
+    async def _ensure_service_dir(self) -> None:
+        # 1. Best-effort make the shared parent world-writable + sticky
+        # (like /tmp). Run without user= so it executes as the sandbox
+        # default user (typically root), giving us the best chance of
+        # chmod succeeding. The chmod is still best-effort (2>/dev/null;
+        # true) so it silently no-ops in environments where even the
+        # default user lacks permission.
+        try:
+            await self._sandbox.exec(
+                [
+                    "sh",
+                    "-c",
+                    f"mkdir -p {SERVICES_DIR} && "
+                    f"chmod {SERVICES_DIR_MODE} {SERVICES_DIR} 2>/dev/null; true",
+                ],
+                timeout=600,
+                concurrency=False,
+            )
+        except TimeoutError:
+            raise RuntimeError(
+                f"Timed out preparing shared services directory {SERVICES_DIR}"
+            )
+
+        # 2. Create the service dir (idempotent).
+        service_dir = self._service_dir.as_posix()
+        result = await self._exec(["mkdir", "-p", service_dir])
+        if not result.success:
+            raise RuntimeError(
+                f"Error creating service directory '{service_dir}' "
+                f"for sandbox service '{self._name}': {result.stderr}"
+            )
+
+        # 3. Squat check: the service dir (and, if instance is set, the
+        # <name> parent) must be owned by self._user. test -O returns 0
+        # iff the path is owned by the effective uid, which is self._user
+        # because _exec always passes user=self._user.
+        dirs_to_check = [service_dir]
+        if self._service_dir != self._root_service_dir:
+            dirs_to_check.append(self._root_service_dir.as_posix())
+        for path in dirs_to_check:
+            owned = await self._exec(["test", "-O", path])
+            if not owned.success:
+                user = self._user or "the sandbox default user"
+                raise PrerequisiteError(
+                    f"Sandbox service '{self._name}' cannot start: "
+                    f"'{path}' exists but is not owned by user '{user}'. "
+                    "Another service may have claimed this name."
                 )
 
     async def _create_rpc_dir(self, name: str) -> str:
