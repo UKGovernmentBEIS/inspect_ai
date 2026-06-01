@@ -546,6 +546,12 @@ async def messages_from_openai(
                         isinstance(c, ContentReasoning) for c in parsed_content
                     )
                     content.extend(parsed_content)
+                if parsed_reasoning_content:
+                    content = [
+                        c
+                        for c in content
+                        if not (isinstance(c, ContentText) and c.text == "")
+                    ]
 
             # resolve reasoning (OpenAI doesn't suport this however OpenAI-compatible
             # interfaces e.g. DeepSeek do include this field so we pluck it out)
