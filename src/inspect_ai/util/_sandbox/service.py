@@ -220,9 +220,8 @@ class SandboxService:
         self._service_dir = PurePosixPath(SERVICES_DIR, self._name)
         self._root_service_dir = self._service_dir
         if instance is not None:
-            # An attacker-controlled instance must not be able to escape
-            # SERVICES_DIR (path traversal) or silently collapse to the
-            # non-instanced path (".", "").
+            # Reject values that escape SERVICES_DIR or collapse to the
+            # non-instanced path (bypassing the parent squat check).
             if not instance or "/" in instance or instance in (".", ".."):
                 raise ValueError(
                     f"invalid instance: {instance!r} (must be a non-empty "
@@ -383,12 +382,11 @@ class SandboxService:
                 )
 
     async def _ensure_service_dir(self) -> None:
-        # 1. Best-effort make the shared parent world-writable + sticky
-        # (like /tmp). Run without user= so it executes as the sandbox
-        # default user (typically root), giving us the best chance of
-        # chmod succeeding. The chmod is still best-effort (2>/dev/null;
-        # true) so it silently no-ops in environments where even the
-        # default user lacks permission.
+        # Make the shared parent 1777 so users other than the one that
+        # created it can still place their service dirs inside. Run as
+        # the sandbox default user (no user= override) since self._user
+        # typically can't chmod a dir owned by someone else; best-effort
+        # because even the default user may not own it.
         try:
             await self._sandbox.exec(
                 [
@@ -405,18 +403,12 @@ class SandboxService:
                 f"Timed out preparing shared services directory {SERVICES_DIR}"
             )
 
-        # 2. Create the service dir (idempotent).
         service_dir = self._service_dir.as_posix()
         result = await self._exec(["mkdir", "-p", service_dir])
         if not result.success:
-            # mkdir failed. Most common cause: the immediate parent is
-            # not writable by self._user (either SERVICES_DIR is still
-            # 0755 root-owned because step 1's chmod no-op'd, or a
-            # different user pre-created our <name> with restrictive
-            # perms). Surface that as a PrerequisiteError pointing at
-            # the parent — the squat-check below only fires when mkdir
-            # *succeeds* on a squatted but world-writable dir, which is
-            # rarer.
+            # When the chmod above silently no-op'd, mkdir fails with a
+            # generic Permission denied that blames the leaf. Re-blame
+            # the parent if it's actually the unwritable one.
             parent = self._service_dir.parent.as_posix()
             writable = await self._exec(["test", "-w", parent])
             if not writable.success:
@@ -433,10 +425,9 @@ class SandboxService:
                 f"for sandbox service '{self._name}': {result.stderr}"
             )
 
-        # 3. Squat check: the service dir (and, if instance is set, the
-        # <name> parent) must be owned by self._user. test -O returns 0
-        # iff the path is owned by the effective uid, which is self._user
-        # because _exec always passes user=self._user.
+        # Squat check. test -O passes iff path is owned by the effective
+        # uid; _exec runs as self._user, so this rejects dirs owned by
+        # other users. With instance, also check the <name> parent.
         dirs_to_check = [service_dir]
         if self._service_dir != self._root_service_dir:
             dirs_to_check.append(self._root_service_dir.as_posix())

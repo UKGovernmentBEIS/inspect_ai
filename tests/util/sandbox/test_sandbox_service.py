@@ -137,11 +137,7 @@ class FakeExecResult:
 
 @dataclass
 class FakeSandboxEnvironment:
-    """Records exec calls and replays a queue of ExecResults.
-
-    Only implements the subset of SandboxEnvironment SandboxService uses
-    (the .exec() method). Cast to SandboxEnvironment at the call site.
-    """
+    """Stub sandbox env that records exec calls and replays canned results."""
 
     results: list[FakeExecResult] = field(default_factory=list)
     calls: list[dict[str, Any]] = field(default_factory=list)
@@ -162,19 +158,12 @@ class FakeSandboxEnvironment:
 
 
 async def test_ensure_service_dir_raises_when_dir_not_owned() -> None:
-    """Name-squat detection raises PrerequisiteError.
-
-    If the service dir already exists but is owned by another user
-    (a name-squat), start() must fail fast with PrerequisiteError rather
-    than silently using the squatted dir.
-    """
+    """A name-squat (alien-owned service dir) raises PrerequisiteError."""
     fake = FakeSandboxEnvironment(
         results=[
-            FakeExecResult(),  # 1. mkdir -p + chmod 1777 SERVICES_DIR (best-effort)
-            FakeExecResult(),  # 2. mkdir -p <service_dir>
-            FakeExecResult(
-                success=False, returncode=1
-            ),  # 3. test -O <service_dir> -> not owned
+            FakeExecResult(),  # chmod 1777 SERVICES_DIR
+            FakeExecResult(),  # mkdir <service_dir>
+            FakeExecResult(success=False, returncode=1),  # test -O -> not owned
         ],
     )
     service = SandboxService(
@@ -191,8 +180,6 @@ async def test_ensure_service_dir_raises_when_dir_not_owned() -> None:
     assert "agent" in msg
     assert f"{SERVICES_DIR}/squatted" in msg
 
-    # Verify the calls were the three _ensure_service_dir steps and nothing further
-    # (start() must bail before touching the rpc dirs).
     issued = [call["cmd"] for call in fake.calls]
     assert len(issued) == 3, f"expected 3 exec calls, got {len(issued)}: {issued}"
     assert issued[0][:2] == ["sh", "-c"]
@@ -200,28 +187,21 @@ async def test_ensure_service_dir_raises_when_dir_not_owned() -> None:
     assert SERVICES_DIR in issued[0][2]
     assert issued[1] == ["mkdir", "-p", f"{SERVICES_DIR}/squatted"]
     assert issued[2] == ["test", "-O", f"{SERVICES_DIR}/squatted"]
-    # The chmod/mkdir step for the shared parent runs without a user
-    # restriction (so it executes as the sandbox default, typically root).
-    # The per-service mkdir and squat-check run as the service user.
+    # Parent chmod runs as the sandbox default (no user restriction);
+    # per-service mkdir + squat-check run as the service user.
     assert fake.calls[0]["user"] is None
     assert fake.calls[1]["user"] == "agent"
     assert fake.calls[2]["user"] == "agent"
 
 
 async def test_ensure_service_dir_checks_root_service_dir_when_instance_set() -> None:
-    """With instance set, both <name>/<instance> and <name> are ownership-checked.
-
-    The <name> parent is the squattable surface when multiple instances of
-    a service share it, so both paths must be verified.
-    """
+    """With instance set, both <name>/<instance> and <name> are ownership-checked."""
     fake = FakeSandboxEnvironment(
         results=[
-            FakeExecResult(),  # 1. mkdir -p + chmod 1777 SERVICES_DIR
-            FakeExecResult(),  # 2. mkdir -p <name>/<instance>
-            FakeExecResult(),  # 3. test -O <name>/<instance> -> owned
-            FakeExecResult(
-                success=False, returncode=1
-            ),  # 4. test -O <name> -> squatted
+            FakeExecResult(),  # chmod 1777 SERVICES_DIR
+            FakeExecResult(),  # mkdir <name>/<instance>
+            FakeExecResult(),  # test -O <name>/<instance> -> owned
+            FakeExecResult(success=False, returncode=1),  # test -O <name> -> squatted
         ],
     )
     service = SandboxService(
@@ -237,35 +217,26 @@ async def test_ensure_service_dir_checks_root_service_dir_when_instance_set() ->
     msg = str(excinfo.value)
     assert "multi" in msg
     assert "agent" in msg
-    # The error names the <name> parent (the squatted dir), not the leaf.
+    # Error names the squatted <name>, not the leaf instance dir.
     assert f"{SERVICES_DIR}/multi" in msg
     assert f"{SERVICES_DIR}/multi/inst1" not in msg
 
     issued = [call["cmd"] for call in fake.calls]
     assert len(issued) == 4, f"expected 4 exec calls, got {len(issued)}: {issued}"
     assert issued[1] == ["mkdir", "-p", f"{SERVICES_DIR}/multi/inst1"]
-    # Squat check checks the leaf first, then the <name> parent.
     assert issued[2] == ["test", "-O", f"{SERVICES_DIR}/multi/inst1"]
     assert issued[3] == ["test", "-O", f"{SERVICES_DIR}/multi"]
 
 
 async def test_ensure_service_dir_raises_prereq_when_parent_unwritable() -> None:
-    """Raise PrerequisiteError when mkdir fails on an unwritable parent.
-
-    When step 1's chmod silently no-ops (e.g. SERVICES_DIR exists root-owned
-    0755 and the default user is non-root) the next mkdir fails with a
-    generic permission error that blames the service dir. Diagnose the parent
-    so the user sees the real culprit.
-    """
+    """Surface PrerequisiteError when mkdir fails because the parent is unwritable."""
     fake = FakeSandboxEnvironment(
         results=[
-            FakeExecResult(),  # 1. mkdir + chmod SERVICES_DIR (best-effort)
-            FakeExecResult(
+            FakeExecResult(),  # chmod SERVICES_DIR
+            FakeExecResult(  # mkdir <service_dir> fails
                 success=False, returncode=1, stderr="mkdir: Permission denied"
-            ),  # 2. mkdir <service_dir>
-            FakeExecResult(
-                success=False, returncode=1
-            ),  # 3. test -w <parent> -> not writable
+            ),
+            FakeExecResult(success=False, returncode=1),  # test -w <parent> -> no
         ],
     )
     service = SandboxService(
@@ -280,8 +251,8 @@ async def test_ensure_service_dir_raises_prereq_when_parent_unwritable() -> None
     msg = str(excinfo.value)
     assert "blocked" in msg
     assert "agent" in msg
-    # Parent of /var/tmp/sandbox-services/blocked is SERVICES_DIR itself,
-    # which is what the user actually needs to look at.
+    # The parent of /var/tmp/sandbox-services/blocked is SERVICES_DIR
+    # itself — that's what the error must point at.
     assert f"parent directory '{SERVICES_DIR}'" in msg
 
     issued = [call["cmd"] for call in fake.calls]
@@ -292,19 +263,14 @@ async def test_ensure_service_dir_raises_prereq_when_parent_unwritable() -> None
 async def test_ensure_service_dir_raises_runtime_when_parent_writable_but_mkdir_fails() -> (
     None
 ):
-    """Fall through to RuntimeError when mkdir fails but the parent is writable.
-
-    Falls through to RuntimeError with the original mkdir stderr — could be
-    ENOSPC, ENAMETOOLONG, etc. The diagnostic must not mislead the user
-    into thinking it's a squat.
-    """
+    """Surface RuntimeError (not a squat) when mkdir fails but the parent is writable."""
     fake = FakeSandboxEnvironment(
         results=[
-            FakeExecResult(),  # 1. chmod 1777 OK
-            FakeExecResult(
+            FakeExecResult(),  # chmod SERVICES_DIR
+            FakeExecResult(  # mkdir <service_dir> fails (ENOSPC)
                 success=False, returncode=1, stderr="mkdir: No space left on device"
-            ),  # 2. mkdir <service_dir>
-            FakeExecResult(),  # 3. test -w <parent> -> writable (returns success)
+            ),
+            FakeExecResult(),  # test -w <parent> -> writable
         ],
     )
     service = SandboxService(
@@ -322,12 +288,7 @@ async def test_ensure_service_dir_raises_runtime_when_parent_writable_but_mkdir_
 
 @pytest.mark.parametrize("bad_instance", ["", ".", "..", "../etc", "foo/bar"])
 def test_sandbox_service_rejects_invalid_instance(bad_instance: str) -> None:
-    """Path-traversal and empty/dot instance values are rejected at __init__.
-
-    An attacker-controlled instance must not be able to escape SERVICES_DIR
-    (e.g. '../../etc') or silently collapse to the non-instanced path
-    (e.g. '', '.'), which would also bypass the parent squat check.
-    """
+    """Invalid instance values (path traversal, collapse-to-noninstanced) are rejected."""
     fake = FakeSandboxEnvironment()
     with pytest.raises(ValueError, match="invalid instance"):
         SandboxService(
@@ -341,13 +302,7 @@ def test_sandbox_service_rejects_invalid_instance(bad_instance: str) -> None:
 @pytest.mark.slow
 @skip_if_no_docker
 def test_sandbox_service_nonroot_after_root_setup() -> None:
-    """Nonroot service starts after root pre-created SERVICES_DIR as 0755.
-
-    When /var/tmp/sandbox-services is pre-created root-owned and 0755
-    (the state a root setup sandbox_service leaves behind), a subsequent
-    nonroot sandbox_service must still be able to start. Without the fix,
-    the second service's _create_rpc_dir mkdir fails with Permission denied.
-    """
+    """A nonroot service must start even when SERVICES_DIR was pre-created root-owned 0755."""
     log = eval(
         Task(solver=math_service_after_root_setup()),
         model="mockllm/model",
@@ -365,9 +320,8 @@ def test_sandbox_service_nonroot_after_root_setup() -> None:
 @solver
 def math_service_after_root_setup() -> Solver:
     async def solve(state: TaskState, generate: Generate) -> TaskState:
-        # Simulate a prior root setup service: create SERVICES_DIR
-        # root-owned, mode 0755 — the exact pre-state the fix must
-        # tolerate.
+        # Simulate a prior root setup sandbox_service having left
+        # SERVICES_DIR root-owned 0755 — the failing pre-state.
         prep = await sandbox().exec(
             [
                 "sh",
@@ -401,10 +355,8 @@ def math_service_after_root_setup() -> Solver:
 
         asyncio.run(run())
         """)
-        # run the math service in the background as nonroot
         background(run_math_service, state, "nonroot")
 
-        # run the client script as nonroot
         await sandbox().write_file(run_script, run_script_code)
         script_error = ""
         try:
