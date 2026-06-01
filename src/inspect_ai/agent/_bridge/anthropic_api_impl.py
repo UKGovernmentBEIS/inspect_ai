@@ -342,7 +342,21 @@ async def messages_from_anthropic_input(
     tool_names: dict[str, str] = {}
 
     for param in input:
-        if param["role"] == "assistant":
+        if param["role"] == "system":
+            if isinstance(param["content"], str):
+                messages.append(ChatMessageSystem(content=param["content"]))
+            else:
+                messages.append(
+                    ChatMessageSystem(
+                        content=[
+                            content_block_to_content(c)
+                            for c in param["content"]
+                            if isinstance(c, dict) and c["type"] == "text"
+                        ]
+                    )
+                )
+
+        elif param["role"] == "assistant":
             # resolve str to block
             if isinstance(param["content"], str):
                 param_content: list[ContentBlockParam | ContentBlock] = [
