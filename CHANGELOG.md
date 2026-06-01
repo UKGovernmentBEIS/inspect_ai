@@ -1,3 +1,7 @@
+## Unreleased
+
+- Docker Compose: accept `platform`, `extra_hosts`, `cap_add`, `cap_drop`, `security_opt`, and `tmpfs` in ComposeService.
+
 ## 0.3.233 (01 June 2026)
 
 - Anthropic: Render mid-conversation system messages as `<system-reminder>` user turns for pre-4.8 models.
