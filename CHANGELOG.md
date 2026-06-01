@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Model API: Propagate task-level `GenerateConfig.cache` to all models.
 - Docker Compose: accept `memswap_limit` in ComposeService.
 
 ## 0.3.232 (31 May 2026)
