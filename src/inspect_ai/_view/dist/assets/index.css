@@ -17011,17 +17011,6 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
   grid-column: span 3;
   width: 100%;
 }
-._progressContainer_1cjjr_1 {
-  width: 100%;
-  display: flex;
-  align-content: flex-start;
-  justify-content: flex-start;
-  margin-left: 2.5em;
-}
-
-._progressText_1cjjr_9 {
-  margin-left: 0.4em;
-}
 ._cite_1t1bm_1 {
   color: var(--bs-primary-text-emphasis);
   text-decoration: underline;
@@ -18544,27 +18533,6 @@ a._citationLink_1ggvf_9:hover {
   position: relative;
   width: 100%;
 }
-._list_ejymp_1 {
-  width: 100%;
-  margin-top: 1em;
-  padding-bottom: 0.5rem;
-}
-
-._generatingRow_ejymp_7 {
-  display: grid;
-  grid-template-columns: max-content auto;
-  align-items: center;
-  row-gap: 0;
-  margin-bottom: 0.75rem;
-}
-
-._generatingLabel_ejymp_15 {
-  margin-left: 0.4em;
-}
-
-._generatingContent_ejymp_19 {
-  padding-left: 0;
-}
 ._bar_pg4l8_1 {
   --glint: rgba(64, 72, 104, 0.1);
   --label: #5c5c63;
@@ -18673,6 +18641,27 @@ a._citationLink_1ggvf_9:hover {
   ._ell_pg4l8_47 i {
     opacity: 0.55;
   }
+}
+._list_ejymp_1 {
+  width: 100%;
+  margin-top: 1em;
+  padding-bottom: 0.5rem;
+}
+
+._generatingRow_ejymp_7 {
+  display: grid;
+  grid-template-columns: max-content auto;
+  align-items: center;
+  row-gap: 0;
+  margin-bottom: 0.75rem;
+}
+
+._generatingLabel_ejymp_15 {
+  margin-left: 0.4em;
+}
+
+._generatingContent_ejymp_19 {
+  padding-left: 0;
 }
 ._tab_1je38_1 {
   min-width: 4rem;
@@ -20850,48 +20839,48 @@ a._citationLink_1ggvf_9:hover {
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-._container_1rvau_1 {
+._container_15ga9_1 {
   margin: 0.5em 0 0 0;
   width: 100%;
 }
 
-._all_1rvau_6 {
+._all_15ga9_6 {
   display: flex;
   flex-direction: column;
   gap: 1em;
 }
 
-._tableSelection_1rvau_12 {
+._tableSelection_15ga9_12 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._config_1rvau_18 {
+._config_15ga9_18 {
   margin-top: 0;
 }
 
-._tools_1rvau_22 {
+._tools_15ga9_22 {
   grid-column: -1/1;
 }
 
-._codePre_1rvau_26 {
+._codePre_15ga9_26 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_1rvau_26 {
+._code_15ga9_26 {
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-._progress_1rvau_38 {
-  margin-left: 0.5em;
+._progress_15ga9_38 {
+  margin-left: 0;
 }
 
-._error_1rvau_42 {
+._error_15ga9_42 {
   color: var(--bs-danger);
   padding: 0.5em;
   border: 1px solid var(--bs-danger);
@@ -20902,27 +20891,27 @@ a._citationLink_1ggvf_9:hover {
   margin: 0.5em 0;
 }
 
-._showAllLink_1rvau_53 {
+._showAllLink_15ga9_53 {
   text-align: center;
   padding: 0.5em 0 0.7em;
 }
 
-._showAllLink_1rvau_53 a {
+._showAllLink_15ga9_53 a {
   cursor: pointer;
   color: var(--bs-secondary-color);
   text-decoration: none;
 }
 
-._showAllIcon_1rvau_64 {
+._showAllIcon_15ga9_64 {
   margin-right: 0.35em;
 }
 
-._showAllLink_1rvau_53 a:hover {
+._showAllLink_15ga9_53 a:hover {
   color: var(--bs-body-color);
   text-decoration: underline;
 }
 
-._toolConfig_1rvau_73 {
+._toolConfig_15ga9_73 {
   display: grid;
   grid-template-columns: max-content minmax(0, auto);
   column-gap: 1em;
@@ -20931,7 +20920,7 @@ a._citationLink_1ggvf_9:hover {
   overflow-wrap: anywhere;
 }
 
-._toolChoice_1rvau_82 {
+._toolChoice_15ga9_82 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   display: grid;
   grid-template-columns: max-content minmax(0, auto);
@@ -21081,38 +21070,38 @@ a._citationLink_1ggvf_9:hover {
 ._subtaskLabel_ac4z2_17 {
   padding: 0 2em;
 }
-._summary_1hdvz_1 {
+._summary_1xrvi_1 {
   margin: 0.5em 0;
   width: 100%;
 }
 
-._labeledToolCall_1hdvz_6 {
+._labeledToolCall_1xrvi_6 {
   display: grid;
   grid-template-columns: max-content auto;
   row-gap: 0;
 }
 
-._label_1hdvz_6 {
+._label_1xrvi_6 {
   padding-top: 0.7rem;
   margin-left: 0.4em;
 }
 
-._labeledToolContent_1hdvz_17 {
+._labeledToolContent_1xrvi_17 {
   min-width: 0;
 }
 
-._approvalWrap_1hdvz_21 {
+._approvalWrap_1xrvi_21 {
   margin-top: 0.5rem;
 }
 
-._approval_1hdvz_21 {
+._approval_1xrvi_21 {
   border: none;
   padding: 0;
   margin-bottom: 0;
 }
 
-._progress_1hdvz_31 {
-  margin-left: 0.5em;
+._progress_1xrvi_31 {
+  margin-left: 0;
 }
 ._node_miohh_1 {
   padding-top: 0.8rem;
