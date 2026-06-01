@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Together: Support the `stream` model arg (e.g. `-M stream=true`) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to `stop_reason="max_tokens"` instead of raising.
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
 - Sandbox: Allow `sandbox_service()` instances running as different users in the same sandbox
   to share `/var/tmp/sandbox-services`.

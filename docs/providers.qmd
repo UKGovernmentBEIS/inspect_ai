@@ -616,6 +616,12 @@ inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
 
+The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used (it is disabled by default). Pass `true` to enable streaming:
+
+``` bash
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7 -M stream=true
+```
+
 The following environment variables are supported by the Together AI provider
 
 | Variable | Description |
