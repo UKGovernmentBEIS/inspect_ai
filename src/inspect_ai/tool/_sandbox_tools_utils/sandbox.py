@@ -19,7 +19,7 @@ from inspect_ai._util.package import get_package_direct_url
 from inspect_ai._util.trace import trace_message
 from inspect_ai.util import input_screen
 from inspect_ai.util._concurrency import concurrency
-from inspect_ai.util._sandbox._cli import SANDBOX_CLI
+from inspect_ai.util._sandbox._cli import SANDBOX_CLI, SANDBOX_TOOLS_DIR
 from inspect_ai.util._sandbox.context import (
     SandboxInjectable,
     sandbox_file_detector,
@@ -96,20 +96,51 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         info = await detect_sandbox_os(sandbox)
 
         async with _open_executable_for_arch(info["architecture"]) as (_, f):
-            # TODO: The first tuple member, filename, isn't currently used, but it will be
-            await sandbox.write_file(SANDBOX_CLI, f.read())
-            # .write_file used `tee` which dropped execute permissions.
-            # Try root-only (0o700) first so the agent can't execute the binary;
-            # fall back to world-executable (+x) for sandboxes without root.
-            result = await sandbox.exec(["chmod", "700", SANDBOX_CLI], user="root")
-            if result.success:
-                sandbox._tools_user = "root"
-            else:
-                result = await sandbox.exec(["chmod", "+x", SANDBOX_CLI])
-                if not result.success:
-                    raise RuntimeError(
-                        f"Failed to chmod sandbox tools binary: {result.stderr}"
-                    )
+            tar_bytes = f.read()
+
+        # The tools ship as a tar of a PyInstaller --onedir tree. Transfer it via
+        # write_file (which base64-encodes binary content reliably) to a temp file,
+        # then extract the tree into SANDBOX_TOOLS_DIR so the launcher lands at
+        # SANDBOX_CLI. Raw binary stdin through exec is not safe, so we don't pipe
+        # the tar directly into `tar`.
+        tar_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tar"
+        await sandbox.write_file(tar_tmp, tar_bytes)
+
+        # Create the install dir as root if possible so the tree is root-owned and
+        # can be hidden from the agent; fall back to the default user for rootless
+        # sandboxes (where user-switching will be disabled, auto-detected by the
+        # server).
+        if (
+            await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR], user="root")
+        ).success:
+            sandbox._tools_user = "root"
+        else:
+            result = await sandbox.exec(["mkdir", "-p", SANDBOX_TOOLS_DIR])
+            if not result.success:
+                raise RuntimeError(
+                    f"Failed to create sandbox tools dir: {result.stderr}"
+                )
+
+        # Extract the onedir tree (uncompressed tar, basic flags for BusyBox compat).
+        result = await sandbox.exec(
+            ["tar", "xf", tar_tmp, "-C", SANDBOX_TOOLS_DIR], user=sandbox._tools_user
+        )
+        if not result.success:
+            raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
+
+        await sandbox.exec(["rm", "-f", tar_tmp], user=sandbox._tools_user)
+
+        # When running as root, restrict the tree so the agent can neither read nor
+        # execute the tools. The default user (the one that runs `exec`) is root, so
+        # this does not impede tool calls.
+        if sandbox._tools_user == "root":
+            result = await sandbox.exec(
+                ["chmod", "700", SANDBOX_TOOLS_DIR], user="root"
+            )
+            if not result.success:
+                raise RuntimeError(
+                    f"Failed to chmod sandbox tools dir: {result.stderr}"
+                )
 
         # Start the server as root so it can setuid to any user for exec_remote.
         # If root isn't available, fall back to the sandbox's default user —

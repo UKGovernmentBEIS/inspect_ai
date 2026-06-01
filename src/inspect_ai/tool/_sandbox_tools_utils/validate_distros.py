@@ -33,23 +33,27 @@ def print_colored(message: str, color: str = Colors.NC) -> None:
 
 
 def test_distro(distro: str, executable_path: Path) -> bool:
-    """Test a single distro with the given executable."""
+    """Test a single distro with the given artifact (a tar of the onedir bundle)."""
     print_colored(f"Testing {distro} with {executable_path.name}", Colors.BLUE)
 
-    # Docker command to test the executable
+    # Mount the tar artifact, extract the onedir tree, then run the launcher's
+    # healthcheck (which also exercises starting the server).
+    script = f"""
+        set -e
+        mkdir -p /app/tools
+        tar xf /app/tools.tar -C /app/tools
+        /app/tools/{SANDBOX_TOOLS_BASE_NAME} healthcheck
+        """
     cmd = [
         "docker",
         "run",
         "--rm",
         "-v",
-        f"{executable_path}:/app/executable:ro",
+        f"{executable_path}:/app/tools.tar:ro",
         distro,
         "bash",
         "-c",
-        """
-        cd /app
-        ./executable healthcheck
-        """,
+        script,
     ]
 
     try:

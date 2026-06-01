@@ -1,4 +1,9 @@
-"""Path to the sandbox CLI binary injected into sandbox environments.
+"""Path to the sandbox tools injected into sandbox environments.
+
+The tools ship as a PyInstaller --onedir bundle (a launcher executable plus an
+``_internal`` directory), so what is injected is a directory tree rather than a single
+file. ``SANDBOX_TOOLS_DIR`` is where the tree is extracted, and ``SANDBOX_CLI`` is the
+launcher inside it.
 
 We choose /var/tmp as the injection location since:
   1) it is accessible in all major linux distributions
@@ -15,4 +20,6 @@ attempt to prevent LLMs from stumbling on the injected tools.
 # Also defined in inspect_ai.tool._sandbox_tools_utils._build_config — keep in sync.
 SANDBOX_TOOLS_BASE_NAME = "inspect-sandbox-tools"
 
-SANDBOX_CLI = f"/var/tmp/.da7be258e003d428/{SANDBOX_TOOLS_BASE_NAME}"
+SANDBOX_TOOLS_DIR = "/var/tmp/.da7be258e003d428"
+
+SANDBOX_CLI = f"{SANDBOX_TOOLS_DIR}/{SANDBOX_TOOLS_BASE_NAME}"

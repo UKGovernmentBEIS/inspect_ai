@@ -1,29 +1,38 @@
 """
 Bundled executable builder
 
-This module contains the core PyInstaller/StaticX build logic, separated from environment
+This module contains the core PyInstaller build logic, separated from environment
 setup and CLI concerns. It focuses purely on:
-1. Building executables with PyInstaller
-2. Applying StaticX for portability
+1. Building a --onedir bundle with PyInstaller
+2. Packaging that directory tree as a tar artifact
 3. Verifying the final build
 
 This module has no knowledge of container structure, volume mounts, or repository
-layout. It receives clean, simple parameters and produces a portable executable.
+layout. It receives clean, simple parameters and produces a tar of the onedir tree.
+
+A --onedir bundle (rather than --onefile + StaticX) is used so that nothing
+self-extracts at runtime: the directory lives on disk in the container and the
+launcher runs against the already-extracted ``_internal`` tree. This removes the
+per-``exec`` unpack cost. The price is that the bundle relies on the host's glibc
+(>= the build glibc), so the build base image sets the portability floor.
 """
 
 import shutil
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from inspect_ai.tool._sandbox_tools_utils._build_config import (
+        SANDBOX_TOOLS_BASE_NAME,
         SandboxToolsBuildConfig,
         filename_to_config,
     )
 else:
     from _build_config import (
+        SANDBOX_TOOLS_BASE_NAME,
         SandboxToolsBuildConfig,
         filename_to_config,
     )
@@ -33,42 +42,41 @@ def build_bundled_executable(
     entrypoint: Path,
     output_path: Path,
     output_filename: str,
-    no_staticx: bool,
     archive_viewer: bool,
 ) -> None:
     """
-    Build a portable executable using PyInstaller.
+    Build a --onedir PyInstaller bundle and package it as a tar artifact.
 
     WORKFLOW:
     1. Verify PyInstaller is available
-    2. Execute PyInstaller to bundle Python application and all dependencies
-    3. Apply StaticX for maximum cross-distribution portability (unless requested not to)
-    4. Verify the final executable and display compatibility information
+    2. Execute PyInstaller to produce a --onedir bundle (launcher + _internal/)
+    3. Pack the bundle's tree into an uncompressed tar at output_path
+    4. Verify the launcher runs and display compatibility information
 
     OUTPUT:
-    A single executable file that contains:
-    - Embedded Python interpreter
-    - The Python application code
-    - All required shared libraries and dependencies
+    An uncompressed tar of the onedir tree. Its entries are rooted at the tree
+    contents (the launcher plus the ``_internal`` directory), so extracting with
+    ``tar xf - -C <dir>`` lands the launcher at ``<dir>/inspect-sandbox-tools``.
+    The launcher is named with the stable base name (not the versioned filename)
+    so its in-container path is version-independent; the versioned filename is only
+    the name of the tar artifact.
 
     COMPATIBILITY:
-    - Requires same or newer glibc version as build system (core glibc libraries are
-      excluded to maintain ABI compatibility)
-    - StaticX creates fully static executables for maximum portability across
-      different Linux distributions
+    - Requires same or newer glibc version as the build system (core glibc libraries
+      are provided by the host, not bundled). The build base image therefore sets the
+      runtime portability floor.
 
     Args:
         entrypoint: Path to the main Python script entry point
-        output_path: Final path where the executable should be placed
-        output_filename: Executable filename to derive build configuration from
-        no_staticx: Whether to skip StaticX for faster builds
+        output_path: Final path where the tar artifact should be written
+        output_filename: Artifact filename to derive build configuration from
         archive_viewer: Whether to generate pyi-archive_viewer output for debugging.
-            Creates a .txt file with the same name as the executable containing
-            the full archive contents listing.
+            Creates a .txt file with the same name as the artifact containing
+            the launcher's archive contents listing.
 
     Raises:
-        RuntimeError: If PyInstaller fails or StaticX processing fails
-        FileNotFoundError: If required tools (PyInstaller, StaticX) are not available
+        RuntimeError: If PyInstaller fails or the launcher smoke test fails
+        FileNotFoundError: If PyInstaller is not available
     """
     # Create build config from filename
     build_config: SandboxToolsBuildConfig = filename_to_config(output_filename)
@@ -79,13 +87,15 @@ def build_bundled_executable(
     # Verify PyInstaller is available
     _ensure_pyinstaller_available()
 
-    # Build the executable with PyInstaller
-    temp_output = _build_executable(entrypoint, output_path.name)
+    # Build the --onedir bundle. The launcher inside is named with the stable base
+    # name so its in-container path does not depend on arch/version.
+    dist_dir = _build_executable(entrypoint, SANDBOX_TOOLS_BASE_NAME)
 
     # Generate pyi-archive_viewer output if requested
     if archive_viewer:
-        archive_viewer_txt = _generate_archive_viewer_output(temp_output)
-        # Copy the archive viewer output (.txt) to the output directory
+        archive_viewer_txt = _generate_archive_viewer_output(
+            dist_dir / SANDBOX_TOOLS_BASE_NAME
+        )
         target_txt = output_path.with_suffix(".txt")
         if archive_viewer_txt.exists():
             shutil.copy2(str(archive_viewer_txt), str(target_txt))
@@ -93,20 +103,12 @@ def build_bundled_executable(
         else:
             print(f"⚠️ Archive viewer output not found: {archive_viewer_txt}")
 
-    # Apply staticx for maximum portability (or just move if skipping)
-    if not no_staticx:
-        print("[5/5] Applying staticx for maximum portability...")
-        _apply_staticx(temp_output, output_path)
-    else:
-        print("[5/5] Skipping staticx")
-        if temp_output != output_path:
-            shutil.move(str(temp_output), str(output_path))
-
-    # Set executable permissions
-    output_path.chmod(0o755)
+    # Package the onedir tree as an uncompressed tar
+    print("[5/5] Packaging onedir tree as tar...")
+    _tar_onedir(dist_dir, output_path)
 
     # Verify the build
-    _verify_build(output_path, output_path.name, build_config)
+    _verify_build(dist_dir, build_config)
 
 
 def _ensure_pyinstaller_available() -> None:
@@ -124,30 +126,30 @@ def _ensure_pyinstaller_available() -> None:
 
 def _build_executable(
     entrypoint: Path,
-    executable_name: str,
+    launcher_name: str,
 ) -> Path:
     """
-    Execute PyInstaller to create the final executable.
+    Execute PyInstaller to create a --onedir bundle.
 
-    The resulting executable will self-extract to a temporary directory
-    at runtime and set up the library paths appropriately.
+    The resulting bundle is a directory containing the launcher executable plus an
+    ``_internal`` directory of the interpreter, libraries, and frozen modules. Unlike
+    --onefile, it does NOT self-extract at runtime — the launcher runs directly
+    against the on-disk tree.
 
     Args:
-        extra_arguments: List of additional PyInstaller arguments (--add-binary, --exclude-module, etc.)
         entrypoint: Path to the main Python script
-        executable_name: Name for the output executable
-        custom_env: Optional dictionary of environment variables to use during build
+        launcher_name: Name for the launcher executable inside the bundle
 
     Returns:
-        Path to the built executable
+        Path to the built bundle directory (``dist/<launcher_name>``)
     """
-    print("[4/4] Building PyInstaller onefile binary")
+    print("[4/4] Building PyInstaller onedir bundle")
 
     cmd = [
         sys.executable,
         "-m",
         "PyInstaller",
-        "--onefile",  # Single executable output
+        "--onedir",  # Directory bundle - no per-run self-extraction
         "--noupx",  # Don't compress - prevents driver corruption
         # "--strip",  # REMOVED - can break node binary (consider re-enabling if issues are resolved)
         "--optimize",
@@ -163,7 +165,7 @@ def _build_executable(
         "--exclude-module",
         "pdb",
         "--name",
-        executable_name,
+        launcher_name,
     ] + [str(entrypoint)]
 
     print("# PyInstaller command:")
@@ -171,74 +173,62 @@ def _build_executable(
 
     _run(cmd)
 
-    # Return path to built executable
-    return Path("dist") / executable_name
+    # Return path to the built onedir bundle directory
+    return Path("dist") / launcher_name
 
 
-def _apply_staticx(input_path: Path, output_path: Path) -> None:
-    """Apply StaticX to make the executable fully static."""
-    # Use a temporary output path in the same directory as input to avoid cross-device issues
-    temp_output = input_path.parent / f"{input_path.name}.staticx"
+def _tar_onedir(dist_dir: Path, output_path: Path) -> None:
+    """Pack the onedir tree as an uncompressed tar.
 
-    _run(
-        [
-            "staticx",
-            # "--strip",  # REMOVED - can break node binary (matches PyInstaller --strip removal)
-            str(input_path),
-            str(temp_output),
-        ]
-    )
-
-    # Manually copy the result to the final destination
-    shutil.copy2(temp_output, output_path)
-
-    # Clean up temporary file
-    temp_output.unlink()
-
-
-def _verify_build(
-    output_path: Path, executable_name: str, build_config: SandboxToolsBuildConfig
-) -> None:
+    Entries are rooted at the tree contents (the launcher and ``_internal``), not at
+    ``dist_dir`` itself, so ``tar xf - -C <dir>`` lands the launcher directly at
+    ``<dir>/inspect-sandbox-tools``. Uses Python's ``tarfile`` so the build is portable
+    and file permissions (launcher 0755, libs 0644) are preserved from the filesystem.
     """
-    Verify the built executable and display build information.
+    if output_path.exists():
+        output_path.unlink()
+    with tarfile.open(output_path, "w") as tar:
+        for entry in sorted(dist_dir.iterdir()):
+            tar.add(str(entry), arcname=entry.name)
 
-    This matches build_executable.py's verification approach exactly.
+
+def _verify_build(dist_dir: Path, build_config: SandboxToolsBuildConfig) -> None:
+    """
+    Verify the onedir launcher runs and display build information.
 
     Args:
-        output_path: Path to the final executable
-        executable_name: Name of the executable
+        dist_dir: Path to the built onedir bundle directory
         build_config: Build configuration for architecture messaging
     """
-    # Verify portability (matching build_executable.py lines 112-123)
-    print("Verifying portability...")
-    try:
-        result = subprocess.run(
-            ["ldd", str(output_path)], capture_output=True, text=True
-        )
-        if result.returncode != 0:
-            print("✅ Fully static - maximum portability achieved")
-        else:
-            print(result.stdout)
-    except FileNotFoundError:
-        # ldd not available
-        print("⚠️ ldd not available - portability could not be verified")
+    launcher = dist_dir / SANDBOX_TOOLS_BASE_NAME
 
-    # Show what we built (matching build_executable.py lines 125-127)
+    # Show what we built
     try:
-        subprocess.run(["ls", "-lh", str(output_path)], check=True)
-        subprocess.run(["file", str(output_path)], check=True)
-    except subprocess.CalledProcessError:
-        # Commands might not be available in some environments
+        subprocess.run(["ls", "-lh", str(launcher)], check=True)
+        subprocess.run(["file", str(launcher)], check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
         pass
 
-    # Final success messages (matching build_executable.py lines 129-130)
-    print(f"✅ Portable executable ready: {executable_name}")
+    # Smoke test: dispatch the in-process `version` method, which needs no server.
+    # This confirms the onedir launcher executes Python against its _internal tree.
+    print("Smoke-testing onedir launcher...")
+    smoke = subprocess.run(
+        [str(launcher), "exec"],
+        input='{"jsonrpc": "2.0", "method": "version", "id": 1}',
+        text=True,
+        capture_output=True,
+    )
+    if smoke.returncode != 0:
+        raise RuntimeError(
+            f"onedir launcher smoke test failed (exit {smoke.returncode}): {smoke.stderr}"
+        )
+    print(f"✅ launcher runs: {smoke.stdout.strip()[:200]}")
 
-    # Architecture-specific compatibility message
-    if build_config.arch == "arm64":
-        print("This should run on any Linux ARM64/aarch64 system from ~2016 onwards")
-    else:
-        print("This should run on any Linux x86_64 system from ~2016 onwards")
+    arch_word = "ARM64/aarch64" if build_config.arch == "arm64" else "x86_64"
+    print(
+        f"✅ Portable onedir bundle ready for {arch_word}. "
+        "Runs on Linux with glibc >= the build glibc (bullseye / 2.31)."
+    )
 
 
 def _generate_archive_viewer_output(output_path: Path) -> Path:

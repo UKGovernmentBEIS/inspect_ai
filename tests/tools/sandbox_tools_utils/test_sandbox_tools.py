@@ -21,15 +21,15 @@ from inspect_ai.solver import (
 from inspect_ai.tool import ToolCallError, bash_session, text_editor
 
 
+# NOTE: no Alpine/musl variant here. The sandbox tools ship as a glibc PyInstaller
+# --onedir bundle, so they cannot be injected into musl-based images. This is an
+# accepted limitation (see design/plans/sandbox-tools-onedir.md); revisit with a
+# separate musl injectable only if a concrete need arises.
 @pytest.mark.parametrize(
     "sandbox",
     [
         "docker",
         ("docker", str(Path(__file__).parent / ".." / "test_sandbox_compose.yaml")),
-        (
-            "docker",
-            str(Path(__file__).parent / ".." / "test_sandbox_compose_alpine.yaml"),
-        ),
     ],
 )
 @pytest.mark.slow

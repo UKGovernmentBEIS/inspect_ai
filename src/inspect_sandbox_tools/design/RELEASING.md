@@ -33,7 +33,7 @@ Build production binaries for both architectures:
 python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --all --dev=false
 ```
 
-This creates Docker containers with PyInstaller, builds static executables via StaticX, and places them in `src/inspect_ai/binaries/`:
+This creates Docker containers with PyInstaller, builds `--onedir` bundles, tars each bundle tree, and places the tar artifacts in `src/inspect_ai/binaries/`:
 
 - `inspect-sandbox-tools-amd64-v{VERSION}`
 - `inspect-sandbox-tools-arm64-v{VERSION}`
