@@ -43,7 +43,6 @@ from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
 from pathlib import Path
-from typing import Any
 
 import anyio
 from pydantic import JsonValue
@@ -55,6 +54,7 @@ from inspect_ai._util.file import file, local_path
 from inspect_ai._util.trace import trace_action, trace_message
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.event._event import Event
+from inspect_ai.event._pool import materialize_pooled_events
 from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import ChatMessage
@@ -96,7 +96,7 @@ class _HostHydrationResult:
     on resume; left at their fresh-run defaults otherwise.
     """
 
-    agent_state: dict[str, Any] | None = None
+    agent_state: dict[str, JsonValue] | None = None
     """From ``agent_state.json`` — values returned by ``track()`` on resume."""
 
     condensed_events: list[Event] = field(default_factory=list)
@@ -108,6 +108,12 @@ class _HostHydrationResult:
 
     call_pool: list[JsonValue] = field(default_factory=list)
     """From ``events_data.json[calls]`` — seeds the dedup pool."""
+
+    attachments: dict[str, str] = field(default_factory=dict)
+    """From ``attachments.json`` — resolves ``attachment://`` refs."""
+
+    store: dict[str, JsonValue] = field(default_factory=dict)
+    """From ``store.json`` — restored into the sample Store."""
 
 
 @dataclass
@@ -302,11 +308,19 @@ async def _hydrate_host(
         await restore_repo(host_restic, host_repo, restic_password, context_dir)
     result = await anyio.to_thread.run_sync(
         partial(
-            _load_and_push_host_state,
+            _load_host_state,
             context_dir,
             sample_root,
             latest_committed_id,
         )
+    )
+    result = _push_host_state(result, sample_root, latest_committed_id)
+    _debug(
+        f"[hydrate.host] resume done: "
+        f"events={len(result.condensed_events)} "
+        f"msgs={len(result.msg_pool)} "
+        f"calls={len(result.call_pool)} "
+        f"agent_state={'yes' if result.agent_state else 'no'}"
     )
     return result
 
@@ -495,25 +509,18 @@ async def _fs_copy_repo(
     return written
 
 
-def _load_and_push_host_state(
+def _load_host_state(
     context_dir: str,
     sample_root: str,
     latest_committed_id: int | None,
 ) -> _HostHydrationResult:
-    """Read the restored host context and push framework state.
+    """Read restored host context and prepare resume state.
 
-    Loads via :mod:`host_context`, pushes events/attachments/store into
-    the live ``Transcript`` and ``Store`` (so the agent's continued run
-    sees the cumulative history), and returns the parts the agent-facing
-    :class:`_EnteredCheckpointer` needs at construction:
-
-    - ``agent_state`` — for ``track()`` to return persisted values.
-    - ``condensed_events``, ``msg_pool``, ``call_pool`` — seeds for the
-      checkpointer's pools so the next fire writes a cumulative snapshot.
-
-    Validates the loaded events against expected resume invariants
-    (checkpoint span structure, checkpoint file parity) so a broken
-    resume fails loudly here rather than cascading into the agent loop.
+    This runs in a worker thread, so it only reads files and builds Python
+    objects. It materializes pooled event refs, synthesizes the trailing
+    ``CheckpointEvent`` from the latest checkpoint file, wraps prior-run spans,
+    and returns the host state that the loop thread will push into Transcript,
+    Store, and the checkpointer transcript store.
     """
     ctx = host_context.read(local_path(context_dir))
 
@@ -532,6 +539,10 @@ def _load_and_push_host_state(
         )
         rehydrated_events.append(synthesized)
 
+    rehydrated_events = materialize_pooled_events(
+        rehydrated_events, ctx.msg_pool, ctx.call_pool
+    )
+
     # Wrap the most-recent prior session's unwrapped checkpoint spans in
     # a new `prior_run` span before pushing — every prior
     # session ends up as a sibling wrap inside this attempt's events.
@@ -539,31 +550,50 @@ def _load_and_push_host_state(
     # mechanics.
     pushed_events = _wrap_prior_run(rehydrated_events)
 
-    # Push framework-owned state into the live transcript + store so the
-    # agent's continued run appends to (rather than replaces) the prior
-    # history. Direct mutation of the internal lists bypasses
-    # ``_process_event`` — the events are already in their condensed,
-    # attachment-ref form and must not be reprocessed. The persisted
-    # `condensed_events` is already span-only (the writer's accumulator
-    # only ever captured events from the first `span_begin: checkpoint`
-    # onward), and the prior-session wrap we just added is balanced.
-    ts = transcript()
-    ts._events.extend(pushed_events)
-    ts._attachments.update(ctx.attachments)
-    state = sample_state()
-    if state is None:
-        raise RuntimeError("_hydrate_host: no active sample state to populate Store")
-    for key, value in ctx.store.items():
-        state.store.set(key, value)
-
-    _validate_resume_state(pushed_events, sample_root, latest_committed_id)
-
     return _HostHydrationResult(
         agent_state=ctx.agent_state,
         condensed_events=pushed_events,
         msg_pool=ctx.msg_pool,
         call_pool=ctx.call_pool,
+        attachments=ctx.attachments,
+        store=ctx.store,
     )
+
+
+def _push_host_state(
+    result: _HostHydrationResult,
+    sample_root: str,
+    latest_committed_id: int | None,
+) -> _HostHydrationResult:
+    """Push restored host state into loop-owned Transcript and Store."""
+    ts = transcript()
+    pre = [_event_label(e) for e in ts._events]
+    restored = [_event_label(e) for e in result.condensed_events]
+    _debug(f"[hydrate.host] pre-hydration transcript.events (n={len(pre)}): {pre}")
+    _debug(f"[hydrate.host] restored events to push (n={len(restored)}): {restored}")
+    result.condensed_events = materialize_pooled_events(
+        result.condensed_events,
+        result.msg_pool,
+        result.call_pool,
+    )
+    ts._extend_restored_events(
+        result.condensed_events,
+        result.attachments,
+        notify_subscribers=True,
+    )
+    state = sample_state()
+    if state is None:
+        raise RuntimeError("_hydrate_host: no active sample state to populate Store")
+    for key, value in result.store.items():
+        state.store.set(key, value)
+    _debug(
+        f"[hydrate.host] pushed: transcript.events={len(ts._events)} "
+        f"transcript.attachments={len(ts._attachments)} "
+        f"store_keys={len(list(state.store.keys()))}"
+    )
+
+    _validate_resume_state(result.condensed_events, sample_root, latest_committed_id)
+    return result
 
 
 def _wrap_prior_run(events: list[Event]) -> list[Event]:
@@ -597,9 +627,9 @@ def _wrap_prior_run(events: list[Event]) -> list[Event]:
     prior_ids: set[str] = set()
     last_prior_end_idx = -1
     for i, e in enumerate(events):
-        if e.event == "span_begin" and getattr(e, "type", None) == "prior_run":
+        if isinstance(e, SpanBeginEvent) and e.type == "prior_run":
             prior_ids.add(e.id)
-        elif e.event == "span_end" and getattr(e, "id", None) in prior_ids:
+        elif isinstance(e, SpanEndEvent) and e.id in prior_ids:
             last_prior_end_idx = i
 
     head = events[: last_prior_end_idx + 1]
@@ -638,11 +668,11 @@ def _wrap_prior_run(events: list[Event]) -> list[Event]:
     new_tail: list[Event] = []
     depth = 0
     for e in tail:
-        if e.event == "span_begin":
+        if isinstance(e, SpanBeginEvent):
             if depth == 0:
                 e = e.model_copy(update={"parent_id": wrap_id})
             depth += 1
-        elif e.event == "span_end":
+        elif isinstance(e, SpanEndEvent):
             depth -= 1
         elif depth == 0:
             e = e.model_copy(update={"span_id": wrap_id})
@@ -724,18 +754,13 @@ def _validate_resume_state(
     checkpoint_events: list[tuple[int, int]] = []  # (idx, checkpoint_id)
     end_by_id: dict[str, int] = {}
     for i, e in enumerate(events):
-        if e.event == "span_begin":
-            type_ = getattr(e, "type", None)
-            if type_ == "checkpoint":
-                checkpoint_begins.append(
-                    (i, getattr(e, "name", ""), getattr(e, "id", ""))
-                )
-            elif type_ == "prior_run":
-                wrap_begins.append((i, getattr(e, "name", ""), getattr(e, "id", "")))
-        elif e.event == "span_end":
-            id_ = getattr(e, "id", None)
-            if id_ is not None:
-                end_by_id[id_] = i
+        if isinstance(e, SpanBeginEvent):
+            if e.type == "checkpoint":
+                checkpoint_begins.append((i, e.name, e.id))
+            elif e.type == "prior_run":
+                wrap_begins.append((i, e.name, e.id))
+        elif isinstance(e, SpanEndEvent):
+            end_by_id[e.id] = i
         elif e.event == "checkpoint":
             ckpt_id = getattr(e, "checkpoint_id", None)
             if ckpt_id is not None:
@@ -771,12 +796,10 @@ def _validate_resume_state(
         )
 
     first = events[0]
-    first_name = getattr(first, "name", None)
-    first_type = getattr(first, "type", None)
     if not (
-        first.event == "span_begin"
-        and first_type == "prior_run"
-        and first_name == "checkpoint restore 1"
+        isinstance(first, SpanBeginEvent)
+        and first.type == "prior_run"
+        and first.name == "checkpoint restore 1"
     ):
         raise RuntimeError(
             f"[hydrate.validate] events[0] not 'span_begin checkpoint restore 1': "

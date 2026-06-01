@@ -1,3 +1,16 @@
+## Unreleased
+
+- Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
+- Docker Compose: accept `platform`, `extra_hosts`, `cap_add`, `cap_drop`, `security_opt`, and `tmpfs` in ComposeService.
+- Docker Sandbox: `SandboxTimeoutError` now carries `truncated_output` with the partial command output captured before a timeout (surfaced to tool callers), instead of discarding it.
+
+## 0.3.233 (01 June 2026)
+
+- Anthropic: Render mid-conversation system messages as `<system-reminder>` user turns for pre-4.8 models.
+- Anthropic: Accept inline `role: "system"` messages from bridged Anthropic-API clients.
+- Model API: Propagate task-level `GenerateConfig.cache` to all models.
+- Docker Compose: accept `memswap_limit` in ComposeService.
+
 ## 0.3.232 (31 May 2026)
 
 - OpenAI: Support `tool_search` tool type from native scaffolds (e.g. Codex CLI).

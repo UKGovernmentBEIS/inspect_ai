@@ -24,7 +24,10 @@ from .service import SERVICES_DIR
 class SandboxTimeoutError(TimeoutError):
     """Raised when a sandbox operation times out."""
 
-    pass
+    def __init__(self, message: str, truncated_output: str | None = None) -> None:
+        super().__init__(message)
+        self.truncated_output = truncated_output
+        """Partial command output captured before the timeout, if available."""
 
 
 class SandboxEnvironmentProxy(SandboxEnvironment):
@@ -70,7 +73,9 @@ class SandboxEnvironmentProxy(SandboxEnvironment):
         try:
             result = await self._sandbox.exec(**params)
         except TimeoutError as ex:
-            raise SandboxTimeoutError(str(ex)) from ex
+            raise SandboxTimeoutError(
+                str(ex), truncated_output=getattr(ex, "truncated_output", None)
+            ) from ex
 
         # skip sandbox service events
         if any(SERVICES_DIR in c for c in cmd):

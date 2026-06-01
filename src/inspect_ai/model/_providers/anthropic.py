@@ -141,7 +141,6 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
-from inspect_ai.model._providers.util.util import split_system_messages
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -199,6 +198,13 @@ _MID_CONV_SYSTEM_HOISTED_WARNING = (
     "invariants (a mid-conversation system message must immediately follow a "
     "user turn or an assistant turn ending in server tool use, and must "
     "either end the message array or precede an assistant turn)."
+)
+_REMINDER_SYSTEM_HOISTED_WARNING = (
+    "anthropic: {count} mid-conversation system message(s) were hoisted to the "
+    "top-level system field because they sit adjacent to a tool result. "
+    "Rendering them as user turns would merge them into the tool-result turn "
+    "(tool results map to user-role messages), which strips prior thinking and "
+    "cache context on tool-use continuations."
 )
 _CACHE_DIAGNOSIS_BETA = "cache-diagnosis-2026-04-07"
 _CACHE_MISS_WARNING = (
@@ -1261,13 +1267,14 @@ class AnthropicAPI(ModelAPI):
         # extract system messages — for Claude 4.8+ (Claude API / Claude
         # Platform on AWS), inline system messages are sent as `role="system"`
         # turns; only the leading contiguous block becomes the top-level
-        # `system` param. Otherwise, all system messages are hoisted.
+        # `system` param. For other models, only the leading block is hoisted
+        # and mid-conversation system messages become `<system-reminder>` user
+        # turns (preserving the prompt cache).
         messages: list[ChatMessage]
         if self.supports_mid_conversation_system():
             system_messages, messages = _split_for_mid_conversation_system(input)
         else:
-            system_messages, plain_messages = split_system_messages(input)
-            messages = list(plain_messages)
+            system_messages, messages = _split_system_as_reminders(input)
 
         # messages
         message_params = [(await message_param(message)) for message in messages]
@@ -1926,6 +1933,70 @@ def _convert_orphaned_tool_results(
             result.append(msg)
 
     return result
+
+
+def _split_system_as_reminders(
+    input: list[ChatMessage],
+) -> tuple[list[ChatMessageSystem], list[ChatMessage]]:
+    """Split system messages for models without mid-conversation support.
+
+    Pulls the leading contiguous block of system messages into the top-level
+    `system` field (preserving the cacheable prefix). Any remaining
+    mid-conversation system messages are converted to user turns wrapped in
+    `<system-reminder>` tags rather than hoisted to the top-level field, which
+    would bust the prompt cache on every new injection. The tag matches the
+    convention Claude Code uses for pre-4.8 models, so models post-trained on
+    those transcripts recognize it as an instruction signal.
+
+    Exception: a system message adjacent to a tool result is hoisted instead.
+    Tool results map to user-role wire messages, and the consecutive-user
+    reducer merges adjacent user turns, so a reminder placed next to a tool
+    result would fold into the tool-result turn. Non-tool-result content in a
+    tool-result turn restarts the assistant loop and strips prior thinking /
+    cache context on tool-use continuations, so those reminders are hoisted.
+    """
+    top: list[ChatMessageSystem] = []
+    i = 0
+    while i < len(input) and isinstance(input[i], ChatMessageSystem):
+        top.append(cast(ChatMessageSystem, input[i]))
+        i += 1
+
+    rest = input[i:]
+    result: list[ChatMessage] = []
+    hoisted = 0
+    for idx, m in enumerate(rest):
+        if not isinstance(m, ChatMessageSystem):
+            result.append(m)
+            continue
+
+        # neighbors that determine the user-role run this reminder would join:
+        # the last already-emitted message, and the next non-system message
+        # (consecutive systems are evaluated independently).
+        prev_msg = result[-1] if result else None
+        next_msg = next(
+            (
+                later
+                for later in rest[idx + 1 :]
+                if not isinstance(later, ChatMessageSystem)
+            ),
+            None,
+        )
+        if isinstance(prev_msg, ChatMessageTool) or isinstance(
+            next_msg, ChatMessageTool
+        ):
+            top.append(m)
+            hoisted += 1
+        else:
+            result.append(
+                ChatMessageUser(
+                    content=f"<system-reminder>\n{m.text}\n</system-reminder>"
+                )
+            )
+
+    if hoisted:
+        warn_once(logger, _REMINDER_SYSTEM_HOISTED_WARNING.format(count=hoisted))
+
+    return top, result
 
 
 def _split_for_mid_conversation_system(
