@@ -23,12 +23,13 @@ from __future__ import annotations
 
 import asyncio
 import os
-import threading
 import time
 from contextlib import asynccontextmanager
 from logging import getLogger
 from pathlib import Path
 from typing import Any, AsyncIterator
+
+import anyio
 
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.eval_state import clear_all_eval_states
@@ -106,23 +107,21 @@ class ControlServer:
         self._discovery_path: Path | None = None
         self._uvicorn_server: Any = None
         self._serve_task: asyncio.Task[None] | None = None
-        # Signaled by ``POST /shutdown``. Used by keep-alive to know
-        # when the operator (or an agent) wants the lingering process
-        # to exit. ``threading.Event`` so :func:`wait_for_shutdown_async`
-        # can park on it via ``anyio.to_thread.run_sync`` without
-        # blocking the eval loop.
-        self._shutdown_event = threading.Event()
+        # Set by the ``POST /shutdown`` route and awaited by the
+        # keep-alive park — both on this eval's loop, so a loop-native
+        # ``anyio.Event`` can be awaited directly.
+        self._shutdown_event = anyio.Event()
 
     @property
     def socket_path(self) -> Path | None:
         return self._socket_path
 
     @property
-    def shutdown_event(self) -> threading.Event:
+    def shutdown_event(self) -> anyio.Event:
         """Set when ``POST /shutdown`` is received.
 
-        Keep-alive callers block on this event to know when the
-        operator wants the process to exit.
+        Keep-alive callers await this event to know when the operator
+        wants the process to exit.
         """
         return self._shutdown_event
 
@@ -292,20 +291,10 @@ async def wait_for_shutdown_async(server: ControlServer | None) -> None:
 
     No-ops when ``server`` is ``None`` (bind failed; the eval ran
     without a control surface — nothing to wait on).
-
-    Bridges the threading.Event to the caller's async loop via a
-    worker thread so we don't pin the event loop in a blocking wait.
-    Ctrl+C (KeyboardInterrupt) propagates naturally — the eval's
-    ``async with`` / ``finally`` cleanup runs on the way out.
     """
     if server is None:
         return
-    import anyio
-
-    await anyio.to_thread.run_sync(
-        server.shutdown_event.wait,
-        abandon_on_cancel=True,
-    )
+    await server.shutdown_event.wait()
 
 
 @asynccontextmanager
