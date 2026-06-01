@@ -74,6 +74,7 @@ description: List, read, write, and analyse logs.
 
 ### transcript
 ### Transcript
+### TranscriptHistory
 
 
 

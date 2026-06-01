@@ -65,6 +65,8 @@ inspect-docs:
         - href: agents.qmd
         - href: react-agent.qmd
         - href: deepagent.qmd
+        # - text: Checkpointing
+        #   href: checkpointing.qmd
         - text: Intervention
           href: intervention.qmd
         - href: multi-agent.qmd

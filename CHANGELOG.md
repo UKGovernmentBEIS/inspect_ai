@@ -1,3 +1,20 @@
+## Unreleased
+
+- Together: Support the `stream` model arg (e.g. `-M stream=true`) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to `stop_reason="max_tokens"` instead of raising.
+- Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
+- Sandbox: Allow `sandbox_service()` instances running as different users in the same sandbox
+  to share `/var/tmp/sandbox-services`.
+- Docker Compose: accept `platform`, `extra_hosts`, `cap_add`, `cap_drop`, `security_opt`, and `tmpfs` in ComposeService.
+- Docker Sandbox: `SandboxTimeoutError` now carries `truncated_output` with the partial command output captured before a timeout (surfaced to tool callers), instead of discarding it.
+- Transcript: Bound resident memory for long-running samples by evicting older events to a history provider (opt-in via the `INSPECT_TRANSCRIPT_BOUNDED` environment variable). `transcript().events` remains a full, compatible view; use `transcript().history` for memory-aware access.
+
+## 0.3.233 (01 June 2026)
+
+- Anthropic: Render mid-conversation system messages as `<system-reminder>` user turns for pre-4.8 models.
+- Anthropic: Accept inline `role: "system"` messages from bridged Anthropic-API clients.
+- Model API: Propagate task-level `GenerateConfig.cache` to all models.
+- Docker Compose: accept `memswap_limit` in ComposeService.
+
 ## 0.3.232 (31 May 2026)
 
 - OpenAI: Support `tool_search` tool type from native scaffolds (e.g. Codex CLI).

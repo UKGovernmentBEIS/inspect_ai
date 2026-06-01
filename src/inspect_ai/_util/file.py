@@ -4,11 +4,12 @@ import logging
 import os
 import re
 import string
+import tempfile
 import unicodedata
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, BinaryIO, Iterator, Literal, cast, overload
+from typing import Any, BinaryIO, Callable, Iterator, Literal, TextIO, cast, overload
 from urllib.parse import quote_from_bytes, urlparse
 
 import fsspec  # type: ignore  # type: ignore
@@ -120,6 +121,33 @@ def copy_file(
             if not chunk:
                 break
             fout.write(chunk)
+
+
+def write_text_atomic(path: str | Path, content: str) -> None:
+    """Atomically write UTF-8 text to a local filesystem path."""
+    write_atomic_text(path, lambda file: file.write(content))
+
+
+def write_atomic_text(path: str | Path, write: Callable[[TextIO], object]) -> None:
+    """Atomically write UTF-8 text with a caller-provided writer."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        text=True,
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with open(fd, "w", encoding="utf-8") as file:
+            write(file)
+            file.flush()
+            os.fsync(file.fileno())
+        os.replace(tmp_path, path)
+    except Exception:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def basename(file: str) -> str:
