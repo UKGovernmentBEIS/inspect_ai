@@ -19,7 +19,7 @@ Agents combine planning, memory, and tool usage to pursue more complex, tasks (e
 
 6.  Using the [Human Agent](human-agent.qmd) for human baselining of computing tasks.
 
-Inspect also includes features suited to more complex agent evaluations including [Checkpointing](checkpointing.qmd) to recover from failures, [Intervention](intervention.qmd) to enable communication with running agents, and [Limits](agent-custom.qmd#agent-limits) to set token, message, and time limits for agent execution.
+Inspect also includes features suited to more complex agent evaluations including <!-- [Checkpointing](checkpointing.qmd) to recover from failures, -->[Intervention](intervention.qmd) to enable communication with running agents, and [Limits](agent-custom.qmd#agent-limits) to set token, message, and time limits for agent execution.
 
 Below, we'll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct Agent, Deep Agent, custom agents, and multi-agent systems.
 
@@ -163,7 +163,7 @@ See these additional articles to learn more about creating agent evaluations wit
 
 -   [Deep Agent](deepagent.qmd) describes a batteries-included agent for long-horizon tasks.
 
--   [Checkpointing](checkpointing.qmd) covers the ability to save and restore agent state for recovery from infrastructure or other unexpected errors.
+<!-- -   [Checkpointing](checkpointing.qmd) covers the ability to save and restore agent state for recovery from infrastructure or other unexpected errors. -->
 
 -   [Intervention](intervention.qmd) details features that support creating evaluations with a human in the loop.
 
