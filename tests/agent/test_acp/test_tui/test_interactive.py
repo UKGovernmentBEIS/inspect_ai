@@ -134,7 +134,7 @@ class TestComposerVisibility:
     @skip_if_trio
     @pytest.mark.anyio
     async def test_observe_only_hides_composer_command_footer_hints(self) -> None:
-        """submit / newline / interrupt are gated off for observe-only."""
+        """Submit / newline / interrupt are gated off for observe-only."""
         actions = await self._check_actions(interactive=False)
         assert actions["submit"] is False
         assert actions["newline"] is False
@@ -144,7 +144,7 @@ class TestComposerVisibility:
     @skip_if_trio
     @pytest.mark.anyio
     async def test_interactive_keeps_composer_command_footer_hints(self) -> None:
-        """submit / newline / interrupt stay available when interactive."""
+        """Submit / newline / interrupt stay available when interactive."""
         actions = await self._check_actions(interactive=True)
         assert actions["submit"] is True
         assert actions["newline"] is True
