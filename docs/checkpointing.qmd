@@ -2,6 +2,14 @@
 title: "Agent Checkpointing"
 ---
 
+::: {.callout-note appearance="simple"}
+The agent checkpointing feature described below requires the development version of Inspect. You can install the development version from GitHub with:
+
+```bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
 ## Overview
 
 Evaluations that run for hours (or even days) can take advantage of [checkpointing](https://en.wikipedia.org/wiki/Application_checkpointing) for resilience against unexpected termination (infrastructure failure, running out of memory, etc.). When enabled, Inspect's checkpointing periodically persists the state of each sample so the evaluation can be resumed mid-sample from its most recent checkpoint.
