@@ -1,6 +1,8 @@
 ## Unreleased
 
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
+- Sandbox: Allow `sandbox_service()` instances running as different users in the same sandbox
+  to share `/var/tmp/sandbox-services`.
 - Docker Compose: accept `platform`, `extra_hosts`, `cap_add`, `cap_drop`, `security_opt`, and `tmpfs` in ComposeService.
 - Docker Sandbox: `SandboxTimeoutError` now carries `truncated_output` with the partial command output captured before a timeout (surfaced to tool callers), instead of discarding it.
 
