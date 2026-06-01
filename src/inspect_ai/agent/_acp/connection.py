@@ -55,6 +55,7 @@ from inspect_ai.agent._acp.inspect_ext import (
 )
 from inspect_ai.agent._acp.picker import (
     PickerTarget,
+    SampleListing,
     list_all_samples,
     list_picker_targets,
     resolve_selection,
@@ -113,10 +114,19 @@ class Bound:
     selection path the wire id is the synthetic control id and the
     target id is the chosen sample — the design contract is that the
     client's sessionId stays stable across a picker rebind.
+
+    ``interactive`` is the bind-time snapshot of the target's
+    :attr:`AcpTransport.is_interactive`: True when the bound session had
+    a live agent turn loop the client can drive (``session/prompt`` /
+    ``session/cancel``), False for an observe-only bind (custom solver
+    or other channel-less sample). Fixed for the binding's lifetime —
+    if the sample later becomes drivable the client reconnects (see the
+    "fixed for v1" decision in ``design/acp/agent-acp.md``).
     """
 
     wire_session_id: str
     target_session_id: str
+    interactive: bool = True
 
 
 # Tagged union of the connection's binding mode. Replaces three
@@ -274,10 +284,14 @@ class ConnectionHandler:
         specific session". If the id is unknown we return
         ``invalid_params`` rather than silently falling back to a
         picker — clients can call ``session/new`` for the picker.
+
+        Resolves against *all* attachable samples (not just drivable
+        ones), so a client that learned an observe-only sessionId from
+        ``inspect/list_samples`` can attach to watch it. The bind records
+        whether the target is interactive; write paths gate on it.
         """
-        targets = list_picker_targets()
-        match = next((t for t in targets if t.session_id == session_id), None)
-        if match is None:
+        resolved = _resolve_attachable_target_by_id(session_id)
+        if resolved is None:
             raise RequestError.invalid_params(
                 {
                     "reason": "unknown session_id",
@@ -285,6 +299,7 @@ class ConnectionHandler:
                     "hint": "call session/new for the picker flow",
                 }
             )
+        match, interactive = resolved
         # On a successful load the wire sessionId IS the target's id
         # (the client passed it in, we matched it, no rebind happens).
         # Binding-confirmation notification, title, and replay events
@@ -303,6 +318,7 @@ class ConnectionHandler:
             self.state.binding = Bound(
                 wire_session_id=match.session_id,
                 target_session_id=match.session_id,
+                interactive=interactive,
             )
         self._schedule_after_response(lambda: self._post_bind_setup(match, gen))
         return LoadSessionResponse()
@@ -509,6 +525,11 @@ class ConnectionHandler:
         never silently fall through to the picker, which would mask an
         explicit-but-stale ask.
 
+        Resolves against *all* attachable samples (drivable and
+        observe-only), so a client can direct-attach to a custom-solver
+        sample to watch it. The bind records whether the target is
+        interactive.
+
         Returns a standard :class:`NewSessionResponse` so the client
         learns the canonical sessionId (the target's uuid) to use on
         subsequent requests.
@@ -525,24 +546,25 @@ class ConnectionHandler:
                 }
             )
         task, sample_id, epoch = parsed
-        targets = list_picker_targets()
-        match = next(
-            (
-                t
-                for t in targets
-                if t.task == task and t.sample_id == sample_id and t.epoch == epoch
-            ),
-            None,
-        )
-        if match is None:
+        resolved = _resolve_attachable_target_by_spec(task, sample_id, epoch)
+        if resolved is None:
+            # Diagnostic lists every attachable sample (drivable or
+            # observe-only) so an explicit-but-stale ask gets an accurate
+            # "did you mean" set.
+            available = [
+                f"{listing.task}/{listing.sample_id}/{listing.epoch}"
+                for listing in list_all_samples()
+                if listing.session_id is not None
+            ]
             raise RequestError.invalid_params(
                 {
                     "reason": "no active session matches the requested target",
                     "requested": target,
-                    "available": [f"{t.task}/{t.sample_id}/{t.epoch}" for t in targets],
+                    "available": available,
                 }
             )
-        return await self._auto_bind(match)
+        match, interactive = resolved
+        return await self._auto_bind(match, interactive=interactive)
 
     async def cancel_sample(
         self,
@@ -728,12 +750,19 @@ class ConnectionHandler:
         )
         return NewSessionResponse(session_id=control_id)
 
-    async def _auto_bind(self, target: PickerTarget) -> NewSessionResponse:
+    async def _auto_bind(
+        self, target: PickerTarget, *, interactive: bool = True
+    ) -> NewSessionResponse:
         """Skip the picker for the single-target case; bind immediately.
 
         On the auto-bind path the wire sessionId IS the target's id
         (it's what we hand back in the NewSessionResponse), so the
         client and server agree on the same id.
+
+        ``interactive`` records whether the bound target had a live agent
+        turn loop. The ``session/new`` single-target path and picker
+        always pass drivable targets (default True); ``inspect/attach``
+        passes the resolved flag so observe-only binds are marked.
 
         The binding-confirmation notification, session_info title, and
         replay-on-attach events all flow as ``session/update`` for
@@ -754,6 +783,7 @@ class ConnectionHandler:
             self.state.binding = Bound(
                 wire_session_id=target.session_id,
                 target_session_id=target.session_id,
+                interactive=interactive,
             )
         self._schedule_after_response(lambda: self._post_bind_setup(target, gen))
         return NewSessionResponse(session_id=target.session_id)
@@ -1395,6 +1425,78 @@ def _find_active_sample(session_id: str) -> "ActiveSample | None":
         sess = sample.acp_transport
         if sess is not None and sess.session_id == session_id:
             return sample
+    return None
+
+
+def _picker_target_from_listing(listing: SampleListing) -> PickerTarget:
+    """Build a :class:`PickerTarget` from an attachable :class:`SampleListing`.
+
+    Callers must pass a listing with a non-``None`` ``session_id`` (an
+    attachable sample). Used by the observe-only bind paths so a
+    channel-less sample can be bound the same way a drivable one is —
+    the resulting target feeds the binding-confirmation ``_meta`` and
+    title exactly as a picker target would.
+    """
+    assert listing.session_id is not None
+    return PickerTarget(
+        session_id=listing.session_id,
+        task=listing.task,
+        sample_id=listing.sample_id,
+        epoch=listing.epoch,
+        agent_name=listing.agent_name,
+        started_at=listing.started_at,
+        total_messages=listing.total_messages,
+        total_tokens=listing.total_tokens,
+        fails_on_error=listing.fails_on_error,
+    )
+
+
+def _resolve_attachable_target_by_id(
+    session_id: str,
+) -> tuple[PickerTarget, bool] | None:
+    """Resolve a bindable target by sessionId — interactive or observe-only.
+
+    Two-tier: try the interactive :func:`list_picker_targets` first
+    (drivable sessions — the pre-existing path, unchanged); on miss,
+    fall back to :func:`list_all_samples` (which also surfaces
+    observe-only attachable samples — see Phase 2). Returns
+    ``(target, interactive)`` or ``None`` when nothing attachable
+    matches (unknown id, noop, or finalized).
+    """
+    for target in list_picker_targets():
+        if target.session_id == session_id:
+            return target, True
+    for listing in list_all_samples():
+        if listing.session_id is not None and listing.session_id == session_id:
+            return _picker_target_from_listing(listing), listing.interactive
+    return None
+
+
+def _resolve_attachable_target_by_spec(
+    task: str, sample_id: str, epoch: int
+) -> tuple[PickerTarget, bool] | None:
+    """Resolve a bindable target by ``task/sample_id/epoch`` slash-spec.
+
+    Sibling of :func:`_resolve_attachable_target_by_id` for the
+    ``inspect/attach`` direct-bind path. Same two-tier resolution:
+    interactive picker targets first, then observe-only attachable
+    samples.
+    """
+    for target in list_picker_targets():
+        if (
+            target.task == task
+            and target.sample_id == sample_id
+            and target.epoch == epoch
+        ):
+            return target, True
+    for listing in list_all_samples():
+        if (
+            listing.session_id is not None
+            and listing.task == task
+            and listing.sample_id == sample_id
+            and listing.epoch == epoch
+        ):
+            return _picker_target_from_listing(listing), listing.interactive
     return None
 
 
