@@ -12,17 +12,18 @@ Checkpointing snapshots **filesystem state** (configured paths inside each sandb
 
 ## Enabling Checkpointing
 
-Checkpointing can be configured at any of three layers — **sample**, **task**, or **eval / CLI**. The layers are merged per-field at sample-run time, with precedence **eval > sample > task** (see [Configuration Layers](#configuration-layers)). When unset at every layer, checkpointing is disabled.
+Checkpointing is **enabled** by a config at the **task** or **eval / CLI** layer. The **sample** layer is customize-only — it refines an already-enabled policy but never turns checkpointing on by itself, and is silently ignored when neither task nor eval enabled it. Once enabled, the layers are merged per-field at sample-run time, with precedence **eval > sample > task** (see [Configuration Layers](#configuration-layers)). When neither task nor eval supplies a config, checkpointing is disabled.
 
 ### Eval / CLI layer
 
 Pass the `--checkpoint` CLI option or `checkpoint=...` to `eval()`. The `--checkpoint` option supports several formats:
 
 ``` bash
-# Enable with the default trigger (every 5 turns)
+# Enable with the default trigger (every 500k tokens)
 inspect eval arc.py --model openai/gpt-4o --checkpoint
 
 # Shorthand triggers
+inspect eval arc.py --model openai/gpt-4o --checkpoint=token:500k
 inspect eval arc.py --model openai/gpt-4o --checkpoint=turn:10
 inspect eval arc.py --model openai/gpt-4o --checkpoint=time:15m
 inspect eval arc.py --model openai/gpt-4o --checkpoint=manual
@@ -31,7 +32,7 @@ inspect eval arc.py --model openai/gpt-4o --checkpoint=manual
 inspect eval arc.py --model openai/gpt-4o --checkpoint=checkpoint.yaml
 ```
 
-Time-value suffixes are `s`, `m`, `h`, `d` (case-insensitive); a bare integer is seconds.
+Time-value suffixes are `s`, `m`, `h`, `d` and token-value suffixes are `k`, `m`, `b` (all case-insensitive). A suffix is **required** in both cases — a bare number is rejected. Token values may be fractional as long as they resolve to a whole token count (e.g. `token:1.5m`). The bare `--checkpoint` flag enables checkpointing without pinning a trigger; the concrete default (`token:500k`) is filled in per-sample only when no layer — including the sample — set one.
 
 Or from Python:
 
@@ -42,6 +43,12 @@ from inspect_ai.util import CheckpointConfig, TurnInterval
 eval("arc.py", model="openai/gpt-4o", checkpoint=CheckpointConfig(
     trigger=TurnInterval(every=10),
 ))
+```
+
+Passing `checkpoint=True` is the Python-API equivalent of the bare `--checkpoint` flag — it enables checkpointing with the default trigger (every 500k tokens), deferring the trigger so a sample can still override it. `checkpoint=False` / `None` disable it. `True` is accepted anywhere a `CheckpointConfig` is (the `eval()` family, `eval_set()`, `Task`, and `task_with()`).
+
+``` python
+eval("arc.py", model="openai/gpt-4o", checkpoint=True)
 ```
 
 ### Task layer
@@ -67,7 +74,7 @@ def my_task():
 
 ### Sample layer
 
-An individual sample can specialize the task's default — e.g. when one sample needs an extra directory captured that the rest of the task's samples don't. Sample-layer configs use `CheckpointSampleConfig`, which omits the eval-wide fields (`checkpoints_location`, `retention`) that a sample physically cannot influence:
+An individual sample can specialize an already-enabled policy — e.g. when one sample needs an extra directory captured that the rest of the task's samples don't, or supplies its own trigger when the eval/CLI layer enabled checkpointing without pinning one. A sample config never enables checkpointing on its own; if neither task nor eval enabled it, the sample config is ignored. Sample-layer configs use `CheckpointSampleConfig`, which omits the eval-wide fields (`checkpoints_location`, `retention`) that a sample physically cannot influence:
 
 ``` python
 from inspect_ai.dataset import Sample
@@ -107,7 +114,7 @@ Additional trigger types — including cost-based and budget-percentage triggers
 
 | Field | Description |
 |----|----|
-| `trigger` | The trigger that decides when to fire. Required (must be set at some layer). |
+| `trigger` | The trigger that decides when to fire. When unset at every layer (while checkpointing is enabled by task/eval), defaults to `TokenInterval(every=500_000)`. |
 | `sandbox_paths` | Per-sandbox-name map of absolute paths inside the sandbox to capture. Empty/omitted = host-only checkpointing (no sandbox repos). See [Sandbox Paths](#sandbox-paths) below. |
 | `checkpoints_location` | Override the parent directory under which the per-eval checkpoint dir lands. Defaults to a sibling of the eval log file. Any fsspec-resolvable path (`s3://`, `gs://`, local, …). Settable only at the task or eval layer. |
 | `max_consecutive_failures` | If set, fail the sample after N consecutive failed checkpoint attempts. `None` (default) = unlimited tolerance; `0` = any single failure is fatal. |
@@ -153,7 +160,7 @@ When more than one of the sample / task / eval layers supplies a config, Inspect
 
 `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map.
 
-If at least one layer supplies a config but no layer sets a `trigger`, merge raises a `ValueError`.
+When checkpointing is enabled (task or eval) but no layer — including the sample — sets a `trigger`, the trigger defaults to `TokenInterval(every=500_000)` (every 500k tokens).
 
 ## Sandbox Paths
 

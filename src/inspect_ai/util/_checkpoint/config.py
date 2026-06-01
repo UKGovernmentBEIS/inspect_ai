@@ -20,7 +20,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from ._triggers import CheckpointTrigger
+from ._triggers import CheckpointTrigger, TokenInterval
+
+DEFAULT_CHECKPOINT_TRIGGER = TokenInterval(every=500_000)
+"""Trigger used when checkpointing is enabled but no layer set a trigger."""
 
 
 @dataclass
@@ -42,8 +45,9 @@ class CheckpointSampleConfig:
     trigger: CheckpointTrigger | None = None
     """Checkpoint trigger strategy — any implementer of
     :class:`CheckpointTrigger` (see :mod:`.triggers`). ``None`` means
-    "inherit from a lower-priority layer"; the final merged config
-    must have a non-None trigger or resolution raises."""
+    "inherit from a lower-priority layer"; when no layer sets a
+    trigger, resolution falls back to
+    :data:`DEFAULT_CHECKPOINT_TRIGGER`."""
 
     sandbox_paths: dict[str, list[str]] | None = None
     """Per-sandbox-name list of absolute paths to capture inside the
@@ -130,15 +134,20 @@ def merge_checkpoint_configs(
     ``sandbox_paths`` is treated as a single value (whole-dict
     replacement), not key-wise merged.
 
-    Returns ``None`` if no layer supplied a config (checkpointing
-    disabled). Otherwise returns a :class:`ResolvedCheckpointConfig`
-    with ``trigger`` guaranteed non-None and ``sandbox_paths`` /
-    ``retention`` filled with canonical defaults.
+    The sample layer is **customize-only** — it never enables
+    checkpointing. Only the task or eval layer turns it on. When
+    neither task nor eval supplied a config, this returns ``None``
+    (checkpointing disabled) and any sample-level config is silently
+    ignored. Once enabled, the sample layer participates in the
+    per-field merge like any other layer.
 
-    Raises ``ValueError`` if at least one layer was supplied but no
-    layer set a ``trigger``.
+    Otherwise returns a :class:`ResolvedCheckpointConfig` with
+    ``trigger`` guaranteed non-None and ``sandbox_paths`` /
+    ``retention`` filled with canonical defaults. When checkpointing
+    is enabled but no layer (including the sample) set a ``trigger``,
+    the trigger defaults to :data:`DEFAULT_CHECKPOINT_TRIGGER`.
     """
-    if task is None and sample is None and eval_ is None:
+    if task is None and eval_ is None:
         return None
 
     trigger: CheckpointTrigger | None = None
@@ -165,9 +174,7 @@ def merge_checkpoint_configs(
             retention = layer.retention
 
     if trigger is None:
-        raise ValueError(
-            "checkpoint config provided but no trigger was set at any level"
-        )
+        trigger = DEFAULT_CHECKPOINT_TRIGGER
 
     return ResolvedCheckpointConfig(
         trigger=trigger,
@@ -176,3 +183,21 @@ def merge_checkpoint_configs(
         checkpoints_location=checkpoints_location,
         max_consecutive_failures=max_consecutive_failures,
     )
+
+
+def normalize_checkpoint(
+    checkpoint: CheckpointConfig | bool | None,
+) -> CheckpointConfig | None:
+    """Normalize a public ``checkpoint=`` argument to a ``CheckpointConfig``.
+
+    ``True`` enables checkpointing without pinning a trigger — the
+    concrete default (:data:`DEFAULT_CHECKPOINT_TRIGGER`) is resolved
+    per-sample by :func:`merge_checkpoint_configs`, exactly matching the
+    bare ``--checkpoint`` CLI flag. ``False`` / ``None`` disable it. A
+    :class:`CheckpointConfig` is returned unchanged.
+    """
+    if checkpoint is True:
+        return CheckpointConfig(trigger=None)
+    if checkpoint is False or checkpoint is None:
+        return None
+    return checkpoint
