@@ -1,8 +1,7 @@
 import os
-from contextlib import AbstractAsyncContextManager
 
 from inspect_ai._util.logger import warn_once
-from inspect_ai.util._checkpoint.checkpointer import Checkpointer, ResumeCheckpoint
+from inspect_ai.util._checkpoint.checkpointer import CheckpointerSetup, ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_impl import _CheckpointerSetup, logger
 from inspect_ai.util._checkpoint.checkpointer_noop import _NoopCheckpointer
 from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
@@ -15,7 +14,7 @@ def create_checkpointer(
     sample_id: int | str,
     epoch: int,
     resume_checkpoint: ResumeCheckpoint | None = None,
-) -> AbstractAsyncContextManager[Checkpointer]:
+) -> CheckpointerSetup:
     """Build the per-sample checkpointer setup.
 
     Returns a :class:`_NoopCheckpointer` when ``config`` is ``None`` or
