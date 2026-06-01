@@ -15,11 +15,10 @@ from ._triggers import (
     TokenInterval,
     TurnInterval,
 )
-from .checkpointer import checkpointer
+from .checkpointer import Checkpointer, checkpointer
 from .config import (
     CheckpointConfig,
     CheckpointSampleConfig,
-    Retention,
 )
 
 __all__ = [
@@ -27,9 +26,9 @@ __all__ = [
     "CheckpointSampleConfig",
     "CheckpointTrigger",
     "Manual",
-    "Retention",
     "TimeInterval",
     "TokenInterval",
     "TurnInterval",
     "checkpointer",
+    "Checkpointer",
 ]

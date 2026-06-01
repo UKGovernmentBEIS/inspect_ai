@@ -9,7 +9,6 @@ import pytest
 from inspect_ai.util._checkpoint import (
     CheckpointConfig,
     CheckpointSampleConfig,
-    Retention,
     TimeInterval,
     TurnInterval,
 )
@@ -29,7 +28,7 @@ def test_single_layer_passes_through() -> None:
     assert out.trigger == TurnInterval(every=5)
     # Defaults are materialized.
     assert out.sandbox_paths == {}
-    assert out.retention == Retention()
+    assert out.retention == "delete"
 
 
 def test_layer_without_trigger_raises() -> None:
@@ -131,9 +130,9 @@ def test_eval_only_with_partial_config_completes_from_task() -> None:
 def test_retention_inherits() -> None:
     task = CheckpointConfig(
         trigger=TurnInterval(every=5),
-        retention=Retention(after_eval="retain"),
+        retention="retain",
     )
     sample = CheckpointConfig(trigger=TurnInterval(every=2))
     out = merge_checkpoint_configs(task, sample, None)
     assert out is not None
-    assert out.retention == Retention(after_eval="retain")
+    assert out.retention == "retain"
