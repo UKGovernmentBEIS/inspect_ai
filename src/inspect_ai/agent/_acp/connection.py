@@ -363,7 +363,7 @@ class ConnectionHandler:
                             "target_session_id": target_id,
                         }
                     )
-                if not target.is_attachable:
+                if not target.is_interactive:
                     # The target's transport is alive but has no bound
                     # agent loop to receive this prompt. Two states
                     # collapse here:
@@ -427,7 +427,7 @@ class ConnectionHandler:
                 if target is None:
                     # Bound target has already finished; nothing to cancel.
                     return None
-                if not target.is_attachable:
+                if not target.is_interactive:
                     # No bound agent loop right now (post-agent scoring
                     # window, or between consecutive react() invocations
                     # in the same sample). Recording an InterruptEvent

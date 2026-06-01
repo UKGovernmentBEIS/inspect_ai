@@ -97,10 +97,10 @@ class PickerTarget:
 
 
 def list_picker_targets() -> list[PickerTarget]:
-    """Snapshot active samples whose transport is currently attachable.
+    """Snapshot active samples whose transport is currently interactive.
 
     Filters :func:`inspect_ai.log._samples.active_samples` to those
-    whose ``acp_transport`` reports :attr:`AcpTransport.is_attachable`
+    whose ``acp_transport`` reports :attr:`AcpTransport.is_interactive`
     — i.e. a channel is bound and the agent loop is still live. Skips
     the pre-binding window (sample started, agent_channel not yet
     opened), the post-agent scoring window, and non-channel agents
@@ -110,7 +110,7 @@ def list_picker_targets() -> list[PickerTarget]:
     targets: list[PickerTarget] = []
     for sample in active_samples():
         session = sample.acp_transport
-        if session is None or not session.is_attachable:
+        if session is None or not session.is_interactive:
             continue
         targets.append(
             PickerTarget(
@@ -186,7 +186,7 @@ def list_all_samples() -> list[SampleListing]:
     listings: list[SampleListing] = []
     for sample in active_samples():
         session = sample.acp_transport
-        if session is None or not session.is_attachable:
+        if session is None or not session.is_interactive:
             session_id: str | None = None
             agent_name: str | None = None
         else:

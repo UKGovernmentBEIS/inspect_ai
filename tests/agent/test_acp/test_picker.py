@@ -36,22 +36,22 @@ def _make_sample(
     agent_name: str | None = None,
     started: float | None = None,
     fails_on_error: bool = True,
-    is_attachable: bool | None = None,
+    is_interactive: bool | None = None,
     pending_interaction: str | None = None,
 ) -> Any:
     """Build a stub ActiveSample-shaped object for the picker.
 
     Bare-minimum attributes the picker reads: ``task``, ``sample.id``,
     ``epoch``, ``acp_transport`` (with ``.session_id`` and
-    ``.is_attachable``), ``agent_name``, ``started``, ``fails_on_error``.
+    ``.is_interactive``), ``agent_name``, ``started``, ``fails_on_error``.
     Using a plain object instead of a real ActiveSample keeps the test
     independent of the ActiveSample constructor's larger field surface.
 
-    ``is_attachable`` defaults to True for any non-``None`` session_id
+    ``is_interactive`` defaults to True for any non-``None`` session_id
     other than the noop sentinel, matching the production semantics:
-    real bound live sessions are attachable; the noop placeholder is
-    not. Tests can override explicitly to simulate pre-binding /
-    post-agent windows.
+    real bound live sessions are interactive (drivable); the noop
+    placeholder is not. Tests can override explicitly to simulate
+    pre-binding / post-agent windows.
 
     Default ``fails_on_error=True`` mirrors what the eval harness
     produces from the default ``EvalConfig.fail_on_error=None``
@@ -73,10 +73,13 @@ def _make_sample(
     else:
         session = MagicMock()
         session.session_id = session_id
-        if is_attachable is None:
-            session.is_attachable = session_id != "noop"
+        if is_interactive is None:
+            session.is_interactive = session_id != "noop"
         else:
-            session.is_attachable = is_attachable
+            session.is_interactive = is_interactive
+        # New "can attach at all" gate (Phase 2 consumes it); a real
+        # session is attachable, the noop sentinel is not.
+        session.is_attachable = session_id != "noop"
         active.acp_transport = session
     return active
 
@@ -110,7 +113,7 @@ def test_list_picker_targets_hides_unbound_transports(monkeypatch) -> None:
     """Pre-binding window: transport exists but no channel has bound yet.
 
     A sample has been set up (transport created) but the agent loop
-    has not yet opened ``agent_channel()``. ``is_attachable`` is False
+    has not yet opened ``agent_channel()``. ``is_interactive`` is False
     until the first bind; the picker must hide the transport so
     operators don't connect and have prompts silently dropped.
     """
@@ -120,7 +123,7 @@ def test_list_picker_targets_hides_unbound_transports(monkeypatch) -> None:
             sample_id="s",
             epoch=0,
             session_id="uuid-unbound",
-            is_attachable=False,
+            is_interactive=False,
         ),
         _make_sample(task="t-bound", sample_id="s", epoch=0, session_id="uuid-bound"),
     ]
@@ -143,7 +146,7 @@ def test_list_picker_targets_hides_completed_transports(monkeypatch) -> None:
             sample_id="s",
             epoch=0,
             session_id="uuid-completed",
-            is_attachable=False,
+            is_interactive=False,
         ),
     ]
     monkeypatch.setattr(picker, "active_samples", lambda: samples)
@@ -159,7 +162,7 @@ def test_list_picker_targets_shows_bound_transport(monkeypatch) -> None:
             sample_id="s",
             epoch=0,
             session_id="uuid-live",
-            is_attachable=True,
+            is_interactive=True,
         ),
     ]
     monkeypatch.setattr(picker, "active_samples", lambda: samples)
