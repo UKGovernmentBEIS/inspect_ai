@@ -38,7 +38,7 @@ from inspect_ai.log._condense import (
 from inspect_ai.util._store import store, store_changes, store_jsonable
 
 if TYPE_CHECKING:
-    from inspect_ai.log._recorders.buffer.types import SampleEventHistorySink
+    from inspect_ai.log._recorders.buffer.types import TranscriptEventSink
 
 logger = getLogger(__name__)
 
@@ -79,8 +79,8 @@ class TranscriptHistoryProvider(Protocol):
 
     def attachment(self, hash: str) -> str | None: ...
 
-    def import_checkpoint_events(
-        self, transcript_store: "SampleEventHistorySink"
+    def export_transcript_events(
+        self, transcript_store: "TranscriptEventSink"
     ) -> int: ...
 
 

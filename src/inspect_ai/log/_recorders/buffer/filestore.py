@@ -19,7 +19,7 @@ from inspect_ai._util.zipfile import zipfile_compress_kwargs
 from inspect_ai.log._file import read_eval_log
 
 from ..._log import EvalSampleSummary
-from .types import SampleBuffer, SampleData, SampleEventHistorySink, Samples
+from .types import SampleBuffer, SampleData, Samples, TranscriptEventSink
 
 if TYPE_CHECKING:
     from .history import SampleHistory
@@ -355,8 +355,8 @@ class SampleBufferFilestore(SampleBuffer):
         raise NotImplementedError("Sample history is only available for buffer DBs")
 
     @override
-    def import_checkpoint_events(
-        self, id: str | int, epoch: int, transcript_store: SampleEventHistorySink
+    def export_transcript_events(
+        self, id: str | int, epoch: int, transcript_store: TranscriptEventSink
     ) -> int:
         raise NotImplementedError("Sample history is only available for buffer DBs")
 

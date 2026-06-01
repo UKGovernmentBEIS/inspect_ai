@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 JsonData: TypeAlias = dict[str, JsonValue]
 
 
-class SampleEventHistorySink(Protocol):
+class TranscriptEventSink(Protocol):
     def merge_message_pool_entry(self, msg_id: str, message: str) -> int: ...
 
     def merge_call_pool_entry(self, call_hash: str, call: str) -> int: ...
@@ -160,10 +160,10 @@ class SampleBuffer(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def import_checkpoint_events(
-        self, id: str | int, epoch: int, transcript_store: SampleEventHistorySink
+    def export_transcript_events(
+        self, id: str | int, epoch: int, transcript_store: TranscriptEventSink
     ) -> int:
-        """Import a sample's full event history into a checkpoint transcript store."""
+        """Export a sample's full event history into a transcript event sink."""
         ...
 
     @abc.abstractmethod

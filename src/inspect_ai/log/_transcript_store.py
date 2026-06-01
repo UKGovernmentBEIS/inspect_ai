@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import tempfile
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -15,8 +13,8 @@ from pydantic import JsonValue
 from pydantic_core import to_jsonable_python
 from shortuuid import uuid
 
+from inspect_ai._util.file import write_atomic_text
 from inspect_ai._util.hash import mm3_hash
-from inspect_ai._util.json import to_json_str_safe
 from inspect_ai.event._event import Event
 from inspect_ai.event._pool import (
     _msg_hash,
@@ -28,21 +26,12 @@ from inspect_ai.log._condense import (
     condense_event,
 )
 from inspect_ai.model._chat_message import ChatMessage
-from inspect_ai.util._checkpoint._layout.host_context import (
-    AGENT_STATE,
-    ATTACHMENTS,
-    EVENTS,
-    EVENTS_DATA,
-    STORE,
-)
 
 logger = logging.getLogger(__name__)
 
-CHECKPOINT_TRANSCRIPT_STORE = "checkpoint_transcript.sqlite"
-
 
 @dataclass(frozen=True)
-class CheckpointTranscriptStoreCounts:
+class TranscriptEventStoreCounts:
     events: int
     message_pool: int
     call_pool: int
@@ -50,14 +39,13 @@ class CheckpointTranscriptStoreCounts:
     db_bytes: int
 
 
-class CheckpointTranscriptStore:
-    """Incrementally accumulates transcript state for checkpoint snapshots.
+class TranscriptEventStore:
+    """Incrementally accumulates transcript event state.
 
-    The live transcript may evict old events in bounded mode, so the
-    checkpointer keeps its own SQLite-backed transcript store. Events are merged by
-    logical id, model inputs/calls are deduplicated into pools, attachments are
-    retained by hash, and ``export_snapshot_files()`` materializes the host
-    context files consumed by checkpoint resume.
+    The live transcript may evict old resident events in bounded mode, so this
+    SQLite-backed store keeps a complete event stream with pooled model inputs,
+    pooled model calls, and retained attachment payloads. Consumers can merge
+    live or condensed events and export transcript-owned JSON artifacts.
     """
 
     def __init__(self, path: str | Path, *, reset: bool = False) -> None:
@@ -77,10 +65,10 @@ class CheckpointTranscriptStore:
     def path(self) -> Path:
         return self._path
 
-    def counts(self) -> CheckpointTranscriptStoreCounts:
+    def counts(self) -> TranscriptEventStoreCounts:
         with self._lock:
             self._ensure_open()
-            return CheckpointTranscriptStoreCounts(
+            return TranscriptEventStoreCounts(
                 events=self._count_rows("events"),
                 message_pool=self._count_rows("message_pool"),
                 call_pool=self._count_rows("call_pool"),
@@ -97,7 +85,7 @@ class CheckpointTranscriptStore:
 
     def _ensure_open(self) -> None:
         if self._closed:
-            raise RuntimeError("CheckpointTranscriptStore is closed")
+            raise RuntimeError("TranscriptEventStore is closed")
 
     def merge_event(
         self, event: Event, attachment_lookup: Callable[[str], str | None]
@@ -208,7 +196,7 @@ class CheckpointTranscriptStore:
                 )
             elif not self._has_attachment(ref):
                 logger.warning(
-                    "Checkpoint event references missing attachment: %s", ref
+                    "Transcript event references missing attachment: %s", ref
                 )
 
     def _has_attachment(self, ref: str) -> bool:
@@ -279,31 +267,25 @@ class CheckpointTranscriptStore:
         ):
             path.unlink(missing_ok=True)
 
-    def export_snapshot_files(
+    def write_transcript_files(
         self,
-        sample_working_dir: str | Path,
         *,
-        store_json: object,
-        agent_state: Mapping[str, object] | None,
+        events_path: str | Path,
+        events_data_path: str | Path,
+        attachments_path: str | Path,
     ) -> None:
-        sample_dir = Path(sample_working_dir)
         with self._lock:
             self._ensure_open()
-            self._write_text_atomic(sample_dir / STORE, to_json_str_safe(store_json))
-            if agent_state is not None:
-                self._write_text_atomic(
-                    sample_dir / AGENT_STATE, to_json_str_safe(agent_state)
-                )
             with self._conn:
-                self._write_events_data(sample_dir / EVENTS_DATA)
+                self._write_events_data(Path(events_data_path))
                 self._write_json_object_from_rows(
-                    sample_dir / ATTACHMENTS,
+                    Path(attachments_path),
                     self._conn.execute(
                         "SELECT hash, content FROM attachments ORDER BY hash"
                     ),
                 )
                 self._write_json_array(
-                    sample_dir / EVENTS,
+                    Path(events_path),
                     self._conn.execute(
                         "SELECT latest_json FROM events ORDER BY first_seq"
                     ),
@@ -423,16 +405,12 @@ class CheckpointTranscriptStore:
         return attachment_refs_from_value(event.model_dump(mode="python"))
 
     @staticmethod
-    def _write_text_atomic(path: Path, content: str) -> None:
-        CheckpointTranscriptStore._write_atomic(path, lambda file: file.write(content))
-
-    @staticmethod
     def _write_json_array(path: Path, rows: Iterable[tuple[str]]) -> None:
         def write(file: TextIO) -> None:
-            CheckpointTranscriptStore._write_json_array_to_file(file, rows)
+            TranscriptEventStore._write_json_array_to_file(file, rows)
             file.write("\n")
 
-        CheckpointTranscriptStore._write_atomic(path, write)
+        TranscriptEventStore._write_atomic(path, write)
 
     @staticmethod
     def _write_json_object_from_rows(
@@ -450,7 +428,7 @@ class CheckpointTranscriptStore:
                 first = False
             file.write("}\n")
 
-        CheckpointTranscriptStore._write_atomic(path, write)
+        TranscriptEventStore._write_atomic(path, write)
 
     def _write_events_data(self, path: Path) -> None:
         def write(file: TextIO) -> None:
@@ -470,23 +448,7 @@ class CheckpointTranscriptStore:
 
     @staticmethod
     def _write_atomic(path: Path, write: Callable[[TextIO], object]) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp_name = tempfile.mkstemp(
-            dir=path.parent,
-            prefix=f".{path.name}.",
-            suffix=".tmp",
-            text=True,
-        )
-        tmp_path = Path(tmp_name)
-        try:
-            with open(fd, "w", encoding="utf-8") as file:
-                write(file)
-                file.flush()
-                os.fsync(file.fileno())
-            os.replace(tmp_path, path)
-        except Exception:
-            tmp_path.unlink(missing_ok=True)
-            raise
+        write_atomic_text(path, write)
 
     @staticmethod
     def _write_json_array_to_file(file: TextIO, rows: Iterable[tuple[str]]) -> None:

@@ -18,7 +18,7 @@ from inspect_ai.log._recorders.buffer.types import JsonData
 if TYPE_CHECKING:
     from inspect_ai.log._transcript import TranscriptHistoryProvider
 
-    from .types import SampleEventHistorySink
+    from .types import TranscriptEventSink
 
 
 class SampleHistoryLike(Protocol):
@@ -35,8 +35,8 @@ class TranscriptHistoryBuffer(Protocol):
 
     def sample_attachment(self, id: str | int, epoch: int, hash: str) -> str | None: ...
 
-    def import_checkpoint_events(
-        self, id: str | int, epoch: int, transcript_store: "SampleEventHistorySink"
+    def export_transcript_events(
+        self, id: str | int, epoch: int, transcript_store: "TranscriptEventSink"
     ) -> int: ...
 
     def open_sample_history_tail(
@@ -115,10 +115,8 @@ class BufferTranscriptHistoryProvider:
     def attachment(self, hash: str) -> str | None:
         return self._buffer_db.sample_attachment(self._sample_id, self._epoch, hash)
 
-    def import_checkpoint_events(
-        self, transcript_store: "SampleEventHistorySink"
-    ) -> int:
-        return self._buffer_db.import_checkpoint_events(
+    def export_transcript_events(self, transcript_store: "TranscriptEventSink") -> int:
+        return self._buffer_db.export_transcript_events(
             self._sample_id, self._epoch, transcript_store
         )
 

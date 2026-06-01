@@ -27,6 +27,7 @@ from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import Transcript, expand_events
 from inspect_ai.log._transcript import init_transcript, transcript
+from inspect_ai.log._transcript_store import TranscriptEventStore
 from inspect_ai.model._chat_message import (
     ChatMessage,
     ChatMessageAssistant,
@@ -43,7 +44,6 @@ from inspect_ai.util._checkpoint import (
     TurnInterval,
     checkpointer,
 )
-from inspect_ai.util._checkpoint._transcript_store import CheckpointTranscriptStore
 from inspect_ai.util._checkpoint._triggers import CheckpointTriggerKind
 from inspect_ai.util._checkpoint.checkpointer import ResumeCheckpoint
 from inspect_ai.util._checkpoint.checkpointer_impl import (
@@ -56,6 +56,14 @@ from inspect_ai.util._checkpoint.config import ResolvedCheckpointConfig
 from inspect_ai.util._checkpoint.hydrate import HydrationResult, _HostHydrationResult
 from inspect_ai.util._restic import ResticBackupSummary
 from inspect_ai.util._store import Store
+
+
+def _write_transcript_files(store: TranscriptEventStore, work_dir: Path) -> None:
+    store.write_transcript_files(
+        events_path=work_dir / "events.json",
+        events_data_path=work_dir / "events_data.json",
+        attachments_path=work_dir / "attachments.json",
+    )
 
 
 def _fake_summary(checkpoint_id: int) -> ResticBackupSummary:
@@ -1020,10 +1028,23 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
         reset_transcript_store=True,
     )
     try:
+        cp.track("messages", lambda: [msg_sys], [msg_sys], value_type=list[ChatMessage])
+        store = Store()
+        store.set("store_message", msg_sys)
         for event in fire1_events:
             cp._track_transcript_event(event)
-        await cp._write_host_context(str(work), Store())
-        pool_after_1 = json.loads((work / "events_data.json").read_text())["messages"]
+        await cp._write_host_context(str(work), store)
+        store_json = json.loads((work / "store.json").read_text())
+        agent_state = json.loads((work / "agent_state.json").read_text())
+        events = json.loads((work / "events.json").read_text())
+        events_data = json.loads((work / "events_data.json").read_text())
+        attachments = json.loads((work / "attachments.json").read_text())
+        assert store_json["store_message"]["role"] == "system"
+        assert agent_state["messages"][0]["role"] == "system"
+        assert isinstance(events, list)
+        assert set(events_data) >= {"messages", "calls"}
+        assert isinstance(attachments, dict)
+        pool_after_1 = events_data["messages"]
         events_after_1 = json.loads((work / "events.json").read_text())
         assert len(pool_after_1) == 3  # sys, u1, a1
         assert len(events_after_1) == 2
@@ -1088,7 +1109,7 @@ def test_seed_transcript_store_uses_history_provider_for_truncated_transcript(
 
     work = tmp_path / "snapshot"
     work.mkdir()
-    cp._transcript_store.export_snapshot_files(work, store_json={}, agent_state=None)
+    _write_transcript_files(cp._transcript_store, work)
     cp.close()
 
     events = json.loads((work / "events.json").read_text())
@@ -1108,7 +1129,7 @@ def test_checkpointer_closes_store_when_transcript_seed_fails(tmp_path: Path) ->
         "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
         return_value=fake_transcript,
     ):
-        with pytest.raises(RuntimeError, match="Cannot seed checkpoint events"):
+        with pytest.raises(RuntimeError, match="Cannot seed transcript events"):
             _make_cp(
                 hydration=_fake_hydration("/tmp/cp-test/ckpts", str(tmp_path / "work")),
             )
@@ -1126,7 +1147,7 @@ async def test_checkpointer_setup_resets_transcript_store_after_seed_failure(
     hydration = _fake_hydration(str(checkpoints), str(work))
     calls = 0
 
-    def fail_once_merge_event(self: CheckpointTranscriptStore, *args: object) -> None:
+    def fail_once_merge_event(self: TranscriptEventStore, *args: object) -> None:
         nonlocal calls
         calls += 1
         if calls == 1:
@@ -1134,7 +1155,7 @@ async def test_checkpointer_setup_resets_transcript_store_after_seed_failure(
             raise RuntimeError("seed failed")
         original_merge_event(self, *args)  # type: ignore[arg-type]
 
-    original_merge_event = CheckpointTranscriptStore.merge_event
+    original_merge_event = TranscriptEventStore.merge_event
     setup = _CheckpointerSetup(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         log_location=str(tmp_path / "t.eval"),
@@ -1151,7 +1172,7 @@ async def test_checkpointer_setup_resets_transcript_store_after_seed_failure(
             "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
             return_value=fake_transcript,
         ),
-        patch.object(CheckpointTranscriptStore, "merge_event", fail_once_merge_event),
+        patch.object(TranscriptEventStore, "merge_event", fail_once_merge_event),
     ):
         with pytest.raises(RuntimeError, match="seed failed"):
             await setup.__aenter__()
@@ -1295,7 +1316,7 @@ async def test_resume_resets_restored_transcript_store_before_seeding(
 ) -> None:
     work = tmp_path / "work"
     work.mkdir()
-    restored_store = CheckpointTranscriptStore(
+    restored_store = TranscriptEventStore(
         work / "checkpoint_transcript.sqlite", reset=True
     )
     restored_store.merge_event(InfoEvent(data="orphan"), lambda _: None)
@@ -1359,9 +1380,7 @@ def test_resume_seed_skips_restored_resident_events(
     )
     snapshot = tmp_path / "snapshot"
     snapshot.mkdir()
-    cp._transcript_store.export_snapshot_files(
-        snapshot, store_json={}, agent_state=None
-    )
+    _write_transcript_files(cp._transcript_store, snapshot)
     cp.close()
 
     events = json.loads((snapshot / "events.json").read_text())
@@ -1395,7 +1414,7 @@ def test_push_host_state_notifies_transcript_subscribers(
     assert subscriber_events == [restored]
 
 
-def test_checkpointer_tracks_event_emitted_during_history_import(
+def test_checkpointer_tracks_event_emitted_during_history_export(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     callbacks: list[Callable[[Event], None]] = []
@@ -1406,8 +1425,8 @@ def test_checkpointer_tracks_event_emitted_during_history_import(
         return lambda: callbacks.remove(callback)
 
     class Provider:
-        def import_checkpoint_events(
-            self, transcript_store: CheckpointTranscriptStore
+        def export_transcript_events(
+            self, transcript_store: TranscriptEventStore
         ) -> int:
             for callback in callbacks:
                 callback(emitted)
@@ -1420,7 +1439,7 @@ def test_checkpointer_tracks_event_emitted_during_history_import(
         def __init__(self, provider: Provider) -> None:
             self.provider = provider
 
-    class ImportingTranscript:
+    class ExportingTranscript:
         attachments: dict[str, str] = {}
 
         def __init__(self, provider: Provider) -> None:
@@ -1430,7 +1449,7 @@ def test_checkpointer_tracks_event_emitted_during_history_import(
             return subscribe(callback)
 
     provider = Provider()
-    fake_transcript = ImportingTranscript(provider)
+    fake_transcript = ExportingTranscript(provider)
     hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
     monkeypatch.setattr(
         "inspect_ai.util._checkpoint.checkpointer_impl.transcript",
@@ -1445,9 +1464,7 @@ def test_checkpointer_tracks_event_emitted_during_history_import(
     )
     snapshot = tmp_path / "snapshot"
     snapshot.mkdir()
-    cp._transcript_store.export_snapshot_files(
-        snapshot, store_json={}, agent_state=None
-    )
+    _write_transcript_files(cp._transcript_store, snapshot)
     cp.close()
 
     events = json.loads((snapshot / "events.json").read_text())

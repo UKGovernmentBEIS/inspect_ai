@@ -17,6 +17,7 @@ from collections.abc import (
     AsyncIterator,
     Awaitable,
     Callable,
+    Mapping,
 )
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timezone
@@ -28,22 +29,28 @@ from typing import Any, TypeVar
 from pydantic import BaseModel, TypeAdapter
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.file import write_text_atomic
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._transcript import transcript
+from inspect_ai.log._transcript_store import TranscriptEventStore
 from inspect_ai.solver._task_state import sample_state
-from inspect_ai.util._checkpoint._transcript_store import (
-    CHECKPOINT_TRANSCRIPT_STORE,
-    CheckpointTranscriptStore,
-)
 from inspect_ai.util._restic import ResticBackupSummary, run_backup
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._span import span
 from inspect_ai.util._store import Store, store_jsonable
 
 from ._host_egress import host_egress
+from ._layout.host_context import (
+    AGENT_STATE,
+    ATTACHMENTS,
+    EVENTS,
+    EVENTS_DATA,
+    STORE,
+)
 from ._layout.sample_checkpoints_dir import (
     _list_checkpoint_ids,
     write_checkpoint_file,
@@ -62,6 +69,8 @@ from .hydrate import HydrationResult, hydrate
 logger = getLogger(__name__)
 
 T = TypeVar("T")
+
+CHECKPOINT_TRANSCRIPT_STORE = "checkpoint_transcript.sqlite"
 
 # JSON-primitive Python types; these round-trip identically through
 # `json.dumps`/`json.loads`, so `track()` can return them on resume
@@ -184,7 +193,7 @@ class _EnteredCheckpointer:
         # live transcript may evict old events in bounded mode; this store is
         # seeded once, then updated by subscription so each checkpoint can
         # export complete host-context event files.
-        self._transcript_store = CheckpointTranscriptStore(
+        self._transcript_store = TranscriptEventStore(
             Path(self._context_dir) / CHECKPOINT_TRANSCRIPT_STORE,
             reset=reset_transcript_store,
         )
@@ -457,19 +466,29 @@ class _EnteredCheckpointer:
         """Write the host context snapshot files.
 
         Transcript events, pools, and attachments are already accumulated in
-        ``self._transcript_store`` via seeding and subscription. This method only
-        captures the current Store / tracked agent state and asks the transcript
-        store to export a complete host context.
+        ``self._transcript_store`` via seeding and subscription. This method
+        composes the checkpoint-owned Store / tracked agent state files with
+        transcript-owned event files.
         """
         agent_state = (
             {key: cb() for key, cb in self._on_checkpoint_callbacks.items()}
             if self._on_checkpoint_callbacks
             else None
         )
-        self._transcript_store.export_snapshot_files(
-            context_dir,
-            store_json=store_jsonable(store),
-            agent_state=agent_state,
+        context_path = Path(context_dir)
+        write_text_atomic(
+            context_path / STORE,
+            to_json_str_safe(store_jsonable(store)),
+        )
+        if agent_state is not None:
+            write_text_atomic(
+                context_path / AGENT_STATE,
+                to_json_str_safe(agent_state),
+            )
+        self._transcript_store.write_transcript_files(
+            events_path=context_path / EVENTS,
+            events_data_path=context_path / EVENTS_DATA,
+            attachments_path=context_path / ATTACHMENTS,
         )
 
     def _seed_transcript_store(self, hydration: HydrationResult) -> None:
@@ -478,6 +497,7 @@ class _EnteredCheckpointer:
         ts = transcript()
         try:
             attachments = ts.attachments
+            attachment_lookup = self._attachment_lookup(attachments)
             self._transcript_store.merge_message_pool(hydration.host.msg_pool)
             self._transcript_store.merge_call_pool(hydration.host.call_pool)
             seeded_event_ids: set[str] = set()
@@ -487,29 +507,21 @@ class _EnteredCheckpointer:
                         continue
                     seeded_event_ids.add(event.uuid)
                     if not self._transcript_store.has_event(event.uuid):
-                        self._transcript_store.merge_event(
-                            event,
-                            lambda ref: self._transcript_store.attachment(ref)
-                            or attachments.get(ref),
-                        )
+                        self._transcript_store.merge_event(event, attachment_lookup)
             history = ts.history
             if history.resident_events_truncated:
                 history_provider = history.provider
                 if history_provider is None:
                     raise RuntimeError(
-                        "Cannot seed checkpoint events from a truncated Transcript. "
+                        "Cannot seed transcript events from a truncated Transcript. "
                         "Create the checkpointer before bounded transcript eviction starts."
                     )
-                history_provider.import_checkpoint_events(self._transcript_store)
+                history_provider.export_transcript_events(self._transcript_store)
             else:
                 for event in history.resident_events:
                     if event.uuid in seeded_event_ids:
                         continue
-                    self._transcript_store.merge_event(
-                        event,
-                        lambda ref: self._transcript_store.attachment(ref)
-                        or attachments.get(ref),
-                    )
+                    self._transcript_store.merge_event(event, attachment_lookup)
             self._transcript_store.merge_attachments(attachments)
             self._transcript_seeded = True
         except Exception:
@@ -525,9 +537,14 @@ class _EnteredCheckpointer:
 
     def _track_transcript_event(self, event: Event) -> None:
         self._transcript_store.merge_event(
-            event,
-            lambda ref: self._transcript_store.attachment(ref)
-            or transcript().attachments.get(ref),
+            event, self._attachment_lookup(transcript().attachments)
+        )
+
+    def _attachment_lookup(
+        self, attachments: Mapping[str, str]
+    ) -> Callable[[str], str | None]:
+        return lambda ref: self._transcript_store.attachment(ref) or attachments.get(
+            ref
         )
 
     async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:

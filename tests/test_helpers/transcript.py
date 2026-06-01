@@ -5,7 +5,7 @@ from typing import Any, Literal
 from inspect_ai._util.list import find_last_match
 from inspect_ai.event._event import Event
 from inspect_ai.event._model import ModelEvent
-from inspect_ai.log._recorders.buffer.types import SampleEventHistorySink
+from inspect_ai.log._recorders.buffer.types import TranscriptEventSink
 from inspect_ai.model import ChatMessage, GenerateConfig, ModelOutput
 from inspect_ai.model._model_call import ModelCall
 
@@ -85,7 +85,7 @@ class FakeTranscriptHistoryProvider:
     def attachment(self, hash: str) -> str | None:
         return self._attachments.get(hash)
 
-    def import_checkpoint_events(self, transcript_store: SampleEventHistorySink) -> int:
+    def export_transcript_events(self, transcript_store: TranscriptEventSink) -> int:
         for event in self._events:
             assert event.uuid is not None
             transcript_store.merge_condensed_event(

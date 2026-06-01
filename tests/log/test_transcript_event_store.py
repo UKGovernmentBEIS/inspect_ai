@@ -14,28 +14,35 @@ from inspect_ai._util.constants import get_deserializing_context
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.log import expand_events
+from inspect_ai.log._transcript_store import TranscriptEventStore
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageSystem,
     ChatMessageUser,
 )
 from inspect_ai.model._model_call import ModelCall
-from inspect_ai.util._checkpoint._transcript_store import (
-    CHECKPOINT_TRANSCRIPT_STORE,
-    CheckpointTranscriptStore,
-)
+
+TRANSCRIPT_EVENT_STORE = "transcript_event_store.sqlite"
 
 
 def _exported_events(work_dir: Path) -> list[dict[str, object]]:
     return json.loads((work_dir / "events.json").read_text())
 
 
+def _write_transcript_files(store: TranscriptEventStore, work_dir: Path) -> None:
+    store.write_transcript_files(
+        events_path=work_dir / "events.json",
+        events_data_path=work_dir / "events_data.json",
+        attachments_path=work_dir / "attachments.json",
+    )
+
+
 def _no_attachment(_: str) -> str | None:
     return None
 
 
-def test_checkpoint_transcript_store_initializes_schema(tmp_path: Path) -> None:
-    store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+def test_transcript_event_store_initializes_schema(tmp_path: Path) -> None:
+    store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
 
     counts = store.counts()
 
@@ -43,13 +50,13 @@ def test_checkpoint_transcript_store_initializes_schema(tmp_path: Path) -> None:
     assert counts.message_pool == 0
     assert counts.call_pool == 0
     assert counts.attachments == 0
-    assert (tmp_path / CHECKPOINT_TRANSCRIPT_STORE).exists()
+    assert (tmp_path / TRANSCRIPT_EVENT_STORE).exists()
 
 
-def test_checkpoint_transcript_store_exports_events_in_first_seen_order(
+def test_transcript_event_store_exports_events_in_first_seen_order(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     first = InfoEvent(data="first")
     second = InfoEvent(data="second")
 
@@ -58,24 +65,24 @@ def test_checkpoint_transcript_store_exports_events_in_first_seen_order(
 
     transcript_store.merge_event(first, attachment_lookup=_no_attachment)
     transcript_store.merge_event(second, attachment_lookup=_no_attachment)
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     events = _exported_events(tmp_path)
     assert [event["data"] for event in events] == ["first", "second"]
     assert [event["uuid"] for event in events] == [first_id, second_id]
 
 
-def test_checkpoint_transcript_store_updates_existing_logical_event(
+def test_transcript_event_store_updates_existing_logical_event(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     event = InfoEvent(data="first")
 
     event_id = event.uuid
     transcript_store.merge_event(event, attachment_lookup=_no_attachment)
     event.data = "updated"
     transcript_store.merge_event(event, attachment_lookup=_no_attachment)
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     events = _exported_events(tmp_path)
     assert len(events) == 1
@@ -84,10 +91,10 @@ def test_checkpoint_transcript_store_updates_existing_logical_event(
     assert transcript_store.counts().events == 1
 
 
-def test_checkpoint_transcript_store_accepts_cross_thread_events(
+def test_transcript_event_store_accepts_cross_thread_events(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     input_events = [InfoEvent(data=f"from-thread-{index}") for index in range(8)]
 
     with ThreadPoolExecutor(max_workers=4) as executor:
@@ -98,7 +105,7 @@ def test_checkpoint_transcript_store_accepts_cross_thread_events(
         for future in futures:
             future.result()
 
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     exported_events = _exported_events(tmp_path)
     assert {event["data"] for event in exported_events} == {
@@ -106,17 +113,17 @@ def test_checkpoint_transcript_store_accepts_cross_thread_events(
     }
 
 
-def test_checkpoint_transcript_store_assigns_uuid_to_uuidless_events(
+def test_transcript_event_store_assigns_uuid_to_uuidless_events(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     event = InfoEvent.model_validate(
         {"event": "info", "data": "uuidless"}, context=get_deserializing_context()
     )
     assert event.uuid is None
 
     transcript_store.merge_event(event, attachment_lookup=_no_attachment)
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     assert isinstance(event.uuid, str)
     events = _exported_events(tmp_path)
@@ -124,10 +131,10 @@ def test_checkpoint_transcript_store_assigns_uuid_to_uuidless_events(
     assert events[0]["uuid"] == event.uuid
 
 
-def test_checkpoint_transcript_store_assigns_uuid_for_uuidless_event_updates(
+def test_transcript_event_store_assigns_uuid_for_uuidless_event_updates(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     event = InfoEvent.model_validate(
         {"event": "info", "data": "pending", "pending": True},
         context=get_deserializing_context(),
@@ -138,7 +145,7 @@ def test_checkpoint_transcript_store_assigns_uuid_for_uuidless_event_updates(
     event.pending = False
     event.data = "done"
     transcript_store.merge_event(event, attachment_lookup=_no_attachment)
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     events = _exported_events(tmp_path)
     assert len(events) == 1
@@ -146,59 +153,16 @@ def test_checkpoint_transcript_store_assigns_uuid_for_uuidless_event_updates(
     assert events[0]["data"] == "done"
 
 
-def test_checkpoint_transcript_store_serializes_agent_state_models(
+def test_transcript_event_store_exports_only_referenced_attachments(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
-
-    transcript_store.export_snapshot_files(
-        tmp_path,
-        store_json={"store_message": ChatMessageSystem(content="store")},
-        agent_state={
-            "messages": [
-                ChatMessageSystem(content="sys"),
-                ChatMessageUser(content="user"),
-            ]
-        },
-    )
-
-    store_json = json.loads((tmp_path / "store.json").read_text())
-    agent_state = json.loads((tmp_path / "agent_state.json").read_text())
-
-    assert store_json["store_message"]["role"] == "system"
-    assert store_json["store_message"]["content"] == "store"
-    assert agent_state["messages"][0]["role"] == "system"
-    assert agent_state["messages"][0]["content"] == "sys"
-    assert agent_state["messages"][1]["role"] == "user"
-    assert agent_state["messages"][1]["content"] == "user"
-
-
-def test_checkpoint_transcript_store_writes_store_and_agent_state(
-    tmp_path: Path,
-) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
-    transcript_store.export_snapshot_files(
-        tmp_path,
-        store_json={"x": 1},
-        agent_state={"agent": {"step": 2}},
-    )
-
-    assert json.loads((tmp_path / "store.json").read_text()) == {"x": 1}
-    assert json.loads((tmp_path / "agent_state.json").read_text()) == {
-        "agent": {"step": 2}
-    }
-
-
-def test_checkpoint_transcript_store_exports_only_referenced_attachments(
-    tmp_path: Path,
-) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     transcript_store.merge_event(
         InfoEvent(data={"blob": "attachment://kept"}),
         attachment_lookup={"kept": "payload", "unused": "ignore me"}.get,
     )
 
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     assert json.loads((tmp_path / "attachments.json").read_text()) == {
         "kept": "payload"
@@ -206,50 +170,48 @@ def test_checkpoint_transcript_store_exports_only_referenced_attachments(
     assert not (tmp_path / "agent_state.json").exists()
 
 
-def test_checkpoint_transcript_store_warns_for_missing_attachment_ref(
+def test_transcript_event_store_warns_for_missing_attachment_ref(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
 
-    with patch(
-        "inspect_ai.util._checkpoint._transcript_store.logger.warning"
-    ) as warning:
+    with patch("inspect_ai.log._transcript_store.logger.warning") as warning:
         transcript_store.merge_event(
             InfoEvent(data={"blob": "attachment://missing"}),
             attachment_lookup=_no_attachment,
         )
 
     warning.assert_called_once_with(
-        "Checkpoint event references missing attachment: %s", "missing"
+        "Transcript event references missing attachment: %s", "missing"
     )
 
 
-def test_checkpoint_transcript_store_attachment_refs_follow_condense_protocol() -> None:
+def test_transcript_event_store_attachment_refs_follow_condense_protocol() -> None:
     from inspect_ai.log._condense import ATTACHMENT_PROTOCOL
 
-    refs = CheckpointTranscriptStore.attachment_refs_from_json(
+    refs = TranscriptEventStore.attachment_refs_from_json(
         json.dumps({"blob": f"{ATTACHMENT_PROTOCOL}kept"})
     )
 
     assert refs == {"kept"}
 
 
-def test_checkpoint_transcript_store_retains_cumulative_attachments(
+def test_transcript_event_store_retains_cumulative_attachments(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     first_event = InfoEvent(data={"blob": "attachment://abc"})
     second_event = InfoEvent(data={"blob": "attachment://def"})
 
     transcript_store.merge_event(first_event, attachment_lookup={"abc": "payload"}.get)
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     assert json.loads((tmp_path / "attachments.json").read_text()) == {"abc": "payload"}
 
     transcript_store.merge_event(
         second_event, attachment_lookup={"def": "payload2"}.get
     )
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     assert json.loads((tmp_path / "attachments.json").read_text()) == {
         "abc": "payload",
@@ -257,24 +219,24 @@ def test_checkpoint_transcript_store_retains_cumulative_attachments(
     }
 
 
-def test_checkpoint_transcript_store_retains_attachment_on_event_update(
+def test_transcript_event_store_retains_attachment_on_event_update(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     event = InfoEvent(data={"blob": "attachment://abc"})
 
     transcript_store.merge_event(event, attachment_lookup={"abc": "payload"}.get)
     event.data = {"blob": "attachment://abc", "status": "done"}
     transcript_store.merge_event(event, attachment_lookup=_no_attachment)
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     assert json.loads((tmp_path / "attachments.json").read_text()) == {"abc": "payload"}
 
 
-def test_checkpoint_transcript_store_attaches_raw_model_call_update(
+def test_transcript_event_store_attaches_raw_model_call_update(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     event = make_model_event(
         [ChatMessageUser(content="question")],
         call=ModelCall.create(
@@ -288,7 +250,7 @@ def test_checkpoint_transcript_store_attaches_raw_model_call_update(
         {"messages": [{"role": "user", "content": raw_payload}]}, None
     )
     transcript_store.merge_event(event, attachment_lookup=_no_attachment)
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     attachments = json.loads((tmp_path / "attachments.json").read_text())
 
@@ -301,17 +263,17 @@ def test_checkpoint_transcript_store_attaches_raw_model_call_update(
     assert content.startswith("attachment://")
 
 
-def test_checkpoint_transcript_store_attaches_raw_model_input(
+def test_transcript_event_store_attaches_raw_model_input(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     raw_payload = "input payload" * 100
 
     transcript_store.merge_event(
         make_model_event([ChatMessageUser(content=raw_payload)]),
         attachment_lookup=_no_attachment,
     )
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     attachments = json.loads((tmp_path / "attachments.json").read_text())
     events_data = json.loads((tmp_path / "events_data.json").read_text())
@@ -322,10 +284,10 @@ def test_checkpoint_transcript_store_attaches_raw_model_input(
     assert content.startswith("attachment://")
 
 
-def test_checkpoint_transcript_store_exports_stable_message_pool(
+def test_transcript_event_store_exports_stable_message_pool(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     sys = ChatMessageSystem(content="sys")
     user = ChatMessageUser(content="question")
     assistant = ChatMessageAssistant(content="answer")
@@ -336,7 +298,7 @@ def test_checkpoint_transcript_store_exports_stable_message_pool(
     transcript_store.merge_event(
         make_model_event([sys, user, assistant]), attachment_lookup=_no_attachment
     )
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     events_data = json.loads((tmp_path / "events_data.json").read_text())
     events = json.loads((tmp_path / "events.json").read_text())
@@ -353,10 +315,10 @@ def test_checkpoint_transcript_store_exports_stable_message_pool(
     assert [len(event.input) for event in model_events] == [2, 3]
 
 
-def test_checkpoint_transcript_store_import_pool_entry_returns_canonical_position(
+def test_transcript_event_store_merge_pool_entry_returns_canonical_position(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
 
     first_pos = transcript_store.merge_message_pool_entry(
         "first-hash", ChatMessageUser(content="first").model_dump_json()
@@ -373,8 +335,8 @@ def test_checkpoint_transcript_store_import_pool_entry_returns_canonical_positio
     assert second_pos == 1
 
 
-def test_checkpoint_transcript_store_exports_stable_call_pool(tmp_path: Path) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+def test_transcript_event_store_exports_stable_call_pool(tmp_path: Path) -> None:
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     request_message = cast(
         dict[str, JsonValue],
         {"role": "user", "content": "question"},
@@ -390,7 +352,7 @@ def test_checkpoint_transcript_store_exports_stable_call_pool(tmp_path: Path) ->
         ),
         attachment_lookup=_no_attachment,
     )
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     events_data = json.loads((tmp_path / "events_data.json").read_text())
     events = json.loads((tmp_path / "events.json").read_text())
@@ -408,10 +370,10 @@ def test_checkpoint_transcript_store_exports_stable_call_pool(tmp_path: Path) ->
     assert model_events[0].call.request["messages"] == [request_message]
 
 
-def test_checkpoint_transcript_store_reuses_pending_message_positions_on_update(
+def test_transcript_event_store_reuses_pending_message_positions_on_update(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     message = ChatMessageUser(content="question")
     event = make_model_event([message])
     event.pending = True
@@ -423,10 +385,10 @@ def test_checkpoint_transcript_store_reuses_pending_message_positions_on_update(
     assert transcript_store.counts().message_pool == 1
 
 
-def test_checkpoint_transcript_store_discards_pending_cache_on_rollback(
+def test_transcript_event_store_discards_pending_cache_on_rollback(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     message = ChatMessageUser(content="question")
     event = make_model_event([message])
     event.pending = True
@@ -444,10 +406,10 @@ def test_checkpoint_transcript_store_discards_pending_cache_on_rollback(
     assert transcript_store.counts().message_pool == 1
 
 
-def test_checkpoint_transcript_store_deduplicates_messages_using_pool_hash(
+def test_transcript_event_store_deduplicates_messages_using_pool_hash(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     first = ChatMessageUser(content="same")
     second = ChatMessageUser(content="same")
     assert first.id != second.id
@@ -458,7 +420,7 @@ def test_checkpoint_transcript_store_deduplicates_messages_using_pool_hash(
     transcript_store.merge_event(
         make_model_event([second]), attachment_lookup=_no_attachment
     )
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     events_data = json.loads((tmp_path / "events_data.json").read_text())
     events = json.loads((tmp_path / "events.json").read_text())
@@ -468,20 +430,20 @@ def test_checkpoint_transcript_store_deduplicates_messages_using_pool_hash(
     assert events[1]["input_refs"] == [[0, 1]]
 
 
-def test_checkpoint_transcript_store_rejects_events_after_close(tmp_path: Path) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+def test_transcript_event_store_rejects_events_after_close(tmp_path: Path) -> None:
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     transcript_store.close()
 
-    with pytest.raises(RuntimeError, match="CheckpointTranscriptStore is closed"):
+    with pytest.raises(RuntimeError, match="TranscriptEventStore is closed"):
         transcript_store.merge_event(
             InfoEvent(data="late"), attachment_lookup=_no_attachment
         )
 
 
-def test_checkpoint_transcript_store_rejects_pool_import_after_close(
+def test_transcript_event_store_rejects_pool_import_after_close(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
 
     assert (
         transcript_store.merge_message_pool_entry(
@@ -498,42 +460,38 @@ def test_checkpoint_transcript_store_rejects_pool_import_after_close(
 
     transcript_store.close()
 
-    with pytest.raises(RuntimeError, match="CheckpointTranscriptStore is closed"):
+    with pytest.raises(RuntimeError, match="TranscriptEventStore is closed"):
         transcript_store.merge_message_pool_entry(
             "late-message", ChatMessageUser(content="late").model_dump_json()
         )
-    with pytest.raises(RuntimeError, match="CheckpointTranscriptStore is closed"):
+    with pytest.raises(RuntimeError, match="TranscriptEventStore is closed"):
         transcript_store.merge_call_pool_entry(
             "late-call", json.dumps({"role": "user", "content": "late"})
         )
 
 
-def test_checkpoint_transcript_store_reuses_stored_attachment_on_update(
+def test_transcript_event_store_reuses_stored_attachment_on_update(
     tmp_path: Path, caplog
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     payload = "payload" * 100
     event = make_model_event([ChatMessageUser(content=payload)])
 
     transcript_store.merge_event(event, attachment_lookup=_no_attachment)
     transcript_store.merge_event(event, attachment_lookup=_no_attachment)
-    transcript_store.export_snapshot_files(tmp_path, store_json={}, agent_state=None)
+    _write_transcript_files(transcript_store, tmp_path)
 
     attachments = json.loads((tmp_path / "attachments.json").read_text())
     assert payload in attachments.values()
-    assert "Checkpoint event references missing attachment" not in caplog.text
+    assert "Transcript event references missing attachment" not in caplog.text
 
 
-def test_checkpoint_transcript_store_writes_snapshot_files_as_utf8(
+def test_transcript_event_store_writes_snapshot_files_as_utf8(
     tmp_path: Path,
 ) -> None:
-    transcript_store = CheckpointTranscriptStore(tmp_path / CHECKPOINT_TRANSCRIPT_STORE)
+    transcript_store = TranscriptEventStore(tmp_path / TRANSCRIPT_EVENT_STORE)
     transcript_store.merge_event(InfoEvent(data="snowman ☃"), _no_attachment)
-    transcript_store.export_snapshot_files(
-        tmp_path, store_json={"emoji": "☃"}, agent_state=None
-    )
+    _write_transcript_files(transcript_store, tmp_path)
 
     events = json.loads((tmp_path / "events.json").read_text(encoding="utf-8"))
-    store_json = json.loads((tmp_path / "store.json").read_text(encoding="utf-8"))
     assert events[0]["data"] == "snowman ☃"
-    assert store_json["emoji"] == "☃"

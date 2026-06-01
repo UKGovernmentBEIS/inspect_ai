@@ -68,7 +68,7 @@ logger = getLogger(__name__)
 SYNC_CLEANUP_TIMEOUT = 30
 
 if TYPE_CHECKING:
-    from .types import SampleEventHistorySink
+    from .types import TranscriptEventSink
 
 
 class TaskData(BaseModel):
@@ -547,8 +547,8 @@ class SampleBufferDatabase(SampleBuffer):
                     conn.rollback()
                     raise
 
-    def import_checkpoint_events(
-        self, id: str | int, epoch: int, transcript_store: "SampleEventHistorySink"
+    def export_transcript_events(
+        self, id: str | int, epoch: int, transcript_store: "TranscriptEventSink"
     ) -> int:
         seed_count = 0
         with self._acquire_sample_read_lease(id, epoch):
@@ -613,7 +613,7 @@ class SampleBufferDatabase(SampleBuffer):
     def _remap_pool_refs(
         event: JsonData, message_pos_map: dict[int, int], call_pos_map: dict[int, int]
     ) -> JsonData:
-        """Rewrite a condensed event's pool refs after importing its pool entries."""
+        """Rewrite a condensed event's pool refs after exporting its pool entries."""
         remapped = dict(event)
         input_refs = remapped.get("input_refs")
         if isinstance(input_refs, list):
@@ -1427,7 +1427,7 @@ def maximum_ids(
 def _remap_refs(
     refs: Sequence[object], pos_map: dict[int, int]
 ) -> list[tuple[int, int]]:
-    """Translate pooled ref ranges after importing pool entries into a new store."""
+    """Translate pooled ref ranges after exporting pool entries into a new store."""
     indices: list[int] = []
     for ref in refs:
         if not isinstance(ref, (list, tuple)) or len(ref) != 2:
