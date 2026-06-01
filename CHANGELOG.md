@@ -1,3 +1,7 @@
+## Unreleased
+
+- Model: Propagate task-level `GenerateConfig.cache` to role models and ad-hoc `get_model()` calls (previously only the active/primary model inherited it).
+
 ## 0.3.232 (31 May 2026)
 
 - OpenAI: Support `tool_search` tool type from native scaffolds (e.g. Codex CLI).
