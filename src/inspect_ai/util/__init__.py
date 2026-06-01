@@ -26,6 +26,7 @@ from inspect_ai.util._limit import (
 from ._background import background
 from ._checkpoint import (
     CheckpointConfig,
+    Checkpointer,
     CheckpointSampleConfig,
     CheckpointTrigger,
     Manual,
@@ -175,10 +176,11 @@ __all__ = [
     "ExecRemoteStreamingOptions",
     "ExecStderr",
     "ExecStdout",
+    "checkpointer",
+    "Checkpointer",
     "CheckpointConfig",
     "CheckpointSampleConfig",
     "CheckpointTrigger",
-    "checkpointer",
     "Manual",
     "TimeInterval",
     "TokenInterval",

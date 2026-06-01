@@ -21,18 +21,20 @@ When Inspect retries a failed sample, checkpointed data is automatically restore
 To enable checkpointing for an evaluation, use the `--checkpoint` CLI option. For example:
 
 ``` bash
-# checkpoint with default trigger (every 5 turns)
+# checkpoint using default trigger (5OOK tokens)
 inspect eval ctf.py --checkpoint
 
-# shorthand triggers
-inspect eval ctf.py --checkpoint=turn:10
+# checkpoint using explicit triggers
+inspect eval ctf.py --checkpoint=turn:3
 inspect eval ctf.py --checkpoint=time:15m # <1>
+inspect eval ctf.py --checkpoint=token:100K # <2>
 
 # pass a yaml or json config file
 inspect eval ctf.py --checkpoint=checkpoint.yaml
 ```
 
-1.  Time-value suffixes are `s`, `m`, `h`, `d` (case-insensitive); a bare integer is seconds.
+1.  Time-value suffixes are `s`, `m`, `h`, `d`
+2.  Token-value suffixes are `K`, `M`, and `B`
 
 Or from Python:
 
@@ -40,10 +42,14 @@ Or from Python:
 from inspect_ai import eval
 from inspect_ai.util import CheckpointConfig, TurnInterval
 
+# checkpoint using default trigger (5OOK tokens)
+eval("ctf.py", model="openai/gpt-5", checkpoint=True)
+
+# checkpoint every 3 turns
 eval(
     "ctf.py", model="openai/gpt-5",
     checkpoint=CheckpointConfig(
-        trigger=TurnInterval(every=10)
+        trigger=TurnInterval(every=3)
     )
 )
 ```
@@ -66,7 +72,13 @@ inspect eval arc.py --checkpoint             # CRASH!
 insepct evan-retry logs/<log-file-name>.eval # recover
 ```
 
-By default checkpoints are deleted after recovery, use `retention = "retain"` in the `CheckpointConfig` to preserve them.
+For incomplete samples, Inspect locates the checkpoint directory, restores each sample's most recent committed checkpoint, and continues. The following is restored before the agent runs:
+
+1.  Agent State: Any state values the agent registered (e.g. message or compaction history).
+2.  Sandbox: The sandbox setup script is run and the configured sandbox paths are restored from backup into a fresh sandbox container.
+3.  Events and Store: Inspect's internal per-sample state is rehydrated (the events appear under a synthesized `prior_run` span in the new `.eval` log).
+
+By default checkpoints are deleted after recovery, use `retention="retain"` in the `CheckpointConfig` to preserve them.
 
 ### Triggers
 
@@ -91,53 +103,55 @@ You can configure triggers based on turns, time, or tokens, or can alternatively
 | Trigger | Description |
 |------------------------------|------------------------------------------|
 | `TurnInterval` | Fire every N agent turns. |
-| `TimeInterval` | Fire after approximately N seconds/minutes of wall-clock time has elapsed since the last fire. Effective interval is `≥ N` because firing waits for the next turn boundary. |
+| `TimeInterval` | Fire after approximately N seconds/minutes of time has elapsed since the last checkpoint. |
 | `TokenInterval` | Fire each time the sample's running total token usage crosses another N-token boundary. Sample total tokens are read from `sample_total_tokens()`. |
 | `Manual` | Never fires automatically. The agent (or another caller) requests a checkpoint with `await cp.checkpoint()`. |
 
 : {tbl-colwidths=\[30,70\]}
 
-## Task and Sample
+Note that time and token intervals effectively checkpoint at `≥ N` because firing waits for the next turn boundary.
 
-TODO: Task and sample level configuration
+## Configuration
 
-## Enabling Checkpointing
+`CheckpointConfig` is the full configuration object passed to the Python API (it can equivalently be passed as YAML to the CLI). All fields default to `None` so that partial configurations can be layered (see [Configuration Layers](#configuration-layers) below).
 
-Checkpointing can be configured at any of three layers — **sample**, **task**, or **eval / CLI**. The layers are merged per-field at sample-run time, with precedence **eval \> sample \> task** (see [Configuration Layers](#configuration-layers)). When unset at every layer, checkpointing is disabled.
+| Field | Description |
+|------------------------------------|------------------------------------|
+| `trigger` | The trigger that decides when to fire (defaults to 500K tokens). |
+| `sandbox_paths` | Per-sandbox-name map of absolute paths inside the sandbox to capture. Defaults to sandbox user's home directory. |
+| `checkpoints_location` | Override the parent directory under which the per-eval checkpoint directory lands (defaults to a sibling of the eval log file). |
+| `max_consecutive_failures` | If set, fail the sample after N consecutive failed checkpoint attempts. Defaults to `None` (unlimited tolerance). Specify `0` to make any single failure fatal. |
+| `retention` | `"delete"` or `"retain"`. `"delete"` (default) removes the checkpoint directory on successful eval completion; `"retain"` keeps it. |
 
-### Eval / CLI layer
-
-Pass the `--checkpoint` CLI option or `checkpoint=...` to `eval()`. The `--checkpoint` option supports several formats:
-
-``` bash
-# Enable with the default trigger (every 5 turns)
-inspect eval arc.py --model openai/gpt-4o --checkpoint
-
-# Shorthand triggers
-inspect eval arc.py --model openai/gpt-4o --checkpoint=turn:10
-inspect eval arc.py --model openai/gpt-4o --checkpoint=time:15m
-inspect eval arc.py --model openai/gpt-4o --checkpoint=manual
-
-# Pass a YAML or JSON config file
-inspect eval arc.py --model openai/gpt-4o --checkpoint=checkpoint.yaml
-```
-
-Time-value suffixes are `s`, `m`, `h`, `d` (case-insensitive); a bare integer is seconds.
-
-Or from Python:
+: A full Python example:
 
 ``` python
-from inspect_ai import eval
-from inspect_ai.util import CheckpointConfig, TurnInterval
+from datetime import timedelta
+from inspect_ai.util import CheckpointConfig, TimeInterval
 
-eval("arc.py", model="openai/gpt-4o", checkpoint=CheckpointConfig(
-    trigger=TurnInterval(every=10),
-))
+eval(
+    "arc.py", model="openai/gpt-4o",
+    checkpoint=CheckpointConfig(
+        trigger=TimeInterval(every=timedelta(minutes=15)),
+        max_consecutive_failures=3,
+        retention="retain",
+    ),
+)
 ```
 
-### Task layer
+The equivalent YAML for use with `--checkpoint=checkpoint.yaml`:
 
-A task can declare its own default checkpoint policy, which applies whenever the eval/CLI layer doesn't override it:
+``` yaml
+trigger:
+  type: time
+  every: 15m
+max_consecutive_failures: 3
+retention: retain
+```
+
+### Task Configuration
+
+Tasks can directly specify and enable checkpointing in the same manner that evals do (this lets you run a set of evals some of which have checkpointing and some of which don't). For example:
 
 ``` python
 from inspect_ai import Task, task
@@ -156,179 +170,72 @@ def my_task():
     )
 ```
 
-### Sample layer
+Note that when `sandbox_paths` are specified by a `Task` or `Sample` they completely override the default (which is the sandbox home directory) so you should be sure to include the home directory along with any custom paths.
 
-An individual sample can specialize the task's default — e.g. when one sample needs an extra directory captured that the rest of the task's samples don't. Sample-layer configs use `CheckpointSampleConfig`, which omits the eval-wide fields (`checkpoints_location`, `retention`) that a sample physically cannot influence:
+### Sample Configuration
+
+Samples can also specify checkpointing configuration, however they cannot enable checkpointing independently (this needs to be done at the task or eval level). For example:
 
 ``` python
+from inspect_ai import eval
 from inspect_ai.dataset import Sample
 from inspect_ai.util import CheckpointSampleConfig
 
+# specify config at the sample level
 Sample(
     input="...",
     target="...",
     checkpoint=CheckpointSampleConfig(
         sandbox_paths={
-            "default": ["/root", "/workspace", "/var/lib/this-samples-state"],
+            "default": ["/root", "/workspace", "/var/state"],
         },
     ),
 )
-```
 
-Note that `sandbox_paths` is replaced whole-dict, not merged per-key — to add a path on top of the task's default, redeclare the full list (see [Configuration Layers](#configuration-layers)).
-
-## Triggers
-
-A trigger decides *when* a checkpoint fires. All triggers fire at the next **turn boundary** after the trigger condition is reached — agents are never interrupted mid-turn, and in-flight tool calls are never paused to checkpoint.
-
-| Trigger | Description |
-|-----------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `TurnInterval(every=N)` | Fire every N agent turns. |
-| `TimeInterval(every=timedelta(...))` | Fire after approximately N seconds/minutes of wall-clock time has elapsed since the last fire. Effective interval is `≥ N` because firing waits for the next turn boundary. |
-| `TokenInterval(every=N)` | Fire each time the sample's running total token usage crosses another N-token boundary. Sample total tokens are read from `sample_total_tokens()`. |
-| `Manual()` | Never fires automatically. The agent (or another caller) requests a checkpoint with `await cp.checkpoint()`. |
-
-Additional trigger types — including cost-based and budget-percentage triggers that fire at percentage milestones of a sample's `token_limit` / `cost_limit` / `time_limit` / `working_limit` — are planned but not yet runtime-supported.
-
-## Configuration
-
-`CheckpointConfig` is the full configuration object. All fields default to `None` so that partial configs can be layered (see [Configuration Layers](#configuration-layers) below).
-
-| Field | Description |
-|------------------------------------|------------------------------------|
-| `trigger` | The trigger that decides when to fire. Required (must be set at some layer). |
-| `sandbox_paths` | Per-sandbox-name map of absolute paths inside the sandbox to capture. Empty/omitted = host-only checkpointing (no sandbox repos). See [Sandbox Paths](#sandbox-paths) below. |
-| `checkpoints_location` | Override the parent directory under which the per-eval checkpoint dir lands. Defaults to a sibling of the eval log file. Any fsspec-resolvable path (`s3://`, `gs://`, local, …). Settable only at the task or eval layer. |
-| `max_consecutive_failures` | If set, fail the sample after N consecutive failed checkpoint attempts. `None` (default) = unlimited tolerance; `0` = any single failure is fatal. |
-| `retention` | `Retention(after_eval="delete" \| "retain")`. `"delete"` (default) removes the checkpoint directory on successful eval completion; `"retain"` keeps it. Settable only at the task or eval layer. |
-
-A full Python example:
-
-``` python
-from datetime import timedelta
-from inspect_ai.util import CheckpointConfig, Retention, TimeInterval
-
-eval(
-    "arc.py", model="openai/gpt-4o",
-    checkpoint=CheckpointConfig(
-        trigger=TimeInterval(every=timedelta(minutes=15)),
-        sandbox_paths={"default": ["/root", "/workspace"]},
-        checkpoints_location="s3://my-bucket/checkpoints",
-        max_consecutive_failures=3,
-        retention=Retention(after_eval="retain"),
-    ),
-)
-```
-
-The equivalent YAML for use with `--checkpoint=checkpoint.yaml`:
-
-``` yaml
-trigger:
-  type: time
-  every: 15m
-sandbox_paths:
-  default: ["/root", "/workspace"]
-checkpoints_location: s3://my-bucket/checkpoints
-max_consecutive_failures: 3
-retention:
-  after_eval: retain
+# enable at the eval or task level (uses the sample config)
+eval("ctf.py", model="openai/gpt-5", checkpoint=True)
 ```
 
 ### Configuration Layers {#configuration-layers}
 
-When more than one of the sample / task / eval layers supplies a config, Inspect merges them **per-field** at sample-run time. Each layer's fields default to `None`; the highest-priority layer with a non-`None` value wins per field. Precedence is **eval \> sample \> task** — sample beats task because the task defines an agent's standard policy for *all* of its samples and an individual sample specializes it; eval/CLI is always highest because it's the operator's run-time override.
+When more than one of the sample / task / eval layers supplies a configuration, Inspect merges them **per-field** at sample-run time. Each layer's fields default to `None`; the highest-priority layer with a non-`None` value wins per field. Precedence is **eval \> sample \> task**. Sample beats task because the task defines an agent's standard policy for *all* of its samples and an individual sample specializes it. Eval/CLI is always highest because it's the operator's run-time override.
 
-`sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map.
+### Sandbox Paths
 
-If at least one layer supplies a config but no layer sets a `trigger`, merge raises a `ValueError`.
-
-## Sandbox Paths {#sandbox-paths}
-
-`sandbox_paths` is a map from sandbox name (the dict key returned by `sample_init`) to a list of absolute paths to capture inside that sandbox:
-
-``` python
-CheckpointConfig(
-    trigger=TurnInterval(every=5),
-    sandbox_paths={
-        "default": ["/root", "/workspace"],
-        "tools":   ["/opt/agent-state"],
-    },
-)
-```
-
-There is **no implicit default** — path selection is agent-specific:
-
-- **Native Python agents** (e.g. the built-in React agent) typically declare an empty `sandbox_paths`. Their state lives in messages and `Store`, both already captured by Inspect's host-side snapshot. No sandbox repo is created in this case.
-- **Sandbox CLI agents** (Claude Code, Codex CLI, Gemini CLI, …) typically declare multiple paths: the agent's home directory, the project working directory (often `/workspace`), and any tool-state directories.
-
-If a sandbox name returned by `sample_init` does not appear in `sandbox_paths`, no sandbox repo is created for it. Anything outside the configured paths is not captured and will not be restored on resume.
+`sandbox_paths` is a map of container name to paths that should be sandboxes for that container. Sandboxes that use only a single container can use the `"default"` key to refer to that container. Note that `sandbox_paths` is treated as a single whole-dict value, not key-wise merged. To add a path to one sandbox while inheriting others, the higher-priority layer must redeclare the full map. Also, while sandbox home directories are included by default, if you specify `sandbox_paths` explicitly you must explicitly include the home directory if you want it checkpointed.
 
 ## Checkpoint Flow
 
 When checkpointing is enabled, each sample proceeds as follows:
 
-1.  **Tick.** At each agent turn boundary, the agent calls `cp.tick()` (or the built-in agent does so on its behalf). The trigger decides whether this tick is a checkpoint moment.
+1.  **Tick**: At each agent turn boundary, the agent calls `cp.tick()`. The trigger decides whether this tick is a checkpoint moment.
 
-2.  **Capture.** When the trigger fires, Inspect writes the host-side context files (messages, events, attachments, `Store`, and any agent-tracked state) and runs `restic backup` on the host repo and each configured sandbox path set in parallel.
+2.  **Capture**: When the trigger fires, Inspect writes the host-side context files (agent-tracked state, events, and, store) and runs a [restic backup](https://restic.net) on the agent scaffold host and each configured sandbox path.
 
-3.  **Record.** Inspect writes a `ckpt-NNNNN.json` checkpoint file at the per-sample root. A checkpoint is available for resumption only once this file is in place.
+3.  **Record**: Inspect writes a `ckpt-NNNNN.json` checkpoint file at the per-sample root. A checkpoint is available for resumption only once this file is in place.
 
-4.  **Emit.** A structured `CheckpointEvent` is emitted into the normal event stream (and into the `.eval` log) carrying the trigger, turn, duration, snapshot ids, and size.
+4.  **Emit**: A structured `CheckpointEvent` is emitted into the normal event stream (and into the `.eval` log) carrying the trigger, turn, duration, snapshot ids, and size.
 
 Crashed cycles that didn't reach step 3 leave orphan snapshots with no checkpoint file; resume discards them automatically.
 
-## Resuming
-
-Resume uses Inspect's existing retry pathway — no new command or flag:
-
-``` bash
-inspect eval retry <log-file>
-```
-
-Or from Python:
-
-``` python
-from inspect_ai import eval_retry
-
-eval_retry("<log-file>")
-```
-
-This works for both `inspect eval retry` / `eval_retry()` and eval-set retry. Inspect locates the checkpoint directory (sibling of the log file by default; the log records the canonical location if `checkpoints_location` was overridden), restores each sample's most recent committed checkpoint, and continues. If a sample has no checkpoint, it starts over from the beginning; if it had completed, it is skipped.
-
-On resume, the following is restored before the agent runs:
-
-- **Sandbox.** The configured sandbox paths are restored into a fresh sandbox container.
-- **Messages, events, store, attachments.** Inspect's internal per-sample state is rehydrated. The rehydrated events appear under a synthesized `prior_run` span in the new `.eval` log.
-- **Agent-tracked state.** Any values the agent registered with `cp.track(...)` (see below).
-
-The agent can read `cp.attempt` to discover whether this is a fresh run, a resume, or a scoring-phase resume (see [Scoring-Phase Resume](#scoring-phase-resume) below).
-
-### Scoring-Phase Resume {#scoring-phase-resume}
-
-When the agent completes cleanly but a later phase crashes (typically scoring), retry can skip the agent entirely and re-run scoring against the agent's final state. The mechanism is automatic:
-
-1.  On clean agent exit, Inspect fires a final "agent_complete" checkpoint and marks `solver_done` on the per-sample `sample.json` manifest.
-2.  If anything crashes after that (a scorer, the eval process), the next `inspect eval retry` reads the marker and tags the sample as `Attempt.RETRY_FOR_SCORING`.
-3.  The agent enters its checkpointer session, restores tracked state (messages, output, …), reads `cp.attempt == Attempt.RETRY_FOR_SCORING`, and returns immediately — no model calls, no tool calls.
-4.  Scoring runs against the restored state.
-
-The built-in React agent handles this automatically. Custom agents that don't add the `Attempt.RETRY_FOR_SCORING` branch will re-run their loop on retry (graceful degradation).
-
 ## Custom Agents {#custom-agents}
 
-A custom agent participates in checkpointing by entering a `Checkpointer()` session and calling `tick()` at each turn boundary. The harness installs the resolved `CheckpointConfig` into an ambient context before the agent runs, so the agent does **not** receive or thread a config — `checkpointer()` is zero-argument.
+A custom agent participates in checkpointing by entering a `checkpointer()` context and calling `tick()` at each turn boundary.
 
-The key affordance is **`cp.track`**, which gives the agent a single-call way to declare "this variable is important state — capture it at each checkpoint and restore it for me on retry." On a fresh run, `track` returns the `initial_value` the agent passes in. On a retry of the same sample, `track` returns whatever the registered callback captured at the most recent checkpoint of the prior run — so the agent's important state comes back automatically and the agent picks up where it left off, without any custom save/load code:
+The key checkpointing mechanism for agents is the `cp.track` method, which gives the agent a way to declare "this variable is important state, capture it at each checkpoint and restore it for me on retry."
+
+On a fresh run, `track` returns the `initial_value` the agent passes in. On a retry of the same sample, `track` returns whatever the registered callback captured at the most recent checkpoint of the prior run, so the agent's important state comes back automatically and can pick up where it left off.
 
 ``` python
 from inspect_ai.util import Attempt, checkpointer
 
 async def my_agent(state):
     async with checkpointer() as cp:
-        # Each `track` call: register a callback that captures this
-        # variable at every checkpoint fire, AND get back the value
-        # captured at the most recent prior checkpoint (or the supplied
-        # initial_value on a fresh run). One line, both directions.
+        # each `track` call: register a callback that
+        # captures this variable at every checkpoint
+        # fire, AND get back the value captured at the
+        # most recent prior checkpoint (or the initial
+        # value on a fresh run).
         attempt_count = cp.track(
             "attempt_count",
             lambda: attempt_count,
@@ -340,50 +247,41 @@ async def my_agent(state):
             state.messages,
         )
 
-        # Scoring-phase resume: agent already finished in the prior
-        # attempt — tracked state is restored above, return so scoring
-        # can re-run without redoing the loop.
-        if cp.attempt == Attempt.RETRY_FOR_SCORING:
+        # scoring-phase resume: agent already finished in
+        # the prior attempt — tracked state is restored
+        # above, return so scoring can re-run.
+        if cp.attempt == Attempt.RESUME_FOR_SCORING:
             return state
 
-        # On a fresh start, perform one-shot setup. (On a mid-agent
-        # retry the prior run already did this, so skip.)
-        if cp.attempt == Attempt.INITIAL:
-            initialize_workspace(state)
+        # agent loop
+        while True:
+            # fire checkpoint as per trigger 
+            await cp.tick()  
+            ...
 
-        while not done(state):
-            await cp.tick()  # may fire a checkpoint at this turn boundary
-            state = await one_turn(state)
-
-        # For Manual triggers the agent fires explicitly:
+        # for manual triggers the agent fires explicitly:
         # await cp.checkpoint()
 ```
 
-The `Checkpointer` surface:
+The `Checkpointer` context has the following members:
 
 | Member | Description |
 |------------------------------------|------------------------------------|
-| `cp.attempt` | Enum: `Attempt.INITIAL` (fresh), `Attempt.RETRY` (mid-agent resume), or `Attempt.RETRY_FOR_SCORING` (agent completed in the prior attempt — restore tracked state and return). Stable for the lifetime of the session. |
 | `await cp.tick()` | Turn-boundary signal; may fire a checkpoint depending on the trigger. |
-| `await cp.checkpoint()` | Force a fire regardless of trigger (used by `Manual()`). |
-| `cp.track(key, callback, initial_value, *, value_type=None)` | Declare a piece of agent state worth persisting. `callback` is invoked at every checkpoint fire to capture the current value; the method returns the value captured at the most recent prior checkpoint on a retry, or `initial_value` on a fresh run. Each `key` may be tracked only once per session. |
+| `await cp.checkpoint()` | Force a checkpoint regardless of trigger. |
+| `cp.track(key, callback, initial_value, *, value_type=None)` | Declare a piece of persisted agent state. `callback` is invoked at every checkpoint fire to capture the current value; the method returns the value captured at the most recent prior checkpoint on a retry, or `initial_value` on a fresh run. |
+| `cp.attempt` | `Attempt.INITIAL` (fresh), `Attempt.RESUME` (mid-agent resume), or `Attempt.RESUME_FOR_SCORING` (agent completed in the prior attempt — restore tracked state and return). |
 
-`cp.track` is generic over the value type. Single Pydantic models and JSON primitives are auto-handled; for other shapes (collections, generics, dataclasses, lists of models) pass `value_type=...`.
+`cp.track()` is generic over the value type. Pydantic models and JSON primitive values are handled automatically; for other shapes (collections, generics, dataclasses, lists of models) pass `value_type=...`.
 
-When no `CheckpointConfig` is installed (checkpointing disabled), the session is a no-op: `tick()` does nothing, `track()` always returns `initial_value`, `attempt` is `Attempt.INITIAL`.
+## Limitations
 
-## Details and Limitations
+Checkpointing enables restoration of the most important agent context after a crash, but has some limitations you should bear in mind when using it:
 
-- **Turn-boundary granularity only.** A long-running tool call (e.g. a 10-minute subprocess) blocks the next checkpoint until the call returns. Mid-tool-call checkpointing is planned for a later phase.
+- Turn-boundary granularity only — A long-running tool call (e.g. a 10-minute subprocess) blocks the next checkpoint until the call returns.
 
-- **Filesystem state only.** Anything outside `sandbox_paths` is not captured. In-memory process state inside the sandbox (running daemons, open sockets, RAM) is lost on resume. The agent is responsible for tolerating this.
+- Filesystem state only — Anything outside `sandbox_paths` is not captured. In-memory process state inside the sandbox (running daemons, open sockets, RAM) is lost on resume. The agent is responsible for tolerating this.
 
-- **External side-effects may re-execute.** If a tool call completed between the last checkpoint and a crash, Inspect cannot un-do its real-world side-effects. Idempotent tools are strongly recommended for checkpointed evals.
+- Failure tolerance — A failed checkpoint attempt records an `InfoEvent` (`source="checkpoint"`) and logs a warning, but by default the sample keeps running. (durability is treated as a nicety, not a correctness requirement). Set `max_consecutive_failures=N` to bound this, or `0` for strict mode.
 
-- **Works across all sandbox providers.** Checkpointing uses a single filesystem-based mechanism ([restic](https://restic.net) for content-addressed deduplicated snapshots) that works uniformly across Docker, Modal, Kubernetes, and any other sandbox provider — no provider-native snapshot machinery required.
-
-- **Restic binary.** On first use, Inspect fetches a pinned restic binary from upstream and caches it. For offline / air-gapped environments, pre-warm the cache with `inspect download restic`.
-
-- **Encryption.** Inspect auto-generates a random restic password per sample and stores it alongside the checkpoint repos. This is operational encryption only — anyone with read access to the checkpoint directory has the key. Place the checkpoint directory on an encrypted volume or bucket if at-rest encryption is required.
-
-- **Failure tolerance.** A failed checkpoint attempt records an `InfoEvent` (`source="checkpoint"`) and logs a warning, but by default the sample keeps running — durability is treated as a nicety, not a correctness requirement. Set `max_consecutive_failures=N` to bound this, or `0` for strict mode.
+- Restic binary — On first use, Inspect fetches a pinned [restic](https://restic.net) binary and caches it. For offline / air-gapped environments, pre-warm the cache with `inspect download restic`.
