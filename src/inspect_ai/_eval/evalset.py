@@ -20,8 +20,11 @@ from tenacity import (
 )
 from typing_extensions import Unpack
 
-from inspect_ai._control.eval_state import register_completed_eval
-from inspect_ai._control.server import control_server, keep_alive_session
+from inspect_ai._control.eval_state import (
+    clear_all_eval_states,
+    register_completed_eval,
+)
+from inspect_ai._control.server import control_server, wait_for_shutdown_async
 from inspect_ai._display import display as display_manager
 from inspect_ai._display.core.panel import set_eval_set_id_display
 from inspect_ai._eval.task.log import plan_to_eval_plan
@@ -378,7 +381,9 @@ def eval_set(
             eval_set_id=eval_set_id,
             task_retry_attempts=task_retry_attempts,
             acp_server=acp_server,
-            keep_alive=keep_alive,
+            # Not keep_alive: eval-set owns the keep-alive flag + park
+            # itself (around the whole run), so the inner eval() doesn't
+            # park inside the task display. See the park below.
             **kwargs,
         )
 
@@ -504,17 +509,12 @@ def eval_set(
             status.stop()
             status = None
 
-    # Set when try_eval invokes the inner eval(); stays False if every task
-    # was reused, which triggers the all-reused keep-alive fallback below.
-    eval_was_invoked = False
-
     # function which will be called repeatedly to attempt to complete
     # the evaluations. for this purpose we will divide tasks into:
     #   - tasks with no log at all (they'll be attempted for the first time)
     #   - tasks with a successful log (they'll just be returned)
     #   - tasks with failed logs (they'll be retried)
     def try_eval() -> list[EvalLog]:
-        nonlocal eval_was_invoked
         config = GenerateConfig(**kwargs)
         # resolve tasks
         resolved_tasks, _ = eval_resolve_tasks(
@@ -627,7 +627,6 @@ def eval_set(
                 return [log.header for log in success_logs]
 
         # run the tasks
-        eval_was_invoked = True
         run_logs = run_eval(eval_set_id, tasks_to_run)
 
         # if this was the entire list of resolved tasks, return results
@@ -652,56 +651,66 @@ def eval_set(
     # finalize flag on attach, so reading from inside try_eval is too late
     prior_scan_clean = scan_already_clean(scanner, eval_set_id, log_dir)
 
-    with (
-        _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext(),
-        scan_context(scanner, scan_id=eval_set_id, log_dir=log_dir),
-    ):
-        # emit start event
-        run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
+    # Under keep-alive, `keep_alive_session` holds the flag across the run
+    # EvalStates accumulate as tasks run (task_run no longer unregisters);
+    # clear the registry at this run boundary — in `finally`, after any
+    # keep-alive park — so they stay visible in `inspect ctl ls` through
+    # the run + park, but don't leak past it.
+    try:
+        with (
+            _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext(),
+            scan_context(scanner, scan_id=eval_set_id, log_dir=log_dir),
+        ):
+            # emit start event
+            run_coroutine(emit_eval_set_start(eval_set_id, log_dir))
 
-        if retry_immediate:
-            # retry handled by eval
-            results = try_eval()
+            if retry_immediate:
+                # retry handled by eval
+                results = try_eval()
+            else:
+                # execute w/ retry
+                results = retry(try_eval)
+
+            # final sweep to remove failed log files
+            if retry_cleanup:
+                task_ids = {result.eval.task_id for result in results}
+                cleanup_older_eval_logs(log_dir, task_ids)
+
+        # if specified, bundle the output directory
+        if bundle_dir:
+            bundle_log_dir(
+                log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
+            )
+
+        # report final status
+        success = all_evals_succeeded(results)
+        if success:
+            msg = status_msg(f"Completed all tasks in '{log_dir}' successfully")
         else:
-            # execute w/ retry
-            results = retry(try_eval)
+            msg = status_msg(f"Did not successfully complete all tasks in '{log_dir}'.")
+        console.print(f"{msg}")
 
-        # final sweep to remove failed log files
-        if retry_cleanup:
-            task_ids = {result.eval.task_id for result in results}
-            cleanup_older_eval_logs(log_dir, task_ids)
+        if scanner is not None:
+            from inspect_ai._eval.task.scan import print_scan_status
 
-        if keep_alive and not eval_was_invoked:
-            run_coroutine(_keep_alive_park_for_reused(eval_set_id))
+            print()
+            print_scan_status(log_dir, scanner)
 
-    # if specified, bundle the output directory
-    if bundle_dir:
-        bundle_log_dir(
-            log_dir=log_dir, output_dir=bundle_dir, overwrite=bundle_overwrite
-        )
+        # update manifest
+        write_log_dir_manifest(log_dir)
 
-    # report final status
-    success = all_evals_succeeded(results)
-    if success:
-        msg = status_msg(f"Completed all tasks in '{log_dir}' successfully")
-    else:
-        msg = status_msg(f"Did not successfully complete all tasks in '{log_dir}'.")
-    console.print(f"{msg}")
+        # emit end event
+        run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
 
-    if scanner is not None:
-        from inspect_ai._eval.task.scan import print_scan_status
+        # park last of all — display closed and summary printed, so the
+        # keep-alive notice lands in the console (not the live display pane)
+        if keep_alive:
+            run_coroutine(_keep_alive_park(eval_set_id))
 
-        print()
-        print_scan_status(log_dir, scanner)
-
-    # update manifest
-    write_log_dir_manifest(log_dir)
-
-    # emit end event
-    run_coroutine(emit_eval_set_end(eval_set_id, log_dir))
-
-    # return status + results
-    return success, results
+        # return status + results
+        return success, results
+    finally:
+        clear_all_eval_states()
 
 
 @contextlib.contextmanager
@@ -785,30 +794,29 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
         )
 
 
-async def _keep_alive_park_for_reused(eval_set_id: str) -> None:
-    """Park the eval-set process when every task is reused.
+async def _keep_alive_park(eval_set_id: str) -> None:
+    """Park the eval-set process after the run completes (display closed).
 
-    The all-reused branch of ``try_eval`` short-circuits before the
-    inner ``eval()`` call, so the keep-alive park that normally lives
-    inside ``eval()`` never fires. Reproduce it here: bring up a
-    standalone control server and run the shared keep-alive session
-    around an empty body. Reused EvalStates are already registered (via
-    :func:`_register_reused_logs`), so the surface looks identical to
-    the post-``eval()`` lingering case.
+    Runs on a fresh loop once ``eval()`` (and its task display) has exited
+    and the summary has printed, so the notice + wait land in the console.
+    Brings up a control server for the lingering window and blocks until
+    ``POST /shutdown``. EvalStates stay visible throughout (live ones
+    accumulated during the run, reused ones via
+    :func:`_register_reused_logs`); ``eval_set`` clears them at the run
+    boundary once this returns.
     """
-    async with (
-        control_server(run_id=eval_set_id) as ctl_server,
-        keep_alive_session(
-            ctl_server,
-            enabled=True,
-            park_message=(
-                "Eval-set finished (all tasks reused from prior logs). "
-                "Keeping process alive — press Ctrl+C or run "
-                "`inspect ctl shutdown` to release."
-            ),
-        ),
-    ):
-        pass
+    async with control_server(run_id=eval_set_id) as ctl_server:
+        if ctl_server is None:
+            # Bind failed: nothing to park on (can't be released via
+            # `inspect ctl shutdown`), so don't linger.
+            return
+        rich.get_console().print(
+            "Eval-set finished. Keeping process alive — press Ctrl+C or run "
+            "`inspect ctl shutdown` to release.",
+            markup=False,
+            highlight=False,
+        )
+        await wait_for_shutdown_async(ctl_server)
 
 
 def eval_set_id_for_log_dir(log_dir: str, eval_set_id: str | None = None) -> str:

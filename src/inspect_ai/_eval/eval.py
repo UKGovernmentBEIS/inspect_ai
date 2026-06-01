@@ -9,12 +9,8 @@ from typing import Any, Literal, cast
 import anyio
 from anyio.abc import TaskGroup
 
-from inspect_ai._control.server import (
-    control_server as _control_server,
-)
-from inspect_ai._control.server import (
-    keep_alive_session as _keep_alive_session,
-)
+from inspect_ai._control.eval_state import clear_all_eval_states
+from inspect_ai._control.server import control_server, wait_for_shutdown_async
 from inspect_ai._util.notgiven import NOT_GIVEN, NotGiven
 from inspect_ai.agent._acp.server import acp_server as _acp_server
 from inspect_ai.agent._agent import Agent, is_agent
@@ -891,19 +887,9 @@ async def _eval_async_inner(
         # eval correctness never depends on the control channel coming
         # up. See design/control-channel.md "Implementation notes".
         #
-        # _keep_alive_session must be innermost so its post-body park
-        # runs while the control / ACP servers are still up.
         async with (
-            _control_server(run_id=run_id) as _ctl_server,
+            control_server(run_id=run_id) as _ctl_server,
             _acp_server(eval_id=run_id, transport=acp_server),
-            _keep_alive_session(
-                _ctl_server,
-                enabled=keep_alive,
-                park_message=(
-                    "Eval finished. Keeping process alive — press Ctrl+C "
-                    "or run `inspect ctl shutdown` to release."
-                ),
-            ),
         ):
             with scan_cm:
                 # single task definition (could be multi-model) or max_tasks capped to 1
@@ -969,6 +955,22 @@ async def _eval_async_inner(
                     )
                     logs = EvalLogs(results)
 
+            # keep-alive: after the body, park while the control / ACP
+            # servers are still up so `inspect ctl` can read state and
+            # request shutdown. (Standalone eval parks here, inside the
+            # task display; eval-set instead parks after the display has
+            # closed.) EvalStates are cleared at the run boundary below.
+            if keep_alive and _ctl_server is not None:
+                import rich
+
+                rich.get_console().print(
+                    "Eval finished. Keeping process alive — press Ctrl+C "
+                    "or run `inspect ctl shutdown` to release.",
+                    markup=False,
+                    highlight=False,
+                )
+                await wait_for_shutdown_async(_ctl_server)
+
         # cleanup sample buffers if required
         cleanup_sample_buffers(log_dir)
 
@@ -982,6 +984,14 @@ async def _eval_async_inner(
         await emit_run_end(eval_set_id, run_id, EvalLogs([]), e)
         _eval_async_running = False
         raise e
+
+    finally:
+        # Clear the process-level EvalState registry at the run boundary
+        # (after any keep-alive park) — but only for a standalone eval.
+        # When nested in an eval-set (eval_set_id set) the eval-set owns
+        # this, clearing after its own park.
+        if eval_set_id is None:
+            clear_all_eval_states()
 
     # return logs
     return logs

@@ -6,9 +6,12 @@ endpoint to surface counts that ``active_samples()`` alone can't
 provide.
 
 The eval runner calls :func:`register_eval` at task start (when the
-total sample count is known) and :func:`unregister_eval` at task end,
-plus :func:`record_sample_completed` / :func:`record_sample_errored`
-at each sample's terminal outcome.
+total sample count is known), plus :func:`record_sample_completed` /
+:func:`record_sample_errored` at each sample's terminal outcome. States
+are not unregistered per-eval — the registry is cleared in one shot at
+the outermost run boundary (``eval`` / ``eval_set``) via
+:func:`clear_all_eval_states`, which keeps completed evals visible in
+``inspect ctl ls`` through the run (and any keep-alive park).
 
 Lives under ``_control/`` because the control channel is currently
 the only consumer; if other surfaces (TUI, view server) ever need
@@ -141,8 +144,7 @@ def register_eval(
 
     Idempotent on ``eval_id`` — re-registering an existing eval (eg.
     on retry) returns the existing state without resetting its
-    counters. Callers that want a clean slate must
-    :func:`unregister_eval` first.
+    counters.
     """
     with _lock:
         existing = _eval_states.get(eval_id)
@@ -162,12 +164,6 @@ def register_eval(
         )
         _eval_states[eval_id] = state
         return state
-
-
-def unregister_eval(eval_id: str) -> None:
-    """Remove an eval from tracking (best-effort; unknown id is a no-op)."""
-    with _lock:
-        _eval_states.pop(eval_id, None)
 
 
 def register_completed_eval(
@@ -245,11 +241,14 @@ def _maybe_mark_finished(state: EvalState) -> None:
 
     Fires the first time ``completed + errored`` reaches ``total``;
     later updates are no-ops so a late counter update from a teardown
-    race doesn't overwrite the original finish time. Caller must hold
-    the registry lock.
+    race doesn't overwrite the original finish time. Also drops
+    ``sample_ids`` — a finished eval has no pending samples, so the
+    planned-id list is dead weight (it's retained on the state until the
+    run boundary clears it). Caller must hold the registry lock.
     """
     if state.completed_at is None and state.is_finished:
         state.completed_at = time.time()
+        state.sample_ids = []
 
 
 def get_eval_state(eval_id: str) -> EvalState | None:
@@ -267,9 +266,9 @@ def get_eval_states() -> list[EvalState]:
 def clear_all_eval_states() -> None:
     """Remove every tracked eval state.
 
-    Used by the keep-alive teardown to clear the registry on shutdown
-    (where per-task ``unregister_eval`` was skipped while keep-alive
-    was active).
+    Called at the outermost run boundary (``eval`` / ``eval_set``) — after
+    any keep-alive park — to clear the registry in one shot, since evals
+    are no longer unregistered individually.
     """
     with _lock:
         _eval_states.clear()

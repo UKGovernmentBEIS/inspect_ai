@@ -18,7 +18,6 @@ from inspect_ai._control.eval_state import (
     record_sample_completed,
     record_sample_errored,
     register_eval,
-    unregister_eval,
 )
 from inspect_ai._display import (
     TaskCancelled,
@@ -746,21 +745,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
 
                 # display it
                 td.complete(TaskError(logger.samples_completed, type, value, traceback))
-
-    # Unregister this eval from the process-level state aggregate.
-    # Runs after both the success and error paths in the try/except
-    # above; if debug_errors re-raises we leak a state entry (debug
-    # mode only — acceptable tradeoff).
-    #
-    # Under keep-alive (eval / eval-set launched with ``--keep-alive``),
-    # the EvalState must stay registered so the eval remains visible
-    # in ``inspect ctl ls`` while the process lingers awaiting
-    # shutdown. The keep-alive teardown clears all states explicitly
-    # before the process exits.
-    from inspect_ai._control.server import keep_alive_active
-
-    if not keep_alive_active():
-        unregister_eval(logger.eval.eval_id)
 
     # cleanup disk sample store if used
     if isinstance(sample_store, DiskSampleStore):

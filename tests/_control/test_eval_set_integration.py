@@ -814,12 +814,10 @@ def test_keep_alive_with_retry_immediate_false_is_rejected(
 def test_ctl_ls_aggregates_task_retries(short_data_dir: Path) -> None:
     """A flaky task retried by ``task_retry_attempts`` should appear once in ls.
 
-    Today the control endpoint emits one row per ``eval_id``, and
-    each retry attempt has a fresh ``eval_id`` (see
-    ``TaskLogger.reinit``). Under keep-alive (which skips
-    ``unregister_eval`` so completed evals stay visible) every retry
-    therefore leaves a stale row behind — a single flaky task with
-    two retries shows up as three rows in ``inspect ctl ls``.
+    Each retry attempt has a fresh ``eval_id`` (see
+    ``TaskLogger.reinit``) and EvalStates persist across the run, so
+    without folding a single flaky task with two attempts would show as
+    multiple rows in ``inspect ctl ls``.
 
     The desired behaviour: group by ``(run_id, task_id)`` so retries
     fold into one row reflecting the latest attempt's progress.
