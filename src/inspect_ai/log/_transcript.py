@@ -168,26 +168,52 @@ class _TranscriptEventsView(Sequence[Event]):
 
 
 class TranscriptHistory:
-    """Explicit bounded-memory access to a transcript's logical event history."""
+    """Bounded-memory access to a transcript's logical event history.
+
+    When a transcript is running in bounded mode, older events may be evicted
+    from memory and served lazily from a history provider (e.g. an on-disk
+    checkpoint store). This class provides explicit, memory-aware access to the
+    event history so that hot paths can avoid materializing the full history.
+
+    Access an instance via the `Transcript.history` property. For most use cases
+    the `Transcript.events` compatibility view is sufficient; prefer this class
+    when you need to reason about what is resident in memory or want to read only
+    a recent slice of events without materializing the entire history.
+    """
 
     def __init__(self, transcript: "Transcript") -> None:
         self._transcript = transcript
 
     @property
     def event_count(self) -> int:
+        """Total number of events in the logical history (resident or evicted)."""
         return self._transcript._event_count
 
     @property
     def resident_events(self) -> Sequence[Event]:
-        """Events currently retained in memory; not necessarily full history."""
+        """Events currently retained in memory.
+
+        In bounded mode this may be only the most recent tail of the logical
+        history rather than the full history.
+        """
         return self._transcript._events
 
     @property
     def resident_events_truncated(self) -> bool:
+        """Whether resident events are a truncated view of the full history.
+
+        `True` when older events have been evicted from memory, meaning
+        `resident_events` does not contain the complete event history.
+        """
         return self._transcript._events_truncated
 
     @property
     def full_history_available(self) -> bool:
+        """Whether the complete event history can be retrieved.
+
+        `True` when events have not been truncated, or when a history provider
+        is available to materialize evicted events.
+        """
         transcript = self._transcript
         return (
             not transcript._events_truncated or transcript._history_provider is not None
@@ -195,14 +221,38 @@ class TranscriptHistory:
 
     @property
     def provider(self) -> TranscriptHistoryProvider | None:
+        """History provider backing evicted events, if any.
+
+        `None` when the transcript keeps all events resident in memory.
+        """
         return self._transcript._history_provider
 
     @property
     def last_event(self) -> Event | None:
+        """Most recent event, or `None` if the transcript has no events."""
         events = self._transcript._events
         return events[-1] if events else None
 
     def recent_events(self, n: int | None = None) -> Sequence[Event]:
+        """Return the most recent events in the transcript.
+
+        Reads from resident memory when possible, falling back to the history
+        provider only when the requested events have been evicted. This avoids
+        materializing the full history when only a recent slice is needed.
+
+        Args:
+            n: Number of recent events to return. If `None`, returns the full
+                logical history (which may materialize evicted events from the
+                provider).
+
+        Returns:
+            The most recent `n` events (or all events when `n` is `None`), in
+            insertion order.
+
+        Raises:
+            RuntimeError: If `n` is `None`, events have been truncated, and no
+                history provider is available to materialize the full history.
+        """
         transcript = self._transcript
         if n is not None and n <= 0:
             return []
@@ -219,6 +269,23 @@ class TranscriptHistory:
         return transcript._history_provider.recent_events(n)
 
     def events_since_last(self, event_type: type[Event]) -> list[Event]:
+        """Return events from the last occurrence of a given event type onward.
+
+        Finds the most recent event of `event_type` and returns it along with
+        every event that followed it. If no event of that type exists, returns
+        the full event history.
+
+        Args:
+            event_type: Event type to search for (e.g. `ModelEvent`).
+
+        Returns:
+            Events from the last matching event (inclusive) to the end of the
+            transcript, or all events if no match is found.
+
+        Raises:
+            RuntimeError: If events have been truncated and no history provider
+                is available to materialize the full history.
+        """
         transcript = self._transcript
         if transcript._events_truncated:
             if transcript._history_provider is not None:

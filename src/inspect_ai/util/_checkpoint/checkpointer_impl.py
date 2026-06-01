@@ -543,8 +543,8 @@ class _EnteredCheckpointer:
     def _attachment_lookup(
         self, attachments: Mapping[str, str]
     ) -> Callable[[str], str | None]:
-        return lambda ref: self._transcript_store.attachment(ref) or attachments.get(
-            ref
+        return lambda ref: (
+            self._transcript_store.attachment(ref) or attachments.get(ref)
         )
 
     async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
