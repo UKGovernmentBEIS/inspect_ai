@@ -119,6 +119,35 @@ def test_get_events_synthesizes_missing_event_id(tmp_path):
     assert rows[0].event_id
 
 
+def test_sample_has_event_uses_logical_event_id_and_epoch(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    with db._get_connection(write=True) as conn:
+        conn.executemany(
+            """
+            INSERT INTO events (event_id, sample_id, sample_epoch, data)
+            VALUES (?, ?, ?, ?)
+            """,
+            [
+                ("event-1", "sample", 1, "not json"),
+                ("", "sample", 1, "blank event id"),
+                ("event-2", "sample", 2, "wrong epoch"),
+            ],
+        )
+        fallback_row = conn.execute(
+            """
+            SELECT id FROM events
+            WHERE sample_id = ? AND sample_epoch = ? AND event_id = ''
+            """,
+            ("sample", 1),
+        ).fetchone()
+
+    assert fallback_row is not None
+    assert db.sample_has_event("sample", 1, "event-1")
+    assert db.sample_has_event("sample", 1, str(fallback_row["id"]))
+    assert not db.sample_has_event("sample", 1, "missing")
+    assert not db.sample_has_event("sample", 1, "event-2")
+
+
 def test_sample_event_count_counts_logical_events_without_materializing_json(tmp_path):
     db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
     with db._get_connection(write=True) as conn:
