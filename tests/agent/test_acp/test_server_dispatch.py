@@ -23,6 +23,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
+from acp.exceptions import RequestError
 from test_helpers.utils import skip_if_trio
 
 from inspect_ai.agent._acp import picker
@@ -561,6 +562,39 @@ async def test_load_session_interactive_target_records_interactive(
         target_session_id="live-uuid",
         interactive=True,
     )
+
+
+async def test_prompt_rejected_on_observe_only_binding() -> None:
+    """``session/prompt`` on a non-interactive binding → invalid_request.
+
+    The snapshot ``Bound.interactive=False`` gates this before any live
+    lookup; the reason distinguishes it from the scoring-window case.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    handler.state.binding = Bound(
+        wire_session_id="wire", target_session_id="tgt", interactive=False
+    )
+    with pytest.raises(RequestError) as exc:
+        await handler.prompt(prompt=[{"type": "text", "text": "hi"}], session_id="wire")
+    assert exc.value.code == -32600  # invalid_request
+    assert exc.value.data is not None
+    assert "not interactive" in exc.value.data["reason"]
+
+
+async def test_cancel_dropped_on_observe_only_binding() -> None:
+    """``session/cancel`` on a non-interactive binding is silently dropped.
+
+    The snapshot gate returns before any ``_find_live_session`` lookup,
+    so no turn cancel is attempted. Notifications can't return errors.
+    """
+    handler = ConnectionHandler()
+    handler.connection = MagicMock()
+    handler.state.binding = Bound(
+        wire_session_id="wire", target_session_id="tgt", interactive=False
+    )
+    # Must not raise and must not touch the (absent) live session.
+    assert await handler.cancel(session_id="wire") is None
 
 
 async def test_post_bind_setup_noops_when_generation_advanced(

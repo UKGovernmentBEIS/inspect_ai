@@ -361,7 +361,24 @@ class ConnectionHandler:
                 # Picker selection — first prompt in control mode
                 # resolves to a target and rebinds the connection.
                 return await self._handle_picker_selection(prompt)
-            case Bound(target_session_id=target_id):
+            case Bound(target_session_id=target_id, interactive=interactive):
+                # Observe-only bind: this connection attached to a sample
+                # with no agent turn loop to drive (a custom solver, or
+                # any sample bound while non-interactive). Interactivity
+                # is fixed for the binding's lifetime (the "fixed for v1"
+                # decision) — turn-loop input is rejected here regardless
+                # of the target's current live state. The client can
+                # still observe the stream and issue lifecycle controls
+                # (``inspect/cancel_sample`` / ``inspect/cancel_tool_call``).
+                if not interactive:
+                    raise RequestError.invalid_request(
+                        {
+                            "reason": (
+                                "session is not interactive (no agent turn loop bound)"
+                            ),
+                            "target_session_id": target_id,
+                        }
+                    )
                 # Bound mode. Forward to the bound target session's
                 # submit_user_message. Translates ACP content blocks to
                 # a ChatMessageUser; only text blocks are honored fully
@@ -436,8 +453,18 @@ class ConnectionHandler:
         cross-session interference.
         """
         match self.state.binding:
-            case Bound(wire_session_id=wire, target_session_id=target_id):
+            case Bound(
+                wire_session_id=wire,
+                target_session_id=target_id,
+                interactive=interactive,
+            ):
                 if session_id != wire:
+                    return None
+                if not interactive:
+                    # Observe-only bind — session/cancel targets the turn
+                    # loop, which this connection can't drive. Fixed for
+                    # the binding's lifetime; silently drop (notifications
+                    # can't return errors).
                     return None
                 target = _find_live_session(target_id)
                 if target is None:
