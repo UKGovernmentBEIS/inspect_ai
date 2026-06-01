@@ -1,28 +1,45 @@
 ## Unreleased
 
-- Deep Agent: Model-facing dispatch tool renamed from `task` to `agent` to align with Claude Code.
+- Docker Compose: accept `memswap_limit` in ComposeService.
+
+## 0.3.232 (31 May 2026)
+
+- OpenAI: Support `tool_search` tool type from native scaffolds (e.g. Codex CLI).
+- Inspect View: Improvements to Codex CLI agent rendering.
+- Bugfix: Don't show Interrupt button in task display unless agent is interruptible.
+
+## 0.3.231 (30 May 2026)
+
+- OpenAI: Drop `tool_search` tool types from native scaffolds (e.g. Codex CLI).
+
+## 0.3.230 (30 May 2026)
+
 - Deep Agent: Support for running subagents in the background.
 - Deep Agent: `agent` dispatch tool now ships with a tool-call viewer.
+- Deep Agent: Dispatch tool renamed from `task` to `agent`.
+- Parallel tools: Strengthened agent prompts to encourage independent tool calls in parallel.
 - Bash tool: Add `background` option to prompt the model to use `nohup` for long-running commands.
 - OpenAI: Support OPENAI_SAFETY_IDENTIFIER environment variable.
+- OpenRouter: Always replay `reasoning_content` in addition to `reasoning_details` for Deepseek v4.
 - Scoring: Set `Score.answer` on model_graded parse failure.
 - Task Display: Add column to indicate the agent/solver for each task.
 - Transcript: Various improvements to transcript event subscriber delivery.
 - Transcript: Complete samples from buffer history database rather than in-memory list.
 - Scoring: Flush the output recorder after each `--stream N` batch of scored samples.
-- Inspect View: Add UI for editing log tags and metadata, with author/reason provenance recorded in `log_updates`. S3-backed logs use `If-Match` ETag protection against concurrent modification.
+- Inspect View: Add UI for editing log tags and metadata.
 - Bugfix: Show View Log button on top right of sample display.
-- Bugfix: Prevent transcript subscriber-failure warnings from re-entering the subscriber loop and fanning out.
 - Bugfix: Don't mutate plan when calling `resolve_plan()`.
 - Bugfix: Align CLI --display and --effort type annotations with their choices.
 - Bugfix: Don't enter prompt mode when a sample is globally cancelled.
-- Bugfix: `write_eval_log(..., header_only=True)` now preserves on-disk samples for JSON logs and remote `.eval` logs (previously a header-only write to either erased the samples). On non-local filesystems the `.eval` zip is rewritten cleanly so old header bytes don't accumulate across edits.
+- Bugfix: `write_eval_log(..., header_only=True)` now preserves on-disk samples for JSON logs and remote `.eval` logs.
+- Bugfix: Consistent derivation of `agent_name` for samples (always consult plan).
+- Bugfix: An agent's display name (`agent_with(name=...)`) no longer overrides its registry identity.
 
 ## 0.3.229 (28 May 2026)
 
 - Anthropic: Update model database / feature enablement for [Opus 4.8](https://www.anthropic.com/news/claude-opus-4-8).
 - Anthropic: Support [mid-conversation](https://platform.claude.com/docs/en/build-with-claude/mid-conversation-system-messages) system messages for Opus 4.8.
-- Anthrpoic: Support [cache diagnostics](https://inspect.aisi.org.uk/providers.html#anthropic-cache-diagnostics) mode (beta header `cache-diagnosis-2026-04-07`).
+- Anthropic: Support [cache diagnostics](https://inspect.aisi.org.uk/providers.html#anthropic-cache-diagnostics) mode (beta header `cache-diagnosis-2026-04-07`).
 - Agent Intervention: Add `is_live` property to agent channel for detecting whether channel is in use.
 
 ## 0.3.228 (27 May 2026)

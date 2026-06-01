@@ -1,12 +1,11 @@
 from copy import copy
 from typing import Any, overload
 
-from inspect_ai._util.registry import registry_unqualified_name
 from inspect_ai.model._chat_message import ChatMessage, ChatMessageUser
 from inspect_ai.util._limit import Limit, LimitExceededError, apply_limits
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
-from ._agent import Agent, AgentState
+from ._agent import Agent, AgentState, agent_display_name
 
 
 @overload
@@ -89,7 +88,7 @@ async def run(
     # run the agent with limits, catching errors which are a direct result of our limits
     with apply_limits(limits or [], catch_errors=True) as limit_scope:
         # run the agent
-        agent_name = name or registry_unqualified_name(agent)
+        agent_name = name or agent_display_name(agent)
         async with span(name=agent_name, type=AGENT_SPAN_TYPE, id=span_id):
             state = await agent(state, **agent_kwargs)
             if limits is None:
