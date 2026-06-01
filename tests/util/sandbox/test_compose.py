@@ -157,6 +157,19 @@ services:
     }
 
 
+def test_parse_compose_yaml_accepts_memswap_limit(tmp_path):
+    compose_file = tmp_path / "compose.yaml"
+    compose_file.write_text("""
+services:
+  default:
+    image: ubuntu
+    mem_limit: 12g
+    memswap_limit: 20g
+""")
+    config = parse_compose_yaml(str(compose_file))
+    assert config.services["default"].memswap_limit == "20g"
+
+
 def test_parse_compose_yaml_rejects_unknown_field(tmp_path):
     compose_file = tmp_path / "compose.yaml"
     compose_file.write_text("""

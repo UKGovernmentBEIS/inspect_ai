@@ -1386,7 +1386,7 @@ class Model:
         if self == active_model():
             base_config = base_config.merge(active_config)
 
-        # otherwise merge connection-oriented config so its inherited everywhere
+        # otherwise merge operational config so its inherited everywhere
         else:
             base_config = base_config.merge(
                 GenerateConfig(
@@ -1394,6 +1394,7 @@ class Model:
                     adaptive_connections=active_config.adaptive_connections,
                     max_retries=active_config.max_retries,
                     timeout=active_config.timeout,
+                    cache=active_config.cache,
                 )
             )
 
