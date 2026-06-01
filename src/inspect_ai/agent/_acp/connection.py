@@ -47,6 +47,7 @@ from shortuuid import uuid
 from inspect_ai.agent._acp.inspect_ext import (
     INSPECT_CANCEL_SAMPLE_METHOD,
     INSPECT_CANCEL_TOOL_CALL_METHOD,
+    INTERACTIVE_META_KEY,
     PICKER_META_KEY,
     build_picker_notification,
     detect_capabilities,
@@ -919,27 +920,42 @@ class ConnectionHandler:
         The notification's sessionId is the connection's
         ``wire_session_id`` (NOT necessarily the target's id) so the
         client sees updates on the session id they already know. Target
-        details live in the structured ``_meta`` payload.
+        details live in the structured ``_meta`` payload, including the
+        ``inspect.interactive`` flag so Inspect-aware clients render the
+        observe-only state (disabled composer) from the bind onward.
         """
         wire = self.state.wire_session_id
         assert wire is not None
+        # Interactivity is the bind-time snapshot on the Bound state.
+        # Default True for the (not expected here) non-Bound case so the
+        # historical drivable wording/behavior is the fallback.
+        interactive = (
+            self.state.binding.interactive
+            if isinstance(self.state.binding, Bound)
+            else True
+        )
         notif = build_picker_notification(wire, [target])
         # Override the visible text so it reads as a confirmation
         # rather than a "pick one" prompt. We built this notification
         # from build_picker_notification which always returns an
         # AgentMessageChunk with a TextContentBlock — assert for mypy.
+        # "Observing" vs "Bound to" tells text-only editor clients
+        # whether they can drive the session.
         assert isinstance(notif.update, AgentMessageChunk)
+        verb = "Bound to" if interactive else "Observing"
         notif.update.content = TextContentBlock(
             type="text",
             text=(
-                f"Bound to {target.task} / sample {target.sample_id} / "
+                f"{verb} {target.task} / sample {target.sample_id} / "
                 f"epoch {target.epoch} [{target.session_id}]."
             ),
         )
         # Keep the structured target list under the same _meta key for
-        # consistency with the picker flow.
+        # consistency with the picker flow; add the interactivity flag so
+        # Inspect-aware clients gate their composer on it.
         assert notif.field_meta is not None
         notif.field_meta[PICKER_META_KEY] = [picker_target_meta_dict(target)]
+        notif.field_meta[INTERACTIVE_META_KEY] = interactive
         await self._send_session_update(notif)
 
     async def _send_session_update(self, notification: Any) -> None:

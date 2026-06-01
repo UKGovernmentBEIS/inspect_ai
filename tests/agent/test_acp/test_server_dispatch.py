@@ -31,7 +31,7 @@ from inspect_ai.agent._acp.connection import (
     Bound,
     ConnectionHandler,
 )
-from inspect_ai.agent._acp.inspect_ext import PICKER_META_KEY
+from inspect_ai.agent._acp.inspect_ext import INTERACTIVE_META_KEY, PICKER_META_KEY
 from inspect_ai.agent._acp.picker import PickerTarget, SampleListing
 from inspect_ai.agent._acp.server import acp_server
 from inspect_ai.agent._acp.session_router import Forwarders
@@ -593,8 +593,9 @@ async def test_cancel_dropped_on_observe_only_binding() -> None:
     handler.state.binding = Bound(
         wire_session_id="wire", target_session_id="tgt", interactive=False
     )
-    # Must not raise and must not touch the (absent) live session.
-    assert await handler.cancel(session_id="wire") is None
+    # Must not raise and must not touch the (absent) live session. The
+    # snapshot gate returns before any lookup; reaching one would raise.
+    await handler.cancel(session_id="wire")
 
 
 async def test_post_bind_setup_noops_when_generation_advanced(
@@ -1522,6 +1523,8 @@ async def test_inspect_attach_direct_target_auto_binds(
             assert params["sessionId"] == "uuid-b"
             assert "Bound to" in params["update"]["content"]["text"]
             assert "t2" in params["update"]["content"]["text"]
+            # Interactive bind: the _meta flag is True.
+            assert params["_meta"][INTERACTIVE_META_KEY] is True
         finally:
             await client.close()
 
@@ -1561,9 +1564,13 @@ async def test_inspect_attach_binds_observe_only_target(
             )
             assert "result" in resp, resp
             assert resp["result"]["sessionId"] == "uuid-observe"
-            # Binding confirmation lands for the observe-only target.
+            # Binding confirmation lands for the observe-only target,
+            # advertising the non-interactive state via text + _meta.
             notif = await client.next_notification()
-            assert notif["params"]["sessionId"] == "uuid-observe"
+            params = notif["params"]
+            assert params["sessionId"] == "uuid-observe"
+            assert "Observing" in params["update"]["content"]["text"]
+            assert params["_meta"][INTERACTIVE_META_KEY] is False
         finally:
             await client.close()
 
