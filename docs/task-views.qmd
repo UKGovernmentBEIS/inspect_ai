@@ -1,17 +1,7 @@
 ---
 title: Custom Views
 llms-description: Use ViewerConfig to customize how a task's samples, scores, and scanner results render in the Inspect log viewer.
-format:
-  html:
-    include-in-header:
-      - text: "<style>
-          figcaption {
-            text-align: center;
-          }
-          .figure-img { 
-            margin-bottom: 0;
-          }
-          </style>"
+code-annotations: select
 ---
 
 ## Overview
@@ -22,23 +12,37 @@ For example, the following customizes the Task's view by passing a set of column
 
 ``` python
 from inspect_ai import Task, task
-from inspect_ai.viewer import ViewerConfig, TaskSamplesView, TaskSamplesColumn
+from inspect_ai.scorer import match
+from inspect_ai.viewer import (
+    TaskSamplesColumn,
+    TaskSamplesSort,
+    TaskSamplesView,
+    ViewerConfig,
+)
 
 @task
-def my_task():
+def popularity():
     return Task(
+        name="popularity",
         dataset=dataset,
-        solver=solver,
-        scorer=my_scorer(),
+        scorer=match(location="any"),
         viewer=ViewerConfig(
             task_samples_view=TaskSamplesView(
                 name="Default",
                 columns=[
+                    TaskSamplesColumn(id="sampleId"),
                     TaskSamplesColumn(id="input"),
-                    TaskSamplesColumn.score("my_scorer"),
-                    ...
+                    TaskSamplesColumn(id="target"),
+                    TaskSamplesColumn(id="answer"),
+                    TaskSamplesColumn.score("match"),
+                    TaskSamplesColumn(id="sampleStatus", visible=False),
+                    TaskSamplesColumn(id="tokens", visible=False),
+                    TaskSamplesColumn(id="duration", visible=False),
                 ],
-                sort=[TaskSamplesSort.score("my_scorer", dir="desc")],
+                sort=[
+                    TaskSamplesSort.score("match", dir="asc"),
+                    TaskSamplesSort(column="sampleId", dir="asc"),
+                ],
                 multiline=True,
             )
         ),
@@ -76,40 +80,45 @@ ViewerConfig(
     task_samples_view=TaskSamplesView(
         name="Triage",
         columns=[
-            TaskSamplesColumn(id="sampleId"),
-            TaskSamplesColumn(id="input"),
-            TaskSamplesColumn.score("my_scorer"),
-            TaskSamplesColumn(id="target", visible=False),
+            TaskSamplesColumn(id="sampleId"), # <1>
+            TaskSamplesColumn(id="input"), # <1>
+            TaskSamplesColumn.score("my_scorer"), # <1>
+            TaskSamplesColumn(id="target", visible=False), # <2>
         ],
-        sort=[TaskSamplesSort.score("my_scorer", dir="desc")],
-        multiline=True,
+        sort=[TaskSamplesSort.score("my_scorer", dir="desc")], # <3>
+        multiline=True, # <4>
     )
 )
 ```
+
+1. Controls the order of these columns.
+2. Hide these columns by default.
+3. Sort by `my_scorer`'s value, descending.
+4. Enable multiline display.
+
+
 ### Columns
 
-`columns` is an ordered list of `TaskSamplesColumn` entries which controls the order which the columns will be rendered. Use `visible=False` to hide a column by default Leaving `columns` as `None` uses the viewer's built-in column set for that log's shape.
+You can control the order and visibility of columns within the task's sample list by passing a list of `TaskSamplesColumn` to `columns`. The order of the columns in this list is the default order for the columns in the sample view. Use `visible=False` on a column to hide it by default. Leaving `columns` as `None` uses the viewer's built-in column set for that log's shape.
 
-Built-in column ids are:
+All samples have the following built-in columns available:
 
 `sampleStatus`, `sampleId`, `sampleUuid`, `epoch`, `input`, `target`, `answer`, `tokens`, `duration`, `retries`, `error`, `limit`.
 
 ### Score columns
 
-Score columns are addressed by scorer name with the `score()` helpers. Pass just the scorer name — that's all you need for a scorer that produces a single value:
+Score columns are addressed by scorer name with the `score()` helpers. For simple scorers, you can just pass the scorer name:
 
 ``` python
 TaskSamplesColumn.score("my_scorer")
 TaskSamplesSort.score("my_scorer", dir="desc")
 ```
 
-Pass a second argument only when a scorer emits a dictionary of named sub-scores, to target one of them:
+Pass the score you'd like to target when a scorer emits a dictionary of named sub-scores:
 
 ``` python
 TaskSamplesColumn.score("my_scorer", "calibration")
 ```
-
-The second argument is the sub-score key — **not** a metric like `accuracy` or `stderr`. Metrics are aggregated across all samples and don't appear as per-sample columns.
 
 ### Sort
 
@@ -133,6 +142,8 @@ TaskSamplesView(
 
 Numeric score cells can be shaded with a background heat scale. `score_color_scales` is keyed by score name, and each entry is either a named palette, a `ScoreColorScale` (a palette with an explicit value range), or — for categorical scores — a map from value to a semantic role.
 
+![](images/inspect-view-petri-custom-view.png)
+
 ``` python
 from inspect_ai.viewer import TaskSamplesView, ScoreColorScale
 
@@ -151,19 +162,37 @@ TaskSamplesView(
 )
 ```
 
-Palettes are `good-high`, `good-low`, `neutral`, and `diverging`; categorical roles are `good`, `bad`, `warn`, `info`, and `muted`. Pass/fail and boolean scores ignore this config — their pre-coloured pills already encode the result. `color_scales_enabled` seeds the toolbar heatmap toggle's initial state.
+**Numeric palettes** map a value's position in the range to a colour along a gradient (low → high):
 
-::: {.callout-note appearance="simple"}
-**Screenshot:** the sample list with the colour-scale heatmap enabled across several score columns. *(Suggested: `images/task-views-color-scales.png`)*
-:::
+| Palette | Low → High | Use when |
+|---|---|---|
+| `good-high` | <span style="display:inline-block;width:130px;height:1.1em;border:1px solid #ccc;vertical-align:middle;background:linear-gradient(to right,#f8d7da,#fff3cd,#d1e7dd)"></span> | higher is better (e.g. accuracy) |
+| `good-low` | <span style="display:inline-block;width:130px;height:1.1em;border:1px solid #ccc;vertical-align:middle;background:linear-gradient(to right,#d1e7dd,#fff3cd,#f8d7da)"></span> | lower is better (e.g. error rate) |
+| `neutral` | <span style="display:inline-block;width:130px;height:1.1em;border:1px solid #ccc;vertical-align:middle;background:linear-gradient(to right,#ffffff,#cff4fc)"></span> | magnitude only, no good/bad signal |
+| `diverging` | <span style="display:inline-block;width:130px;height:1.1em;border:1px solid #ccc;vertical-align:middle;background:linear-gradient(to right,#f8d7da,#ffffff,#d1e7dd)"></span> | signed values centred on the midpoint |
+
+**Categorical roles** assign a fixed colour to each mapped value:
+
+| Role | Colour | Conveys |
+|---|---|---|
+| `good` | <span style="display:inline-block;width:1.1em;height:1.1em;border:1px solid #ccc;vertical-align:middle;background:#d1e7dd"></span> green | a positive / desired outcome |
+| `bad` | <span style="display:inline-block;width:1.1em;height:1.1em;border:1px solid #ccc;vertical-align:middle;background:#f8d7da"></span> red | a negative / undesired outcome |
+| `warn` | <span style="display:inline-block;width:1.1em;height:1.1em;border:1px solid #ccc;vertical-align:middle;background:#fff3cd"></span> amber | a borderline / needs-attention outcome |
+| `info` | <span style="display:inline-block;width:1.1em;height:1.1em;border:1px solid #ccc;vertical-align:middle;background:#cff4fc"></span> blue | a neutral, informational value |
+| `muted` | <span style="display:inline-block;width:1.1em;height:1.1em;border:1px solid #ccc;vertical-align:middle;background:#e2e3e5"></span> grey | a low-salience value |
+
+The swatches above approximate light mode; the actual cell colours are theme variables that adapt to light / dark. Pass/fail and boolean scores ignore this config — their pre-coloured pills already encode the result. `color_scales_enabled` seeds the toolbar heatmap toggle's initial state.
 
 ### Row layout
 
 `multiline` controls row density: `True` (the default) gives list-style multi-line rows; `False` gives compact single-line rows. `compact_scores` narrows score columns and rotates their headers 45° to fit many scores side by side.
 
+
 ## The Score Panel
 
 `sample_score_view` configures the score panel shown in an individual sample's detail view (distinct from the score *columns* in the sample list above). It applies when a sample has three or more scores.
+
+!['Chips' score panel](images/inspect-view-chips-score.png){width=400}
 
 ``` python
 from inspect_ai.viewer import ViewerConfig, SampleScoreView, SampleScoreViewSort
@@ -178,9 +207,6 @@ ViewerConfig(
 
 - `default` chooses the initial rendering mode: `chips` (wrapping pills) or `grid` (a sortable table). When unset, the viewer picks based on the number of scores.
 - `sort` sets the initial sort by `name` (scorer name) or `value`, with a direction of `asc` or `desc`.
-
-!['Chips' score panel](images/inspect-view-chips-score.png){width=400}
-
 
 ## Scanner Results
 
