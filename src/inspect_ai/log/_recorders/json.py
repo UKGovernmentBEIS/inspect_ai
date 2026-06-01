@@ -25,6 +25,7 @@ from .._log import (
     EvalResults,
     EvalSample,
     EvalSampleReductions,
+    EvalSampleSummary,
     EvalSpec,
     EvalStats,
     EvalStatus,
@@ -108,6 +109,13 @@ class JSONRecorder(FileRecorder):
         if log.data.samples is None:
             log.data.samples = []
         log.data.samples.append(sample)
+
+    @override
+    async def sample_summaries(self, eval: EvalSpec) -> list[EvalSampleSummary] | None:
+        log = self.data.get(self._log_file_key(eval))
+        if log is None:
+            return None
+        return [sample.summary() for sample in (log.data.samples or [])]
 
     @override
     async def log_finish(

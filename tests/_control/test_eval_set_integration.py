@@ -1369,15 +1369,19 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
 
 
 @pytest.mark.slow
-def test_ctl_samples_includes_completed_samples(short_data_dir: Path) -> None:
+@pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_ctl_samples_includes_completed_samples(
+    short_data_dir: Path, log_format: str
+) -> None:
     """`inspect ctl samples` lists completed-so-far samples, not just running.
 
     Pins the "all samples" contract: completed samples come from the
-    eval's live sample buffer while running ones come from
+    recorder's in-memory record (gap-free) while running ones come from
     ``active_samples``, merged into one listing. A solver completes the
     even-id samples immediately and hangs the odd-id ones; once two have
     completed and two are still running, the endpoint must report all
-    four with the right statuses.
+    four with the right statuses. Parametrized over the log format so the
+    per-recorder ``sample_summaries`` accessor is covered for both.
     """
     release = threading.Event()
 
@@ -1413,6 +1417,7 @@ def test_ctl_samples_includes_completed_samples(short_data_dir: Path) -> None:
                 model="mockllm/model",
                 retry_attempts=0,
                 max_samples=4,
+                log_format=log_format,  # type: ignore[arg-type]
             )
             result_ref["ok"] = ok
         except BaseException as exc:  # noqa: BLE001
