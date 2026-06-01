@@ -289,6 +289,9 @@ class ComposeService(ComposeModel):
     mem_reservation: str | None = Field(default=None)
     """Memory reservation (shortcut for deploy.resources.reservations.memory)."""
 
+    memswap_limit: str | int | None = Field(default=None)
+    """Total memory + swap limit (e.g. ``20g``, ``256m``, or bytes as int)."""
+
     cpus: float | None = Field(default=None)
     """CPU limit (shortcut for deploy.resources.limits.cpus)."""
 
