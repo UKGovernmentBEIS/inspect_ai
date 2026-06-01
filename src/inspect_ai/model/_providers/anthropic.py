@@ -141,7 +141,6 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
-from inspect_ai.model._providers.util.util import split_system_messages
 from inspect_ai.model._retry import model_retry_config
 from inspect_ai.tool import ToolCall, ToolChoice, ToolFunction, ToolInfo
 from inspect_ai.tool._mcp._config import MCPServerConfigHTTP
@@ -1261,13 +1260,14 @@ class AnthropicAPI(ModelAPI):
         # extract system messages — for Claude 4.8+ (Claude API / Claude
         # Platform on AWS), inline system messages are sent as `role="system"`
         # turns; only the leading contiguous block becomes the top-level
-        # `system` param. Otherwise, all system messages are hoisted.
+        # `system` param. For other models, only the leading block is hoisted
+        # and mid-conversation system messages become `<system-reminder>` user
+        # turns (preserving the prompt cache).
         messages: list[ChatMessage]
         if self.supports_mid_conversation_system():
             system_messages, messages = _split_for_mid_conversation_system(input)
         else:
-            system_messages, plain_messages = split_system_messages(input)
-            messages = list(plain_messages)
+            system_messages, messages = _split_system_as_reminders(input)
 
         # messages
         message_params = [(await message_param(message)) for message in messages]
@@ -1926,6 +1926,39 @@ def _convert_orphaned_tool_results(
             result.append(msg)
 
     return result
+
+
+def _split_system_as_reminders(
+    input: list[ChatMessage],
+) -> tuple[list[ChatMessageSystem], list[ChatMessage]]:
+    """Split system messages for models without mid-conversation support.
+
+    Pulls the leading contiguous block of system messages into the top-level
+    `system` field (preserving the cacheable prefix). Any remaining
+    mid-conversation system messages are converted to user turns wrapped in
+    `<system-reminder>` tags rather than hoisted to the top-level field, which
+    would bust the prompt cache on every new injection. The tag matches the
+    convention Claude Code uses for pre-4.8 models, so models post-trained on
+    those transcripts recognize it as an instruction signal.
+    """
+    top: list[ChatMessageSystem] = []
+    i = 0
+    while i < len(input) and isinstance(input[i], ChatMessageSystem):
+        top.append(cast(ChatMessageSystem, input[i]))
+        i += 1
+
+    rest: list[ChatMessage] = []
+    for m in input[i:]:
+        if isinstance(m, ChatMessageSystem):
+            rest.append(
+                ChatMessageUser(
+                    content=f"<system-reminder>\n{m.text}\n</system-reminder>"
+                )
+            )
+        else:
+            rest.append(m)
+
+    return top, rest
 
 
 def _split_for_mid_conversation_system(

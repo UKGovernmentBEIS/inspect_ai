@@ -1,6 +1,7 @@
 ## Unreleased
 
-- Agent Bridge: Accept inline `role: "system"` messages from bridged Anthropic-API clients.
+- Anthropic: Render mid-conversation system messages as `<system-reminder>` user turns for pre-4.8 models.
+- Anthropic: Accept inline `role: "system"` messages from bridged Anthropic-API clients.
 - Model API: Propagate task-level `GenerateConfig.cache` to all models.
 - Docker Compose: accept `memswap_limit` in ComposeService.
 

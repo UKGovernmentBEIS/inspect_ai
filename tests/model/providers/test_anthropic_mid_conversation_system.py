@@ -156,17 +156,65 @@ async def test_mid_conv_system_after_server_tool_use_valid() -> None:
 
 
 @pytest.mark.anyio
-async def test_mid_conv_system_unsupported_on_4_7() -> None:
+async def test_mid_conv_system_unsupported_becomes_reminder_4_7() -> None:
+    # On 4.7 (no mid-conv support) only the leading block is hoisted; a
+    # mid-conversation system becomes a <system-reminder> user turn rather
+    # than being hoisted (which would bust the prompt cache).
     api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
     input: list[ChatMessage] = [
         ChatMessageSystem(content="lead"),
         ChatMessageUser(content="hi"),
+        ChatMessageAssistant(content="hello"),
+        ChatMessageSystem(content="from now on, French"),
+    ]
+    system_param, msgs = await _resolve_system(api, input)
+    assert system_param is not None
+    assert [b["text"] for b in system_param] == ["lead"]
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
+    assert msgs[-1]["content"] == (
+        "<system-reminder>\nfrom now on, French\n</system-reminder>"
+    )
+
+
+@pytest.mark.anyio
+async def test_mid_conv_reminder_merges_with_adjacent_user_4_7() -> None:
+    # A reminder converted from a mid-conv system merges into the preceding
+    # user turn via the consecutive-user reducer.
+    api = AnthropicAPI(model_name="claude-opus-4-7", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content="lead"),
+        ChatMessageUser(content="hi"),
+        ChatMessageSystem(content="be brief"),
+    ]
+    system_param, msgs = await _resolve_system(api, input)
+    assert system_param is not None
+    assert [b["text"] for b in system_param] == ["lead"]
+    assert [m["role"] for m in msgs] == ["user"]
+    assert msgs[0]["content"] == "hi\n<system-reminder>\nbe brief\n</system-reminder>"
+
+
+@pytest.mark.anyio
+async def test_mid_conv_reminder_used_for_bedrock_4_8() -> None:
+    # Bedrock has no mid-conv support even on 4.8, so it uses the reminder
+    # fallback rather than native role="system" turns.
+    import os
+
+    os.environ.setdefault("AWS_REGION", "us-east-1")
+    os.environ.setdefault("AWS_ACCESS_KEY_ID", "fake")
+    os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "fake")
+
+    api = AnthropicAPI(model_name="bedrock/claude-opus-4-8", api_key="test-key")
+    input: list[ChatMessage] = [
+        ChatMessageSystem(content="lead"),
+        ChatMessageUser(content="hi"),
+        ChatMessageAssistant(content="hello"),
         ChatMessageSystem(content="mid"),
     ]
     system_param, msgs = await _resolve_system(api, input)
     assert system_param is not None
-    assert [b["text"] for b in system_param] == ["lead", "mid"]
-    assert [m["role"] for m in msgs] == ["user"]
+    assert [b["text"] for b in system_param] == ["lead"]
+    assert [m["role"] for m in msgs] == ["user", "assistant", "user"]
+    assert msgs[-1]["content"] == "<system-reminder>\nmid\n</system-reminder>"
 
 
 def test_supports_mid_conv_off_for_bedrock_and_vertex_4_8() -> None:
