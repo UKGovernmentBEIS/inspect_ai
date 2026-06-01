@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from inspect_ai._util.config import resolve_args
 
 from ._triggers import CheckpointTrigger, Manual, TimeInterval, TurnInterval
-from .config import CheckpointConfig, Retention
+from .config import CheckpointConfig
 
 _DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhd]?)\s*$", re.IGNORECASE)
 _DURATION_UNITS_S: dict[str, float] = {
@@ -110,7 +110,7 @@ class _CheckpointConfigModel(BaseModel):
     checkpoints_location: str | None = None
     sandbox_paths: dict[str, list[str]] = Field(default_factory=dict)
     max_consecutive_failures: int | None = None
-    retention: Retention = Field(default_factory=Retention)
+    retention: Literal["delete", "retain"] = "delete"
 
     def to_dataclass(self) -> CheckpointConfig:
         return CheckpointConfig(

@@ -69,6 +69,7 @@ from inspect_ai.tool._tool_params import ToolParams
 from inspect_ai.util import OutputLimitExceededError
 from inspect_ai.util._anyio import inner_exception
 from inspect_ai.util._limit import LimitExceededError, apply_limits
+from inspect_ai.util._sandbox.events import SandboxTimeoutError
 from inspect_ai.util._span import AGENT_SPAN_TYPE, span
 
 from ._chat_message import (
@@ -189,10 +190,12 @@ async def _execute_tools_impl(
                     inner_ex = inner_exception(ex)
                     raise inner_ex.with_traceback(inner_ex.__traceback__)
 
-            except TimeoutError:
+            except TimeoutError as ex:
                 tool_error = ToolCallError(
                     "timeout", "Command timed out before completing."
                 )
+                if isinstance(ex, SandboxTimeoutError) and ex.truncated_output:
+                    result = ex.truncated_output
             except UnicodeDecodeError as ex:
                 tool_error = ToolCallError(
                     "unicode_decode",
