@@ -6,6 +6,7 @@ import anyio
 from openai import (
     APIStatusError,
     AsyncAzureOpenAI,
+    AsyncBedrockOpenAI,
     AsyncOpenAI,
     NotFoundError,
     NotGiven,
@@ -54,6 +55,9 @@ from .util import (
     require_azure_base_url,
     resolve_api_key,
     resolve_azure_token_provider,
+    resolve_bedrock_base_url,
+    resolve_bedrock_region,
+    resolve_bedrock_token_provider,
 )
 
 logger = getLogger(__name__)
@@ -63,11 +67,23 @@ OPENAI_SAFETY_IDENTIFIER = "OPENAI_SAFETY_IDENTIFIER"
 AZURE_OPENAI_API_KEY = "AZURE_OPENAI_API_KEY"
 AZUREAI_OPENAI_API_KEY = "AZUREAI_OPENAI_API_KEY"
 
+# Bedrock environment variables
+BEDROCK_OPENAI_API_KEY = "BEDROCK_OPENAI_API_KEY"
+AWS_BEARER_TOKEN_BEDROCK = "AWS_BEARER_TOKEN_BEDROCK"
+
 # Azure base URL environment variables
 AZURE_OPENAI_BASE_URL_VARS = [
     "AZUREAI_OPENAI_BASE_URL",
     "AZURE_OPENAI_BASE_URL",
     "AZURE_OPENAI_ENDPOINT",
+]
+
+# Bedrock base URL environment variables (BEDROCK_OPENAI_BASE_URL is the
+# Inspect-convention name; AWS_BEDROCK_BASE_URL is the AWS-standard name, also
+# read natively by the OpenAI SDK)
+BEDROCK_OPENAI_BASE_URL_VARS = [
+    "BEDROCK_OPENAI_BASE_URL",
+    "AWS_BEDROCK_BASE_URL",
 ]
 
 
@@ -92,7 +108,7 @@ class OpenAIAPI(ModelAPI):
         # that subclass from us like together expect to have the qualifier
         # in the model name e.g. google/gemma-2b-it)
         parts = model_name.split("/")
-        if parts[0] == "azure" and len(parts) > 1:
+        if parts[0] in ("azure", "bedrock") and len(parts) > 1:
             self.service: str | None = parts[0]
         else:
             self.service = None
@@ -134,7 +150,13 @@ class OpenAIAPI(ModelAPI):
             model_name=model_name,
             base_url=base_url,
             api_key=api_key,
-            api_key_vars=[OPENAI_API_KEY, AZURE_OPENAI_API_KEY, AZUREAI_OPENAI_API_KEY],
+            api_key_vars=[
+                OPENAI_API_KEY,
+                AZURE_OPENAI_API_KEY,
+                AZUREAI_OPENAI_API_KEY,
+                BEDROCK_OPENAI_API_KEY,
+                AWS_BEARER_TOKEN_BEDROCK,
+            ],
             config=config,
         )
 
@@ -175,7 +197,13 @@ class OpenAIAPI(ModelAPI):
             900.0 if self.service_tier == "flex" else None
         )
 
-        # resolve api_key or managed identity (for Azure)
+        # resolve the AWS region for Bedrock (also pop the aws_region model arg
+        # so it isn't double-passed to AsyncBedrockOpenAI via **model_args)
+        self.aws_region: str | None = None
+        if self.is_bedrock():
+            self.aws_region = resolve_bedrock_region(model_args.pop("aws_region", None))
+
+        # resolve api_key, managed identity (Azure), or AWS credentials (Bedrock)
         self.token_provider = None
         if not self.api_key:
             if self.is_azure():
@@ -185,6 +213,15 @@ class OpenAIAPI(ModelAPI):
                 if not self.api_key:
                     # try managed identity (Microsoft Entra ID)
                     self.token_provider = resolve_azure_token_provider("OpenAI")
+            elif self.is_bedrock():
+                self.api_key = resolve_api_key(
+                    [BEDROCK_OPENAI_API_KEY, AWS_BEARER_TOKEN_BEDROCK]
+                )
+                if not self.api_key:
+                    # generate short-lived bearer tokens from AWS credentials
+                    self.token_provider = resolve_bedrock_token_provider(
+                        self.aws_region
+                    )
             else:
                 self.api_key = os.environ.get(OPENAI_API_KEY, None)
 
@@ -221,7 +258,7 @@ class OpenAIAPI(ModelAPI):
         self.model_args = model_args
         self.initialize()
 
-    def _create_client(self) -> AsyncAzureOpenAI | AsyncOpenAI:
+    def _create_client(self) -> AsyncAzureOpenAI | AsyncBedrockOpenAI | AsyncOpenAI:
         # azure client
         if self.is_azure():
             # resolve base_url (required for Azure)
@@ -235,6 +272,26 @@ class OpenAIAPI(ModelAPI):
                 azure_ad_token_provider=self.token_provider,
                 api_version=self.api_version,
                 azure_endpoint=base_url,
+                http_client=self.http_client,
+                timeout=self.client_timeout
+                if self.client_timeout is not None
+                else NOT_GIVEN,
+                **self.model_args,
+            )
+        elif self.is_bedrock():
+            # exactly one of api_key / bedrock_token_provider is set; pass
+            # api_key as None (not "") when using the token provider so we
+            # don't trip the SDK's mutually-exclusive credentials check
+            return AsyncBedrockOpenAI(
+                api_key=self.api_key or None,
+                bedrock_token_provider=self.token_provider,
+                aws_region=self.aws_region,
+                base_url=resolve_bedrock_base_url(
+                    self.base_url,
+                    BEDROCK_OPENAI_BASE_URL_VARS,
+                    self.aws_region or "",
+                    self.bedrock_mantle_path(),
+                ),
                 http_client=self.http_client,
                 timeout=self.client_timeout
                 if self.client_timeout is not None
@@ -332,7 +389,7 @@ class OpenAIAPI(ModelAPI):
 
         # Call the input_tokens endpoint with reasoning settings
         response = await self.client.responses.input_tokens.count(
-            model=self.service_model_name(),
+            model=self.api_model_name(),
             input=padded_items,
             reasoning=self._get_reasoning_params_for_config(config),
         )
@@ -341,6 +398,17 @@ class OpenAIAPI(ModelAPI):
 
     def is_azure(self) -> bool:
         return self.service == "azure"
+
+    def is_bedrock(self) -> bool:
+        return self.service == "bedrock"
+
+    def bedrock_mantle_path(self) -> str:
+        """Mantle API path for this model.
+
+        Frontier OpenAI models (gpt-5.x, codex) are served on the `/openai/v1`
+        path; open-weight models (e.g. gpt-oss) and others use `/v1`.
+        """
+        return "openai/v1" if (self.is_gpt_5() or self.is_codex()) else "v1"
 
     def has_reasoning_options(self) -> bool:
         return (
@@ -395,7 +463,8 @@ class OpenAIAPI(ModelAPI):
 
     @override
     def supports_remote_mcp(self) -> bool:
-        return True
+        # the OpenAI-on-Bedrock endpoint does not support remote MCP servers
+        return not self.is_bedrock()
 
     @override
     def tool_result_images(self) -> bool:
@@ -435,7 +504,7 @@ class OpenAIAPI(ModelAPI):
             generate_responses(
                 client=self.client,
                 http_hooks=self._http_hooks,
-                model_name=self.service_model_name(),
+                model_name=self.api_model_name(),
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
@@ -454,7 +523,7 @@ class OpenAIAPI(ModelAPI):
             else generate_completions(
                 client=self.client,
                 http_hooks=self._http_hooks,
-                model_name=self.service_model_name(),
+                model_name=self.api_model_name(),
                 input=input,
                 tools=tools,
                 tool_choice=tool_choice,
@@ -470,6 +539,18 @@ class OpenAIAPI(ModelAPI):
     def service_model_name(self) -> str:
         """Model name without any service prefix."""
         return self.model_name.replace(f"{self.service}/", "", 1)
+
+    def api_model_name(self) -> str:
+        """Model id to send to the API.
+
+        Bedrock requires an `openai.` prefix on the model id (e.g.
+        `openai.gpt-5.5`); we add it here so model-family detection and the
+        model-info canonical name can keep operating on the plain name.
+        """
+        name = self.service_model_name()
+        if self.is_bedrock() and not name.startswith("openai."):
+            return f"openai.{name}"
+        return name
 
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
@@ -524,7 +605,7 @@ class OpenAIAPI(ModelAPI):
                 if self.responses_api and self.has_reasoning_options():
                     try:
                         await self.client.responses.create(
-                            model=self.service_model_name(),
+                            model=self.api_model_name(),
                             input="Please say 'hello, world'",
                             reasoning={"effort": "low", "summary": "auto"},
                         )
@@ -603,7 +684,7 @@ class OpenAIAPI(ModelAPI):
         # Call compact endpoint (note: compact() doesn't accept reasoning params)
         try:
             response = await self.client.responses.compact(
-                model=self.service_model_name(),
+                model=self.api_model_name(),
                 input=input_params,
                 instructions=instructions if instructions is not None else omit,
             )

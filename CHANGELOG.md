@@ -1,6 +1,7 @@
 ## 0.3.234 (02 June 2026)
 
 - OpenAI: Map Inspect `todo_write` tool to native OpenAI/Codex `update_plan` tool.
+- OpenAI: Support [OpenAI models on AWS Bedrock](https://inspect.aisi.org.uk/providers.html#openai-on-aws-bedrock) via the `openai/bedrock/<model>` qualifier.
 
 ## 0.3.233 (01 June 2026)
 
