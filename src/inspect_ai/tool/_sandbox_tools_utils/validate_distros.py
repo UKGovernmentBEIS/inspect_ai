@@ -33,8 +33,8 @@ GLIBC_DISTROS = [
     "kalilinux/kali-rolling:latest",
 ]
 MUSL_DISTROS = [
-    "alpine:3.18",  # the build floor — oldest musl we target
-    "alpine:3.19",
+    "alpine:3.16",  # the build floor — oldest musl we target (musl 1.2.3)
+    "alpine:3.18",
     "alpine:latest",
 ]
 

@@ -28,9 +28,10 @@ Two variants are built per arch so both major libcs are covered:
 
 - **glibc** (default): built on `python:3.10-slim-bullseye` (**glibc 2.31, ~2020**);
   runs on glibc Linux from ~2020 onward. Bundled into the wheel.
-- **musl**: built on `python:3.10-alpine3.18` (**musl 1.2.4, ~2023**); runs on
-  Alpine/musl from 3.18 onward (musl is backward-compatible, so it also runs on
-  newer Alpine — e.g. the rolling `python:3-alpine` used by gdm_in_house_ctf).
+- **musl**: built on `python:3.10-alpine3.16` (**musl 1.2.3, ~2022**); runs on
+  Alpine/musl from 3.16 onward (musl is backward-compatible, so it also runs on
+  newer Alpine — e.g. the rolling `python:3-alpine` used by gdm_in_house_ctf). The
+  floor is set by the build base; pin an older `python:3.10-alpineN` to lower it.
   Uploaded to S3 only; fetched at runtime when a musl sandbox is detected.
 
 Injection detects the sandbox libc (`recon._detect_libc`) and selects the matching
