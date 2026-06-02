@@ -601,17 +601,35 @@ class AcpTransport(Protocol):
         ...
 
     @property
-    def is_attachable(self) -> bool:
+    def is_interactive(self) -> bool:
         """True iff this transport has a bound channel and isn't shutting down.
 
-        ACP clients (the picker, ``inspect/list_sessions``, the
-        connection-handler's session lookup) should only see transports
-        that can actually receive prompts and surface their effects.
+        The *interactivity* axis: can a client drive the agent turn loop
+        (send ``session/prompt``, ``session/cancel``)? Requires a bound
+        :class:`~inspect_ai.agent._channel.AgentChannel` (set via
+        :meth:`maybe_bind`) and a still-live agent loop.
 
         Pre-binding window (sample started, agent loop not yet inside
         ``agent_channel()``) and post-agent window (loop exited,
-        scoring underway) both return False so ghost sessions don't
-        appear in the picker.
+        scoring underway) both return False — the turn loop can't be
+        driven. Distinct from :attr:`is_attachable`: a sample running a
+        custom solver that never binds a channel is *attachable*
+        (observable) but not *interactive*.
+        """
+        ...
+
+    @property
+    def is_attachable(self) -> bool:
+        """True iff a client may attach to this transport at all.
+
+        The broad gate: True from ``__aenter__`` until :meth:`finalize`,
+        regardless of channel binding — so observe-only clients can
+        attach to any running sample (custom solvers, pre-bind window,
+        scoring window) and receive its event stream. Drivable
+        (interactive) attach additionally requires :attr:`is_interactive`.
+
+        Returns False for the no-op session and after the transport has
+        finalized (router detached, sample done).
         """
         ...
 

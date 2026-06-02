@@ -4,6 +4,7 @@
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
 - Sandbox: Allow `sandbox_service()` instances running as different users in the same sandbox
   to share `/var/tmp/sandbox-services`.
+- Agent Intervention: Support connecting to all samples (disabling interruption and user messages if the agent doesn't explicitly support ACP).
 - Docker Compose: accept `platform`, `extra_hosts`, `cap_add`, `cap_drop`, `security_opt`, and `tmpfs` in ComposeService.
 - Docker Sandbox: `SandboxTimeoutError` now carries `truncated_output` with the partial command output captured before a timeout (surfaced to tool callers), instead of discarding it.
 - Transcript: Bound resident memory for long-running samples by evicting older events to a history provider (opt-in via the `INSPECT_TRANSCRIPT_BOUNDED` environment variable). `transcript().events` remains a full, compatible view; use `transcript().history` for memory-aware access.

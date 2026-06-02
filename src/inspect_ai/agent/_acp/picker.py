@@ -97,10 +97,10 @@ class PickerTarget:
 
 
 def list_picker_targets() -> list[PickerTarget]:
-    """Snapshot active samples whose transport is currently attachable.
+    """Snapshot active samples whose transport is currently interactive.
 
     Filters :func:`inspect_ai.log._samples.active_samples` to those
-    whose ``acp_transport`` reports :attr:`AcpTransport.is_attachable`
+    whose ``acp_transport`` reports :attr:`AcpTransport.is_interactive`
     — i.e. a channel is bound and the agent loop is still live. Skips
     the pre-binding window (sample started, agent_channel not yet
     opened), the post-agent scoring window, and non-channel agents
@@ -110,7 +110,7 @@ def list_picker_targets() -> list[PickerTarget]:
     targets: list[PickerTarget] = []
     for sample in active_samples():
         session = sample.acp_transport
-        if session is None or not session.is_attachable:
+        if session is None or not session.is_interactive:
             continue
         targets.append(
             PickerTarget(
@@ -137,17 +137,18 @@ class SampleListing:
     """One entry in the ``inspect/list_samples`` enumeration.
 
     Same field set as :class:`PickerTarget` but ``session_id`` is
-    optional — ``None`` when the sample's agent has not claimed ACP
-    (no call to ``before_turn`` yet, or no ACP-aware scaffold at all).
-    The Inspect TUI consumes this enumeration to surface non-ACP
-    samples in the picker so operators can see "the eval is running
-    but I can't drive it from here" instead of an empty list.
+    optional — ``None`` only when there is nothing to attach to (the
+    sample has no transport, only the noop placeholder, or has
+    finalized). Any running sample — including custom solvers that
+    never bind an agent channel — carries a live ``session_id`` so a
+    client can attach to observe it; ``interactive`` then says whether
+    it can also be driven.
     """
 
     session_id: str | None
-    """Live ``LiveAcpTransport.session_id`` (uuid) for ACP-claimed
-    samples; ``None`` when the sample has no ACP session or only the
-    pre-claim noop placeholder."""
+    """Live ``LiveAcpTransport.session_id`` (uuid) for any attachable
+    sample; ``None`` when the sample has no ACP session, only the noop
+    placeholder, or has finalized."""
 
     task: str
     sample_id: str
@@ -157,6 +158,12 @@ class SampleListing:
     total_messages: int = 0
     total_tokens: int = 0
     fails_on_error: bool = False
+    interactive: bool = False
+    """True when the sample has a bound agent turn loop (drivable via
+    ``session/prompt`` / ``session/cancel``). False for observe-only
+    samples — custom solvers, the pre-bind window, and the scoring
+    window — which can still be observed and lifecycle-controlled."""
+
     pending: Literal["approval", "question"] | None = None
     """Set when the sample is parked on a human-in-the-loop request
     routed through ACP — ``"approval"`` for tool-call permission,
@@ -166,20 +173,19 @@ class SampleListing:
 
 
 def list_all_samples() -> list[SampleListing]:
-    """Snapshot ALL active samples — ACP-claimed and not.
+    """Snapshot ALL active samples — attachable and not.
 
     Walks :func:`inspect_ai.log._samples.active_samples` unfiltered.
-    ACP-claimed entries (agent has called ``before_turn`` at least
-    once) carry the live ``session_id``; non-claimed entries — those
-    with no ``acp_session`` or only the noop sentinel — surface as
-    ``session_id=None`` so the TUI can render them as non-attachable.
+    Any **attachable** sample (running transport that hasn't finalized,
+    regardless of whether an agent channel is bound) carries its live
+    ``session_id`` so a client can attach to observe it; ``interactive``
+    reports whether it can also be driven (bound agent turn loop). Only
+    samples with nothing to attach to — no transport, the noop
+    sentinel, or a finalized transport — surface as ``session_id=None``.
 
-    ``agent_name`` is omitted (``None``) for non-ACP entries — the
-    column reads ``acp agent`` and a non-ACP sample by definition has
-    no attachable ACP agent, so surfacing its solver name there
-    would be misleading. The TUI's display layer already shows ``—``
-    for non-ACP rows; this keeps the wire payload consistent with
-    that intent.
+    ``agent_name`` is surfaced for every attachable sample (including
+    observe-only custom solvers); it stays ``None`` only when there's no
+    session to attach to.
 
     Sample-id stringification mirrors :func:`list_picker_targets`.
     """
@@ -189,9 +195,11 @@ def list_all_samples() -> list[SampleListing]:
         if session is None or not session.is_attachable:
             session_id: str | None = None
             agent_name: str | None = None
+            interactive = False
         else:
             session_id = session.session_id
             agent_name = sample.agent_name
+            interactive = session.is_interactive
         listings.append(
             SampleListing(
                 session_id=session_id,
@@ -203,6 +211,7 @@ def list_all_samples() -> list[SampleListing]:
                 total_messages=sample.total_messages,
                 total_tokens=sample.total_tokens,
                 fails_on_error=sample.fails_on_error,
+                interactive=interactive,
                 pending=sample.pending_interaction,
             )
         )
