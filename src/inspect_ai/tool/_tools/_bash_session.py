@@ -11,7 +11,6 @@ from inspect_ai.tool._sandbox_tools_utils.sandbox import sandbox_with_injected_t
 from inspect_ai.util import StoreModel, store_as
 from inspect_ai.util._sandbox._cli import SANDBOX_CLI
 from inspect_ai.util._sandbox._json_rpc_transport import SandboxJSONRPCTransport
-from inspect_ai.util._sandbox.environment import SandboxEnvironment
 
 from .._tool import Tool, ToolParsingError, tool
 
@@ -30,7 +29,6 @@ class BashRestartResult(BaseModel):
 
 class BashSessionStore(StoreModel):
     session_id: str = Field(default_factory=str)
-    sandbox: SandboxEnvironment | None = Field(default=None)
 
 
 # Action-specific parameter models
@@ -194,7 +192,7 @@ def bash_session(
                     )
 
         store = store_as(BashSessionStore, instance=instance)
-        sandbox = await _get_sandbox(store)
+        sandbox = await sandbox_with_injected_tools()
 
         # Create transport for all RPC calls
         transport = SandboxJSONRPCTransport(sandbox, SANDBOX_CLI)
@@ -245,10 +243,3 @@ def bash_session(
         )
 
     return execute
-
-
-async def _get_sandbox(store: BashSessionStore) -> SandboxEnvironment:
-    if not store.sandbox:
-        store.sandbox = await sandbox_with_injected_tools()
-
-    return store.sandbox
