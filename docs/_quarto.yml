@@ -21,7 +21,21 @@ inspect-docs:
   navbar:
     left:
       - text: "User Guide"
-        href: index.qmd
+        menu:
+          - text: Basics
+            href: index.qmd
+          - text: Components
+            href: tasks.qmd
+          - text: Models
+            href: models.qmd
+          - text: Agents
+            href: agents.qmd
+          - text: Tools
+            href: tools.qmd
+          - text: Analysis
+            href: eval-logs.qmd
+          - text: Advanced
+            href: eval-sets.qmd
       - text: "Reference"
         href: reference/index.qmd
       - text: "Extensions"
