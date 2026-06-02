@@ -9,7 +9,6 @@ from .._metric import (
     Value,
     ValueToFloat,
     metric,
-    value_to_float,
 )
 
 logger = getLogger(__name__)
@@ -20,7 +19,7 @@ def aggregate(
     key: str,
     agg: Metric,
     *,
-    to_float: ValueToFloat = value_to_float(),
+    to_float: ValueToFloat | None = None,
     on_missing: Literal["error", "skip", "zero"] = "error",
 ) -> Metric:
     """Apply `agg` to a single key extracted from each dict-valued `Score.value`.
@@ -50,11 +49,14 @@ def aggregate(
     Args:
        key: Field to extract from each sample's dict-valued `Score.value`.
        agg: Metric to apply to the extracted values.
-       to_float: Function for mapping the extracted `Value` to a float. The
-          default `value_to_float()` maps CORRECT ("C") to 1.0, INCORRECT ("I")
-          to 0, PARTIAL ("P") to 0.5, and NOANSWER ("N") to 0, casts numeric
-          values to float directly, and prints a warning and returns 0 if the
-          Value is a complex object (list or dict).
+       to_float: Optional function for mapping the extracted `Value` to a
+          float before it reaches `agg`. The default (`None`) passes the raw
+          extracted value straight through, so `agg`'s own conversion applies
+          (e.g. `accuracy()`'s `to_float`, or `mean()`'s `as_float()`). Set
+          this only when `agg` cannot convert the value itself — e.g. to feed
+          string grades ("C"/"I") into `mean()`, which expects numerics. When
+          set, pass `value_to_float()` (or a customised variant) to get the
+          standard CORRECT/INCORRECT/PARTIAL/NOANSWER mapping.
        on_missing: How to handle samples whose `score.value` does not contain
           `key`, or contains `key` with a `None` value:
 
@@ -110,7 +112,12 @@ def aggregate(
             # Treat both "key absent" and "key present but None" as missing,
             # matching inspect_evals.utils.metrics.mean_of.
             if key in value and raw is not None:
-                extracted_value: float = to_float(raw)
+                # Pass the raw value through by default so `agg`'s own
+                # converter applies; only pre-convert when an explicit
+                # to_float was supplied.
+                extracted_value: str | int | float | bool = (
+                    to_float(raw) if to_float is not None else raw
+                )
             elif on_missing == "error":
                 reason = "missing" if key not in value else "None"
                 raise ValueError(

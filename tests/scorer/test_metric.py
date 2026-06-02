@@ -20,6 +20,7 @@ from inspect_ai.scorer import (
     metric,
     scorer,
     std,
+    value_to_float,
     var,
 )
 from inspect_ai.scorer._metric import (
@@ -718,14 +719,32 @@ def test_aggregate_non_dict_value_raises():
         )
 
 
-def test_aggregate_to_float_applied():
-    # value_to_float maps "C"->1.0 and "I"->0.0; aggregate should respect it.
-    result = aggregate("verdict", agg=mean())(
+def test_aggregate_explicit_to_float_applied():
+    # An explicit to_float lets string grades flow into mean() (which expects
+    # numerics). value_to_float maps "C"->1.0 and "I"->0.0.
+    result = aggregate("verdict", agg=mean(), to_float=value_to_float())(
         [
             SampleScore(score=Score(value={"verdict": "C"})),
             SampleScore(score=Score(value={"verdict": "I"})),
             SampleScore(score=Score(value={"verdict": "C"})),
             SampleScore(score=Score(value={"verdict": "C"})),
+        ]
+    )
+    assert result == 0.75
+
+
+def test_aggregate_passthrough_respects_inner_to_float():
+    # With the default to_float=None, the raw value passes straight through to
+    # the inner metric, so the inner metric's OWN converter applies. Here a
+    # custom value_to_float on accuracy() maps "pass"->1.0 / "fail"->0.0;
+    # aggregate must not pre-convert and bypass it.
+    inner = accuracy(to_float=value_to_float(correct="pass", incorrect="fail"))
+    result = aggregate("verdict", agg=inner)(
+        [
+            SampleScore(score=Score(value={"verdict": "pass"})),
+            SampleScore(score=Score(value={"verdict": "fail"})),
+            SampleScore(score=Score(value={"verdict": "pass"})),
+            SampleScore(score=Score(value={"verdict": "pass"})),
         ]
     )
     assert result == 0.75
