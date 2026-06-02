@@ -1201,3 +1201,37 @@ def test_reasoning_only_fallback_not_triggered_with_tool_calls():
 
     message_items = [item for item in items if item.get("type") == "message"]
     assert len(message_items) == 0
+
+
+def test_tool_call_replay_drops_empty_text_after_reasoning():
+    """Empty text after smuggled reasoning should not replay as an output message."""
+    from inspect_ai.tool._tool_call import ToolCall
+
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning="encrypted reasoning",
+                redacted=True,
+                signature="rs_123",
+            ),
+            ContentText(text=""),
+        ],
+        tool_calls=[
+            ToolCall(
+                id="call_123",
+                function="submit",
+                arguments={"answer": "42"},
+                type="function",
+            )
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, ModelInfo(), synthesize_phase=True
+    )
+
+    assert [item.get("type") for item in items] == ["reasoning", "function_call"]
+    assert items[0]["encrypted_content"] == "encrypted reasoning"
+    assert items[1]["call_id"] == "call_123"
