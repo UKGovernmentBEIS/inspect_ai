@@ -23,20 +23,28 @@ Per-`exec` cost drops from (StaticX unpack + onefile unpack + interpreter start)
 just (interpreter start). All tool code, the RPC layer, and both user-switching paths
 are untouched.
 
-**Accepted portability scope:** dropping StaticX raises the runtime floor to the
-build glibc. The build base stays `python:3.10-slim-bullseye` (**glibc 2.31, ~2020**),
-which is sufficient for our targets. This consciously drops support for sub-2.31 glibc
-distros (Amazon Linux 2, RHEL/CentOS 7–8, Ubuntu 18.04, Debian ≤10) and musl/Alpine,
-which the StaticX build covered (or claimed to). If a customer ever needs one of
-those, the path forward is a separate injectable for that distro — not reverting this.
+**Portability scope:** dropping StaticX raises the runtime floor to the build libc.
+Two variants are built per arch so both major libcs are covered:
+
+- **glibc** (default): built on `python:3.10-slim-bullseye` (**glibc 2.31, ~2020**);
+  runs on glibc Linux from ~2020 onward. Bundled into the wheel.
+- **musl**: built on `python:3.10-alpine3.18` (**musl 1.2.4, ~2023**); runs on
+  Alpine/musl from 3.18 onward (musl is backward-compatible, so it also runs on
+  newer Alpine — e.g. the rolling `python:3-alpine` used by gdm_in_house_ctf).
+  Uploaded to S3 only; fetched at runtime when a musl sandbox is detected.
+
+Injection detects the sandbox libc (`recon._detect_libc`) and selects the matching
+variant. Sub-2.31 glibc distros (Amazon Linux 2, RHEL/CentOS 7–8, Ubuntu 18.04,
+Debian ≤10) remain out of scope; raise the glibc build base's age if one is needed.
 
 ## Key design decisions
 
-- **Artifact filename is unchanged** (`inspect-sandbox-tools-{arch}-v{N}[-dev]`); only
-  its *contents* change from an ELF to an (uncompressed) tar of the onedir tree. This keeps
-  `upload_to_s3.py`, `scripts/pypi-release.py`, the CI artifact glob, and
-  `pyproject.toml`'s `binaries/*` glob working with **zero changes** (all are
-  content-agnostic, name-based).
+- **Artifact filenames**: `inspect-sandbox-tools-{arch}[-musl]-v{N}[-dev]`. The glibc
+  names are unchanged from the StaticX era; the musl variant adds a `-musl` token
+  (`_build_config.py`). Contents change from an ELF to an (uncompressed) tar of the
+  onedir tree. `scripts/pypi-release.py`, the CI artifact glob, and `pyproject.toml`'s
+  `binaries/*` glob are content-agnostic and reference only the glibc names, so they
+  bundle glibc-only with no change; `upload_to_s3.py` uploads all four (arch × libc).
 - **Injection extracts a tree** instead of writing one file. Uses `tar` in the
   container (near-universal; new but mild runtime assumption). `SANDBOX_CLI` becomes
   the launcher path *inside* the extracted dir.
@@ -131,9 +139,10 @@ For the common remote-tool path the process only forwards bytes to the socket. T
 Estimated effect: ~200–400ms → ~50–150ms per `exec`. Separable; ship Phase 1 first.
 
 ## What stays unchanged (no edits)
-`upload_to_s3.py`, `scripts/pypi-release.py`, `.github/workflows/build_sandbox_tools.yml`
-(artifact glob), `pyproject.toml` (`binaries/*`), `_build_config.py` (naming scheme),
-all tool controllers / RPC methods, `user_switch.py`, and both user-switching paths.
+`scripts/pypi-release.py`, `.github/workflows/build_sandbox_tools.yml` (artifact glob),
+`pyproject.toml` (`binaries/*`) — all reference only the glibc names, so the wheel
+bundles glibc-only automatically. All tool controllers / RPC methods, `user_switch.py`,
+and both user-switching paths are untouched.
 
 ## Verification
 

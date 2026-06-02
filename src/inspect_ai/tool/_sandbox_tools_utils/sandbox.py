@@ -94,8 +94,9 @@ async def sandbox_with_injected_tools(
 async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
     try:
         info = await detect_sandbox_os(sandbox)
+        musl = info.get("libc") == "musl"
 
-        async with _open_executable_for_arch(info["architecture"]) as (_, f):
+        async with _open_executable_for_arch(info["architecture"], musl) as (_, f):
             tar_bytes = f.read()
 
         # The tools ship as a tar of a PyInstaller --onedir tree. Transfer it via
@@ -199,10 +200,11 @@ def _prompt_user_action(message: str, executable_name: str, arch: Architecture) 
 @asynccontextmanager
 async def _open_executable_for_arch(
     arch: Architecture,
+    musl: bool,
 ) -> AsyncIterator[tuple[str, BinaryIO]]:
     install_state = _get_install_state()
 
-    executable_name = _get_executable_name(arch, install_state == "edited")
+    executable_name = _get_executable_name(arch, install_state == "edited", musl)
 
     trace_message(logger, TRACE_SANDBOX_TOOLS, f"looking for {executable_name}")
 
@@ -237,7 +239,7 @@ async def _open_executable_for_arch(
             # download from S3. This scenario is similar to the pypi error just above.
 
         # Build it locally
-        await _build_it(arch, executable_name)
+        await _build_it(arch, musl, executable_name)
 
         async with _open_executable(executable_name) as f:
             yield executable_name, f
@@ -250,12 +252,13 @@ def _get_sandbox_tools_version() -> str:
     return version_file.read_text().strip()
 
 
-def _get_executable_name(arch: Architecture, dev: bool) -> str:
+def _get_executable_name(arch: Architecture, dev: bool, musl: bool) -> str:
     return config_to_filename(
         SandboxToolsBuildConfig(
             arch=arch,
             version=int(_get_sandbox_tools_version()),
             suffix="dev" if dev else None,
+            musl=musl,
         )
     )
 
@@ -290,7 +293,7 @@ async def _download_from_s3(filename: str) -> bool:
         raise
 
 
-async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
+async def _build_it(arch: Architecture, musl: bool, dev_executable_name: str) -> None:
     _prompt_user_action(
         f"Executable '{dev_executable_name}' not found. Build locally? (requires Docker)",
         dev_executable_name,
@@ -307,7 +310,8 @@ async def _build_it(arch: Architecture, dev_executable_name: str) -> None:
 
     # Run the build script
     subprocess.run(
-        [sys.executable, str(build_script_path), "--arch", arch],
+        [sys.executable, str(build_script_path), "--arch", arch]
+        + (["--musl"] if musl else []),
         capture_output=True,
         text=True,
         check=True,

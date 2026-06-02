@@ -165,8 +165,10 @@ jobs:
             **Version:** ${{ needs.detect-version.outputs.old-version }} → ${{ needs.detect-version.outputs.new-version }}
 
             **Built Executables:**
-            - \`inspect-sandbox-tools-amd64-v${{ needs.detect-version.outputs.new-version }}\`
-            - \`inspect-sandbox-tools-arm64-v${{ needs.detect-version.outputs.new-version }}\`
+            - \`inspect-sandbox-tools-amd64-v${{ needs.detect-version.outputs.new-version }}\` (glibc)
+            - \`inspect-sandbox-tools-arm64-v${{ needs.detect-version.outputs.new-version }}\` (glibc)
+            - \`inspect-sandbox-tools-amd64-musl-v${{ needs.detect-version.outputs.new-version }}\` (musl)
+            - \`inspect-sandbox-tools-arm64-musl-v${{ needs.detect-version.outputs.new-version }}\` (musl)
 
             **Download Artifacts:** [View workflow run](${run.html_url})
 

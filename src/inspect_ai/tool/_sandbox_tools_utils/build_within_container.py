@@ -106,6 +106,7 @@ def run_docker_container(
     arch_suffix: str,
     image_name: str,
     version: str,
+    musl: bool,
     passthrough_args: list[str] | None = None,
 ) -> None:
     """Run the Docker container to build the executable."""
@@ -143,6 +144,7 @@ def run_docker_container(
         arch=arch,
         version=version_num,
         suffix=validated_suffix,
+        musl=musl,
     )
     filename = config_to_filename(config)
 
@@ -181,7 +183,13 @@ def main() -> None:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="Build for all architectures (amd64/arm64)",
+        help="Build for all architectures and libc variants (amd64/arm64 x glibc/musl)",
+    )
+    parser.add_argument(
+        "--musl",
+        action="store_true",
+        help="Build the musl-linked variant (for musl sandboxes, e.g. Alpine) "
+        "using Dockerfile.pyinstaller.musl. Default builds the glibc variant.",
     )
     parser.add_argument(
         "--dev",
@@ -213,34 +221,42 @@ def main() -> None:
 
         # Handle --all flag or no parameters (default behavior)
         if args.all or (not args.arch):
-            print("Building for all architectures...")
-            # Recursively call this script for each architecture
+            print("Building for all architectures and libc variants...")
+            # Recursively call this script for each architecture x libc variant
             for arch in ["amd64", "arm64"]:
-                cmd = [sys.executable, __file__, "--arch", arch]
-                if not args.dev:
-                    cmd.append("--dev=false")
-                # Add passthrough arguments if any
-                if passthrough_args:
-                    cmd.append("--")
-                    cmd.extend(passthrough_args)
-                print(f"Building {arch}...")
-                subprocess.run(cmd, check=True)
+                for musl in [False, True]:
+                    cmd = [sys.executable, __file__, "--arch", arch]
+                    if musl:
+                        cmd.append("--musl")
+                    if not args.dev:
+                        cmd.append("--dev=false")
+                    # Add passthrough arguments if any
+                    if passthrough_args:
+                        cmd.append("--")
+                        cmd.extend(passthrough_args)
+                    print(f"Building {arch} ({'musl' if musl else 'glibc'})...")
+                    subprocess.run(cmd, check=True)
             return
 
         # Determine target architecture (only when --arch is explicitly specified)
         arch_suffix, platform = validate_target_architecture(args.arch)
 
-        image_name = f"pyinstaller-build-{arch_suffix}"
-        dockerfile = "Dockerfile.pyinstaller"
+        libc = "musl" if args.musl else "glibc"
+        image_name = f"pyinstaller-build-{libc}-{arch_suffix}"
+        dockerfile = (
+            "Dockerfile.pyinstaller.musl" if args.musl else "Dockerfile.pyinstaller"
+        )
 
-        print(f"Building for architecture: {arch_suffix} (platform: {platform})")
+        print(
+            f"Building for architecture: {arch_suffix} ({libc}) (platform: {platform})"
+        )
 
         # Build Docker image
         run_docker_build(platform, image_name, dockerfile)
 
         # Run container to build executable
         run_docker_container(
-            platform, arch_suffix, image_name, version, passthrough_args
+            platform, arch_suffix, image_name, version, args.musl, passthrough_args
         )
 
         print("Build completed. Executable available in src/inspect_ai/binaries/")

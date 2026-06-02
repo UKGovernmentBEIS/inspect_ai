@@ -31,7 +31,7 @@ The `inspect_sandbox_tools` package is part of a split architecture that separat
 
 ### Build Process
 
-Linux executables are built via PyInstaller `--onedir` and packaged as a tar of the bundle tree (the launcher plus its `_internal` directory). At injection the tar is extracted into the container so the launcher runs against the on-disk tree — nothing self-extracts per `exec`. Because glibc is not bundled, the build base image's glibc (bullseye / 2.31) sets the runtime portability floor. Build scripts live in `src/inspect_ai/tool/_sandbox_tools_utils/` and output to `src/inspect_ai/binaries/` (amd64/arm64). See [RELEASING.md](design/RELEASING.md) for build, validation, and release commands.
+Linux executables are built via PyInstaller `--onedir` and packaged as a tar of the bundle tree (the launcher plus its `_internal` directory). At injection the tar is extracted into the container so the launcher runs against the on-disk tree — nothing self-extracts per `exec`. Because libc is not bundled, the build base image's libc sets the runtime floor, so two variants are built per arch: a **glibc** variant (built on bullseye / glibc 2.31) and a **musl** variant (built on alpine3.18 / musl 1.2.4, for Alpine/musl sandboxes). Injection detects the sandbox's libc and arch (`recon.detect_sandbox_os`) and selects the matching artifact. All four (arch × libc) are uploaded to S3; only the glibc pair is bundled into the wheel — musl is fetched from S3 on demand. Build scripts live in `src/inspect_ai/tool/_sandbox_tools_utils/` and output to `src/inspect_ai/binaries/`. See [RELEASING.md](design/RELEASING.md) for build, validation, and release commands.
 
 ### Container Injection Mechanism
 

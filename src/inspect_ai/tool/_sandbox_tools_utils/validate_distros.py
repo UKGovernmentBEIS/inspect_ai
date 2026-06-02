@@ -19,6 +19,25 @@ from typing import List
 
 from inspect_ai.util._sandbox._cli import SANDBOX_TOOLS_BASE_NAME
 
+from ._build_config import filename_to_config
+
+# glibc artifacts are validated against glibc distros; musl artifacts against musl
+# (Alpine) distros. Each artifact is routed to the matching set — running a glibc
+# bundle on Alpine (or vice versa) would fail by construction.
+GLIBC_DISTROS = [
+    "ubuntu:20.04",
+    "ubuntu:22.04",
+    "ubuntu:24.04",
+    "debian:11",
+    "debian:12",
+    "kalilinux/kali-rolling:latest",
+]
+MUSL_DISTROS = [
+    "alpine:3.18",  # the build floor — oldest musl we target
+    "alpine:3.19",
+    "alpine:latest",
+]
+
 
 class Colors:
     RED = "\033[0;31m"
@@ -51,7 +70,8 @@ def test_distro(distro: str, executable_path: Path) -> bool:
         "-v",
         f"{executable_path}:/app/tools.tar:ro",
         distro,
-        "bash",
+        # POSIX sh, not bash: Alpine ships only busybox sh by default.
+        "sh",
         "-c",
         script,
     ]
@@ -81,15 +101,6 @@ def find_executables() -> List[Path]:
 
 def main() -> None:
     """Main execution function."""
-    distros = [
-        "ubuntu:20.04",
-        "ubuntu:22.04",
-        "ubuntu:24.04",
-        "debian:11",
-        "debian:12",
-        "kalilinux/kali-rolling:latest",
-    ]
-
     print_colored(
         "Starting compatibility tests across multiple Linux distributions...",
         Colors.BLUE,
@@ -112,8 +123,11 @@ def main() -> None:
     total_tests = 0
     passed_tests = 0
 
-    # Test each executable against each distro
+    # Test each executable against the distro set matching its libc variant
     for executable in executables:
+        distros = (
+            MUSL_DISTROS if filename_to_config(executable.name).musl else GLIBC_DISTROS
+        )
         print_colored(f"\n=== Testing {executable.name} ===", Colors.BLUE)
 
         for distro in distros:

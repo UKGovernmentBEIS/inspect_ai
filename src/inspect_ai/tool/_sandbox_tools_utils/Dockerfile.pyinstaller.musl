@@ -1,0 +1,32 @@
+# musl (Alpine) builder for the PyInstaller --onedir bundle.
+#
+# Produces a musl-linked onedir tree (tarred by _build_bundled_executable) for
+# injection into musl-based sandboxes (e.g. Alpine). PyInstaller has no prebuilt
+# musl bootloader, so it compiles one from source at install time — hence the C
+# toolchain (build-base) and zlib-dev. All Python deps resolve to musllinux_1_1
+# wheels, so no Rust toolchain is needed.
+# Pin to an older Alpine: its musl sets the runtime floor (a newer Alpine builds a
+# CPython that references newer musl symbols, e.g. pwritev2, breaking older targets).
+FROM python:3.10-alpine3.18 AS base
+
+FROM base AS packages-amd64
+RUN apk add --no-cache build-base python3-dev libffi-dev openssl-dev zlib-dev file
+
+FROM base AS packages-arm64
+RUN apk add --no-cache build-base python3-dev libffi-dev openssl-dev zlib-dev file
+
+# Final stage - automatically selects correct packages stage
+FROM packages-${TARGETARCH} AS final
+
+# Isolated venv (mirrors the glibc builder; avoids PEP 668 issues)
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:${PATH}"
+
+RUN python -m pip install --no-cache-dir --upgrade pip setuptools wheel
+RUN python -m pip install --no-cache-dir \
+        pyinstaller \
+        psutil \
+        jsonrpcserver \
+        pydantic
+
+CMD ["tail", "-f", "/dev/null"]
