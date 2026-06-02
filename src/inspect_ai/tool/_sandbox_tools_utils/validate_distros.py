@@ -55,6 +55,14 @@ def test_distro(distro: str, executable_path: Path) -> bool:
     """Test a single distro with the given artifact (a gzipped tar of the onedir bundle)."""
     print_colored(f"Testing {distro} with {executable_path.name}", Colors.BLUE)
 
+    # Run the container matching the ARTIFACT's architecture so the dynamically
+    # linked launcher finds its libc/loader. On a foreign-arch host this runs under
+    # the platform emulator (e.g. Rosetta/qemu); that works because the emulated
+    # container provides the matching loader — without --platform the host-arch
+    # container would lack the foreign loader and fail to exec the binary.
+    arch = filename_to_config(executable_path.name).arch
+    platform = "linux/amd64" if arch == "amd64" else "linux/arm64"
+
     # Mount the artifact, extract the onedir tree, then run the launcher's healthcheck
     # (which also exercises starting the server). This validates the common-case
     # `tar xzf`; the host-side uncompressed fallback used by injection isn't covered
@@ -69,6 +77,8 @@ def test_distro(distro: str, executable_path: Path) -> bool:
         "docker",
         "run",
         "--rm",
+        "--platform",
+        platform,
         "-v",
         f"{executable_path}:/app/tools.tgz:ro",
         distro,
