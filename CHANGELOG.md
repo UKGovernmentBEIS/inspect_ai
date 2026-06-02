@@ -1,9 +1,9 @@
 ## Unreleased
 
+- OpenAI: Support [OpenAI models on AWS Bedrock](https://inspect.aisi.org.uk/providers.html#openai-on-aws-bedrock) via the `openai/bedrock/<model>` qualifier.
 - Together: Support the `stream` model arg (e.g. `-M stream=true`) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to `stop_reason="max_tokens"` instead of raising.
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
-- Sandbox: Allow `sandbox_service()` instances running as different users in the same sandbox
-  to share `/var/tmp/sandbox-services`.
+- Sandbox: Allow `sandbox_service()` instances running as different users in the same sandbox to share `/var/tmp/sandbox-services`.
 - Agent Intervention: Support connecting to all samples (disabling interruption and user messages if the agent doesn't explicitly support ACP).
 - Docker Compose: accept `platform`, `extra_hosts`, `cap_add`, `cap_drop`, `security_opt`, and `tmpfs` in ComposeService.
 - Docker Sandbox: `SandboxTimeoutError` now carries `truncated_output` with the partial command output captured before a timeout (surfaced to tool callers), instead of discarding it.
