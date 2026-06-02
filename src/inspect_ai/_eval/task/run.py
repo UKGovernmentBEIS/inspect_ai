@@ -218,8 +218,7 @@ class TaskRunOptions:
     sample_source: EvalSampleSource | None = field(default=None)
     display_name: str | None = field(default=None)
     kwargs: GenerateConfigArgs = field(default_factory=lambda: GenerateConfigArgs())
-    initial_model_usage: dict[str, ModelUsage] | None = field(default=None)
-    initial_role_usage: dict[str, ModelUsage] | None = field(default=None)
+    initial_stats: EvalStats | None = field(default=None)
 
 
 def resolve_plan(task: Task, solver: Solver | None) -> Plan:
@@ -282,14 +281,18 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     # resolve default generate_config for task
     generate_config = task.config.merge(GenerateConfigArgs(**kwargs))
 
-    # seed model/role usage from a prior log when this task is a retry
+    # seed stats and token usage from a prior log when this task is a retry
     # (the deepcopy guards against shared dict mutation across attempts).
     # init_task_context's no-arg init_model_usage/init_role_usage will leave
     # these seeded values in place.
-    if options.initial_model_usage:
-        init_model_usage(deepcopy(options.initial_model_usage))
-    if options.initial_role_usage:
-        init_role_usage(deepcopy(options.initial_role_usage))
+    if options.initial_stats:
+        if options.initial_stats.model_usage:
+            init_model_usage(deepcopy(options.initial_stats.model_usage))
+        if options.initial_stats.role_usage:
+            init_role_usage(deepcopy(options.initial_stats.role_usage))
+        stats = deepcopy(options.initial_stats)
+    else:
+        stats = EvalStats(started_at=iso_now())
 
     # init task context
     init_task_context(
@@ -304,7 +307,6 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
     reductions: list[EvalSampleReductions] | None = None
     progress_results: list[dict[str, SampleScore]] = []
     eval_log: EvalLog | None = None
-    stats = EvalStats(started_at=iso_now())
 
     # resolve some config
     model_name = ModelName(model)

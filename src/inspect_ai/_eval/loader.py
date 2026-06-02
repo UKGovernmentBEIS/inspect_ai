@@ -201,15 +201,10 @@ def resolve_previous_task(
     sequence: int,
     eval_checkpoint: CheckpointConfig | None = None,
 ) -> ResolvedTask:
-    # carry token usage forward from the prior log so cumulative totals stay
-    # accurate across retries. Deep-copy so the prior log is never mutated.
+    # carry stats (including token usage and duration) forward from the prior log
+    # so cumulative totals stay accurate across retries. Deep-copy so the prior
+    # log is never mutated.
     prior_stats = previous_task.log.stats
-    initial_model_usage = (
-        copy.deepcopy(prior_stats.model_usage) if prior_stats.model_usage else None
-    )
-    initial_role_usage = (
-        copy.deepcopy(prior_stats.role_usage) if prior_stats.role_usage else None
-    )
 
     return ResolvedTask(
         task=loaded_task,
@@ -237,8 +232,7 @@ def resolve_previous_task(
                 eval_checkpoint,
             ),
         ),
-        initial_model_usage=initial_model_usage,
-        initial_role_usage=initial_role_usage,
+        initial_stats=copy.deepcopy(prior_stats),
     )
 
 

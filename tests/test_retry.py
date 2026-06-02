@@ -265,7 +265,7 @@ def test_eval_retry_preserves_scorer_attribution(monkeypatch) -> None:
     assert by_id[1] == "match", f"restored sample scorer={by_id[1]!r}"
 
 
-def test_eval_retry_preserves_token_usage():
+def test_eval_retry_preserves_stats():
     # 10 samples: first 8 pass, last 2 fail
     # On retry: fresh iterator, 2 samples read [False, False] -> both pass
     log1 = eval(
@@ -285,6 +285,7 @@ def test_eval_retry_preserves_token_usage():
     assert log2.status == "success"
     tokens2 = log2.stats.model_usage[model_name].total_tokens
     assert tokens2 > tokens1
+    assert log2.stats.started_at == log1.stats.started_at
 
 
 def test_eval_retry_token_usage_multi_retry():
@@ -310,9 +311,11 @@ def test_eval_retry_token_usage_multi_retry():
     assert log2.status == "error"
     tokens2 = get_tokens(log2)
     assert tokens2 > tokens1
+    assert log2.stats.started_at == log1.stats.started_at
 
     # Second retry
     log3 = eval_retry(log2)[0]
     assert log3.status == "success"
     tokens3 = get_tokens(log3)
     assert tokens3 > tokens2
+    assert log3.stats.started_at == log2.stats.started_at
