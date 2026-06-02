@@ -37,7 +37,7 @@ from inspect_ai._util.constants import (
     DEFAULT_MAX_CONNECTIONS_BATCH,
 )
 from inspect_ai._util.dateutil import iso_now
-from inspect_ai._util.error import exception_message
+from inspect_ai._util.error import exception_message, is_cancellation_message
 from inspect_ai._util.exception import TerminateSampleError, TerminateTaskError
 from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.notgiven import NOT_GIVEN
@@ -425,6 +425,10 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 sample_ids=sample_ids,
                 epochs=epochs,
                 run_id=logger.eval.run_id,
+                # whether a failure of this attempt will be retried — lets the
+                # control channel show cancelled samples as pending (re-run
+                # coming) vs cancelled (terminal)
+                will_retry=task_cancel.can_retry if task_cancel is not None else False,
             )
 
             # call early stopping if we have it
@@ -1913,16 +1917,11 @@ def _eval_retry_error_from_sample(sample: EvalSample) -> EvalRetryError:
     )
 
 
-# A cancellation is recorded as the sample's error (eval_error -> repr),
-# e.g. "CancelledError('Cancelled via cancel scope ...')" on asyncio or
-# "Cancelled(...)" on trio. A sample cancelled because a sibling errored
-# (the task was torn down for a task-level retry) never genuinely failed,
-# so it must not count as a retry when the task is re-run.
-_CANCELLED_EXC_NAMES = ("CancelledError", "Cancelled")
-
-
 def _is_cancellation_error(error: EvalError) -> bool:
-    return any(error.message.startswith(f"{name}(") for name in _CANCELLED_EXC_NAMES)
+    # A sample cancelled because a sibling errored (the task was torn down
+    # for a task-level retry) never genuinely failed, so it must not count
+    # as a retry when the task is re-run.
+    return is_cancellation_message(error.message)
 
 
 def _seed_error_retries(sample: EvalSample) -> list[EvalRetryError]:

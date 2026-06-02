@@ -114,6 +114,13 @@ class EvalState:
     eval is still running. Used by the control endpoint to surface
     completion to agents without forcing them to derive it from counters."""
 
+    will_retry: bool = False
+    """Whether a failure of this attempt will be retried (task-level).
+
+    Set from ``TaskCancel.can_retry`` at registration. Lets the control
+    endpoint render a cancelled sample as ``pending`` (a retry will re-run
+    it) rather than ``cancelled`` (terminal — no retry coming)."""
+
     @property
     def is_finished(self) -> bool:
         """True once every sample has terminated (success or error)."""
@@ -139,6 +146,7 @@ def register_eval(
     sample_ids: list[str | int] | None = None,
     epochs: int = 1,
     run_id: str | None = None,
+    will_retry: bool = False,
 ) -> EvalState:
     """Initialize tracking for a new eval.
 
@@ -161,6 +169,7 @@ def register_eval(
             sample_ids=sample_ids or [],
             epochs=epochs,
             run_id=run_id,
+            will_retry=will_retry,
         )
         _eval_states[eval_id] = state
         return state

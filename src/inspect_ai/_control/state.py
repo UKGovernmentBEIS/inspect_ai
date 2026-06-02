@@ -35,6 +35,8 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
+from inspect_ai._util.error import is_cancellation_message
+
 if TYPE_CHECKING:
     from inspect_ai._control.eval_state import EvalState
     from inspect_ai.log._samples import ActiveSample
@@ -264,6 +266,10 @@ async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
 
     state = get_eval_state(eval_id)
 
+    # Whether a failure of this attempt will be retried — controls whether a
+    # cancelled sample reads as `pending` (re-run coming) or `cancelled`.
+    will_retry = state.will_retry if state is not None else False
+
     # Prefer the live recorder: gap-free and independent of realtime
     # logging. It returns None once torn down (eval finished) — a clean
     # signal to fall back to the log. Any other failure is unexpected and
@@ -271,14 +277,14 @@ async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     if state is not None and state.summaries_provider is not None:
         summaries = await state.summaries_provider()
         if summaries is not None:
-            return [_summary_from_eval_sample_summary(s) for s in summaries]
+            return [_summary_from_eval_sample_summary(s, will_retry) for s in summaries]
 
     # Fallback: the on-disk log. The log_location is always set on the
     # state by the time we get here (register_eval / register_completed_eval
     # set it before any sample runs), so there's no need to also consult
     # active_samples.
     if state is not None and state.log_location:
-        return await _sample_summaries_from_log(state.log_location)
+        return await _sample_summaries_from_log(state.log_location, will_retry)
     return []
 
 
@@ -378,7 +384,9 @@ def _error_dict(error: Any) -> dict[str, Any]:
     }
 
 
-async def _sample_summaries_from_log(location: str) -> list[dict[str, Any]]:
+async def _sample_summaries_from_log(
+    location: str, will_retry: bool = False
+) -> list[dict[str, Any]]:
     """Completed-sample summaries read from the on-disk log.
 
     Only reached when the live recorder is unavailable (a reused eval, or
@@ -389,11 +397,21 @@ async def _sample_summaries_from_log(location: str) -> list[dict[str, Any]]:
     from inspect_ai.log._file import read_eval_log_sample_summaries_async
 
     summaries = await read_eval_log_sample_summaries_async(location)
-    return [_summary_from_eval_sample_summary(s) for s in summaries]
+    return [_summary_from_eval_sample_summary(s, will_retry) for s in summaries]
 
 
-def _summary_from_eval_sample_summary(summary: Any) -> dict[str, Any]:
-    if summary.error is not None:
+def _summary_from_eval_sample_summary(
+    summary: Any, will_retry: bool = False
+) -> dict[str, Any]:
+    error = summary.error
+    if error is not None and is_cancellation_message(error):
+        # A cancellation isn't a genuine error — the sample was torn down
+        # because a sibling failed (or the eval was cancelled). It reads as
+        # `pending` when a retry will re-run it, else `cancelled`. Either way
+        # the cancellation message itself isn't surfaced as an error.
+        status = "pending" if will_retry else "cancelled"
+        error = None
+    elif error is not None:
         status = "error"
     elif summary.completed:
         status = "completed"
@@ -410,7 +428,7 @@ def _summary_from_eval_sample_summary(summary: Any) -> dict[str, Any]:
         "total_tokens": sum(u.total_tokens for u in summary.model_usage.values()),
         "message_count": summary.message_count,
         "scores": {name: score.value for name, score in (summary.scores or {}).items()},
-        "error": summary.error,
+        "error": error,
         "retries": summary.retries,
         "limit": summary.limit,
     }
