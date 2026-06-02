@@ -19,6 +19,7 @@ from .checkpointer import Checkpointer, checkpointer
 from .config import (
     CheckpointConfig,
     CheckpointSampleConfig,
+    normalize_checkpoint,
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "TurnInterval",
     "checkpointer",
     "Checkpointer",
+    "normalize_checkpoint",
 ]

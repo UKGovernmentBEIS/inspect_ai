@@ -3,16 +3,20 @@
 Accepted forms (in order of detection):
 
 - ``None`` / empty → ``None`` (checkpointing disabled).
-- ``"<kind>:<value>"`` shorthand where ``kind`` ∈ ``{turn, time}`` →
-  parsed shorthand trigger.
+- The literal ``"default"`` → ``CheckpointConfig(trigger=None)`` —
+  enable checkpointing without pinning a trigger, deferring the
+  trigger to a sample-level config or the merge-time default.
+- ``"<kind>:<value>"`` shorthand where ``kind`` ∈ ``{turn, time,
+  token}`` → parsed shorthand trigger.
 - The literal ``"manual"`` → ``trigger=Manual()``.
 - Otherwise → treat as a file path; load YAML/JSON via
   :func:`inspect_ai._util.config.resolve_args` and validate against
   :class:`_CheckpointConfigModel`.
 
-The CLI's bare ``--checkpoint`` flag is mapped to a concrete shorthand
-(``"turn:5"``) by Click's ``flag_value``; this parser has no
-default-policy knowledge.
+The CLI's bare ``--checkpoint`` flag is mapped to ``"default"`` by
+Click's ``flag_value``; the merge resolver supplies the concrete
+default trigger (see ``DEFAULT_CHECKPOINT_TRIGGER``) once a sample is
+in hand.
 """
 
 from __future__ import annotations
@@ -25,16 +29,28 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from inspect_ai._util.config import resolve_args
 
-from ._triggers import CheckpointTrigger, Manual, TimeInterval, TurnInterval
+from ._triggers import (
+    CheckpointTrigger,
+    Manual,
+    TimeInterval,
+    TokenInterval,
+    TurnInterval,
+)
 from .config import CheckpointConfig
 
-_DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhd]?)\s*$", re.IGNORECASE)
+_DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([smhd])\s*$", re.IGNORECASE)
 _DURATION_UNITS_S: dict[str, float] = {
-    "": 1.0,
     "s": 1.0,
     "m": 60.0,
     "h": 3600.0,
     "d": 86400.0,
+}
+
+_TOKEN_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*([kmb])\s*$", re.IGNORECASE)
+_TOKEN_UNITS: dict[str, int] = {
+    "k": 1_000,
+    "m": 1_000_000,
+    "b": 1_000_000_000,
 }
 
 
@@ -45,6 +61,8 @@ def parse_checkpoint(value: str | None) -> CheckpointConfig | None:
     """
     if not value:
         return None
+    if value == "default":
+        return CheckpointConfig(trigger=None)
     if value == "manual":
         return CheckpointConfig(trigger=Manual())
     match value.partition(":"):
@@ -56,6 +74,12 @@ def parse_checkpoint(value: str | None) -> CheckpointConfig | None:
             return CheckpointConfig(
                 trigger=TimeInterval(
                     every=_parse_duration(rest, error_prefix="--checkpoint time")
+                )
+            )
+        case ("token", ":", rest):
+            return CheckpointConfig(
+                trigger=TokenInterval(
+                    every=_parse_tokens(rest, error_prefix="--checkpoint token")
                 )
             )
         case _:
@@ -74,6 +98,26 @@ def _parse_positive_int(value: str, kind: str) -> int:
     return n
 
 
+def _parse_tokens(value: str, *, error_prefix: str = "tokens") -> int:
+    """Parse ``500k`` / ``2m`` / ``1.5m`` / ``1b`` into a token count.
+
+    A ``k``/``m``/``b`` suffix is required (no bare integer). Decimals
+    are allowed as long as the result is a whole, positive number of
+    tokens.
+    """
+    m = _TOKEN_RE.match(value)
+    if m is None:
+        raise ValueError(f"{error_prefix}: expected <number><k|m|b>, got {value!r}")
+    tokens = float(m.group(1)) * _TOKEN_UNITS[m.group(2).lower()]
+    if tokens <= 0:
+        raise ValueError(f"{error_prefix}: value must be > 0, got {value!r}")
+    if not tokens.is_integer():
+        raise ValueError(
+            f"{error_prefix}: must resolve to a whole number of tokens, got {value!r}"
+        )
+    return int(tokens)
+
+
 # --- YAML/JSON config loader ----------------------------------------
 
 
@@ -86,11 +130,21 @@ class _TurnTriggerModel(BaseModel):
 class _TimeTriggerModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
     type: Literal["time"]
-    every: int | float | str
+    every: str
+    """Suffixed duration string (``"30s"`` / ``"15m"`` / ``"2h"`` /
+    ``"1d"``). A bare numeric value is rejected — the unit is required."""
+
+
+class _TokenTriggerModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["token"]
+    every: int | str
+    """Raw token count (``500000``) or a suffixed string (``"500k"`` /
+    ``"1.5m"`` / ``"1b"``)."""
 
 
 _TriggerModel = Annotated[
-    _TurnTriggerModel | _TimeTriggerModel,
+    _TurnTriggerModel | _TimeTriggerModel | _TokenTriggerModel,
     Field(discriminator="type"),
 ]
 
@@ -131,15 +185,15 @@ def _trigger_model_to_strategy(
         case _TurnTriggerModel(every=n):
             return TurnInterval(every=n)
         case _TimeTriggerModel(every=v):
-            return TimeInterval(every=_coerce_duration(v))
-
-
-def _coerce_duration(value: int | float | str) -> timedelta:
-    return (
-        _parse_duration(value, error_prefix="checkpoint time")
-        if isinstance(value, str)
-        else timedelta(seconds=float(value))
-    )
+            return TimeInterval(
+                every=_parse_duration(v, error_prefix="checkpoint time")
+            )
+        case _TokenTriggerModel(every=v):
+            return TokenInterval(
+                every=v
+                if isinstance(v, int)
+                else _parse_tokens(v, error_prefix="checkpoint token")
+            )
 
 
 def _parse_config_file(path: str) -> CheckpointConfig:
@@ -151,9 +205,11 @@ def _parse_config_file(path: str) -> CheckpointConfig:
 
 
 def _parse_duration(value: str, *, error_prefix: str = "duration") -> timedelta:
-    """Parse ``15m`` / ``30s`` / ``2h`` / ``1d``, or a bare integer (seconds).
+    """Parse ``15m`` / ``30s`` / ``2h`` / ``1d`` into a ``timedelta``.
 
-    Raises ``ValueError`` on a malformed string or a non-positive result.
+    A ``s``/``m``/``h``/``d`` suffix is required — a bare number is
+    rejected. Raises ``ValueError`` on a malformed string or a
+    non-positive result.
     ``error_prefix`` is used to tag the raised message (e.g. the CLI flag
     name) so the diagnostic is meaningful to the caller's audience.
     """

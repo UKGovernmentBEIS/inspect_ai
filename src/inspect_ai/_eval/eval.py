@@ -69,7 +69,7 @@ from inspect_ai.scorer._reducer import reducer_log_names
 from inspect_ai.solver._chain import chain
 from inspect_ai.solver._solver import Solver, SolverSpec
 from inspect_ai.util import SandboxEnvironmentType
-from inspect_ai.util._checkpoint import CheckpointConfig
+from inspect_ai.util._checkpoint import CheckpointConfig, normalize_checkpoint
 from inspect_ai.util._concurrency import AdaptiveConcurrency
 from inspect_ai.util._display import (
     DisplayType,
@@ -98,7 +98,7 @@ def eval(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
@@ -167,8 +167,10 @@ def eval(
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
-        checkpoint: Checkpoint configuration for this eval. Overrides
-            any task- or sample-level `checkpoint` when set.
+        checkpoint: Checkpoint configuration for this eval, or `True` to
+            enable checkpointing with the default trigger (every 500k
+            tokens) — equivalent to the bare `--checkpoint` CLI flag.
+            Overrides any task- or sample-level `checkpoint` when set.
         acp_server: Expose this eval over an Agent Client Protocol server.
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
@@ -368,7 +370,7 @@ async def eval_async(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
     scanner: "Scanners | None" = None,
@@ -430,7 +432,7 @@ async def eval_async(
         task_args: Task creation arguments (as a dictionary or as a path to a JSON or YAML config file)
         sandbox: Sandbox environment type (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes (defaults to True)
-        checkpoint: Checkpoint configuration for this eval. Overrides any task- or sample-level `checkpoint` when set.
+        checkpoint: Checkpoint configuration for this eval, or `True` to enable checkpointing with the default trigger (every 500k tokens), equivalent to the bare `--checkpoint` CLI flag. Overrides any task- or sample-level `checkpoint` when set.
         acp_server: Expose this eval over an Agent Client Protocol server.
             `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`;
             an integer binds a TCP loopback port; a string is taken as a custom
@@ -510,6 +512,11 @@ async def eval_async(
     Returns:
         List of EvalLog (one for each task)
     """
+    # normalize `checkpoint=True` (enable, defer trigger) to a config;
+    # this is the single choke point for the eval layer — `eval`,
+    # `eval_set`, `eval_retry`, and `eval_retry_async` all funnel here.
+    checkpoint = normalize_checkpoint(checkpoint)
+
     result: list[EvalLog] | None = None
 
     async def run(tg: TaskGroup) -> None:
@@ -981,7 +988,7 @@ def eval_retry(
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1060,10 +1067,11 @@ def eval_retry(
             scale_up_percent). An explicit `max_connections` or `batch=True`
             takes precedence and uses static concurrency.
         checkpoint:
-            Checkpoint configuration for this retry. Must match the config
-            used on the original eval for resume detection to find the
-            checkpoint files (the original `--checkpoint` is not recorded in the
-            log file).
+            Checkpoint configuration for this retry, or `True` to enable
+            checkpointing with the default trigger (every 500k tokens).
+            Must match the config used on the original eval for resume
+            detection to find the checkpoint files (the original
+            `--checkpoint` is not recorded in the log file).
 
     Returns:
         List of EvalLog (one for each task)
@@ -1158,7 +1166,7 @@ async def eval_retry_async(
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
 ) -> list[EvalLog]:
     """Retry a previously failed evaluation task.
 
@@ -1217,7 +1225,7 @@ async def eval_retry_async(
         attempt_timeout: Timeout (in seconds) for any given attempt (if exceeded, will abandon attempt and retry according to max_retries).
         max_connections: Maximum number of concurrent connections to Model API (default is per Model API)
         adaptive_connections: Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100). Pass `False` to opt out, an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an `AdaptiveConcurrency` to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
-        checkpoint: Checkpoint configuration for this retry. Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
+        checkpoint: Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
 
     Returns:
         List of EvalLog (one for each task)
