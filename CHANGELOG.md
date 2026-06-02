@@ -11,6 +11,7 @@
 - Inspect View: New `ViewerConfig` (passed via `Task(viewer=...)`) lets eval authors customize how a task's sample list, score panel, and scanner results render in the log viewer — including sample-list columns, default sort, score labels, and color scales. See [Custom Views](https://inspect.aisi.org.uk/task-views.html).
 - Inspect View: Migrated the sample transcript to a virtualized list for smoother rendering of long transcripts.
 - Bugfix: Inspect View sample-list columns now expand to fill the available width.
+- Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.
 
 ## 0.3.233 (01 June 2026)
 
@@ -93,7 +94,6 @@
 - Scanning: Compatibility with Inspect Scout 0.4.37.
 - Async: `run_coroutine()` (and the sync log/analysis helpers built on it) now honour `INSPECT_ASYNC_BACKEND=trio` when called with no running event loop, rather than always using asyncio.
 - Bugfix: Resolve message/call pool references in DB-buffer recovery.
-- OpenAI: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.
 
 ## 0.3.224 (20 May 2026)
 
