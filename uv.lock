@@ -28,14 +28,14 @@ wheels = [
 
 [[package]]
 name = "agent-client-protocol"
-version = "0.10.0"
+version = "0.10.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/21/5c/d60196c536c8f66bb6a238c8a6d0d6fa84a2e3436008c139cb4a79003a25/agent_client_protocol-0.10.0.tar.gz", hash = "sha256:f8a6041e27423131e42e4d0cdd850d5b094b1092f79cc29501ab2bd57b92ee88", size = 81502, upload-time = "2026-05-07T19:11:56.784Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/88/a0/3b96cd8374725c69bc3dae9fcc2082f3f6cafec1be35d24d7af0f8c3265f/agent_client_protocol-0.10.1.tar.gz", hash = "sha256:355c65ca19f0568344aafc2c1552b7066a8fc491df23ab28e7e253c6c9a85a25", size = 81924, upload-time = "2026-05-24T18:46:44.444Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/6c/cc/139895c0c5cd2acefc365085da0735d93df0cf8427ff4ee351961090e1af/agent_client_protocol-0.10.0-py3-none-any.whl", hash = "sha256:97a1a69c5d094e2625b09c4dbc2d5cf19637c4943630ceed52ab0578ecd5e14c", size = 65400, upload-time = "2026-05-07T19:11:55.614Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/18/d8c7ff337cf621ea79a84006a7252ff057bfb5767549bb102cc6649f4ec2/agent_client_protocol-0.10.1-py3-none-any.whl", hash = "sha256:a03d3198f4d772f2e0ec012c00ac1cce131b4710220a3dc9fae3c991d047c750", size = 65401, upload-time = "2026-05-24T18:46:43.202Z" },
 ]
 
 [[package]]
@@ -472,6 +472,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/9a/8e/82a0fe20a541c03148528be8cac2408564a6c9a0cc7e9171802bc1d26985/attrs-26.1.0.tar.gz", hash = "sha256:d03ceb89cb322a8fd706d4fb91940737b6642aa36998fe130a9bc96c985eff32", size = 952055, upload-time = "2026-03-19T14:22:25.026Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/64/b4/17d4b0b2a2dc85a6df63d1157e028ed19f90d4cd97c36717afef2bc2f395/attrs-26.1.0-py3-none-any.whl", hash = "sha256:c647aa4a12dfbad9333ca4e71fe62ddc36f4e63b2d260a37a8b83d2f043ac309", size = 67548, upload-time = "2026-03-19T14:22:23.645Z" },
+]
+
+[[package]]
+name = "aws-bedrock-token-generator"
+version = "1.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "botocore" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fb/39/cf1c2e12bc5a84af0f96a546481213f81fa6e7927d2bbabd81758c6558ca/aws_bedrock_token_generator-1.1.0.tar.gz", hash = "sha256:95ccb07f63a91ac486561f6df05cc4e04784c8ff5086dc687ed9c5fd3ab1b5ba", size = 19123, upload-time = "2025-07-29T19:53:19.511Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f9/fd/745ece98870c3824d294bcdce5dc5e15381188a41bc80832c246b205e40e/aws_bedrock_token_generator-1.1.0-py3-none-any.whl", hash = "sha256:bd12854f7c7e52dde5d980d369379f12d0cc5f0855099d87f38688b0f9de5cd4", size = 10291, upload-time = "2025-07-29T19:53:18.704Z" },
 ]
 
 [[package]]
@@ -2002,6 +2014,7 @@ dev = [
     { name = "adlfs" },
     { name = "anthropic" },
     { name = "apprise" },
+    { name = "aws-bedrock-token-generator" },
     { name = "azure-ai-inference" },
     { name = "azure-identity" },
     { name = "google-genai" },
@@ -2079,11 +2092,12 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "adlfs", marker = "extra == 'dev'", specifier = ">=2025.8.0" },
-    { name = "agent-client-protocol", specifier = ">=0.10.0" },
+    { name = "agent-client-protocol", specifier = ">=0.10.1" },
     { name = "aioboto3", specifier = ">=13.0.0" },
     { name = "anthropic", marker = "extra == 'dev'", specifier = ">=0.105.0" },
     { name = "anyio", specifier = ">=4.8.0" },
     { name = "apprise", marker = "extra == 'dev'" },
+    { name = "aws-bedrock-token-generator", marker = "extra == 'dev'" },
     { name = "azure-ai-inference", marker = "extra == 'dev'" },
     { name = "azure-identity", marker = "extra == 'dev'" },
     { name = "beautifulsoup4", specifier = ">=4.10.0" },
@@ -2123,7 +2137,7 @@ requires-dist = [
     { name = "nbformat", marker = "extra == 'dev'" },
     { name = "nest-asyncio2", specifier = ">=1.7.2" },
     { name = "numpy" },
-    { name = "openai", marker = "extra == 'dev'", specifier = ">=2.26.0" },
+    { name = "openai", marker = "extra == 'dev'", specifier = ">=2.40.0" },
     { name = "pandas", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "pandas-stubs", marker = "extra == 'dev'" },
     { name = "panflute", marker = "extra == 'dev'" },
@@ -4155,7 +4169,7 @@ wheels = [
 
 [[package]]
 name = "openai"
-version = "2.32.0"
+version = "2.40.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -4167,9 +4181,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ed/59/bdcc6b759b8c42dd73afaf5bf8f902c04b37987a5514dbc1c64dba390fef/openai-2.32.0.tar.gz", hash = "sha256:c54b27a9e4cb8d51f0dd94972ffd1a04437efeb259a9e60d8922b8bd26fe55e0", size = 693286, upload-time = "2026-04-15T22:28:19.434Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f9/9f/136562ec6c3b1a50fe06eb0bb34ed21f0d7426ec0140e5cc43ac785b69a5/openai-2.40.0.tar.gz", hash = "sha256:9a756f91f274a24ad6026cbcb2042fd356c8d4a10e8f347b08d34465e585f7a2", size = 781177, upload-time = "2026-06-01T21:48:23.878Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/c1/d6e64ccd0536bf616556f0cad2b6d94a8125f508d25cfd814b1d2db4e2f1/openai-2.32.0-py3-none-any.whl", hash = "sha256:4dcc9badeb4bf54ad0d187453742f290226d30150890b7890711bda4f32f192f", size = 1162570, upload-time = "2026-04-15T22:28:17.714Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/46/180e14be801a75bc13f234cb1b594b232adeb9c84e60a9ab1832e8333591/openai-2.40.0-py3-none-any.whl", hash = "sha256:2b205637ff214477f9ce9ab035e9f494db0e3fa8f1e599008953735fbf6ff1ff", size = 1350935, upload-time = "2026-06-01T21:48:21.462Z" },
 ]
 
 [[package]]

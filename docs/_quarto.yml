@@ -96,6 +96,8 @@ inspect-docs:
         - href: typing.qmd
         - href: tracing.qmd
         - href: parallelism.qmd
+        - text: Customizing Task Views
+          href: task-views.qmd
         - href: interactivity.qmd
         - href: early-stopping.qmd
         - href: extensions.qmd

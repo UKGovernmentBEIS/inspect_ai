@@ -5,6 +5,11 @@ from .azure_hosting import (
     require_azure_base_url,
     resolve_azure_token_provider,
 )
+from .bedrock_hosting import (
+    resolve_bedrock_base_url,
+    resolve_bedrock_region,
+    resolve_bedrock_token_provider,
+)
 from .chatapi import (
     ChatAPIHandler,
     ChatAPIMessage,
@@ -29,6 +34,9 @@ __all__ = [
     "require_azure_base_url",
     "resolve_api_key",
     "resolve_azure_token_provider",
+    "resolve_bedrock_base_url",
+    "resolve_bedrock_region",
+    "resolve_bedrock_token_provider",
     "check_azure_deployment_mismatch",
     "tool_parse_error_message",
     "ChatAPIHandler",
