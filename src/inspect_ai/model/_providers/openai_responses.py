@@ -114,7 +114,9 @@ async def generate_responses(
 
     # prepare request (we do this so we can log the ModelCall)
     tool_params = (
-        openai_responses_tools(wire_tools, model_name, config)
+        openai_responses_tools(
+            wire_tools, model_name, config, is_latest=model_info.is_latest()
+        )
         if len(tools) > 0 or has_image_output(config.modalities)
         else NOT_GIVEN
     )

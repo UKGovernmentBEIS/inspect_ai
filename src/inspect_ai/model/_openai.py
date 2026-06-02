@@ -124,6 +124,38 @@ def needs_max_completion_tokens(model_name: str) -> bool:
     return is_gpt_5_model(model_name) or is_o_series_model(model_name)
 
 
+# OpenAI model-name tokens that identify non-generative models (embeddings,
+# audio, image, moderation). These must never be treated as a "latest"/frontier
+# chat model by is_latest_model().
+_NON_GENERATIVE_TOKENS = (
+    "embedding",
+    "whisper",
+    "dall-e",
+    "tts",
+    "moderation",
+    "image-1",
+    "sora",
+)
+
+
+def is_latest_model(model_name: str) -> bool:
+    """Detect an OpenAI predeployment/codename model as the current frontier.
+
+    OpenAI sometimes exposes pre-release models under internal code names (e.g.
+    `foo-bar-22`) that match none of the known naming conventions. Treat any such
+    unrecognized name as the latest model so it gets frontier behavior. Mirrors
+    the Anthropic provider's `is_claude_latest()`.
+    """
+    name = model_name.lower().removeprefix("openai.")  # bedrock api_model_name prefix
+    if any(token in name for token in _NON_GENERATIVE_TOKENS):
+        return False
+    if is_gpt_5_model(name) or is_o_series_model(name):
+        return False
+    if "gpt" in name or "codex" in name or "deep-research" in name:
+        return False
+    return True
+
+
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallUnion:
     return ChatCompletionMessageFunctionToolCall(
         type="function",

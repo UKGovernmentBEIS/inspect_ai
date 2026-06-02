@@ -185,6 +185,7 @@ REASONING_ENCRYPTED_CONTENT = "reasoning_encrypted_content"
 class ResponsesModelInfo(Protocol):
     def has_reasoning_options(self) -> bool: ...
     def reasoning_only_fallback(self) -> bool: ...
+    def is_latest(self) -> bool: ...
     def is_gpt(self) -> bool: ...
     def is_gpt_5(self) -> bool: ...
     def is_gpt_5_plus(self) -> bool: ...
@@ -490,9 +491,14 @@ def openai_responses_tool_choice(
 
 
 def openai_responses_tools(
-    tools: list[ToolInfo], model_name: str, config: GenerateConfig
+    tools: list[ToolInfo],
+    model_name: str,
+    config: GenerateConfig,
+    is_latest: bool = False,
 ) -> list[ToolParam]:
-    result = [_tool_param_for_tool_info(tool, model_name, config) for tool in tools]
+    result = [
+        _tool_param_for_tool_info(tool, model_name, config, is_latest) for tool in tools
+    ]
 
     # Add at most one image_generation tool if image output modality requested
     img_config = image_output_config(config.modalities)
@@ -521,10 +527,14 @@ def openai_responses_chat_choices(
 
 
 def is_native_tool_configured(
-    tools: Sequence[ToolInfo], model_name: str, config: GenerateConfig
+    tools: Sequence[ToolInfo],
+    model_name: str,
+    config: GenerateConfig,
+    is_latest: bool = False,
 ) -> bool:
     return any(
-        _maybe_native_tool_param(tool, model_name, config) is not None for tool in tools
+        _maybe_native_tool_param(tool, model_name, config, is_latest) is not None
+        for tool in tools
     )
 
 
@@ -1400,10 +1410,11 @@ def _maybe_native_tool_param(
     tool: ToolInfo,
     model_name: str,
     config: GenerateConfig,
+    is_latest: bool = False,
 ) -> ToolParam | None:
     return (
         (
-            maybe_computer_use_tool(model_name, tool)
+            maybe_computer_use_tool(model_name, tool, is_latest)
             or maybe_web_search_tool(model_name, tool)
             or maybe_mcp_tool(tool)
             or maybe_code_interpreter_tool(model_name, tool)
@@ -1480,9 +1491,10 @@ def _tool_param_for_tool_info(
     tool: ToolInfo,
     model_name: str,
     config: GenerateConfig,
+    is_latest: bool = False,
 ) -> ToolParam:
     # Use a native tool implementation when available.
-    tool_param = _maybe_native_tool_param(tool, model_name, config)
+    tool_param = _maybe_native_tool_param(tool, model_name, config, is_latest)
     if tool_param is not None:
         return tool_param
 
