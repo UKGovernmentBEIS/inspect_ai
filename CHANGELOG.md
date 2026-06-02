@@ -12,6 +12,7 @@
 - Inspect View: Migrated the sample transcript to a virtualized list for smoother rendering of long transcripts.
 - Bugfix: Inspect View sample-list columns now expand to fill the available width.
 - Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.
+- Sandbox tools: Inject tool support as a PyInstaller `--onedir` bundle (a gzipped tar extracted in-container) instead of a single StaticX executable, and add a musl-linked variant so `bash_session`, `text_editor`, and MCP tools now work in musl-based sandboxes (e.g. Alpine) in addition to glibc. The matching arch × libc artifact is auto-detected at injection; glibc variants ship in the wheel and musl is fetched from S3 on demand.
 
 ## 0.3.233 (01 June 2026)
 
