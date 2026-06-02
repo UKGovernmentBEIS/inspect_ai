@@ -63,14 +63,26 @@ def aggregate(
             sample is skipped.
           - `"zero"`: include the sample with value `0.0`.
 
+    A per-key `NaN` value (e.g. `{"key": NaN}`) is always treated as
+    unscored and skipped, independent of `on_missing` (which governs
+    *missing keys*, a distinct concept). This matches the framework's
+    dict-metric expansion, which skips NaN-valued keys rather than feeding
+    them into the inner metric.
+
     Returns:
-       Metric that aggregates `agg` over the `key` field. `NaN` if `skip`
-       filters every sample.
+       Metric that aggregates `agg` over the `key` field. `NaN` if every
+       sample is skipped (by `on_missing="skip"` and/or NaN-skipping).
 
     Raises:
-       ValueError: If a sample's `score.value` is not a dict, or if `key`
-          is missing (or `None`) and `on_missing="error"`.
+       ValueError: If `on_missing` is not one of "error", "skip", "zero";
+          if a sample's `score.value` is not a dict; or if `key` is missing
+          (or `None`) and `on_missing="error"`.
     """
+    if on_missing not in ("error", "skip", "zero"):
+        raise ValueError(
+            f"aggregate() got invalid on_missing={on_missing!r}; "
+            "expected 'error', 'skip', or 'zero'."
+        )
 
     def aggregate_metric(scores: list[SampleScore]) -> Value:
         agg_protocol = cast(MetricProtocol, agg)
@@ -85,9 +97,18 @@ def aggregate(
                     "dict-valued Score.value."
                 )
 
+            raw = value.get(key)
+
+            # A per-key NaN is unscored: skip it regardless of on_missing,
+            # matching the framework's dict-metric expansion (results.py),
+            # which excludes NaN-valued keys from the inner metric rather
+            # than letting them drag the aggregate to NaN. (`isinstance`
+            # excludes a missing key, whose `raw` is None.)
+            if isinstance(raw, float) and math.isnan(raw):
+                continue
+
             # Treat both "key absent" and "key present but None" as missing,
             # matching inspect_evals.utils.metrics.mean_of.
-            raw = value.get(key)
             if key in value and raw is not None:
                 extracted_value: float = to_float(raw)
             elif on_missing == "error":

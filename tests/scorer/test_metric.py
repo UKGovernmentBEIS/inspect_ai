@@ -776,3 +776,46 @@ def test_aggregate_all_skipped_returns_nan():
         ]
     )
     assert isinstance(result, float) and math.isnan(result)
+
+
+def test_aggregate_skips_nan_values():
+    # A per-key NaN is unscored: skipped regardless of on_missing (which is
+    # at its "error" default here), so the aggregate is the mean of the
+    # non-NaN values rather than NaN. Matches dict-metric expansion.
+    result = aggregate("x", agg=mean())(
+        [
+            SampleScore(score=Score(value={"x": 1})),
+            SampleScore(score=Score(value={"x": float("nan")})),
+            SampleScore(score=Score(value={"x": 3})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_all_nan_returns_nan():
+    result = aggregate("x", agg=mean())(
+        [
+            SampleScore(score=Score(value={"x": float("nan")})),
+            SampleScore(score=Score(value={"x": float("nan")})),
+        ]
+    )
+    assert isinstance(result, float) and math.isnan(result)
+
+
+def test_aggregate_nan_skipped_under_zero():
+    # NaN is distinct from a missing key: even with on_missing="zero" a NaN
+    # value is skipped (not coerced to 0.0), so it doesn't drag the mean down.
+    result = aggregate("x", agg=mean(), on_missing="zero")(
+        [
+            SampleScore(score=Score(value={"x": 2})),
+            SampleScore(score=Score(value={"x": float("nan")})),
+        ]
+    )
+    assert result == 2.0
+
+
+def test_aggregate_invalid_on_missing_raises():
+    # Invalid on_missing must fail at construction, not silently behave like
+    # "zero" only when a key happens to be missing.
+    with pytest.raises(ValueError, match="invalid on_missing"):
+        aggregate("x", agg=mean(), on_missing="skpi")  # type: ignore[arg-type]
