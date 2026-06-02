@@ -97,18 +97,13 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     summaries: list[dict[str, Any]] = []
 
     for group_key, states in states_by_group.items():
-        # Latest attempt by registration order — completed_at, or
-        # fallback to position in the list (later registrations are
-        # appended, so the tail is the most recent). Using
-        # completed_at where available avoids confusion if a retry
-        # finishes faster than the original.
-        latest = max(
-            states,
-            key=lambda s: (
-                s.completed_at if s.completed_at is not None else 0.0,
-                states.index(s),
-            ),
-        )
+        # Latest attempt = last registered. Retries are sequential (a
+        # retry registers only after the prior attempt finishes), and
+        # `get_eval_states()` preserves registration order, so the tail
+        # is the current attempt. Selecting by `completed_at` would wrongly
+        # prefer a finished earlier attempt over a still-running retry
+        # (whose `completed_at` is None).
+        latest = states[-1]
         attempts = len(states)
 
         # Live samples: pull from every attempt in the group (only the
@@ -351,7 +346,7 @@ def _sample_summaries_from_active(eval_id: str) -> list[dict[str, Any]]:
                 "message_count": s.total_messages,
                 "scores": {},  # running samples aren't scored yet
                 "error": None,
-                "retries": None,
+                "retries": s.retries or None,
                 "limit": None,
             }
         )

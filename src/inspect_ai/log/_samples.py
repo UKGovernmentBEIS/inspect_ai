@@ -61,6 +61,7 @@ class ActiveSample:
         eval_set_id: str | None = None,
         run_id: str | None = None,
         agent_name: str | None = None,
+        retries: int = 0,
     ) -> None:
         self.id = uuid()
         self.started: float | None = None
@@ -87,6 +88,10 @@ class ActiveSample:
         self.run_id = run_id
         self.eval_id = eval_id
         self.agent_name = agent_name
+        # Number of prior failed attempts for this sample (genuine errors
+        # only): sample-level `retry_on_error` plus task-level retries seeded
+        # via the sample source. 0 on the first attempt.
+        self.retries = retries
         self._interrupt_action: Literal["score", "error"] | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
@@ -252,6 +257,7 @@ async def active_sample(
     eval_set_id: str | None = None,
     run_id: str | None = None,
     agent_name: str | None = None,
+    retries: int = 0,
 ) -> AsyncGenerator[ActiveSample, None]:
     if sample.id is None:
         raise ValueError("active_sample requires sample.id to be set")
@@ -281,6 +287,7 @@ async def active_sample(
         run_id=run_id,
         eval_id=eval_id,
         agent_name=agent_name,
+        retries=retries,
     )
 
     _active_samples.append(active)

@@ -1931,3 +1931,345 @@ def test_ctl_samples_includes_pending_samples(short_data_dir: Path) -> None:
         err = result_ref.get("error")
         if err is not None:
             raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_samples_shows_sample_retries(short_data_dir: Path) -> None:
+    """A sample retried on error surfaces its retry count.
+
+    Sample 1 errors on its first attempt then succeeds (``retry_on_error``
+    retries it once → ``retries == 1``); sample 2 hangs to keep the eval
+    alive. The endpoint reports the retry count and the CLI shows the
+    ``retries`` column.
+    """
+    release = threading.Event()
+    calls = {"sample_1": 0}
+
+    @solver
+    def flaky_first_sample() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if int(state.sample_id) == 1:
+                calls["sample_1"] += 1
+                if calls["sample_1"] == 1:
+                    raise RuntimeError("transient first-attempt failure")
+            else:
+                while not release.is_set():
+                    await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def task_retry() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2)],
+            solver=[flaky_first_sample()],
+            name="task_retry",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[task_retry()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                retry_on_error=1,  # sample-level retry
+                max_samples=2,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_sample_retry")
+    thread.start()
+
+    def _endpoint_samples() -> list[dict[str, object]]:
+        servers = list_discovered_servers()
+        if not servers:
+            return []
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+                if not evals:
+                    return []
+                return client.get(f"/evals/{evals[0]['eval_id']}/samples").json()
+        except (httpx.HTTPError, OSError):
+            return []
+
+    try:
+        # Wait until sample 1 has completed (after its retry) and sample 2
+        # is still running.
+        def _retried_and_done() -> bool:
+            rows = _endpoint_samples()
+            done = [r for r in rows if r["status"] == "completed"]
+            running = [r for r in rows if r["status"] == "running"]
+            return (
+                len(done) == 1
+                and done[0]["sample_id"] == 1
+                and done[0].get("retries") == 1
+                and len(running) == 1
+            )
+
+        ready = _wait_until(_retried_and_done, timeout=30.0)
+        assert ready, (
+            f"sample 1 didn't complete with retries==1. "
+            f"rows={_endpoint_samples()}, error={result_ref.get('error')}"
+        )
+
+        from click.testing import CliRunner
+
+        from inspect_ai._cli.ctl import ctl_command
+
+        result = CliRunner().invoke(ctl_command, ["samples", "task_retry"])
+        assert result.exit_code == 0, result.output
+        assert "retries" in result.output  # the conditional column appears
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_samples_shows_task_level_retries(short_data_dir: Path) -> None:
+    """A sample re-run by a task-level retry surfaces a retry count.
+
+    `retry_task` has one sample that errors on its first task attempt; with
+    `retry_on_error=0` the task fails and eval-set retries the whole task
+    (`retry_attempts`), re-running the sample (which now succeeds). The
+    re-run seeds `error_retries` from the prior attempt, so the surviving
+    sample reports `retries == 1` over the control channel. `hang_task`
+    keeps the eval-set (and its control server) alive while we query.
+    """
+    release = threading.Event()
+    calls = {"retry": 0}
+
+    @solver
+    def fail_first_attempt() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls["retry"] += 1
+            if calls["retry"] == 1:
+                raise RuntimeError("transient task failure")
+            return state
+
+        return solve
+
+    @solver
+    def hang_until_released() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            while not release.is_set():
+                await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def retry_task() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="x", target="y")],
+            solver=[fail_first_attempt()],
+            name="retry_task",
+        )
+
+    @task
+    def hang_task() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="x", target="y")],
+            solver=[hang_until_released()],
+            name="hang_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[retry_task(), hang_task()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_on_error=0,
+                max_tasks=2,
+                max_samples=2,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_task_retry")
+    thread.start()
+
+    def _evals() -> list[dict[str, object]]:
+        servers = list_discovered_servers()
+        if not servers:
+            return []
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                return client.get("/evals").json()
+        except (httpx.HTTPError, OSError):
+            return []
+
+    def _samples(eval_id: str) -> list[dict[str, object]]:
+        servers = list_discovered_servers()
+        transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=2.0
+        ) as client:
+            return client.get(f"/evals/{eval_id}/samples").json()
+
+    try:
+        # Wait until retry_task has finished its retry (completed) while
+        # hang_task keeps the eval-set alive.
+        def _retry_task_done() -> bool:
+            evals = _evals()
+            retry = next((e for e in evals if e.get("task") == "retry_task"), None)
+            hang = next((e for e in evals if e.get("task") == "hang_task"), None)
+            return (
+                retry is not None
+                and retry["status"] == "completed"
+                and hang is not None
+                and hang["status"] == "running"
+            )
+
+        ready = _wait_until(_retry_task_done, timeout=30.0)
+        assert ready, (
+            f"retry_task didn't reach completed. evals={_evals()}, "
+            f"error={result_ref.get('error')}"
+        )
+
+        retry_eval = next(e for e in _evals() if e["task"] == "retry_task")
+        rows = _samples(str(retry_eval["eval_id"]))
+        done = [r for r in rows if r["status"] == "completed"]
+        assert len(done) == 1
+        assert done[0]["sample_id"] == 1
+        assert done[0]["retries"] == 1, f"expected retries==1, got {done[0]}"
+
+        from click.testing import CliRunner
+
+        from inspect_ai._cli.ctl import ctl_command
+
+        result = CliRunner().invoke(ctl_command, ["samples", "retry_task"])
+        assert result.exit_code == 0, result.output
+        assert "retries" in result.output
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_samples_shows_retries_on_running_reattempt(short_data_dir: Path) -> None:
+    """A sample re-running after a task-level failure reports its retry count.
+
+    The sample errors on attempt 1 (task fails -> task-level retry), then
+    hangs on attempt 2. While it's running on the retry it must report
+    ``retries == 1`` so the operator can see the in-flight retry rather than
+    waiting for completion.
+    """
+    release = threading.Event()
+    calls = {"n": 0}
+
+    @solver
+    def fail_then_hang() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("transient failure")
+            while not release.is_set():
+                await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def retry_then_hang_task() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="x", target="y")],
+            solver=[fail_then_hang()],
+            name="retry_then_hang_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[retry_then_hang_task()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=2,
+                retry_on_error=0,
+                max_samples=1,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_running_retry")
+    thread.start()
+
+    def _samples() -> list[dict[str, object]]:
+        servers = list_discovered_servers()
+        if not servers:
+            return []
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+                if not evals:
+                    return []
+                return client.get(f"/evals/{evals[0]['eval_id']}/samples").json()
+        except (httpx.HTTPError, OSError):
+            return []
+
+    try:
+        # Wait until the sample is running on its retry (retries == 1).
+        def _running_with_retry() -> bool:
+            rows = _samples()
+            return any(r["status"] == "running" and r.get("retries") == 1 for r in rows)
+
+        ready = _wait_until(_running_with_retry, timeout=30.0)
+        assert ready, (
+            f"running sample never reported retries==1. rows={_samples()}, "
+            f"error={result_ref.get('error')}"
+        )
+
+        from click.testing import CliRunner
+
+        from inspect_ai._cli.ctl import ctl_command
+
+        result = CliRunner().invoke(ctl_command, ["samples", "retry_then_hang_task"])
+        assert result.exit_code == 0, result.output
+        assert "retries" in result.output
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]

@@ -347,10 +347,15 @@ def _task_header(target: dict[str, Any]) -> str:
 def _print_samples_table(samples: list[dict[str, Any]]) -> None:
     """Render per-sample summaries as a simple aligned table on stdout.
 
-    A ``score`` column is shown only when the samples have exactly one
-    scorer (multi-scorer rendering is a later refinement). Running samples
-    have no score yet, so their cell is blank.
+    Two columns are conditional, shown only when relevant (keeping the
+    common case uncluttered):
+    - ``retries`` — when some sample was retried on error. Per-sample
+      (sample-level ``retry_on_error``); blank for samples with none.
+    - ``score`` — when the samples have exactly one scorer (multi-scorer
+      rendering is a later refinement). Running samples aren't scored yet,
+      so their cell is blank.
     """
+    any_retries = any((s.get("retries") or 0) > 0 for s in samples)
     scorers = sorted({name for s in samples for name in (s.get("scores") or {})})
     score_col = scorers[0] if len(scorers) == 1 else None
 
@@ -361,6 +366,8 @@ def _print_samples_table(samples: list[dict[str, Any]]) -> None:
             str(s.get("epoch", "")),
             s.get("status", "") or "",
         ]
+        if any_retries:
+            row.append(str(s["retries"]) if s.get("retries") else "")
         if score_col is not None:
             row.append(_format_score((s.get("scores") or {}).get(score_col)))
         row.extend(
@@ -373,6 +380,8 @@ def _print_samples_table(samples: list[dict[str, Any]]) -> None:
         rows.append(tuple(row))
 
     headers = ["sample", "epoch", "status"]
+    if any_retries:
+        headers.append("retries")
     if score_col is not None:
         headers.append("score")
     headers.extend(["time", "tokens", "messages"])

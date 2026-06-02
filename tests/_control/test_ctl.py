@@ -133,3 +133,25 @@ def test_sorted_samples_orders_running_then_terminal_then_pending() -> None:
     ordered = [r["status"] for r in _sorted_samples(rows)]
     # running first; terminal (completed/error) by start time; pending last.
     assert ordered == ["running", "error", "completed", "pending"]
+
+
+def test_retries_column_shown_when_a_sample_retried(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    samples = [
+        {**_sample(1, "completed", {}), "retries": 2},
+        {**_sample(2, "completed", {}), "retries": 0},  # no retries → blank cell
+    ]
+    _print_samples_table(samples)
+    lines = capsys.readouterr().out.splitlines()
+    assert "retries" in lines[0]  # header row has the column
+    retried_row = next(ln for ln in lines if ln.startswith("1 "))
+    assert "2" in retried_row
+
+
+def test_retries_column_hidden_when_no_retries(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    samples = [{**_sample(1, "completed", {}), "retries": 0}]
+    _print_samples_table(samples)
+    assert "retries" not in capsys.readouterr().out.splitlines()[0]
