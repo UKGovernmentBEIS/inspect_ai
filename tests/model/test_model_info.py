@@ -207,6 +207,18 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(model)
         assert tokens == 1_000_000
 
+    def test_openai_codename_maps_to_gpt_5_5(self):
+        """An OpenAI codename (is_latest) aliases to gpt-5.5's input tokens."""
+        model = get_model("openai/foo-bar-22", api_key="test-key")
+        tokens = get_model_input_tokens(model)
+        assert tokens == 922_000
+
+    def test_openai_known_model_unaffected(self):
+        """A known OpenAI model still reports its own input tokens."""
+        model = get_model("openai/gpt-4o", api_key="test-key")
+        tokens = get_model_input_tokens(model)
+        assert tokens == get_model_info("openai/gpt-4o").input_tokens
+
 
 class TestResultCaching:
     """Tests for the result-level memoization in get_model_info."""
