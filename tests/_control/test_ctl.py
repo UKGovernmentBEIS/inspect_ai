@@ -155,3 +155,94 @@ def test_retries_column_hidden_when_no_retries(
     samples = [{**_sample(1, "completed", {}), "retries": 0}]
     _print_samples_table(samples)
     assert "retries" not in capsys.readouterr().out.splitlines()[0]
+
+
+def test_sample_detail_shows_prior_attempts_message_only(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from inspect_ai._cli.ctl import _print_sample_detail
+
+    detail = {
+        "sample_id": "recABC",
+        "epoch": 1,
+        "status": "completed",
+        "retries": 2,
+        "error": None,
+        "error_retries": [
+            {"message": "RuntimeError('boom 1')", "traceback_ansi": "TB-ONE"},
+            {"message": "RuntimeError('boom 2')", "traceback_ansi": "TB-TWO"},
+        ],
+        "scores": {},
+    }
+    _print_sample_detail(detail, show_traceback=False)
+    out = capsys.readouterr().out
+    assert "prior attempts" in out
+    assert "attempt 1: RuntimeError('boom 1')" in out
+    assert "attempt 2: RuntimeError('boom 2')" in out
+    # message-only by default — no traceback bodies
+    assert "TB-ONE" not in out and "TB-TWO" not in out
+
+
+def test_sample_detail_traceback_flag_expands(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from inspect_ai._cli.ctl import _print_sample_detail
+
+    detail = {
+        "sample_id": 1,
+        "epoch": 1,
+        "status": "error",
+        "retries": 0,
+        "error": {"message": "ValueError('nope')", "traceback_ansi": "TRACE-BODY"},
+        "error_retries": [],
+        "scores": {},
+    }
+    _print_sample_detail(detail, show_traceback=True)
+    out = capsys.readouterr().out
+    assert "final error" in out
+    assert "ValueError('nope')" in out
+    assert "TRACE-BODY" in out
+
+
+def test_sample_detail_no_errors(capsys: pytest.CaptureFixture[str]) -> None:
+    from inspect_ai._cli.ctl import _print_sample_detail
+
+    detail = {
+        "sample_id": 1,
+        "epoch": 1,
+        "status": "completed",
+        "retries": 0,
+        "error": None,
+        "error_retries": [],
+        "scores": {},
+    }
+    _print_sample_detail(detail, show_traceback=False)
+    assert "(no errors)" in capsys.readouterr().out
+
+
+def test_errors_table_lists_retried_and_errored(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from inspect_ai._cli.ctl import _print_errors_table
+
+    samples = [
+        {
+            "sample_id": "recABC",
+            "epoch": 1,
+            "status": "completed",
+            "retries": 1,
+            "error": None,
+        },
+        {
+            "sample_id": 2,
+            "epoch": 1,
+            "status": "error",
+            "retries": 0,
+            "error": "TimeoutError('slow')",
+        },
+    ]
+    _print_errors_table(samples)
+    out = capsys.readouterr().out
+    assert "recABC" in out
+    assert "TimeoutError('slow')" in out
+    assert "retries" in out.splitlines()[0]

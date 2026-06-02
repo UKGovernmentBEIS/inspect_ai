@@ -1060,8 +1060,9 @@ async def task_run_sample(
             run_id=run_id,
             eval_id=task_id,
             agent_name=agent_name,
-            # prior failed attempts (task-level seed + sample-level retries)
-            retries=len(previous_attempt_errors) + len(error_retries),
+            # prior failed attempts (task-level seed + sample-level retries),
+            # surfaced as the running sample's error history by the control channel
+            error_retries=previous_attempt_errors + error_retries,
         ) as active:
             # check for early stopping
             if early_stopping is not None and logger is not None:

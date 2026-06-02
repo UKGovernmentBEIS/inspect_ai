@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from inspect_ai.agent._acp.transport import AcpTransport
     from inspect_ai.agent._channel import ExecutionObserver
     from inspect_ai.hooks._hooks import SampleEvent
+    from inspect_ai.log._log import EvalRetryError
     from inspect_ai.model._model_call import ModelCall, ModelCallFilter
 
 import anyio
@@ -61,7 +62,7 @@ class ActiveSample:
         eval_set_id: str | None = None,
         run_id: str | None = None,
         agent_name: str | None = None,
-        retries: int = 0,
+        error_retries: "list[EvalRetryError] | None" = None,
     ) -> None:
         self.id = uuid()
         self.started: float | None = None
@@ -88,10 +89,11 @@ class ActiveSample:
         self.run_id = run_id
         self.eval_id = eval_id
         self.agent_name = agent_name
-        # Number of prior failed attempts for this sample (genuine errors
-        # only): sample-level `retry_on_error` plus task-level retries seeded
-        # via the sample source. 0 on the first attempt.
-        self.retries = retries
+        # Prior failed attempts for this sample (genuine errors only):
+        # sample-level `retry_on_error` plus task-level retries seeded via the
+        # sample source. Empty on the first attempt. The control channel
+        # surfaces these as the running sample's error history.
+        self.error_retries: list[EvalRetryError] = error_retries or []
         self._interrupt_action: Literal["score", "error"] | None = None
         self._limit_exceeded_error: LimitExceededError | None = None
         self.event_send: MemoryObjectSendStream[SampleEvent] | None = None
@@ -145,6 +147,11 @@ class ActiveSample:
         self.on_interrupt: (
             Callable[[Literal["user_cancel", "limit", "system"]], None] | None
         ) = None
+
+    @property
+    def retries(self) -> int:
+        """Number of prior failed attempts for this sample (0 on first run)."""
+        return len(self.error_retries)
 
     def start(self, tg: TaskGroup) -> None:
         self.started = datetime.now(timezone.utc).timestamp()
@@ -257,7 +264,7 @@ async def active_sample(
     eval_set_id: str | None = None,
     run_id: str | None = None,
     agent_name: str | None = None,
-    retries: int = 0,
+    error_retries: "list[EvalRetryError] | None" = None,
 ) -> AsyncGenerator[ActiveSample, None]:
     if sample.id is None:
         raise ValueError("active_sample requires sample.id to be set")
@@ -287,7 +294,7 @@ async def active_sample(
         run_id=run_id,
         eval_id=eval_id,
         agent_name=agent_name,
-        retries=retries,
+        error_retries=error_retries,
     )
 
     _active_samples.append(active)

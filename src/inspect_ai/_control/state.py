@@ -282,6 +282,102 @@ async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     return []
 
 
+async def sample_error_detail(
+    eval_id: str, sample_id: str, epoch: int
+) -> dict[str, Any] | None:
+    """Full error detail for one sample (``GET /evals/<id>/samples/<sid>/<epoch>``).
+
+    Two sources, mirroring :func:`current_sample_summaries`:
+
+    - **running** ← ``active_samples``: a still-running sample isn't in the
+      log yet, but its prior-attempt errors (task-level seed + sample-level
+      retries so far) are carried on the ``ActiveSample``. There is no current
+      error while it runs.
+    - **completed / finished** ← the on-disk log: the full ``EvalSample`` is the
+      only place the prior-attempt errors live in detail (``error_retries``);
+      per-sample summaries carry just a retry *count*. Heavy fields (messages,
+      events, store, attachments, output) are excluded — only error data is
+      needed.
+
+    Returns ``None`` when the eval isn't in this process, or the sample isn't
+    running and isn't in the log yet — the endpoint turns that into a 404.
+    """
+    from inspect_ai._control.eval_state import get_eval_state
+    from inspect_ai.log._file import read_eval_log_sample_async
+
+    # Running sample first: it isn't in the log yet, and active_samples is the
+    # only place its in-flight error history lives.
+    running = _running_sample_error_detail(eval_id, sample_id, epoch)
+    if running is not None:
+        return running
+
+    state = get_eval_state(eval_id)
+    if state is None or not state.log_location:
+        return None
+
+    # The id arrives as a path string; coerce a numeric id back to int so it
+    # matches an integer sample id stored in the log.
+    sid: str | int = int(sample_id) if sample_id.lstrip("-").isdigit() else sample_id
+
+    try:
+        sample = await read_eval_log_sample_async(
+            state.log_location,
+            sid,
+            epoch,
+            exclude_fields={"messages", "events", "store", "attachments", "output"},
+        )
+    except IndexError:
+        # sample not found in the log (terminal but not yet flushed)
+        return None
+
+    return {
+        "sample_id": sample.id,
+        "epoch": sample.epoch,
+        "status": "error" if sample.error is not None else "completed",
+        "retries": len(sample.error_retries) if sample.error_retries else 0,
+        "error": _error_dict(sample.error) if sample.error is not None else None,
+        "error_retries": [_error_dict(e) for e in (sample.error_retries or [])],
+        "scores": {name: score.value for name, score in (sample.scores or {}).items()},
+    }
+
+
+def _running_sample_error_detail(
+    eval_id: str, sample_id: str, epoch: int
+) -> dict[str, Any] | None:
+    """Error detail for a sample currently running in this process, or None.
+
+    A running sample has no current error yet; its ``error_retries`` are the
+    prior failed attempts seeded onto the ``ActiveSample``. A terminal sample
+    still in ``active_samples`` is left to the on-disk log (which carries the
+    final ``error_retries``).
+    """
+    from inspect_ai.log._samples import active_samples
+
+    for s in active_samples():
+        if s.eval_id == eval_id and str(s.sample.id) == sample_id and s.epoch == epoch:
+            if s.completed is not None:
+                return None
+            return {
+                "sample_id": s.sample.id,
+                "epoch": s.epoch,
+                "status": "running",
+                "retries": s.retries,
+                "error": None,
+                "error_retries": [_error_dict(e) for e in s.error_retries],
+                "scores": {},
+            }
+    return None
+
+
+def _error_dict(error: Any) -> dict[str, Any]:
+    """Serialize an EvalError / EvalRetryError (message + traceback) to a dict."""
+    return {
+        "message": error.message,
+        "traceback": error.traceback,
+        "traceback_ansi": error.traceback_ansi,
+    }
+
+
 async def _sample_summaries_from_log(location: str) -> list[dict[str, Any]]:
     """Completed-sample summaries read from the on-disk log.
 

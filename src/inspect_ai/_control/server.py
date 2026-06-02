@@ -35,6 +35,7 @@ from inspect_ai._control.discovery import default_socket_path, discovery_dir
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_summaries,
+    sample_error_detail,
 )
 from inspect_ai._util.discovery import (
     DISCOVERY_FILE_MODE,
@@ -126,6 +127,16 @@ class ControlServer:
         @app.get("/evals/{eval_id}/samples")
         async def list_eval_samples(eval_id: str) -> list[dict[str, Any]]:
             return await current_sample_summaries(eval_id)
+
+        @app.get("/evals/{eval_id}/samples/{sample_id}/{epoch}")
+        async def get_sample_errors(eval_id: str, sample_id: str, epoch: int) -> Any:
+            detail = await sample_error_detail(eval_id, sample_id, epoch)
+            if detail is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            return detail
 
         @app.post("/shutdown")
         async def shutdown() -> dict[str, bool]:

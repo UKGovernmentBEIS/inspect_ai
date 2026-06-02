@@ -2266,6 +2266,138 @@ def test_ctl_samples_shows_retries_on_running_reattempt(short_data_dir: Path) ->
         result = CliRunner().invoke(ctl_command, ["samples", "retry_then_hang_task"])
         assert result.exit_code == 0, result.output
         assert "retries" in result.output
+
+        # `ctl sample` surfaces the prior-attempt error even though the sample
+        # is still running (not in the log yet) — sourced from active_samples.
+        detail = CliRunner().invoke(
+            ctl_command, ["sample", "retry_then_hang_task", "1"]
+        )
+        assert detail.exit_code == 0, detail.output
+        assert "running" in detail.output
+        assert "prior attempts" in detail.output
+        assert "transient failure" in detail.output
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_errors_and_sample_surface_prior_attempt_errors(
+    short_data_dir: Path,
+) -> None:
+    """`ctl errors` lists retried samples; `ctl sample` shows prior errors.
+
+    A sample errors on attempt 1, the task is retried, and the sample
+    succeeds. `inspect ctl errors` should list it (retries == 1) and
+    `inspect ctl sample` should surface the attempt-1 error message.
+    `hang_task` keeps the eval-set (and control server) alive.
+    """
+    release = threading.Event()
+    calls = {"n": 0}
+
+    @solver
+    def fail_once() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("transient boom on attempt 1")
+            return state
+
+        return solve
+
+    @solver
+    def hang() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            while not release.is_set():
+                await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def retry_task() -> Task:
+        return Task(
+            dataset=[Sample(id="recABC", input="x", target="y")],
+            solver=[fail_once()],
+            name="retry_task",
+        )
+
+    @task
+    def hang_task() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="x", target="y")],
+            solver=[hang()],
+            name="hang_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[retry_task(), hang_task()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=1,
+                retry_on_error=0,
+                max_tasks=2,
+                max_samples=2,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_ctl_errors")
+    thread.start()
+
+    def _retry_task_done() -> bool:
+        servers = list_discovered_servers()
+        if not servers:
+            return False
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+        except (httpx.HTTPError, OSError):
+            return False
+        rt = next((e for e in evals if e.get("task") == "retry_task"), None)
+        return rt is not None and rt["status"] == "completed"
+
+    try:
+        ready = _wait_until(_retry_task_done, timeout=30.0)
+        assert ready, f"retry_task didn't complete; error={result_ref.get('error')}"
+
+        from click.testing import CliRunner
+
+        from inspect_ai._cli.ctl import ctl_command
+
+        runner = CliRunner()
+
+        errors = runner.invoke(ctl_command, ["errors", "retry_task"])
+        assert errors.exit_code == 0, errors.output
+        assert "recABC" in errors.output
+        assert "retries" in errors.output  # the retried sample is listed
+
+        detail = runner.invoke(ctl_command, ["sample", "retry_task", "recABC"])
+        assert detail.exit_code == 0, detail.output
+        assert "prior attempts" in detail.output
+        assert "transient boom on attempt 1" in detail.output
+
+        # message-only by default: no traceback frames unless -t
+        assert "Traceback" not in detail.output
+        with_tb = runner.invoke(
+            ctl_command, ["sample", "retry_task", "recABC", "--traceback"]
+        )
+        assert with_tb.exit_code == 0, with_tb.output
+        assert "Traceback" in with_tb.output
     finally:
         release.set()
         thread.join(timeout=60)

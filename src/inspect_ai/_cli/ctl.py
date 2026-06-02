@@ -111,6 +111,105 @@ def samples_command(task: str | None, as_json: bool) -> None:
     _print_samples_table(samples)
 
 
+@ctl_command.command("errors")
+@click.argument("task", required=False)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (one array of errored/retried samples).",
+)
+def errors_command(task: str | None, as_json: bool) -> None:
+    """List the samples of a running eval that errored or were retried.
+
+    A triage overview: one row per sample with a current error or any
+    retries, showing the latest error message. Drill into a single sample's
+    full error history (including prior attempts) with `inspect ctl sample`.
+
+    TASK selects the task as in `inspect ctl samples`.
+    """
+    summaries = _fetch_summaries(list_discovered_servers())
+    if not summaries:
+        if as_json:
+            click.echo("[]")
+            return
+        click.echo(
+            f"No running evals found in {discovery_dir()}.\n"
+            "Start an eval with `inspect eval <task>` and try again."
+        )
+        return
+
+    target = _resolve_target_eval(summaries, task)
+    samples = _fetch_samples(target["socket_path"], target["eval_id"])
+    errored = [s for s in samples if s.get("error") or (s.get("retries") or 0) > 0]
+
+    if as_json:
+        click.echo(json_lib.dumps(errored, indent=2))
+        return
+
+    click.echo(_task_header(target))
+    if not errored:
+        click.echo("(no errors or retries)")
+        return
+    click.echo()
+    _print_errors_table(errored)
+
+
+@ctl_command.command("sample")
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=1)
+@click.option(
+    "--traceback",
+    "-t",
+    "show_traceback",
+    is_flag=True,
+    default=False,
+    help="Show the full traceback for each error (default: message only).",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the sample's full error detail).",
+)
+def sample_command(
+    task: str, sample_id: str, epoch: int, show_traceback: bool, as_json: bool
+) -> None:
+    """Show one sample's error detail, including errors from prior attempts.
+
+    TASK selects the task as in `inspect ctl samples`; SAMPLE_ID is the
+    sample's id (as shown by `inspect ctl samples`); EPOCH defaults to 1.
+
+    Surfaces the current error (if the sample failed) and the error from each
+    prior attempt (task-level retries and sample-level `retry_on_error`). Pass
+    `--traceback` to expand full tracebacks.
+    """
+    summaries = _fetch_summaries(list_discovered_servers())
+    if not summaries:
+        if as_json:
+            click.echo("null")
+            return
+        click.echo(
+            f"No running evals found in {discovery_dir()}.\n"
+            "Start an eval with `inspect eval <task>` and try again."
+        )
+        return
+
+    target = _resolve_target_eval(summaries, task)
+    detail = _fetch_sample_detail(
+        target["socket_path"], target["eval_id"], sample_id, epoch
+    )
+
+    if as_json:
+        click.echo(json_lib.dumps(detail, indent=2))
+        return
+
+    _print_sample_detail(detail, show_traceback)
+
+
 @ctl_command.command("shutdown")
 @click.option(
     "--pid",
@@ -275,6 +374,93 @@ def _fetch_samples(socket_path: str, eval_id: str) -> list[dict[str, Any]]:
         )
         raise click.exceptions.Exit(code=1) from exc
     return rows if isinstance(rows, list) else []
+
+
+def _fetch_sample_detail(
+    socket_path: str, eval_id: str, sample_id: str, epoch: int
+) -> dict[str, Any]:
+    """Query one control server for a single sample's full error detail."""
+    try:
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            response = client.get(f"/evals/{eval_id}/samples/{sample_id}/{epoch}")
+            if response.status_code == 404:
+                click.echo(
+                    f"Sample '{sample_id}' (epoch {epoch}) not found — it may "
+                    "still be running or not yet written to the log.",
+                    err=True,
+                )
+                raise click.exceptions.Exit(code=1)
+            response.raise_for_status()
+            detail = response.json()
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        click.echo(f"Failed to read sample: {_error_detail(exc)}", err=True)
+        raise click.exceptions.Exit(code=1) from exc
+    return detail if isinstance(detail, dict) else {}
+
+
+def _print_errors_table(samples: list[dict[str, Any]]) -> None:
+    """Render errored/retried samples as a triage table on stdout."""
+    rows: list[tuple[str, ...]] = []
+    for s in samples:
+        rows.append(
+            (
+                str(s["sample_id"]) if s.get("sample_id") is not None else "?",
+                str(s.get("epoch", "")),
+                s.get("status", "") or "",
+                str(s["retries"]) if s.get("retries") else "",
+                _truncate(s.get("error") or "", 64),
+            )
+        )
+    _render_table(("sample", "epoch", "status", "retries", "error"), rows)
+
+
+def _print_sample_detail(detail: dict[str, Any], show_traceback: bool) -> None:
+    """Render one sample's error history (prior attempts, then final error)."""
+    parts = [
+        f"sample {detail.get('sample_id')}",
+        f"epoch {detail.get('epoch')}",
+        detail.get("status") or "",
+    ]
+    if detail.get("retries"):
+        parts.append(f"{detail['retries']} retries")
+    scores = detail.get("scores") or {}
+    if scores:
+        parts.append(
+            "score " + ", ".join(f"{k}={_format_score(v)}" for k, v in scores.items())
+        )
+    click.echo("  ·  ".join(p for p in parts if p))
+
+    error = detail.get("error")
+    retries = detail.get("error_retries") or []
+    if not error and not retries:
+        click.echo("\n(no errors)")
+        return
+
+    if retries:
+        click.echo("\nprior attempts:")
+        for i, retry_error in enumerate(retries, start=1):
+            _echo_error(f"attempt {i}:", retry_error, show_traceback)
+    if error:
+        click.echo("\nfinal error:")
+        _echo_error("", error, show_traceback)
+
+
+def _echo_error(label: str, error: dict[str, Any], show_traceback: bool) -> None:
+    """Echo one error: ``label  message`` plus an indented traceback if asked."""
+    message = error.get("message") or ""
+    click.echo(f"  {label} {message}".rstrip() if label else f"  {message}")
+    if show_traceback:
+        traceback = error.get("traceback_ansi") or error.get("traceback") or ""
+        for line in traceback.rstrip("\n").splitlines():
+            click.echo(f"    {line}")
+
+
+def _truncate(text: str, width: int) -> str:
+    text = text.replace("\n", " ")
+    return text if len(text) <= width else text[: width - 1] + "…"
 
 
 def _error_detail(exc: Exception) -> str:
