@@ -121,7 +121,7 @@ def completion_params_completions(
     openai_api: "OpenAIAPI", config: GenerateConfig, tools: bool
 ) -> dict[str, Any]:
     # first call the default processing
-    params = openai_completion_params(openai_api.service_model_name(), config, tools)
+    params = openai_completion_params(openai_api.api_model_name(), config, tools)
 
     # add service_tier if specified
     if openai_api.service_tier is not None:
