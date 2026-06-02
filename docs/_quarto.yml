@@ -4,18 +4,6 @@ project:
     - CNAME
     - listing/
 
-website:
-  navbar:
-    left:
-      - text: "User Guide"
-        href: index.qmd
-      - text: "Reference"
-        href: reference/index.qmd
-      - text: "Extensions"
-        href: extensions/index.qmd
-      - text: "Evals"
-        href: evals/index.qmd
-
 inspect-docs:
   title: Inspect
   description: Open-source framework for large language model evaluations
@@ -28,6 +16,18 @@ inspect-docs:
   org: UK AI Security Institute
   org_url: https://aisi.gov.uk
   twitter: AISecurityInst
+  sidebar:
+    collapse-level: 1
+  navbar:
+    left:
+      - text: "User Guide"
+        href: index.qmd
+      - text: "Reference"
+        href: reference/index.qmd
+      - text: "Extensions"
+        href: extensions/index.qmd
+      - text: "Evals"
+        href: evals/index.qmd
   navigation:
     - text: Basics
       contents:
