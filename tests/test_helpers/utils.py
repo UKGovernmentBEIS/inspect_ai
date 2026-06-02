@@ -6,6 +6,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from random import random
 from types import FrameType
@@ -516,14 +517,31 @@ def identity_solver(arg: int = 0):
 
 
 def ensure_test_package_installed():
-    try:
-        clear_entry_points_state()
-        if importlib.util.find_spec("inspect_package") is None:
-            raise ImportError
-    except ImportError:
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "install", "--no-deps", "tests/test_package"]
-        )
+    lock_path = Path(tempfile.gettempdir()) / "inspect-test-package-install.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("w") as lock_file:
+        if os.name == "posix":
+            import fcntl
+
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+        try:
+            clear_entry_points_state()
+            if importlib.util.find_spec("inspect_package") is None:
+                raise ImportError
+        except ImportError:
+            subprocess.check_call(
+                [
+                    sys.executable,
+                    "-m",
+                    "pip",
+                    "install",
+                    "--no-deps",
+                    "tests/test_package",
+                ]
+            )
+        finally:
+            if os.name == "posix":
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
     ensure_entry_points("inspect_package")
 
 
