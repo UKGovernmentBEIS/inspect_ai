@@ -441,6 +441,9 @@ class ModelInfo(ResponsesModelInfo):
     def reasoning_only_fallback(self) -> bool:
         return True
 
+    def is_latest(self) -> bool:
+        return False
+
     def is_gpt(self) -> bool:
         return False
 

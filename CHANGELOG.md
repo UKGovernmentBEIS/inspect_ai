@@ -12,6 +12,11 @@
 - Inspect View: Migrated the sample transcript to a virtualized list for smoother rendering of long transcripts.
 - Bugfix: Inspect View sample-list columns now expand to fill the available width.
 - Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.
+
+## 0.3.234 (02 June 2026)
+
+- OpenAI: Map Inspect `todo_write` tool to native OpenAI/Codex `update_plan` tool.
+- OpenAI: Support [OpenAI models on AWS Bedrock](https://inspect.aisi.org.uk/providers.html#openai-on-aws-bedrock) via the `openai/bedrock/<model>` qualifier.
 - Bugfix: Fix crash when running `bash_session` with realtime logging enabled (the default), caused by a non-serializable sandbox object being written to the sample store. The sandbox is now re-resolved per call rather than cached in the store.
 
 ## 0.3.233 (01 June 2026)
