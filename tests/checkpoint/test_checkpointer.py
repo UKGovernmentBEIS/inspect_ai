@@ -925,6 +925,12 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
     fake_sample_state = MagicMock(restic_password="pwd")
     sample_ckpt_path = str(tmp_path / "ckpts" / "s__0")
 
+    # Live-sandbox set drives hydration; "web" has an explicit config entry
+    # so it's backed up verbatim (no home-dir resolution exec).
+    from inspect_ai.util._sandbox.context import sandbox_environments_context_var
+
+    sandbox_token = sandbox_environments_context_var.set({"web": fake_env})
+
     with (
         patch(
             "inspect_ai.util._checkpoint.hydrate.ensure_sample_checkpoints_dir",
@@ -988,6 +994,8 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
         async with setup as cp2:
             assert cp2 is cp
             assert [m.call_count for m in io_mocks] == call_counts
+
+    sandbox_environments_context_var.reset(sandbox_token)
 
 
 async def test_write_host_context_exports_transcript_store_attachments(

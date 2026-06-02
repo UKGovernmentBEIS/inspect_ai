@@ -115,7 +115,7 @@ Additional trigger types — including cost-based and budget-percentage triggers
 | Field | Description |
 |----|----|
 | `trigger` | The trigger that decides when to fire. When unset at every layer (while checkpointing is enabled by task/eval), defaults to `TokenInterval(every=500_000)`. |
-| `sandbox_paths` | Per-sandbox-name map of absolute paths inside the sandbox to capture. Empty/omitted = host-only checkpointing (no sandbox repos). See [Sandbox Paths](#sandbox-paths) below. |
+| `sandbox_paths` | Per-sandbox-name map of absolute paths inside the sandbox to capture. Overrides the default for the named sandbox; any sandbox *not* named here falls back to capturing its default user's home directory. An empty list opts a sandbox out. See [Sandbox Paths](#sandbox-paths) below. |
 | `checkpoints_location` | Override the parent directory under which the per-eval checkpoint dir lands. Defaults to a sibling of the eval log file. Any fsspec-resolvable path (`s3://`, `gs://`, local, …). Settable only at the task or eval layer. |
 | `max_consecutive_failures` | If set, fail the sample after N consecutive failed checkpoint attempts. `None` (default) = unlimited tolerance; `0` = any single failure is fatal. |
 | `retention` | `Retention(after_eval="delete" \| "retain")`. `"delete"` (default) removes the checkpoint directory on successful eval completion; `"retain"` keeps it. Settable only at the task or eval layer. |
@@ -176,12 +176,12 @@ CheckpointConfig(
 )
 ```
 
-There is **no implicit default** — path selection is agent-specific:
+**Default:** every sandbox returned by `sample_init` automatically captures its **default user's home directory** — you only need `sandbox_paths` to override that default. Path selection is agent-specific:
 
--   **Native Python agents** (e.g. the built-in React agent) typically declare an empty `sandbox_paths`. Their state lives in messages and `Store`, both already captured by Inspect's host-side snapshot. No sandbox repo is created in this case.
--   **Sandbox CLI agents** (Claude Code, Codex CLI, Gemini CLI, …) typically declare multiple paths: the agent's home directory, the project working directory (often `/workspace`), and any tool-state directories.
+-   **Sandbox CLI agents** (Claude Code, Codex CLI, Gemini CLI, …) keep their state under the agent's home directory, so the default captures them with no configuration. Override only to add other locations — e.g. a project working directory (`/workspace`) or a tool-state dir outside `$HOME`.
+-   **Native Python agents** (e.g. the built-in React agent) keep their state in messages and `Store`, both already captured by Inspect's host-side snapshot. The home-directory backup is harmless but redundant; opt the sandbox out with an empty list (see below) to skip it.
 
-If a sandbox name returned by `sample_init` does not appear in `sandbox_paths`, no sandbox repo is created for it. Anything outside the configured paths is not captured and will not be restored on resume.
+An entry in `sandbox_paths` replaces the default for that sandbox — only the listed paths are captured. An **empty list** (`{"name": []}`) is an explicit opt-out: no sandbox repo is created for it. Anything outside the captured paths is not snapshotted and will not be restored on resume.
 
 ## Checkpoint Flow
 

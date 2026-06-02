@@ -169,6 +169,7 @@ class _EnteredCheckpointer:
         self._host_restic = hydration.host_restic
         self._host_repo = hydration.host_repo
         self._restic_password = hydration.restic_password
+        self._sandbox_backup_paths = hydration.sandbox_backup_paths
         self._resume_checkpoint = resume_checkpoint
         self._agent_state: dict[str, Any] = (
             hydration.host.agent_state if hydration.host.agent_state is not None else {}
@@ -394,7 +395,7 @@ class _EnteredCheckpointer:
                 # are independent across sandboxes and from the host backup.
                 # `tg_collect` takes thunks (zero-arg callables) so coroutines
                 # are only created at task-group start time.
-                sandbox_items = list((self._config.sandbox_paths or {}).items())
+                sandbox_items = list(self._sandbox_backup_paths.items())
                 backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
                     partial(self._backup_host, next_checkpoint_id),
                     *[
