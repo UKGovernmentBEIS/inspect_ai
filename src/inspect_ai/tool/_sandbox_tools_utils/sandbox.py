@@ -277,10 +277,17 @@ async def _open_executable_for_arch(
                 return
         except (FileNotFoundError, ModuleNotFoundError, NotADirectoryError):
             if install_state == "pypi":
-                msg = f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
-                # TODO: once we get the github CI/CD actions robust, this should be fatal
-                # raise PrerequisiteError(msg)
-                warn_once(logger, msg)
+                if musl:
+                    trace_message(
+                        logger,
+                        TRACE_SANDBOX_TOOLS,
+                        f"musl executable {executable_name} not bundled in PyPI package; attempting S3 download",
+                    )
+                else:
+                    msg = f"Tool support executable {executable_name} is missing from the PyPI package installation. This indicates a problem with the package. Please reinstall inspect_ai."
+                    # TODO: once we get the github CI/CD actions robust, this should be fatal
+                    # raise PrerequisiteError(msg)
+                    warn_once(logger, msg)
 
         # S3 Download Attempt. "pypi" might be wrongly detected, e.g., when UV_NO_INSTALLER_METADATA=1
         if install_state in {"clean", "pypi"}:

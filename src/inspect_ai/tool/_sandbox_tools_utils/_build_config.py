@@ -1,5 +1,5 @@
 import re
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from pydantic import BaseModel
 
@@ -8,9 +8,11 @@ from pydantic import BaseModel
 # where inspect_ai is not installed.
 SANDBOX_TOOLS_BASE_NAME = "inspect-sandbox-tools"
 
+SandboxToolsArch: TypeAlias = Literal["amd64", "arm64"]
+
 
 class SandboxToolsBuildConfig(BaseModel):
-    arch: Literal["amd64", "arm64"]
+    arch: SandboxToolsArch
     version: int
     suffix: Literal["dev"] | None
     musl: bool = False

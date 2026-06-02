@@ -5,21 +5,33 @@ import argparse
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
-# Run as a plain file (python upload_to_s3.py), so the runtime import is the bare
-# sibling module; mypy follows the absolute import (matches _build_bundled_executable.py).
+# Mypy follows the package import; runtime supports both module import and plain-file
+# execution.
 if TYPE_CHECKING:
     from inspect_ai.tool._sandbox_tools_utils._build_config import (
+        SandboxToolsArch,
         SandboxToolsBuildConfig,
         config_to_filename,
     )
 else:
-    from _build_config import SandboxToolsBuildConfig, config_to_filename
+    try:
+        from ._build_config import (
+            SandboxToolsArch,
+            SandboxToolsBuildConfig,
+            config_to_filename,
+        )
+    except ImportError:
+        from _build_config import (
+            SandboxToolsArch,
+            SandboxToolsBuildConfig,
+            config_to_filename,
+        )
 
 BINARIES_DIR = Path(__file__).parent.parent.parent / "binaries"
 S3_BUCKET = "s3://inspect-sandbox-tools/"  # Region: us-east-2
-ARCHS: list[Literal["amd64", "arm64"]] = ["amd64", "arm64"]
+ARCHS: tuple[SandboxToolsArch, ...] = ("amd64", "arm64")
 
 
 def main() -> None:

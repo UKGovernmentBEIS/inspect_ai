@@ -27,7 +27,7 @@ import platform
 import subprocess
 import sys
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal, cast
 
 # IMPORT CONTEXT HANDLING:
 # This script runs in three different execution contexts:
@@ -35,15 +35,30 @@ from typing import Literal
 # 2. inspect_ai runtime - called when executables missing, package installed
 # 3. Direct developer usage - various working directories possible
 #
-# Unlike build_executable.py/_bundled_executable_builder.py (which only run in containers),
-# this script needs to work at runtime in both installed and source contexts.
-# TYPE_CHECKING pattern won't work here because both import paths need to work
-# at runtime, not just during static analysis.
-try:
-    from ._build_config import SandboxToolsBuildConfig, config_to_filename
-except ImportError:
-    # Handle direct execution or source checkout contexts
-    from _build_config import SandboxToolsBuildConfig, config_to_filename
+# Unlike build_executable.py/_bundled_executable_builder.py (which only run in
+# containers), this script needs to work at runtime in both installed and source
+# contexts. Mypy follows the package import; runtime keeps the relative/direct
+# fallback paths.
+if TYPE_CHECKING:
+    from inspect_ai.tool._sandbox_tools_utils._build_config import (
+        SandboxToolsArch,
+        SandboxToolsBuildConfig,
+        config_to_filename,
+    )
+else:
+    try:
+        from ._build_config import (
+            SandboxToolsArch,
+            SandboxToolsBuildConfig,
+            config_to_filename,
+        )
+    except ImportError:
+        # Handle direct execution or source checkout contexts
+        from _build_config import (
+            SandboxToolsArch,
+            SandboxToolsBuildConfig,
+            config_to_filename,
+        )
 
 
 def get_script_dir() -> Path:
@@ -135,9 +150,8 @@ def run_docker_container(
             f"Unexpected version suffix '{suffix}'. Only 'dev' is supported."
         )
 
-    # Type annotations for BuildConfig literals
-    arch: Literal["amd64", "arm64"] = arch_suffix  # type: ignore
-    validated_suffix: Literal["dev"] | None = suffix  # type: ignore
+    arch = cast(SandboxToolsArch, arch_suffix)
+    validated_suffix = cast(Literal["dev"] | None, suffix)
 
     # Create BuildConfig and generate filename
     config = SandboxToolsBuildConfig(

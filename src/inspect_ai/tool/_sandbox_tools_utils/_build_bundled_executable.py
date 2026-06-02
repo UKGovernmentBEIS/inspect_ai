@@ -13,8 +13,8 @@ layout. It receives clean, simple parameters and produces a tar of the onedir tr
 A --onedir bundle (rather than --onefile + StaticX) is used so that nothing
 self-extracts at runtime: the directory lives on disk in the container and the
 launcher runs against the already-extracted ``_internal`` tree. This removes the
-per-``exec`` unpack cost. The price is that the bundle relies on the host's glibc
-(>= the build glibc), so the build base image sets the portability floor.
+per-``exec`` unpack cost. The price is that the bundle relies on the host's matching
+libc (glibc or musl), so the build base image sets the portability floor.
 """
 
 import shutil
@@ -62,9 +62,9 @@ def build_bundled_executable(
     the name of the tar artifact.
 
     COMPATIBILITY:
-    - Requires same or newer glibc version as the build system (core glibc libraries
-      are provided by the host, not bundled). The build base image therefore sets the
-      runtime portability floor.
+    - Requires the same libc family as the build variant (glibc or musl) at a version
+      compatible with the build image. The build base image therefore sets the runtime
+      portability floor.
 
     Args:
         entrypoint: Path to the main Python script entry point

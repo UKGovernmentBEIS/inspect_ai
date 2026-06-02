@@ -78,7 +78,7 @@ def main() -> None:
     - Packaging the bundle tree into a tar artifact
 
     The result is a tar of a --onedir bundle that includes everything needed
-    to run on any Linux system whose glibc is at least the build glibc.
+    to run on matching-libc Linux systems compatible with the build image.
     """
     args = _parse_args()
 
