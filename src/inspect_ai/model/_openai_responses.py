@@ -231,12 +231,13 @@ async def openai_responses_inputs(
     messages: list[ChatMessage],
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
+    swap_todo_write: bool = False,
 ) -> list[ResponseInputItemParam]:
     return [
         item
         for message in messages
         for item in await _openai_input_item_from_chat_message(
-            message, model_info, synthesize_phase
+            message, model_info, synthesize_phase, swap_todo_write
         )
     ]
 
@@ -245,6 +246,7 @@ async def _openai_input_item_from_chat_message(
     message: ChatMessage,
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
+    swap_todo_write: bool = False,
 ) -> list[ResponseInputItemParam]:
     if message.role == "system":
         content = await _openai_responses_content_list_param(message.content)
@@ -266,7 +268,7 @@ async def _openai_input_item_from_chat_message(
         ]
     elif message.role == "assistant":
         return _openai_input_items_from_chat_message_assistant(
-            message, model_info, synthesize_phase
+            message, model_info, synthesize_phase, swap_todo_write
         )
     elif message.role == "tool":
         # recover the original call (by call_id) to replay the matching output item
@@ -480,7 +482,10 @@ def openai_responses_tool_choice(
                 else ToolChoiceTypesParam(type="web_search_preview")
                 if tool_choice.name == "web_search"
                 and any(tool["type"] == "web_search" for tool in tools)
-                else ToolChoiceFunctionParam(type="function", name=tool_choice.name)
+                else ToolChoiceFunctionParam(
+                    type="function",
+                    name=_responses_tool_choice_name(tool_choice.name, tools),
+                )
             )
 
 
@@ -714,11 +719,14 @@ def _process_response_output_items(
                         output.model_dump(exclude_none=True),
                     )
 
+                call_name, call_arguments = _responses_call_to_inspect(
+                    output.name, output.arguments, tools
+                )
                 tool_calls.append(
                     parse_tool_call(
                         output.call_id,
-                        _from_responses_tool_alias(output.name),
-                        output.arguments,
+                        call_name,
+                        call_arguments,
                         tools,
                     )
                 )
@@ -1129,6 +1137,7 @@ def _openai_input_items_from_chat_message_assistant(
     message: ChatMessageAssistant,
     model_info: ResponsesModelInfo | None = None,
     synthesize_phase: bool = False,
+    swap_todo_write: bool = False,
 ) -> list[ResponseInputItemParam]:
     """
     Transform a `ChatMessageAssistant` into OpenAI `ResponseInputItem`'s for playback to the model.
@@ -1313,7 +1322,7 @@ def _openai_input_items_from_chat_message_assistant(
     # final flush if necessary
     flush_pending_context_text()
 
-    return items + _tool_call_items_from_assistant_message(message)
+    return items + _tool_call_items_from_assistant_message(message, swap_todo_write)
 
 
 def _synthetic_phase_for_assistant_message(
@@ -1409,6 +1418,7 @@ def _maybe_native_tool_param(
 
 def _tool_call_items_from_assistant_message(
     message: ChatMessageAssistant,
+    swap_todo_write: bool = False,
 ) -> list[ResponseInputItemParam]:
     tool_calls: list[ResponseInputItemParam] = []
 
@@ -1420,12 +1430,19 @@ def _tool_call_items_from_assistant_message(
         if assistant_internal_call is not None:
             tool_calls.append(assistant_internal_call)
         else:
-            # create param
+            # create param (rendering todo_write -> update_plan when swapping, else
+            # the name-only alias)
+            if swap_todo_write and call.function == TODO_WRITE_NAME:
+                name = UPDATE_PLAN_NAME
+                arguments = json.dumps(_update_plan_args_from_inspect(call.arguments))
+            else:
+                name = _responses_tool_alias(call.function)
+                arguments = json.dumps(call.arguments)
             tool_call_param: ResponseFunctionToolCallParam = dict(
                 type="function_call",
                 call_id=call.id,
-                name=_responses_tool_alias(call.function),
-                arguments=json.dumps(call.arguments),
+                name=name,
+                arguments=arguments,
             )
 
             # append the param
@@ -1497,6 +1514,216 @@ def _responses_tool_alias(name: str) -> str:
 
 def _from_responses_tool_alias(name: str) -> str:
     return next((k for k, v in _responses_tool_aliases.items() if v == name), name)
+
+
+# Present inspect's canonical `todo_write` planning tool to the Responses API under the
+# name and schema that GPT-5 / Codex / o-series models are post-trained on: OpenAI's
+# `update_plan`. We do this by substituting the first-party `update_plan()` tool's
+# definition on the wire (reusing its native plan/step schema and description), then mapping
+# calls back to `todo_write` on the way out — `todo_write` remains the tool that is actually
+# registered, executed, and recorded in the transcript. The arg field names differ
+# (`todos`<->`plan`, per-step `content`<->`step`; `status`/`explanation` pass through), so
+# we also remap arguments. This mirrors how the Anthropic provider renders `text_editor` as
+# Claude's native `str_replace_editor`.
+
+TODO_WRITE_NAME = "todo_write"
+UPDATE_PLAN_NAME = "update_plan"
+
+_update_plan_tool_info_cache: ToolInfo | None = None
+
+
+def _update_plan_tool_info() -> ToolInfo:
+    """ToolInfo for the first-party update_plan() tool (built once)."""
+    global _update_plan_tool_info_cache
+    if _update_plan_tool_info_cache is None:
+        from inspect_ai.tool._tool_def import ToolDef
+        from inspect_ai.tool._tools._update_plan import update_plan
+
+        td = ToolDef(update_plan())
+        _update_plan_tool_info_cache = ToolInfo(
+            name=td.name, description=td.description, parameters=td.parameters
+        )
+    return _update_plan_tool_info_cache
+
+
+# JSON Schema keywords whose values map arbitrary *names* (e.g. parameter names) to
+# subschemas. Names under these must be preserved verbatim during description stripping —
+# a key named "description" here is a parameter, not schema metadata.
+_SCHEMA_NAME_MAPS = ("properties", "$defs", "definitions")
+
+
+def _schema_without_descriptions(value: Any) -> Any:
+    """Recursively drop schema-metadata `description` so comparison ignores prose-only diffs.
+
+    Crucially, this only strips `description` as schema metadata — not a parameter literally
+    named `description` inside a `properties`/`$defs` map, whose keys are preserved verbatim.
+    """
+    if isinstance(value, dict):
+        result: dict[str, Any] = {}
+        for k, v in value.items():
+            if k == "description":
+                continue  # schema metadata
+            if k in _SCHEMA_NAME_MAPS and isinstance(v, dict):
+                # map of name -> subschema: keep every name, strip within each subschema
+                result[k] = {
+                    name: _schema_without_descriptions(subschema)
+                    for name, subschema in v.items()
+                }
+            else:
+                result[k] = _schema_without_descriptions(v)
+        return result
+    if isinstance(value, list):
+        return [_schema_without_descriptions(v) for v in value]
+    return value
+
+
+_canonical_todo_write_schema_cache: Any = None
+
+
+def _canonical_todo_write_schema() -> Any:
+    """The canonical todo_write() parameter schema, descriptions stripped (built once)."""
+    global _canonical_todo_write_schema_cache
+    if _canonical_todo_write_schema_cache is None:
+        from inspect_ai.tool._tool_def import ToolDef
+        from inspect_ai.tool._tools._todo_write import todo_write
+
+        td = ToolDef(todo_write())
+        _canonical_todo_write_schema_cache = _schema_without_descriptions(
+            json_schema_dump(td.parameters)
+        )
+    return _canonical_todo_write_schema_cache
+
+
+def _is_canonical_todo_write(tool: ToolInfo) -> bool:
+    """Whether `tool` is inspect's planning todo_write (not just a tool sharing the name).
+
+    Guards the update_plan swap against a user-defined or bridged tool that merely reuses
+    the `todo_write` name with a different (or superset) schema — such a tool must NOT be
+    silently advertised/parsed as update_plan and have its schema dropped. We require the
+    parameter schema to match canonical `todo_write()` exactly, ignoring descriptions so a
+    re-described but structurally identical planning tool still qualifies.
+    """
+    if tool.name != TODO_WRITE_NAME:
+        return False
+    return bool(
+        _schema_without_descriptions(json_schema_dump(tool.parameters))
+        == _canonical_todo_write_schema()
+    )
+
+
+def _tools_swap_todo_write(tools: list[ToolInfo]) -> bool:
+    """Tool-list condition for the swap: a canonical todo_write present, no update_plan.
+
+    Shared by the outbound gate and the inbound parser so they agree. (The opt-out
+    `internal_tools` check is layered on top in `should_swap_todo_write`.)
+    """
+    return any(_is_canonical_todo_write(t) for t in tools) and not any(
+        t.name == UPDATE_PLAN_NAME for t in tools
+    )
+
+
+def should_swap_todo_write(tools: list[ToolInfo], config: GenerateConfig) -> bool:
+    """Whether to render `todo_write` as the native `update_plan` tool for this request.
+
+    Active only when not opted out (`internal_tools` is not False), a canonical
+    `todo_write` tool is present, and there is no first-party `update_plan` tool to collide
+    with.
+    """
+    return config.internal_tools is not False and _tools_swap_todo_write(tools)
+
+
+def substitute_update_plan_tools(
+    tools: list[ToolInfo], swap_todo_write: bool
+) -> list[ToolInfo]:
+    """Replace the canonical `todo_write` ToolInfo with the native `update_plan` one."""
+    if not swap_todo_write:
+        return tools
+    update_plan_info = _update_plan_tool_info()
+    return [update_plan_info if _is_canonical_todo_write(t) else t for t in tools]
+
+
+def _tools_contain_function(tools: list[ToolParam], name: str) -> bool:
+    return any(
+        isinstance(tool, dict)
+        and tool.get("type") == "function"
+        and tool.get("name") == name
+        for tool in tools
+    )
+
+
+def _responses_tool_choice_name(name: str, tools: list[ToolParam]) -> str:
+    """Wire name for a forced tool_choice, accounting for the todo_write->update_plan swap.
+
+    Keys off the tools actually sent: only rewrite when `update_plan` was sent in place of
+    `todo_write` (update_plan present, todo_write absent).
+    """
+    if (
+        name == TODO_WRITE_NAME
+        and _tools_contain_function(tools, UPDATE_PLAN_NAME)
+        and not _tools_contain_function(tools, TODO_WRITE_NAME)
+    ):
+        return UPDATE_PLAN_NAME
+    return name
+
+
+def _responses_call_to_inspect(
+    name: str, arguments: str, tools: list[ToolInfo]
+) -> tuple[str, str]:
+    """Map a Responses function call's name/arguments back to inspect's.
+
+    Reverses the todo_write->update_plan swap (only when a todo_write tool is present and no
+    first-party update_plan tool is — so we never hijack a user's own update_plan), then
+    falls back to the name-only alias mechanism. Malformed arguments are passed through with
+    the mapped name so parse_tool_call() reports the parse error rather than silently
+    producing an empty plan.
+    """
+    if name == UPDATE_PLAN_NAME and _tools_swap_todo_write(tools):
+        try:
+            args = json.loads(arguments) if arguments else {}
+        except json.JSONDecodeError:
+            args = None
+        if isinstance(args, dict):
+            return TODO_WRITE_NAME, json.dumps(_update_plan_args_to_inspect(args))
+        return TODO_WRITE_NAME, arguments
+    return _from_responses_tool_alias(name), arguments
+
+
+def _update_plan_args_to_inspect(args: dict[str, Any]) -> dict[str, Any]:
+    """Map update_plan call arguments back to todo_write's shape (plan->todos, step->content)."""
+    steps = args.get("plan", args.get("todos")) or []
+    result: dict[str, Any] = {
+        "todos": [
+            {
+                "content": step.get("step", step.get("content")),
+                "status": step.get("status"),
+            }
+            if isinstance(step, dict)
+            else step
+            for step in steps
+        ]
+    }
+    if "explanation" in args:
+        result["explanation"] = args["explanation"]
+    return result
+
+
+def _update_plan_args_from_inspect(args: dict[str, Any]) -> dict[str, Any]:
+    """Map todo_write call arguments to update_plan's shape (todos->plan, content->step)."""
+    steps = args.get("todos", args.get("plan")) or []
+    result: dict[str, Any] = {
+        "plan": [
+            {
+                "step": step.get("content", step.get("step")),
+                "status": step.get("status"),
+            }
+            if isinstance(step, dict)
+            else step
+            for step in steps
+        ]
+    }
+    if "explanation" in args:
+        result["explanation"] = args["explanation"]
+    return result
 
 
 def to_inspect_citation(input: Annotation | AnnotationParam) -> Citation:

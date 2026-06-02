@@ -1,3 +1,7 @@
+## 0.3.234 (02 June 2026)
+
+- OpenAI: Map Inspect `todo_write` tool to native OpenAI/Codex `update_plan` tool.
+
 ## 0.3.233 (01 June 2026)
 
 - Anthropic: Render mid-conversation system messages as `<system-reminder>` user turns for pre-4.8 models.
