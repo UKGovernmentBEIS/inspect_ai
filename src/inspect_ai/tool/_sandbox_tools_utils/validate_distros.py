@@ -52,15 +52,17 @@ def print_colored(message: str, color: str = Colors.NC) -> None:
 
 
 def test_distro(distro: str, executable_path: Path) -> bool:
-    """Test a single distro with the given artifact (a tar of the onedir bundle)."""
+    """Test a single distro with the given artifact (a gzipped tar of the onedir bundle)."""
     print_colored(f"Testing {distro} with {executable_path.name}", Colors.BLUE)
 
-    # Mount the tar artifact, extract the onedir tree, then run the launcher's
-    # healthcheck (which also exercises starting the server).
+    # Mount the artifact, extract the onedir tree, then run the launcher's healthcheck
+    # (which also exercises starting the server). This validates the common-case
+    # `tar xzf`; the host-side uncompressed fallback used by injection isn't covered
+    # here because all validated distros' tar support gzip.
     script = f"""
         set -e
         mkdir -p /app/tools
-        tar xf /app/tools.tar -C /app/tools
+        tar xzf /app/tools.tgz -C /app/tools
         /app/tools/{SANDBOX_TOOLS_BASE_NAME} healthcheck
         """
     cmd = [
@@ -68,7 +70,7 @@ def test_distro(distro: str, executable_path: Path) -> bool:
         "run",
         "--rm",
         "-v",
-        f"{executable_path}:/app/tools.tar:ro",
+        f"{executable_path}:/app/tools.tgz:ro",
         distro,
         # POSIX sh, not bash: Alpine ships only busybox sh by default.
         "sh",

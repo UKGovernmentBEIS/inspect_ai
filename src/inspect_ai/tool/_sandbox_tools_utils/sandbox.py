@@ -1,3 +1,4 @@
+import gzip
 import os
 import subprocess
 import sys
@@ -96,16 +97,8 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         info = await detect_sandbox_os(sandbox)
         musl = info.get("libc") == "musl"
 
-        async with _open_executable_for_arch(info["architecture"], musl) as (_, f):
-            tar_bytes = f.read()
-
-        # The tools ship as a tar of a PyInstaller --onedir tree. Transfer it via
-        # write_file (which base64-encodes binary content reliably) to a temp file,
-        # then extract the tree into SANDBOX_TOOLS_DIR so the launcher lands at
-        # SANDBOX_CLI. Raw binary stdin through exec is not safe, so we don't pipe
-        # the tar directly into `tar`.
-        tar_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tar"
-        await sandbox.write_file(tar_tmp, tar_bytes)
+        async with _open_executable_for_arch(info["architecture"], musl) as (name, f):
+            gz_bytes = f.read()  # gzipped tar of the PyInstaller --onedir tree
 
         # Create the install dir as root if possible so the tree is root-owned and
         # can be hidden from the agent; fall back to the default user for rootless
@@ -122,14 +115,7 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
                     f"Failed to create sandbox tools dir: {result.stderr}"
                 )
 
-        # Extract the onedir tree (uncompressed tar, basic flags for BusyBox compat).
-        result = await sandbox.exec(
-            ["tar", "xf", tar_tmp, "-C", SANDBOX_TOOLS_DIR], user=sandbox._tools_user
-        )
-        if not result.success:
-            raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
-
-        await sandbox.exec(["rm", "-f", tar_tmp], user=sandbox._tools_user)
+        await _extract_tools_tree(sandbox, name, gz_bytes, sandbox._tools_user)
 
         # When running as root, restrict the tree so the agent can neither read nor
         # execute the tools. The default user (the one that runs `exec`) is root, so
@@ -155,6 +141,72 @@ async def _inject_container_tools_code(sandbox: SandboxEnvironment) -> None:
         raise SandboxInjectionError(
             f"Failed to inject sandbox tools into sandbox: {e}", cause=e
         ) from e
+
+
+async def _extract_tools_tree(
+    sandbox: SandboxEnvironment, name: str, gz_bytes: bytes, user: str | None
+) -> None:
+    """Extract the gzipped onedir tar into SANDBOX_TOOLS_DIR.
+
+    The artifact is staged to a temp file via write_file (which base64-encodes binary
+    content reliably; raw binary stdin through exec is not safe) and then extracted.
+
+    Optimistic path: ship the compressed artifact and extract with `tar xzf`. If the
+    container's `tar` lacks gzip support, fall back to injecting an uncompressed tar,
+    which only needs plain `tar xf` (the broadest assumption). The uncompressed tar is
+    cached in the binaries dir so we decompress at most once per artifact.
+    """
+    gz_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tgz"
+    await sandbox.write_file(gz_tmp, gz_bytes)
+    result = await sandbox.exec(
+        ["tar", "xzf", gz_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
+    )
+    await sandbox.exec(["rm", "-f", gz_tmp], user=user)
+    if result.success:
+        return
+
+    # Fallback: the container's tar can't gunzip. Inject the uncompressed tar.
+    trace_message(
+        logger,
+        TRACE_SANDBOX_TOOLS,
+        f"tar xzf failed ({result.stderr.strip()}); retrying with uncompressed tar",
+    )
+    tar_tmp = f"{SANDBOX_TOOLS_DIR}.pkg.tar"
+    await sandbox.write_file(tar_tmp, _uncompressed_tar_bytes(name, gz_bytes))
+    result = await sandbox.exec(
+        ["tar", "xf", tar_tmp, "-C", SANDBOX_TOOLS_DIR], user=user
+    )
+    await sandbox.exec(["rm", "-f", tar_tmp], user=user)
+    if not result.success:
+        raise RuntimeError(f"Failed to extract sandbox tools: {result.stderr}")
+
+
+def _uncompressed_tar_bytes(name: str, gz_bytes: bytes) -> bytes:
+    """Return the uncompressed tar for an artifact, caching it in the binaries dir.
+
+    Used only by the fallback extraction path. Decompresses once and caches the result
+    next to the gzipped artifact (as `<name>.tar`) so repeated injections into
+    gzip-less sandboxes reuse it rather than re-decompressing each time. The write is
+    atomic so concurrent injections can't observe a partial file. Caching is
+    best-effort: if the binaries dir isn't writable (e.g. a locked-down install) we
+    just return the decompressed bytes rather than failing injection.
+    """
+    binaries_path = Path(inspect_ai.__file__).parent / "binaries"
+    cache_path = binaries_path / f"{name}.tar"
+    if cache_path.exists():
+        return cache_path.read_bytes()
+
+    tar_bytes = gzip.decompress(gz_bytes)
+    try:
+        binaries_path.mkdir(exist_ok=True)
+        tmp_path = cache_path.with_suffix(".tar.tmp")
+        tmp_path.write_bytes(tar_bytes)
+        os.replace(tmp_path, cache_path)
+    except OSError as ex:
+        trace_message(
+            logger, TRACE_SANDBOX_TOOLS, f"could not cache uncompressed tar: {ex}"
+        )
+    return tar_bytes
 
 
 @asynccontextmanager

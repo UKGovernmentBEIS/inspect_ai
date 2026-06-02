@@ -50,13 +50,13 @@ def build_bundled_executable(
     WORKFLOW:
     1. Verify PyInstaller is available
     2. Execute PyInstaller to produce a --onedir bundle (launcher + _internal/)
-    3. Pack the bundle's tree into an uncompressed tar at output_path
+    3. Pack the bundle's tree into a gzipped tar at output_path
     4. Verify the launcher runs and display compatibility information
 
     OUTPUT:
-    An uncompressed tar of the onedir tree. Its entries are rooted at the tree
+    A gzipped tar of the onedir tree. Its entries are rooted at the tree
     contents (the launcher plus the ``_internal`` directory), so extracting with
-    ``tar xf - -C <dir>`` lands the launcher at ``<dir>/inspect-sandbox-tools``.
+    ``tar xzf - -C <dir>`` lands the launcher at ``<dir>/inspect-sandbox-tools``.
     The launcher is named with the stable base name (not the versioned filename)
     so its in-container path is version-independent; the versioned filename is only
     the name of the tar artifact.
@@ -103,8 +103,8 @@ def build_bundled_executable(
         else:
             print(f"⚠️ Archive viewer output not found: {archive_viewer_txt}")
 
-    # Package the onedir tree as an uncompressed tar
-    print("[5/5] Packaging onedir tree as tar...")
+    # Package the onedir tree as a gzipped tar
+    print("[5/5] Packaging onedir tree as gzipped tar...")
     _tar_onedir(dist_dir, output_path)
 
     # Verify the build
@@ -178,16 +178,21 @@ def _build_executable(
 
 
 def _tar_onedir(dist_dir: Path, output_path: Path) -> None:
-    """Pack the onedir tree as an uncompressed tar.
+    """Pack the onedir tree as a gzipped tar.
 
     Entries are rooted at the tree contents (the launcher and ``_internal``), not at
-    ``dist_dir`` itself, so ``tar xf - -C <dir>`` lands the launcher directly at
+    ``dist_dir`` itself, so ``tar xzf - -C <dir>`` lands the launcher directly at
     ``<dir>/inspect-sandbox-tools``. Uses Python's ``tarfile`` so the build is portable
     and file permissions (launcher 0755, libs 0644) are preserved from the filesystem.
+
+    Gzip roughly halves the artifact, which matters for the per-injection base64
+    transfer over `sandbox.exec` and for S3 downloads. Injection extracts with
+    ``tar xzf``, with a host-side fallback for containers whose ``tar`` lacks gzip
+    support (see ``sandbox._extract_tools_tree``).
     """
     if output_path.exists():
         output_path.unlink()
-    with tarfile.open(output_path, "w") as tar:
+    with tarfile.open(output_path, "w:gz") as tar:
         for entry in sorted(dist_dir.iterdir()):
             tar.add(str(entry), arcname=entry.name)
 

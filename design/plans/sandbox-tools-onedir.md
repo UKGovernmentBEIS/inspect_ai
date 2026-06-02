@@ -41,13 +41,16 @@ Debian ≤10) remain out of scope; raise the glibc build base's age if one is ne
 
 - **Artifact filenames**: `inspect-sandbox-tools-{arch}[-musl]-v{N}[-dev]`. The glibc
   names are unchanged from the StaticX era; the musl variant adds a `-musl` token
-  (`_build_config.py`). Contents change from an ELF to an (uncompressed) tar of the
+  (`_build_config.py`). Contents change from an ELF to a gzipped tar of the
   onedir tree. `scripts/pypi-release.py`, the CI artifact glob, and `pyproject.toml`'s
   `binaries/*` glob are content-agnostic and reference only the glibc names, so they
   bundle glibc-only with no change; `upload_to_s3.py` uploads all four (arch × libc).
-- **Injection extracts a tree** instead of writing one file. Uses `tar` in the
-  container (near-universal; new but mild runtime assumption). `SANDBOX_CLI` becomes
-  the launcher path *inside* the extracted dir.
+- **Injection extracts a tree** instead of writing one file. Optimistic path: ship the
+  gzipped artifact and extract with `tar xzf`. If the container's `tar` lacks gzip
+  support, the host decompresses once (caching `<name>.tar` in the binaries dir) and
+  injects an uncompressed tar via plain `tar xf` — so the only hard dependency is plain
+  `tar` (near-universal). `SANDBOX_CLI` becomes the launcher path *inside* the
+  extracted dir.
 - **Multi-user is deliberately untouched.** The in-CLI `switch_user()` for in-process
   tools (`_cli/main.py:75-88`) and the daemon's `fork()`+`make_preexec(user)` for
   remote tools both remain exactly as-is. The only user-adjacent change is the
@@ -69,7 +72,7 @@ a fresh name (`inspect-sandbox-tools-{arch}-v19`) so a cached onefile binary in
 - `_build_executable`: replace `--onefile` with `--onedir`. Keep `--noupx`,
   `--optimize 2`, `--exclude-module …`, `--copy-metadata`, `--hidden-import psutil`,
   `--name`. PyInstaller now emits `dist/<name>/` (launcher + `_internal/`).
-- Delete `_apply_staticx` and its call; replace the StaticX step with: **tar (uncompressed)
+- Delete `_apply_staticx` and its call; replace the StaticX step with: **gzip-tar
   the `dist/<name>/` tree to `output_path`** (the existing versioned filename). Preserve
   archived file permissions (launcher 0755, libs 0644, dirs 0755) so extraction needs
   no per-file chmod.
@@ -85,10 +88,10 @@ a fresh name (`inspect-sandbox-tools-{arch}-v19`) so a cached onefile binary in
 
 ### 3. Injection — `src/inspect_ai/tool/_sandbox_tools_utils/sandbox.py`
 - `_inject_container_tools_code`: replace the single `write_file(SANDBOX_CLI, …)` +
-  `chmod` with: stream the tar into the container and extract it via
-  `sandbox.exec(["tar", "xf", "-", "-C", <install_dir>], input=tar_bytes)`, then
-  protect it. Use **basic flags only and an uncompressed tar** (`tar xf -`, no `z`, no
-  GNU-isms) for maximum BusyBox compatibility. On a nonzero extract result, raise
+  `chmod` with `write_file` of the artifact to a temp path (base64-safe for binary;
+  raw binary stdin through exec is not) + extraction via `_extract_tools_tree`.
+  Optimistic `tar xzf`; on failure, host-side decompress (cached as `<name>.tar` in
+  the binaries dir) + plain `tar xf`. On a nonzero extract result, raise
   `SandboxInjectionError` with a clear message. Reuse the existing root-vs-nonroot logic:
   - root available → `chmod 700` the **containing dir** as root (hides the whole tree
     from the agent; root, the `_tools_user`, still runs the launcher), set
@@ -148,7 +151,7 @@ and both user-switching paths are untouched.
 
 1. **Build (local, arm64 to match host):**
    `python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py --arch arm64`
-   → confirm `binaries/inspect-sandbox-tools-arm64-v<N>-dev` is a tar of the
+   → confirm `binaries/inspect-sandbox-tools-arm64-v<N>-dev` is a gzipped tar of the
    onedir tree.
 2. **Distro check:** `python -m inspect_ai.tool._sandbox_tools_utils.validate_distros`
    → all listed distros (≥ 2.31) pass `healthcheck` after extract.
