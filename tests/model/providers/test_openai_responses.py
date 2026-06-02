@@ -1650,3 +1650,61 @@ def test_tool_call_replay_drops_empty_text_after_reasoning():
     assert [item.get("type") for item in items] == ["reasoning", "function_call"]
     assert items[0]["encrypted_content"] == "encrypted reasoning"
     assert items[1]["call_id"] == "call_123"
+
+
+def test_visible_cot_encrypted_content_survives_bridge_round_trip():
+    """Visible-CoT reasoning keeps its encrypted_content through the agent bridge.
+
+    A non-redacted reasoning block carries readable CoT plus an encrypted blob
+    stashed in `internal`. The bridge serializes it to a <think> tag, the scaffold
+    echoes that text back, and the bridge parses it again. The blob must survive
+    that text round-trip (in `internal`) and replay upstream as an input reasoning
+    item with empty `content` and the blob in `encrypted_content`.
+    """
+    from inspect_ai.agent._bridge.responses_impl import messages_from_responses_input
+    from inspect_ai.model._openai_responses import REASONING_ENCRYPTED_CONTENT
+    from inspect_ai.model._reasoning import reasoning_to_think_tag
+
+    blob = "gAAAAAB-encrypted-reasoning-blob"
+
+    original = ContentReasoning(
+        reasoning="visible chain of thought",
+        summary="short summary",
+        signature="rs_abc",
+        redacted=False,
+        internal={REASONING_ENCRYPTED_CONTENT: blob},
+    )
+
+    # Bridge -> scaffold (assistant text) -> scaffold echoes it back as input.
+    think_tag = reasoning_to_think_tag(original)
+    responses_input = [
+        {
+            "type": "message",
+            "role": "assistant",
+            "status": "completed",
+            "content": [{"type": "output_text", "text": think_tag, "annotations": []}],
+        }
+    ]
+
+    messages = messages_from_responses_input(responses_input, tools=[])
+    parsed_reasonings = [
+        c
+        for m in messages
+        for c in (m.content if isinstance(m.content, list) else [])
+        if isinstance(c, ContentReasoning)
+    ]
+    assert len(parsed_reasonings) == 1
+    parsed = parsed_reasonings[0]
+
+    # The bridge parse must preserve the encrypted blob in `internal`.
+    assert isinstance(parsed.internal, dict)
+    assert parsed.internal.get(REASONING_ENCRYPTED_CONTENT) == blob
+
+    # Upstream replay: empty content (API rejects non-empty), blob round-tripped.
+    items = _openai_input_items_from_chat_message_assistant(
+        ChatMessageAssistant(content=[parsed], model="test", source="generate")
+    )
+    reasoning_items = [item for item in items if item.get("type") == "reasoning"]
+    assert len(reasoning_items) == 1
+    assert reasoning_items[0]["content"] == []
+    assert reasoning_items[0]["encrypted_content"] == blob
