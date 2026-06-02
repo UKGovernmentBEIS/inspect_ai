@@ -219,13 +219,16 @@ async def _open_executable(executable: str) -> AsyncIterator[BinaryIO]:
                 yield f
 
 
-def _prompt_user_action(message: str, executable_name: str, arch: Architecture) -> None:
+def _prompt_user_action(
+    message: str, executable_name: str, arch: Architecture, musl: bool
+) -> None:
     """Prompt user for confirmation and raise PrerequisiteError if declined.
 
     Args:
         message: The message to display to the user
         executable_name: Name of the executable for error message
         arch: Architecture for build instructions
+        musl: Whether the missing executable is the musl variant (adds --musl)
 
     Raises:
         PrerequisiteError: If user declines the action
@@ -243,9 +246,13 @@ def _prompt_user_action(message: str, executable_name: str, arch: Architecture) 
         response = "n"
 
     if response != "y":
+        build_cmd = (
+            "python src/inspect_ai/tool/_sandbox_tools_utils/build_within_container.py "
+            f"--arch {arch}" + (" --musl" if musl else "")
+        )
         raise PrerequisiteError(
             f"Container tools executable {executable_name} is required but not present. "
-            f"To build it, run: python src/inspect_ai/tool/sandbox_tools/build_within_container.py --arch {arch}"
+            f"To build it, run: {build_cmd}"
         )
 
 
@@ -350,6 +357,7 @@ async def _build_it(arch: Architecture, musl: bool, dev_executable_name: str) ->
         f"Executable '{dev_executable_name}' not found. Build locally? (requires Docker)",
         dev_executable_name,
         arch,
+        musl,
     )
 
     # Find the build script
