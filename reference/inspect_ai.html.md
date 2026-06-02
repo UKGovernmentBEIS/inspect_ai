@@ -6,7 +6,7 @@
 
 Evaluate tasks using a Model.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/eval.py#L92)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/eval.py#L92)
 
 ``` python
 def eval(
@@ -18,7 +18,7 @@ def eval(
     task_args: dict[str, Any] | str = ...,
     sandbox: SandboxEnvironmentType | None = ...,
     sandbox_cleanup: bool | None = ...,
-    checkpoint: CheckpointConfig | None = ...,
+    checkpoint: CheckpointConfig | bool | None = ...,
     acp_server: bool | int | str | None = ...,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = ...,
     scanner: Scanners | None = ...,
@@ -130,8 +130,8 @@ Sandbox environment type (or optionally a str or tuple with a shorthand spec)
 `sandbox_cleanup` bool \| None  
 Cleanup sandbox environments after task completes (defaults to True)
 
-`checkpoint` CheckpointConfig \| None  
-Checkpoint configuration for this eval. Overrides any task- or sample-level `checkpoint` when set.
+`checkpoint` [CheckpointConfig](../reference/inspect_ai.util.html.md#checkpointconfig) \| bool \| None  
+Checkpoint configuration for this eval, or `True` to enable checkpointing with the default trigger (every 500k tokens) — equivalent to the bare `--checkpoint` CLI flag. Overrides any task- or sample-level `checkpoint` when set.
 
 `acp_server` bool \| int \| str \| None  
 Expose this eval over an Agent Client Protocol server. `True` enables a default AF_UNIX socket at `<inspect_data_dir>/acp/<run_id>.sock`; an integer binds a TCP loopback port; a string is taken as a custom UNIX socket path; `None` (default) does not start an ACP server.
@@ -386,7 +386,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Retry a previously failed evaluation task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/eval.py#L950)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/eval.py#L957)
 
 ``` python
 def eval_retry(
@@ -423,7 +423,7 @@ def eval_retry(
     attempt_timeout: int | None = None,
     max_connections: int | None = None,
     adaptive_connections: bool | int | AdaptiveConcurrency | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
 ) -> list[EvalLog]
 ```
 
@@ -526,14 +526,14 @@ Maximum number of concurrent connections to Model API (default is per Model API)
 `adaptive_connections` bool \| int \| [AdaptiveConcurrency](../reference/inspect_ai.util.html.md#adaptiveconcurrency) \| None  
 Adaptive concurrency for Model API connections. Defaults to enabled (resolves to `AdaptiveConcurrency()` defaults: min=4, start=20, max=100). Pass `False` to opt out (uses static concurrency), an integer `N` as shorthand for `AdaptiveConcurrency(max=N)`, or an [AdaptiveConcurrency](../reference/inspect_ai.util.html.md#adaptiveconcurrency) to fully customize bounds and tuning (cooldown_seconds, decrease_factor, scale_up_percent). An explicit `max_connections` or `batch=True` takes precedence and uses static concurrency.
 
-`checkpoint` CheckpointConfig \| None  
-Checkpoint configuration for this retry. Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
+`checkpoint` [CheckpointConfig](../reference/inspect_ai.util.html.md#checkpointconfig) \| bool \| None  
+Checkpoint configuration for this retry, or `True` to enable checkpointing with the default trigger (every 500k tokens). Must match the config used on the original eval for resume detection to find the checkpoint files (the original `--checkpoint` is not recorded in the log file).
 
 ### eval_set
 
 Evaluate a set of tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/evalset.py#L103)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/evalset.py#L103)
 
 ``` python
 def eval_set(
@@ -551,7 +551,7 @@ def eval_set(
     task_args: dict[str, Any] | str = ...,
     sandbox: SandboxEnvironmentType | None = ...,
     sandbox_cleanup: bool | None = ...,
-    checkpoint: CheckpointConfig | None = ...,
+    checkpoint: CheckpointConfig | bool | None = ...,
     acp_server: bool | int | str | None = ...,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = ...,
     scanner: Scanners | None = ...,
@@ -680,8 +680,8 @@ Sandbox environment type (or optionally a str or tuple with a shorthand spec)
 `sandbox_cleanup` bool \| None  
 Cleanup sandbox environments after task completes (defaults to True)
 
-`checkpoint` CheckpointConfig \| None  
-Checkpoint configuration for this eval set. Overrides any task- or sample-level `checkpoint` when set.
+`checkpoint` [CheckpointConfig](../reference/inspect_ai.util.html.md#checkpointconfig) \| bool \| None  
+Checkpoint configuration for this eval set, or `True` to enable checkpointing with the default trigger (every 500k tokens). Overrides any task- or sample-level `checkpoint` when set.
 
 `acp_server` bool \| int \| str \| None  
 Override the original eval’s ACP server transport on retry. `True` enables a default AF_UNIX socket; an integer binds a TCP loopback port; a string is taken as a custom UNIX socket path; `None` (default) replays whatever transport (or no transport) was persisted in the original log’s `EvalConfig.acp_server`.
@@ -933,7 +933,7 @@ Use batching API when available. True to enable batching with default configurat
 
 Score an evaluation log.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/score.py#L76)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/score.py#L76)
 
 ``` python
 def score(
@@ -978,7 +978,7 @@ Evaluation task.
 
 Tasks are the basis for defining and running evaluations.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/task/task.py#L61)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/task/task.py#L61)
 
 ``` python
 class Task
@@ -989,7 +989,7 @@ class Task
 \_\_init\_\_  
 Create a task.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/task/task.py#L67)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/task/task.py#L67)
 
 ``` python
 def __init__(
@@ -1004,7 +1004,7 @@ def __init__(
     config: GenerateConfig = ...,
     model_roles: dict[str, str | Model] | None = ...,
     sandbox: SandboxEnvironmentType | None = ...,
-    checkpoint: CheckpointConfig | None = ...,
+    checkpoint: CheckpointConfig | bool | None = ...,
     approval: str | ApprovalPolicyConfig | list[ApprovalPolicy] | None = ...,
     epochs: int | Epochs | None = ...,
     fail_on_error: bool | float | None = ...,
@@ -1060,8 +1060,8 @@ Named roles for use in [get_model()](../reference/inspect_ai.model.html.md#get_m
 `sandbox` SandboxEnvironmentType \| None  
 Sandbox environment type (or optionally a str or tuple with a shorthand spec)
 
-`checkpoint` CheckpointConfig \| None  
-Checkpoint configuration for this task. Overridden by eval-level `checkpoint` when set; overrides any sample-level `checkpoint`.
+`checkpoint` [CheckpointConfig](../reference/inspect_ai.util.html.md#checkpointconfig) \| bool \| None  
+Checkpoint configuration for this task, or `True` to enable checkpointing with the default trigger (every 500k tokens). Overridden by eval-level `checkpoint` when set; overrides any sample-level `checkpoint`.
 
 `approval` str \| ApprovalPolicyConfig \| list\[[ApprovalPolicy](../reference/inspect_ai.approval.html.md#approvalpolicy)\] \| None  
 Tool use approval policies. Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
@@ -1111,7 +1111,7 @@ Additional metadata to associate with the task.
 `tags` list\[str\] \| None  
 Tags to associate with the task.
 
-`viewer` ViewerConfig \| None  
+`viewer` [ViewerConfig](../reference/inspect_ai.viewer.html.md#viewerconfig) \| None  
 Log viewer configuration for this task (controls how scanner results are rendered in the sidebar).
 
 `plan` Plan \| [Solver](../reference/inspect_ai.solver.html.md#solver) \| list\[[Solver](../reference/inspect_ai.solver.html.md#solver)\]  
@@ -1128,7 +1128,7 @@ Task adapted with alternate values for one or more options.
 
 This function modifies the passed task in place and returns it. If you want to create multiple variations of a single task using [task_with()](../reference/inspect_ai.html.md#task_with) you should create the underlying task multiple times.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/task/task.py#L242)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/task/task.py#L243)
 
 ``` python
 def task_with(
@@ -1147,7 +1147,7 @@ def task_with(
     config: GenerateConfig | NotGiven = NOT_GIVEN,
     model_roles: dict[str, str | Model] | NotGiven = NOT_GIVEN,
     sandbox: SandboxEnvironmentType | None | NotGiven = NOT_GIVEN,
-    checkpoint: CheckpointConfig | None | NotGiven = NOT_GIVEN,
+    checkpoint: CheckpointConfig | bool | None | NotGiven = NOT_GIVEN,
     approval: str
     | ApprovalPolicyConfig
     | list[ApprovalPolicy]
@@ -1204,8 +1204,8 @@ Named roles for use in [get_model()](../reference/inspect_ai.model.html.md#get_m
 `sandbox` SandboxEnvironmentType \| None \| NotGiven  
 Sandbox environment type (or optionally a str or tuple with a shorthand spec)
 
-`checkpoint` CheckpointConfig \| None \| NotGiven  
-Checkpoint configuration for this task. Overridden by eval-level `checkpoint` when set; overrides any sample-level `checkpoint`.
+`checkpoint` [CheckpointConfig](../reference/inspect_ai.util.html.md#checkpointconfig) \| bool \| None \| NotGiven  
+Checkpoint configuration for this task, or `True` to enable checkpointing with the default trigger (every 500k tokens). Overridden by eval-level `checkpoint` when set; overrides any sample-level `checkpoint`.
 
 `approval` str \| ApprovalPolicyConfig \| list\[[ApprovalPolicy](../reference/inspect_ai.approval.html.md#approvalpolicy)\] \| None \| NotGiven  
 Tool use approval policies. Either a path to an approval policy config file, an ApprovalPolicyConfig, or a list of approval policies. Defaults to no approval policy.
@@ -1252,7 +1252,7 @@ Additional metadata to associate with the task.
 `tags` list\[str\] \| None \| NotGiven  
 Tags to associate with the task.
 
-`viewer` ViewerConfig \| None \| NotGiven  
+`viewer` [ViewerConfig](../reference/inspect_ai.viewer.html.md#viewerconfig) \| None \| NotGiven  
 Log viewer configuration for this task (controls how scanner results are rendered in the sidebar).
 
 ### Epochs
@@ -1261,7 +1261,7 @@ Task epochs.
 
 Number of epochs to repeat samples over and optionally one or more reducers used to combine scores from samples across epochs. If not specified the “mean” score reducer is used.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/task/epochs.py#L4)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/task/epochs.py#L4)
 
 ``` python
 class Epochs
@@ -1277,7 +1277,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 \_\_init\_\_  
 Task epochs.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/task/epochs.py#L12)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/task/epochs.py#L12)
 
 ``` python
 def __init__(self, epochs: int, reducer: ScoreReducers | None = None) -> None
@@ -1293,7 +1293,7 @@ One or more reducers used to combine scores from samples across epochs (defaults
 
 Task information (file, name, and attributes).
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/task/task.py#L400)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/task/task.py#L402)
 
 ``` python
 class TaskInfo(BaseModel)
@@ -1316,7 +1316,7 @@ One or more tasks.
 
 Tasks to be evaluated. Many forms of task specification are supported including directory names, task functions, task classes, and task instances (a single task or list of tasks can be specified). None is a request to read a task out of the current working directory.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/task/tasks.py#L6)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/task/tasks.py#L6)
 
 ``` python
 Tasks: TypeAlias = (
@@ -1345,7 +1345,7 @@ Tasks: TypeAlias = (
 
 Argument shape accepted by `eval_set(scanner=...)`.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/task/scan.py#L178)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/task/scan.py#L178)
 
 ``` python
     Scanners: TypeAlias = (
@@ -1361,7 +1361,7 @@ Configure scanners attached to an `eval_set` run.
 
 A subset of scout’s `ScanJob` / `ScanJobConfig` schema, narrowed to the fields that make sense when `eval_set` is generating the transcripts.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/task/scan.py#L53)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/task/scan.py#L53)
 
 ``` python
 class ScannerConfig(BaseModel)
@@ -1411,7 +1411,7 @@ Load a [ScannerConfig](../reference/inspect_ai.html.md#scannerconfig) from a YAM
 
 Scanner entries in the file are written as `ScannerSpec` references (a registry `name` plus optional `params` and `file`). They are resolved to live `Scanner` objects via scout’s registry, loading any referenced `file` modules. `model_args` may also be a path to a separate YAML/JSON file, which is read and inlined.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/task/scan.py#L115)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/task/scan.py#L115)
 
 ``` python
 @classmethod
@@ -1427,7 +1427,7 @@ Path or URL (e.g. `s3://...`) to a YAML or JSON file.
 
 Run the Inspect View server.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_view/view.py#L23)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_view/view.py#L23)
 
 ``` python
 def view(
@@ -1468,7 +1468,7 @@ Additional arguments to pass through to the filesystem provider (e.g. `S3FileSy
 
 Decorator for registering tasks.
 
-[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/6311c174c10dafa417138d46a00c65f361eb1338/src/inspect_ai/_eval/registry.py#L97)
+[Source](https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/_eval/registry.py#L97)
 
 ``` python
 def task(*args: Any, name: str | None = None, **attribs: Any) -> Any

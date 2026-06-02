@@ -44,6 +44,10 @@ Other keybindings:
 
 - **Ctrl+S** switches to another running sample.
 
+> **NOTE: NoteNon-Interactive Sessions**
+>
+> You can attach to any running sample, including one whose agent hasn’t added ACP support (a custom agent or solver without [agent_channel()](./reference/inspect_ai.agent.html.md#agent_channel) — see [Adding ACP to an Agent](#adding-acp-to-an-agent)). These sessions are *observe-only*: the transcript streams live and you can still cancel the sample (**Ctrl+N**) or a running tool call (**Ctrl+L**), but sending messages and **Esc** interrupt are unavailable—those require changes to the agent’s turn loop. The message composer is hidden to indicate this.
+
 ### Intervention Logging
 
 Interrupts and operator messages are recorded in the Inspect log:
@@ -272,12 +276,14 @@ Inspect-aware clients can opt into richer behavior by declaring capabilities at 
 | Extension | Purpose |
 |----|----|
 | `inspect/list_sessions` | Enumerate attachable sessions before connecting. |
-| `inspect/list_samples` | Enumerate all running samples, including those without ACP support. |
+| `inspect/list_samples` | Enumerate all running samples, including observe-only ones without ACP support. |
 | `inspect/attach` | Direct-bind by `(task, sample_id, epoch)` instead of going through the picker. |
 | `inspect/cancel_sample` | Terminal sample cancel (with `score` or `error` disposition). |
 | `inspect/cancel_tool_call` | Cancel one in-flight tool call without unwinding the turn. |
 | `inspect/event` | Raw transcript event stream (opt-in via `clientCapabilities._meta["inspect.raw_events"]`). |
 | `inspect/session_ended` | Notification when a sample has completed, so the client can flip its UI to a terminal state without waiting for socket EOF. |
+
+Samples enumerated by `inspect/list_samples` carry an `inspect.interactive` flag. When it is `false` the sample is *observe-only* — its agent hasn’t bound a turn loop (no [agent_channel()](./reference/inspect_ai.agent.html.md#agent_channel)), so the client can attach to stream the transcript and call `inspect/cancel_sample` / `inspect/cancel_tool_call`, but `session/prompt` is rejected with `invalid_request` and `session/cancel` is ignored. Custom clients should disable their message composer for these sessions. The bind confirmation echoes the same flag in its `_meta` under `inspect.interactive`. (The standard `session/new` picker lists only interactive sessions; observe-only ones are reachable solely via `inspect/list_samples`.)
 
 Clients with a dedicated plan UI indicate this at `initialize` by setting `inspect.plan_rendering` to `true` in their capability `_meta`. Clients that can render structured forms — required to receive `ask_user` prompts — declare ACP’s standard `elicitation.form` capability:
 

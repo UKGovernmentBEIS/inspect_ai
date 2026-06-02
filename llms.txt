@@ -64,6 +64,7 @@
 - [Typing](https://inspect.aisi.org.uk/typing.html.md): Static type checking with Inspect, including typed interfaces to untyped storage (sample metadata and store).
 - [Tracing](https://inspect.aisi.org.uk/tracing.html.md): Advanced execution tracing tools for diagnosing runtime issues.
 - [Parallelism](https://inspect.aisi.org.uk/parallelism.html.md): Running multiple tasks and models in parallel, sandbox concurrency, and writing parallel custom code.
+- [Customizing Task Views](https://inspect.aisi.org.uk/task-views.html.md): Use ViewerConfig to customize how a task's samples, scores, and scanner results render in the Inspect log viewer.
 - [Interactivity](https://inspect.aisi.org.uk/interactivity.html.md): Introducing user interaction into task implementation, such as confirming consequential actions or dynamic prompting.
 - [Early Stopping](https://inspect.aisi.org.uk/early-stopping.html.md): The early stopping API for ending tasks early based on previously scored samples.
 - [Extensions](https://inspect.aisi.org.uk/extensions.html.md): Extending Inspect with new Model APIs, tool execution environments, and storage platforms.
@@ -83,6 +84,7 @@
 - [inspect_ai.solver](https://inspect.aisi.org.uk/reference/inspect_ai.solver.html.md): Prompting and elicitation.
 - [inspect_ai.tool](https://inspect.aisi.org.uk/reference/inspect_ai.tool.html.md): Built-in and custom tool functions.
 - [inspect_ai.util](https://inspect.aisi.org.uk/reference/inspect_ai.util.html.md): Miscellaneous utility functions.
+- [inspect_ai.viewer](https://inspect.aisi.org.uk/reference/inspect_ai.viewer.html.md): Customize Inspect view behavior.
 
 ## Extensions
 

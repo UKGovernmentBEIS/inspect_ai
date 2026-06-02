@@ -3430,7 +3430,7 @@ Model selection follows this precedence:
 There are a few ways you can customise the default behaviour:
 
 1.  Provide alternate `instructions`—the default instructions ask the model to use chain of thought reasoning and provide grades in the format `GRADE: C` or `GRADE: I`. Note that if you provide instructions that ask the model to format grades in a different way, you will also want to customise the `grade_pattern`.
-2.  Specify `include_history = True` to include the full chat history in the presented question (by default only the original sample input is presented). You may optionally instead pass a function that enables customising the presentation of the chat history.
+2.  Specify `include_history = True` to include the full chat history in the presented question (by default only the original sample input is presented). With the default templates, the final assistant answer is also included in the submission field. You may optionally instead pass a function that enables customising the presentation of the chat history.
 3.  Specify `partial_credit = True` to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only valid when using the default `instructions`.
 4.  Specify an alternate `model` to perform the grading (e.g. a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the final grade is chosen by majority vote.
 5.  Bind a `model_role` (default: `"grader"`) at eval time. See [Model Roles](./models.html.md#model-roles) for details.
@@ -4941,6 +4941,58 @@ inspect eval math.py --model openai/azure/gpt-4o-mini
 
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
 
+### OpenAI on AWS Bedrock
+
+> **NOTE:**
+>
+> OpenAI models on Amazon Bedrock require the development version of Inspect. You can install the development version from GitHub with:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
+
+The `openai` provider supports OpenAI models served through [Amazon Bedrock](https://aws.amazon.com/bedrock/). Use the normal `openai` provider with the `bedrock` qualifier, and use a standard OpenAI model identifier (Inspect automatically adds prefixes and suffixes required by Bedrock). For example:
+
+``` bash
+export AWS_BEARER_TOKEN_BEDROCK=your-bedrock-api-key
+inspect eval arc.py --model openai/bedrock/gpt-5.5
+```
+
+You don’t need to set a region for the example above — Inspect defaults to `us-east-2`. The available model ids (e.g. `gpt-5.5`, `gpt-oss-120b`) and the regions they’re offered in vary over time and by account; the [`bedrock-mantle` documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html) lists the supported regions.
+
+#### Region
+
+The AWS region is resolved with the following precedence: the `aws_region` model arg (`-M aws_region`), then `AWS_REGION`, then `AWS_DEFAULT_REGION`, and finally a default of `us-east-2`. Region availability varies by model (for example, at the time of writing `gpt-5.5` is only offered in `us-east-2`. Note that Bedrock API keys are region-bound (a key only works in the region it was created in).
+
+If your environment sets a global `AWS_REGION` for other AWS services, you can target a specific region for this model only — without changing that global — using the model arg:
+
+``` bash
+inspect eval arc.py --model openai/bedrock/gpt-5.5 -M aws_region=us-east-2
+```
+
+#### Authentication
+
+Authentication uses an AWS Bedrock bearer token. There are two ways to provide one:
+
+| Variable | Description |
+|----|----|
+| `AWS_BEARER_TOKEN_BEDROCK` | Bedrock bearer API key — the AWS-standard name, as used in the AWS and OpenAI documentation. |
+| `BEDROCK_OPENAI_API_KEY` | Bedrock bearer API key — Inspect-convention alias (takes precedence if both are set). |
+| `BEDROCK_OPENAI_BASE_URL` | Custom endpoint override (optional; the AWS-standard `AWS_BEDROCK_BASE_URL` is also accepted). By default Inspect targets the region’s Mantle endpoint, choosing the model-appropriate path automatically (`/openai/v1` for frontier models like GPT-5.x and Codex, `/v1` for open-weight models like gpt-oss). |
+| `AWS_REGION` / `AWS_DEFAULT_REGION` | AWS region (optional; defaults to `us-east-2`). |
+
+The first option is a static bearer key. Generate an [Amazon Bedrock API key](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) and set it via `AWS_BEARER_TOKEN_BEDROCK` (the name used in the AWS and OpenAI docs; Inspect also accepts `BEDROCK_OPENAI_API_KEY`).
+
+The second option uses your standard AWS credentials (IAM roles, instance profiles, SSO, AssumeRole, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, or a configured `AWS_PROFILE`). If no bearer key is set, Inspect generates short-lived bearer tokens from these credentials. This requires the `aws-bedrock-token-generator` package:
+
+``` bash
+pip install aws-bedrock-token-generator
+export AWS_PROFILE=your-profile           # or any standard AWS credential source
+inspect eval arc.py --model openai/bedrock/gpt-5.5
+```
+
+If the package is not installed and no bearer key is available, Inspect raises an error explaining how to proceed.
+
 ## Anthropic
 
 To use the [Anthropic](https://www.anthropic.com/api) provider, install the `anthropic` package, set your credentials, and specify a model using the `--model` option:
@@ -5231,7 +5283,7 @@ Note that all models on AWS Bedrock require that you [request model access](http
 
 You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren’t likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
 
-If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access.
+If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access. If you are using OpenAI models on Bedrock, access them via the `openai` provider with the `bedrock` qualifier — see [OpenAI on AWS Bedrock](#openai-on-aws-bedrock).
 
 ## AWS SageMaker
 
@@ -5404,6 +5456,12 @@ inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7
 ```
 
 For the `together` provider, you can enable [Tool Emulation](#tool-emulation-openai) using the `emulate_tools` custom model arg (`-M`). Other custom model args are forwarded to the constructor of the `AsyncOpenAI` class.
+
+The `together` provider supports a `stream` model arg (`-M`) that controls whether streaming responses are used (it is disabled by default). Pass `true` to enable streaming:
+
+``` bash
+inspect eval arc.py --model together/MiniMaxAI/MiniMax-M2.7 -M stream=true
+```
 
 The following environment variables are supported by the Together AI provider
 
@@ -7214,7 +7272,7 @@ If the model already emits reasoning between `<think></think>` tags (as with R1 
 
 ## Overview
 
-Structured output is a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured output is currently supported in Inspect for the OpenAI, Anthropic, Google, Mistral, Grok, Groq, vLLM, and SGLang providers.
+Structured output is a feature supported by some model providers to ensure that models generate responses which adhere to a supplied JSON Schema. Structured output is currently supported in Inspect for the OpenAI, Anthropic, Bedrock, Google, Mistral, Grok, Groq, vLLM, and SGLang providers.
 
 While structured output may seem like a robust solution to model unreliability, it’s important to keep in mind that by specifying a JSON schema you are also introducing unknown effects on model task performance. There is even some early literature indicating that [models perform worse with structured output](https://dylancastillo.co/posts/say-what-you-mean-sometimes.html).
 
@@ -7512,13 +7570,13 @@ Agents combine planning, memory, and tool usage to pursue more complex, tasks (e
 
 3.  Using software engineering agents like Claude Code and Codex CLI via the [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/) package.
 
-4.  Intervene in agent execution (interrupt, send messages, etc.) as required using [Agent Client Protocol](./intervention.html.md).
+4.  Implementing a fully [Custom Agent](./agent-custom.html.md), potentially composing agents into [Multi Agent](./multi-agent.html.md) architectures.
 
-5.  Implementing a fully [Custom Agent](./agent-custom.html.md), potentially composing agents into [Multi Agent](./multi-agent.html.md) architectures.
+5.  Integrating external agent frameworks via the [Agent Bridge](./agent-bridge.html.md).
 
-6.  Integrating external agent frameworks via the [Agent Bridge](./agent-bridge.html.md).
+6.  Using the [Human Agent](./human-agent.html.md) for human baselining of computing tasks.
 
-7.  Using the [Human Agent](./human-agent.html.md) for human baselining of computing tasks.
+Inspect also includes features suited to more complex agent evaluations including [Intervention](./intervention.html.md) to enable communication with running agents, and [Limits](./agent-custom.html.md#agent-limits) to set token, message, and time limits for agent execution.
 
 Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct Agent, Deep Agent, custom agents, and multi-agent systems.
 
@@ -7658,6 +7716,8 @@ See these additional articles to learn more about creating agent evaluations wit
 - [ReAct Agent](./react-agent.html.md) provides details on using and customizing the built-in ReAct agent.
 
 - [Deep Agent](./deepagent.html.md) describes a batteries-included agent for long-horizon tasks.
+
+&nbsp;
 
 - [Intervention](./intervention.html.md) details features that support creating evaluations with a human in the loop.
 
@@ -8406,6 +8466,10 @@ Other keybindings:
 
 - **Ctrl+S** switches to another running sample.
 
+> **NOTE: NoteNon-Interactive Sessions**
+>
+> You can attach to any running sample, including one whose agent hasn’t added ACP support (a custom agent or solver without [agent_channel()](./reference/inspect_ai.agent.html.md#agent_channel) — see [Adding ACP to an Agent](#adding-acp-to-an-agent)). These sessions are *observe-only*: the transcript streams live and you can still cancel the sample (**Ctrl+N**) or a running tool call (**Ctrl+L**), but sending messages and **Esc** interrupt are unavailable—those require changes to the agent’s turn loop. The message composer is hidden to indicate this.
+
 ### Intervention Logging
 
 Interrupts and operator messages are recorded in the Inspect log:
@@ -8634,12 +8698,14 @@ Inspect-aware clients can opt into richer behavior by declaring capabilities at 
 | Extension | Purpose |
 |----|----|
 | `inspect/list_sessions` | Enumerate attachable sessions before connecting. |
-| `inspect/list_samples` | Enumerate all running samples, including those without ACP support. |
+| `inspect/list_samples` | Enumerate all running samples, including observe-only ones without ACP support. |
 | `inspect/attach` | Direct-bind by `(task, sample_id, epoch)` instead of going through the picker. |
 | `inspect/cancel_sample` | Terminal sample cancel (with `score` or `error` disposition). |
 | `inspect/cancel_tool_call` | Cancel one in-flight tool call without unwinding the turn. |
 | `inspect/event` | Raw transcript event stream (opt-in via `clientCapabilities._meta["inspect.raw_events"]`). |
 | `inspect/session_ended` | Notification when a sample has completed, so the client can flip its UI to a terminal state without waiting for socket EOF. |
+
+Samples enumerated by `inspect/list_samples` carry an `inspect.interactive` flag. When it is `false` the sample is *observe-only* — its agent hasn’t bound a turn loop (no [agent_channel()](./reference/inspect_ai.agent.html.md#agent_channel)), so the client can attach to stream the transcript and call `inspect/cancel_sample` / `inspect/cancel_tool_call`, but `session/prompt` is rejected with `invalid_request` and `session/cancel` is ignored. Custom clients should disable their message composer for these sessions. The bind confirmation echoes the same flag in its `_meta` under `inspect.interactive`. (The standard `session/new` picker lists only interactive sessions; observe-only ones are reachable solely via `inspect/list_samples`.)
 
 Clients with a dedicated plan UI indicate this at `initialize` by setting `inspect.plan_rendering` to `true` in their capability `_meta`. Clients that can render structured forms — required to receive `ask_user` prompts — declare ACP’s standard `elicitation.form` capability:
 
@@ -15461,6 +15527,259 @@ To learn more about AnyIO see the following resources:
 - <https://anyio.readthedocs.io/>
 
 - <https://lewoudar.medium.com/anyio-all-you-need-for-async-programming-stuff-4cd084d0f6bd>
+
+
+# Custom Views – Inspect
+
+## Overview
+
+By default the log viewer chooses sensible defaults for how a task’s samples are listed, how their scores are summarized, and how scanner results are displayed. For your own task, however you have a better idea which scores matter, which columns are worth showing, and more. Your task can customize the view directly by using the `viewer` arg of the [Task](./reference/inspect_ai.html.md#task).
+
+For example, the following customizes the Task’s view by passing a set of columns, a default sort, and enables multiline display (which may be better for long textual fields):
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.scorer import match
+from inspect_ai.viewer import (
+    TaskSamplesColumn,
+    TaskSamplesSort,
+    TaskSamplesView,
+    ViewerConfig,
+)
+
+@task
+def popularity():
+    return Task(
+        name="popularity",
+        dataset=dataset,
+        scorer=match(location="any"),
+        viewer=ViewerConfig(
+            task_samples_view=TaskSamplesView(
+                name="Default",
+                columns=[
+                    TaskSamplesColumn(id="sampleId"),
+                    TaskSamplesColumn(id="input"),
+                    TaskSamplesColumn(id="target"),
+                    TaskSamplesColumn(id="answer"),
+                    TaskSamplesColumn.score("match"),
+                    TaskSamplesColumn(id="sampleStatus", visible=False),
+                    TaskSamplesColumn(id="tokens", visible=False),
+                    TaskSamplesColumn(id="duration", visible=False),
+                ],
+                sort=[
+                    TaskSamplesSort.score("match", dir="asc"),
+                    TaskSamplesSort(column="sampleId", dir="asc"),
+                ],
+                multiline=True,
+            )
+        ),
+    )
+```
+
+The configuration that you specify in your task will be serialized into the eval log when it is written, so the configuration will be used for anyone viewing the log file produced using the configuration.
+
+[ViewerConfig](./reference/inspect_ai.viewer.html.md#viewerconfig) covers three areas, each configured independently:
+
+| Field | Configures |
+|----|----|
+| `task_samples_view` | The task’s sample list — the grid of samples shown for an eval log. |
+| `sample_score_view` | The score panel in an individual sample’s score display. |
+| `scanner_result_view` | The scanner results sidebar (for [scanners](./scanners.html.md)). |
+
+> **NOTE: Note**
+>
+> These settings are defaults, not overrides. The viewer honors them only until a reviewer customizes the view in their own browser. The resolution priority is `user override > view configuration > viewer built-in`, so a user’s hand-picked columns or sort always win and are never clobbered by the eval default.
+
+## The Sample List
+
+`task_samples_view` configures the grid of samples shown for an eval log. A [TaskSamplesView](./reference/inspect_ai.viewer.html.md#tasksamplesview) requires a `name` and accepts optional column, sort, and presentation settings — any field left unset falls back to the viewer’s built-in behaviour.
+
+``` python
+from inspect_ai.viewer import (
+    ViewerConfig,
+    TaskSamplesView,
+    TaskSamplesColumn,
+    TaskSamplesSort,
+)
+
+ViewerConfig(
+    task_samples_view=TaskSamplesView(
+        name="Triage",
+        columns=[
+1            TaskSamplesColumn(id="sampleId"),
+            TaskSamplesColumn(id="input"),
+            TaskSamplesColumn.score("my_scorer"),
+2            TaskSamplesColumn(id="target", visible=False),
+        ],
+3        sort=[TaskSamplesSort.score("my_scorer", dir="desc")],
+4        multiline=True,
+    )
+)
+```
+
+1  
+Controls the order of these columns.
+
+2  
+Hide these columns by default.
+
+3  
+Sort by `my_scorer`’s value, descending.
+
+4  
+Enable multiline display.
+
+### Columns
+
+You can control the order and visibility of columns within the task’s sample list by passing a list of [TaskSamplesColumn](./reference/inspect_ai.viewer.html.md#tasksamplescolumn) to `columns`. The order of the columns in this list is the default order for the columns in the sample view. Use `visible=False` on a column to hide it by default. Leaving `columns` as `None` uses the viewer’s built-in column set for that log’s shape.
+
+All samples have the following built-in columns available:
+
+`sampleStatus`, `sampleId`, `sampleUuid`, `epoch`, `input`, `target`, `answer`, `tokens`, `duration`, `retries`, `error`, `limit`.
+
+### Score columns
+
+Score columns are addressed by scorer name with the [score()](./reference/inspect_ai.scorer.html.md#score) helpers. For simple scorers, you can just pass the scorer name:
+
+``` python
+TaskSamplesColumn.score("my_scorer")
+TaskSamplesSort.score("my_scorer", dir="desc")
+```
+
+Pass the score you’d like to target when a scorer emits a dictionary of named sub-scores:
+
+``` python
+TaskSamplesColumn.score("my_scorer", "calibration")
+```
+
+### Sort
+
+`sort` is a list of [TaskSamplesSort](./reference/inspect_ai.viewer.html.md#tasksamplessort) entries (each a `column` id and a `dir` of `"asc"` or `"desc"`), applied in order. Use `TaskSamplesSort.score(...)` to sort on a score column.
+
+### Score labels
+
+`score_labels` renames score column headers for display, keyed by score name. Lookup falls back to the scorer name when no override is set.
+
+``` python
+TaskSamplesView(
+    name="Audit",
+    score_labels={
+        "situational_awareness": "Situational Awareness",
+        "ascii-art": "ASCII Art",
+    },
+)
+```
+
+### Color scales
+
+Numeric score cells can be shaded with a background heat scale. `score_color_scales` is keyed by score name, and each entry is either a named palette, a [ScoreColorScale](./reference/inspect_ai.viewer.html.md#scorecolorscale) (a palette with an explicit value range), or — for categorical scores — a map from value to a semantic role.
+
+[![](images/inspect-view-petri-custom-view.png)](images/inspect-view-petri-custom-view.png)
+
+``` python
+from inspect_ai.viewer import TaskSamplesView, ScoreColorScale
+
+TaskSamplesView(
+    name="Heat",
+    score_color_scales={
+        # named palette anchored to the observed data range
+        "accuracy": "good-high",
+        # palette pinned to a known 1..10 rubric so middling values
+        # aren't paint-clamped when the data clusters at one end
+        "concerning": ScoreColorScale(palette="good-low", min=1, max=10),
+        # categorical score → semantic roles
+        "verdict": {"yes": "bad", "no": "good", "maybe": "warn"},
+    },
+    color_scales_enabled=True,
+)
+```
+
+**Numeric palettes** map a value’s position in the range to a colour along a gradient (low → high):
+
+| Palette     | Low → High | Use when                              |
+|-------------|------------|---------------------------------------|
+| `good-high` |            | higher is better (e.g. accuracy)      |
+| `good-low`  |            | lower is better (e.g. error rate)     |
+| `neutral`   |            | magnitude only, no good/bad signal    |
+| `diverging` |            | signed values centred on the midpoint |
+
+**Categorical roles** assign a fixed colour to each mapped value:
+
+| Role    | Colour | Conveys                                |
+|---------|--------|----------------------------------------|
+| `good`  |  green | a positive / desired outcome           |
+| `bad`   |  red   | a negative / undesired outcome         |
+| `warn`  |  amber | a borderline / needs-attention outcome |
+| `info`  |  blue  | a neutral, informational value         |
+| `muted` |  grey  | a low-salience value                   |
+
+The swatches above approximate light mode; the actual cell colours are theme variables that adapt to light / dark. Pass/fail and boolean scores ignore this config — their pre-coloured pills already encode the result. `color_scales_enabled` seeds the toolbar heatmap toggle’s initial state.
+
+### Row layout
+
+`multiline` controls row density: `True` (the default) gives list-style multi-line rows; `False` gives compact single-line rows. `compact_scores` narrows score columns and rotates their headers 45° to fit many scores side by side.
+
+## The Score Panel
+
+`sample_score_view` configures the score panel shown in an individual sample’s detail view (distinct from the score *columns* in the sample list above). It applies when a sample has three or more scores.
+
+[![‘Chips’ score panel](images/inspect-view-chips-score.png)](images/inspect-view-chips-score.png "‘Chips’ score panel")
+
+‘Chips’ score panel
+
+``` python
+from inspect_ai.viewer import ViewerConfig, SampleScoreView, SampleScoreViewSort
+
+ViewerConfig(
+    sample_score_view=SampleScoreView(
+        default="chips",
+        sort=SampleScoreViewSort(column="value", dir="desc"),
+    )
+)
+```
+
+- `default` chooses the initial rendering mode: `chips` (wrapping pills) or `grid` (a sortable table). When unset, the viewer picks based on the number of scores.
+- `sort` sets the initial sort by `name` (scorer name) or `value`, with a direction of `asc` or `desc`.
+
+## Scanner Results
+
+`scanner_result_view` customizes the scanner results sidebar for samples produced with [scanners](./scanners.html.md). It is a glob-keyed map from scanner-name pattern to a [ScannerResultView](./reference/inspect_ai.viewer.html.md#scannerresultview), so you can target specific scanners or apply one configuration to all of them:
+
+``` python
+from inspect_ai.viewer import (
+    ViewerConfig,
+    ScannerResultView,
+    ScannerResultField,
+    MetadataField,
+)
+
+ViewerConfig(
+    scanner_result_view={
+        "*": ScannerResultView(
+            fields=[
+                ScannerResultField(name="explanation", label="Rationale"),
+                MetadataField(key="summary", label="Summary"),
+                "value",
+            ],
+            exclude_fields=["validation"],
+        ),
+    }
+)
+```
+
+Keys are fnmatch-style globs (`"*"`, `"audit_*"`, or exact scanner names). As a shorthand, you can pass a bare [ScannerResultView](./reference/inspect_ai.viewer.html.md#scannerresultview) instead of a map to apply a single configuration to every scanner.
+
+`fields` is an ordered list of sections to render; entries are:
+
+- A [ScannerResultField](./reference/inspect_ai.viewer.html.md#scannerresultfield) — a built-in section (`explanation`, `label`, `value`, `validation`, `answer`, or `metadata`), with an optional `label` override and `collapsed` default.
+- A [MetadataField](./reference/inspect_ai.viewer.html.md#metadatafield) — promotes a single `metadata[key]` entry into its own top-level section.
+- A bare string — shorthand for the matching [ScannerResultField](./reference/inspect_ai.viewer.html.md#scannerresultfield) name.
+
+`exclude_fields` subtracts sections from the resolved set. Excluding a [MetadataField](./reference/inspect_ai.viewer.html.md#metadatafield) also removes that key from the generic `metadata` dump.
+
+## Reference
+
+See the [`inspect_ai.viewer`](./reference/inspect_ai.viewer.html.md) reference for the complete field list of every type described here.
 
 
 # Interactivity – Inspect

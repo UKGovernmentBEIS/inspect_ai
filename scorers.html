@@ -527,6 +527,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./task-views.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Customizing Task Views</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./interactivity.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Interactivity</span></a>
   </div>
@@ -783,7 +789,7 @@ Note
 <p>There are a few ways you can customise the default behaviour:</p>
 <ol type="1">
 <li>Provide alternate <code>instructions</code>—the default instructions ask the model to use chain of thought reasoning and provide grades in the format <code>GRADE: C</code> or <code>GRADE: I</code>. Note that if you provide instructions that ask the model to format grades in a different way, you will also want to customise the <code>grade_pattern</code>.</li>
-<li>Specify <code>include_history = True</code> to include the full chat history in the presented question (by default only the original sample input is presented). You may optionally instead pass a function that enables customising the presentation of the chat history.</li>
+<li>Specify <code>include_history = True</code> to include the full chat history in the presented question (by default only the original sample input is presented). With the default templates, the final assistant answer is also included in the submission field. You may optionally instead pass a function that enables customising the presentation of the chat history.</li>
 <li>Specify <code>partial_credit = True</code> to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only valid when using the default <code>instructions</code>.</li>
 <li>Specify an alternate <code>model</code> to perform the grading (e.g.&nbsp;a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the final grade is chosen by majority vote.</li>
 <li>Bind a <code>model_role</code> (default: <code>"grader"</code>) at eval time. See <a href="./models.html#model-roles">Model Roles</a> for details.</li>

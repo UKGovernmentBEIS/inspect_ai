@@ -527,6 +527,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./task-views.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Customizing Task Views</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./interactivity.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Interactivity</span></a>
   </div>
@@ -594,11 +600,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p>Using Inspect’s built-in <a href="./react-agent.html">ReAct Agent</a>.</p></li>
 <li><p>Using the <a href="./deepagent.html">Deep Agent</a> for long-horizon tasks with subagent delegation, memory, and planning.</p></li>
 <li><p>Using software engineering agents like Claude Code and Codex CLI via the <a href="https://meridianlabs-ai.github.io/inspect_swe/">Inspect SWE</a> package.</p></li>
-<li><p>Intervene in agent execution (interrupt, send messages, etc.) as required using <a href="./intervention.html">Agent Client Protocol</a>.</p></li>
 <li><p>Implementing a fully <a href="./agent-custom.html">Custom Agent</a>, potentially composing agents into <a href="./multi-agent.html">Multi Agent</a> architectures.</p></li>
 <li><p>Integrating external agent frameworks via the <a href="./agent-bridge.html">Agent Bridge</a>.</p></li>
 <li><p>Using the <a href="./human-agent.html">Human Agent</a> for human baselining of computing tasks.</p></li>
 </ol>
+<p>Inspect also includes features suited to more complex agent evaluations including <!-- [Checkpointing](checkpointing.qmd) to recover from failures, --><a href="./intervention.html">Intervention</a> to enable communication with running agents, and <a href="./agent-custom.html#agent-limits">Limits</a> to set token, message, and time limits for agent execution.</p>
 <p>Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct Agent, Deep Agent, custom agents, and multi-agent systems.</p>
 </section>
 <section id="agent-basics" class="level2">
@@ -708,6 +714,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <ul>
 <li><p><a href="./react-agent.html">ReAct Agent</a> provides details on using and customizing the built-in ReAct agent.</p></li>
 <li><p><a href="./deepagent.html">Deep Agent</a> describes a batteries-included agent for long-horizon tasks.</p></li>
+</ul>
+<!-- -   [Checkpointing](checkpointing.qmd) covers the ability to save and restore agent state for recovery from infrastructure or other unexpected errors. -->
+<ul>
 <li><p><a href="./intervention.html">Intervention</a> details features that support creating evaluations with a human in the loop.</p></li>
 <li><p><a href="./multi-agent.html">Multi Agent</a> covers various ways to compose agents together in multi-agent architectures.</p></li>
 <li><p><a href="./agent-custom.html">Custom Agents</a> describes Inspect APIs available for creating custom agents.</p></li>

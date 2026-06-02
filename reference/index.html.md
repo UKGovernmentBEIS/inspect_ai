@@ -17,6 +17,7 @@
 | [inspect_ai.solver](../reference/inspect_ai.solver.html.md) | Prompting and elicitation. |
 | [inspect_ai.tool](../reference/inspect_ai.tool.html.md) | Built-in and custom tool functions. |
 | [inspect_ai.util](../reference/inspect_ai.util.html.md) | Miscellaneous utility functions. |
+| [inspect_ai.viewer](../reference/inspect_ai.viewer.html.md) | Customize Inspect view behavior. |
 
 ### CLI
 

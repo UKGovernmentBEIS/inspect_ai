@@ -10,13 +10,13 @@ Agents combine planning, memory, and tool usage to pursue more complex, tasks (e
 
 3.  Using software engineering agents like Claude Code and Codex CLI via the [Inspect SWE](https://meridianlabs-ai.github.io/inspect_swe/) package.
 
-4.  Intervene in agent execution (interrupt, send messages, etc.) as required using [Agent Client Protocol](./intervention.html.md).
+4.  Implementing a fully [Custom Agent](./agent-custom.html.md), potentially composing agents into [Multi Agent](./multi-agent.html.md) architectures.
 
-5.  Implementing a fully [Custom Agent](./agent-custom.html.md), potentially composing agents into [Multi Agent](./multi-agent.html.md) architectures.
+5.  Integrating external agent frameworks via the [Agent Bridge](./agent-bridge.html.md).
 
-6.  Integrating external agent frameworks via the [Agent Bridge](./agent-bridge.html.md).
+6.  Using the [Human Agent](./human-agent.html.md) for human baselining of computing tasks.
 
-7.  Using the [Human Agent](./human-agent.html.md) for human baselining of computing tasks.
+Inspect also includes features suited to more complex agent evaluations including [Intervention](./intervention.html.md) to enable communication with running agents, and [Limits](./agent-custom.html.md#agent-limits) to set token, message, and time limits for agent execution.
 
 Below, we’ll cover the basic role and function of agents in Inspect. Subsequent articles provide more details on the ReAct Agent, Deep Agent, custom agents, and multi-agent systems.
 
@@ -156,6 +156,8 @@ See these additional articles to learn more about creating agent evaluations wit
 - [ReAct Agent](./react-agent.html.md) provides details on using and customizing the built-in ReAct agent.
 
 - [Deep Agent](./deepagent.html.md) describes a batteries-included agent for long-horizon tasks.
+
+&nbsp;
 
 - [Intervention](./intervention.html.md) details features that support creating evaluations with a human in the loop.
 

@@ -530,6 +530,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./task-views.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Customizing Task Views</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./interactivity.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Interactivity</span></a>
   </div>
@@ -624,6 +630,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><p><strong>Ctrl+N</strong> cancels the sample; choose to score it or treat it as an error.</p></li>
 <li><p><strong>Ctrl+S</strong> switches to another running sample.</p></li>
 </ul>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Non-Interactive Sessions
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>You can attach to any running sample, including one whose agent hasn’t added ACP support (a custom agent or solver without <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_channel">agent_channel()</a></span> — see <a href="#adding-acp-to-an-agent">Adding ACP to an Agent</a>). These sessions are <em>observe-only</em>: the transcript streams live and you can still cancel the sample (<strong>Ctrl+N</strong>) or a running tool call (<strong>Ctrl+L</strong>), but sending messages and <strong>Esc</strong> interrupt are unavailable—those require changes to the agent’s turn loop. The message composer is hidden to indicate this.</p>
+</div>
+</div>
 <section id="intervention-logging" class="level3">
 <h3 class="anchored" data-anchor-id="intervention-logging">Intervention Logging</h3>
 <p>Interrupts and operator messages are recorded in the Inspect log:</p>
@@ -865,7 +884,7 @@ Important
 </tr>
 <tr class="even">
 <td><code>inspect/list_samples</code></td>
-<td>Enumerate all running samples, including those without ACP support.</td>
+<td>Enumerate all running samples, including observe-only ones without ACP support.</td>
 </tr>
 <tr class="odd">
 <td><code>inspect/attach</code></td>
@@ -889,6 +908,7 @@ Important
 </tr>
 </tbody>
 </table>
+<p>Samples enumerated by <code>inspect/list_samples</code> carry an <code>inspect.interactive</code> flag. When it is <code>false</code> the sample is <em>observe-only</em> — its agent hasn’t bound a turn loop (no <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_channel">agent_channel()</a></span>), so the client can attach to stream the transcript and call <code>inspect/cancel_sample</code> / <code>inspect/cancel_tool_call</code>, but <code>session/prompt</code> is rejected with <code>invalid_request</code> and <code>session/cancel</code> is ignored. Custom clients should disable their message composer for these sessions. The bind confirmation echoes the same flag in its <code>_meta</code> under <code>inspect.interactive</code>. (The standard <code>session/new</code> picker lists only interactive sessions; observe-only ones are reachable solely via <code>inspect/list_samples</code>.)</p>
 <p>Clients with a dedicated plan UI indicate this at <code>initialize</code> by setting <code>inspect.plan_rendering</code> to <code>true</code> in their capability <code>_meta</code>. Clients that can render structured forms — required to receive <code>ask_user</code> prompts — declare ACP’s standard <code>elicitation.form</code> capability:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode json code-with-copy"><code class="sourceCode json"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">{</span></span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="dt">"clientCapabilities"</span><span class="fu">:</span> <span class="fu">{</span></span>
