@@ -210,3 +210,69 @@ async def test_sample_endpoint_addresses_reserved_char_ids(
             assert response.json()["sample_id"] == sid, sid
 
     assert received == [("ev1", sid, 1) for sid in tricky_ids], received
+
+
+def test_control_server_cleans_up_partial_startup_failure(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A startup failure *after* bind must not leak the serve task / socket.
+
+    ``start()`` binds the socket and launches the uvicorn serve task BEFORE it
+    writes the discovery file. If that write fails (bad dir perms, disk full —
+    the write now creates the file via ``os.open`` and can raise), the partial
+    server is left running: an ``inspect-ctl-server`` task on the loop plus a
+    live socket node. ``control_server`` must tear that down (``stop()``)
+    before yielding ``None``, not just swallow the exception.
+
+    Isolated ``asyncio.run`` (not an ``async def`` test) so ``all_tasks()``
+    sees only this scenario's tasks, not the anyio harness's.
+    """
+    import tempfile
+    from pathlib import Path
+
+    import inspect_ai._control.discovery as discovery
+    from inspect_ai._control import server as server_mod
+    from inspect_ai._control.server import control_server
+
+    def _stub_data_dir(subdir: str | None = None) -> Path:
+        path = (tmp_path / (subdir or "")).resolve()
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    monkeypatch.setattr(discovery, "inspect_data_dir", _stub_data_dir)
+
+    # A short socket dir so the bind itself succeeds — we want the failure to
+    # come from the discovery write, which happens after bind + serve launch.
+    sock_dir = Path(tempfile.mkdtemp(prefix="ctl_part_", dir="/tmp"))
+    monkeypatch.setattr(
+        server_mod, "default_socket_path", lambda pid: sock_dir / f"{pid}.sock"
+    )
+
+    def _boom(*args: object, **kwargs: object) -> object:
+        raise OSError("simulated discovery write failure")
+
+    monkeypatch.setattr(server_mod, "write_discovery_file", _boom)
+
+    async def scenario() -> list[asyncio.Task[object]]:
+        async with control_server(run_id="run-partial") as srv:
+            # Bind + serve task launched, then the discovery write blew up —
+            # control_server must degrade to None.
+            assert srv is None
+        # Back outside the context: the partial server must be torn down.
+        return [
+            t
+            for t in asyncio.all_tasks()
+            if t.get_name() == "inspect-ctl-server" and not t.done()
+        ]
+
+    try:
+        leaked = asyncio.run(scenario())
+        assert leaked == [], f"leaked uvicorn serve task(s): {leaked}"
+        assert list(sock_dir.glob("*.sock")) == [], (
+            "socket node leaked after a partial-startup cleanup"
+        )
+        assert list(tmp_path.rglob("*.json")) == [], "discovery file present"
+    finally:
+        for p in sock_dir.glob("*"):
+            p.unlink(missing_ok=True)
+        sock_dir.rmdir()

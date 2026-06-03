@@ -290,6 +290,15 @@ async def control_server(
             "control surface): %s",
             exc,
         )
+        # start() may have partially succeeded — it binds the socket and
+        # launches the uvicorn serve task BEFORE writing the discovery file, so
+        # a later-stage failure (eg. the discovery write) leaves a running task
+        # + live socket node behind. Tear that down rather than leak it. stop()
+        # is None-safe at every partial stage.
+        try:
+            await server.stop()
+        except Exception:
+            logger.exception("Error cleaning up partially-started control server")
         yield None
         return
 
