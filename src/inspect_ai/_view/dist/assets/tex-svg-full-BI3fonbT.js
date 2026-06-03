@@ -50826,7 +50826,7 @@ $2$3`).split(`\r
 					let i = e.bbox;
 					if (i && i.w) {
 						let a = .05, o = r.createElement(`span`), s = parseFloat(e.style.paddingLeft || `0`);
-						o.style.backgroundColor = n.background, o.style.opacity = n.alphaback.toString(), o.style.display = `inline-block`, o.style.height = i.h + i.d + 2 * a + `em`, o.style.verticalAlign = -i.d + `em`, o.style.marginTop = o.style.marginBottom = -a + `em`, o.style.width = i.w + 0 + `em`, o.style.marginLeft = s - 0 + `em`, o.style.marginRight = -i.w - 0 - s + `em`, e.parentNode.insertBefore(o, e), t.box = o;
+						o.style.backgroundColor = n.background, o.style.opacity = n.alphaback.toString(), o.style.display = `inline-block`, o.style.height = i.h + i.d + 2 * a + `em`, o.style.verticalAlign = -i.d + `em`, o.style.marginTop = o.style.marginBottom = "-0.05em", o.style.width = i.w + 0 + `em`, o.style.marginLeft = s - 0 + `em`, o.style.marginRight = -i.w - 0 - s + `em`, e.parentNode.insertBefore(o, e), t.box = o;
 					}
 					return t;
 				}

@@ -99,6 +99,53 @@ def test_checkpoint_empty_sandboxes_is_valid() -> None:
     assert checkpoint.sandboxes == {}
 
 
+# --- SnapshotDetails.files (opt-in file listing) ----------------------
+
+
+def test_snapshot_files_round_trip() -> None:
+    """``files`` / ``additional_files`` survive a JSON round-trip."""
+    payload = {
+        **_BASE_CHECKPOINT,
+        "sandboxes": {
+            "default": {
+                **_info("def456"),
+                "files": ["/root/a.txt", "/root/b.txt"],
+                "additional_files": 23,
+            }
+        },
+    }
+    checkpoint = Checkpoint.model_validate(payload)
+    details = checkpoint.sandboxes["default"]
+    assert details.files == ["/root/a.txt", "/root/b.txt"]
+    assert details.additional_files == 23
+
+    rehydrated = Checkpoint.model_validate_json(checkpoint.model_dump_json())
+    assert rehydrated == checkpoint
+
+
+def test_snapshot_files_omitted_when_unset() -> None:
+    """Disabled (None) listing → keys absent (writer dumps exclude_none)."""
+    checkpoint = Checkpoint.model_validate(_BASE_CHECKPOINT)
+    dumped = json.loads(checkpoint.model_dump_json(exclude_none=True))
+    default = dumped["sandboxes"]["default"]
+    assert "files" not in default
+    assert "additional_files" not in default
+
+
+def test_snapshot_additional_files_omitted_when_not_truncated() -> None:
+    """``files`` present, ``additional_files`` omitted when not truncated."""
+    payload = {
+        **_BASE_CHECKPOINT,
+        "sandboxes": {"default": {**_info("def456"), "files": ["/root/a.txt"]}},
+    }
+    checkpoint = Checkpoint.model_validate(payload)
+    default = json.loads(checkpoint.model_dump_json(exclude_none=True))["sandboxes"][
+        "default"
+    ]
+    assert default["files"] == ["/root/a.txt"]
+    assert "additional_files" not in default
+
+
 # --- ResticConfig -----------------------------------------------------
 
 
