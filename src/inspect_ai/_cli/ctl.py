@@ -548,17 +548,22 @@ def _task_header(target: dict[str, Any]) -> str:
 def _print_samples_table(samples: list[dict[str, Any]]) -> None:
     """Render per-sample summaries as a simple aligned table on stdout.
 
-    Two columns are conditional, shown only when relevant (keeping the
+    Three columns are conditional, shown only when relevant (keeping the
     common case uncluttered):
     - ``retries`` — when some sample was retried on error. Per-sample
       (sample-level ``retry_on_error``); blank for samples with none.
     - ``score`` — when the samples have exactly one scorer (multi-scorer
       rendering is a later refinement). Running samples aren't scored yet,
       so their cell is blank.
+    - ``idle`` — when some sample is running: time since its last transcript
+      event (``now - last_activity_at``). A high idle time on a long-running
+      sample is the cheap "is it stalled?" cue. Blank for non-running rows.
     """
     any_retries = any((s.get("retries") or 0) > 0 for s in samples)
     scorers = sorted({name for s in samples for name in (s.get("scores") or {})})
     score_col = scorers[0] if len(scorers) == 1 else None
+    any_running = any(s.get("status") == "running" for s in samples)
+    now = datetime.now(timezone.utc).timestamp()
 
     rows: list[tuple[str, ...]] = []
     for s in samples:
@@ -571,13 +576,20 @@ def _print_samples_table(samples: list[dict[str, Any]]) -> None:
             row.append(str(s["retries"]) if s.get("retries") else "")
         if score_col is not None:
             row.append(_format_score((s.get("scores") or {}).get(score_col)))
-        row.extend(
-            [
-                _format_duration(s.get("total_time")),
-                str(s.get("total_tokens", 0)),
-                str(s.get("message_count") or 0),
-            ]
-        )
+        cells = [
+            _format_duration(s.get("total_time")),
+            str(s.get("total_tokens", 0)),
+            str(s.get("message_count") or 0),
+        ]
+        if any_running:
+            last = s.get("last_activity_at")
+            idle = (
+                _format_duration(now - last)
+                if s.get("status") == "running" and last is not None
+                else ""
+            )
+            cells.insert(1, idle)  # after time, before tokens
+        row.extend(cells)
         rows.append(tuple(row))
 
     headers = ["sample", "epoch", "status"]
@@ -585,7 +597,10 @@ def _print_samples_table(samples: list[dict[str, Any]]) -> None:
         headers.append("retries")
     if score_col is not None:
         headers.append("score")
-    headers.extend(["time", "tokens", "messages"])
+    headers.append("time")
+    if any_running:
+        headers.append("idle")
+    headers.extend(["tokens", "messages"])
     _render_table(tuple(headers), rows)
 
 

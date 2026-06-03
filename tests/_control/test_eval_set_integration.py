@@ -699,6 +699,10 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
         assert s["total_time"] >= 0
         assert "total_tokens" in s
         assert "message_count" in s
+        # liveness signals for stall detection
+        assert isinstance(s["last_activity_at"], float)
+        assert s["last_activity_at"] >= s["started_at"]
+        assert isinstance(s["events"], int)
 
     # CLI target resolution (pure over the summaries the endpoint returns).
     summaries = [entry]
@@ -710,6 +714,7 @@ def test_ctl_samples_lists_in_flight_samples(short_data_dir: Path) -> None:
 
     out = render(_print_samples_table, samples)
     assert out.count("running") >= 3
+    assert "idle" in out.splitlines()[0]  # idle column shown for running samples
 
 
 @pytest.mark.parametrize("log_format", ["eval", "json"])

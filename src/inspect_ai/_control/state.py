@@ -184,9 +184,12 @@ async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
 
     Each entry has: ``sample_id``, ``epoch``, ``status`` (running /
     completed / error / pending), ``started_at``, ``completed_at``,
-    ``total_time``, ``total_tokens``, ``message_count``, ``scores``
-    (``{scorer: value}``, empty until scored), ``error``, ``retries``,
-    ``limit``.
+    ``total_time``, ``total_tokens``, ``message_count``,
+    ``last_activity_at`` (unix ts of the sample's most recent event — for a
+    running sample, ``now - last_activity_at`` is its idle time, a cheap
+    stall signal), ``events`` (live transcript event count; ``None`` for
+    terminal / pending samples), ``scores`` (``{scorer: value}``, empty
+    until scored), ``error``, ``retries``, ``limit``.
     """
     by_key: dict[tuple[Any, int], dict[str, Any]] = {}
 
@@ -240,6 +243,8 @@ def _pending_summary(sample_id: Any, epoch: int) -> dict[str, Any]:
         "total_time": None,
         "total_tokens": 0,
         "message_count": None,
+        "last_activity_at": None,
+        "events": None,
         "scores": {},
         "error": None,
         "retries": None,
@@ -428,6 +433,10 @@ def _summary_from_eval_sample_summary(
         "total_time": summary.total_time,
         "total_tokens": sum(u.total_tokens for u in summary.model_usage.values()),
         "message_count": summary.message_count,
+        # A terminal sample's last activity is its completion; `events` is a
+        # live-only progress counter (the on-disk summary doesn't carry it).
+        "last_activity_at": _iso_to_timestamp(summary.completed_at),
+        "events": None,
         "scores": {name: score.value for name, score in (summary.scores or {}).items()},
         "error": error,
         "retries": summary.retries,
@@ -449,6 +458,16 @@ def _sample_summaries_from_active(eval_id: str) -> list[dict[str, Any]]:
             status = "running"
         else:
             status = "queued"
+        # Liveness signals (the only freshest source is the in-memory
+        # transcript). `last_activity_at` is when the sample last produced an
+        # event; `events` is a monotonic count. Together they let a consumer
+        # tell "stalled" from "working" without diffing successive polls — the
+        # per-turn token/message counters don't move *within* an in-flight
+        # model call, but these advance on every model / tool / store event.
+        last_event = s.transcript.history.last_event
+        last_activity_at = (
+            last_event.timestamp.timestamp() if last_event is not None else s.started
+        )
         summaries.append(
             {
                 "sample_id": s.sample.id,
@@ -459,6 +478,8 @@ def _sample_summaries_from_active(eval_id: str) -> list[dict[str, Any]]:
                 "total_time": s.running_time,
                 "total_tokens": s.total_tokens,
                 "message_count": s.total_messages,
+                "last_activity_at": last_activity_at,
+                "events": s.transcript.history.event_count,
                 "scores": {},  # running samples aren't scored yet
                 "error": None,
                 "retries": s.retries or None,

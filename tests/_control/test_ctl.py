@@ -123,6 +123,34 @@ def test_score_column_hidden_when_no_scores(
     assert "score" not in capsys.readouterr().out.splitlines()[0]
 
 
+def test_idle_column_shown_and_populated_for_running(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import time
+
+    now = time.time()
+    samples = [
+        {**_sample(1, "running", {}), "last_activity_at": now - 3661},
+        {**_sample(2, "completed", {}), "last_activity_at": now - 10},
+    ]
+    _print_samples_table(samples)
+    lines = capsys.readouterr().out.splitlines()
+    assert "idle" in lines[0]  # column shown because a sample is running
+    running_row = next(ln for ln in lines if ln.startswith("1 "))
+    assert "1:01:0" in running_row  # ~3661s of idle on the running sample
+    # idle is a running-only signal; the completed row carries no idle duration
+    completed_row = next(ln for ln in lines if ln.startswith("2 "))
+    assert "1:01:0" not in completed_row
+
+
+def test_idle_column_hidden_when_nothing_running(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    samples = [{**_sample(1, "completed", {}), "last_activity_at": 100.0}]
+    _print_samples_table(samples)
+    assert "idle" not in capsys.readouterr().out.splitlines()[0]
+
+
 def test_sorted_samples_orders_running_then_terminal_then_pending() -> None:
     from inspect_ai._control.state import _sorted_samples
 
