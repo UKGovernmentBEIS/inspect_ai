@@ -96,6 +96,7 @@ def _list_files_enabled() -> bool:
         return _LIST_FILES_DEFAULT
     return val.strip().lower() not in ("", "0", "false", "no")
 
+
 # JSON-primitive Python types; these round-trip identically through
 # `json.dumps`/`json.loads`, so `track()` can return them on resume
 # without a TypeAdapter.
