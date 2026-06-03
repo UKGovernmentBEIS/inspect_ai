@@ -1,5 +1,7 @@
 """Unit tests for `inspect ctl` target resolution (id + name matching)."""
 
+from typing import Any
+
 import click
 import pytest
 
@@ -124,7 +126,7 @@ def test_score_column_hidden_when_no_scores(
 def test_sorted_samples_orders_running_then_terminal_then_pending() -> None:
     from inspect_ai._control.state import _sorted_samples
 
-    rows = [
+    rows: list[dict[str, Any]] = [
         {"status": "pending", "started_at": None},
         {"status": "completed", "started_at": 100.0},
         {"status": "running", "started_at": 200.0},

@@ -61,8 +61,12 @@ def test_wait_for_shutdown_returns_when_event_set() -> None:
             await asyncio.sleep(0.05)
             server.shutdown_event.set()
 
-        async with asyncio.timeout(5):
-            await asyncio.gather(_set_soon(), wait_for_shutdown_async(server))
+        # asyncio.wait_for (not asyncio.timeout, which is 3.11+) keeps this
+        # runnable + type-checkable on Python 3.10.
+        await asyncio.wait_for(
+            asyncio.gather(_set_soon(), wait_for_shutdown_async(server)),
+            timeout=5,
+        )
 
     asyncio.run(scenario())
 
