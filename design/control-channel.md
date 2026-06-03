@@ -1,6 +1,6 @@
 # Control Channel
 
-Part of a broader effort to make Inspect a first-class platform for **LLM-agent-driven eval workflows** — agents like Claude Code launching evals, monitoring them, intervening when needed, and reading results back. The control channel is one piece of that surface (live-eval observation and direction); other pieces — agent-friendly `inspect eval` launching, `inspect log` for reading finished evals, CLI-wide JSON output conventions — are being developed alongside this work and are referenced in "Related work" at the bottom of the doc.
+Part of a broader effort to make Inspect a first-class platform for **LLM-agent-driven eval workflows** — agents like Claude Code launching evals, monitoring them, intervening when needed, and reading results back. The control channel is one piece of that surface (live-eval observation and direction); other pieces — an inspect agent, agent-friendly `inspect eval` launching, `inspect log` for reading finished evals, CLI-wide JSON output conventions — are being developed alongside this work and are referenced in "Related work" at the bottom of the doc.
 
 Within that scope, this doc covers the **control plane for live evals and eval-sets**: external processes (LLM agents, scripted watchdogs, TUIs, CLI commands) connecting to a running Inspect process to **observe** its state and **direct** it (cancel, modify config, drain, requeue, ...).
 
@@ -39,10 +39,9 @@ Agent (via Bash):
   inspect ctl events <id> --since <cursor> --json                            # poll for stalls
   inspect ctl cancel-sample <eval-id> <sample-id> --action error --dry-run   # check before acting
   inspect ctl cancel-sample <eval-id> <sample-id> --action error
-  inspect log summary ./logs/gpt5 --json                                     # after completion
-  inspect log compare ./logs/gpt5 ./logs/opus --json                         # diff
   inspect ctl shutdown --pid <pid>                                           # release the processes
   inspect ctl shutdown --pid <pid>                                           # ...one for each
+  (log summary and analysis TBD)
 ```
 
 The `--keep-alive` flag is load-bearing for this workflow: without it, each eval process exits the instant the eval body returns, taking its discovery file and control endpoint with it. The agent's later "inspect results" / "compare" / "decide" steps would race the process teardown and intermittently find no control surface to query. With `--keep-alive` the process parks after the eval body completes, the control endpoint stays bound, and `inspect ctl shutdown` is the explicit teardown signal the agent issues when it's done.
@@ -203,7 +202,7 @@ The control channel runs as an **HTTP server embedded directly in the eval proce
 
 ### Endpoint layout
 
-The eval process binds **its own FastAPI server** on AF_UNIX (default) or loopback TCP. Discovery file at `<inspect_data_dir>/control/<pid>.json` records `{transport: "unix", socket_path}` or `{transport: "tcp", host, port}` so clients can locate it. Discovery follows the same PID-liveness cleanup pattern as the existing ACP discovery files.
+The eval process binds **its own FastAPI server** on AF_UNIX (default) or loopback TCP. Discovery file at `<inspect_data_dir>/control/<pid>.json` records the bound address so clients can locate it — today the AF_UNIX `socket_path` (alongside `pid` / `run_id` / `started_at`); a `transport` tag distinguishing `unix` from `tcp` (`host` / `port`) arrives with the planned TCP fallback. Discovery follows the same PID-liveness cleanup pattern as the existing ACP discovery files.
 
 This endpoint is **separate from** both the existing ACP socket (`<inspect_data_dir>/acp/<pid>.sock`) and the existing `inspect view` server (which runs as a separate process serving log files). Three endpoints, three concerns:
 
@@ -378,7 +377,7 @@ The control endpoint is default-on and unauthenticated. That's a deliberate trad
 | `<pid>.sock` (AF_UNIX socket) | 0600 | Defence-in-depth — closes the gap if the directory ever gets loosened. |
 | `<pid>.json` (discovery file) | 0600 | Same — prevents the socket path / run_id leaking via a world-readable JSON. |
 
-The chmods are reapplied on every server start (idempotent) so a directory created before the hardening landed gets locked down on the next bind. Some filesystems ignore `chmod` (FUSE, certain network mounts); the fallback is benign — the file still lives under `inspect_data_dir` which is user-scoped, so the loss of defence-in-depth is bounded.
+The directory and socket modes are applied via `chmod` on every server start (idempotent), so a directory created before the hardening landed gets locked down on the next bind. The discovery JSON is handled differently: it's created owner-only at `open()` time (the mode is passed to `os.open`, capped by the umask) and published with an atomic temp-write-then-rename, so it is never *momentarily* more permissive than 0600 (no post-write `chmod` window) and a concurrent `inspect ctl ls` reader never observes a torn / partial-JSON file. Some filesystems ignore Unix permissions (FUSE, certain network mounts); the fallback is benign — everything still lives under `inspect_data_dir`, which is user-scoped, so the loss of defence-in-depth is bounded.
 
 **What this buys us.** With the directory at 0700, an attempted connection from another user's process fails at the directory-traversal step (`EACCES`) before the socket file's own permissions are even consulted. The socket and JSON 0600 modes are belt-and-suspenders: they protect against a misconfigured umask, a future code path that lowers the directory perms, or a user running Inspect under different identities (sudo etc.) that accidentally widen perms.
 
@@ -460,6 +459,8 @@ The control endpoint is bound by default whenever `inspect eval` runs. Every run
 
 **Graceful degradation on bind failure.** If the AF_UNIX bind fails (read-only filesystem, restricted sandbox, permissions on `inspect_data_dir`), log a warning and continue without the surface. The eval runs normally; only the control surface is missing. Bind failures are *never* fatal — eval results don't depend on the control channel coming up.
 
+This also covers *partial* startup failures. `start()` binds the socket and launches the server task *before* writing the discovery file, so a later-stage failure (eg. the discovery write) would otherwise leave a running server task and a live socket node behind. The startup path tears that partial state down (the same teardown used on normal shutdown) before degrading to "no surface", so a failed start never leaks a server or socket.
+
 ### Flags
 
 > **Status:** Phase 1 ships `--keep-alive` only. The control server is currently **unconditionally on** (AF_UNIX, default path); the enable/where flags and env vars below are designed but **not yet wired** (`control_server(enabled=...)` already takes the parameter, so the CLI/env plumbing is the only remaining piece). They're documented here as the intended phase-1 finish.
@@ -517,7 +518,7 @@ Three phases, with HTTP/H1 as the chosen wire. **Phase 1 (read surface + keep-al
 
 The always-on read surface plus the process-lifecycle plumbing agents need. Gives shell-capable agents (Claude Code via Bash) a complete read surface today.
 
-- **`EvalState` aggregate** (`_control/eval_state.py`). A process-global registry of per-eval terminal-sample counters (`total` and the terminal buckets `completed` / `errored` / `cancelled`), cumulative usage (`total_tokens` / `total_messages`), task/model metadata, planned sample ids, log location, and a live `summaries_provider`. Registered when a task starts; folded by `(run_id, task_id)` so retry attempts of the same task collapse into one logical row (the latest registered attempt). Each sample bumps exactly one terminal bucket at its final outcome — `cancelled` (sibling-failure / eval-cancel teardown) is separate from `errored` so it doesn't read as a failure but still counts toward `total`, so the eval is marked finished (`completed_at`) and isn't stuck "running". Counters and usage survive a sample leaving `active_samples`, so completed / keep-alive-parked evals stay visible. Cleared at the outermost run boundary (the `eval()` call for standalone eval, the eval-set for eval-set).
+- **`EvalState` aggregate** (`_control/eval_state.py`). A process-global registry of per-eval terminal-sample counters (`total` and the terminal buckets `completed` / `errored` / `cancelled`), cumulative usage (`total_tokens` / `total_messages`), task/model metadata, planned sample ids, log location, and a live `summaries_provider`. Registered when a task starts; folded by `(run_id, task_id)` so retry attempts of the same task collapse into one logical row (the latest registered attempt). Each sample bumps exactly one terminal bucket at its final outcome — `cancelled` (sibling-failure / eval-cancel teardown) is separate from `errored` so it doesn't read as a failure but still counts toward `total`, so the eval is marked finished (`completed_at`) and isn't stuck "running". A zero-sample eval (eg. `--limit` slices past the dataset — a valid success) is likewise not stuck: with `total == 0` it's marked finished the moment it registers, since there's no sample whose terminal outcome would otherwise stamp `completed_at`. Counters and usage survive a sample leaving `active_samples`, so completed / keep-alive-parked evals stay visible. Cleared at the outermost run boundary (the `eval()` call for standalone eval, the eval-set for eval-set).
 - **FastAPI server on AF_UNIX** (default; bind failures log a warning and degrade gracefully). Discovery file at `<inspect_data_dir>/control/<pid>.json`; security hardening (0700 dir, 0600 socket + json) per the Security model.
 - **Read endpoints:**
   - `GET /evals` — folded per-task summaries (subsumes the originally-planned `GET /evals/<id>` status detail; the CLI reads the whole list and resolves a task client-side).
