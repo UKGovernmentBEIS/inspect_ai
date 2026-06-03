@@ -1495,3 +1495,42 @@ def test_ctl_eval_finishes_when_final_attempt_cancels_sibling(
     assert samples["cancelled"] == 1
     assert samples["queued"] == 0
     assert samples["in_flight"] == 0
+
+
+def test_ctl_eval_finishes_when_limit_selects_zero_samples(
+    short_data_dir: Path,
+) -> None:
+    """A zero-sample eval (limit slices past the dataset) settles 'completed'.
+
+    ``limit=(10, 11)`` against a 2-sample dataset selects nothing — a valid,
+    successful eval-set outcome. The eval registers ``total=0``; with no sample
+    to ever fire a terminal counter, it must still reach a terminal
+    ``completed_at`` rather than read ``running`` forever.
+    """
+
+    @task
+    def tiny() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2)],
+            solver=[generate()],
+            name="tiny",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    with capturing() as cap:
+        ok, _ = eval_set(
+            tasks=[tiny()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            limit=(10, 11),  # past the 2-sample dataset -> 0 samples selected
+        )
+    assert ok
+
+    entry = cap.eval("tiny")
+    assert entry is not None
+    assert entry["samples"]["total"] == 0
+    assert entry["status"] == "completed", entry
+    assert entry["completed_at"] is not None

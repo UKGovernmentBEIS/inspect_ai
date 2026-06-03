@@ -141,11 +141,15 @@ class EvalState:
 
     @property
     def is_finished(self) -> bool:
-        """True once every sample has terminated (success, error, or cancel)."""
-        return (
-            self.total > 0
-            and self.completed + self.errored + self.cancelled >= self.total
-        )
+        """True once every sample has terminated (success, error, or cancel).
+
+        A zero-sample eval is finished immediately: ``--limit`` can slice past
+        the dataset (a valid, successful outcome), so ``total == 0`` must read
+        as done (``0 >= 0``) rather than "running" forever. There's no spurious
+        early-finish risk for ``total > 0`` — ``0 >= total`` is already False
+        until enough samples terminate.
+        """
+        return self.completed + self.errored + self.cancelled >= self.total
 
 
 # Module-level registry. Keyed by eval_id. A process can host multiple
@@ -193,6 +197,11 @@ def register_eval(
             will_retry=will_retry,
         )
         _eval_states[eval_id] = state
+        # A zero-sample eval (``total == 0``, eg. a limit past the dataset) is
+        # already finished — no sample will ever run to fire a terminal counter
+        # and stamp ``completed_at`` via record_sample_*, so do it now. A no-op
+        # for the normal ``total > 0`` case (not yet finished at registration).
+        _maybe_mark_finished(state)
         return state
 
 
