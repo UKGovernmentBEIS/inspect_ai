@@ -567,9 +567,9 @@ async def test_exec_input_binary(sandbox_env: SandboxEnvironment) -> None:
 
 
 async def test_exec_input_large(sandbox_env: SandboxEnvironment) -> None:
-    # Catches command-line / pipe / transport size limits. 1 MiB is enough to
-    # exceed several common limits but small enough to stay quick.
-    size = 1024 * 1024
+    # Catches command-line / pipe / transport size limits. The k8s
+    # sandbox blew up at 28 MiB.
+    size = 50 * 1024 * 1024
     payload = "a" * size
     result = await sandbox_env.exec(["wc", "-c"], input=payload)
     assert result.success, f"wc failed: stderr=[{result.stderr}]"
