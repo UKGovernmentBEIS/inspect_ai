@@ -83,7 +83,7 @@ from ._layout.staging_dir import (
 from ._sandbox_restic import ingress_sandbox, init_sandbox_repo, inject_restic
 from .checkpointer import ResumeCheckpoint
 from .config import ResolvedCheckpointConfig
-from .sandbox_paths import resolve_sandbox_backup_paths
+from .sandbox_paths import SandboxBackupPaths, resolve_sandbox_backup_paths
 
 logger = getLogger(__name__)
 _DISABLE_ENV_VAR = "INSPECT_CHECKPOINT_VALIDATE_DISABLE"
@@ -142,10 +142,11 @@ class HydrationResult:
     restic_password: str
     host: _HostHydrationResult
 
-    sandbox_backup_paths: dict[str, list[str]] = field(default_factory=dict)
-    """Effective sandbox name → paths map used for backup: each live
-    sandbox's default-user home dir, with ``sandbox_paths`` config entries
-    replacing the default (empty-list entries opt out). See ``sandbox_paths``."""
+    sandbox_backup_paths: dict[str, SandboxBackupPaths] = field(default_factory=dict)
+    """Effective sandbox name → backup spec (include + exclude) used for
+    backup: each live sandbox's default-user home dir (XDG cache excluded),
+    with ``sandbox_paths`` config entries replacing the default (empty-list
+    entries opt out). See ``sandbox_paths``."""
 
 
 async def hydrate(
@@ -335,7 +336,7 @@ async def _hydrate_host(
 
 async def _hydrate_sandboxes(
     resume: ResumeCheckpoint | None,
-    sandbox_paths: dict[str, list[str]],
+    sandbox_paths: dict[str, SandboxBackupPaths],
     restic_password: str,
     sample_root: str,
     host_restic: Path,

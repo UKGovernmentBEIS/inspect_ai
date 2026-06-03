@@ -8,7 +8,10 @@ from typing import Iterator, Literal, Union, overload
 
 import pytest
 
-from inspect_ai.util._checkpoint.sandbox_paths import resolve_sandbox_backup_paths
+from inspect_ai.util._checkpoint.sandbox_paths import (
+    SandboxBackupPaths,
+    resolve_sandbox_backup_paths,
+)
 from inspect_ai.util._sandbox.context import sandbox_environments_context_var
 from inspect_ai.util._sandbox.environment import (
     SandboxEnvironment,
@@ -18,11 +21,17 @@ from inspect_ai.util._subprocess import ExecResult
 
 
 class FakeSandbox(SandboxEnvironment):
-    """Minimal sandbox whose ``exec`` returns a canned home-dir lookup."""
+    """Minimal sandbox whose ``exec`` returns a canned home + cache lookup.
 
-    def __init__(self, home: str | None) -> None:
+    Mirrors ``_resolve_home_and_cache``'s ``echo "$h"; printf %s "<cache>"``
+    output: home on the first line, cache dir on the second. ``cache``
+    defaults to ``<home>/.cache``.
+    """
+
+    def __init__(self, home: str | None, cache: str | None = None) -> None:
         super().__init__()
         self._home = home
+        self._cache = cache if cache is not None else (home and f"{home}/.cache")
 
     async def exec(
         self,
@@ -37,7 +46,12 @@ class FakeSandbox(SandboxEnvironment):
     ) -> ExecResult[str]:
         if self._home is None:
             return ExecResult(success=False, returncode=1, stdout="", stderr="boom")
-        return ExecResult(success=True, returncode=0, stdout=self._home, stderr="")
+        return ExecResult(
+            success=True,
+            returncode=0,
+            stdout=f"{self._home}\n{self._cache}",
+            stderr="",
+        )
 
     async def write_file(self, file: str, contents: str | bytes) -> None:
         raise NotImplementedError
@@ -74,16 +88,36 @@ def _sandboxes(envs: dict[str, SandboxEnvironment]) -> Iterator[None]:
 async def test_no_entry_defaults_to_home() -> None:
     with _sandboxes({"default": FakeSandbox("/root")}):
         resolved = await resolve_sandbox_backup_paths({})
-    assert resolved == {"default": ["/root"]}
+    # Auto-home: capture home; exclude the XDG cache dir + all .cache dirs.
+    assert resolved == {
+        "default": SandboxBackupPaths(
+            include=["/root"], exclude=["/root/.cache", "**/.cache"]
+        )
+    }
 
 
-async def test_entry_used_verbatim() -> None:
+async def test_no_entry_honors_xdg_cache_home() -> None:
+    with _sandboxes({"default": FakeSandbox("/root", cache="/var/cache/agent")}):
+        resolved = await resolve_sandbox_backup_paths({})
+    assert resolved == {
+        "default": SandboxBackupPaths(
+            include=["/root"], exclude=["/var/cache/agent", "**/.cache"]
+        )
+    }
+
+
+async def test_entry_still_excludes_caches() -> None:
     with _sandboxes({"default": FakeSandbox("/root")}):
         resolved = await resolve_sandbox_backup_paths(
             {"default": ["/workspace", "/opt/state"]}
         )
-    # Configured paths win; home dir is not appended.
-    assert resolved == {"default": ["/workspace", "/opt/state"]}
+    # Configured includes win, but caches are excluded even so.
+    assert resolved == {
+        "default": SandboxBackupPaths(
+            include=["/workspace", "/opt/state"],
+            exclude=["/root/.cache", "**/.cache"],
+        )
+    }
 
 
 async def test_empty_list_opts_out() -> None:
@@ -114,6 +148,10 @@ async def test_mixed_sandboxes() -> None:
             {"tools": ["/opt/agent-state"], "scratch": []}
         )
     assert resolved == {
-        "default": ["/root"],
-        "tools": ["/opt/agent-state"],
+        "default": SandboxBackupPaths(
+            include=["/root"], exclude=["/root/.cache", "**/.cache"]
+        ),
+        "tools": SandboxBackupPaths(
+            include=["/opt/agent-state"], exclude=["/home/agent/.cache", "**/.cache"]
+        ),
     }

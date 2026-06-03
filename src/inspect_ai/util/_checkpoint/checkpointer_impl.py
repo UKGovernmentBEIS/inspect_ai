@@ -70,6 +70,7 @@ from .checkpointer import (
 )
 from .config import MAX_LISTED_FILES, ResolvedCheckpointConfig
 from .hydrate import HydrationResult, hydrate
+from .sandbox_paths import SandboxBackupPaths
 
 logger = getLogger(__name__)
 
@@ -78,9 +79,22 @@ T = TypeVar("T")
 CHECKPOINT_TRANSCRIPT_STORE = "checkpoint_transcript.sqlite"
 
 _LIST_FILES_ENV_VAR = "INSPECT_CHECKPOINT_LIST_FILES"
-"""When truthy, record each sandbox snapshot's file list in the checkpoint
-file (capped at :data:`MAX_LISTED_FILES`). Opt-in only — no config/CLI
-surface yet."""
+_LIST_FILES_DEFAULT = True
+"""Whether to record each sandbox snapshot's added/changed file list (capped
+at :data:`MAX_LISTED_FILES`) in the checkpoint file. Defaulted **on** during
+development (opt-out via ``INSPECT_CHECKPOINT_LIST_FILES=0``); flip to
+``False`` (opt-in) before going public. No config/CLI surface yet."""
+
+
+def _list_files_enabled() -> bool:
+    """Resolve file-listing from the env var, else ``_LIST_FILES_DEFAULT``.
+
+    ``0``/``false``/``no`` (or empty) disable; any other value enables.
+    """
+    val = os.environ.get(_LIST_FILES_ENV_VAR)
+    if val is None:
+        return _LIST_FILES_DEFAULT
+    return val.strip().lower() not in ("", "0", "false", "no")
 
 # JSON-primitive Python types; these round-trip identically through
 # `json.dumps`/`json.loads`, so `track()` can return them on resume
@@ -412,10 +426,10 @@ class _EnteredCheckpointer:
                         partial(
                             self._backup_and_egress_sandbox,
                             name,
-                            paths,
+                            spec,
                             next_checkpoint_id,
                         )
-                        for name, paths in sandbox_items
+                        for name, spec in sandbox_items
                     ],
                 ]
                 summaries = await tg_collect(backup_funcs)
@@ -425,11 +439,12 @@ class _EnteredCheckpointer:
                     for (name, _), summary in zip(sandbox_items, summaries[1:])
                 ]
 
-                # Opt-in (env var): list each sandbox snapshot's added/changed
-                # files. Diffs host-side against the already-egressed repos in
-                # parallel, so the in-sandbox exec-output limit is never hit.
+                # List each sandbox snapshot's added/changed files (default on
+                # in dev; see `_list_files_enabled`). Diffs host-side against
+                # the already-egressed repos in parallel, so the in-sandbox
+                # exec-output limit is never hit.
                 file_lists: list[tuple[list[str] | None, int]]
-                if os.environ.get(_LIST_FILES_ENV_VAR):
+                if _list_files_enabled():
                     file_lists = await tg_collect(
                         [
                             partial(
@@ -598,11 +613,13 @@ class _EnteredCheckpointer:
         )
 
     async def _backup_and_egress_sandbox(
-        self, name: str, paths: list[str], checkpoint_id: int
+        self, name: str, spec: SandboxBackupPaths, checkpoint_id: int
     ) -> ResticBackupSummary:
         env = sandbox(name)
         tag = _restic_tag(checkpoint_id)
-        summary = await run_sandbox_backup(env, self._restic_password, paths, tag)
+        summary = await run_sandbox_backup(
+            env, self._restic_password, spec.include, tag, exclude=spec.exclude
+        )
         dest_repo = sandbox_repo_dir(self._sample_root, name)
         await egress_sandbox(
             env,

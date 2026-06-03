@@ -50,10 +50,12 @@ LAYER1_CONTENT = "plain1"
 STORE_KEY = "answer"
 # Write under $HOME (not /workspace) so the default-user home-dir auto-backup
 # captures it — the task declares no `sandbox_paths`, exercising
-# `resolve_sandbox_backup_paths` / `_resolve_default_home`.
+# `resolve_sandbox_backup_paths` / `_resolve_home_and_cache`. Also drop a file
+# under the XDG cache dir ($HOME/.cache) to prove auto-home mode excludes it.
 WRITE_CMD = (
-    'mkdir -p "$HOME/workspace/decoded" && '
-    f"printf '{LAYER1_CONTENT}' > \"$HOME/workspace/decoded/layer1.txt\""
+    'mkdir -p "$HOME/workspace/decoded" "$HOME/.cache" && '
+    f"printf '{LAYER1_CONTENT}' > \"$HOME/workspace/decoded/layer1.txt\" && "
+    'printf cache > "$HOME/.cache/junk.txt"'
 )
 # Written on the post-resume turn so the ckpt-3 snapshot has a non-empty
 # diff vs its parent (ckpt-2) — used to assert file listing records the
@@ -198,9 +200,10 @@ def resume_decode_task() -> Task:
         dataset=[Sample(id="resume", input="decode the layers", target=LAYER1_CONTENT)],
         solver=react(tools=[bash(timeout=60), remember(), cancel()]),
         scorer=includes(),
-        # Small-home sandbox (see compose.yaml) so the default-user $HOME
-        # auto-backup stays cheap.
-        sandbox=("docker", str(Path(__file__).parent / "compose.yaml")),
+        # Default sandbox image: its ~955 MB /root is mostly /root/.cache,
+        # which auto-home mode excludes — so the egress stays small without a
+        # custom small-home image, and this exercises that exclude for real.
+        sandbox="docker",
         checkpoint=CheckpointConfig(
             trigger=TurnInterval(every=1),
             # No sandbox_paths: the default sandbox's $HOME is auto-captured.
@@ -307,10 +310,12 @@ def test_checkpoint_resume_runs_to_completion(
         )
 
     # ckpt-1 is the first sandbox snapshot (no parent) → full listing, which
-    # includes the turn-0 write.
+    # includes the turn-0 write but NOT the XDG cache dir (auto-home excludes
+    # $HOME/.cache).
     ckpt1_files = _ckpt(1).sandboxes["default"].files
     assert ckpt1_files is not None
     assert any(p.endswith("workspace/decoded/layer1.txt") for p in ckpt1_files)
+    assert not any("/.cache/" in p for p in ckpt1_files)
 
     # ckpt-3 diffs against its parent (ckpt-2): it lists the post-resume write
     # but NOT the unchanged turn-0 file — proving it's a delta, not the tree.

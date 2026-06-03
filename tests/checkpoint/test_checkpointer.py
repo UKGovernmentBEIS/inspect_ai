@@ -921,12 +921,20 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
         epoch=0,
     )
 
+    from inspect_ai.util._subprocess import ExecResult
+
     fake_env = MagicMock()
+    # Even a config-specified sandbox runs one resolution exec (home + XDG
+    # cache) so the cache dir can be excluded; canned `home\ncache` output.
+    fake_env.exec = AsyncMock(
+        return_value=ExecResult(
+            success=True, returncode=0, stdout="/root\n/root/.cache", stderr=""
+        )
+    )
     fake_sample_state = MagicMock(restic_password="pwd")
     sample_ckpt_path = str(tmp_path / "ckpts" / "s__0")
 
-    # Live-sandbox set drives hydration; "web" has an explicit config entry
-    # so it's backed up verbatim (no home-dir resolution exec).
+    # Live-sandbox set drives hydration; "web" has an explicit config entry.
     from inspect_ai.util._sandbox.context import sandbox_environments_context_var
 
     sandbox_token = sandbox_environments_context_var.set({"web": fake_env})
