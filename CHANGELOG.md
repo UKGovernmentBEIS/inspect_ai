@@ -1,3 +1,7 @@
+## 0.3.235 (03 June 2026)
+
+- OpenAI: Don't filter `tool_search` tool in agent bridge for providers derived from OpenAIAPI.
+
 ## 0.3.234 (02 June 2026)
 
 - OpenAI: Map Inspect `todo_write` tool to native OpenAI/Codex `update_plan` tool.
