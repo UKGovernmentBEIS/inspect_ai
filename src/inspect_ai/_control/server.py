@@ -119,8 +119,13 @@ class ControlServer:
         async def list_eval_samples(eval_id: str) -> list[dict[str, Any]]:
             return await current_sample_summaries(eval_id)
 
-        @app.get("/evals/{eval_id}/samples/{sample_id}/{epoch}")
-        async def get_sample_errors(eval_id: str, sample_id: str, epoch: int) -> Any:
+        # `sample_id` is a query parameter (not a path segment): sample ids
+        # are arbitrary strings and may contain `/`, `?`, `#`, etc., which a
+        # path segment can't carry. A query param is URL-encoded end to end.
+        @app.get("/evals/{eval_id}/sample")
+        async def get_sample_errors(
+            eval_id: str, sample_id: str, epoch: int = 1
+        ) -> Any:
             detail = await sample_error_detail(eval_id, sample_id, epoch)
             if detail is None:
                 return JSONResponse(

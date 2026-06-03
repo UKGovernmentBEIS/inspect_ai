@@ -385,7 +385,13 @@ def _fetch_sample_detail(
         with httpx.Client(
             transport=transport, base_url="http://localhost", timeout=5.0
         ) as client:
-            response = client.get(f"/evals/{eval_id}/samples/{sample_id}/{epoch}")
+            # sample_id goes in the query string (httpx URL-encodes it) so
+            # ids containing `/`, `?`, `#`, etc. address correctly — they
+            # can't be carried as a path segment.
+            response = client.get(
+                f"/evals/{eval_id}/sample",
+                params={"sample_id": sample_id, "epoch": epoch},
+            )
             if response.status_code == 404:
                 click.echo(
                     f"Sample '{sample_id}' (epoch {epoch}) not found — it may "

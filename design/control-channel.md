@@ -8,7 +8,7 @@ This is **separate from** the [`agent-acp`](acp/agent-acp.md) work, even though 
 
 The rudimentary control surface that fell out of the ACP work (per-sample cancellation, socket discovery via `--acp-server`) is a useful precedent but not the foundation — the control channel deserves its own protocol choice.
 
-> **Status (phase 1 shipped).** The read surface and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` / `GET /evals/<id>/samples/<sid>/<epoch>` read endpoints, `POST /shutdown`, the `inspect ctl ls` / `samples` / `sample` / `errors` / `shutdown` commands, and `--keep-alive`. **Phase 2** adds events (SSE + cursored pull); **phase 3** adds the state-mutating directives (cancel / drain / requeue / modify-limits). Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
+> **Status (phase 1 shipped).** The read surface and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` / `GET /evals/<id>/sample` read endpoints, `POST /shutdown`, the `inspect ctl ls` / `samples` / `sample` / `errors` / `shutdown` commands, and `--keep-alive`. **Phase 2** adds events (SSE + cursored pull); **phase 3** adds the state-mutating directives (cancel / drain / requeue / modify-limits). Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
 
 ## Goals
 
@@ -221,7 +221,7 @@ Phase annotations reflect the [Implementation](#implementation) plan; phase 1 is
 |---|---|---|
 | List evals (folded per task) | `GET /evals` | 1 ✅ |
 | List samples (running + completed + pending) | `GET /evals/<id>/samples` | 1 ✅ |
-| Sample error detail | `GET /evals/<id>/samples/<sid>/<epoch>` | 1 ✅ |
+| Sample error detail | `GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>` | 1 ✅ |
 | Release a `--keep-alive` park | `POST /shutdown` | 1 ✅ |
 | Eval event stream (push) | `GET /evals/<id>/events` (SSE) | 2 |
 | Eval events (pull) | `GET /evals/<id>/events?since=<cursor>` (JSON) | 2 |
@@ -236,7 +236,7 @@ Phase annotations reflect the [Implementation](#implementation) plan; phase 1 is
 Notes on the built shape vs the original plan:
 
 - **Eval status detail** was folded into `GET /evals` rather than a separate `GET /evals/<id>` — the list is already per-task (folded across retry attempts) and small, so the CLI fetches it and resolves a target client-side.
-- **Sample detail** is keyed by `(sid, epoch)` (epochs make `(sample_id, epoch)` the real identity) and is scoped to **error** detail (current error + `error_retries`) rather than a full sample dump.
+- **Sample detail** is keyed by `(sample_id, epoch)` (epochs make that the real identity) and is scoped to **error** detail (current error + `error_retries`) rather than a full sample dump. `sample_id` is a **query parameter**, not a path segment: sample ids are arbitrary strings and may contain `/`, `?`, `#`, etc., which a path segment can't carry — a query param is URL-encoded end to end.
 - **`POST /shutdown`** is process-scoped (no eval id) — it releases the keep-alive park for the whole process.
 
 Destructive endpoints (phase 3+) accept `?dry_run=true` to return "would do X" without doing it (per the agent shape constraints).
@@ -522,7 +522,7 @@ The always-on read surface plus the process-lifecycle plumbing agents need. Give
 - **Read endpoints:**
   - `GET /evals` — folded per-task summaries (subsumes the originally-planned `GET /evals/<id>` status detail; the CLI reads the whole list and resolves a task client-side).
   - `GET /evals/<id>/samples` — all of an eval's samples (running + completed + pending), merged from `active_samples` + the recorder's live summaries (falling back to the on-disk log) + the planned `(sample_id, epoch)` set.
-  - `GET /evals/<id>/samples/<sid>/<epoch>` — one sample's error detail: current error + prior-attempt `error_retries` (running samples sourced from `active_samples`, terminal ones from the log).
+  - `GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>` — one sample's error detail: current error + prior-attempt `error_retries` (running samples sourced from `active_samples`, terminal ones from the log). `sample_id` is a query param so string ids with reserved chars (`/`, `?`, `#`) address correctly.
 - **`POST /shutdown`** — releases a `--keep-alive` park. The only write endpoint in phase 1, and it acts on the process, not on eval state.
 - **CLI (`inspect ctl`, `--json` throughout):** `ls` (running evals), `samples [TASK]` (per-sample table: status / retries / score / timing / tokens), `sample TASK SAMPLE_ID [EPOCH] [--traceback]` (one sample's error history), `errors [TASK]` (triage list of errored / retried samples), `shutdown [--pid]`. `TASK` resolves by task-id prefix, then task-name (anchored at the name start or after a `/`); a sole running task is the default.
 - **Retry + cancellation surfacing.** Sample retry counts — both sample-level `retry_on_error` and task-level retries (the latter seeded onto the re-run via the sample source, and carried across attempts that tear a sample down before it re-runs) — appear in `samples`; prior-attempt errors in `sample` / `errors`. A cancellation (a sibling failure tore the attempt down) is **not** a genuine error: it renders as `pending` when a retry will re-run the sample, `cancelled` when terminal — never `error`. This avoids the misleading "all samples error" snapshot during a retry teardown.

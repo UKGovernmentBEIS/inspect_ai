@@ -2405,3 +2405,107 @@ def test_ctl_errors_and_sample_surface_prior_attempt_errors(
         err = result_ref.get("error")
         if err is not None:
             raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_sample_addresses_ids_with_reserved_chars(short_data_dir: Path) -> None:
+    """`ctl sample` can fetch string sample ids with URL-reserved chars.
+
+    Sample ids may be arbitrary strings — ``case/001`` (path separator),
+    ``q?x#y`` (query / fragment delimiters). These list fine via
+    ``ctl samples`` but must also be *addressable* by ``ctl sample``; a raw
+    path-segment route can't reach them. ``slashy`` holds the tricky ids and
+    completes; ``hang_task`` keeps the eval-set (and control server) alive.
+    """
+    release = threading.Event()
+    tricky_ids = ["case/001", "q?x#y"]
+
+    @solver
+    def passthrough() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            return state
+
+        return solve
+
+    @solver
+    def hang() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            while not release.is_set():
+                await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def slashy() -> Task:
+        return Task(
+            dataset=[Sample(id=sid, input="x", target="y") for sid in tricky_ids],
+            solver=[passthrough()],
+            name="slashy",
+        )
+
+    @task
+    def hang_task() -> Task:
+        return Task(
+            dataset=[Sample(id="h", input="x", target="y")],
+            solver=[hang()],
+            name="hang_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[slashy(), hang_task()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                max_tasks=2,
+                max_samples=4,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_slashy")
+    thread.start()
+
+    def _slashy_done() -> bool:
+        servers = list_discovered_servers()
+        if not servers:
+            return False
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+        except (httpx.HTTPError, OSError):
+            return False
+        s = next((e for e in evals if e.get("task") == "slashy"), None)
+        return s is not None and (s["samples"]["completed"] == 2)
+
+    try:
+        ready = _wait_until(_slashy_done, timeout=30.0)
+        assert ready, f"slashy didn't complete; error={result_ref.get('error')}"
+
+        from click.testing import CliRunner
+
+        from inspect_ai._cli.ctl import ctl_command
+
+        runner = CliRunner()
+        for sid in tricky_ids:
+            result = runner.invoke(ctl_command, ["sample", "slashy", sid])
+            assert result.exit_code == 0, f"id={sid!r}: {result.output}"
+            assert sid in result.output, f"id={sid!r}: {result.output}"
+            assert "not found" not in result.output, f"id={sid!r}: {result.output}"
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]
