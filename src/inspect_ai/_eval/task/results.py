@@ -122,7 +122,9 @@ def eval_results(
 
                 # resolve the task scores
                 if metrics is not None:
-                    scorer_info.metrics = metrics
+                    scorer_info.metrics = resolve_solver_score_metrics(
+                        metrics, name, sample_score.score
+                    )
 
                 # capture the scorer information
                 scorers_info.append(scorer_info)
@@ -260,6 +262,17 @@ def compute_eval_scores(
     return result_scores
 
 
+def resolve_solver_score_metrics(
+    metrics: list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]],
+    score_name: str,
+    score: Score,
+) -> list[Metric | dict[str, list[Metric]]] | dict[str, list[Metric]]:
+    if isinstance(metrics, dict) and not isinstance(score.value, dict):
+        return resolve_glob_score_metrics(metrics, score_name)
+    else:
+        return metrics
+
+
 def resolve_reducer(
     reducers: ScoreReducer | list[ScoreReducer] | None,
 ) -> tuple[list[ScoreReducer], bool]:
@@ -284,6 +297,24 @@ def split_metrics(
             dict_list.append(metric)
 
     return metric_list, dict_list
+
+
+def resolve_glob_score_metrics(
+    metrics: dict[str, list[Metric]], score_name: str
+) -> list[Metric | dict[str, list[Metric]]]:
+    resolved_metrics: list[Metric | dict[str, list[Metric]]] = []
+    existing_metric_names: set[str] = set()
+
+    for metric_key, metric_list in metrics.items():
+        key_glob_re = re.compile(fnmatch.translate(metric_key))
+        if key_glob_re.match(score_name):
+            for metric in metric_list:
+                metric_name = registry_log_name(metric)
+                if metric_name not in existing_metric_names:
+                    resolved_metrics.append(metric)
+                    existing_metric_names.add(metric_name)
+
+    return resolved_metrics
 
 
 def scorer_for_metrics(
