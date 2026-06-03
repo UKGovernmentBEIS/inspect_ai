@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import json
 import os
+from copy import deepcopy
 from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
@@ -86,6 +87,13 @@ from .config import ResolvedCheckpointConfig
 
 logger = getLogger(__name__)
 _DISABLE_ENV_VAR = "INSPECT_CHECKPOINT_VALIDATE_DISABLE"
+_SYNTHETIC_RESTORED_SPAN_END_METADATA = {
+    "checkpoint": {
+        "synthetic": True,
+        "reason": "restored_open_span",
+        "timestamp_source": "last_restored_event",
+    }
+}
 
 
 @dataclass
@@ -663,13 +671,6 @@ def _wrap_prior_run(events: list[Event]) -> list[Event]:
             e = e.model_copy(update={"span_id": wrap_id})
         new_tail.append(e)
 
-    synthetic_metadata = {
-        "checkpoint": {
-            "synthetic": True,
-            "reason": "restored_open_span",
-            "timestamp_source": "last_restored_event",
-        }
-    }
     if new_tail:
         last_restored_event = new_tail[-1]
         synthetic_ends = [
@@ -677,13 +678,16 @@ def _wrap_prior_run(events: list[Event]) -> list[Event]:
                 id=span_id,
                 timestamp=last_restored_event.timestamp,
                 working_start=last_restored_event.working_start,
-                metadata=synthetic_metadata,
+                metadata=deepcopy(_SYNTHETIC_RESTORED_SPAN_END_METADATA),
             )
             for span_id in reversed(open_span_ids)
         ]
     else:
         synthetic_ends = [
-            SpanEndEvent(id=span_id, metadata=synthetic_metadata)
+            SpanEndEvent(
+                id=span_id,
+                metadata=deepcopy(_SYNTHETIC_RESTORED_SPAN_END_METADATA),
+            )
             for span_id in reversed(open_span_ids)
         ]
 
@@ -843,17 +847,17 @@ def _validate_resume_state(
 
 
 def _validate_span_balance(events: list[Event]) -> None:
-    begin_by_id: dict[str, tuple[int, SpanBeginEvent]] = {}
+    begin_by_id: dict[str, int] = {}
     end_by_id: dict[str, int] = {}
     for idx, event in enumerate(events):
         if isinstance(event, SpanBeginEvent):
             if event.id in begin_by_id:
-                first_idx, _ = begin_by_id[event.id]
+                first_idx = begin_by_id[event.id]
                 raise RuntimeError(
                     f"[hydrate.validate] duplicate span_begin id {event.id} at "
                     f"indexes {first_idx} and {idx}"
                 )
-            begin_by_id[event.id] = (idx, event)
+            begin_by_id[event.id] = idx
         elif isinstance(event, SpanEndEvent):
             if event.id not in begin_by_id:
                 raise RuntimeError(
@@ -869,7 +873,7 @@ def _validate_span_balance(events: list[Event]) -> None:
 
     unclosed = [
         (idx, span_id)
-        for span_id, (idx, _) in begin_by_id.items()
+        for span_id, idx in begin_by_id.items()
         if span_id not in end_by_id
     ]
     if unclosed:

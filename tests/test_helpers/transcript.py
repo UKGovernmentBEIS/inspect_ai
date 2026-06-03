@@ -50,12 +50,12 @@ def assert_spans_balanced(events: Sequence[Event]) -> None:
     spans can interleave, and background child spans can outlive the dispatching
     parent span.
     """
-    begin_by_id: dict[str, tuple[int, SpanBeginEvent]] = {}
+    begin_by_id: dict[str, int] = {}
     end_by_id: dict[str, int] = {}
     for idx, event in enumerate(events):
         if isinstance(event, SpanBeginEvent):
             assert event.id not in begin_by_id, f"duplicate span_begin {event.id}"
-            begin_by_id[event.id] = (idx, event)
+            begin_by_id[event.id] = idx
         elif isinstance(event, SpanEndEvent):
             assert event.id in begin_by_id, f"span_end {event.id} with no begin"
             assert event.id not in end_by_id, f"duplicate span_end {event.id}"
@@ -64,7 +64,7 @@ def assert_spans_balanced(events: Sequence[Event]) -> None:
     unclosed = [span_id for span_id in begin_by_id if span_id not in end_by_id]
     assert not unclosed, f"{len(unclosed)} unclosed span(s): {unclosed}"
 
-    for span_id, (begin_idx, _) in begin_by_id.items():
+    for span_id, begin_idx in begin_by_id.items():
         end_idx = end_by_id[span_id]
         assert begin_idx < end_idx, f"span_end {span_id} precedes begin"
 

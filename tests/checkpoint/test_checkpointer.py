@@ -462,7 +462,10 @@ def test_wrap_prior_run_closes_restored_open_spans() -> None:
     from datetime import datetime, timezone
 
     from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
-    from inspect_ai.util._checkpoint.hydrate import _wrap_prior_run
+    from inspect_ai.util._checkpoint.hydrate import (
+        _SYNTHETIC_RESTORED_SPAN_END_METADATA,
+        _wrap_prior_run,
+    )
 
     last_restored_timestamp = datetime(2026, 5, 17, 18, 30, tzinfo=timezone.utc)
     restored_events: list[Event] = [
@@ -496,14 +499,7 @@ def test_wrap_prior_run_closes_restored_open_spans() -> None:
     assert len(synthetic_ends) == 2
     assert all(event.timestamp == last_restored_timestamp for event in synthetic_ends)
     assert all(
-        event.metadata
-        == {
-            "checkpoint": {
-                "synthetic": True,
-                "reason": "restored_open_span",
-                "timestamp_source": "last_restored_event",
-            }
-        }
+        event.metadata == _SYNTHETIC_RESTORED_SPAN_END_METADATA
         for event in synthetic_ends
     )
     assert_spans_balanced(wrapped)
