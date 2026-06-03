@@ -1345,6 +1345,41 @@ def test_eval_set_bundle_when_all_complete(tmp_path: Path) -> None:
         )
 
 
+def test_eval_set_bundle_after_retries_once(tmp_path: Path) -> None:
+    @solver
+    def fail_first_attempt() -> Solver:
+        attempts = {"count": 0}
+
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            attempts["count"] += 1
+            if attempts["count"] == 1:
+                raise ValueError("first attempt fails")
+            return state
+
+        return solve
+
+    bundle_dir = tmp_path / "bundle"
+    success, logs = eval_set(
+        tasks=Task(
+            dataset=[Sample(input="hello", target="hello")],
+            solver=[generate(), fail_first_attempt()],
+            scorer=exact(),
+        ),
+        log_dir=str(tmp_path / "logs"),
+        retry_attempts=2,
+        retry_wait=0.1,
+        retry_immediate=False,
+        model="mockllm/model",
+        bundle_dir=str(bundle_dir),
+    )
+
+    assert success
+    assert logs[0].status == "success"
+    assert (bundle_dir / "index.html").exists()
+    assert (bundle_dir / "logs" / "listing.json").exists()
+    assert len(list((bundle_dir / "logs").glob("*.eval"))) == 1
+
+
 def test_invalidation(tmp_path: Path):
     @task
     def task_for_invalidation():
