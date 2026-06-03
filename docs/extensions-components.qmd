@@ -1,0 +1,143 @@
+---
+title: Components
+llms-description: Distributing Inspect components (tasks, solvers, scorers, and tools) within Python packages so they can be referenced by name.
+---
+
+## Overview
+
+The core Inspect building blocks — tasks, solvers, scorers, and tools — can be bundled into a Python package so that others can install them and refer to them by name. Each of these is registered with Inspect through its decorator (`@task`, `@solver`, `@scorer`, `@tool`); exposing the package through a [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html) then makes those names resolvable from both the CLI and Python.
+
+This is the same mechanism used by the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_evals) package, which distributes a large suite of tasks that can be run directly by name:
+
+``` bash
+inspect eval inspect_evals/gaia
+inspect eval inspect_evals/swe_bench
+```
+
+Unlike the other extension types in this section (which integrate *external* systems such as model providers or sandboxes), tasks, solvers, scorers, and tools are first-class Inspect components — packaging simply makes the ones you've authored easy to share and reference. See [Tasks](tasks.qmd), [Solvers](solvers.qmd), [Scorers](scorers.qmd), and [Custom Tools](tools-custom.qmd) for how to write them.
+
+## Registration
+
+Distributing components works the same way for all four types. Say your package is named `evals` and defines a task, a solver, a scorer, and a tool across several modules:
+
+```
+evals/
+  evals/
+    tasks.py        # @task definitions
+    solvers.py      # @solver definitions
+    scorers.py      # @scorer definitions
+    tools.py        # @tool definitions
+    _registry.py
+  pyproject.toml
+```
+
+The `_registry.py` file serves as a single place to import everything you want registered with Inspect:
+
+``` {.python filename="_registry.py"}
+from .tasks import mytask
+from .solvers import my_agent
+from .scorers import my_scorer
+from .tools import my_tool
+```
+
+You then register `_registry.py` as an `inspect_ai` [setuptools entry point](https://setuptools.pypa.io/en/latest/userguide/entry_point.html). This ensures Inspect loads the module — and thereby registers everything imported into it — before it attempts to resolve any reference that uses your package name:
+
+::: {.panel-tabset group="entry-points"}
+## Setuptools
+
+``` toml
+[project.entry-points.inspect_ai]
+evals = "evals._registry"
+```
+
+## uv
+
+``` toml
+[project.entry-points.inspect_ai]
+evals = "evals._registry"
+```
+
+## Poetry
+
+``` toml
+[tool.poetry.plugins.inspect_ai]
+evals = "evals._registry"
+```
+:::
+
+When a component is defined within an installed package, Inspect namespaces its registry name with the package name. A `mytask` task in the `evals` package is therefore referenced as `evals/mytask`. (Components defined locally in your own project are referenced by their bare name or by a `file.py@name` path.)
+
+Once your package is installed, its components can be referenced by their `package/name`.
+
+## Tasks
+
+Run a packaged task by name from the CLI, passing any [task arguments](tasks.qmd#parameters) with `-T`:
+
+``` bash
+inspect eval evals/mytask
+inspect eval evals/mytask -T difficulty=hard
+```
+
+From Python you can pass the qualified name to `eval()` (with `task_args` for parameters), or simply import the task function and call it:
+
+``` python
+from inspect_ai import eval
+
+# reference by name
+eval("evals/mytask", task_args={"difficulty": "hard"})
+
+# or import directly
+from evals import mytask
+eval(mytask(difficulty="hard"))
+```
+
+## Solvers
+
+Override a task's solver from the CLI with `--solver`, passing [solver arguments](solvers.qmd) with `-S`:
+
+``` bash
+inspect eval evals/mytask --solver evals/my_agent
+inspect eval evals/mytask --solver evals/my_agent -S attempts=5
+```
+
+From Python, import the solver and pass it to `eval()`:
+
+``` python
+from inspect_ai import eval
+from evals import my_agent
+
+eval("evals/mytask", solver=my_agent(attempts=5))
+```
+
+## Scorers
+
+A task normally specifies its own scorer, but you can also apply a packaged scorer to an existing log with [`inspect score`](scorers.qmd), passing [scorer arguments](scorers.qmd) with `-S`:
+
+``` bash
+inspect score logs/2025-01-01-mytask.eval --scorer evals/my_scorer
+inspect score logs/2025-01-01-mytask.eval --scorer evals/my_scorer -S threshold=0.8
+```
+
+From Python, import the scorer and use it when defining a task or scoring a log:
+
+``` python
+from inspect_ai import score
+from inspect_ai.log import read_eval_log
+from evals import my_scorer
+
+log = read_eval_log("logs/2025-01-01-mytask.eval")
+score(log, my_scorer(threshold=0.8))
+```
+
+## Tools
+
+Tools are passed to solvers in code rather than referenced by name on the CLI, so a packaged tool is used simply by importing it:
+
+``` python
+from inspect_ai.solver import use_tools, generate
+from evals import my_tool
+
+solver = [use_tools([my_tool()]), generate()]
+```
+
+Registering tools with `@tool` still matters even though they're imported directly: it records each tool in the eval log under its qualified `package/name`, which lets Inspect reconstruct tool calls when reading logs back.

@@ -219,6 +219,25 @@ class TestGetModelInputTokens:
         tokens = get_model_input_tokens(model)
         assert tokens == get_model_info("openai/gpt-4o").input_tokens
 
+    def test_explicit_set_model_info_overrides_codename_alias(self):
+        """An explicit set_model_info() wins over the frontier aliasing.
+
+        A codename normally aliases to gpt-5.5's window; an explicit registration
+        means the caller knows the real window and must take precedence.
+        """
+        model = get_model("openai/foo-bar-22", api_key="test-key")
+        assert get_model_input_tokens(model) == 922_000  # aliased by default
+        set_model_info("openai/foo-bar-22", ModelInfo(context_length=4242))
+        assert get_model_input_tokens(model) == 4242
+
+    def test_codename_override_does_not_affect_frontier_model(self):
+        """Overriding a codename must not leak into the real frontier model."""
+        set_model_info("openai/foo-bar-22", ModelInfo(context_length=4242))
+        frontier = get_model("openai/gpt-5.5", api_key="test-key")
+        tokens = get_model_input_tokens(frontier)
+        assert tokens is not None
+        assert tokens != 4242
+
 
 class TestResultCaching:
     """Tests for the result-level memoization in get_model_info."""

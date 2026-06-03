@@ -12,6 +12,7 @@ initial inspect_ai package load — only at sample-run time, via the
 from __future__ import annotations
 
 import contextlib
+import os
 import time
 from collections.abc import (
     AsyncIterator,
@@ -38,7 +39,11 @@ from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
 from inspect_ai.solver._task_state import sample_state
-from inspect_ai.util._restic import ResticBackupSummary, run_backup
+from inspect_ai.util._restic import (
+    ResticBackupSummary,
+    list_changed_files,
+    run_backup,
+)
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._span import span
 from inspect_ai.util._store import Store, store_jsonable
@@ -63,14 +68,34 @@ from .checkpointer import (
     Checkpointer,
     ResumeCheckpoint,
 )
-from .config import ResolvedCheckpointConfig
+from .config import MAX_LISTED_FILES, ResolvedCheckpointConfig
 from .hydrate import HydrationResult, hydrate
+from .sandbox_paths import SandboxBackupPaths
 
 logger = getLogger(__name__)
 
 T = TypeVar("T")
 
 CHECKPOINT_TRANSCRIPT_STORE = "checkpoint_transcript.sqlite"
+
+_LIST_FILES_ENV_VAR = "INSPECT_CHECKPOINT_LIST_FILES"
+_LIST_FILES_DEFAULT = True
+"""Whether to record each sandbox snapshot's added/changed file list (capped
+at :data:`MAX_LISTED_FILES`) in the checkpoint file. Defaulted **on** during
+development (opt-out via ``INSPECT_CHECKPOINT_LIST_FILES=0``); flip to
+``False`` (opt-in) before going public. No config/CLI surface yet."""
+
+
+def _list_files_enabled() -> bool:
+    """Resolve file-listing from the env var, else ``_LIST_FILES_DEFAULT``.
+
+    ``0``/``false``/``no`` (or empty) disable; any other value enables.
+    """
+    val = os.environ.get(_LIST_FILES_ENV_VAR)
+    if val is None:
+        return _LIST_FILES_DEFAULT
+    return val.strip().lower() not in ("", "0", "false", "no")
+
 
 # JSON-primitive Python types; these round-trip identically through
 # `json.dumps`/`json.loads`, so `track()` can return them on resume
@@ -169,6 +194,7 @@ class _EnteredCheckpointer:
         self._host_restic = hydration.host_restic
         self._host_repo = hydration.host_repo
         self._restic_password = hydration.restic_password
+        self._sandbox_backup_paths = hydration.sandbox_backup_paths
         self._resume_checkpoint = resume_checkpoint
         self._agent_state: dict[str, Any] = (
             hydration.host.agent_state if hydration.host.agent_state is not None else {}
@@ -394,24 +420,55 @@ class _EnteredCheckpointer:
                 # are independent across sandboxes and from the host backup.
                 # `tg_collect` takes thunks (zero-arg callables) so coroutines
                 # are only created at task-group start time.
-                sandbox_items = list((self._config.sandbox_paths or {}).items())
+                sandbox_items = list(self._sandbox_backup_paths.items())
                 backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
                     partial(self._backup_host, next_checkpoint_id),
                     *[
                         partial(
                             self._backup_and_egress_sandbox,
                             name,
-                            paths,
+                            spec,
                             next_checkpoint_id,
                         )
-                        for name, paths in sandbox_items
+                        for name, spec in sandbox_items
                     ],
                 ]
                 summaries = await tg_collect(backup_funcs)
                 host_info = _snapshot_info(summaries[0])
-                sandbox_infos = {
-                    name: _snapshot_info(summary)
+                sandbox_summaries = [
+                    (name, summary)
                     for (name, _), summary in zip(sandbox_items, summaries[1:])
+                ]
+
+                # List each sandbox snapshot's added/changed files (default on
+                # in dev; see `_list_files_enabled`). Diffs host-side against
+                # the already-egressed repos in parallel, so the in-sandbox
+                # exec-output limit is never hit.
+                file_lists: list[tuple[list[str] | None, int]]
+                if _list_files_enabled():
+                    file_lists = await tg_collect(
+                        [
+                            partial(
+                                list_changed_files,
+                                self._host_restic,
+                                sandbox_repo_dir(self._sample_root, name),
+                                self._restic_password,
+                                summary.snapshot_id,
+                                MAX_LISTED_FILES,
+                            )
+                            for name, summary in sandbox_summaries
+                        ]
+                    )
+                else:
+                    file_lists = [(None, 0)] * len(sandbox_summaries)
+
+                sandbox_infos = {
+                    name: _snapshot_info(
+                        summary, files=files, additional_files=extra or None
+                    )
+                    for (name, summary), (files, extra) in zip(
+                        sandbox_summaries, file_lists
+                    )
                 }
 
                 # Cycle duration measured up to the checkpoint file write — the
@@ -557,11 +614,13 @@ class _EnteredCheckpointer:
         )
 
     async def _backup_and_egress_sandbox(
-        self, name: str, paths: list[str], checkpoint_id: int
+        self, name: str, spec: SandboxBackupPaths, checkpoint_id: int
     ) -> ResticBackupSummary:
         env = sandbox(name)
         tag = _restic_tag(checkpoint_id)
-        summary = await run_sandbox_backup(env, self._restic_password, paths, tag)
+        summary = await run_sandbox_backup(
+            env, self._restic_password, spec.include, tag, exclude=spec.exclude
+        )
         dest_repo = sandbox_repo_dir(self._sample_root, name)
         await egress_sandbox(
             env,
@@ -596,9 +655,15 @@ def _restic_tag(checkpoint_id: int) -> str:
     return f"ckpt-{checkpoint_id:05d}"
 
 
-def _snapshot_info(summary: ResticBackupSummary) -> SnapshotDetails:
+def _snapshot_info(
+    summary: ResticBackupSummary,
+    files: list[str] | None = None,
+    additional_files: int | None = None,
+) -> SnapshotDetails:
     return SnapshotDetails(
         snapshot_id=summary.snapshot_id,
         size_bytes=summary.data_added_packed,
         duration_ms=int(summary.total_duration * 1000),
+        files=files,
+        additional_files=additional_files,
     )
