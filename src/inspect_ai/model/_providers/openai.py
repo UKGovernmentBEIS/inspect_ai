@@ -37,6 +37,7 @@ from .._model_output import ModelOutput, ModelUsage
 from .._openai import (
     OpenAIAsyncHttpxClient,
     is_gpt_5_model,
+    is_latest_model,
     is_o_series_model,
     openai_classify_retry,
 )
@@ -426,12 +427,21 @@ class OpenAIAPI(ModelAPI):
     def is_deep_research(self) -> bool:
         return "deep-research" in self.service_model_name()
 
+    def is_latest(self) -> bool:
+        # predeployment/codename models are treated as the current frontier;
+        # restricted to the direct OpenAI service (azure uses customer
+        # deployment names and bedrock has a fixed catalog).
+        if self.is_azure() or self.is_bedrock():
+            return False
+        return is_latest_model(self.service_model_name())
+
     def is_gpt_5(self) -> bool:
-        return is_gpt_5_model(self.service_model_name())
+        # "gpt-5 or greater" — includes predeployment/codename frontier models
+        return is_gpt_5_model(self.service_model_name()) or self.is_latest()
 
     def is_gpt_5_plus(self) -> bool:
         name = self.service_model_name()
-        return "gpt-5." in name
+        return "gpt-5." in name or self.is_latest()
 
     def is_gpt_5_pro(self) -> bool:
         name = self.service_model_name()
@@ -491,7 +501,9 @@ class OpenAIAPI(ModelAPI):
         use_responses = (
             self.responses_api
             or has_image_output(config.modalities)
-            or is_native_tool_configured(tools, self.model_name, config)
+            or is_native_tool_configured(
+                tools, self.model_name, config, is_latest=self.is_latest()
+            )
         )
         self._resolve_batcher(config, use_responses)
 
@@ -555,6 +567,16 @@ class OpenAIAPI(ModelAPI):
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
         return f"openai/{self.service_model_name()}"
+
+    @override
+    def input_tokens_name(self) -> str:
+        """Model name used for looking up model input tokens (context window)."""
+        # codename/predeployment models alias to the current frontier so the
+        # context window / token accounting match (bump when a newer frontier
+        # ships). Mirrors Anthropic's is_claude_latest() aliasing.
+        if self.is_latest():
+            return "openai/gpt-5.5"
+        return super().input_tokens_name()
 
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:

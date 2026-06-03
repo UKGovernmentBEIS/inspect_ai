@@ -27,6 +27,7 @@ from griffe import (
 class DocParseOptions:
     module: Module
     source_url: str
+    expand_kwargs: bool = True
 
 
 @dataclass
@@ -414,7 +415,11 @@ def read_source(
     )
 
     # if Unpack was expanded by griffe, reconstruct the declaration
-    if isinstance(object, Function) and "Unpack[" in declaration:
+    if (
+        options.expand_kwargs
+        and isinstance(object, Function)
+        and "Unpack[" in declaration
+    ):
         declaration = reconstruct_declaration(object)
 
     # use pre-parsed docstrings (preserves UnpackTypedDictExtension expansion)

@@ -138,7 +138,8 @@ async def test_read_and_write_large_file_binary(
     sandbox_env: SandboxEnvironment,
 ) -> None:
     file_name = "test_read_and_write_large_file_binary.file"
-    long_bytes = b"\xc3" * 5_000_000
+    # Catches transport size limits. The k8s sandbox blew up at 28 MiB.
+    long_bytes = b"\xc3" * (50 * 1024 * 1024)
     await sandbox_env.write_file(file_name, long_bytes)
     written_file_bytes = await sandbox_env.read_file(file_name, text=False)
     assert long_bytes == written_file_bytes, "Large binary content should match"
@@ -567,9 +568,9 @@ async def test_exec_input_binary(sandbox_env: SandboxEnvironment) -> None:
 
 
 async def test_exec_input_large(sandbox_env: SandboxEnvironment) -> None:
-    # Catches command-line / pipe / transport size limits. 1 MiB is enough to
-    # exceed several common limits but small enough to stay quick.
-    size = 1024 * 1024
+    # Catches command-line / pipe / transport size limits. The k8s
+    # sandbox blew up at 28 MiB.
+    size = 50 * 1024 * 1024
     payload = "a" * size
     result = await sandbox_env.exec(["wc", "-c"], input=payload)
     assert result.success, f"wc failed: stderr=[{result.stderr}]"
