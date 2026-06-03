@@ -247,6 +247,9 @@ class TaskLogger:
         self._bump_created_past_existing_logs()
         self._location = await self.recorder.log_init(self.eval)
 
+        if self.eval.config.log_realtime is False:
+            return
+
         self._buffer_db = SampleBufferDatabase(
             location=self._location,
             log_images=self.eval.config.log_images is not False,
