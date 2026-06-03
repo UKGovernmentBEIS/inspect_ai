@@ -653,11 +653,10 @@ def eval_set(
     # finalize flag on attach, so reading from inside try_eval is too late
     prior_scan_clean = scan_already_clean(scanner, eval_set_id, log_dir)
 
-    # Under keep-alive, `keep_alive_session` holds the flag across the run
-    # EvalStates accumulate as tasks run (task_run no longer unregisters);
-    # clear the registry at this run boundary — in `finally`, after any
-    # keep-alive park — so they stay visible in `inspect ctl ls` through
-    # the run + park, but don't leak past it.
+    # EvalStates accumulate as tasks run (task_run registers but never
+    # unregisters); clear the registry at this run boundary — in `finally`,
+    # after any keep-alive park — so they stay visible in `inspect ctl ls`
+    # through the run + park, but don't leak past it.
     try:
         with (
             _embed_viewer(log_dir) if embed_viewer else contextlib.nullcontext(),

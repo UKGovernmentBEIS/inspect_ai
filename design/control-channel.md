@@ -8,6 +8,8 @@ This is **separate from** the [`agent-acp`](acp/agent-acp.md) work, even though 
 
 The rudimentary control surface that fell out of the ACP work (per-sample cancellation, socket discovery via `--acp-server`) is a useful precedent but not the foundation — the control channel deserves its own protocol choice.
 
+> **Status (phase 1 shipped).** The read surface and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` / `GET /evals/<id>/samples/<sid>/<epoch>` read endpoints, `POST /shutdown`, the `inspect ctl ls` / `samples` / `sample` / `errors` / `shutdown` commands, and `--keep-alive`. **Phase 2** adds events (SSE + cursored pull); **phase 3** adds the state-mutating directives (cancel / drain / requeue / modify-limits). Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
+
 ## Goals
 
 Listed in priority order — the agent enablement goal is the primary motivator; the others fall out of it or support it.
@@ -67,19 +69,28 @@ Same surface as scenario 1 — either via the CLI (Bash from a shell script) or 
 
 ### 3. CLI commands to cancel or modify a running eval
 
-Single-purpose human-driven CLI commands, all under the `inspect ctl` subcommand (see "CLI grouping" below):
+Single-purpose human-driven CLI commands, all under the `inspect ctl` subcommand (see "CLI grouping" below). Phase-1 commands are shipped; the rest land with their phases (events → phase 2, the directives → phase 3):
 
 ```
+# phase 1 (shipped)
 inspect ctl ls                              # list running evals
-inspect ctl status <eval-id>                # eval status detail
+inspect ctl samples [TASK]                  # per-sample table (status / retries / score / timing)
+inspect ctl sample TASK SID [EPOCH] [-t]    # one sample's error history (--traceback for full)
+inspect ctl errors [TASK]                   # triage: samples that errored or were retried
+inspect ctl shutdown [--pid PID]            # release a lingering --keep-alive process
+
+# phase 2 (events)
 inspect ctl events <eval-id> [--since X]    # event stream (push or cursored pull)
+
+# phase 3 (directives)
 inspect ctl cancel <eval-id> [--force]      # cancel an eval (current sample drains; scoring runs)
 inspect ctl cancel-sample <eval-id> <sid>   # cancel one sample
 inspect ctl drain <eval-id>                 # stop accepting new samples; let in-flight finish
 inspect ctl requeue <eval-id> <sid>         # re-add a failed sample to the queue
 inspect ctl set-limit <eval-id> --time N    # modify a running eval's per-sample time limit
-inspect ctl shutdown [--pid PID]            # release a lingering --keep-alive process
 ```
+
+Note the read commands take a **task** selector (task-id prefix or task name), not a raw eval-id: a task id is stable across retries, whereas a per-attempt eval id is not. Directives (phase 3) are shown above with `<eval-id>` as in the original sketch; their final selector is settled when they're built.
 
 Each is a thin wrapper — autocomplete-friendly, scriptable, composable with shell tooling. Same operations as the TUI; same operations agents call. The CLI is the canonical surface — humans use it directly; agents use it via Bash.
 
@@ -124,7 +135,7 @@ Concentrated in `src/inspect_ai/agent/_acp/` and detailed in [`agent-acp.md`](ac
 | `inspect/event` (opt-in) | Raw transcript event firehose, per sample |
 | `session/prompt`, `session/cancel`, `session/request_permission` | Per-sample ACP interaction — message the agent, interrupt it, answer approval requests |
 
-**What's missing.** All of the above are *per-sample*; there's nothing at the eval or eval-set layer. Operations like "cancel the eval", "list eval-set state", "modify the eval's per-sample limit" don't exist. Discovery is per-eval — to attach to an eval-set you'd have to pick one of its child evals. The TUI runs in-process. CLI surface is limited to `inspect acp [--stdio]` (the editor bridge) — no `inspect cancel` etc.
+**What was missing (the gap this work fills).** Everything ACP provides is *per-sample*; before the control channel there was nothing at the eval or eval-set layer. Operations like "cancel the eval", "list eval-set state", "modify the eval's per-sample limit" didn't exist. Discovery was per-eval. The TUI ran in-process. CLI surface was limited to `inspect acp [--stdio]` (the editor bridge). Phase 1 (shipped) now provides the eval-level **read** layer (`inspect ctl ls` / `samples` / `sample` / `errors`, the `control/` discovery dir, eval-level `EvalState`); the eval-level **direct** operations and eval-set-level surface remain future work (phases 3 / later).
 
 **What's reusable.** Even though ACP isn't the right shape for the control channel, the *plumbing* developed for it is:
 
@@ -204,23 +215,31 @@ This endpoint is **separate from** both the existing ACP socket (`<inspect_data_
 
 ### Endpoint table
 
-| Operation | Endpoint |
-|---|---|
-| List evals | `GET /evals` |
-| Eval status | `GET /evals/<id>` |
-| List samples (summary) | `GET /evals/<id>/samples` |
-| Sample detail | `GET /evals/<id>/samples/<sid>` |
-| Cancel eval | `POST /evals/<id>/cancel` |
-| Drain | `POST /evals/<id>/drain` |
-| Requeue sample | `POST /evals/<id>/samples/<sid>/requeue` |
-| Modify limits | `PATCH /evals/<id>` |
-| Eval event stream (push) | `GET /evals/<id>/events` (SSE) |
-| Eval events (pull) | `GET /evals/<id>/events?since=<cursor>` (JSON) |
-| List eval-sets | `GET /eval-sets` |
-| Eval-set status | `GET /eval-sets/<id>` |
-| Cancel eval-set | `POST /eval-sets/<id>/cancel` |
+Phase annotations reflect the [Implementation](#implementation) plan; phase 1 is built.
 
-Destructive endpoints accept `?dry_run=true` to return "would do X" without doing it (per the agent shape constraints).
+| Operation | Endpoint | Phase |
+|---|---|---|
+| List evals (folded per task) | `GET /evals` | 1 ✅ |
+| List samples (running + completed + pending) | `GET /evals/<id>/samples` | 1 ✅ |
+| Sample error detail | `GET /evals/<id>/samples/<sid>/<epoch>` | 1 ✅ |
+| Release a `--keep-alive` park | `POST /shutdown` | 1 ✅ |
+| Eval event stream (push) | `GET /evals/<id>/events` (SSE) | 2 |
+| Eval events (pull) | `GET /evals/<id>/events?since=<cursor>` (JSON) | 2 |
+| Cancel eval | `POST /evals/<id>/cancel` | 3 |
+| Drain | `POST /evals/<id>/drain` | 3 |
+| Requeue sample | `POST /evals/<id>/samples/<sid>/requeue` | 3 |
+| Modify limits | `PATCH /evals/<id>` | 3 |
+| List eval-sets | `GET /eval-sets` | later |
+| Eval-set status | `GET /eval-sets/<id>` | later |
+| Cancel eval-set | `POST /eval-sets/<id>/cancel` | later |
+
+Notes on the built shape vs the original plan:
+
+- **Eval status detail** was folded into `GET /evals` rather than a separate `GET /evals/<id>` — the list is already per-task (folded across retry attempts) and small, so the CLI fetches it and resolves a target client-side.
+- **Sample detail** is keyed by `(sid, epoch)` (epochs make `(sample_id, epoch)` the real identity) and is scoped to **error** detail (current error + `error_retries`) rather than a full sample dump.
+- **`POST /shutdown`** is process-scoped (no eval id) — it releases the keep-alive park for the whole process.
+
+Destructive endpoints (phase 3+) accept `?dry_run=true` to return "would do X" without doing it (per the agent shape constraints).
 
 ### Architecture diagram
 
@@ -384,14 +403,14 @@ The chmods are reapplied on every server start (idempotent) so a directory creat
 
 ## Open questions
 
-1. **Eval-set lifecycle.** Does the control channel server live in the parent eval-set process and survive child-eval boundaries, or does each child eval restart it? The former is what consumers need but requires hoisting the server lifecycle up the call stack.
-2. **Which directable knobs land in v1?** Cancel + drain + requeue is the minimum; modify-limits and modify-concurrency are bigger eval-runner changes.
-3. **Auth.** Loopback today is fine for one-machine TUIs and CLI; agents that run on the same machine inherit the trust model. Anything remote needs explicit design. HTTP makes the "didn't I bind to loopback?" mistake easier — codify "loopback-only default; explicit opt-in + auth for remote" in the bind logic from phase 1.
-4. **Subscription replay.** A TUI that attaches to an in-progress eval needs to catch up on history — same problem as ACP's replay-on-attach, but at eval scope (event counts could be much larger). What's the bound and elision policy?
+1. ~~**Eval-set lifecycle.**~~ **Resolved (phase 1).** The server runs on the eval's loop (not hoisted to a long-lived parent process). For eval-set with `retry_immediate=True` one server covers the whole run, and keep-alive parks afterward via a fresh sequential binding over the same registry — see "Server lifecycle aligned with `eval()`". `retry_immediate=False` is the documented exception (per-attempt servers; incompatible with keep-alive).
+2. **Which directable knobs land in phase 3?** Cancel + drain + requeue is the minimum; modify-limits and modify-concurrency are bigger eval-runner changes.
+3. **Auth.** Loopback today is fine for one-machine TUIs and CLI; agents that run on the same machine inherit the trust model. Anything remote needs explicit design. HTTP makes the "didn't I bind to loopback?" mistake easier — codify "loopback-only default; explicit opt-in + auth for remote" in the bind logic. (Phase 1 binds AF_UNIX only, so there's no remote surface yet; the explicit-opt-in TCP path arrives with the `--ctl-port` flag.)
+4. **Subscription replay.** A TUI that attaches to an in-progress eval needs to catch up on history — same problem as ACP's replay-on-attach, but at eval scope (event counts could be much larger). What's the bound and elision policy? (Phase 2.)
 5. **Discovery for multi-process eval-sets.** Eval-sets that spawn worker processes (if/when) need a story for which process the discovery file points at.
-6. **Risky operations.** Some directives are dangerous (`cancel --force`, `set-limit` to a higher value). Worth thinking about a confirmation / dry-run layer even on the loopback case. Doubly relevant for LLM-driven agents that retry on confusion — dry-run + idempotence aren't optional once agents are first-class consumers.
-7. **CLI ergonomics for one-of-many.** When more than one eval is running, what's the disambiguation default — error and require `--eval-id`, or pick the newest (matching `inspect acp --stdio`'s behaviour)?
-8. **Self-targeting from an LLM-agent inside an eval.** An LLM-driven agent monitoring an eval might itself be running *inside* an Inspect eval (a meta-solver). Should it be able to control its own parent eval? Probably not by default — worth a "no self-targeting" guard if/when this comes up.
+6. **Risky operations.** Some directives are dangerous (`cancel --force`, `set-limit` to a higher value). Worth thinking about a confirmation / dry-run layer even on the loopback case. Doubly relevant for LLM-driven agents that retry on confusion — dry-run + idempotence aren't optional once agents are first-class consumers. (Phase 3.)
+7. ~~**CLI ergonomics for one-of-many.**~~ **Resolved (phase 1).** Read commands take a task selector that matches a task-id prefix, then a task name (anchored at the start or after a `/`); when exactly one task is running it's the default, and ambiguous matches error with the candidate list. Targeting by stable task-id (not per-attempt eval-id) was the key choice.
+8. **Self-targeting from an LLM-agent inside an eval.** An LLM-driven agent monitoring an eval might itself be running *inside* an Inspect eval (a meta-solver). Should it be able to control its own parent eval? Probably not by default — worth a "no self-targeting" guard if/when this comes up. (Becomes relevant with the phase-3 write endpoints.)
 
 ## Implementation notes
 
@@ -412,23 +431,21 @@ The fix is an explicit handoff: `--keep-alive` parks the process after the eval 
 
 ### Server lifecycle aligned with `eval()` (and why no threads)
 
-The control server's lifetime matches a single `eval()` call — same as the existing `task_display().run_task_app(...)` async boundary. One `anyio.run`, one `async with control_server(...)`, one keep-alive wait. No daemon threads, no cross-loop synchronisation, no per-thread state. This keeps the control-channel code aligned with the rest of the (anyio-native, single-loop) codebase.
+The control server runs on the eval's own anyio loop — same as the existing `task_display().run_task_app(...)` async boundary — with no daemon threads, no cross-loop synchronisation, and no per-thread state. Each binding is one `async with control_server(...)` on a single loop; where a second binding is needed (the eval-set keep-alive park) it's a *sequential* `anyio.run`, never a concurrent second loop. This keeps the control-channel code aligned with the rest of the (anyio-native, single-loop) codebase.
 
 This works because in the common case `eval_set` is *also* a single `eval()` call:
 
-- **`retry_immediate=True` (the default).** Eval-set invokes `eval()` exactly once. Per-task retries happen *inside* that single `eval()` call (via `task_retry_attempts` and the failed-sample-reuse path). The control server's lifetime — bound at the start of `eval()`, parked through keep-alive, torn down on shutdown — wraps the entire eval-set's actual work. Identical effective behaviour to a "threaded eval-set-scoped server" but without any threads.
+- **`retry_immediate=True` (the default).** Eval-set invokes `eval()` exactly once. Per-task retries happen *inside* that single `eval()` call (via `task_retry_attempts` and the failed-sample-reuse path), so one control server bound for the duration of that `eval()` wraps the entire eval-set's actual work. Keep-alive then parks in a separate, sequential step *after* the display closes (a fresh control server over the same registry — see the Implementation sketch), rather than inside the run's server. Identical effective behaviour to a "threaded eval-set-scoped server" but without any threads.
 - **`retry_immediate=False` (legacy batch-retry mode).** Eval-set invokes `eval()` repeatedly via tenacity. Each attempt is its own `eval()` call → its own `anyio.run` → its own control server. Between attempts the server is briefly torn down (`inspect ctl ls` returns "no running evals" for that window). This is a documented limitation of the legacy mode.
 
 **`--keep-alive` is incompatible with `retry_immediate=False`.** The post-retry-loop park would need its own async context outside any single `eval()`, which is exactly the multi-loop bridging problem the alignment chooses to avoid. Eval-set raises `PrerequisiteError` at startup if both are set, with a message pointing at `--retry-immediate` (or dropping `--keep-alive`).
 
 **Implementation sketch.**
 
-- `_ControlServerBase` exposes a `shutdown_event: threading.Event`. The `POST /shutdown` route sets it.
-- `wait_for_shutdown_async(server)` parks on that event via `anyio.to_thread.run_sync` so the eval's async loop stays free. Only the async variant exists — there's no longer a sync caller that needs to wait on shutdown.
-- `EvalState` entries that would normally be unregistered by `task_run.py` at task end survive while keep-alive is active, so `ctl ls` keeps showing completed evals during the lingering window. A process-level `keep_alive_active()` flag tells `task_run.py` to skip the unregister; the keep-alive teardown clears all states explicitly before the server stops.
-- **One shared lifecycle helper.** `keep_alive_session(server, *, enabled, park_message)` (in `_control/server.py`) is an async context manager that owns the keep-alive *bookkeeping* — set the flag on enter, park (log + `wait_for_shutdown_async`) after a clean body, clear the flag + `EvalState`s on exit (in a `finally`, so a body that raises or is cancelled doesn't leak the flag). It deliberately does **not** own the control server: that's a separate, always-on concern (`control_server(...)`) that wraps the eval body and is a sibling of the ACP server. Callers create the server and pass it in, making `keep_alive_session` the *innermost* context manager so the park runs while the control / ACP servers are still up.
-- Both entry points use the same helper. For standalone `inspect eval` (and `inspect eval-set` with `retry_immediate=True`, which forwards `keep_alive=True` to its single inner `eval()` call), `_eval_async_inner` wraps the body in `control_server` + `acp_server` + `keep_alive_session`. `enabled=keep_alive` makes the session a no-op around the body when keep-alive is off.
-- **All-reused fallback.** If every task in the eval-set is satisfied by a prior successful log, `try_eval` short-circuits without calling `eval()` — there's no inner body to wrap. `_keep_alive_park_for_reused` reproduces the lingering state with the *same* helper: a standalone `control_server` plus `keep_alive_session(enabled=True)` around an empty body. The reused logs are already in the registry via `_register_reused_logs`, so the surface looks identical to the post-`eval()` lingering case.
+- **Loop-native shutdown event.** `ControlServer` holds a `shutdown_event: anyio.Event` (not a `threading.Event`). The `POST /shutdown` route sets it; `wait_for_shutdown_async(server)` is just `await server.shutdown_event.wait()`. Both the route and the waiter run on the same eval loop, so no thread or cross-loop bridge is needed. (An earlier design parked on a `threading.Event` via `anyio.to_thread.run_sync`; that left an abandoned non-daemon worker thread blocked on `Event.wait()` after a Ctrl-C, which is why the loop-native event replaced it.)
+- **Registry lifecycle: register on start, clear at the run boundary.** `task_run.py` *always* `register_eval`s a task and never unregisters it per-task — so a completed eval stays visible to `ctl ls` for the rest of the run (including any keep-alive park) without a special "keep-alive active" flag. `clear_all_eval_states()` is called once at the outermost run boundary: `_eval_async_inner`'s `finally` when `eval_set_id is None` (standalone eval), or `eval_set`'s `finally` (eval-set). This replaced the earlier `keep_alive_active()` flag + per-task `unregister_eval` + `keep_alive_session` helper, which were removed.
+- **Standalone eval parks inline.** `_eval_async_inner` opens `control_server(...)` + `acp_server(...)`, runs the eval body, then — still inside those contexts — prints the keep-alive notice and `await wait_for_shutdown_async(server)` when `keep_alive` is set. One control server, parked while it's still bound.
+- **Eval-set parks *after* the task display closes.** Eval-set runs its single inner `eval()` (which binds its own control server for the duration of the run, with `eval_set_id` set so that `eval()` does **not** park or clear). After the display tears down and the console summary prints, `eval_set` calls `run_coroutine(_keep_alive_park(eval_set_id))`: a fresh `control_server` is bound on a new loop and parked on its shutdown event. Two sequential server bindings (one during the run, one during the park), both serving the **same** process-global `EvalState` registry — so the surface is continuous across the brief gap while the summary prints. (Doing the park *after* the display closes is deliberate: otherwise the "keeping alive" notice lands inside the live task-display pane instead of the console.) The all-reused short-circuit — every task satisfied by a prior successful log, so `eval()` is never called — reaches the same `_keep_alive_park` with the reused logs already in the registry, so the parked surface looks identical.
 
 **Failure modes worth naming.**
 
@@ -445,22 +462,26 @@ The control endpoint is bound by default whenever `inspect eval` runs. Every run
 
 ### Flags
 
+> **Status:** Phase 1 ships `--keep-alive` only. The control server is currently **unconditionally on** (AF_UNIX, default path); the enable/where flags and env vars below are designed but **not yet wired** (`control_server(enabled=...)` already takes the parameter, so the CLI/env plumbing is the only remaining piece). They're documented here as the intended phase-1 finish.
+
 Three flags, each doing one thing:
 
 ```
 (omitted)                       # control on, default AF_UNIX at <inspect_data_dir>/control/<pid>.sock
---no-ctl                        # control off
---ctl-port N                    # control on, force TCP on port N (implies enabled)
---ctl-socket /path/to.sock      # control on, custom AF_UNIX path (implies enabled)
+--no-ctl                        # control off                                    [planned]
+--ctl-port N                    # control on, force TCP on port N (implies enabled)   [planned]
+--ctl-socket /path/to.sock      # control on, custom AF_UNIX path (implies enabled)   [planned]
 ```
 
 `--no-ctl` + `--ctl-port` (or `--ctl-socket`) is a configuration error — the flags conflict.
 
 Splitting "whether" from "where" into separate flags (rather than overloading one flag with `bool | int | str` values, as `--acp-server` does) is deliberate: it makes flag intent obvious at a glance and avoids "false" reading as a magic value.
 
+`--keep-alive` (the one shipped flag) is orthogonal to these — it controls whether the process *parks* after the eval body completes, not whether the control server binds.
+
 ### Environment-variable mirrors
 
-For CI / test isolation, every flag has an env-var equivalent:
+For CI / test isolation, every enable/where flag will have an env-var equivalent (**planned**, alongside the flags above):
 
 ```
 INSPECT_CTL=false               # disable globally
@@ -490,21 +511,41 @@ The graceful-fallback policy means worst-case is "test logs have warning lines";
 
 ## Implementation
 
-Phased plan, with HTTP/H1 as the chosen wire:
+Three phases, with HTTP/H1 as the chosen wire. **Phase 1 (read surface + keep-alive) is implemented**; phases 2 (events) and 3 (modification) are planned.
 
-1. **`EvalState` aggregate + read-only HTTP endpoint.** Add a lightweight `EvalState` container in the eval runner (queued / in-flight / completed counts, model usage rollup, started_at) updated at sample lifecycle transitions — per-sample state already lives in `ActiveSample` and is always-on. Bind a FastAPI server on AF_UNIX (default) with a TCP fallback flag; write the discovery file. Implement `GET /evals`, `GET /evals/<id>`, `GET /evals/<id>/samples` (summary), `GET /evals/<id>/samples/<sid>`. Loopback-only by default; no auth surface yet.
-2. **`inspect ctl ls` / `inspect ctl status` CLI with `--json` from day one.** Validates discovery + read path end-to-end before adding write paths. JSON output is a first-class mode, not an afterthought — the response schema is the canonical shape and human-formatted output is a rendering of it. This phase makes the CLI usable by both human operators and shell-capable agents (Claude Code via Bash). Establishes the `inspect ctl` subcommand group (`inspect ctl --help` shows the surface from day one).
-3. **`POST /evals/<id>/cancel` + `inspect ctl cancel` CLI.** First directive. Idempotent and supporting `?dry_run=true` / `--dry-run` from day one.
-4. **Eval event SSE stream + cursored pull endpoint.** Push (SSE) for TUIs at `GET /evals/<id>/events`; pull (cursored JSON) for agents at `GET /evals/<id>/events?since=<cursor>`. CLI helper: `inspect ctl events <id> --since <cursor> --json`. Unlocks watchdog agents.
-5. **TUI separation** — `inspect tui` as a standalone client (HTTP client of the control endpoint, plus an ACP client of the ACP socket for per-sample drill-down). Largest piece; depends on the read + event-stream surfaces being in place.
-6. **Modify-limits / drain / requeue.** Bigger eval-runner changes.
-7. **Eval-set scope** — server lifecycle hoisted to the parent process; eval-set-level `EvalSetState` aggregate designed from scratch (doesn't exist today); `GET /eval-sets`, `GET /eval-sets/<id>`, `POST /eval-sets/<id>/cancel`, eval-set event streams.
+### Phase 1 — read surface + keep-alive (done)
 
-**Optional follow-on (only if a specific gap emerges):**
+The always-on read surface plus the process-lifecycle plumbing agents need. Gives shell-capable agents (Claude Code via Bash) a complete read surface today.
 
-- **MCP server wrapper (`inspect mcp`).** Curated tool surface for LLM agents in hosts that can't / won't use shell access, or that need finer per-tool permissions than a Bash allowlist provides. Wraps the Python client library; reuses the JSON schemas from phases 1–4. We do NOT build this preemptively — Path A (CLI + JSON) should cover the agent integration story; this is the escape hatch if it doesn't.
+- **`EvalState` aggregate** (`_control/eval_state.py`). A process-global registry of per-eval terminal-sample counters (`total` / `completed` / `errored`), task/model metadata, planned sample ids, log location, and a live `summaries_provider`. Registered when a task starts; folded by `(run_id, task_id)` so retry attempts of the same task collapse into one logical row (the latest registered attempt). Counters survive a sample leaving `active_samples`, so completed / keep-alive-parked evals stay visible. Cleared at the outermost run boundary (the `eval()` call for standalone eval, the eval-set for eval-set).
+- **FastAPI server on AF_UNIX** (default; bind failures log a warning and degrade gracefully). Discovery file at `<inspect_data_dir>/control/<pid>.json`; security hardening (0700 dir, 0600 socket + json) per the Security model.
+- **Read endpoints:**
+  - `GET /evals` — folded per-task summaries (subsumes the originally-planned `GET /evals/<id>` status detail; the CLI reads the whole list and resolves a task client-side).
+  - `GET /evals/<id>/samples` — all of an eval's samples (running + completed + pending), merged from `active_samples` + the recorder's live summaries (falling back to the on-disk log) + the planned `(sample_id, epoch)` set.
+  - `GET /evals/<id>/samples/<sid>/<epoch>` — one sample's error detail: current error + prior-attempt `error_retries` (running samples sourced from `active_samples`, terminal ones from the log).
+- **`POST /shutdown`** — releases a `--keep-alive` park. The only write endpoint in phase 1, and it acts on the process, not on eval state.
+- **CLI (`inspect ctl`, `--json` throughout):** `ls` (running evals), `samples [TASK]` (per-sample table: status / retries / score / timing / tokens), `sample TASK SAMPLE_ID [EPOCH] [--traceback]` (one sample's error history), `errors [TASK]` (triage list of errored / retried samples), `shutdown [--pid]`. `TASK` resolves by task-id prefix, then task-name (anchored at the name start or after a `/`); a sole running task is the default.
+- **Retry + cancellation surfacing.** Sample retry counts — both sample-level `retry_on_error` and task-level retries (the latter seeded onto the re-run via the sample source, and carried across attempts that tear a sample down before it re-runs) — appear in `samples`; prior-attempt errors in `sample` / `errors`. A cancellation (a sibling failure tore the attempt down) is **not** a genuine error: it renders as `pending` when a retry will re-run the sample, `cancelled` when terminal — never `error`. This avoids the misleading "all samples error" snapshot during a retry teardown.
+- **`--keep-alive`** on `inspect eval` / `inspect eval-set` (see Implementation notes).
 
-Phase 1 is small enough to be a forcing function on the namespace + state-model decisions. Phases 1–4 give shell-capable agents (Claude Code via Bash) a complete read + direct + monitor surface. Phase 5 is the TUI payoff.
+### Phase 2 — events
+
+Eval-level lifecycle events exposed in both shapes (per the agent constraints): push (SSE) at `GET /evals/<id>/events` for TUIs / long-lived clients, and cursored pull at `GET /evals/<id>/events?since=<cursor>` for agent request/response loops. CLI helper: `inspect ctl events <id> --since <cursor> --json`. The pull shape is a thin server-side buffer + cursor over the same event source the SSE stream uses. Unlocks watchdog agents.
+
+### Phase 3 — modification (direct) methods
+
+The first endpoints that **mutate eval state**, each idempotent and supporting `?dry_run=true` / `--dry-run` from day one:
+
+- `POST /evals/<id>/cancel` + `inspect ctl cancel` — graceful drain vs `--force`.
+- `POST /evals/<id>/drain`, `POST /evals/<id>/samples/<sid>/requeue`, `PATCH /evals/<id>` (modify per-sample limits / concurrency) + their CLI wrappers.
+
+These are the bigger eval-runner changes (live config mutation, requeue). The Security model's "future hardening" (SO_PEERCRED UID check, self-targeting guard) lands with this phase, since it introduces the first state-mutating writes.
+
+### Later (beyond phase 3)
+
+- **TUI separation** — `inspect tui` as a standalone HTTP client of the control endpoint (plus an ACP client of the ACP socket for per-sample drill-down). Depends on the read + event surfaces.
+- **Eval-set-level read/direct** — an `EvalSetState` aggregate (doesn't exist today), `GET /eval-sets`, `GET /eval-sets/<id>`, `POST /eval-sets/<id>/cancel`, eval-set event streams. Note eval-set *keep-alive* already works in phase 1 via the single-`eval()` lifecycle.
+- **MCP server wrapper (`inspect mcp`)** — optional, built **only** if a specific gap emerges that Path A (CLI + `--json`) can't close. Reuses the phase 1–2 JSON schemas, so it's incremental rather than a parallel surface.
 
 ## Alternatives considered
 
