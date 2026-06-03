@@ -77,6 +77,81 @@ plans = await gather(
 Note that the `run()` method makes a copy of the input so is suitable for running in parallel as shown above (the two parallel runs will not make shared/conflicting edits to the `state`).
 
 
+### LLM-to-LLM Conversations
+
+Fixed-turn conversations between two models are another good fit for an explicit workflow. In the example below, a client agent and a service agent take turns appending to the same conversation history, then a third model scores the full transcript:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.agent import Agent, AgentState, react, run
+from inspect_ai.dataset import Sample
+from inspect_ai.model import ChatMessageSystem, ChatMessageUser, get_model
+from inspect_ai.scorer import Score, Scorer, Target, mean, scorer
+from inspect_ai.solver import Generate, Solver, TaskState, solver
+
+
+@solver
+def conversation(client: Agent, service: Agent, turns: int = 3) -> Solver:
+    async def solve(state: TaskState, generate: Generate) -> TaskState:
+        agent_state = AgentState(messages=list(state.messages))
+
+        for _ in range(turns):
+            agent_state = await run(client, agent_state)
+            agent_state = await run(service, agent_state)
+
+        state.messages = agent_state.messages
+        state.output = agent_state.output
+        return state
+
+    return solve
+
+
+@scorer(metrics=[mean()])
+def conversation_judge(model: str | None = None) -> Scorer:
+    judge = get_model(model)
+
+    async def score(state: TaskState, target: Target) -> Score:
+        transcript = "\n".join(
+            f"{message.role}: {message.text}" for message in state.messages
+        )
+        result = await judge.generate(
+            [
+                ChatMessageSystem(
+                    content="Judge whether the conversation resolved the request. "
+                    "Respond with PASS or FAIL, then explain briefly."
+                ),
+                ChatMessageUser(content=transcript),
+            ]
+        )
+        passed = result.completion.upper().startswith("PASS")
+        return Score(value=1.0 if passed else 0.0, explanation=result.completion)
+
+    return score
+
+
+@task
+def baggage_dialogue():
+    client = react(
+        prompt="You are an airline customer. Answer one question at a time.",
+        submit=False,
+    )
+    service = react(
+        prompt="You are a customer-service agent. Ask only for details you need.",
+        submit=False,
+    )
+
+    return Task(
+        dataset=[
+            Sample(input="I have a baggage check-in question about my flight.")
+        ],
+        solver=conversation(client, service, turns=2),
+        scorer=conversation_judge(model="openai/gpt-4o-mini"),
+    )
+```
+
+Using `submit=False` makes each `react()` agent return when it stops calling tools, which is often what you want when the outer workflow controls turn-taking. If either agent has tools and might keep working for too long, add a [message, token, or time limit](setting-limits.qmd#sample-limits) to the task or agent invocation.
+
+
 ## Tools
 
 You can make agents available as a standard tool call. In this case, the agent sees only a single input string and returns the output of its last assistant message.
