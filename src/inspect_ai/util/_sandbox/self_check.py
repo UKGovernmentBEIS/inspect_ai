@@ -138,7 +138,8 @@ async def test_read_and_write_large_file_binary(
     sandbox_env: SandboxEnvironment,
 ) -> None:
     file_name = "test_read_and_write_large_file_binary.file"
-    long_bytes = b"\xc3" * 5_000_000
+    # Catches transport size limits. The k8s sandbox blew up at 28 MiB.
+    long_bytes = b"\xc3" * (50 * 1024 * 1024)
     await sandbox_env.write_file(file_name, long_bytes)
     written_file_bytes = await sandbox_env.read_file(file_name, text=False)
     assert long_bytes == written_file_bytes, "Large binary content should match"
