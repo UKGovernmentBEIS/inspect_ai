@@ -53,14 +53,14 @@ class _NavDataTable(DataTable[str | Text]):
 # Column keys — module constants so add_column, update_cell, and per-tick
 # refreshes all reference the same string. A typo at one site silently
 # breaks update_cell (CellDoesNotExist) without a column-set assertion.
-# Keys stay stable (``"agent"``) even though the visible header is
-# ``"acp agent"`` — letting the header drift from the key would mean
-# every update_cell site needs auditing.
+# Key and visible header are both ``"agent"`` — now that every sample is
+# attachable (observe-only when no turn loop is bound), the "acp"
+# qualifier no longer distinguishes a subset of rows, so it's dropped.
 _COL_SAMPLE = "sample"
 _COL_TASK = "task"
 _COL_EPOCH = "epoch"
 _COL_AGENT = "agent"
-_COL_AGENT_HEADER = "acp agent"
+_COL_AGENT_HEADER = "agent"
 _COL_PENDING = "pending"
 _COL_MESSAGES = "messages"
 _COL_MESSAGES_HEADER = "msgs"
@@ -560,12 +560,13 @@ class PickerScreen(Screen[None]):
         # returns the object's repr, which doesn't match anything on
         # lookup). update_cell calls in _tick_column reference the
         # same constants.
-        # Visible header reads ``acp agent`` so operators glance at
-        # the column and immediately understand that the ``—`` cells
-        # below are non-ACP samples (no attachable agent). Key stays
-        # ``"agent"`` so update_cell sites need no audit.
+        # Visible header is ``agent`` — every sample is attachable now
+        # (observe-only when no turn loop is bound), so the old ``acp``
+        # qualifier no longer marks a subset; the ``—`` cells are simply
+        # samples with nothing to attach to. Key stays ``"agent"`` so
+        # update_cell sites need no audit.
         table.add_column(_COL_AGENT_HEADER, key=_COL_AGENT)
-        # ``pending`` sits next to ``acp agent`` so the operator's eye
+        # ``pending`` sits next to ``agent`` so the operator's eye
         # picks up "this sample is waiting on me" alongside which agent
         # owns it. Green ``approval`` / blue ``question`` for samples
         # parked on a human request. Only added when at least one row

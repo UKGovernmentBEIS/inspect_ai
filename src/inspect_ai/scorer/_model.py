@@ -310,8 +310,8 @@ def chat_history(state: TaskState) -> str:
         if not isinstance(message, ChatMessageSystem)
     ]
 
-    # present message history (removing the final assistant message
-    # and after as it will be contained in the 'Answer:'):
+    # present message history through the final assistant turn. The default
+    # templates also include state.output.completion in the Submission slot.
     messages = remove_last_match_and_after(
         messages, lambda message: isinstance(message, ChatMessageAssistant)
     )

@@ -135,10 +135,10 @@ async def test_picker_populated_renders_all_rows(
         # produce a double-space gap. eval column is intentionally
         # absent — eval id lives on the SessionScreen meta row.
         columns = [str(c.label) for c in table.columns.values()]
-        # ``agent`` column header reads ``acp agent`` so the ``—``
-        # placeholders in non-ACP rows are self-explanatory; the
-        # underlying column KEY stays ``"agent"`` so update_cell
-        # references need no audit.
+        # ``agent`` column header is just ``agent`` — every sample is
+        # attachable now (observe-only when no turn loop is bound), so
+        # the old ``acp agent`` qualifier no longer distinguishes a
+        # subset of rows. The underlying column KEY is also ``"agent"``.
         # ``pending`` column is omitted here because none of the
         # fixture's rows have a pending interaction set — the column
         # is hidden in that common case. See
@@ -148,7 +148,7 @@ async def test_picker_populated_renders_all_rows(
             "sample",
             "epoch",
             "task",
-            "acp agent",
+            "agent",
             "msgs",
             "tokens",
             "running",

@@ -70,3 +70,36 @@ async def test_sandbox_timeout_caught_by_timeout_error() -> None:
     proxy = SandboxEnvironmentProxy(TimeoutSandbox())
     with pytest.raises(TimeoutError):
         await proxy.exec(["cmd"])
+
+
+class TimeoutWithOutputSandbox(TimeoutSandbox):
+    """Mock sandbox whose exec timeout carries partial output (as docker does)."""
+
+    async def exec(
+        self,
+        cmd: list[str],
+        input: str | bytes | None = None,
+        cwd: str | None = None,
+        env: dict[str, str] | None = None,
+        user: str | None = None,
+        timeout: int | None = None,
+        timeout_retry: bool = True,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        err = TimeoutError("exec timed out")
+        setattr(err, "truncated_output", "partial output before timeout")
+        raise err
+
+
+async def test_exec_timeout_carries_truncated_output() -> None:
+    proxy = SandboxEnvironmentProxy(TimeoutWithOutputSandbox())
+    with pytest.raises(SandboxTimeoutError) as exc_info:
+        await proxy.exec(["cmd"])
+    assert exc_info.value.truncated_output == "partial output before timeout"
+
+
+async def test_exec_timeout_truncated_output_defaults_none() -> None:
+    proxy = SandboxEnvironmentProxy(TimeoutSandbox())
+    with pytest.raises(SandboxTimeoutError) as exc_info:
+        await proxy.exec(["cmd"])
+    assert exc_info.value.truncated_output is None

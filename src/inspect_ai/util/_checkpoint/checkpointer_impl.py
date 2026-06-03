@@ -1,7 +1,7 @@
 """Active checkpoint-session implementation (heavy).
 
 Contains the on-disk write path: fires checkpoints, runs restic backups
-(host + sandboxes), writes per-checkpoint files. Imports the parts
+(host + sandboxes), writes per-checkpoint sidecars. Imports the parts
 of ``inspect_ai`` that ultimately reach ``solver._task_state`` and
 ``dataset.Sample``, so this module must *not* be imported during
 initial inspect_ai package load — only at sample-run time, via the
@@ -13,28 +13,30 @@ from __future__ import annotations
 
 import contextlib
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Mapping,
+)
 from contextlib import AbstractAsyncContextManager
 from datetime import datetime, timezone
 from functools import partial
 from logging import getLogger
+from pathlib import Path
 from typing import Any, TypeVar
 
-from pydantic import BaseModel, JsonValue, TypeAdapter
+from pydantic import BaseModel, TypeAdapter
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.file import write_text_atomic
+from inspect_ai._util.json import to_json_str_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
-from inspect_ai.event._pool import (
-    _build_call_index,
-    _build_msg_index,
-    condense_model_event_calls,
-    condense_model_event_inputs,
-)
 from inspect_ai.log._transcript import transcript
-from inspect_ai.model._chat_message import ChatMessage
+from inspect_ai.log._transcript_store import TranscriptEventStore
 from inspect_ai.solver._task_state import sample_state
 from inspect_ai.util._restic import ResticBackupSummary, run_backup
 from inspect_ai.util._sandbox.context import sandbox
@@ -42,7 +44,13 @@ from inspect_ai.util._span import span
 from inspect_ai.util._store import Store, store_jsonable
 
 from ._host_egress import host_egress
-from ._layout import host_context
+from ._layout.host_context import (
+    AGENT_STATE,
+    ATTACHMENTS,
+    EVENTS,
+    EVENTS_DATA,
+    STORE,
+)
 from ._layout.sample_checkpoints_dir import (
     _list_checkpoint_ids,
     write_checkpoint_file,
@@ -62,20 +70,12 @@ logger = getLogger(__name__)
 
 T = TypeVar("T")
 
+CHECKPOINT_TRANSCRIPT_STORE = "checkpoint_transcript.sqlite"
+
 # JSON-primitive Python types; these round-trip identically through
 # `json.dumps`/`json.loads`, so `track()` can return them on resume
 # without a TypeAdapter.
 _JSON_PRIMITIVE_TYPES: tuple[type, ...] = (int, float, str, bool, type(None))
-
-
-class CheckpointFailureLimitExceeded(RuntimeError):
-    """Raised when a sample exceeds ``max_consecutive_failures``.
-
-    Chains the underlying fire error via ``__cause__`` (``raise ... from``).
-    Propagates to the agent loop, where inspect's normal sample-error
-    machinery (``fail_on_error`` / ``retry_on_error``) handles it like
-    any other ``Exception``.
-    """
 
 
 class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
@@ -103,6 +103,7 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
         self._epoch = epoch
         self._resume_checkpoint = resume_checkpoint
         self._cached: _EnteredCheckpointer | None = None
+        self._reset_transcript_store_on_next_enter = True
 
     async def __aenter__(self) -> Checkpointer:
         if self._cached is not None:
@@ -114,15 +115,33 @@ class _CheckpointerSetup(AbstractAsyncContextManager[Checkpointer]):
             epoch=self._epoch,
             resume_checkpoint=self._resume_checkpoint,
         )
+        reset_transcript_store = self._reset_transcript_store_on_next_enter
         self._cached = _EnteredCheckpointer(
             config=self._config,
             hydration=result,
             resume_checkpoint=self._resume_checkpoint,
+            reset_transcript_store=reset_transcript_store,
         )
+        self._reset_transcript_store_on_next_enter = False
         return self._cached
 
     async def __aexit__(self, *exc: object) -> None:
         return None
+
+    def close(self) -> None:
+        if self._cached is not None:
+            self._cached.close()
+            self._cached = None
+
+
+class CheckpointFailureLimitExceeded(RuntimeError):
+    """Raised when a sample exceeds ``max_consecutive_failures``.
+
+    Chains the underlying fire error via ``__cause__`` (``raise ... from``).
+    Propagates to the agent loop, where inspect's normal sample-error
+    machinery (``fail_on_error`` / ``retry_on_error``) handles it like
+    any other ``Exception``.
+    """
 
 
 class _EnteredCheckpointer:
@@ -140,6 +159,7 @@ class _EnteredCheckpointer:
         config: ResolvedCheckpointConfig,
         hydration: HydrationResult,
         resume_checkpoint: ResumeCheckpoint | None,
+        reset_transcript_store: bool,
     ) -> None:
         self._config = config
         self._sample_checkpoints_dir = hydration.sample_checkpoints_dir
@@ -169,30 +189,28 @@ class _EnteredCheckpointer:
         # work-between-fires window. Owned across `span_session()`'s
         # enter/exit and rotated inside `_fire()`.
         self._current_span_cm: AbstractAsyncContextManager[None] | None = None
-        # Persisted across fires: each fire processes only the new event slice
-        # and appends to these accumulators. Safe because checkpoints fire at
-        # turn boundaries, after which prior events are immutable.
-        #
-        # The accumulator + `_events_consumed` exist for performance — the
-        # next condense uses the prior pool as a starting point rather than
-        # re-walking the full transcript each fire. Revisit if profiling
-        # later shows the from-scratch alternative is fine at expected scale.
-        #
-        # `_events_consumed` is set lazily by the first `_open_next_span()`
-        # call to the transcript index where that first `span_begin:
-        # checkpoint` will land — so pre-first-span setup events (system
-        # message, sample init chatter) never enter the accumulator, and
-        # the persisted snapshot contains only checkpoint spans + contents.
-        # On resume, hydrate seeds the pools and pushes prior span content
-        # into the transcript; the lazy init then captures the index of the
-        # new `span_begin checkpoint M+1` so the next fire's slice is just
-        # the new span.
-        self._condensed_events: list[Event] = list(hydration.host.condensed_events)
-        self._msg_pool: list[ChatMessage] = list(hydration.host.msg_pool)
-        self._msg_index: dict[str, int] = _build_msg_index(self._msg_pool)
-        self._call_pool: list[JsonValue] = list(hydration.host.call_pool)
-        self._call_index: dict[str, int] = _build_call_index(self._call_pool)
-        self._events_consumed: int | None = None
+        # Keep checkpoint transcript state outside the live Transcript. The
+        # live transcript may evict old events in bounded mode; this store is
+        # seeded once, then updated by subscription so each checkpoint can
+        # export complete host-context event files.
+        self._transcript_store = TranscriptEventStore(
+            Path(self._context_dir) / CHECKPOINT_TRANSCRIPT_STORE,
+            reset=reset_transcript_store,
+        )
+        self._transcript_subscription: Callable[[], None] | None = None
+        self._closed = False
+        self._transcript_seeded = False
+        self._ensure_transcript_subscription()
+        self._seed_transcript_store(hydration)
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        if self._transcript_subscription is not None:
+            self._transcript_subscription()
+            self._transcript_subscription = None
+        self._transcript_store.close()
+        self._closed = True
 
     @property
     def is_resuming(self) -> bool:
@@ -222,11 +240,6 @@ class _EnteredCheckpointer:
         # opens `checkpoint M+1`. A sample that ends without firing
         # leaves an unclosed span at whatever id was about to fire next.
         next_id = await _scan_next_checkpoint_id(self._sample_root)
-        # First-span lazy init for `_events_consumed`: capture the
-        # transcript index where the about-to-open `span_begin` will land
-        # so the persisted snapshot starts at the first checkpoint span.
-        if self._events_consumed is None:
-            self._events_consumed = len(transcript().events)
         cm = span(name=f"checkpoint {next_id}", type="checkpoint")
         await cm.__aenter__()
         self._current_span_cm = cm
@@ -263,7 +276,7 @@ class _EnteredCheckpointer:
             )
         self._on_checkpoint_callbacks[key] = callback
         if key in self._agent_state:
-            raw = self._agent_state[key]
+            raw = self._agent_state.pop(key)
             if value_type is not None:
                 return TypeAdapter(value_type).validate_python(raw)
             if isinstance(initial_value, BaseModel):
@@ -366,190 +379,198 @@ class _EnteredCheckpointer:
             # ``SpanEndEvent`` lands in this checkpoint's ``events.json`` —
             # the persisted snapshot must show the span closing within it.
             await self._close_current_span()
-
-            state = sample_state()
-            if not state:
-                raise RuntimeError("Checkpointer must find sample state")
-            ts = transcript()
-            await self._write_host_context(
-                self._context_dir,
-                ts.events,
-                ts.attachments,
-                state.store,
-            )
-
-            # Host + each sandbox (backup → egress) in parallel. The
-            # backup-then-egress pair for a given sandbox is sequential
-            # (egress diffs against what backup just wrote), but the pairs
-            # are independent across sandboxes and from the host backup.
-            # `tg_collect` takes thunks (zero-arg callables) so coroutines
-            # are only created at task-group start time.
-            sandbox_items = list((self._config.sandbox_paths or {}).items())
-            backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
-                partial(self._backup_host, next_checkpoint_id),
-                *[
-                    partial(
-                        self._backup_and_egress_sandbox, name, paths, next_checkpoint_id
-                    )
-                    for name, paths in sandbox_items
-                ],
-            ]
-            summaries = await tg_collect(backup_funcs)
-            host_info = _snapshot_info(summaries[0])
-            sandbox_infos = {
-                name: _snapshot_info(summary)
-                for (name, _), summary in zip(sandbox_items, summaries[1:])
-            }
-
-            # Cycle duration measured up to the checkpoint file write — the
-            # write itself is the commit point, so its cost lands on the
-            # next cycle's clock if anywhere.
-            duration_ms = int((time.monotonic() - cycle_start) * 1000)
-
-            checkpoint = Checkpoint(
-                checkpoint_id=next_checkpoint_id,
-                trigger=trigger,
-                turn=self._turn,
-                created_at=datetime.now(timezone.utc),
-                duration_ms=duration_ms,
-                size_bytes=host_info.size_bytes
-                + sum(s.size_bytes for s in sandbox_infos.values()),
-                host=host_info,
-                sandboxes=sandbox_infos,
-            )
-
-            await write_checkpoint_file(
-                sample_checkpoints_dir=self._sample_root,
-                checkpoint=checkpoint,
-            )
-
-            # Remote destination: ship the new staging-dir files (restic
-            # repo additions + checkpoint file) to the destination. The
-            # checkpoint file is shipped last in the safe order — its
-            # arrival at the destination is the remote commit point.
-            if self._sample_staging_dir is not None:
-                await host_egress(
-                    staging_dir=self._sample_staging_dir,
-                    destination_dir=self._sample_checkpoints_dir,
+            try:
+                state = sample_state()
+                if not state:
+                    raise RuntimeError("Checkpointer must find sample state")
+                await self._write_host_context(
+                    self._context_dir,
+                    state.store,
                 )
 
-            # Emit the CheckpointEvent now that the checkpoint file is
-            # committed (locally and, when remote, at the destination too).
-            # By construction the event is NOT in this fire's events.json
-            # (already written above); it IS captured in the next fire's
-            # events.json. On resume, hydrate synthesizes the trailing
-            # event from the latest checkpoint file (working.md §8a).
-            transcript()._event(CheckpointEvent.from_details(checkpoint))
+                # Host + each sandbox (backup → egress) in parallel. The
+                # backup-then-egress pair for a given sandbox is sequential
+                # (egress diffs against what backup just wrote), but the pairs
+                # are independent across sandboxes and from the host backup.
+                # `tg_collect` takes thunks (zero-arg callables) so coroutines
+                # are only created at task-group start time.
+                sandbox_items = list((self._config.sandbox_paths or {}).items())
+                backup_funcs: list[Callable[[], Awaitable[ResticBackupSummary]]] = [
+                    partial(self._backup_host, next_checkpoint_id),
+                    *[
+                        partial(
+                            self._backup_and_egress_sandbox,
+                            name,
+                            paths,
+                            next_checkpoint_id,
+                        )
+                        for name, paths in sandbox_items
+                    ],
+                ]
+                summaries = await tg_collect(backup_funcs)
+                host_info = _snapshot_info(summaries[0])
+                sandbox_infos = {
+                    name: _snapshot_info(summary)
+                    for (name, _), summary in zip(sandbox_items, summaries[1:])
+                }
 
-            # Checkpoint file is committed; open the next `checkpoint N+1`
-            # span so subsequent agent events nest under it.
-            await self._open_next_span()
+                # Cycle duration measured up to the checkpoint file write — the
+                # write itself is the commit point, so its cost lands on the
+                # next cycle's clock if anywhere.
+                duration_ms = int((time.monotonic() - cycle_start) * 1000)
+
+                checkpoint = Checkpoint(
+                    checkpoint_id=next_checkpoint_id,
+                    trigger=trigger,
+                    turn=self._turn,
+                    created_at=datetime.now(timezone.utc),
+                    duration_ms=duration_ms,
+                    size_bytes=host_info.size_bytes
+                    + sum(s.size_bytes for s in sandbox_infos.values()),
+                    host=host_info,
+                    sandboxes=sandbox_infos,
+                )
+
+                await write_checkpoint_file(
+                    sample_checkpoints_dir=self._sample_root,
+                    checkpoint=checkpoint,
+                )
+
+                # Remote destination: ship the new staging-dir files (restic
+                # repo additions + checkpoint file) to the destination. The
+                # checkpoint file is shipped last in the safe order — its
+                # arrival at the destination is the remote commit point.
+                if self._sample_staging_dir is not None:
+                    await host_egress(
+                        staging_dir=self._sample_staging_dir,
+                        destination_dir=self._sample_checkpoints_dir,
+                    )
+
+                # Emit the CheckpointEvent now that the checkpoint file is
+                # committed (locally and, when remote, at the destination too).
+                # By construction the event is NOT in this fire's events.json
+                # (already written above); it IS captured in the next fire's
+                # events.json. On resume, hydrate synthesizes the trailing
+                # event from the latest checkpoint file (working.md §8a).
+                transcript()._event(CheckpointEvent.from_details(checkpoint))
+            finally:
+                # Reopen even if checkpointing fails after closing the prior span;
+                # subsequent agent events should stay nested under a checkpoint span.
+                await self._open_next_span()
 
     async def _write_host_context(
         self,
         context_dir: str,
-        events: Sequence[Event],
-        attachments: Mapping[str, str],
         store: Store,
     ) -> None:
-        """Write the host context across up to five files.
+        """Write the host context snapshot files.
 
-        - ``events.json`` — condensed events; ModelEvent inputs / calls
-          replaced with refs into the pools below.
-        - ``events_data.json`` — ``{messages, calls}`` dedup pools.
-        - ``attachments.json`` — hash → original-content pool that
-          ``ModelEvent.call`` refs (`attachment://<hash>`) point into.
-          Captured live by ``Transcript._process_event``; serialized
-          here so the snapshot is self-contained.
-        - ``store.json`` — Store key/value as a single JSON object.
-        - ``agent_state.json`` — agent-defined property bag, written
-          only when the agent registered at least one callback via
-          :meth:`Checkpointer.track`. Each registered key becomes a
-          top-level field in the dict. The agent's conversation
-          messages typically live here (e.g. under the ``"messages"``
-          key) — the protocol no longer privileges them as a top-level
-          file. Presence on disk signals opt-in.
+        Transcript events, pools, and attachments are already accumulated in
+        ``self._transcript_store`` via seeding and subscription. This method
+        composes the checkpoint-owned Store / tracked agent state files with
+        transcript-owned event files.
         """
-        # Pool ModelEvent input + call messages — the big O(N²) redundancy.
-        # We process only the new event slice each fire and append to the
-        # accumulators on the session, so total hashing work is O(N) over a
-        # sample rather than O(N) per fire. Safe because checkpoints fire at
-        # turn boundaries, after which prior events are immutable.
-        # Attachments come pre-extracted on the transcript (call payloads
-        # >100 chars are rewritten to attachment:// refs as events flow in,
-        # with originals in transcript.attachments) — we persist that pool
-        # here so resume can resolve the refs.
-        # `_events_consumed` is set lazily by the first `_open_next_span()`,
-        # which runs in `span_session().__aenter__()` before any fire can
-        # happen — so it's guaranteed non-None here.
-        assert self._events_consumed is not None
-        # Filter the new slice: persisted events.json contains only events
-        # inside checkpoint / prior_run spans (inclusive of begin/end) plus
-        # CheckpointEvents. Stray events that land between checkpoint spans
-        # (e.g. `sandbox:exec` / `sandbox:read_file` emitted by restic
-        # operations during the fire's backup phase) stay in the live
-        # transcript but don't get persisted. See working.md §5.
-        new = _filter_persisted_events(events[self._events_consumed :])
-        if new:
-            cond, self._msg_index, new_msgs = condense_model_event_inputs(
-                new, len(self._msg_pool), self._msg_index
-            )
-            self._msg_pool.extend(m for _, m in new_msgs)
-            cond, self._call_index, new_calls = condense_model_event_calls(
-                cond, len(self._call_pool), self._call_index
-            )
-            self._call_pool.extend(c for _, c in new_calls)
-            self._condensed_events.extend(cond)
-        # Advance regardless of whether the filtered slice was empty:
-        # this fire's events have been consumed from the live transcript's
-        # perspective even if none made it into the persisted snapshot.
-        self._events_consumed = len(events)
         agent_state = (
             {key: cb() for key, cb in self._on_checkpoint_callbacks.items()}
             if self._on_checkpoint_callbacks
             else None
         )
-        await host_context.write(
-            context_dir,
-            host_context.HostContext(
-                condensed_events=self._condensed_events,
-                msg_pool=self._msg_pool,
-                call_pool=self._call_pool,
-                attachments=dict(attachments),
-                store=store_jsonable(store),
-                agent_state=agent_state,
-            ),
+        context_path = Path(context_dir)
+        write_text_atomic(
+            context_path / STORE,
+            to_json_str_safe(store_jsonable(store)),
+        )
+        if agent_state is not None:
+            write_text_atomic(
+                context_path / AGENT_STATE,
+                to_json_str_safe(agent_state),
+            )
+        self._transcript_store.write_transcript_files(
+            events_path=context_path / EVENTS,
+            events_data_path=context_path / EVENTS_DATA,
+            attachments_path=context_path / ATTACHMENTS,
+        )
+
+    def _seed_transcript_store(self, hydration: HydrationResult) -> None:
+        if self._transcript_seeded:
+            return
+        ts = transcript()
+        try:
+            attachments = ts.attachments
+            attachment_lookup = self._attachment_lookup(attachments)
+            self._transcript_store.merge_message_pool(hydration.host.msg_pool)
+            self._transcript_store.merge_call_pool(hydration.host.call_pool)
+            seeded_event_ids: set[str] = set()
+            if hydration.host.condensed_events:
+                for event in hydration.host.condensed_events:
+                    if event.uuid is None:
+                        continue
+                    seeded_event_ids.add(event.uuid)
+                    if not self._transcript_store.has_event(event.uuid):
+                        self._transcript_store.merge_event(event, attachment_lookup)
+            history = ts.history
+            if history.resident_events_truncated:
+                history_provider = history.provider
+                if history_provider is None:
+                    raise RuntimeError(
+                        "Cannot seed transcript events from a truncated Transcript. "
+                        "Create the checkpointer before bounded transcript eviction starts."
+                    )
+                history_provider.export_transcript_events(self._transcript_store)
+            else:
+                for event in history.resident_events:
+                    if event.uuid in seeded_event_ids:
+                        continue
+                    self._transcript_store.merge_event(event, attachment_lookup)
+            self._transcript_store.merge_attachments(attachments)
+            self._transcript_seeded = True
+        except Exception:
+            self.close()
+            raise
+
+    def _ensure_transcript_subscription(self) -> None:
+        if self._transcript_subscription is not None:
+            return
+        self._transcript_subscription = transcript()._subscribe(
+            self._track_transcript_event
+        )
+
+    def _track_transcript_event(self, event: Event) -> None:
+        self._transcript_store.merge_event(
+            event, self._attachment_lookup(transcript().attachments)
+        )
+
+    def _attachment_lookup(
+        self, attachments: Mapping[str, str]
+    ) -> Callable[[str], str | None]:
+        return lambda ref: (
+            self._transcript_store.attachment(ref) or attachments.get(ref)
         )
 
     async def _backup_host(self, checkpoint_id: int) -> ResticBackupSummary:
-        with trace_action(
-            logger, "Checkpoint Backup", f"host {_restic_tag(checkpoint_id)}"
-        ):
-            return await run_backup(
-                self._host_restic,
-                self._host_repo,
-                self._restic_password,
-                self._context_dir,
-                _restic_tag(checkpoint_id),
-            )
+        return await run_backup(
+            self._host_restic,
+            self._host_repo,
+            self._restic_password,
+            self._context_dir,
+            _restic_tag(checkpoint_id),
+        )
 
     async def _backup_and_egress_sandbox(
         self, name: str, paths: list[str], checkpoint_id: int
     ) -> ResticBackupSummary:
         env = sandbox(name)
         tag = _restic_tag(checkpoint_id)
-        with trace_action(logger, "Checkpoint Backup", f"sandbox {name} {tag}"):
-            summary = await run_sandbox_backup(env, self._restic_password, paths, tag)
+        summary = await run_sandbox_backup(env, self._restic_password, paths, tag)
         dest_repo = sandbox_repo_dir(self._sample_root, name)
-        with trace_action(logger, "Checkpoint Egress", f"sandbox {name} {tag}"):
-            await egress_sandbox(
-                env,
-                dest_repo=dest_repo,
-                password=self._restic_password,
-                host_restic=self._host_restic,
-                tag=tag,
-                snapshot_id=summary.snapshot_id,
-            )
+        await egress_sandbox(
+            env,
+            dest_repo=dest_repo,
+            password=self._restic_password,
+            host_restic=self._host_restic,
+            tag=tag,
+            snapshot_id=summary.snapshot_id,
+        )
         return summary
 
 
@@ -581,55 +602,3 @@ def _snapshot_info(summary: ResticBackupSummary) -> SnapshotDetails:
         size_bytes=summary.data_added_packed,
         duration_ms=int(summary.total_duration * 1000),
     )
-
-
-def _filter_persisted_events(events: Sequence[Event]) -> list[Event]:
-    r"""Keep only events that belong in the persisted ``events.json``.
-
-    Three things pass through:
-
-    - Events inside a ``type="checkpoint"`` span (inclusive of the
-      span_begin/span_end).
-    - Events inside a ``type="prior_run"`` span (inclusive).
-    - ``CheckpointEvent``\ s, even when between checkpoint spans.
-
-    Everything else is dropped — in practice the ``sandbox:exec`` and
-    ``sandbox:read_file`` events emitted by restic operations during
-    the fire's backup phase, which land in the live transcript between
-    ``span_end checkpoint N`` and ``span_begin checkpoint N+1``. They
-    stay in the live transcript (visible in ``inspect view`` of the
-    running eval) but don't get persisted.
-    """
-    result: list[Event] = []
-    # Track currently-open tracked-span ids. Depth = len(tracked_open_ids).
-    # We track checkpoint + prior_run spans; everything inside (including
-    # nested non-tracked spans like bash/tool) is kept.
-    tracked_open_ids: set[str] = set()
-    for e in events:
-        if e.event == "span_begin":
-            type_ = getattr(e, "type", None)
-            if type_ in ("checkpoint", "prior_run"):
-                tracked_open_ids.add(e.id)
-                result.append(e)
-            elif tracked_open_ids:
-                # Nested non-tracked span inside a tracked one — keep.
-                result.append(e)
-            # else: stray span_begin outside any tracked span — drop.
-        elif e.event == "span_end":
-            id_ = getattr(e, "id", None)
-            if id_ in tracked_open_ids:
-                tracked_open_ids.discard(id_)
-                result.append(e)
-            elif tracked_open_ids:
-                # Inner span_end inside a tracked span — keep.
-                result.append(e)
-            # else: stray span_end outside any tracked span — drop.
-        elif e.event == "checkpoint":
-            # CheckpointEvent — always keep, whether inside a tracked
-            # span or not (in practice it lands between checkpoint spans).
-            result.append(e)
-        elif tracked_open_ids:
-            # Inside a tracked span — keep.
-            result.append(e)
-        # else: stray event outside any tracked span — drop.
-    return result
