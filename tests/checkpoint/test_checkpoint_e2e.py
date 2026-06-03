@@ -25,12 +25,13 @@ from typing import Any
 
 import anyio
 import pytest
+from test_helpers.transcript import assert_spans_balanced
 from test_helpers.utils import skip_if_no_docker
 
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
-from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent, ToolEvent
+from inspect_ai.event import SpanBeginEvent, SpanEndEvent, ToolEvent
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.log import read_eval_log
 from inspect_ai.log._samples import sample_active
@@ -54,28 +55,6 @@ WRITE_CMD = (
     f"printf '{LAYER1_CONTENT}' > /workspace/decoded/layer1.txt"
 )
 SCRIPTED_MODEL = "scripteddecode/model"
-
-
-def assert_spans_balanced(events: list[Event]) -> None:
-    """Assert the event stream's spans are well-formed (LIFO-nested).
-
-    Treats ``span_begin``/``span_end`` as brackets: every end must close
-    the innermost open span, and nothing may be left open at the end.
-    Presence/membership assertions can't catch an *additive* structural
-    corruption (extra unbalanced spans wrapped around otherwise-correct
-    content) — this can. See ``test_checkpoint_resume_spans_balanced``.
-    """
-    stack: list[str] = []
-    for e in events:
-        if isinstance(e, SpanBeginEvent):
-            stack.append(e.id)
-        elif isinstance(e, SpanEndEvent):
-            assert stack, f"span_end {e.id} with no open span"
-            top = stack.pop()
-            assert top == e.id, (
-                f"span_end {e.id} closes out of order; innermost open span is {top}"
-            )
-    assert not stack, f"{len(stack)} unclosed span(s): {stack}"
 
 
 class _ResumeState:
@@ -286,15 +265,6 @@ def test_checkpoint_resume_runs_to_completion(
 
 @skip_if_no_docker
 @pytest.mark.slow
-@pytest.mark.xfail(
-    reason="resume rehydrates the prior run's still-open structural spans "
-    "(solvers/react, open at checkpoint-fire time) as raw span_begins with "
-    "no matching span_end, so the `prior_run` wrap closes out of order. "
-    "Regressed in #4062 (bounded transcript store dropped the "
-    "checkpoint-spans-only capture boundary). Remove xfail once the "
-    "rehydrated wrap is span-balanced again.",
-    strict=True,
-)
 def test_checkpoint_resume_spans_balanced(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

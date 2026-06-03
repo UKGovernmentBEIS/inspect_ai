@@ -21,11 +21,16 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from test_helpers.transcript import FakeTranscriptHistoryProvider, make_model_event
+from test_helpers.transcript import (
+    FakeTranscriptHistoryProvider,
+    assert_spans_balanced,
+    make_model_event,
+)
 
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.event._model import ModelEvent
+from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
 from inspect_ai.log import Transcript, expand_events
 from inspect_ai.log._transcript import init_transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
@@ -451,6 +456,197 @@ def test_synthesize_trailing_checkpoint_event(tmp_path: Path) -> None:
     # Synthesized event's timestamp matches the checkpoint's original
     # creation time — indistinguishable from a live emit.
     assert event.timestamp == checkpoint.created_at
+
+
+def test_wrap_prior_run_closes_restored_open_spans() -> None:
+    from datetime import datetime, timezone
+
+    from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.util._checkpoint.hydrate import _wrap_prior_run
+
+    last_restored_timestamp = datetime(2026, 5, 17, 18, 30, tzinfo=timezone.utc)
+    restored_events: list[Event] = [
+        SpanBeginEvent(id="solvers", name="solvers"),
+        SpanBeginEvent(id="react", name="react", parent_id="solvers"),
+        SpanBeginEvent(
+            id="checkpoint-1",
+            name="checkpoint 1",
+            type="checkpoint",
+            parent_id="react",
+        ),
+        InfoEvent(data="work"),
+        SpanEndEvent(id="checkpoint-1", timestamp=last_restored_timestamp),
+    ]
+
+    wrapped = _wrap_prior_run(restored_events)
+
+    assert isinstance(wrapped[0], SpanBeginEvent)
+    assert wrapped[0].type == "prior_run"
+    assert [event.id for event in wrapped if isinstance(event, SpanEndEvent)] == [
+        "checkpoint-1",
+        "react",
+        "solvers",
+        wrapped[0].id,
+    ]
+    synthetic_ends = [
+        event
+        for event in wrapped
+        if isinstance(event, SpanEndEvent) and event.id in {"react", "solvers"}
+    ]
+    assert len(synthetic_ends) == 2
+    assert all(event.timestamp == last_restored_timestamp for event in synthetic_ends)
+    assert all(
+        event.metadata
+        == {
+            "checkpoint": {
+                "synthetic": True,
+                "reason": "restored_open_span",
+                "timestamp_source": "last_restored_event",
+            }
+        }
+        for event in synthetic_ends
+    )
+    assert_spans_balanced(wrapped)
+
+
+def test_validate_resume_state_allows_interleaved_parallel_sibling_spans(
+    tmp_path: Path,
+) -> None:
+    from datetime import datetime, timezone
+
+    from inspect_ai.event._checkpoint import CheckpointEvent
+    from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.util._checkpoint._layout.schemas import (
+        Checkpoint,
+        SnapshotDetails,
+    )
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    sample_root.mkdir()
+    checkpoint = Checkpoint(
+        checkpoint_id=1,
+        trigger="turn",
+        turn=1,
+        created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
+        duration_ms=10,
+        size_bytes=100,
+        host=SnapshotDetails(snapshot_id="snap-1", size_bytes=100, duration_ms=10),
+        sandboxes={},
+    )
+    (sample_root / "ckpt-00001.json").write_text(checkpoint.model_dump_json())
+
+    restore = SpanBeginEvent(
+        id="restore", name="checkpoint restore 1", type="prior_run"
+    )
+    checkpoint_span = SpanBeginEvent(
+        id="checkpoint-1",
+        name="checkpoint 1",
+        type="checkpoint",
+        parent_id=restore.id,
+    )
+    events: list[Event] = [
+        restore,
+        checkpoint_span,
+        SpanBeginEvent(
+            id="tool-a", name="tool_a", type="tool", parent_id="checkpoint-1"
+        ),
+        SpanBeginEvent(
+            id="tool-b", name="tool_b", type="tool", parent_id="checkpoint-1"
+        ),
+        SpanEndEvent(id="tool-a"),
+        SpanEndEvent(id="tool-b"),
+        SpanEndEvent(id="checkpoint-1"),
+        CheckpointEvent.from_details(checkpoint),
+        SpanEndEvent(id=restore.id),
+    ]
+
+    _validate_resume_state(events, str(sample_root), 1)
+
+
+def test_validate_resume_state_allows_background_span_outliving_parent(
+    tmp_path: Path,
+) -> None:
+    from datetime import datetime, timezone
+
+    from inspect_ai.event._checkpoint import CheckpointEvent
+    from inspect_ai.event._span import SpanBeginEvent, SpanEndEvent
+    from inspect_ai.util._checkpoint._layout.schemas import (
+        Checkpoint,
+        SnapshotDetails,
+    )
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    sample_root.mkdir()
+    checkpoint = Checkpoint(
+        checkpoint_id=1,
+        trigger="turn",
+        turn=1,
+        created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
+        duration_ms=10,
+        size_bytes=100,
+        host=SnapshotDetails(snapshot_id="snap-1", size_bytes=100, duration_ms=10),
+        sandboxes={},
+    )
+    (sample_root / "ckpt-00001.json").write_text(checkpoint.model_dump_json())
+
+    restore = SpanBeginEvent(
+        id="restore", name="checkpoint restore 1", type="prior_run"
+    )
+    checkpoint_span = SpanBeginEvent(
+        id="checkpoint-1",
+        name="checkpoint 1",
+        type="checkpoint",
+        parent_id=restore.id,
+    )
+    parent = SpanBeginEvent(
+        id="tool", name="tool", type="tool", parent_id="checkpoint-1"
+    )
+    background_child = SpanBeginEvent(
+        id="background", name="background", type="agent", parent_id=parent.id
+    )
+    events: list[Event] = [
+        restore,
+        checkpoint_span,
+        parent,
+        background_child,
+        SpanEndEvent(id=parent.id),
+        SpanEndEvent(id=background_child.id),
+        SpanEndEvent(id="checkpoint-1"),
+        CheckpointEvent.from_details(checkpoint),
+        SpanEndEvent(id=restore.id),
+    ]
+
+    _validate_resume_state(events, str(sample_root), 1)
+
+
+@pytest.mark.parametrize(
+    ("events", "match"),
+    [
+        (
+            [SpanBeginEvent(id="a", name="a"), SpanBeginEvent(id="a", name="a")],
+            "duplicate span_begin id a",
+        ),
+        ([SpanEndEvent(id="a")], "has no .*span_begin"),
+        (
+            [
+                SpanBeginEvent(id="a", name="a"),
+                SpanEndEvent(id="a"),
+                SpanEndEvent(id="a"),
+            ],
+            "duplicate span_end id a",
+        ),
+        ([SpanBeginEvent(id="a", name="a")], "unclosed span_begin"),
+    ],
+)
+def test_validate_span_balance_rejects_malformed(
+    events: list[Event], match: str
+) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_span_balance
+
+    with pytest.raises(RuntimeError, match=match):
+        _validate_span_balance(events)
 
 
 # --- tracing (inspect trace anomalies / dump --filter checkpoint) ---------

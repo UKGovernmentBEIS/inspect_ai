@@ -650,19 +650,44 @@ def _wrap_prior_run(events: list[Event]) -> list[Event]:
     # nests under the wrap via the rewritten `parent_id`. No change
     # needed there.
     new_tail: list[Event] = []
-    depth = 0
+    open_span_ids: list[str] = []
     for e in tail:
         if isinstance(e, SpanBeginEvent):
-            if depth == 0:
+            if not open_span_ids:
                 e = e.model_copy(update={"parent_id": wrap_id})
-            depth += 1
+            open_span_ids.append(e.id)
         elif isinstance(e, SpanEndEvent):
-            depth -= 1
-        elif depth == 0:
+            if e.id in open_span_ids:
+                open_span_ids.remove(e.id)
+        elif not open_span_ids:
             e = e.model_copy(update={"span_id": wrap_id})
         new_tail.append(e)
 
-    return list(head) + [wrap_begin, *new_tail, wrap_end]
+    synthetic_metadata = {
+        "checkpoint": {
+            "synthetic": True,
+            "reason": "restored_open_span",
+            "timestamp_source": "last_restored_event",
+        }
+    }
+    if new_tail:
+        last_restored_event = new_tail[-1]
+        synthetic_ends = [
+            SpanEndEvent(
+                id=span_id,
+                timestamp=last_restored_event.timestamp,
+                working_start=last_restored_event.working_start,
+                metadata=synthetic_metadata,
+            )
+            for span_id in reversed(open_span_ids)
+        ]
+    else:
+        synthetic_ends = [
+            SpanEndEvent(id=span_id, metadata=synthetic_metadata)
+            for span_id in reversed(open_span_ids)
+        ]
+
+    return list(head) + [wrap_begin, *new_tail, *synthetic_ends, wrap_end]
 
 
 def _synthesize_trailing_checkpoint_event(
@@ -721,21 +746,18 @@ def _validate_resume_state(
     sample_dir = Path(local_path(sample_root))
     checkpoint_files = sorted(p.name for p in sample_dir.glob("ckpt-*.json"))
 
-    # Walk events: collect checkpoint + prior_run span_begins,
-    # CheckpointEvents, and all span_ends (span_end has no type attr —
-    # pair by id).
+    # Walk events: collect checkpoint + prior_run span_begins and
+    # CheckpointEvents. Generic span pairing is validated below by
+    # `_validate_span_balance`.
     checkpoint_begins: list[tuple[int, str, str]] = []  # (idx, name, id)
     wrap_begins: list[tuple[int, str, str]] = []  # (idx, name, id)
     checkpoint_events: list[tuple[int, int]] = []  # (idx, checkpoint_id)
-    end_by_id: dict[str, int] = {}
     for i, e in enumerate(events):
         if isinstance(e, SpanBeginEvent):
             if e.type == "checkpoint":
                 checkpoint_begins.append((i, e.name, e.id))
             elif e.type == "prior_run":
                 wrap_begins.append((i, e.name, e.id))
-        elif isinstance(e, SpanEndEvent):
-            end_by_id[e.id] = i
         elif e.event == "checkpoint":
             ckpt_id = getattr(e, "checkpoint_id", None)
             if ckpt_id is not None:
@@ -769,6 +791,8 @@ def _validate_resume_state(
             f"[hydrate.validate] events[-1] not 'span_end': {_event_label(last)}"
         )
 
+    _validate_span_balance(events)
+
     expected_ckpt_names = [f"checkpoint {i + 1}" for i in range(len(checkpoint_begins))]
     actual_ckpt_names = [name for _, name, _ in checkpoint_begins]
     if actual_ckpt_names != expected_ckpt_names:
@@ -785,23 +809,6 @@ def _validate_resume_state(
         raise RuntimeError(
             f"[hydrate.validate] prior_run wrap names not sequential. "
             f"expected {expected_wrap_names}, got {actual_wrap_names}"
-        )
-
-    unpaired_ckpt = [
-        (idx, name, id_) for idx, name, id_ in checkpoint_begins if id_ not in end_by_id
-    ]
-    if unpaired_ckpt:
-        raise RuntimeError(
-            f"[hydrate.validate] {len(unpaired_ckpt)} unpaired checkpoint "
-            f"span_begin(s): {unpaired_ckpt}"
-        )
-    unpaired_wrap = [
-        (idx, name, id_) for idx, name, id_ in wrap_begins if id_ not in end_by_id
-    ]
-    if unpaired_wrap:
-        raise RuntimeError(
-            f"[hydrate.validate] {len(unpaired_wrap)} unpaired prior_run "
-            f"wrap(s): {unpaired_wrap}"
         )
 
     expected_span_count = latest_committed_id if latest_committed_id is not None else 0
@@ -832,6 +839,43 @@ def _validate_resume_state(
             f"[hydrate.validate] CheckpointEvent checkpoint_id sequence "
             f"mismatch. expected {expected_event_ids}, "
             f"got {actual_event_ids}"
+        )
+
+
+def _validate_span_balance(events: list[Event]) -> None:
+    begin_by_id: dict[str, tuple[int, SpanBeginEvent]] = {}
+    end_by_id: dict[str, int] = {}
+    for idx, event in enumerate(events):
+        if isinstance(event, SpanBeginEvent):
+            if event.id in begin_by_id:
+                first_idx, _ = begin_by_id[event.id]
+                raise RuntimeError(
+                    f"[hydrate.validate] duplicate span_begin id {event.id} at "
+                    f"indexes {first_idx} and {idx}"
+                )
+            begin_by_id[event.id] = (idx, event)
+        elif isinstance(event, SpanEndEvent):
+            if event.id not in begin_by_id:
+                raise RuntimeError(
+                    f"[hydrate.validate] span_end at index {idx} has no "
+                    f"span_begin: {event.id}"
+                )
+            if event.id in end_by_id:
+                raise RuntimeError(
+                    f"[hydrate.validate] duplicate span_end id {event.id} at "
+                    f"indexes {end_by_id[event.id]} and {idx}"
+                )
+            end_by_id[event.id] = idx
+
+    unclosed = [
+        (idx, span_id)
+        for span_id, (idx, _) in begin_by_id.items()
+        if span_id not in end_by_id
+    ]
+    if unclosed:
+        raise RuntimeError(
+            f"[hydrate.validate] {len(unclosed)} unclosed span_begin event(s): "
+            f"{unclosed}"
         )
 
 
