@@ -139,10 +139,15 @@ def test_start_does_not_publish_discovery_when_bind_fails(
 
     monkeypatch.setattr(discovery, "inspect_data_dir", _stub_data_dir)
 
-    # Force the bind to fail: a socket path whose parent directory does not
-    # exist raises FileNotFoundError from sock.bind() (a stand-in for the
-    # real-world UDS PermissionError), synchronously, inside start().
-    bad_socket = tmp_path / "missing-dir" / "ctl.sock"
+    # Force the bind to fail deterministically: an overlong socket path makes
+    # sock.bind() raise OSError (ENAMETOOLONG) — a real-world bind failure
+    # (cf. a UDS PermissionError) — synchronously inside start(), before the
+    # discovery file is written. (A missing parent dir would NOT do it:
+    # start() calls prepare_socket_path(), which creates the parent. And
+    # relying on the *test* tmp_path being overlong is fragile — it passes for
+    # the wrong reason on macOS's long default temp dir and not at all under a
+    # short --basetemp.)
+    bad_socket = tmp_path / ("ctl-" + "x" * 200 + ".sock")
     monkeypatch.setattr(server_mod, "default_socket_path", lambda _pid: bad_socket)
 
     async def run() -> None:

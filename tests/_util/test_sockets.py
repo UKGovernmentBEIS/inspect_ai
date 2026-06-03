@@ -1,10 +1,35 @@
 """Unit tests for :mod:`inspect_ai._util.sockets`."""
 
+import os
+import shutil
 import sys
+import tempfile
+from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 
 from inspect_ai._util.sockets import has_unix_sockets, parse_host_port
+
+
+@pytest.fixture
+def short_socket_dir() -> Iterator[Path]:
+    """A temp dir short enough to bind an AF_UNIX socket inside.
+
+    The default pytest ``tmp_path`` on macOS lives under
+    ``/private/var/folders/...``, which blows past the ~104-byte AF_UNIX
+    ``sun_path`` limit — a bind there fails with ``OSError: AF_UNIX path too
+    long`` before the test reaches what it's actually checking. Bind under
+    ``/tmp`` (POSIX) so the path stays short; ``tmp_path`` is fine on Windows,
+    which has no such limit.
+    """
+    base = "/tmp" if os.name == "posix" else None
+    dirpath = Path(tempfile.mkdtemp(prefix="isock_", dir=base))
+    try:
+        yield dirpath
+    finally:
+        shutil.rmtree(dirpath, ignore_errors=True)
+
 
 # ---------------------------------------------------------------------------
 # has_unix_sockets
@@ -119,12 +144,15 @@ def test_prepare_socket_path_creates_parent(tmp_path) -> None:
     assert path.parent.is_dir()
 
 
-def test_prepare_socket_path_unlinks_stale_socket(tmp_path) -> None:
+def test_prepare_socket_path_unlinks_stale_socket(short_socket_dir: Path) -> None:
     import socket
 
     from inspect_ai._util.sockets import prepare_socket_path
 
-    path = tmp_path / "stale.sock"
+    # Bind under a short dir (see `short_socket_dir`) so the bind itself
+    # succeeds — this test is about prepare_socket_path removing the leftover
+    # socket node, not about AF_UNIX path limits.
+    path = short_socket_dir / "stale.sock"
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
         sock.bind(str(path))
