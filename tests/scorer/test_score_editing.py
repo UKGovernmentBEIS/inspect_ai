@@ -370,6 +370,29 @@ async def test_edit_score_multiple_epochs_with_epoch_specified():
 
 
 @pytest.mark.anyio
+async def test_edit_score_preserves_default_epochs_reducer_config():
+    """Default reducer config remains None while results record the reducer used."""
+    logs = await eval_async(single_metric_task(), epochs=3)
+    log = logs[0]
+
+    assert log.eval.config.epochs_reducer is None
+    assert log.results.scores[0].reducer == "mean"
+    assert log.reductions[0].reducer == "mean"
+
+    edit_score(
+        log,
+        log.samples[0].id,
+        "single_metric_scorer",
+        ScoreEdit(value=5),
+        epoch=1,
+    )
+
+    assert log.eval.config.epochs_reducer is None
+    assert log.results.scores[0].reducer == "mean"
+    assert log.reductions[0].reducer == "mean"
+
+
+@pytest.mark.anyio
 async def test_edit_score_multiple_epochs_without_epoch_fails():
     """Test that editing without specifying epoch fails when there are multiple epochs."""
     logs = await eval_async(single_metric_task(), epochs=2)
