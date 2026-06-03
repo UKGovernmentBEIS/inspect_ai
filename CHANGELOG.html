@@ -111,10 +111,45 @@ ul.task-list li input[type="checkbox"] {
 </button>
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
-  <li class="nav-item">
-    <a class="nav-link" href="./index.html"> 
-<span class="menu-text">User Guide</span></a>
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-user-guide" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">User Guide</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-user-guide">    
+        <li>
+    <a class="dropdown-item" href="./index.html">
+ <span class="dropdown-text">Basics</span></a>
   </li>  
+        <li>
+    <a class="dropdown-item" href="./tasks.html">
+ <span class="dropdown-text">Components</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./models.html">
+ <span class="dropdown-text">Models</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./agents.html">
+ <span class="dropdown-text">Agents</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./tools.html">
+ <span class="dropdown-text">Tools</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./eval-sets.html">
+ <span class="dropdown-text">Running</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./eval-logs.html">
+ <span class="dropdown-text">Analysis</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./extensions.html">
+ <span class="dropdown-text">Extensions</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="./reference/index.html"> 
 <span class="menu-text">Reference</span></a>
@@ -155,7 +190,8 @@ ul.task-list li input[type="checkbox"] {
    
   <ul>
   <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#june-2026" id="toc-june-2026" class="nav-link" data-scroll-target="#june-2026">0.3.233 (01 June 2026)</a></li>
+  <li><a href="#june-2026" id="toc-june-2026" class="nav-link" data-scroll-target="#june-2026">0.3.234 (02 June 2026)</a></li>
+  <li><a href="#june-2026-1" id="toc-june-2026-1" class="nav-link" data-scroll-target="#june-2026-1">0.3.233 (01 June 2026)</a></li>
   <li><a href="#may-2026" id="toc-may-2026" class="nav-link" data-scroll-target="#may-2026">0.3.232 (31 May 2026)</a></li>
   <li><a href="#may-2026-1" id="toc-may-2026-1" class="nav-link" data-scroll-target="#may-2026-1">0.3.231 (30 May 2026)</a></li>
   <li><a href="#may-2026-2" id="toc-may-2026-2" class="nav-link" data-scroll-target="#may-2026-2">0.3.230 (30 May 2026)</a></li>
@@ -400,18 +436,29 @@ ul.task-list li input[type="checkbox"] {
 <li>OpenAI: Support <a href="https://inspect.aisi.org.uk/providers.html#openai-on-aws-bedrock">OpenAI models on AWS Bedrock</a> via the <code>openai/bedrock/&lt;model&gt;</code> qualifier.</li>
 <li>Together: Support the <code>stream</code> model arg (e.g.&nbsp;<code>-M stream=true</code>) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to <code>stop_reason="max_tokens"</code> instead of raising.</li>
 <li>Bedrock: Support <code>response_schema</code> (structured output) for Claude models via <code>output_config.format</code>.</li>
+<li>Deep Agent: Subagent <code>submit()</code> calls are retained in the subagent transcript (previously stripped) and rendered as markdown, so a submit is distinguishable from a normal assistant message. The parent’s result is unchanged.</li>
 <li>Sandbox: Allow <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox_service">sandbox_service()</a></span> instances running as different users in the same sandbox to share <code>/var/tmp/sandbox-services</code>.</li>
 <li>Agent Intervention: Support connecting to all samples (disabling interruption and user messages if the agent doesn’t explicitly support ACP).</li>
 <li>Docker Compose: accept <code>platform</code>, <code>extra_hosts</code>, <code>cap_add</code>, <code>cap_drop</code>, <code>security_opt</code>, and <code>tmpfs</code> in ComposeService.</li>
 <li>Docker Sandbox: <code>SandboxTimeoutError</code> now carries <code>truncated_output</code> with the partial command output captured before a timeout (surfaced to tool callers), instead of discarding it.</li>
 <li>Transcript: Bound resident memory for long-running samples by evicting older events to a history provider (opt-in via the <code>INSPECT_TRANSCRIPT_BOUNDED</code> environment variable). <code>transcript().events</code> remains a full, compatible view; use <code>transcript().history</code> for memory-aware access.</li>
 <li>Inspect View: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.viewer.html#viewerconfig">ViewerConfig</a></span> (passed via <code>Task(viewer=...)</code>) lets eval authors customize how a task’s sample list, score panel, and scanner results render in the log viewer — including sample-list columns, default sort, score labels, and color scales. See <a href="https://inspect.aisi.org.uk/task-views.html">Custom Views</a>.</li>
+<li>Transcript: Revert disabling of buffer history database when running tests.</li>
 <li>Inspect View: Migrated the sample transcript to a virtualized list for smoother rendering of long transcripts.</li>
 <li>Bugfix: Inspect View sample-list columns now expand to fill the available width.</li>
+<li>Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.</li>
 </ul>
 </section>
 <section id="june-2026" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026">0.3.233 (01 June 2026)</h2>
+<h2 class="anchored" data-anchor-id="june-2026">0.3.234 (02 June 2026)</h2>
+<ul>
+<li>OpenAI: Map Inspect <code>todo_write</code> tool to native OpenAI/Codex <code>update_plan</code> tool.</li>
+<li>OpenAI: Support <a href="https://inspect.aisi.org.uk/providers.html#openai-on-aws-bedrock">OpenAI models on AWS Bedrock</a> via the <code>openai/bedrock/&lt;model&gt;</code> qualifier.</li>
+<li>Bugfix: Fix crash when running <code>bash_session</code> with realtime logging enabled (the default), caused by a non-serializable sandbox object being written to the sample store. The sandbox is now re-resolved per call rather than cached in the store.</li>
+</ul>
+</section>
+<section id="june-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-1">0.3.233 (01 June 2026)</h2>
 <ul>
 <li>Anthropic: Render mid-conversation system messages as <code>&lt;system-reminder&gt;</code> user turns for pre-4.8 models.</li>
 <li>Anthropic: Accept inline <code>role: "system"</code> messages from bridged Anthropic-API clients.</li>
@@ -801,8 +848,7 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="april-2026-8">0.3.207 (16 April 2026)</h2>
 <ul>
 <li>Anthropic: Auto-detect correct context window and max tokens for Opus 4.7.</li>
-<li>Anthropic: Support for new <code>xhigh</code> value for <code>effort</code>.<br>
-</li>
+<li>Anthropic: Support for new <code>xhigh</code> value for <code>effort</code>.</li>
 <li>Anthropic: Support for <code>max</code> value for <code>reasoning_effort</code>.</li>
 </ul>
 </section>
@@ -839,11 +885,8 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Transcript viewing improvements for complex transcripts (timeline + other fixes)</li>
 <li>Inspect View: Introduce new ‘Tasks’ view of log directory which shows tasks recursively as a flat list.</li>
 <li>Inspect View: Fix error when viewing the API information for a running Model Event.</li>
-<li>Bugfix: Fix <code>eval_results()</code> producing identical aggregate scores<br>
-for multiple instances of the same scorer due to incorrect name resolution using dimension names instead of scorer names.<br>
-</li>
-<li>Bugfix: Fix <code>eval_results()</code> mutating the reducers parameter inside a loop, causing inconsistent reducer assignment across scorer<br>
-instances.</li>
+<li>Bugfix: Fix <code>eval_results()</code> producing identical aggregate scores for multiple instances of the same scorer due to incorrect name resolution using dimension names instead of scorer names.</li>
+<li>Bugfix: Fix <code>eval_results()</code> mutating the reducers parameter inside a loop, causing inconsistent reducer assignment across scorer instances.</li>
 <li>Bugfix: Fix <code>JSONRecorder</code> returning condensed <code>ModelEvent.input</code> (empty list) when <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> uses <code>log_format="json"</code>.</li>
 <li>Bugfix: Include LoRA adapter in logged vLLM model name.</li>
 <li>Bugfix: Remove unused docker-sandbox unhealthy_services computation.</li>

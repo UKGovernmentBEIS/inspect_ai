@@ -19,7 +19,7 @@ If the provider you are using is not listed above, you may still be able to use 
 
 2.  It is available via OpenRouter (see the docs on using [OpenRouter](./providers.html.md#openrouter) with Inspect).
 
-You can also create [Model API Extensions](./extensions.html.md#model-apis) to add model providers using their native interface.
+You can also create [Model API Extensions](./extensions-model-api.html.md#model-apis) to add model providers using their native interface.
 
 ## OpenAI
 
@@ -1424,4 +1424,4 @@ inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream
 
 ## Custom Models
 
-If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](./extensions.html.md#sec-model-api-extensions) for additional details.
+If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](./extensions-model-api.html.md#sec-model-api-extensions) for additional details.

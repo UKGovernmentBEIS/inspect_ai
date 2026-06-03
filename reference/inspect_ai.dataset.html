@@ -149,10 +149,45 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </button>
           <div class="collapse navbar-collapse" id="navbarCollapse">
             <ul class="navbar-nav navbar-nav-scroll me-auto">
-  <li class="nav-item">
-    <a class="nav-link" href="../index.html"> 
-<span class="menu-text">User Guide</span></a>
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-user-guide" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">User Guide</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-user-guide">    
+        <li>
+    <a class="dropdown-item" href="../index.html">
+ <span class="dropdown-text">Basics</span></a>
   </li>  
+        <li>
+    <a class="dropdown-item" href="../tasks.html">
+ <span class="dropdown-text">Components</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../models.html">
+ <span class="dropdown-text">Models</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../agents.html">
+ <span class="dropdown-text">Agents</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../tools.html">
+ <span class="dropdown-text">Tools</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../eval-sets.html">
+ <span class="dropdown-text">Running</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../eval-logs.html">
+ <span class="dropdown-text">Analysis</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../extensions.html">
+ <span class="dropdown-text">Extensions</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link active" href="../reference/index.html" aria-current="page"> 
 <span class="menu-text">Reference</span></a>
@@ -3363,7 +3398,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="csv_dataset">csv_dataset</h3>
 <p>Read dataset from CSV file.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_sources/csv.py#L21">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_sources/csv.py#L21">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> csv_dataset(</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    csv_file: <span class="bu">str</span>,</span>
@@ -3440,7 +3475,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Read dataset from a JSON file.</p>
 <p>Read a dataset from a JSON file containing an array of objects, or from a JSON Lines file containing one object per line. These objects may already be formatted as <span class="element-type-name ref-interlink"><a href="../reference/inspect_ai.dataset.html#sample">Sample</a></span> instances, or may require some mapping using the <code>sample_fields</code> argument.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_sources/json.py#L23">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_sources/json.py#L23">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb2"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> json_dataset(</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    json_file: <span class="bu">str</span>,</span>
@@ -3507,7 +3542,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>Datasets read using the Hugging Face <code>datasets</code> package.</p>
 <p>The <code>hf_dataset</code> function supports reading datasets using the Hugging Face <code>datasets</code> package, including remote datasets on Hugging Face Hub.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_sources/hf.py#L117">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_sources/hf.py#L117">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> hf_dataset(</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    path: <span class="bu">str</span>,</span>
@@ -3596,7 +3631,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="sample">Sample</h3>
 <p>Sample for an evaluation task.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L29">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L29">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Sample(BaseModel)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -3647,7 +3682,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Create a Sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L32">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L32">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb5"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>
@@ -3704,7 +3739,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Metadata as a Pydantic model.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L91">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L91">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> metadata_as(<span class="va">self</span>, metadata_cls: Type[MT]) <span class="op">-&gt;</span> MT</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <dl>
@@ -3721,7 +3756,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="fieldspec">FieldSpec</h3>
 <p>Specification for mapping data source fields to sample fields.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L222">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L222">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb7"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="at">@dataclass</span></span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> FieldSpec</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -3767,7 +3802,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="recordtosample">RecordToSample</h3>
 <p>Callable that maps raw dictionary record to a Sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L251">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L251">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb8"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>RecordToSample <span class="op">=</span> Callable[[DatasetRecord], Sample <span class="op">|</span> <span class="bu">list</span>[Sample]]</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
@@ -3776,7 +3811,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A sequence of Sample objects.</p>
 <p>Datasets provide sequential access (via conventional indexes or slicing) to a collection of Sample objects.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L143">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L143">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb9"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Dataset(Sequence[Sample], abc.ABC)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4 class-methods">
@@ -3788,7 +3823,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>If a key function is given, apply it once to each list item and sort them, ascending or descending, according to their function values.</p>
 <p>The key function defaults to measuring the length of the sample’s input field.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L174">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L174">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb10"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> sort(</span>
@@ -3811,7 +3846,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Filter the dataset using a predicate.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L191">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L191">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb11"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="bu">filter</span>(</span>
@@ -3832,7 +3867,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Shuffle the order of the dataset (in place).</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L205">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L205">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> shuffle(<span class="va">self</span>, seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -3847,7 +3882,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <dd>
 <p>Shuffle the order of the choices with each sample.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L213">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L213">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb13"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="at">@abc.abstractmethod</span></span>
 <span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> shuffle_choices(<span class="va">self</span>, seed: <span class="bu">int</span> <span class="op">|</span> <span class="va">None</span> <span class="op">=</span> <span class="va">None</span>) <span class="op">-&gt;</span> <span class="va">None</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
@@ -3865,7 +3900,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="memorydataset">MemoryDataset</h3>
 <p>A Dataset stored in memory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L255">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L255">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python doc-declaration code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> MemoryDataset(Dataset)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section class="level4">
@@ -3893,7 +3928,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A dataset of samples held in an in-memory list.</p>
 <p>Datasets provide sequential access (via conventional indexes or slicing) to a collection of Sample objects. The ListDataset is explicitly initialized with a list that is held in memory.</p>
 <div class="source-link">
-<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/14ec8cfe2dd3ebbd437a9987d26de8a9cb681714/src/inspect_ai/dataset/_dataset.py#L258">Source</a>
+<a href="https://github.com/UKGovernmentBEIS/inspect_ai/blob/fb2fb41dcbb43dab179fba3e68889f0ea89e6f12/src/inspect_ai/dataset/_dataset.py#L258">Source</a>
 </div>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> <span class="fu">__init__</span>(</span>
 <span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>,</span>

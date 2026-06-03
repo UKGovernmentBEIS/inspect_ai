@@ -19,7 +19,7 @@ If the provider you are using is not listed above, you may still be able to use 
 
 2.  It is available via OpenRouter (see the docs on using [OpenRouter](./providers.html.md#openrouter) with Inspect).
 
-You can also create [Model API Extensions](./extensions.html.md#model-apis) to add model providers using their native interface.
+You can also create [Model API Extensions](./extensions-model-api.html.md#model-apis) to add model providers using their native interface.
 
 Below we’ll describe various ways to specify and provide options to models in Inspect evaluations. Review this first, then see the provider-specific sections for additional usage details and available options.
 

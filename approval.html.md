@@ -204,7 +204,7 @@ def bash_allowlist(
     return approve
 ```
 
-Assuming we have properly [registered our approver](./extensions.html.md#sec-extensions-approvers) as an Inspect extension, we can then use this it in an approval policy:
+Assuming we have properly [registered our approver](./extensions-approvers.html.md#sec-extensions-approvers) as an Inspect extension, we can then use this it in an approval policy:
 
 ``` yaml
 approvers:
@@ -224,7 +224,7 @@ These approvers will make one of the following approval decisions for each tool 
 
 Note that the human approver is last and is bound to all tools, so escalations from the bash and python allow list approvers will end up prompting the human approver.
 
-See the documentation on [Approver Extensions](./extensions.html.md#sec-extensions-approvers) for additional details on publishing approvers within Python packages.
+See the documentation on [Approver Extensions](./extensions-approvers.html.md#sec-extensions-approvers) for additional details on publishing approvers within Python packages.
 
 ## Tool Views
 

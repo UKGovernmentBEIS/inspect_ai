@@ -1,4 +1,12 @@
-# Custom Views – Inspect
+# Task Views – Inspect
+
+> **NOTE:**
+>
+> The task views feature described below requires the development version of Inspect. You can install the development version from GitHub with:
+>
+> ``` bash
+> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+> ```
 
 ## Overview
 
