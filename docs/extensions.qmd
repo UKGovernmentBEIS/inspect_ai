@@ -3,9 +3,7 @@ title: Extensions
 llms-description: Extending Inspect with new Model APIs, tool execution environments, and storage platforms.
 ---
 
-## Overview
-
-There are several ways to extend Inspect to integrate with systems not directly supported by the core package:
+Inspect can be extended to integrate with systems and workflows beyond what the core package supports:
 
 | | |
 |---|---|
@@ -17,4 +15,4 @@ There are several ways to extend Inspect to integrate with systems not directly 
 | [Filesystems](extensions-filesystems.qmd) | Storage for datasets, prompts, and evaluation logs. |
 : {.borderless tbl-colwidths=[35,65]}
 
-For each of these, you can create an extension within a Python package, and then use it without any special registration with Inspect (this is done via [setuptools entry points](https://setuptools.pypa.io/en/latest/userguide/entry_point.html)).
+Each of the extension types above can be implemented within your own Python package and then used without any special registration—Inspect discovers them automatically through [setuptools entry points](https://setuptools.pypa.io/en/latest/userguide/entry_point.html).
