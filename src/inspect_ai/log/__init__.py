@@ -65,6 +65,7 @@ from ._retry import retryable_eval_logs
 from ._score import edit_score
 from ._transcript import (
     Transcript,
+    TranscriptHistory,
     transcript,
 )
 
@@ -91,6 +92,7 @@ __all__ = [
     "EvalStatus",
     "EvalLogInfo",
     "Transcript",
+    "TranscriptHistory",
     "transcript",
     "convert_eval_logs",
     "list_eval_logs",

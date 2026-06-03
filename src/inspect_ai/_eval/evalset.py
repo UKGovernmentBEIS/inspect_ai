@@ -120,7 +120,7 @@ def eval_set(
     task_args: dict[str, Any] | str = dict(),
     sandbox: SandboxEnvironmentType | None = None,
     sandbox_cleanup: bool | None = None,
-    checkpoint: CheckpointConfig | None = None,
+    checkpoint: CheckpointConfig | bool | None = None,
     acp_server: bool | int | str | None = None,
     keep_alive: bool = False,
     solver: Solver | SolverSpec | Agent | list[Solver] | None = None,
@@ -203,8 +203,10 @@ def eval_set(
             (or optionally a str or tuple with a shorthand spec)
         sandbox_cleanup: Cleanup sandbox environments after task completes
             (defaults to True)
-        checkpoint: Checkpoint configuration for this eval set. Overrides
-            any task- or sample-level `checkpoint` when set.
+        checkpoint: Checkpoint configuration for this eval set, or `True`
+            to enable checkpointing with the default trigger (every 500k
+            tokens). Overrides any task- or sample-level `checkpoint`
+            when set.
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
             loopback port; a string is taken as a custom UNIX socket path;

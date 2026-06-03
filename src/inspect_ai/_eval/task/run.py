@@ -81,14 +81,22 @@ from inspect_ai.log._log import (
     EvalSampleSummary,
     eval_error,
 )
-from inspect_ai.log._recorders.streaming import materialize_streaming_sample
+from inspect_ai.log._recorders.buffer.transcript_history_provider import (
+    BufferTranscriptHistoryProvider,
+)
+from inspect_ai.log._recorders.streaming import (
+    eval_retry_error_from_history,
+    materialize_streaming_sample,
+)
 from inspect_ai.log._samples import (
     active_sample,
 )
 from inspect_ai.log._transcript import (
     Transcript,
+    TranscriptHistoryProvider,
     init_transcript,
     transcript,
+    transcript_bounded_enabled,
 )
 from inspect_ai.model import (
     GenerateConfig,
@@ -198,6 +206,18 @@ EvalSampleSource = Callable[
 # the remainder are increments of progress within a sample (and
 # must sum to the total_progress_units when the sample is complete)
 SAMPLE_TOTAL_PROGRESS_UNITS = 1
+
+
+def _sample_transcript_config(
+    logger: TaskLogger | None, sample_id: str | int, epoch: int
+) -> tuple[bool, TranscriptHistoryProvider | None]:
+    if logger is not None and logger.buffer_db is not None:
+        return (
+            transcript_bounded_enabled(),
+            BufferTranscriptHistoryProvider(logger.buffer_db, sample_id, epoch),
+        )
+    else:
+        return False, None
 
 
 @dataclass
@@ -971,7 +991,15 @@ async def task_run_sample(
         init_sample_model_usage()
         init_sample_role_usage()
         set_sample_state(state)
-        sample_transcript = Transcript(log_model_api=log_model_api)
+        sample_transcript_bounded, history_provider = _sample_transcript_config(
+            logger, sample_id, state.epoch
+        )
+        sample_transcript = Transcript(
+            log_model_api=log_model_api,
+            bounded=sample_transcript_bounded,
+            resident_tail=100,
+            history_provider=history_provider,
+        )
         init_transcript(sample_transcript)
         init_subtask_store(state.store)
         sample_transcript._subscribe(on_sample_event)
@@ -1036,14 +1064,8 @@ async def task_run_sample(
                 transcript()._event(ErrorEvent(error=err[0]))
                 return err
 
-        # Derive agent name for the ACP picker / TUI meta row. Mirrors
-        # inspect_scout's `_agent(log)` heuristic: prefer the configured
-        # eval-level solver string, fall back to the last plan step.
-        agent_name: str | None = None
-        if logger is not None and logger.eval.solver is not None:
-            agent_name = logger.eval.solver
-        elif plan.steps:
-            agent_name = registry_log_name(plan.steps[-1])
+        # Derive agent name for the ACP picker / TUI meta row.
+        agent_name = plan_agent_name(plan)
 
         async with active_sample(
             task=task_name,
@@ -1536,6 +1558,8 @@ async def task_run_sample(
     ):
         await emit_attempt_end(will_retry=True)
 
+        retry_error = _eval_retry_error(error, logger, state.sample_id, state.epoch)
+
         # remove any buffered sample events
         if logger is not None:
             logger.remove_sample(state.sample_id, state.epoch)
@@ -1569,7 +1593,7 @@ async def task_run_sample(
             retry_on_error=retry_on_error - 1,
             score_on_error=score_on_error,
             # forward on error that caused retry
-            error_retries=copy(error_retries) + [_eval_retry_error(error)],
+            error_retries=copy(error_retries) + [retry_error],
             previous_attempt_errors=previous_attempt_errors,
             time_limit=time_limit,
             working_limit=working_limit,
@@ -1676,9 +1700,11 @@ async def log_sample(
     )
     with logger.buffer_db.open_sample_history(
         eval_sample.id, eval_sample.epoch
-    ) as history:
-        materialized_sample = materialize_streaming_sample(eval_sample, history)
-        await logger.complete_sample_streaming(logging_sample, history, flush=True)
+    ) as sample_history:
+        materialized_sample = materialize_streaming_sample(eval_sample, sample_history)
+        await logger.complete_sample_streaming(
+            logging_sample, sample_history, flush=True
+        )
     return materialized_sample
 
 
@@ -1875,16 +1901,30 @@ def init_sample_assistant_internal() -> None:
             pass
 
 
-def _eval_retry_error(error: EvalError) -> EvalRetryError:
+def _eval_retry_error(
+    error: EvalError,
+    logger: TaskLogger | None = None,
+    sample_id: str | int | None = None,
+    epoch: int | None = None,
+) -> EvalRetryError:
     """Create retry error with events from the most recent ModelEvent onward."""
     from inspect_ai.event._model import ModelEvent
 
-    events = transcript().events
-    recent_events = list(events)
-    for i in range(len(events) - 1, -1, -1):
-        if isinstance(events[i], ModelEvent):
-            recent_events = list(events[i:])
-            break
+    if logger is not None and logger.buffer_db is not None and sample_id is not None:
+        if epoch is None:
+            raise ValueError(
+                "epoch is required when reading retry events from buffer DB"
+            )
+        with logger.buffer_db.open_sample_history(sample_id, epoch) as sample_history:
+            return eval_retry_error_from_history(error, sample_history)
+
+    sample_transcript = transcript()
+    transcript_history = sample_transcript.history
+    recent_events = (
+        transcript_history.events_since_last(ModelEvent)
+        if transcript_history.full_history_available
+        else []
+    )
     return EvalRetryError(
         message=error.message,
         traceback=error.traceback,

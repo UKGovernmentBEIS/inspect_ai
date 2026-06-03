@@ -16,9 +16,50 @@ def _fake_sample(
     *,
     interrupt_pending: bool = True,
     session_id: str = "s1",
+    is_interactive: bool = True,
 ) -> SimpleNamespace:
-    acp = SimpleNamespace(session_id=session_id, interrupt_pending=interrupt_pending)
+    acp = SimpleNamespace(
+        session_id=session_id,
+        interrupt_pending=interrupt_pending,
+        is_interactive=is_interactive,
+    )
     return SimpleNamespace(acp_transport=acp, interrupt_action=interrupt_action)
+
+
+def _interrupt_btn_visible(sample: SimpleNamespace | None, *, in_prompt: bool) -> bool:
+    """Mirror of SampleInfo.sync_sample's interrupt-button visibility gate.
+
+    Kept in lockstep with the predicate in
+    ``inspect_ai._display.textual.widgets.samples.SampleInfo.sync_sample`` so
+    the bug it guards against — the button showing for samples with no bound,
+    live agent loop — has direct regression coverage without a mounted app.
+    """
+    acp = sample.acp_transport if sample is not None else None
+    return acp is not None and acp.is_interactive and not in_prompt
+
+
+def test_interrupt_button_hidden_without_interactive_session():
+    # A Live ACP session is opened for *every* sample (even plain solver tasks),
+    # so acp_transport is non-None with a real session_id. The button must gate
+    # on is_interactive (a bound, live agent loop), not on session existence.
+    plain = _fake_sample(None, is_interactive=False)
+    assert not _interrupt_btn_visible(plain, in_prompt=False)
+
+
+def test_interrupt_button_shown_for_interactive_session():
+    agent = _fake_sample(None, is_interactive=True)
+    assert _interrupt_btn_visible(agent, in_prompt=False)
+
+
+def test_interrupt_button_hidden_when_no_sample():
+    assert not _interrupt_btn_visible(None, in_prompt=False)
+
+
+def test_interrupt_button_hidden_in_prompt_mode():
+    # Even an interactive session hides the button while injecting, so a repeat
+    # click can't fire a duplicate cancel before the operator submits.
+    agent = _fake_sample(None, is_interactive=True)
+    assert not _interrupt_btn_visible(agent, in_prompt=True)
 
 
 def test_handle_interrupted_skips_prompt_on_terminal_cancel():

@@ -23,7 +23,11 @@ from inspect_ai.model._reasoning import reasoning_to_think_tag
 from inspect_ai.tool import ToolChoice, ToolInfo
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_choice import ToolFunction
-from inspect_ai.util._json import json_schema_dump
+from inspect_ai.util._json import (
+    JSON_SCHEMA_EXTENDED_FIELDS,
+    JSONSchema,
+    json_schema_dump,
+)
 
 from .._chat_message import (
     ChatMessage,
@@ -250,6 +254,29 @@ class ConverseClientConverseRequest(BaseModel):
         Union[dict[str, Any], list[Any], int, float, str, bool, None] | None
     ) = None
     additionalModelResponseFieldPaths: list[str] = []
+
+
+def _lock_object_additional_properties(schema: JSONSchema) -> None:
+    """Set `additionalProperties: false` on object nodes only.
+
+    Bedrock's structured-output grammar compiler requires objects to forbid
+    extra properties, but rejects `additionalProperties` on `anyOf` nodes (how
+    optional/union fields are expressed). Setting it only on objects keeps
+    optional fields working. This matches the object-only handling in the
+    OpenAI and Anthropic SDKs; it is done locally here rather than via the
+    shared `set_additional_properties_false` (which stamps every node) because
+    only Bedrock's compiler is strict enough to reject the looser shape.
+    """
+    if schema.type == "object" or schema.properties:
+        schema.additionalProperties = False
+    if schema.items:
+        _lock_object_additional_properties(schema.items)
+    if schema.properties:
+        for prop_schema in schema.properties.values():
+            _lock_object_additional_properties(prop_schema)
+    if schema.anyOf:
+        for any_schema in schema.anyOf:
+            _lock_object_additional_properties(any_schema)
 
 
 class BedrockAPI(ModelAPI):
@@ -597,6 +624,27 @@ class BedrockAPI(ModelAPI):
                 fields["inferenceConfig"] = {"topK": config.top_k}
             else:
                 fields["top_k"] = config.top_k
+
+        # Structured output: Claude on Bedrock honours `output_config.format`,
+        # the Converse-API analogue of the native Anthropic provider's
+        # `output_format`. Other Bedrock models don't support it, so warn
+        # rather than silently dropping the user's schema.
+        if config.response_schema is not None:
+            if self.is_claude():
+                schema = config.response_schema.json_schema.model_copy(deep=True)
+                _lock_object_additional_properties(schema)
+                fields.setdefault("output_config", {})["format"] = {
+                    "type": "json_schema",
+                    "schema": json_schema_dump(
+                        schema, exclude=JSON_SCHEMA_EXTENDED_FIELDS
+                    ),
+                }
+            else:
+                warn_once(
+                    logger,
+                    f"bedrock model '{self.model_name}' does not support "
+                    "structured output (response_schema); ignoring it.",
+                )
 
         return fields
 

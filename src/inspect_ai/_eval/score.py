@@ -371,7 +371,7 @@ async def _run_score_task(
     init_subtask_store(state.store)
 
     # load a copy of the current sample events into the transcript
-    init_transcript(Transcript([*sample.events], log_model_api=False))
+    init_transcript(Transcript([*sample.events], log_model_api=False, bounded=False))
 
     if state.scores is None:
         state.scores = {}

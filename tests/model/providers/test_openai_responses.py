@@ -14,7 +14,7 @@ from inspect_ai.model._openai_responses import (
     _openai_input_items_from_chat_message_assistant,
 )
 from inspect_ai.model._providers.openai_compatible import ModelInfo
-from inspect_ai.solver import generate, user_message
+from inspect_ai.solver import generate, use_tools, user_message
 
 
 def get_responses_model(config: GenerateConfig = GenerateConfig()):
@@ -1201,3 +1201,452 @@ def test_reasoning_only_fallback_not_triggered_with_tool_calls():
 
     message_items = [item for item in items if item.get("type") == "message"]
     assert len(message_items) == 0
+
+
+def _todo_write_tool_info():
+    from inspect_ai.tool._tool_def import ToolDef
+    from inspect_ai.tool._tool_info import ToolInfo
+    from inspect_ai.tool._tools._todo_write import todo_write
+
+    td = ToolDef(todo_write())
+    return ToolInfo(name=td.name, description=td.description, parameters=td.parameters)
+
+
+def _update_plan_tool_info():
+    from inspect_ai.tool._tool_def import ToolDef
+    from inspect_ai.tool._tool_info import ToolInfo
+    from inspect_ai.tool._tools._update_plan import update_plan
+
+    td = ToolDef(update_plan())
+    return ToolInfo(name=td.name, description=td.description, parameters=td.parameters)
+
+
+def test_should_swap_todo_write_gating():
+    """The single gate: swap only when not opted out, todo_write present, no update_plan."""
+    from inspect_ai.model._openai_responses import should_swap_todo_write
+
+    todo = _todo_write_tool_info()
+    update_plan = _update_plan_tool_info()
+    assert should_swap_todo_write([todo], GenerateConfig()) is True
+    assert should_swap_todo_write([todo], GenerateConfig(internal_tools=False)) is False
+    # collision with first-party update_plan -> don't swap
+    assert should_swap_todo_write([todo, update_plan], GenerateConfig()) is False
+    # no todo_write -> nothing to swap
+    assert should_swap_todo_write([update_plan], GenerateConfig()) is False
+
+
+def test_non_canonical_todo_write_not_swapped():
+    """A tool merely sharing the todo_write name (different schema) must not be swapped."""
+    from inspect_ai.model._openai_responses import (
+        _process_response_output_items,
+        should_swap_todo_write,
+        substitute_update_plan_tools,
+    )
+    from inspect_ai.tool._tool_info import ToolInfo, ToolParams
+    from inspect_ai.util._json import JSONSchema
+
+    fake = ToolInfo(
+        name="todo_write",
+        description="custom",
+        parameters=ToolParams(properties={"value": JSONSchema(type="string")}),
+    )
+
+    # not gated as swappable, and substitution leaves it (schema) intact
+    assert should_swap_todo_write([fake], GenerateConfig()) is False
+    assert substitute_update_plan_tools([fake], False) == [fake]
+
+    # an update_plan call is NOT hijacked into this tool
+    from openai.types.responses import ResponseFunctionToolCall
+
+    outputs = [
+        ResponseFunctionToolCall(
+            id="fc_fake",
+            call_id="call_fake",
+            name="update_plan",
+            arguments=json.dumps({"plan": [{"step": "x", "status": "pending"}]}),
+            type="function_call",
+        )
+    ]
+    _, tool_calls, _, _ = _process_response_output_items(outputs, [fake])
+    assert tool_calls[0].function == "update_plan"
+
+
+def test_superset_todo_write_not_swapped():
+    """A todo_write whose schema is a superset of canonical (extra fields) is not swapped."""
+    import copy
+
+    from inspect_ai.model._openai_responses import should_swap_todo_write
+    from inspect_ai.tool._tool_info import ToolInfo, ToolParams
+    from inspect_ai.util._json import JSONSchema, json_schema_dump
+
+    canonical = _todo_write_tool_info()
+    params = ToolParams.model_validate(
+        copy.deepcopy(json_schema_dump(canonical.parameters))
+    )
+    params.properties["project"] = JSONSchema(type="string")
+    params.required = list(params.required) + ["project"]
+    superset = ToolInfo(name="todo_write", description="x", parameters=params)
+
+    assert should_swap_todo_write([superset], GenerateConfig()) is False
+
+
+def test_todo_write_with_description_param_not_swapped():
+    """An extra parameter literally named `description` must not be mistaken for metadata."""
+    import copy
+
+    from inspect_ai.model._openai_responses import should_swap_todo_write
+    from inspect_ai.tool._tool_info import ToolInfo, ToolParams
+    from inspect_ai.util._json import JSONSchema, json_schema_dump
+
+    canonical = _todo_write_tool_info()
+    params = ToolParams.model_validate(
+        copy.deepcopy(json_schema_dump(canonical.parameters))
+    )
+    # an extra (optional) top-level parameter whose name collides with schema metadata
+    params.properties["description"] = JSONSchema(type="string", description="extra")
+    with_desc_param = ToolInfo(name="todo_write", description="x", parameters=params)
+
+    assert should_swap_todo_write([with_desc_param], GenerateConfig()) is False
+
+
+def test_redescribed_todo_write_still_swapped():
+    """A structurally identical todo_write with a customized description still swaps."""
+    from inspect_ai.model._openai_responses import should_swap_todo_write
+
+    canonical = _todo_write_tool_info()
+    redescribed = canonical.model_copy(deep=True)
+    redescribed.description = "a customized description"
+    redescribed.parameters.properties["todos"].description = "custom"
+    assert should_swap_todo_write([redescribed], GenerateConfig()) is True
+
+
+def test_outbound_substitutes_update_plan():
+    """When swapping, todo_write is sent as update_plan with the native plan/step schema."""
+    from inspect_ai.model._openai_responses import (
+        openai_responses_tools,
+        should_swap_todo_write,
+        substitute_update_plan_tools,
+    )
+
+    todo = _todo_write_tool_info()
+    config = GenerateConfig()
+    wire = substitute_update_plan_tools([todo], should_swap_todo_write([todo], config))
+    params = openai_responses_tools(wire, "gpt-5", config)
+    names = [p["name"] for p in params if p.get("type") == "function"]
+    assert names == ["update_plan"]
+    update_plan_param = next(p for p in params if p["name"] == "update_plan")
+    props = update_plan_param["parameters"]["properties"]
+    assert "plan" in props and "todos" not in props
+    assert "step" in props["plan"]["items"]["properties"]
+
+
+def test_todo_write_does_not_force_responses_routing():
+    """Fix: todo_write must not count as a native tool (else it would force Responses API)."""
+    from inspect_ai.model._openai_responses import is_native_tool_configured
+
+    todo = _todo_write_tool_info()
+    assert is_native_tool_configured([todo], "gpt-5", GenerateConfig()) is False
+
+
+def test_update_plan_args_round_trip():
+    from inspect_ai.model._openai_responses import (
+        _update_plan_args_from_inspect,
+        _update_plan_args_to_inspect,
+    )
+
+    model_args = {
+        "plan": [
+            {"step": "first", "status": "completed"},
+            {"step": "second", "status": "in_progress"},
+        ],
+        "explanation": "because",
+    }
+    inspect_args = _update_plan_args_to_inspect(model_args)
+    assert inspect_args == {
+        "todos": [
+            {"content": "first", "status": "completed"},
+            {"content": "second", "status": "in_progress"},
+        ],
+        "explanation": "because",
+    }
+    # round trips back to update_plan shape
+    assert _update_plan_args_from_inspect(inspect_args) == model_args
+
+
+def test_update_plan_args_edge_cases():
+    from inspect_ai.model._openai_responses import (
+        _update_plan_args_from_inspect,
+        _update_plan_args_to_inspect,
+    )
+
+    # empty / missing list and absent explanation
+    assert _update_plan_args_to_inspect({"plan": []}) == {"todos": []}
+    assert _update_plan_args_to_inspect({}) == {"todos": []}
+    assert _update_plan_args_from_inspect({"todos": []}) == {"plan": []}
+    assert _update_plan_args_from_inspect({}) == {"plan": []}
+
+
+def test_update_plan_response_parsing():
+    """An update_plan tool call is parsed back to a todo_write ToolCall when present."""
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._openai_responses import _process_response_output_items
+
+    info = _todo_write_tool_info()
+    outputs = [
+        ResponseFunctionToolCall(
+            id="fc_1",
+            call_id="call_1",
+            name="update_plan",
+            arguments=json.dumps(
+                {"plan": [{"step": "do it", "status": "pending"}], "explanation": "go"}
+            ),
+            type="function_call",
+        )
+    ]
+    _, tool_calls, _, has_tool_calls = _process_response_output_items(outputs, [info])
+    assert has_tool_calls
+    assert len(tool_calls) == 1
+    assert tool_calls[0].function == "todo_write"
+    assert tool_calls[0].arguments == {
+        "todos": [{"content": "do it", "status": "pending"}],
+        "explanation": "go",
+    }
+
+
+def test_update_plan_response_parsing_untouched_without_todo_write():
+    """update_plan is left alone if no todo_write tool is present (user's own tool)."""
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._openai_responses import _process_response_output_items
+    from inspect_ai.tool._tool_info import ToolInfo, ToolParams
+
+    other = ToolInfo(name="update_plan", description="x", parameters=ToolParams())
+    outputs = [
+        ResponseFunctionToolCall(
+            id="fc_2",
+            call_id="call_2",
+            name="update_plan",
+            arguments=json.dumps({"plan": []}),
+            type="function_call",
+        )
+    ]
+    _, tool_calls, _, _ = _process_response_output_items(outputs, [other])
+    assert tool_calls[0].function == "update_plan"
+
+
+def test_update_plan_response_parsing_collision_routes_to_real_tool():
+    """With both tools present, an update_plan call routes to the real update_plan."""
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._openai_responses import _process_response_output_items
+
+    tools = [_todo_write_tool_info(), _update_plan_tool_info()]
+    outputs = [
+        ResponseFunctionToolCall(
+            id="fc_3",
+            call_id="call_3",
+            name="update_plan",
+            arguments=json.dumps({"plan": [{"step": "x", "status": "pending"}]}),
+            type="function_call",
+        )
+    ]
+    _, tool_calls, _, _ = _process_response_output_items(outputs, tools)
+    assert tool_calls[0].function == "update_plan"
+    # not remapped to todo_write's field names
+    assert "plan" in tool_calls[0].arguments
+
+
+def test_update_plan_response_parsing_malformed_args_reports_error():
+    """Fix: malformed update_plan args surface a parse error, not a silent empty plan."""
+    from openai.types.responses import ResponseFunctionToolCall
+
+    from inspect_ai.model._openai_responses import _process_response_output_items
+
+    info = _todo_write_tool_info()
+    outputs = [
+        ResponseFunctionToolCall(
+            id="fc_4",
+            call_id="call_4",
+            name="update_plan",
+            arguments='{"plan": [bad json',
+            type="function_call",
+        )
+    ]
+    _, tool_calls, _, _ = _process_response_output_items(outputs, [info])
+    assert tool_calls[0].function == "todo_write"
+    assert tool_calls[0].parse_error is not None
+    assert tool_calls[0].arguments == {}
+
+
+def _todo_write_assistant_message(call_id: str):
+    from inspect_ai.tool._tool_call import ToolCall
+
+    return ChatMessageAssistant(
+        content="",
+        tool_calls=[
+            ToolCall(
+                id=call_id,
+                function="todo_write",
+                arguments={
+                    "todos": [{"content": "do it", "status": "pending"}],
+                    "explanation": "go",
+                },
+                type="function",
+            )
+        ],
+        model="test",
+        source="generate",
+    )
+
+
+def test_update_plan_replay_reconstruction():
+    """When swapping, a todo_write call replays as an update_plan function_call."""
+    from inspect_ai.model._openai_responses import (
+        _openai_input_items_from_chat_message_assistant,
+    )
+
+    message = _todo_write_assistant_message("call_replay_swap")
+    items = _openai_input_items_from_chat_message_assistant(
+        message, swap_todo_write=True
+    )
+    calls = [item for item in items if item.get("type") == "function_call"]
+    assert len(calls) == 1
+    assert calls[0]["name"] == "update_plan"
+    assert json.loads(calls[0]["arguments"]) == {
+        "plan": [{"step": "do it", "status": "pending"}],
+        "explanation": "go",
+    }
+
+
+def test_update_plan_replay_opt_out_keeps_todo_write():
+    """Fix: with the swap off, replay keeps todo_write (no update_plan leaks in)."""
+    from inspect_ai.model._openai_responses import (
+        _openai_input_items_from_chat_message_assistant,
+    )
+
+    message = _todo_write_assistant_message("call_replay_optout")
+    # default swap_todo_write=False
+    items = _openai_input_items_from_chat_message_assistant(message)
+    calls = [item for item in items if item.get("type") == "function_call"]
+    assert len(calls) == 1
+    assert calls[0]["name"] == "todo_write"
+    assert "todos" in json.loads(calls[0]["arguments"])
+
+
+def test_tool_choice_maps_forced_todo_write():
+    """Forced tool_choice tracks the wire name: update_plan when swapped, else todo_write."""
+    from inspect_ai.model._openai_responses import (
+        openai_responses_tool_choice,
+        openai_responses_tools,
+        should_swap_todo_write,
+        substitute_update_plan_tools,
+    )
+    from inspect_ai.tool import ToolFunction
+
+    todo = _todo_write_tool_info()
+
+    # swap active -> forced todo_write is sent as update_plan
+    config = GenerateConfig()
+    wire = substitute_update_plan_tools([todo], should_swap_todo_write([todo], config))
+    params = openai_responses_tools(wire, "gpt-5", config)
+    tc = openai_responses_tool_choice(ToolFunction(name="todo_write"), params)
+    assert tc["type"] == "function" and tc["name"] == "update_plan"
+
+    # opt-out -> forced todo_write stays todo_write
+    config = GenerateConfig(internal_tools=False)
+    wire = substitute_update_plan_tools([todo], should_swap_todo_write([todo], config))
+    params = openai_responses_tools(wire, "gpt-5", config)
+    tc = openai_responses_tool_choice(ToolFunction(name="todo_write"), params)
+    assert tc["name"] == "todo_write"
+
+
+@skip_if_no_openai
+def test_update_plan_live_round_trip():
+    """Live: the tool is sent to OpenAI as update_plan and the call maps back to todo_write.
+
+    Inspects the outbound ModelEvent.call.request to confirm the wire tool name/schema,
+    then the returned call to confirm the reverse mapping. Forcing tool_choice also
+    exercises the tool_choice name mapping end-to-end.
+    """
+    from inspect_ai.event._model import ModelEvent
+    from inspect_ai.tool import ToolFunction
+    from inspect_ai.tool._tools._todo_write import todo_write
+
+    log = eval(
+        Task(
+            dataset=[
+                Sample(
+                    input=(
+                        "Use your planning tool to lay out the steps for building a "
+                        "small command-line todo application."
+                    )
+                )
+            ],
+            solver=[
+                use_tools(todo_write(), tool_choice=ToolFunction(name="todo_write")),
+                # "none" => single generation, no forced-tool loop
+                generate(tool_calls="none"),
+            ],
+        ),
+        model=get_responses_model(),
+    )[0]
+    assert log.status == "success"
+    assert log.samples
+
+    model_event = next(e for e in log.samples[0].events if isinstance(e, ModelEvent))
+
+    # the raw tool definition sent to OpenAI is named update_plan (not todo_write)
+    request_tools = model_event.call.request["tools"]
+    tool_names = [tool["name"] for tool in request_tools]
+    assert "update_plan" in tool_names
+    assert "todo_write" not in tool_names
+    update_plan_tool = next(t for t in request_tools if t["name"] == "update_plan")
+    assert "plan" in update_plan_tool["parameters"]["properties"]
+    assert (
+        "step"
+        in update_plan_tool["parameters"]["properties"]["plan"]["items"]["properties"]
+    )
+
+    # the returned tool call is mapped back to todo_write with inspect's field names
+    tool_calls = model_event.output.message.tool_calls or []
+    todo_call = next((c for c in tool_calls if c.function == "todo_write"), None)
+    assert todo_call is not None, "expected a todo_write tool call"
+    todos = todo_call.arguments.get("todos")
+    assert isinstance(todos, list) and len(todos) > 0
+    assert "content" in todos[0]
+    assert "status" in todos[0]
+
+
+def test_tool_call_replay_drops_empty_text_after_reasoning():
+    """Empty text after smuggled reasoning should not replay as an output message."""
+    from inspect_ai.tool._tool_call import ToolCall
+
+    message = ChatMessageAssistant(
+        content=[
+            ContentReasoning(
+                reasoning="encrypted reasoning",
+                redacted=True,
+                signature="rs_123",
+            ),
+            ContentText(text=""),
+        ],
+        tool_calls=[
+            ToolCall(
+                id="call_123",
+                function="submit",
+                arguments={"answer": "42"},
+                type="function",
+            )
+        ],
+        model="test",
+        source="generate",
+    )
+
+    items = _openai_input_items_from_chat_message_assistant(
+        message, ModelInfo(), synthesize_phase=True
+    )
+
+    assert [item.get("type") for item in items] == ["reasoning", "function_call"]
+    assert items[0]["encrypted_content"] == "encrypted reasoning"
+    assert items[1]["call_id"] == "call_123"

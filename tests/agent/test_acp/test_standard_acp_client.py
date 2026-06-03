@@ -254,6 +254,11 @@ def _assert_no_inspect_meta(payload: Any, *, path: str = "$") -> None:
                     "inspect.message_id",
                     "inspect.message_role",
                     "inspect.user_source",
+                    # Binding-confirmation interactivity flag. A generic
+                    # client reads the "Observing" / "Bound to" text body
+                    # instead; the flag just lets Inspect-aware clients
+                    # gate their composer without parsing prose.
+                    "inspect.interactive",
                 }:
                     continue
                 pytest.fail(

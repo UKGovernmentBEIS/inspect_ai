@@ -12,6 +12,7 @@ from openai.types.responses import (
     ResponseCustomToolCall,
     ResponseFunctionCallOutputItemListParam,
     ResponseFunctionToolCall,
+    ResponseFunctionToolCallParam,
     ResponseFunctionWebSearch,
     ResponseFunctionWebSearchParam,
     ResponseInputContentParam,
@@ -24,6 +25,7 @@ from openai.types.responses import (
     ResponseOutputMessage,
     ResponseOutputRefusal,
     ResponseOutputText,
+    ResponseToolSearchCall,
     ToolParam,
     WebSearchToolParam,
 )
@@ -51,6 +53,7 @@ from openai.types.responses.response_input_item_param import (
 )
 from openai.types.responses.response_input_item_param import (
     Message,
+    ToolSearchCall,
 )
 from openai.types.responses.response_output_item import (
     McpCall,
@@ -92,6 +95,9 @@ from inspect_ai.model._internal import (
 from inspect_ai.model._model import ModelName
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
+    TOOL_SEARCH_NAME,
+    TOOL_SEARCH_OPTIONS_MARKER,
+    assistant_internal,
     code_interpreter_to_tool_use,
     content_from_response_input_content_param,
     is_assistant_message_param,
@@ -115,10 +121,13 @@ from inspect_ai.model._openai_responses import (
     is_response_output_refusal,
     is_response_output_text,
     is_response_reasoning_item,
+    is_response_tool_search_call,
     is_response_web_search_call,
     is_simple_assistant_message,
     is_tool_choice_function_param,
     is_tool_choice_mcp_param,
+    is_tool_search_output,
+    is_tool_search_tool_param,
     is_web_search_tool_param,
     mcp_call_to_tool_use,
     mcp_list_tools_to_tool_use,
@@ -127,6 +136,7 @@ from inspect_ai.model._openai_responses import (
     responses_extra_body_fields,
     responses_model_usage,
     to_inspect_citation,
+    tool_call_from_openai_tool_search_call,
     tool_use_to_code_interpreter_param,
     tool_use_to_mcp_call_param,
     tool_use_to_mcp_list_tools_param,
@@ -203,12 +213,11 @@ async def inspect_responses_api_request_impl(
     for tool in responses_tools:
         if not is_openai and tool["type"] == "custom":
             continue
+        # tool_search passthrough is OpenAI-Responses-only; drop for other targets
+        if not is_openai and is_tool_search_tool_param(tool):
+            continue
         if is_namespace_tool_param(tool):
-            ns_name = tool["name"]
-            for inner in tool.get("tools", []):
-                inner_name = cast(dict[str, Any], inner).get("name")
-                if isinstance(inner_name, str):
-                    tool_namespaces[inner_name] = ns_name
+            _harvest_tool_namespaces(tool, tool_namespaces)
         tools.extend(tools_from_responses_tool(tool, web_search, code_execution))
     tools = [tool for tool in tools if tool]
     responses_tool_choice: ResponsesToolChoiceParam | None = json_data.get(
@@ -216,8 +225,19 @@ async def inspect_responses_api_request_impl(
     )
     tool_choice = tool_choice_from_responses_tool_choice(responses_tool_choice)
 
-    # convert to inspect messages
-    input: list[ResponseInputItemParam] = json_data["input"]
+    # convert to inspect messages (input may be a plain string or a list of items)
+    input: str | list[ResponseInputItemParam] = json_data["input"]
+
+    # deferred namespace tools (e.g. codex multi_agent) are not declared in the
+    # top-level `tools` array; they are discovered via tool_search and appear as
+    # namespace entries inside tool_search_output items in the conversation.
+    # Harvest those too so outgoing function calls carry the right `namespace`.
+    if isinstance(input, list):
+        for item in input:
+            if isinstance(item, dict) and is_tool_search_output(item):
+                for discovered in item.get("tools", []) or []:
+                    if is_namespace_tool_param(discovered):
+                        _harvest_tool_namespaces(discovered, tool_namespaces)
 
     debug_log("SCAFFOLD INPUT", input)
 
@@ -267,6 +287,64 @@ async def inspect_responses_api_request_impl(
     debug_log("SCAFFOLD RESPONSE", response)
 
     return response
+
+
+def _harvest_tool_namespaces(
+    namespace_tool: Any, tool_namespaces: dict[str, str]
+) -> None:
+    """Map each inner tool name to its namespace (codex dispatches by (namespace, name))."""
+    ns_name = namespace_tool.get("name")
+    if not isinstance(ns_name, str):
+        return
+    for inner in namespace_tool.get("tools", []) or []:
+        inner_name = cast(dict[str, Any], inner).get("name")
+        if isinstance(inner_name, str):
+            tool_namespaces[inner_name] = ns_name
+
+
+def _seed_function_call_namespace(param: ResponseFunctionToolCallParam) -> None:
+    """Cache an inbound namespaced function call for verbatim replay to the real model.
+
+    Only seeds when the call carries a `namespace` and isn't already cached
+    (in-sample generations are cached by the provider with richer detail, so we
+    never clobber those).
+    """
+    namespace = param.get("namespace")
+    if not namespace:
+        return
+    call_id = param["call_id"]
+    cache = assistant_internal().tool_calls
+    if call_id in cache:
+        return
+    cache[call_id] = ResponseFunctionToolCallParam(
+        type="function_call",
+        call_id=call_id,
+        name=param["name"],
+        arguments=param["arguments"],
+        namespace=namespace,
+    )
+
+
+def _seed_tool_search_call(call_id: str, arguments: dict[str, Any]) -> None:
+    """Cache an inbound tool_search call so cross-process replay stays native.
+
+    Within a sample the provider already caches the parsed call; seeding only
+    matters when replaying scaffold-provided history in a fresh process (e.g.
+    codex --resume), so the result replays as a native tool_search_output rather
+    than a function_call_output. The `call_id in cache` guard ensures we never
+    clobber a richer in-sample entry.
+    """
+    cache = assistant_internal().tool_calls
+    if call_id in cache:
+        return
+    cache[call_id] = ToolSearchCall(
+        type="tool_search_call",
+        id=call_id,
+        call_id=call_id,
+        arguments=arguments,
+        execution="client",
+        status="completed",
+    )
 
 
 def debug_log(caption: str, o: Any) -> None:
@@ -327,7 +405,7 @@ def tool_from_responses_tool(
     tool_param: ToolParam,
     web_search_providers: WebSearchProviders,
     code_execution_providers: CodeExecutionProviders,
-) -> ToolInfo | Tool:
+) -> ToolInfo | Tool | None:
     if is_function_tool_param(tool_param):
         return ToolInfo(
             name=tool_param["name"],
@@ -374,8 +452,29 @@ def tool_from_responses_tool(
             description=f"mcp_server_{config.name}",
             options=config.model_dump(),
         )
+    elif is_tool_search_tool_param(tool_param):
+        # client-resolved tool discovery (e.g. codex-cli). Preserve the native
+        # tool fields in options so the OpenAI Responses provider can re-emit the
+        # ToolSearchToolParam verbatim; the scaffold resolves the calls locally.
+        return ToolInfo(
+            name=TOOL_SEARCH_NAME,
+            description=tool_param.get("description") or TOOL_SEARCH_NAME,
+            options={
+                TOOL_SEARCH_OPTIONS_MARKER: True,
+                "description": tool_param.get("description"),
+                "execution": tool_param.get("execution"),
+                "parameters": tool_param.get("parameters"),
+            },
+        )
     else:
-        raise RuntimeError(f"ToolParam of type {tool_param.get('type')} not supported.")
+        # Unsupported tool type: skip it rather than failing the entire request
+        # so the model can still run with the tools we do support.
+        warn_once(
+            logger,
+            f"ToolParam of type '{tool_param.get('type')}' not supported by the "
+            "agent bridge; ignoring this tool.",
+        )
+        return None
 
 
 def tools_from_responses_tool(
@@ -396,17 +495,16 @@ def tools_from_responses_tool(
         flattened: list[ToolInfo | Tool] = []
         for inner in tool_param.get("tools", []):
             inner_param = cast(ToolParam, inner)
-            flattened.append(
-                tool_from_responses_tool(
-                    inner_param, web_search_providers, code_execution_providers
-                )
+            inner_tool = tool_from_responses_tool(
+                inner_param, web_search_providers, code_execution_providers
             )
+            if inner_tool is not None:
+                flattened.append(inner_tool)
         return flattened
-    return [
-        tool_from_responses_tool(
-            tool_param, web_search_providers, code_execution_providers
-        )
-    ]
+    tool = tool_from_responses_tool(
+        tool_param, web_search_providers, code_execution_providers
+    )
+    return [tool] if tool is not None else []
 
 
 def resolve_code_interpreter_providers(
@@ -550,7 +648,8 @@ def messages_from_responses_input(
             | ResponseComputerToolCallParam
             | ResponseCodeInterpreterToolCallParam
             | McpListToolsParam
-            | McpCallParam,
+            | McpCallParam
+            | ToolSearchCall,
             prefix: str = "id",
         ) -> None:
             if "id" not in param:
@@ -663,6 +762,14 @@ def messages_from_responses_input(
 
                 elif is_response_function_tool_call(param):
                     function_calls_by_id[param["call_id"]] = param["name"]
+                    # Preserve the call's `namespace` for verbatim replay to the
+                    # real model. The provider replays from assistant_internal
+                    # (keyed by call_id) but only caches calls it generated this
+                    # sample; externally-sourced history (e.g. codex --resume on
+                    # checkpoint restore) arrives with an empty cache, so the
+                    # namespace would otherwise be dropped. Seed the cache here
+                    # when missing so the existing warm-path replay carries it.
+                    _seed_function_call_namespace(param)
                     tool_calls.append(
                         parse_tool_call(
                             id=param["call_id"],
@@ -686,6 +793,16 @@ def messages_from_responses_input(
                     tool_calls.append(
                         tool_call_from_openai_computer_tool_call(computer_call)
                     )
+                elif is_response_tool_search_call(param):
+                    ensure_id(param, "ts")
+                    tool_search_call = ResponseToolSearchCall.model_validate(param)
+                    tool_call = tool_call_from_openai_tool_search_call(tool_search_call)
+                    # record so the following tool_search_output recovers the name
+                    function_calls_by_id[tool_call.id] = TOOL_SEARCH_NAME
+                    # seed the provider cache so replay (incl. fresh-process
+                    # resume) emits native tool_search items, not function calls
+                    _seed_tool_search_call(tool_call.id, tool_call.arguments)
+                    tool_calls.append(tool_call)
 
                 elif is_response_reasoning_item(param):
                     content.append(reasoning_from_responses_reasoning(param))
@@ -788,6 +905,17 @@ def messages_from_responses_input(
                     tool_call_id=item["call_id"],
                     function=function_calls_by_id.get(item["call_id"]),
                     content=[ContentImage(image=item["output"]["image_url"])],
+                )
+            )
+        elif is_tool_search_output(item):
+            # client-resolved tool discovery result: carry the discovered tools
+            # as JSON in the tool message content (replayed natively by the
+            # OpenAI Responses provider as a tool_search_output item)
+            messages.append(
+                ChatMessageTool(
+                    tool_call_id=item.get("call_id"),
+                    function=TOOL_SEARCH_NAME,
+                    content=to_json_str_safe(item.get("tools", [])),
                 )
             )
         else:
@@ -955,6 +1083,18 @@ def responses_output_items_from_assistant_message(
                     actions=tool_call_arguments_to_actions(tool_call.arguments),
                     call_id=tool_call.id,
                     pending_safety_checks=[],
+                    status="completed",
+                )
+            )
+        elif tool_call.function == TOOL_SEARCH_NAME:
+            # client-resolved tool discovery: hand the call back to the scaffold
+            output.append(
+                ResponseToolSearchCall(
+                    type="tool_search_call",
+                    id=uuid(),
+                    call_id=tool_call.id,
+                    arguments=tool_call.arguments,
+                    execution="client",
                     status="completed",
                 )
             )

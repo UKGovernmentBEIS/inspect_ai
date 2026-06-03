@@ -1,5 +1,4 @@
 import logging
-import os
 from importlib import metadata as importlib_metadata
 from typing import TYPE_CHECKING, Any, cast
 
@@ -248,9 +247,7 @@ class TaskLogger:
         self._bump_created_past_existing_logs()
         self._location = await self.recorder.log_init(self.eval)
 
-        if self.eval.config.log_realtime is False or os.environ.get(
-            "PYTEST_CURRENT_TEST"
-        ):
+        if self.eval.config.log_realtime is False:
             return
 
         self._buffer_db = SampleBufferDatabase(

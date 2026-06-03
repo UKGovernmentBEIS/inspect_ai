@@ -351,25 +351,30 @@ class SampleInfo(Vertical):
         yield SampleVNC()
 
     def on_mount(self) -> None:
-        # Interrupt button only shows when the sample has a live ACP session.
+        # Interrupt button only shows when the sample has a live, bound agent
+        # loop (``is_interactive``) — see the note in ``sync_sample``.
         self.query_one("#interrupt-sample", Button).display = False
 
     async def sync_sample(self, sample: ActiveSample | None) -> None:
-        # Interrupt button visibility tracks the sample's ACP session and
-        # has to be re-evaluated even when the sample identity hasn't
-        # changed (a sample can gain/lose its live session over time).
-        # Also hide it while the toolbar is in prompt mode so a repeat
-        # click can't fire a duplicate cancel_current_turn (which would
-        # record a redundant InterruptEvent) before the operator submits.
+        # Interrupt button visibility tracks whether the sample's ACP session
+        # has a bound, live agent loop (``is_interactive``) and has to be
+        # re-evaluated even when the sample identity hasn't changed (a sample
+        # becomes interactive when its react loop binds and loses it once the
+        # agent completes / scoring begins). Note that a Live session is opened
+        # for *every* sample regardless of agent kind, so ``acp_transport`` and
+        # ``session_id`` are not sufficient on their own — a plain solver task
+        # has a session but never binds a channel, so ``is_interactive`` is
+        # False and the button stays hidden. Also hide it while the toolbar is
+        # in prompt mode so a repeat click can't fire a duplicate
+        # cancel_current_turn (which would record a redundant InterruptEvent)
+        # before the operator submits.
         interrupt_btn = self.query_one("#interrupt-sample", Button)
         acp = sample.acp_transport if sample is not None else None
         try:
             in_prompt = self.app.query_one(SampleToolbar).in_prompt_mode
         except NoMatches:
             in_prompt = False
-        interrupt_btn.display = (
-            acp is not None and acp.session_id != "noop" and not in_prompt
-        )
+        interrupt_btn.display = acp is not None and acp.is_interactive and not in_prompt
 
         if sample is None:
             self.display = False
@@ -431,7 +436,7 @@ class SampleInfo(Vertical):
         if sample is None:
             return
         acp = sample.acp_transport
-        if acp is None or acp.session_id == "noop":
+        if acp is None or not acp.is_interactive:
             return
         # Hide the button immediately so a fast double-click can't fire
         # cancel_current_turn() twice before sync_sample re-evaluates
