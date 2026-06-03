@@ -225,13 +225,26 @@ class ControlServer:
                 try:
                     await asyncio.wait_for(self._serve_task, timeout=5.0)
                 except asyncio.TimeoutError:
+                    # Didn't drain within the grace period — force-cancel and reap.
                     self._serve_task.cancel()
                     try:
                         await self._serve_task
-                    except (asyncio.CancelledError, Exception):
-                        pass
+                    except asyncio.CancelledError:
+                        pass  # expected: we just cancelled it
+                    except Exception:
+                        logger.warning(
+                            "Control server task raised while being cancelled "
+                            "during shutdown",
+                            exc_info=True,
+                        )
                 except (asyncio.CancelledError, Exception):
-                    pass
+                    # serve() failed (or was cancelled) instead of draining
+                    # cleanly. Best-effort teardown: log and fall through to the
+                    # discovery/socket cleanup in `finally` rather than masking
+                    # it silently.
+                    logger.warning(
+                        "Control server did not shut down cleanly", exc_info=True
+                    )
         finally:
             if self._discovery_path is not None:
                 try:

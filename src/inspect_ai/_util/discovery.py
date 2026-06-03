@@ -14,6 +14,7 @@ subsystem only needs to provide its directory and its own schema.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -78,17 +79,41 @@ def prepare_discovery_dir(
 
 
 def write_discovery_file(dir_path: Path, pid: int, payload: dict[str, Any]) -> Path:
-    """Write ``<dir_path>/<pid>.json`` with 0600 permissions.
+    """Write ``<dir_path>/<pid>.json`` owner-only (0600), atomically.
 
-    Caller is responsible for the payload schema. Returns the path of
-    the file written.
+    Two guarantees:
+
+    - **Owner-only by construction.** The file is created via ``os.open`` with
+      mode ``0600`` rather than written and then ``chmod``-ed, so it is never
+      — even momentarily — more permissive than owner-only. The payload
+      carries the socket path + PID; a separate ``chmod`` that could fail
+      (and, if swallowed, silently leave the file readable) would defeat the
+      point of locking it down. ``os.open`` caps the mode by the umask, so the
+      file can only ever be *less* permissive, never more.
+    - **Atomic publish.** Written to a same-PID temp in ``dir_path`` (so the
+      ``replace`` is a same-filesystem rename) and renamed over the final
+      path, so a concurrent enumerator (``inspect ctl ls``) sees the complete
+      file or no file — never a torn / partial-JSON read.
+
+    Caller is responsible for the payload schema. Returns the path written.
     """
     path = dir_path / f"{pid}.json"
-    path.write_text(json.dumps(payload))
-    try:
-        path.chmod(DISCOVERY_FILE_MODE)
-    except OSError:
-        pass
+    tmp = dir_path / f".{pid}.json.tmp"
+
+    # Create owner-only at open() time (via the opener) rather than chmod-ing
+    # afterwards, so the file — which carries the socket path + PID — is never,
+    # even momentarily, more permissive than 0600. umask can only make it less.
+    def _owner_only(file: str, flags: int) -> int:
+        return os.open(file, flags, DISCOVERY_FILE_MODE)
+
+    # Remove any leftover temp first: the opener's mode only applies to a
+    # freshly created file, so opening a straggler (e.g. left by an earlier
+    # crash) would inherit its mode, not 0600. The dir is 0700 and the temp is
+    # PID-keyed, so there is no concurrent writer to race here.
+    tmp.unlink(missing_ok=True)
+    with open(tmp, "w", encoding="utf-8", opener=_owner_only) as f:
+        json.dump(payload, f)
+    tmp.replace(path)
     return path
 
 
