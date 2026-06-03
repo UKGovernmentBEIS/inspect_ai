@@ -383,6 +383,8 @@ Now, anyone that has installed your package can run the task as follows:
 inspect eval evals/mytask
 ```
 
+The same packaging mechanism works for solvers, scorers, and tools. See [Components](extensions-components.qmd) for how to distribute and reference each component type.
+
 ## Hugging Face
 
 Datasets hosted on Hugging Face Hub can include an `eval.yaml` file that provides Inspect task definitions. For example, the [OpenEvals/aime_24](https://huggingface.co/datasets/OpenEvals/aime_24) dataset can be evaluated with:
