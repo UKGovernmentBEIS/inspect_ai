@@ -2509,3 +2509,125 @@ def test_ctl_sample_addresses_ids_with_reserved_chars(short_data_dir: Path) -> N
         err = result_ref.get("error")
         if err is not None:
             raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_eval_finishes_when_samples_early_stopped(short_data_dir: Path) -> None:
+    """Early-stopped samples count toward the eval's terminal total.
+
+    An early-stopping manager halts some samples (``schedule_sample`` returns
+    an ``EarlyStop`` before they run). Those samples never hit the normal
+    completed/errored path, so without counting them the eval's
+    ``completed + errored`` never reaches ``total`` and ``/evals`` reports the
+    finished task as ``running`` forever. ``hang_task`` keeps the eval-set
+    (and control server) alive so we can observe ``early`` settle.
+    """
+    from inspect_ai.util._early_stopping import EarlyStop
+
+    release = threading.Event()
+
+    class StopEvenIds:
+        async def start_task(self, task, samples, epochs):  # type: ignore[no-untyped-def]
+            return "stop-even-ids"
+
+        async def schedule_sample(self, id, epoch):  # type: ignore[no-untyped-def]
+            if int(id) % 2 == 0:
+                return EarlyStop(id=id, epoch=epoch, reason="test")
+            return None
+
+        async def complete_sample(self, id, epoch, scores):  # type: ignore[no-untyped-def]
+            return None
+
+        async def complete_task(self):  # type: ignore[no-untyped-def]
+            return {}
+
+    @solver
+    def passthrough() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            return state
+
+        return solve
+
+    @solver
+    def hang() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            while not release.is_set():
+                await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def early() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2, 3, 4)],
+            solver=[passthrough()],
+            early_stopping=StopEvenIds(),
+            name="early",
+        )
+
+    @task
+    def hang_task() -> Task:
+        return Task(
+            dataset=[Sample(id="h", input="x", target="y")],
+            solver=[hang()],
+            name="hang_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[early(), hang_task()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                max_tasks=2,
+                max_samples=5,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_early_stop")
+    thread.start()
+
+    def _early() -> dict[str, object] | None:
+        servers = list_discovered_servers()
+        if not servers:
+            return None
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+        except (httpx.HTTPError, OSError):
+            return None
+        return next((e for e in evals if e.get("task") == "early"), None)
+
+    try:
+        # With the bug, `early` is stuck "running" (2 early-stopped samples
+        # uncounted), so this times out; with the fix it settles "completed".
+        ready = _wait_until(
+            lambda: (_early() or {}).get("status") == "completed", timeout=20.0
+        )
+        assert ready, f"early task never marked completed; eval={_early()}"
+
+        early_eval = _early()
+        assert early_eval is not None
+        samples = early_eval["samples"]
+        # 2 ran to completion + 2 early-stopped, all terminal -> total reached
+        assert samples["completed"] == 4
+        assert samples["in_flight"] == 0
+        assert samples["queued"] == 0
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]

@@ -1096,6 +1096,9 @@ async def task_run_sample(
                     state.sample_id, state.epoch
                 )
                 if early_stop is not None:
+                    # count the halt as terminal (not an error) so the eval can
+                    # reach `total` and be marked finished
+                    record_sample_completed(task_id)
                     return early_stop
 
             start_time: float | None = None
