@@ -14,7 +14,7 @@ channel coming up. See ``design/control-channel.md`` "Implementation
 notes" for the lifecycle / flag policy.
 
 MVP scope: a single ``GET /evals`` read-only endpoint sufficient for
-``inspect ctl ls`` plus a ``POST /shutdown`` route for keep-alive
+``inspect ctl ls`` plus a ``POST /release`` route for keep-alive
 release. Directives, sample-level endpoints, and event subscription
 land in subsequent phases.
 """
@@ -67,7 +67,7 @@ class ControlServer:
         self._sock: Any = None
         self._uvicorn_server: Any = None
         self._serve_task: asyncio.Task[None] | None = None
-        # Set by the ``POST /shutdown`` route and awaited by the
+        # Set by the ``POST /release`` route and awaited by the
         # keep-alive park — both on this eval's loop, so a loop-native
         # ``anyio.Event`` can be awaited directly.
         self._shutdown_event = anyio.Event()
@@ -78,7 +78,7 @@ class ControlServer:
 
     @property
     def shutdown_event(self) -> anyio.Event:
-        """Set when ``POST /shutdown`` is received.
+        """Set when ``POST /release`` is received.
 
         Keep-alive callers await this event to know when the operator
         wants the process to exit.
@@ -134,8 +134,12 @@ class ControlServer:
                 )
             return detail
 
-        @app.post("/shutdown")
-        async def shutdown() -> dict[str, bool]:
+        # Releases a --keep-alive park (sets the shutdown event the park
+        # awaits); the process then exits. Named "release" rather than
+        # "shutdown" because it does NOT cancel a running eval — that's a
+        # later-phase directive.
+        @app.post("/release")
+        async def release() -> dict[str, bool]:
             shutdown_event.set()
             return {"ok": True}
 
@@ -317,7 +321,7 @@ async def control_server(
 
 
 async def wait_for_shutdown_async(server: ControlServer | None) -> None:
-    """Block until the server receives ``POST /shutdown``.
+    """Block until the server receives ``POST /release``.
 
     No-ops when ``server`` is ``None`` (bind failed; the eval ran
     without a control surface — nothing to wait on).

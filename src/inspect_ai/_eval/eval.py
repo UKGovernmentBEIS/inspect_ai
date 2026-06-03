@@ -180,7 +180,7 @@ def eval(
             UNIX socket path; `None` (default) does not start an ACP server.
         keep_alive: Keep the process running after the eval finishes so
             external clients can still query the control endpoint. Exit
-            via `inspect ctl shutdown` (or `POST /shutdown`). Defaults
+            via `inspect ctl release` (or `POST /release`). Defaults
             to `False`.
         solver: Alternative solver for task(s).
             Optional (uses task solver by default).
@@ -448,7 +448,7 @@ async def eval_async(
             UNIX socket path; `None` (default) does not start an ACP server.
         keep_alive: Keep the process running after the eval finishes so
             external clients can still query the control endpoint. Exit
-            via `inspect ctl shutdown` (or `POST /shutdown`). Defaults
+            via `inspect ctl release` (or `POST /release`). Defaults
             to `False`.
         solver: Alternative solver for task(s).  Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the sample completes.
@@ -972,7 +972,7 @@ async def _eval_async_inner(
 
                 rich.get_console().print(
                     "Eval finished. Keeping process alive — press Ctrl+C "
-                    "or run `inspect ctl shutdown` to release.",
+                    "or run `inspect ctl release` to let it exit.",
                     markup=False,
                     highlight=False,
                 )
@@ -1093,7 +1093,7 @@ def eval_retry(
         score_display: Show scoring metrics in realtime (defaults to True)
         keep_alive: Keep the process running after the eval finishes so
             external clients can still query the control endpoint. Exit
-            via `inspect ctl shutdown` (or `POST /shutdown`). Defaults
+            via `inspect ctl release` (or `POST /release`). Defaults
             to `False`.
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP
@@ -1269,7 +1269,7 @@ async def eval_retry_async(
         score_display: Show scoring metrics in realtime (defaults to True)
         keep_alive: Keep the process running after the eval finishes so
             external clients can still query the control endpoint. Exit
-            via `inspect ctl shutdown` (or `POST /shutdown`). Defaults
+            via `inspect ctl release` (or `POST /release`). Defaults
             to `False`.
         acp_server: Override the original eval's ACP server transport on retry.
             `True` enables a default AF_UNIX socket; an integer binds a TCP

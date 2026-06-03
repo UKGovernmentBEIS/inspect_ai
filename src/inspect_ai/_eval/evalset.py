@@ -215,7 +215,7 @@ def eval_set(
         keep_alive: Keep the process running after the eval-set finishes
             so external clients (the `inspect ctl` CLI, scripted agents,
             TUIs) can still query state and read results. Exit via
-            `inspect ctl shutdown` (or `POST /shutdown`). Defaults to `False`.
+            `inspect ctl release` (or `POST /release`). Defaults to `False`.
         solver: Alternative solver(s) for
             evaluating task(s). Optional (uses task solver by default).
         scanner: Scanner(s) to apply to each sample's transcript after the
@@ -830,7 +830,7 @@ async def _keep_alive_park(eval_set_id: str) -> None:
     Runs on a fresh loop once ``eval()`` (and its task display) has exited
     and the summary has printed, so the notice + wait land in the console.
     Brings up a control server for the lingering window and blocks until
-    ``POST /shutdown``. EvalStates stay visible throughout (live ones
+    ``POST /release``. EvalStates stay visible throughout (live ones
     accumulated during the run, reused ones via
     :func:`_register_reused_logs`); ``eval_set`` clears them at the run
     boundary once this returns.
@@ -838,11 +838,11 @@ async def _keep_alive_park(eval_set_id: str) -> None:
     async with control_server(run_id=eval_set_id) as ctl_server:
         if ctl_server is None:
             # Bind failed: nothing to park on (can't be released via
-            # `inspect ctl shutdown`), so don't linger.
+            # `inspect ctl release`), so don't linger.
             return
         rich.get_console().print(
             "Eval-set finished. Keeping process alive — press Ctrl+C or run "
-            "`inspect ctl shutdown` to release.",
+            "`inspect ctl release` to let it exit.",
             markup=False,
             highlight=False,
         )

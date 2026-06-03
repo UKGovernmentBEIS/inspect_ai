@@ -5,8 +5,8 @@ Inspect eval (list, status, cancel, drain, requeue, events, ...). See
 ``design/control-channel.md`` for the design.
 
 Current scope: ``ls`` (enumerate live evals), ``samples`` (list a
-task's samples), and ``shutdown`` (release a ``--keep-alive``
-process). Each talks to the per-process control server's HTTP endpoints.
+task's samples), and ``release`` (let a ``--keep-alive`` process
+exit). Each talks to the per-process control server's HTTP endpoints.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def ctl_command() -> None:
 
     A process exits when its eval finishes; launch with ``inspect eval
     --keep-alive`` to keep it inspectable (and its results readable) here
-    until you run ``inspect ctl shutdown``.
+    until you run ``inspect ctl release``.
     """
     return None
 
@@ -216,22 +216,25 @@ def sample_command(
     _print_sample_detail(detail, show_traceback)
 
 
-@ctl_command.command("shutdown")
+@ctl_command.command("release")
 @click.option(
     "--pid",
     type=int,
     default=None,
     help=(
-        "PID of the inspect process to shut down. Required if more than one "
+        "PID of the inspect process to release. Required if more than one "
         "process is currently lingering."
     ),
 )
-def shutdown_command(pid: int | None) -> None:
-    """Release a lingering inspect process (started with --keep-alive).
+def release_command(pid: int | None) -> None:
+    """Release a lingering --keep-alive process so it can exit.
 
-    Posts to the process's control endpoint /shutdown route. The eval
-    has already completed; this just lets the process exit. No-op if
-    the process isn't actually parked (it'll exit on its own anyway).
+    Posts to the process's control endpoint /release route. The eval has
+    already completed; this just lets the parked process exit. No-op if the
+    process isn't actually parked (it'll exit on its own anyway).
+
+    Does NOT cancel a running eval — it has no effect on in-flight samples
+    (cancelling a running eval is a later-phase directive, not yet available).
     """
     servers = list_discovered_servers()
     if not servers:
@@ -260,13 +263,13 @@ def shutdown_command(pid: int | None) -> None:
         with httpx.Client(
             transport=transport, base_url="http://localhost", timeout=5.0
         ) as client:
-            response = client.post("/shutdown")
+            response = client.post("/release")
             response.raise_for_status()
     except (httpx.HTTPError, OSError) as exc:
-        click.echo(f"Failed to shut down pid {target.pid}: {exc}", err=True)
+        click.echo(f"Failed to release pid {target.pid}: {exc}", err=True)
         raise click.exceptions.Exit(code=1) from exc
 
-    click.echo(f"Shutdown requested for pid {target.pid}.")
+    click.echo(f"Release requested for pid {target.pid}.")
 
 
 def _fetch_summaries(

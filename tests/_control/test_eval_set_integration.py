@@ -511,7 +511,7 @@ def test_keep_alive_park_entered_with_completed_state(
 ) -> None:
     """``keep_alive=True`` enters the park, eval reported completed.
 
-    The park itself (block until ``POST /shutdown``) is unit-tested in
+    The park itself (block until ``POST /release``) is unit-tested in
     ``test_server.py`` via ``wait_for_shutdown_async``; here we pin the
     eval_set integration point — the park is reached, and at that moment the
     control surface shows the eval ``completed`` with a ``completed_at`` so an

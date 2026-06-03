@@ -436,7 +436,7 @@ def eval_options(func: Callable[..., Any]) -> Callable[..., click.Context]:
             "Keep the process running after the eval finishes so external "
             "clients (the `inspect ctl` CLI, scripted agents, TUIs) can still "
             "query its state and read results. The process exits when "
-            "`inspect ctl shutdown` is run (or POST /shutdown is sent to the "
+            "`inspect ctl release` is run (or POST /release is sent to the "
             "control endpoint). Without this flag the process exits as soon "
             "as the eval body returns, taking the control surface with it."
         ),
@@ -2168,7 +2168,7 @@ def parse_comma_separated(value: str | None) -> list[str] | None:
     help=(
         "Keep the process running after the retried eval finishes so "
         "external clients (the `inspect ctl` CLI, scripted agents) can "
-        "still query its state. Run `inspect ctl shutdown` to release."
+        "still query its state. Run `inspect ctl release` to release."
     ),
     envvar="INSPECT_EVAL_KEEP_ALIVE",
 )
