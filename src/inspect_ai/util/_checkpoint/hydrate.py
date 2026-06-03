@@ -816,7 +816,25 @@ def _validate_resume_state(
         return
 
     sample_dir = Path(local_path(sample_root))
-    checkpoint_files = sorted(p.name for p in sample_dir.glob("ckpt-*.json"))
+    checkpoint_ids: list[int] = []
+    for checkpoint_file in sample_dir.glob("ckpt-*.json"):
+        try:
+            filename_id = int(checkpoint_file.stem.removeprefix("ckpt-"))
+        except ValueError:
+            continue
+
+        raw = checkpoint_file.read_text()
+        try:
+            checkpoint = Checkpoint.model_validate_json(raw)
+        except ValueError:
+            continue
+        if checkpoint.checkpoint_id != filename_id:
+            raise RuntimeError(
+                f"[hydrate.validate] checkpoint file id mismatch for "
+                f"{checkpoint_file.name}: filename id {filename_id}, "
+                f"content id {checkpoint.checkpoint_id}"
+            )
+        checkpoint_ids.append(filename_id)
 
     # Walk events: collect checkpoint + prior_run span_begins,
     # CheckpointEvents, and all span_ends (span_end has no type attr —
@@ -833,10 +851,8 @@ def _validate_resume_state(
                 wrap_begins.append((i, e.name, e.id))
         elif isinstance(e, SpanEndEvent):
             end_by_id[e.id] = i
-        elif e.event == "checkpoint":
-            ckpt_id = getattr(e, "checkpoint_id", None)
-            if ckpt_id is not None:
-                checkpoint_events.append((i, ckpt_id))
+        elif isinstance(e, CheckpointEvent):
+            checkpoint_events.append((i, e.checkpoint_id))
 
     # --- assertions ---
     if not events:
@@ -909,10 +925,11 @@ def _validate_resume_state(
             f"{len(checkpoint_begins)}"
         )
 
-    if len(checkpoint_files) != len(checkpoint_begins):
+    expected_checkpoint_ids = list(range(1, expected_span_count + 1))
+    if expected_span_count > 0 and expected_span_count not in checkpoint_ids:
         raise RuntimeError(
-            f"[hydrate.validate] checkpoint file count ({len(checkpoint_files)}) != "
-            f"checkpoint span count ({len(checkpoint_begins)})"
+            f"[hydrate.validate] latest committed checkpoint file "
+            f"ckpt-{expected_span_count:05d}.json is missing or unparseable"
         )
 
     if expected_span_count != len(checkpoint_events):
@@ -922,12 +939,11 @@ def _validate_resume_state(
             f"hydrate-time), got {len(checkpoint_events)}"
         )
 
-    expected_event_ids = list(range(1, expected_span_count + 1))
     actual_event_ids = [ckpt_id for _, ckpt_id in checkpoint_events]
-    if actual_event_ids != expected_event_ids:
+    if actual_event_ids != expected_checkpoint_ids:
         raise RuntimeError(
             f"[hydrate.validate] CheckpointEvent checkpoint_id sequence "
-            f"mismatch. expected {expected_event_ids}, "
+            f"mismatch. expected {expected_checkpoint_ids}, "
             f"got {actual_event_ids}"
         )
 
