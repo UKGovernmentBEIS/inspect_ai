@@ -94,6 +94,10 @@ def list_files():
 
 The following instance methods are available to tools that need to interact with a `SandboxEnvironment`:
 
+{{< include _sandboxenv-exec.md >}}
+
+{{< include _sandboxenv-exec-remote.md >}}
+
 {{< include _sandboxenv-interface.md >}}
 
 See the documentation on [Sandbox Environments](sandboxing.qmd) for additional details.

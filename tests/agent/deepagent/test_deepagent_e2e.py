@@ -3,6 +3,7 @@
 from inspect_ai import Task, eval
 from inspect_ai.agent import deepagent, subagent
 from inspect_ai.dataset import Sample
+from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.model import ChatMessageSystem, ModelOutput, get_model
 from inspect_ai.scorer import includes
@@ -200,6 +201,82 @@ class TestSubmitIntegration:
             ],
         )
         assert result["status"] == "success"
+
+    def test_subagent_submit_retained_and_not_duplicated(self) -> None:
+        """Subagent submit() is kept in history and not duplicated into content.
+
+        Regression guard for keep_in_messages=True on subagent dispatch: with
+        the old stripping behavior react appends the answer to the submit-bearing
+        assistant message content (mutating the same message the ModelEvent
+        references), so the marker would leak into assistant content below.
+        """
+        marker = "SUBAGENT_FINDINGS_MARKER_42"
+        # Markdown answer (bold + bullets) so the viewer's markdown rendering of
+        # the retained submit can be exercised by eye in `inspect view`.
+        answer = (
+            f"## {marker}\n\n"
+            "Here are the **key findings**:\n\n"
+            "- **A** = 42 (below target)\n"
+            "- **B** = 17 (below target)\n"
+            "- **C** = 91 (healthy)\n\n"
+            "Recommend tuning *A* and *B*."
+        )
+        result = _eval_deepagent(
+            agent_kwargs={"submit": True},
+            outputs=[
+                # 1. Parent dispatches research
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="agent",
+                    tool_arguments={
+                        "subagent_type": "research",
+                        "prompt": "Find the answer.",
+                    },
+                ),
+                # 2. Research subagent submits (markdown answer carrying the marker)
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": answer},
+                ),
+                # 3. Parent submits its own (different) answer
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="submit",
+                    tool_arguments={"answer": "done"},
+                ),
+            ],
+        )
+        assert result["status"] == "success"
+        events = result["events"]
+
+        # The subagent's submit() call is retained as a ToolEvent.
+        submit_results = [
+            str(e.result)
+            for e in events
+            if isinstance(e, ToolEvent) and e.function == "submit"
+        ]
+        assert any(marker in r for r in submit_results), (
+            "subagent submit() was not retained in the transcript"
+        )
+
+        # The answer is not duplicated into any assistant message content.
+        for e in events:
+            if isinstance(e, ModelEvent) and e.output.choices:
+                content = str(e.output.choices[0].message.content)
+                assert marker not in content, (
+                    "submit answer leaked into assistant message content"
+                )
+
+        # The parent still receives the subagent's answer via the agent result.
+        agent_results = [
+            str(e.result)
+            for e in events
+            if isinstance(e, ToolEvent) and e.function == "agent"
+        ]
+        assert any(marker in r for r in agent_results), (
+            "parent did not receive the subagent's answer"
+        )
 
 
 class TestCustomSubagents:
