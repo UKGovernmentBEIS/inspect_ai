@@ -39,6 +39,7 @@ using the returned :class:`_HydrationResult`.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
@@ -79,13 +80,12 @@ from ._layout.staging_dir import (
     is_remote_destination,
     sandbox_repo_dir,
 )
-from ._logging import debug as _debug
-from ._logging import debug_enabled as _validation_enabled
 from ._sandbox_restic import ingress_sandbox, init_sandbox_repo, inject_restic
 from .checkpointer import ResumeCheckpoint
 from .config import ResolvedCheckpointConfig
 
 logger = getLogger(__name__)
+_DISABLE_ENV_VAR = "INSPECT_CHECKPOINT_VALIDATE_DISABLE"
 
 
 @dataclass
@@ -315,13 +315,6 @@ async def _hydrate_host(
         )
     )
     result = _push_host_state(result, sample_root, latest_committed_id)
-    _debug(
-        f"[hydrate.host] resume done: "
-        f"events={len(result.condensed_events)} "
-        f"msgs={len(result.msg_pool)} "
-        f"calls={len(result.call_pool)} "
-        f"agent_state={'yes' if result.agent_state else 'no'}"
-    )
     return result
 
 
@@ -567,10 +560,6 @@ def _push_host_state(
 ) -> _HostHydrationResult:
     """Push restored host state into loop-owned Transcript and Store."""
     ts = transcript()
-    pre = [_event_label(e) for e in ts._events]
-    restored = [_event_label(e) for e in result.condensed_events]
-    _debug(f"[hydrate.host] pre-hydration transcript.events (n={len(pre)}): {pre}")
-    _debug(f"[hydrate.host] restored events to push (n={len(restored)}): {restored}")
     result.condensed_events = materialize_pooled_events(
         result.condensed_events,
         result.msg_pool,
@@ -586,11 +575,6 @@ def _push_host_state(
         raise RuntimeError("_hydrate_host: no active sample state to populate Store")
     for key, value in result.store.items():
         state.store.set(key, value)
-    _debug(
-        f"[hydrate.host] pushed: transcript.events={len(ts._events)} "
-        f"transcript.attachments={len(ts._attachments)} "
-        f"store_keys={len(list(state.store.keys()))}"
-    )
 
     _validate_resume_state(result.condensed_events, sample_root, latest_committed_id)
     return result
@@ -726,25 +710,16 @@ def _validate_resume_state(
       (the highest cleanly-parsing checkpoint id — the true commit
       point).
 
-    Console-prints a readable summary either way so the resume flow
-    is easy to follow.
-
-    No-op unless ``INSPECT_CHECKPOINT_VALIDATE`` is set — the body is
-    kept in the tree for the next time something looks off on resume.
+    Runs by default while the checkpoint code stabilizes. Set
+    ``INSPECT_CHECKPOINT_VALIDATE_DISABLE`` to skip it — a surgical escape
+    hatch for tests that drive the resume push with non-resume-shaped stub
+    data.
     """
-    if not _validation_enabled():
+    if bool(os.environ.get(_DISABLE_ENV_VAR)):
         return
-
-    _debug("[hydrate.validate] === resume sanity check ===")
 
     sample_dir = Path(local_path(sample_root))
     checkpoint_files = sorted(p.name for p in sample_dir.glob("ckpt-*.json"))
-    _debug(
-        f"[hydrate.validate] checkpoint files in {sample_dir.name}/ "
-        f"(n={len(checkpoint_files)}, latest committed id={latest_committed_id}): "
-        f"{checkpoint_files}"
-    )
-    _debug(f"[hydrate.validate] events.json event count: {len(events)}")
 
     # Walk events: collect checkpoint + prior_run span_begins,
     # CheckpointEvents, and all span_ends (span_end has no type attr —
@@ -765,24 +740,6 @@ def _validate_resume_state(
             ckpt_id = getattr(e, "checkpoint_id", None)
             if ckpt_id is not None:
                 checkpoint_events.append((i, ckpt_id))
-
-    _debug(f"[hydrate.validate] prior_run wraps (n={len(wrap_begins)}):")
-    for idx, name, id_ in wrap_begins:
-        end_idx = end_by_id.get(id_)
-        end_str = f"span_end@{end_idx}" if end_idx is not None else "UNPAIRED"
-        _debug(f"  [{idx:4d}] name={name!r:24} id={id_:24} -> {end_str}")
-
-    _debug(
-        f"[hydrate.validate] checkpoint span_begin events (n={len(checkpoint_begins)}):"
-    )
-    for idx, name, id_ in checkpoint_begins:
-        end_idx = end_by_id.get(id_)
-        end_str = f"span_end@{end_idx}" if end_idx is not None else "UNPAIRED"
-        _debug(f"  [{idx:4d}] name={name!r:18} id={id_:24} -> {end_str}")
-
-    _debug(f"[hydrate.validate] CheckpointEvents (n={len(checkpoint_events)}):")
-    for idx, ckpt_id in checkpoint_events:
-        _debug(f"  [{idx:4d}] checkpoint_id={ckpt_id}")
 
     # --- assertions ---
     if not events:
@@ -876,14 +833,6 @@ def _validate_resume_state(
             f"mismatch. expected {expected_event_ids}, "
             f"got {actual_event_ids}"
         )
-
-    _debug("[hydrate.validate] ✓ resume sanity checks passed")
-    _debug(
-        f"[hydrate.validate] === ready for checkpoint "
-        f"{len(checkpoint_begins) + 1} "
-        f"(prior checkpoints: {len(checkpoint_begins)}, "
-        f"prior sessions: {len(wrap_begins)}) ==="
-    )
 
 
 def _event_label(e: Event) -> str:
