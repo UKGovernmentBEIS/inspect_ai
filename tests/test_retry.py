@@ -265,7 +265,7 @@ def test_eval_retry_preserves_scorer_attribution(monkeypatch) -> None:
     assert by_id[1] == "match", f"restored sample scorer={by_id[1]!r}"
 
 
-def test_eval_retry_preserves_token_usage():
+def test_eval_retry_preserves_stats():
     # 10 samples: first 8 pass, last 2 fail
     # On retry: fresh iterator, 2 samples read [False, False] -> both pass
     log1 = eval(
