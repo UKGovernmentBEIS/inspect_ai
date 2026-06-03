@@ -430,7 +430,7 @@ def _make_checkpoint(checkpoint_id: int) -> Checkpoint:
         checkpoint_id=checkpoint_id,
         trigger="turn",
         turn=checkpoint_id,
-        created_at=datetime(2026, 5, 17, 18, checkpoint_id, tzinfo=timezone.utc),
+        created_at=datetime(2026, 5, 17, 18, 0, tzinfo=timezone.utc),
         duration_ms=10,
         size_bytes=100 + checkpoint_id,
         host=SnapshotDetails(
@@ -625,6 +625,33 @@ def test_validate_resume_state_allows_torn_interior_checkpoint_file(
     sample_root = tmp_path / "sample"
     _write_checkpoint_files(sample_root, 3)
     (sample_root / "ckpt-00002.json").write_text("{")
+    events = _checkpoint_resume_events(3)
+
+    _validate_resume_state(events, str(sample_root), 3)
+
+
+def test_validate_resume_state_allows_non_utf8_torn_checkpoint_file(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 3)
+    (sample_root / "ckpt-00002.json").write_bytes(b'{"checkpoint_id": 2, "x": "\xe2')
+    events = _checkpoint_resume_events(3)
+
+    _validate_resume_state(events, str(sample_root), 3)
+
+
+def test_validate_resume_state_allows_unreadable_interior_checkpoint_entry(
+    tmp_path: Path,
+) -> None:
+    from inspect_ai.util._checkpoint.hydrate import _validate_resume_state
+
+    sample_root = tmp_path / "sample"
+    _write_checkpoint_files(sample_root, 3)
+    (sample_root / "ckpt-00002.json").unlink()
+    (sample_root / "ckpt-00002.json").mkdir()
     events = _checkpoint_resume_events(3)
 
     _validate_resume_state(events, str(sample_root), 3)

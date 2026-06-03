@@ -39,7 +39,6 @@ using the returned :class:`_HydrationResult`.
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
@@ -87,7 +86,6 @@ from .config import ResolvedCheckpointConfig
 from .sandbox_paths import SandboxBackupPaths, resolve_sandbox_backup_paths
 
 logger = getLogger(__name__)
-_DISABLE_ENV_VAR = "INSPECT_CHECKPOINT_VALIDATE_DISABLE"
 
 
 @dataclass
@@ -807,14 +805,8 @@ def _validate_resume_state(
       (the highest cleanly-parsing checkpoint id — the true commit
       point).
 
-    Runs by default while the checkpoint code stabilizes. Set
-    ``INSPECT_CHECKPOINT_VALIDATE_DISABLE`` to skip it — a surgical escape
-    hatch for tests that drive the resume push with non-resume-shaped stub
-    data.
+    Runs by default while the checkpoint code stabilizes.
     """
-    if bool(os.environ.get(_DISABLE_ENV_VAR)):
-        return
-
     sample_dir = Path(local_path(sample_root))
     checkpoint_ids: list[int] = []
     for checkpoint_file in sample_dir.glob("ckpt-*.json"):
@@ -823,10 +815,9 @@ def _validate_resume_state(
         except ValueError:
             continue
 
-        raw = checkpoint_file.read_text()
         try:
-            checkpoint = Checkpoint.model_validate_json(raw)
-        except ValueError:
+            checkpoint = Checkpoint.model_validate_json(checkpoint_file.read_bytes())
+        except (ValueError, OSError):
             continue
         if checkpoint.checkpoint_id != filename_id:
             raise RuntimeError(
