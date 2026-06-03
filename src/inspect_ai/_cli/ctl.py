@@ -33,8 +33,26 @@ def ctl_command() -> None:
     Each command operates on a live Inspect eval via the control
     channel — the HTTP server every running ``inspect eval`` process
     binds by default.
+
+    A process exits when its eval finishes; launch with ``inspect eval
+    --keep-alive`` to keep it inspectable (and its results readable) here
+    until you run ``inspect ctl shutdown``.
     """
     return None
+
+
+def _echo_no_running_evals() -> None:
+    """Print the 'nothing to show' message shared by the read commands.
+
+    Surfaces ``--keep-alive`` here because this fires exactly when a user
+    is confused that a just-finished eval isn't listed — its process has
+    already exited unless it was launched to park.
+    """
+    click.echo(
+        f"No running evals found in {discovery_dir()}.\n"
+        "Start an eval with `inspect eval <task>` — add `--keep-alive` to keep "
+        "the process inspectable after the eval finishes."
+    )
 
 
 @ctl_command.command("ls")
@@ -55,10 +73,7 @@ def ls_command(as_json: bool) -> None:
         return
 
     if not summaries:
-        click.echo(
-            f"No running evals found in {discovery_dir()}.\n"
-            "Start an eval with `inspect eval <task>` and try again."
-        )
+        _echo_no_running_evals()
         return
 
     _print_human_table(summaries)
@@ -88,10 +103,7 @@ def samples_command(task: str | None, as_json: bool) -> None:
         if as_json:
             click.echo("[]")
             return
-        click.echo(
-            f"No running evals found in {discovery_dir()}.\n"
-            "Start an eval with `inspect eval <task>` and try again."
-        )
+        _echo_no_running_evals()
         return
 
     target = _resolve_target_eval(summaries, task)
@@ -134,10 +146,7 @@ def errors_command(task: str | None, as_json: bool) -> None:
         if as_json:
             click.echo("[]")
             return
-        click.echo(
-            f"No running evals found in {discovery_dir()}.\n"
-            "Start an eval with `inspect eval <task>` and try again."
-        )
+        _echo_no_running_evals()
         return
 
     target = _resolve_target_eval(summaries, task)
@@ -192,10 +201,7 @@ def sample_command(
         if as_json:
             click.echo("null")
             return
-        click.echo(
-            f"No running evals found in {discovery_dir()}.\n"
-            "Start an eval with `inspect eval <task>` and try again."
-        )
+        _echo_no_running_evals()
         return
 
     target = _resolve_target_eval(summaries, task)
