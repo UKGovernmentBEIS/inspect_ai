@@ -138,14 +138,22 @@ def task(*args: Any, name: str | None = None, **attribs: Any) -> Any:
             named_params = extract_named_params(task_type, True, *w_args, **w_kwargs)
             setattr(task_instance, TASK_ALL_PARAMS_ATTR, named_params)
 
-            # if its not from an installed package then it is a "local"
-            # module import, so set its task file and run dir
-            if get_installed_package_name(task_type) is None:
-                module = inspect.getmodule(task_type)
-                if module and hasattr(module, "__file__") and module.__file__:
-                    file = Path(getattr(module, "__file__"))
+            module = inspect.getmodule(task_type)
+            source_file = (
+                getattr(module, "__file__")
+                if module and hasattr(module, "__file__") and module.__file__
+                else inspect.getsourcefile(task_type)
+            )
+            if source_file:
+                file = Path(source_file)
+
+                # Set the run dir for all module-backed tasks so sandbox config
+                # discovery is anchored to the task source directory.
+                setattr(task_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
+
+                # For local module imports, also record the task file in logs.
+                if get_installed_package_name(task_type) is None:
                     setattr(task_instance, TASK_FILE_ATTR, file.as_posix())
-                    setattr(task_instance, TASK_RUN_DIR_ATTR, file.parent.as_posix())
 
             # Return the task instance
             return task_instance
