@@ -12,6 +12,7 @@ initial inspect_ai package load — only at sample-run time, via the
 from __future__ import annotations
 
 import contextlib
+import os
 import time
 from collections.abc import (
     AsyncIterator,
@@ -38,7 +39,11 @@ from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._transcript import transcript
 from inspect_ai.log._transcript_store import TranscriptEventStore
 from inspect_ai.solver._task_state import sample_state
-from inspect_ai.util._restic import ResticBackupSummary, run_backup
+from inspect_ai.util._restic import (
+    ResticBackupSummary,
+    list_changed_files,
+    run_backup,
+)
 from inspect_ai.util._sandbox.context import sandbox
 from inspect_ai.util._span import span
 from inspect_ai.util._store import Store, store_jsonable
@@ -63,7 +68,7 @@ from .checkpointer import (
     Checkpointer,
     ResumeCheckpoint,
 )
-from .config import ResolvedCheckpointConfig
+from .config import MAX_LISTED_FILES, ResolvedCheckpointConfig
 from .hydrate import HydrationResult, hydrate
 
 logger = getLogger(__name__)
@@ -71,6 +76,11 @@ logger = getLogger(__name__)
 T = TypeVar("T")
 
 CHECKPOINT_TRANSCRIPT_STORE = "checkpoint_transcript.sqlite"
+
+_LIST_FILES_ENV_VAR = "INSPECT_CHECKPOINT_LIST_FILES"
+"""When truthy, record each sandbox snapshot's file list in the checkpoint
+file (capped at :data:`MAX_LISTED_FILES`). Opt-in only — no config/CLI
+surface yet."""
 
 # JSON-primitive Python types; these round-trip identically through
 # `json.dumps`/`json.loads`, so `track()` can return them on resume
@@ -410,9 +420,39 @@ class _EnteredCheckpointer:
                 ]
                 summaries = await tg_collect(backup_funcs)
                 host_info = _snapshot_info(summaries[0])
-                sandbox_infos = {
-                    name: _snapshot_info(summary)
+                sandbox_summaries = [
+                    (name, summary)
                     for (name, _), summary in zip(sandbox_items, summaries[1:])
+                ]
+
+                # Opt-in (env var): list each sandbox snapshot's added/changed
+                # files. Diffs host-side against the already-egressed repos in
+                # parallel, so the in-sandbox exec-output limit is never hit.
+                file_lists: list[tuple[list[str] | None, int]]
+                if os.environ.get(_LIST_FILES_ENV_VAR):
+                    file_lists = await tg_collect(
+                        [
+                            partial(
+                                list_changed_files,
+                                self._host_restic,
+                                sandbox_repo_dir(self._sample_root, name),
+                                self._restic_password,
+                                summary.snapshot_id,
+                                MAX_LISTED_FILES,
+                            )
+                            for name, summary in sandbox_summaries
+                        ]
+                    )
+                else:
+                    file_lists = [(None, 0)] * len(sandbox_summaries)
+
+                sandbox_infos = {
+                    name: _snapshot_info(
+                        summary, files=files, additional_files=extra or None
+                    )
+                    for (name, summary), (files, extra) in zip(
+                        sandbox_summaries, file_lists
+                    )
                 }
 
                 # Cycle duration measured up to the checkpoint file write — the
@@ -597,9 +637,15 @@ def _restic_tag(checkpoint_id: int) -> str:
     return f"ckpt-{checkpoint_id:05d}"
 
 
-def _snapshot_info(summary: ResticBackupSummary) -> SnapshotDetails:
+def _snapshot_info(
+    summary: ResticBackupSummary,
+    files: list[str] | None = None,
+    additional_files: int | None = None,
+) -> SnapshotDetails:
     return SnapshotDetails(
         snapshot_id=summary.snapshot_id,
         size_bytes=summary.data_added_packed,
         duration_ms=int(summary.total_duration * 1000),
+        files=files,
+        additional_files=additional_files,
     )

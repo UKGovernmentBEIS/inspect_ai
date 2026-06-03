@@ -48,7 +48,6 @@ from inspect_ai.util import CheckpointConfig, TurnInterval, store
 
 LAYER1_CONTENT = "plain1"
 STORE_KEY = "answer"
-RESUMED_KEY = "resumed"
 # Write under $HOME (not /workspace) so the default-user home-dir auto-backup
 # captures it — the task declares no `sandbox_paths`, exercising
 # `resolve_sandbox_backup_paths` / `_resolve_default_home`.
@@ -56,6 +55,10 @@ WRITE_CMD = (
     'mkdir -p "$HOME/workspace/decoded" && '
     f"printf '{LAYER1_CONTENT}' > \"$HOME/workspace/decoded/layer1.txt\""
 )
+# Written on the post-resume turn so the ckpt-3 snapshot has a non-empty
+# diff vs its parent (ckpt-2) — used to assert file listing records the
+# *changed* file, not the unchanged `layer1.txt`.
+RESUME_WRITE_CMD = 'printf resumed > "$HOME/workspace/resumed.txt"'
 SCRIPTED_MODEL = "scripteddecode/model"
 
 
@@ -142,12 +145,13 @@ def cancel() -> Tool:
 #   turn 0: bash (write a sandbox file)          -> ckpt-1 fires next turn
 #   turn 1: remember (write the store)           -> ckpt-2 fires next turn
 #   turn 2: cancel (first attempt) ............... interrupt, then resume
-#           remember again (after resume)        -> ckpt-3 fires next turn
+#           bash (write a *new* sandbox file)    -> ckpt-3 fires next turn
 #   turn 3: submit
 #
-# The post-resume `remember` turn exists so a *new* checkpoint (ckpt-3) fires
-# during the retry — the trigger resets on resume, so a single submit turn
-# alone would commit nothing.
+# The post-resume bash turn exists so a *new* checkpoint (ckpt-3) fires during
+# the retry — the trigger resets on resume, so a single submit turn alone would
+# commit nothing. It writes a new file (not the one from turn 0) so ckpt-3's
+# diff-vs-parent file listing has a deterministic changed file to assert on.
 
 
 def _scripted_outputs(
@@ -167,9 +171,10 @@ def _scripted_outputs(
     if completed_tool_turns == 2 and not _resume_state.cancelled:
         return ModelOutput.for_tool_call(SCRIPTED_MODEL, "cancel", {})
     if completed_tool_turns == 2:
-        # post-resume turn: a second store write so ckpt-3 commits on retry
+        # post-resume turn: write a new sandbox file so ckpt-3 commits on
+        # retry with a non-empty diff vs its parent.
         return ModelOutput.for_tool_call(
-            SCRIPTED_MODEL, "remember", {"key": RESUMED_KEY, "value": LAYER1_CONTENT}
+            SCRIPTED_MODEL, "bash", {"command": RESUME_WRITE_CMD}
         )
     return ModelOutput.for_tool_call(
         SCRIPTED_MODEL, "submit", {"answer": LAYER1_CONTENT}
@@ -210,6 +215,10 @@ def test_checkpoint_resume_runs_to_completion(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
+    # Opt into per-snapshot file listing so the ckpt JSON records the
+    # sandbox file paths (exercises host-side `restic ls` on the egressed
+    # sandbox repo).
+    monkeypatch.setenv("INSPECT_CHECKPOINT_LIST_FILES", "1")
     _resume_state.cancelled = False
     _resume_state.generates = 0
 
@@ -231,8 +240,8 @@ def test_checkpoint_resume_runs_to_completion(
     assert sample.error is None
 
     # resume restored the prior conversation, so only the remaining turns ran
-    # (one more remember + submit = 2 generates; a fresh re-run would have
-    # redone bash + remember as well).
+    # (one bash + submit = 2 generates; a fresh re-run would have redone the
+    # turn-0 bash + turn-1 remember as well).
     assert _resume_state.generates == 2
 
     # the restored + completed run scored correct
@@ -287,6 +296,31 @@ def test_checkpoint_resume_runs_to_completion(
         if isinstance(e, CheckpointEvent) and not (begin_idx < i < end_idx)
     }
     assert new_checkpoint_ids == {3}
+
+    # File listing (opt-in) records each sandbox snapshot's added/changed
+    # files (diff vs parent), not the whole tree.
+    def _ckpt(checkpoint_id: int) -> CheckpointEvent:
+        return next(
+            e
+            for e in events
+            if isinstance(e, CheckpointEvent) and e.checkpoint_id == checkpoint_id
+        )
+
+    # ckpt-1 is the first sandbox snapshot (no parent) → full listing, which
+    # includes the turn-0 write.
+    ckpt1_files = _ckpt(1).sandboxes["default"].files
+    assert ckpt1_files is not None
+    assert any(p.endswith("workspace/decoded/layer1.txt") for p in ckpt1_files)
+
+    # ckpt-3 diffs against its parent (ckpt-2): it lists the post-resume write
+    # but NOT the unchanged turn-0 file — proving it's a delta, not the tree.
+    ckpt3_details = _ckpt(3).sandboxes["default"]
+    assert ckpt3_details.files is not None
+    assert any(p.endswith("workspace/resumed.txt") for p in ckpt3_details.files)
+    assert not any(
+        p.endswith("workspace/decoded/layer1.txt") for p in ckpt3_details.files
+    )
+    assert ckpt3_details.additional_files is None
 
 
 @skip_if_no_docker

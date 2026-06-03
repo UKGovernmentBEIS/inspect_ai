@@ -191,11 +191,20 @@ When checkpointing is enabled, each sample proceeds as follows:
 
 2.  **Capture.** When the trigger fires, Inspect writes the host-side context files (messages, events, attachments, `Store`, and any agent-tracked state) and runs `restic backup` on the host repo and each configured sandbox path set in parallel.
 
-3.  **Record.** Inspect writes a `ckpt-NNNNN.json` checkpoint file at the per-sample root. A checkpoint is available for resumption only once this file is in place.
+3.  **Record.** Inspect writes a `ckpt-NNNNN.json` checkpoint file at the per-sample root. A checkpoint is available for resumption only once this file is in place. Each snapshot entry records its `snapshot_id`, `size_bytes`, and `duration_ms`. Optionally (see [Listing snapshot files](#listing-snapshot-files)) each sandbox snapshot also records the `files` it captured.
 
 4.  **Emit.** A structured `CheckpointEvent` is emitted into the normal event stream (and into the `.eval` log) carrying the trigger, turn, duration, snapshot ids, and size.
 
 Crashed cycles that didn't reach step 3 leave orphan snapshots with no checkpoint file; resume discards them automatically.
+
+### Listing snapshot files
+
+Set `INSPECT_CHECKPOINT_LIST_FILES=1` to record, for each **sandbox** snapshot, the files it added or changed. When enabled, each sandbox entry in `ckpt-NNNNN.json` gains:
+
+- `files`: absolute paths of files added or changed in this snapshot relative to its parent (the full file set for the first snapshot), capped at `MAX_LISTED_FILES` (100).
+- `additional_files`: the count of files beyond the cap — present only when truncated.
+
+The host snapshot (Inspect's internal context) is not listed. The list is produced host-side via `restic diff` (against the snapshot's parent) on the egressed sandbox repo, so it is unaffected by the sandbox exec-output limit and is bounded by the number of changes rather than the total file count. This is opt-in via the environment variable only — there is no config or CLI surface yet.
 
 ## Resuming
 
