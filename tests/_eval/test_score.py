@@ -548,3 +548,70 @@ async def test_score_preserves_model_usage_in_score_event():
     assert score_events[0].model_usage == sample_model_usage
     assert score_events[0].scorer == "simple_scorer"
     assert score_events[0].scorer_args == {"threshold": 0.75}
+
+
+@pytest.mark.anyio
+async def test_score_recreates_task_sandbox_for_scorer():
+    from inspect_ai.log import EvalLog
+    from inspect_ai.log._log import (
+        EvalConfig,
+        EvalDataset,
+        EvalPlan,
+        EvalPlanStep,
+        EvalSpec,
+    )
+    from inspect_ai.util import SandboxEnvironmentSpec, sandbox
+
+    sample = EvalSample(
+        id="sandbox-sample",
+        epoch=1,
+        input="Write the answer to the sandbox.",
+        target="sandbox-answer",
+        messages=[
+            ChatMessageUser(role="user", content="Write the answer to the sandbox.")
+        ],
+        output=ModelOutput(
+            choices=[
+                ChatCompletionChoice(
+                    message=ChatMessageAssistant(
+                        role="assistant", content="sandbox-answer"
+                    )
+                )
+            ]
+        ),
+    )
+
+    log_header = EvalLog(
+        version=2,
+        status="success",
+        eval=EvalSpec(
+            created="2025-01-01T00:00:00Z",
+            task="test_task",
+            task_id="test",
+            run_id="test-run",
+            dataset=EvalDataset(),
+            sandbox=SandboxEnvironmentSpec("local"),
+            model="mockllm/model",
+            config=EvalConfig(),
+        ),
+        plan=EvalPlan(
+            name="test",
+            steps=[EvalPlanStep(solver="generate")],
+            config=GenerateConfig(),
+        ),
+        samples=[sample],
+    )
+
+    @scorer(metrics=[accuracy()])
+    def sandbox_scorer() -> Scorer:
+        async def score(state: TaskState, target: Target) -> Score:
+            env = sandbox()
+            await env.write_file("answer.txt", state.output.completion)
+            return Score(value=1.0, answer=await env.read_file("answer.txt"))
+
+        return score
+
+    scored_log = await score_async(log_header, [sandbox_scorer()])
+    assert scored_log.samples is not None
+    assert scored_log.samples[0].scores is not None
+    assert scored_log.samples[0].scores["sandbox_scorer"].answer == "sandbox-answer"
