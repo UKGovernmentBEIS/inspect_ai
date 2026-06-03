@@ -38,20 +38,10 @@ from inspect_ai._control.state import (
     sample_error_detail,
 )
 from inspect_ai._util.discovery import (
-    DISCOVERY_FILE_MODE,
     prepare_discovery_dir,
     write_discovery_file,
 )
-
-# Socket file permissions: owner-only read/write. Mirrors
-# DISCOVERY_FILE_MODE for the .json — same threat model (defence in
-# depth against a misconfigured / world-traversable parent directory).
-SOCKET_FILE_MODE = DISCOVERY_FILE_MODE
-
-# How long to wait for uvicorn to report ``started`` after creating
-# the serve task. 5s at 50ms tick — comfortably over typical startup.
-_READY_TICK_SECONDS = 0.05
-_READY_TICK_COUNT = 100
+from inspect_ai._util.sockets import lock_socket_file, prepare_socket_path
 
 logger = getLogger(__name__)
 
@@ -74,6 +64,7 @@ class ControlServer:
         self._started_at = time.time()
         self._socket_path: Path | None = None
         self._discovery_path: Path | None = None
+        self._sock: Any = None
         self._uvicorn_server: Any = None
         self._serve_task: asyncio.Task[None] | None = None
         # Set by the ``POST /shutdown`` route and awaited by the
@@ -147,22 +138,46 @@ class ControlServer:
 
     async def start(self) -> None:
         """Bind the AF_UNIX socket, write the discovery file, start serving."""
+        import socket
+
         import uvicorn
 
         # Lock dir to 0700 + sweep stale entries.
         prepare_discovery_dir(discovery_dir())
 
         socket_path = default_socket_path(os.getpid())
-        if socket_path.exists() or socket_path.is_symlink():
-            try:
-                socket_path.unlink(missing_ok=True)
-            except OSError:
-                pass
+        prepare_socket_path(socket_path)
+
+        # Bind the listening socket ourselves and hand it to uvicorn
+        # pre-bound (`serve(sockets=[...])`), rather than letting uvicorn
+        # bind it asynchronously inside serve(). Two reasons:
+        #   1. The bind is synchronous, so a failure (eg. a UDS
+        #      PermissionError) raises *here* — before we publish the
+        #      discovery file. We never advertise a `<pid>.json` pointing at
+        #      a socket that isn't accepting, which would strand `inspect
+        #      ctl` clients (and, under --keep-alive, the shutdown path that
+        #      releases the park). The raise propagates to `control_server`,
+        #      which degrades to "no control surface".
+        #   2. No readiness poll. A bound, listening socket already accepts
+        #      connects (the OS holds them in the listen backlog) the moment
+        #      we start serving, so the surface is reachable as soon as
+        #      discovery is published — no need to wait on uvicorn's
+        #      `started` flag. (Mirrors the ACP server, which awaits
+        #      `asyncio.start_unix_server` directly.)
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            sock.bind(str(socket_path))
+            sock.listen()
+        except BaseException:
+            sock.close()
+            raise
+        self._sock = sock
+        self._socket_path = socket_path
+        lock_socket_file(socket_path)
 
         app = self._build_app()
         config = uvicorn.Config(
             app,
-            uds=str(socket_path),
             log_config=None,
             log_level="warning",
             access_log=False,
@@ -173,30 +188,10 @@ class ControlServer:
         # embedded server, not the main process, so SIGINT/SIGTERM
         # should not be intercepted here.
         server.install_signal_handlers = lambda: None  # type: ignore[attr-defined,method-assign]
-
-        self._socket_path = socket_path
         self._uvicorn_server = server
         self._serve_task = asyncio.create_task(
-            server.serve(), name="inspect-ctl-server"
+            server.serve(sockets=[sock]), name="inspect-ctl-server"
         )
-
-        # Wait until uvicorn reports started so the discovery file is
-        # only published after the socket is actually accepting.
-        for _ in range(_READY_TICK_COUNT):
-            if server.started:
-                break
-            await asyncio.sleep(_READY_TICK_SECONDS)
-
-        # Lock the socket file to owner-only. Defence-in-depth: the
-        # parent dir is already 0700, but if it's ever loosened (or
-        # the user's home is world-traversable) the socket itself
-        # remains unreachable. Some filesystems ignore chmod; that's
-        # acceptable — same fallback behavior as the directory chmod
-        # in prepare_discovery_dir.
-        try:
-            socket_path.chmod(SOCKET_FILE_MODE)
-        except OSError:
-            pass
 
         self._discovery_path = write_discovery_file(
             discovery_dir(),
@@ -208,6 +203,13 @@ class ControlServer:
                 "started_at": self._started_at,
             },
         )
+
+    def _unlink_socket(self) -> None:
+        if self._socket_path is not None:
+            try:
+                self._socket_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     async def stop(self) -> None:
         """Signal shutdown, await drain, remove discovery files."""
@@ -231,11 +233,15 @@ class ControlServer:
                     self._discovery_path.unlink(missing_ok=True)
                 except OSError:
                     pass
-            if self._socket_path is not None:
+            # uvicorn closes the sockets it was handed on shutdown; close
+            # ours too in case serve() was cancelled before it got there
+            # (double close is harmless).
+            if self._sock is not None:
                 try:
-                    self._socket_path.unlink(missing_ok=True)
+                    self._sock.close()
                 except OSError:
                     pass
+            self._unlink_socket()
 
 
 @asynccontextmanager

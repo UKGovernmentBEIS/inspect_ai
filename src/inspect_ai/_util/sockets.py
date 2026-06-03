@@ -3,7 +3,55 @@
 from __future__ import annotations
 
 import asyncio
+import stat
 import sys
+from pathlib import Path
+
+from inspect_ai._util.discovery import DISCOVERY_FILE_MODE
+
+# Owner-only (0600) on a bound AF_UNIX socket node. Mirrors
+# DISCOVERY_FILE_MODE — same threat model: defence-in-depth against a
+# loosened / world-traversable parent directory, so the socket can't be
+# reached even if the directory perms slip.
+SOCKET_FILE_MODE = DISCOVERY_FILE_MODE
+
+
+def prepare_socket_path(path: Path) -> None:
+    """Ready ``path`` for an AF_UNIX bind.
+
+    Ensures the parent dir exists and removes a leftover socket node from a
+    stale prior bind. Refuses to remove a path that exists and is **not** a
+    mistaken or hostile path (eg. ``--acp-server=/etc/passwd``) raises
+    instead of deleting data. Raising here is safe for default-path callers
+    too: the control / ACP servers degrade gracefully when their bind fails.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() or path.is_symlink():
+        try:
+            mode = path.lstat().st_mode
+        except OSError as e:
+            raise RuntimeError(
+                f"Cannot stat existing path {path} for socket bind: {e}"
+            ) from e
+        if not stat.S_ISSOCK(mode):
+            raise RuntimeError(
+                f"Refusing to bind a socket at {path}: path exists and is not a "
+                "socket. Remove it or choose a different path."
+            )
+        path.unlink()
+
+
+def lock_socket_file(path: Path) -> None:
+    """Best-effort owner-only chmod on a bound socket node.
+
+    Defence-in-depth alongside the 0700 parent directory. Some filesystems
+    ignore ``chmod`` (FUSE, certain network mounts); that's acceptable — the
+    socket still lives under the user-scoped data dir.
+    """
+    try:
+        path.chmod(SOCKET_FILE_MODE)
+    except OSError:
+        pass
 
 
 def has_unix_sockets() -> bool:

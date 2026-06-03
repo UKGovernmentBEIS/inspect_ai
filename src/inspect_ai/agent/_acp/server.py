@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import stat
 import time
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -35,11 +34,15 @@ from acp.connection import Connection
 from acp.interfaces import Agent
 
 from inspect_ai._util.discovery import (
-    DISCOVERY_FILE_MODE,
     prepare_discovery_dir,
     write_discovery_file,
 )
-from inspect_ai._util.sockets import has_unix_sockets, parse_host_port
+from inspect_ai._util.sockets import (
+    has_unix_sockets,
+    lock_socket_file,
+    parse_host_port,
+    prepare_socket_path,
+)
 from inspect_ai.agent._acp._config import ACP_STREAM_BUFFER_LIMIT
 from inspect_ai.agent._acp._guards import (
     NORMAL_DISCONNECT_EXC,
@@ -48,11 +51,6 @@ from inspect_ai.agent._acp._guards import (
 from inspect_ai.agent._acp.connection import ConnectionHandler
 from inspect_ai.agent._acp.discovery import default_socket_path, discovery_dir
 from inspect_ai.agent._acp.inspect_ext import register_inspect_routes
-
-# Socket file permissions — owner-only. Mirrors the control server's
-# hardening; defence-in-depth against a misconfigured umask or a
-# world-traversable parent directory.
-SOCKET_FILE_MODE = DISCOVERY_FILE_MODE
 
 logger = getLogger(__name__)
 
@@ -196,28 +194,9 @@ class AcpServer:
                 "ACP UNIX sockets require Windows 10+ or POSIX. "
                 "Pass `--acp-server=<port>` to bind a TCP loopback port instead."
             )
-        path.parent.mkdir(parents=True, exist_ok=True)
-        # Unlink any leftover socket node from a stale prior bind on
-        # the same path. ``cleanup_stale_discovery_files`` already
-        # covers the default path case via the discovery file; this
-        # catches user-supplied paths and the rare case where the
-        # discovery file is gone but the socket node survived. ONLY
-        # unlink actual socket nodes — a user passing
-        # ``--acp-server=/etc/passwd`` should get an error, not data
-        # loss.
-        if path.exists() or path.is_symlink():
-            try:
-                mode = path.lstat().st_mode
-            except OSError as e:
-                raise RuntimeError(
-                    f"Cannot stat existing path {path} for ACP socket bind: {e}"
-                ) from e
-            if not stat.S_ISSOCK(mode):
-                raise RuntimeError(
-                    f"Refusing to bind ACP server at {path}: path exists and "
-                    "is not a socket. Pick a different path or remove it first."
-                )
-            path.unlink()
+        # Ensure the parent exists and clear a stale socket node (refusing
+        # to clobber a non-socket path, eg. ``--acp-server=/etc/passwd``).
+        prepare_socket_path(path)
         # ``limit`` is the StreamReader buffer size for accepted
         # connections — see ACP_STREAM_BUFFER_LIMIT for why we override
         # asyncio's 64 KiB default.
@@ -227,14 +206,8 @@ class AcpServer:
             limit=ACP_STREAM_BUFFER_LIMIT,
         )
         self._socket_path = path
-        # Owner-only on the socket file. Defence-in-depth against a
-        # loosened parent dir / world-traversable user home — without
-        # this the socket inherits umask and may be world-readable.
-        # Best-effort: some filesystems ignore chmod.
-        try:
-            path.chmod(SOCKET_FILE_MODE)
-        except OSError:
-            pass
+        # Owner-only on the socket file (defence-in-depth; best-effort).
+        lock_socket_file(path)
 
     async def _bind_tcp(self, port: int, host: str = "127.0.0.1") -> None:
         self._server = await asyncio.start_server(

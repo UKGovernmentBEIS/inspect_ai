@@ -104,3 +104,61 @@ def test_parse_host_port_out_of_range_raises(value: str) -> None:
     """
     with pytest.raises(ValueError, match="port out of range"):
         parse_host_port(value)
+
+
+# ---------------------------------------------------------------------------
+# prepare_socket_path / lock_socket_file
+# ---------------------------------------------------------------------------
+
+
+def test_prepare_socket_path_creates_parent(tmp_path) -> None:
+    from inspect_ai._util.sockets import prepare_socket_path
+
+    path = tmp_path / "a" / "b" / "ctl.sock"
+    prepare_socket_path(path)
+    assert path.parent.is_dir()
+
+
+def test_prepare_socket_path_unlinks_stale_socket(tmp_path) -> None:
+    import socket
+
+    from inspect_ai._util.sockets import prepare_socket_path
+
+    path = tmp_path / "stale.sock"
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        sock.bind(str(path))
+        assert path.exists()
+        prepare_socket_path(path)  # leftover socket node -> removed
+        assert not path.exists()
+    finally:
+        sock.close()
+
+
+def test_prepare_socket_path_refuses_non_socket(tmp_path) -> None:
+    from inspect_ai._util.sockets import prepare_socket_path
+
+    path = tmp_path / "important.txt"
+    path.write_text("do not delete me")
+    with pytest.raises(RuntimeError, match="not a socket"):
+        prepare_socket_path(path)
+    assert path.read_text() == "do not delete me"  # untouched
+
+
+def test_lock_socket_file_sets_owner_only_mode(tmp_path) -> None:
+    import stat
+
+    from inspect_ai._util.sockets import SOCKET_FILE_MODE, lock_socket_file
+
+    path = tmp_path / "f.sock"
+    path.write_bytes(b"")
+    path.chmod(0o644)
+    lock_socket_file(path)
+    assert stat.S_IMODE(path.stat().st_mode) == SOCKET_FILE_MODE
+
+
+def test_lock_socket_file_missing_path_is_noop(tmp_path) -> None:
+    from inspect_ai._util.sockets import lock_socket_file
+
+    # best-effort: a missing path must not raise
+    lock_socket_file(tmp_path / "nope.sock")

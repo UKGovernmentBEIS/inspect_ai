@@ -112,3 +112,53 @@ def test_error_detail_prefers_server_body() -> None:
 
     # No response attached → fall back to the exception string.
     assert "plain failure" in _error_detail(OSError("plain failure"))
+
+
+def test_start_does_not_publish_discovery_when_bind_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """A failed UDS bind must not leave a live discovery file behind.
+
+    The socket is bound synchronously in ``start()`` (then handed to uvicorn
+    pre-bound), so a bind failure raises before the discovery file is
+    written. Regression guard: a live ``<pid>.json`` pointing at a dead
+    socket would strand ``inspect ctl`` clients — and under ``--keep-alive``
+    the shutdown path can't connect, leaving the process parked forever.
+    ``start()`` must raise and write no discovery file; ``control_server``
+    must degrade to ``None``.
+    """
+    import inspect_ai._control.discovery as discovery
+    import inspect_ai._control.server as server_mod
+    from inspect_ai._control.discovery import list_discovered_servers
+    from inspect_ai._control.server import ControlServer, control_server
+
+    def _stub_data_dir(subdir: str | None = None):
+        path = (tmp_path / (subdir or "")).resolve()
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    monkeypatch.setattr(discovery, "inspect_data_dir", _stub_data_dir)
+
+    # Force the bind to fail: a socket path whose parent directory does not
+    # exist raises FileNotFoundError from sock.bind() (a stand-in for the
+    # real-world UDS PermissionError), synchronously, inside start().
+    bad_socket = tmp_path / "missing-dir" / "ctl.sock"
+    monkeypatch.setattr(server_mod, "default_socket_path", lambda _pid: bad_socket)
+
+    async def run() -> None:
+        # start() surfaces the bind failure directly...
+        server = ControlServer(run_id="run-1")
+        with pytest.raises(OSError):
+            await server.start()
+        assert server._discovery_path is None
+
+        # ...and nothing is published, so no client can find a dead socket.
+        assert list_discovered_servers() == []
+        assert list(discovery.discovery_dir().glob("*.json")) == []
+
+        # control_server degrades gracefully to "no surface".
+        async with control_server(run_id="run-2") as srv:
+            assert srv is None
+        assert list_discovered_servers() == []
+
+    asyncio.run(run())
