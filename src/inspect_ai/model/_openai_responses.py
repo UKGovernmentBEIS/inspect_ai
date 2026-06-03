@@ -1122,6 +1122,11 @@ def parse_web_search_action(arguments: str) -> dict[str, Any]:
             if filtered.get("type") == "search" and "query" not in filtered:
                 queries = filtered.get("queries") or []
                 filtered["query"] = queries[0] if queries else ""
+            # `ActionFind` requires type `find_in_page` and a `url`; finds may
+            # arrive with only a `pattern`, so normalize to keep construction happy.
+            if filtered.get("type") in ("find", "find_in_page"):
+                filtered["type"] = "find_in_page"
+                filtered.setdefault("url", "")
             return filtered
 
         # Not an OpenAI-formatted action - create a conforming search action
