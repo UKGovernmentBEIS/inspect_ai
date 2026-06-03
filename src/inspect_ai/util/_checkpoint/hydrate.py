@@ -671,25 +671,16 @@ def _wrap_prior_run(events: list[Event]) -> list[Event]:
             e = e.model_copy(update={"span_id": wrap_id})
         new_tail.append(e)
 
-    if new_tail:
-        last_restored_event = new_tail[-1]
-        synthetic_ends = [
-            SpanEndEvent(
-                id=span_id,
-                timestamp=last_restored_event.timestamp,
-                working_start=last_restored_event.working_start,
-                metadata=deepcopy(_SYNTHETIC_RESTORED_SPAN_END_METADATA),
-            )
-            for span_id in reversed(open_span_ids)
-        ]
-    else:
-        synthetic_ends = [
-            SpanEndEvent(
-                id=span_id,
-                metadata=deepcopy(_SYNTHETIC_RESTORED_SPAN_END_METADATA),
-            )
-            for span_id in reversed(open_span_ids)
-        ]
+    last_restored_event = new_tail[-1]
+    synthetic_ends = [
+        SpanEndEvent(
+            id=span_id,
+            timestamp=last_restored_event.timestamp,
+            working_start=last_restored_event.working_start,
+            metadata=deepcopy(_SYNTHETIC_RESTORED_SPAN_END_METADATA),
+        )
+        for span_id in reversed(open_span_ids)
+    ]
 
     return list(head) + [wrap_begin, *new_tail, *synthetic_ends, wrap_end]
 
