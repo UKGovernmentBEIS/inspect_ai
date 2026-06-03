@@ -291,6 +291,8 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
         if options.initial_stats.role_usage:
             init_role_usage(deepcopy(options.initial_stats.role_usage))
         stats = deepcopy(options.initial_stats)
+        stats.started_at = iso_now()
+        stats.completed_at = ""
     else:
         stats = EvalStats(started_at=iso_now())
 
