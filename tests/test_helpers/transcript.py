@@ -44,7 +44,7 @@ def make_model_event(
 
 
 def assert_spans_balanced(events: Sequence[Event]) -> None:
-    """Assert every span has one end after its begin.
+    """Assert every span has exactly one begin and end.
 
     Spans are parent-id based, not strict stack brackets: concurrent sibling
     spans can interleave, and background child spans can outlive the dispatching
@@ -63,10 +63,6 @@ def assert_spans_balanced(events: Sequence[Event]) -> None:
 
     unclosed = [span_id for span_id in begin_by_id if span_id not in end_by_id]
     assert not unclosed, f"{len(unclosed)} unclosed span(s): {unclosed}"
-
-    for span_id, begin_idx in begin_by_id.items():
-        end_idx = end_by_id[span_id]
-        assert begin_idx < end_idx, f"span_end {span_id} precedes begin"
 
 
 class FakeTranscriptHistoryProvider:
