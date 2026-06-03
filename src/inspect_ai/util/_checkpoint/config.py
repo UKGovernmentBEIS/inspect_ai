@@ -20,16 +20,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-from ._triggers import CheckpointTrigger
+from ._triggers import CheckpointTrigger, TokenInterval
 
+DEFAULT_CHECKPOINT_TRIGGER = TokenInterval(every=500_000)
+"""Trigger used when checkpointing is enabled but no layer set a trigger."""
 
-@dataclass
-class Retention:
-    """Controls when checkpoint data is deleted."""
-
-    after_eval: Literal["delete", "retain"] = "delete"
-    """``"delete"`` (default) removes the checkpoint directory after successful
-    eval completion; ``"retain"`` keeps it for later inspection or replay."""
+MAX_LISTED_FILES = 100
+"""Max files recorded per snapshot in a checkpoint file when file listing
+is enabled (``INSPECT_CHECKPOINT_LIST_FILES``); the count beyond this is
+recorded in ``additional_files``."""
 
 
 @dataclass
@@ -51,8 +50,9 @@ class CheckpointSampleConfig:
     trigger: CheckpointTrigger | None = None
     """Checkpoint trigger strategy — any implementer of
     :class:`CheckpointTrigger` (see :mod:`.triggers`). ``None`` means
-    "inherit from a lower-priority layer"; the final merged config
-    must have a non-None trigger or resolution raises."""
+    "inherit from a lower-priority layer"; when no layer sets a
+    trigger, resolution falls back to
+    :data:`DEFAULT_CHECKPOINT_TRIGGER`."""
 
     sandbox_paths: dict[str, list[str]] | None = None
     """Per-sandbox-name list of absolute paths to capture inside the
@@ -89,10 +89,12 @@ class CheckpointConfig(CheckpointSampleConfig):
     Supports any fsspec-resolvable path (``s3://``, ``gs://``, plain
     local). Eval-wide — settable only at the task or eval layer."""
 
-    retention: Retention | None = None
-    """Controls when checkpoint data is deleted. ``None`` = inherit /
-    use the default :class:`Retention` (``after_eval="delete"``).
-    Eval-wide — settable only at the task or eval layer."""
+    retention: Literal["delete", "retain"] | None = None
+    """Controls when checkpoint data is deleted after eval completion.
+    ``"delete"`` removes the checkpoint directory after successful eval
+    completion; ``"retain"`` keeps it for later inspection or replay.
+    ``None`` = inherit / use the default (``"delete"``). Eval-wide —
+    settable only at the task or eval layer."""
 
 
 @dataclass
@@ -111,7 +113,7 @@ class ResolvedCheckpointConfig:
 
     trigger: CheckpointTrigger
     sandbox_paths: dict[str, list[str]] = field(default_factory=dict)
-    retention: Retention = field(default_factory=Retention)
+    retention: Literal["delete", "retain"] = "delete"
     checkpoints_location: str | None = None
     max_consecutive_failures: int | None = None
 
@@ -137,15 +139,20 @@ def merge_checkpoint_configs(
     ``sandbox_paths`` is treated as a single value (whole-dict
     replacement), not key-wise merged.
 
-    Returns ``None`` if no layer supplied a config (checkpointing
-    disabled). Otherwise returns a :class:`ResolvedCheckpointConfig`
-    with ``trigger`` guaranteed non-None and ``sandbox_paths`` /
-    ``retention`` filled with canonical defaults.
+    The sample layer is **customize-only** — it never enables
+    checkpointing. Only the task or eval layer turns it on. When
+    neither task nor eval supplied a config, this returns ``None``
+    (checkpointing disabled) and any sample-level config is silently
+    ignored. Once enabled, the sample layer participates in the
+    per-field merge like any other layer.
 
-    Raises ``ValueError`` if at least one layer was supplied but no
-    layer set a ``trigger``.
+    Otherwise returns a :class:`ResolvedCheckpointConfig` with
+    ``trigger`` guaranteed non-None and ``sandbox_paths`` /
+    ``retention`` filled with canonical defaults. When checkpointing
+    is enabled but no layer (including the sample) set a ``trigger``,
+    the trigger defaults to :data:`DEFAULT_CHECKPOINT_TRIGGER`.
     """
-    if task is None and sample is None and eval_ is None:
+    if task is None and eval_ is None:
         return None
 
     trigger: CheckpointTrigger | None = None
@@ -162,7 +169,7 @@ def merge_checkpoint_configs(
             max_consecutive_failures = layer.max_consecutive_failures
 
     checkpoints_location: str | None = None
-    retention: Retention | None = None
+    retention: Literal["delete", "retain"] | None = None
     for layer in (task, eval_):
         if layer is None:
             continue
@@ -172,14 +179,30 @@ def merge_checkpoint_configs(
             retention = layer.retention
 
     if trigger is None:
-        raise ValueError(
-            "checkpoint config provided but no trigger was set at any level"
-        )
+        trigger = DEFAULT_CHECKPOINT_TRIGGER
 
     return ResolvedCheckpointConfig(
         trigger=trigger,
         sandbox_paths=sandbox_paths if sandbox_paths is not None else {},
-        retention=retention if retention is not None else Retention(),
+        retention=retention if retention is not None else "delete",
         checkpoints_location=checkpoints_location,
         max_consecutive_failures=max_consecutive_failures,
     )
+
+
+def normalize_checkpoint(
+    checkpoint: CheckpointConfig | bool | None,
+) -> CheckpointConfig | None:
+    """Normalize a public ``checkpoint=`` argument to a ``CheckpointConfig``.
+
+    ``True`` enables checkpointing without pinning a trigger — the
+    concrete default (:data:`DEFAULT_CHECKPOINT_TRIGGER`) is resolved
+    per-sample by :func:`merge_checkpoint_configs`, exactly matching the
+    bare ``--checkpoint`` CLI flag. ``False`` / ``None`` disable it. A
+    :class:`CheckpointConfig` is returned unchanged.
+    """
+    if checkpoint is True:
+        return CheckpointConfig(trigger=None)
+    if checkpoint is False or checkpoint is None:
+        return None
+    return checkpoint

@@ -19,6 +19,7 @@ from inspect_ai.tool import tool
 from inspect_ai.tool._tool import tool_result_content
 from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.tool._tool_def import ToolDef
+from inspect_ai.util._sandbox import SandboxTimeoutError
 
 # --- Helpers ---------------------------------------------------------------
 
@@ -337,6 +338,17 @@ def fnf_error_tool():
     return execute
 
 
+@tool
+def sandbox_timeout_tool():
+    async def execute() -> str:
+        """Raise SandboxTimeoutError with partial output."""
+        raise SandboxTimeoutError(
+            "exec timed out", truncated_output="partial output before timeout"
+        )
+
+    return execute
+
+
 async def test_oserror_custom_message_preserved():
     """OSError subclasses raised with a bare message surface that message.
 
@@ -367,6 +379,22 @@ async def test_oserror_custom_message_preserved():
     assert messages[-1].error.type == "file_not_found"
     assert "None" not in messages[-1].error.message
     assert "Workspace file 'config.yaml' missing" in messages[-1].error.message
+
+
+async def test_sandbox_timeout_partial_output_returned_as_tool_result():
+    """SandboxTimeoutError partial output is returned with a timeout tool error."""
+    tool_def = ToolDef(sandbox_timeout_tool())
+    call = make_call("sandbox_timeout_tool", {})
+
+    messages, _ = await execute_tools(
+        [ChatMessageAssistant(content=[], tool_calls=[call])], [tool_def]
+    )
+
+    assert isinstance(messages[-1], ChatMessageTool)
+    assert messages[-1].content == "partial output before timeout"
+    assert messages[-1].error is not None
+    assert messages[-1].error.type == "timeout"
+    assert messages[-1].error.message == "Command timed out before completing."
 
 
 @tool

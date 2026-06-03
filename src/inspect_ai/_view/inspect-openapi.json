@@ -6633,7 +6633,7 @@
         "type": "object"
       },
       "MetadataField": {
-        "description": "A metadata key promoted out of metadata into a top level value.",
+        "description": "Identifies a field in metadata.",
         "properties": {
           "collapsed": {
             "default": false,
@@ -7820,17 +7820,7 @@
       "SampleScoreView": {
         "description": "How the sample-header score panel should render when there are 3 or more scores.",
         "properties": {
-          "sort": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SampleScoreViewSort"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "view": {
+          "default": {
             "anyOf": [
               {
                 "enum": [
@@ -7843,7 +7833,17 @@
                 "type": "null"
               }
             ],
-            "title": "View"
+            "title": "Default"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SampleScoreViewSort"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "SampleScoreView",
@@ -7915,190 +7915,6 @@
           "etag"
         ],
         "title": "Samples",
-        "type": "object"
-      },
-      "SamplesColumn": {
-        "description": "A column entry in the task's Sample List view.",
-        "properties": {
-          "id": {
-            "title": "Id",
-            "type": "string"
-          },
-          "visible": {
-            "default": true,
-            "title": "Visible",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "visible"
-        ],
-        "title": "SamplesColumn",
-        "type": "object"
-      },
-      "SamplesSort": {
-        "description": "A single sort entry for the task's Sample List grid.",
-        "properties": {
-          "column": {
-            "title": "Column",
-            "type": "string"
-          },
-          "dir": {
-            "default": "asc",
-            "enum": [
-              "asc",
-              "desc"
-            ],
-            "title": "Dir",
-            "type": "string"
-          }
-        },
-        "required": [
-          "column",
-          "dir"
-        ],
-        "title": "SamplesSort",
-        "type": "object"
-      },
-      "SamplesView": {
-        "description": "Default configuration for the task's Sample List grid.\n\nConfigures the list of samples shown in a task's eval-log view \u2014\ndistinct from `sample_score_view`, which configures the score panel\nwithin an individual sample's detail view.\n\nThe viewer applies `SamplesView` only when the user has not\nexplicitly overridden the view in their browser. User overrides\nshadow the eval-author default; the resolution priority is\n`user > eval default > built-in`.",
-        "properties": {
-          "color_scales_enabled": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Color Scales Enabled"
-          },
-          "columns": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/SamplesColumn"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Columns"
-          },
-          "compact_scores": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Compact Scores"
-          },
-          "filter": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Filter"
-          },
-          "multiline": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Multiline"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "score_color_scales": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "anyOf": [
-                    {
-                      "enum": [
-                        "good-high",
-                        "good-low",
-                        "neutral",
-                        "diverging"
-                      ],
-                      "type": "string"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ScoreColorScale"
-                    },
-                    {
-                      "additionalProperties": {
-                        "enum": [
-                          "good",
-                          "bad",
-                          "warn",
-                          "info",
-                          "muted"
-                        ],
-                        "type": "string"
-                      },
-                      "type": "object"
-                    }
-                  ]
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score Color Scales"
-          },
-          "score_labels": {
-            "anyOf": [
-              {
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score Labels"
-          },
-          "sort": {
-            "anyOf": [
-              {
-                "items": {
-                  "$ref": "#/components/schemas/SamplesSort"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sort"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "SamplesView",
         "type": "object"
       },
       "SandboxEnvironmentSpec": {
@@ -8327,7 +8143,7 @@
         "type": "object"
       },
       "ScannerResultView": {
-        "description": "Customizes the rendering of scanner results.",
+        "description": "Customizes the rendering of the sample scanner results.",
         "properties": {
           "exclude_fields": {
             "items": {
@@ -8973,9 +8789,34 @@
         "additionalProperties": true,
         "description": "Per-backup stats captured in the checkpoint file.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary \u2014 see :class:`ResticBackupSummary`.",
         "properties": {
+          "additional_files": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Files"
+          },
           "duration_ms": {
             "title": "Duration Ms",
             "type": "integer"
+          },
+          "files": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files"
           },
           "size_bytes": {
             "title": "Size Bytes",
@@ -9637,6 +9478,221 @@
           "name"
         ],
         "title": "TaskDisplayMetric",
+        "type": "object"
+      },
+      "TaskSamplesColumn": {
+        "description": "A column entry in the task's Sample List view.",
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sampleStatus",
+                  "sampleId",
+                  "sampleUuid",
+                  "epoch",
+                  "input",
+                  "target",
+                  "answer",
+                  "tokens",
+                  "duration",
+                  "retries",
+                  "error",
+                  "limit"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Id"
+          },
+          "visible": {
+            "default": true,
+            "title": "Visible",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "visible"
+        ],
+        "title": "TaskSamplesColumn",
+        "type": "object"
+      },
+      "TaskSamplesSort": {
+        "description": "A single sort entry for the task's Sample List grid.",
+        "properties": {
+          "column": {
+            "anyOf": [
+              {
+                "enum": [
+                  "sampleStatus",
+                  "sampleId",
+                  "sampleUuid",
+                  "epoch",
+                  "input",
+                  "target",
+                  "answer",
+                  "tokens",
+                  "duration",
+                  "retries",
+                  "error",
+                  "limit"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Column"
+          },
+          "dir": {
+            "default": "asc",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "title": "Dir",
+            "type": "string"
+          }
+        },
+        "required": [
+          "column",
+          "dir"
+        ],
+        "title": "TaskSamplesSort",
+        "type": "object"
+      },
+      "TaskSamplesView": {
+        "description": "Default configuration for the task's Sample List grid.\n\nConfigures the list of samples shown in a task's eval-log view.\n\nThe viewer applies `TaskSamplesView` only when the user has not\nexplicitly overridden the view in their browser. User overrides\nshadow the eval-author default; the resolution priority is\n`user > eval default > built-in`.",
+        "properties": {
+          "color_scales_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Scales Enabled"
+          },
+          "columns": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaskSamplesColumn"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Columns"
+          },
+          "compact_scores": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compact Scores"
+          },
+          "multiline": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Multiline"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "score_color_scales": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "good-high",
+                        "good-low",
+                        "neutral",
+                        "diverging"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ScoreColorScale"
+                    },
+                    {
+                      "additionalProperties": {
+                        "enum": [
+                          "good",
+                          "bad",
+                          "warn",
+                          "info",
+                          "muted"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "object"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Color Scales"
+          },
+          "score_labels": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Labels"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaskSamplesSort"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "TaskSamplesView",
         "type": "object"
       },
       "TimeInterval": {
@@ -10533,7 +10589,7 @@
         "type": "object"
       },
       "ViewerConfig": {
-        "description": "Top-level viewer configuration.\n\n`scanner_result_view` keys are fnmatch-style glob patterns (`\"*\"`,\n``\"audit_*\"``, exact names). Pass a ScannerResultView to apply a single\nconfiguration to every scanner.",
+        "description": "Top-level viewer configuration.\n\nThis allows per task customization of the\nTask's sample list and each sample's score and scanner result display.",
         "properties": {
           "sample_score_view": {
             "anyOf": [
@@ -10562,11 +10618,11 @@
           "task_samples_view": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/SamplesView"
+                "$ref": "#/components/schemas/TaskSamplesView"
               },
               {
                 "items": {
-                  "$ref": "#/components/schemas/SamplesView"
+                  "$ref": "#/components/schemas/TaskSamplesView"
                 },
                 "type": "array"
               },

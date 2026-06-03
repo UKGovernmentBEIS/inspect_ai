@@ -1177,6 +1177,18 @@ def _openai_input_items_from_chat_message_assistant(
         ]
     )
 
+    if message.tool_calls:
+        content_items = [
+            content
+            for content in content_items
+            if not (
+                isinstance(content, ContentText)
+                and content.text == ""
+                and not content.refusal
+                and content.internal is None
+            )
+        ]
+
     # If all content is reasoning-only (no text, no tool calls), inject a
     # NO_CONTENT fallback to prevent the Responses API from rejecting the
     # next request. This matches the pattern used by other providers

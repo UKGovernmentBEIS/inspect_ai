@@ -13,7 +13,7 @@ By default, model tool calls are executed within the main process running the ev
 
 - You want to provide access to a more sophisticated evaluation environment (e.g. creating network hosts for a cybersecurity eval).
 
-To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the [Extension API](extensions.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
+To accommodate these scenarios, Inspect provides support for *sandboxing*, which typically involves provisioning containers for tools to execute code within. Support for Docker sandboxes is built in, and the [Extension API](extensions-sandboxes.qmd#sec-sandbox-environment-extensions) enables the creation of additional sandbox types.
 
 ## Example: File Listing
 
@@ -82,6 +82,10 @@ Note that `files` are specified as part of the `Sample`. Files can be specified 
 ## Environment Interface
 
 The following instance methods are available to tools that need to interact with a `SandboxEnvironment`:
+
+{{< include _sandboxenv-exec.md >}}
+
+{{< include _sandboxenv-exec-remote.md >}}
 
 {{< include _sandboxenv-interface.md >}}
 
