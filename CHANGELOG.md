@@ -1,6 +1,7 @@
 ## 0.3.235 (03 June 2026)
 
 - OpenAI: Don't filter `tool_search` tool in agent bridge for providers derived from OpenAIAPI.
+- Model Info: Defer to explicit calls to `set_model_info()` when computing input tokens for unknown models.
 
 ## 0.3.234 (02 June 2026)
 
