@@ -502,13 +502,25 @@ def _build_summary(
     sample_starts = [s.started for s in samples if s.started is not None]
     eval_started_at = min(sample_starts) if sample_starts else started_at_fallback
 
-    in_flight = sum(1 for s in samples if s.started is not None and s.completed is None)
+    in_flight_samples = [
+        s for s in samples if s.started is not None and s.completed is None
+    ]
+    in_flight = len(in_flight_samples)
     total = latest.total
     completed = latest.completed
     errored = latest.errored
     queued = max(0, total - completed - errored - in_flight)
     completed_at = latest.completed_at
     status = "completed" if completed_at is not None else "running"
+
+    # Usage = the accumulated total for terminal samples (survives them
+    # leaving active_samples — "usage so far") plus the live usage of the
+    # in-flight ones. A sample is in exactly one bucket: it's accumulated at
+    # its terminal outcome, which fires after it leaves active_samples.
+    total_tokens = latest.total_tokens + sum(s.total_tokens for s in in_flight_samples)
+    total_messages = latest.total_messages + sum(
+        s.total_messages for s in in_flight_samples
+    )
 
     return {
         "run_id": run_id,
@@ -527,6 +539,6 @@ def _build_summary(
             "in_flight": in_flight,
             "queued": queued,
         },
-        "total_tokens": sum(s.total_tokens for s in samples),
-        "total_messages": sum(s.total_messages for s in samples),
+        "total_tokens": total_tokens,
+        "total_messages": total_messages,
     }

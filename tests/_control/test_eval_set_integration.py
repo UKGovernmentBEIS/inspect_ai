@@ -10,6 +10,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from typing import Any
 
 import anyio
 import httpx
@@ -2624,6 +2625,116 @@ def test_ctl_eval_finishes_when_samples_early_stopped(short_data_dir: Path) -> N
         assert samples["completed"] == 4
         assert samples["in_flight"] == 0
         assert samples["queued"] == 0
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_eval_usage_persists_after_samples_complete(short_data_dir: Path) -> None:
+    """Eval-level usage totals survive samples leaving `active_samples`.
+
+    `total_tokens` / `total_messages` were summed only over the live
+    `ActiveSample` list, so once samples completed (and under keep-alive after
+    the whole eval finished) the eval's reported usage fell back toward zero —
+    contradicting the "usage so far" purpose. `work` runs to completion;
+    `hang_task` keeps the eval-set (and control server) alive so we observe
+    `work` after its samples have left `active_samples`.
+    """
+    release = threading.Event()
+
+    @solver
+    def gen() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            return await generate(state)
+
+        return solve
+
+    @solver
+    def hang() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            while not release.is_set():
+                await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def work() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="hi", target="ok") for i in (1, 2, 3)],
+            solver=[gen()],
+            name="work",
+        )
+
+    @task
+    def hang_task() -> Task:
+        return Task(
+            dataset=[Sample(id="h", input="x", target="y")],
+            solver=[hang()],
+            name="hang_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[work(), hang_task()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                max_tasks=2,
+                max_samples=5,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_usage")
+    thread.start()
+
+    def _work() -> dict[str, Any] | None:
+        servers = list_discovered_servers()
+        if not servers:
+            return None
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+        except (httpx.HTTPError, OSError):
+            return None
+        return next((e for e in evals if e.get("task") == "work"), None)
+
+    try:
+        # Wait until work's samples have all finished and left active_samples.
+        def _work_done() -> bool:
+            w = _work()
+            return (
+                w is not None
+                and w["samples"]["completed"] == 3
+                and w["samples"]["in_flight"] == 0
+            )
+
+        ready = _wait_until(_work_done, timeout=30.0)
+        assert ready, (
+            f"work didn't finish; eval={_work()}, error={result_ref.get('error')}"
+        )
+
+        w = _work()
+        assert w is not None
+        # Usage must reflect the completed samples, not drop to ~0 now that
+        # they're no longer in active_samples.
+        assert w["total_messages"] > 0, w
+        assert w["total_tokens"] > 0, w
     finally:
         release.set()
         thread.join(timeout=60)

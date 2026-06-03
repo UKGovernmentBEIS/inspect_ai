@@ -121,6 +121,17 @@ class EvalState:
     endpoint render a cancelled sample as ``pending`` (a retry will re-run
     it) rather than ``cancelled`` (terminal — no retry coming)."""
 
+    total_tokens: int = 0
+    """Cumulative model tokens used by this eval's terminal samples.
+
+    Accumulated once per sample at its final outcome (mirrors
+    :attr:`completed` / :attr:`errored`), so it survives samples leaving
+    ``active_samples`` — i.e. it's the "usage so far", not a live snapshot.
+    The control endpoint adds the in-flight samples' live usage on top."""
+
+    total_messages: int = 0
+    """Cumulative message count, accumulated like :attr:`total_tokens`."""
+
     @property
     def is_finished(self) -> bool:
         """True once every sample has terminated (success or error)."""
@@ -219,29 +230,39 @@ def register_completed_eval(
         return state
 
 
-def record_sample_completed(eval_id: str) -> None:
-    """Mark a sample as having finished successfully.
+def record_sample_completed(
+    eval_id: str, *, tokens: int = 0, messages: int = 0
+) -> None:
+    """Mark a sample as having finished successfully, accumulating its usage.
 
-    Called once per sample at the final outcome — retries don't
-    increment. Silently no-ops if the eval isn't registered.
+    Called once per sample at the final outcome — retries don't increment.
+    ``tokens`` / ``messages`` are that sample's model usage, accumulated into
+    the eval total so usage survives the sample leaving ``active_samples``
+    (the "usage so far"). Silently no-ops if the eval isn't registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
             state.completed += 1
+            state.total_tokens += tokens
+            state.total_messages += messages
             _maybe_mark_finished(state)
 
 
-def record_sample_errored(eval_id: str) -> None:
-    """Mark a sample as having finished with an error.
+def record_sample_errored(eval_id: str, *, tokens: int = 0, messages: int = 0) -> None:
+    """Mark a sample as having finished with an error, accumulating its usage.
 
-    Called once per sample at the final outcome (after retries are
-    exhausted). Silently no-ops if the eval isn't registered.
+    Called once per sample at the final outcome (after retries are exhausted).
+    ``tokens`` / ``messages`` are accumulated like
+    :func:`record_sample_completed`. Silently no-ops if the eval isn't
+    registered.
     """
     with _lock:
         state = _eval_states.get(eval_id)
         if state is not None:
             state.errored += 1
+            state.total_tokens += tokens
+            state.total_messages += messages
             _maybe_mark_finished(state)
 
 

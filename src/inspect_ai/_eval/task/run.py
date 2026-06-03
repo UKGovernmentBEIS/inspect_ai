@@ -590,7 +590,15 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                                 eval_spec=logger.eval,
                             )
                             await sample_complete(sample_id, epoch, sample_scores)
-                            record_sample_completed(logger.eval.eval_id)
+                            # reused sample: accumulate its own logged usage
+                            record_sample_completed(
+                                logger.eval.eval_id,
+                                tokens=sum(
+                                    u.total_tokens
+                                    for u in previous_sample.model_usage.values()
+                                ),
+                                messages=len(previous_sample.messages),
+                            )
                             return sample_scores
                         elif isinstance(previous_sample, ResumeCheckpoint):
                             # signal intent — agent code can branch on
@@ -911,6 +919,20 @@ def update_metrics_display_fn(
             next_compute_time = time_end + wait
 
     return compute
+
+
+def _sample_usage(state: TaskState) -> dict[str, int]:
+    """The just-finished sample's ``tokens`` / ``messages`` for the eval totals.
+
+    Model usage is read from the sample-scoped contextvar (still set on this
+    coroutine even though the ``active_sample`` context has exited by the
+    terminal block). Spread into ``record_sample_completed`` /
+    ``record_sample_errored`` so each terminal outcome is a single call.
+    """
+    return {
+        "tokens": sum(u.total_tokens for u in sample_model_usage().values()),
+        "messages": len(state.messages),
+    }
 
 
 async def task_run_sample(
@@ -1617,17 +1639,17 @@ async def task_run_sample(
         # call sample_complete callback if we have score results
         if results is not None:
             await sample_complete(state.sample_id, state.epoch, results)
-        record_sample_completed(task_id)
+        record_sample_completed(task_id, **_sample_usage(state))
         return results
 
     # we have an error and should raise it
     elif raise_error is not None:
-        record_sample_errored(task_id)
+        record_sample_errored(task_id, **_sample_usage(state))
         raise raise_error
 
     # we have an error and should not raise it
     else:
-        record_sample_errored(task_id)
+        record_sample_errored(task_id, **_sample_usage(state))
         return None
 
 
