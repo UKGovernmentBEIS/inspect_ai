@@ -143,8 +143,9 @@ class HydrationResult:
     host: _HostHydrationResult
 
     sandbox_backup_paths: dict[str, list[str]] = field(default_factory=dict)
-    """Effective sandbox name → paths map used for backup (config entries
-    plus auto-included default-user home dirs). See ``sandbox_paths``."""
+    """Effective sandbox name → paths map used for backup: each live
+    sandbox's default-user home dir, with ``sandbox_paths`` config entries
+    replacing the default (empty-list entries opt out). See ``sandbox_paths``."""
 
 
 async def hydrate(

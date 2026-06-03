@@ -217,7 +217,7 @@ This works for both `inspect eval retry` / `eval_retry()` and eval-set retry. In
 
 On resume, the following is restored before the agent runs:
 
--   **Sandbox.** The configured sandbox paths are restored into a fresh sandbox container.
+-   **Sandbox.** The effective sandbox paths (each sandbox's default-user home directory, as overridden by `sandbox_paths`) are restored into a fresh sandbox container.
 -   **Messages, events, store, attachments.** Inspect's internal per-sample state is rehydrated. The rehydrated events appear under a synthesized `prior_run` span in the new `.eval` log.
 -   **Agent-tracked state.** Any values the agent registered with `cp.track(...)` (see below).
 
@@ -278,7 +278,7 @@ When no `CheckpointConfig` is installed (checkpointing disabled), the session is
 
 -   **Turn-boundary granularity only.** A long-running tool call (e.g. a 10-minute subprocess) blocks the next checkpoint until the call returns. Mid-tool-call checkpointing is planned for a later phase.
 
--   **Filesystem state only.** Anything outside `sandbox_paths` is not captured. In-memory process state inside the sandbox (running daemons, open sockets, RAM) is lost on resume. The agent is responsible for tolerating this.
+-   **Filesystem state only.** Anything outside the captured paths (each sandbox's default-user home directory, as overridden by `sandbox_paths`) is not captured. In-memory process state inside the sandbox (running daemons, open sockets, RAM) is lost on resume. The agent is responsible for tolerating this.
 
 -   **External side-effects may re-execute.** If a tool call completed between the last checkpoint and a crash, Inspect cannot un-do its real-world side-effects. Idempotent tools are strongly recommended for checkpointed evals.
 

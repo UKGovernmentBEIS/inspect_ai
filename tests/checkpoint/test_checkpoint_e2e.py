@@ -49,9 +49,12 @@ from inspect_ai.util import CheckpointConfig, TurnInterval, store
 LAYER1_CONTENT = "plain1"
 STORE_KEY = "answer"
 RESUMED_KEY = "resumed"
+# Write under $HOME (not /workspace) so the default-user home-dir auto-backup
+# captures it — the task declares no `sandbox_paths`, exercising
+# `resolve_sandbox_backup_paths` / `_resolve_default_home`.
 WRITE_CMD = (
-    "mkdir -p /workspace/decoded && "
-    f"printf '{LAYER1_CONTENT}' > /workspace/decoded/layer1.txt"
+    'mkdir -p "$HOME/workspace/decoded" && '
+    f"printf '{LAYER1_CONTENT}' > \"$HOME/workspace/decoded/layer1.txt\""
 )
 SCRIPTED_MODEL = "scripteddecode/model"
 
@@ -190,10 +193,12 @@ def resume_decode_task() -> Task:
         dataset=[Sample(id="resume", input="decode the layers", target=LAYER1_CONTENT)],
         solver=react(tools=[bash(timeout=60), remember(), cancel()]),
         scorer=includes(),
-        sandbox="docker",
+        # Small-home sandbox (see compose.yaml) so the default-user $HOME
+        # auto-backup stays cheap.
+        sandbox=("docker", str(Path(__file__).parent / "compose.yaml")),
         checkpoint=CheckpointConfig(
             trigger=TurnInterval(every=1),
-            sandbox_paths={"default": ["/workspace"]},
+            # No sandbox_paths: the default sandbox's $HOME is auto-captured.
             retention="retain",
         ),
     )

@@ -1,9 +1,9 @@
 """Resolve the effective per-sandbox backup paths for a sample.
 
-``sandbox_paths`` in the checkpoint config is an explicit, opt-in map of
-sandbox name → absolute paths to capture. This module layers a default on
-top: any sandbox *without* an entry has its default-user home directory
-captured automatically. An explicit empty-list entry opts a sandbox out.
+Every live sandbox has its default-user home directory captured by
+default. ``sandbox_paths`` in the checkpoint config overrides that default
+per sandbox name: a non-empty entry replaces the home dir with the listed
+paths, and an explicit empty-list entry opts a sandbox out entirely.
 """
 
 from logging import getLogger
