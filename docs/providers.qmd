@@ -1432,4 +1432,4 @@ inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream
 
 ## Custom Models
 
-If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions.qmd#sec-model-api-extensions) for additional details.
+If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions-model-api.qmd#sec-model-api-extensions) for additional details.

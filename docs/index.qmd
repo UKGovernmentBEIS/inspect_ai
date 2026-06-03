@@ -269,15 +269,11 @@ These sections discuss more advanced features and workflows. You don't need to r
 
 -   [Setting Limits](setting-limits.qmd) covers setting time, message, token, and cost limits on evaluation tasks and samples.
 
--   [Typing](typing.qmd): provides guidance on using static type checking with Inspect, including creating typed interfaces to untyped storage (i.e. sample metadata and store).
-
 -   [Tracing](tracing.qmd) Describes advanced execution tracing tools used to diagnose runtime issues.
 
 -   [Caching](caching.qmd) enables you to cache model output to reduce the number of API calls made, saving both time and expense.
 
 -   [Parallelism](parallelism.qmd) covers running multiple models or tasks in parallel, sandbox container concurrency, and writing parallel custom code (tools, solvers, scorers). For tuning model API connection limits and rate-limit handling, see [Model Concurrency](models-concurrency.qmd).
-
--   [Interactivity](interactivity.qmd) covers various ways to introduce user interaction into the implementation of tasks (for example, prompting the model dynamically based on the trajectory of the evaluation).
 
 -   [Early Stopping](early-stopping.qmd) describes the early stopping API for ending tasks early based on previously scored samples.
 
