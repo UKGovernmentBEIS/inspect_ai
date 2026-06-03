@@ -2742,3 +2742,120 @@ def test_ctl_eval_usage_persists_after_samples_complete(short_data_dir: Path) ->
         err = result_ref.get("error")
         if err is not None:
             raise err  # type: ignore[misc]
+
+
+@pytest.mark.slow
+def test_ctl_eval_finishes_when_final_attempt_cancels_sibling(
+    short_data_dir: Path,
+) -> None:
+    """A terminal cancellation counts toward the eval's total.
+
+    Sample 1 errors and tears the task down (no retry), cancelling in-flight
+    sample 2. The cancelled sample is logged but re-raised before any terminal
+    counter runs — so without a `cancelled` counter `completed + errored`
+    never reaches `total` and `/evals` reports the failed eval as `running`
+    forever. `hang_task` keeps the eval-set alive to observe `failing` settle.
+    """
+    release = threading.Event()
+
+    @solver
+    def fail_and_hang() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if int(state.sample_id) == 1:
+                raise RuntimeError("boom")
+            await anyio.sleep(5)  # in-flight when sample 1 fails -> cancelled
+            return state
+
+        return solve
+
+    @solver
+    def hang() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            while not release.is_set():
+                await anyio.sleep(0.05)
+            return state
+
+        return solve
+
+    @task
+    def failing() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in (1, 2)],
+            solver=[fail_and_hang()],
+            name="failing",
+        )
+
+    @task
+    def hang_task() -> Task:
+        return Task(
+            dataset=[Sample(id="h", input="x", target="y")],
+            solver=[hang()],
+            name="hang_task",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+    result_ref: dict[str, object] = {}
+
+    def run_eval_set() -> None:
+        try:
+            ok, _logs = eval_set(
+                tasks=[failing(), hang_task()],
+                log_dir=log_dir,
+                model="mockllm/model",
+                retry_attempts=0,
+                max_tasks=2,
+                max_samples=4,
+            )
+            result_ref["ok"] = ok
+        except BaseException as exc:  # noqa: BLE001
+            result_ref["error"] = exc
+
+    thread = threading.Thread(target=run_eval_set, name="eval_set_cancel_final")
+    thread.start()
+
+    def _failing() -> dict[str, Any] | None:
+        servers = list_discovered_servers()
+        if not servers:
+            return None
+        try:
+            transport = httpx.HTTPTransport(uds=str(servers[0].socket_path))
+            with httpx.Client(
+                transport=transport, base_url="http://localhost", timeout=2.0
+            ) as client:
+                evals = client.get("/evals").json()
+        except (httpx.HTTPError, OSError):
+            return None
+        return next((e for e in evals if e.get("task") == "failing"), None)
+
+    try:
+        # The errored sample is counted with the bug too; the cancelled one is
+        # the gap. Wait until the error is recorded and nothing is in flight.
+        def _settled() -> bool:
+            f = _failing()
+            return (
+                f is not None
+                and f["samples"]["errored"] == 1
+                and f["samples"]["in_flight"] == 0
+            )
+
+        ready = _wait_until(_settled, timeout=30.0)
+        assert ready, (
+            f"failing never settled; eval={_failing()}, err={result_ref.get('error')}"
+        )
+
+        f = _failing()
+        assert f is not None
+        assert f["status"] == "completed", f
+        samples = f["samples"]
+        assert samples["errored"] == 1
+        assert samples["cancelled"] == 1
+        assert samples["queued"] == 0
+        assert samples["in_flight"] == 0
+    finally:
+        release.set()
+        thread.join(timeout=60)
+        assert not thread.is_alive(), "eval_set thread didn't finish after release"
+        err = result_ref.get("error")
+        if err is not None:
+            raise err  # type: ignore[misc]

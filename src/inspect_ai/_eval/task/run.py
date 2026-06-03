@@ -15,6 +15,7 @@ from anyio.abc import TaskGroup
 from typing_extensions import Unpack
 
 from inspect_ai._control.eval_state import (
+    record_sample_cancelled,
     record_sample_completed,
     record_sample_errored,
     register_eval,
@@ -1632,6 +1633,10 @@ async def task_run_sample(
 
     # re-raise cancellation after logging to preserve structured concurrency
     elif cancelled_error is not None:
+        # a cancelled sample is terminal but not a genuine error — count it so
+        # the eval can reach `total` and be marked finished (eg. a final-attempt
+        # failure that cancels an in-flight sibling)
+        record_sample_cancelled(task_id, **_sample_usage(state))
         raise cancelled_error
 
     # no error

@@ -144,6 +144,7 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
                     "total": 0,
                     "completed": 0,
                     "errored": 0,
+                    "cancelled": 0,
                     "in_flight": sum(
                         1
                         for s in samples
@@ -509,7 +510,8 @@ def _build_summary(
     total = latest.total
     completed = latest.completed
     errored = latest.errored
-    queued = max(0, total - completed - errored - in_flight)
+    cancelled = latest.cancelled
+    queued = max(0, total - completed - errored - cancelled - in_flight)
     completed_at = latest.completed_at
     status = "completed" if completed_at is not None else "running"
 
@@ -536,6 +538,7 @@ def _build_summary(
             "total": total,
             "completed": completed,
             "errored": errored,
+            "cancelled": cancelled,
             "in_flight": in_flight,
             "queued": queued,
         },

@@ -75,6 +75,13 @@ class EvalState:
     errored: int = 0
     """Samples whose final attempt failed (also counted once per sample)."""
 
+    cancelled: int = 0
+    """Samples cancelled at their final attempt — a sibling's failure (or an
+    eval cancel) tore the task down while they were in flight. Terminal but
+    not a genuine error: counted toward the finish total so the eval isn't
+    stuck "running", but kept separate from :attr:`errored` so it doesn't
+    render as a failure."""
+
     task: str = ""
     """Task name. Carried here so consumers (control channel `ls`) can label
     the eval even after all its samples have exited ``active_samples``
@@ -134,8 +141,11 @@ class EvalState:
 
     @property
     def is_finished(self) -> bool:
-        """True once every sample has terminated (success or error)."""
-        return self.total > 0 and self.completed + self.errored >= self.total
+        """True once every sample has terminated (success, error, or cancel)."""
+        return (
+            self.total > 0
+            and self.completed + self.errored + self.cancelled >= self.total
+        )
 
 
 # Module-level registry. Keyed by eval_id. A process can host multiple
@@ -261,6 +271,24 @@ def record_sample_errored(eval_id: str, *, tokens: int = 0, messages: int = 0) -
         state = _eval_states.get(eval_id)
         if state is not None:
             state.errored += 1
+            state.total_tokens += tokens
+            state.total_messages += messages
+            _maybe_mark_finished(state)
+
+
+def record_sample_cancelled(
+    eval_id: str, *, tokens: int = 0, messages: int = 0
+) -> None:
+    """Mark a sample as terminally cancelled (sibling failure / eval cancel).
+
+    Terminal but not a genuine error — counted toward the finish total (so the
+    eval isn't stuck "running") in its own bucket, separate from ``errored``.
+    Usage accumulates like the other terminal records. No-ops if unregistered.
+    """
+    with _lock:
+        state = _eval_states.get(eval_id)
+        if state is not None:
+            state.cancelled += 1
             state.total_tokens += tokens
             state.total_messages += messages
             _maybe_mark_finished(state)

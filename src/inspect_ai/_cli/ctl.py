@@ -605,15 +605,16 @@ def _format_samples(samples: dict[str, Any]) -> str:
     - ``0/total (queued)`` when no samples started yet
     - ``done/total`` as the bland fallback
 
-    ``done`` = ``completed + errored`` (terminal counts).
+    ``done`` = ``completed + errored + cancelled`` (terminal counts).
     """
     total = int(samples.get("total", 0) or 0)
     completed = int(samples.get("completed", 0) or 0)
     errored = int(samples.get("errored", 0) or 0)
+    cancelled = int(samples.get("cancelled", 0) or 0)
     in_flight = int(samples.get("in_flight", 0) or 0)
     queued = int(samples.get("queued", 0) or 0)
 
-    done = completed + errored
+    done = completed + errored + cancelled
     if total == 0:
         # No total recorded — show in_flight as a single number so
         # the user sees something useful pre-EvalState registration.
