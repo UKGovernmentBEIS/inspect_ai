@@ -162,3 +162,46 @@ def test_start_does_not_publish_discovery_when_bind_fails(
         assert list_discovered_servers() == []
 
     asyncio.run(run())
+
+
+async def test_sample_endpoint_addresses_reserved_char_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`GET /evals/<id>/sample` reaches ids with URL-reserved characters.
+
+    Sample ids are arbitrary strings — ``case/001`` (path separator),
+    ``q?x#y`` (query / fragment delimiters). They ride in the ``sample_id``
+    *query parameter* (not a path segment, which can't carry them); the client
+    URL-encodes and the server decodes them end to end. A path-segment route
+    could never reach these. Pins that the handler receives the id intact.
+
+    A normal ``async def`` test (no isolated ``asyncio.run``): unlike the
+    thread-leak tests above, this asserts nothing about worker threads, so the
+    anyio harness is fine — and it gets dual-backend coverage for free.
+    """
+    from inspect_ai._control import server as server_mod
+
+    received: list[tuple[str, str, int]] = []
+
+    async def _echo(eval_id: str, sample_id: str, epoch: int) -> dict[str, object]:
+        received.append((eval_id, sample_id, epoch))
+        return {"sample_id": sample_id, "epoch": epoch, "status": "completed"}
+
+    monkeypatch.setattr(server_mod, "sample_error_detail", _echo)
+
+    tricky_ids = ["case/001", "q?x#y"]
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        for sid in tricky_ids:
+            # httpx URL-encodes the query param; the route must round-trip it.
+            response = await client.get(
+                "/evals/ev1/sample", params={"sample_id": sid, "epoch": 1}
+            )
+            assert response.status_code == 200, (sid, response.text)
+            assert response.json()["sample_id"] == sid, sid
+
+    assert received == [("ev1", sid, 1) for sid in tricky_ids], received

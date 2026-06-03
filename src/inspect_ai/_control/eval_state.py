@@ -208,6 +208,8 @@ def register_completed_eval(
     log_location: str = "",
     run_id: str | None = None,
     completed_at: float | None = None,
+    total_tokens: int = 0,
+    total_messages: int = 0,
 ) -> EvalState:
     """Register an eval that has already finished.
 
@@ -235,6 +237,8 @@ def register_completed_eval(
             log_location=log_location,
             run_id=run_id,
             completed_at=completed_at if completed_at is not None else time.time(),
+            total_tokens=total_tokens,
+            total_messages=total_messages,
         )
         _eval_states[eval_id] = state
         return state

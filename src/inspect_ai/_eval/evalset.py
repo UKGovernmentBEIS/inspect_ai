@@ -781,6 +781,8 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             except (ValueError, TypeError):
                 completed_at = None
 
+        total_tokens, total_messages = _reused_log_usage(log_entry)
+
         register_completed_eval(
             eval_spec.eval_id,
             total=total,
@@ -792,7 +794,34 @@ def _register_reused_logs(success_logs: list[Log]) -> None:
             log_location=log_entry.info.name,
             run_id=eval_spec.run_id,
             completed_at=completed_at,
+            total_tokens=total_tokens,
+            total_messages=total_messages,
         )
+
+
+def _reused_log_usage(log_entry: Log) -> tuple[int, int]:
+    """``(total_tokens, total_messages)`` for a reused log's synthetic state.
+
+    Tokens come from the header's ``stats.model_usage`` (authoritative, what
+    the console reports). The header has no message count, so messages are
+    summed from the per-sample summaries — best-effort: a read failure yields
+    0 messages rather than breaking reuse registration (the control surface is
+    non-critical, and the header was already parsed so the log is valid).
+    """
+    stats = log_entry.header.stats
+    tokens = (
+        sum(u.total_tokens for u in stats.model_usage.values())
+        if stats is not None
+        else 0
+    )
+    try:
+        from inspect_ai.log._file import read_eval_log_sample_summaries
+
+        summaries = read_eval_log_sample_summaries(log_entry.info)
+        messages = sum(s.message_count or 0 for s in summaries)
+    except (OSError, ValueError):
+        messages = 0
+    return tokens, messages
 
 
 async def _keep_alive_park(eval_set_id: str) -> None:
