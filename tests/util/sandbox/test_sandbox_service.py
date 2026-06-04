@@ -16,6 +16,7 @@ from inspect_ai.util._background import background
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
 from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import (
+    SERVICE_REQUEST_READ_OUTPUT_LIMIT,
     SERVICES_DIR,
     SandboxService,
     sandbox_service,
@@ -289,17 +290,22 @@ async def test_ensure_service_dir_raises_runtime_when_parent_writable_but_mkdir_
 
 
 @dataclass
-class _OversizedReadSandbox:
-    """Fake sandbox where reading the request file overflows the output limit.
+class _RequestReadSandbox:
+    """Fake sandbox for exercising the request-read failure paths of _handle_request.
 
-    The bounded `head` read returns ``request_head``; ``tee`` writes and ``rm``
-    removals are recorded so a test can assert the error-response + cleanup
-    behavior of an over-limit request.
+    - ``cat``: raises ``OutputLimitExceededError`` if ``raise_on_cat`` (the k8s
+      style), otherwise returns ``cat_stdout`` (use a non-JSON tail to model a
+      provider that silently truncates an oversized read, e.g. docker/local).
+    - ``wc -c``: returns ``file_size`` (the on-disk size check).
+    - ``head -c``: returns ``request_head`` (bounded id recovery).
+    - ``tee``/``rm``: recorded in ``writes`` / ``removed``.
     """
 
-    request_head: str
-    limit_str: str = "100 MiB"
-    cat_calls: int = 0
+    cat_stdout: str = ""
+    raise_on_cat: bool = False
+    file_size: int = 0
+    request_head: str = ""
+    limit_str: str = "10 MiB"
     writes: dict[str, str] = field(default_factory=dict)
     removed: list[str] = field(default_factory=list)
 
@@ -315,9 +321,14 @@ class _OversizedReadSandbox:
         if cmd[:2] == ["bash", "-c"]:
             script = cmd[2]
             if script.startswith("cat "):
-                self.cat_calls += 1
-                raise OutputLimitExceededError(
-                    limit_str=self.limit_str, truncated_output=None
+                if self.raise_on_cat:
+                    raise OutputLimitExceededError(
+                        limit_str=self.limit_str, truncated_output=None
+                    )
+                return cast(ExecResult[str], FakeExecResult(stdout=self.cat_stdout))
+            if script.startswith("wc -c"):
+                return cast(
+                    ExecResult[str], FakeExecResult(stdout=f"{self.file_size}\n")
                 )
             if script.startswith("head -c"):
                 return cast(ExecResult[str], FakeExecResult(stdout=self.request_head))
@@ -339,33 +350,75 @@ def _service_with_dirs(
     return service
 
 
-async def test_handle_request_oversized_writes_error_and_removes_file() -> None:
-    """An over-limit request gets an error response and is removed (no cycling)."""
+async def test_handle_request_oversized_raise_writes_error_and_removes_file() -> None:
+    """A provider that RAISES on overflow (k8s) -> error response + removal."""
     request_id = "11111111-2222-3333-4444-555555555555"
     head = json.dumps({"id": request_id, "method": "generate", "params": {}})
-    fake = _OversizedReadSandbox(request_head=head)
+    fake = _RequestReadSandbox(raise_on_cat=True, request_head=head)
     service = _service_with_dirs(fake)
     request_file = f"{service._requests_dir}/{request_id}.json"
 
     await service._handle_request(request_file)
 
-    # an error response was written for the recovered id (unblocks the client)
     response_path = f"{service._responses_dir}/{request_id}.json"
     assert response_path in fake.writes
     response = json.loads(fake.writes[response_path])
     assert response["id"] == request_id
     assert response["result"] is None
-    assert "100 MiB" in response["error"]
-
-    # the request file was removed so it isn't retried/re-logged forever ...
+    assert "10 MiB" in response["error"]
     assert request_file in fake.removed
-    # ... and the read was attempted exactly once (no in-handler cycling)
-    assert fake.cat_calls == 1
+
+
+async def test_handle_request_oversized_truncated_writes_error_and_removes_file() -> (
+    None
+):
+    """A provider that silently TRUNCATES on overflow (docker/local) -> graceful.
+
+    The truncated tail fails to parse; the on-disk size (> read limit) reveals it
+    as oversized rather than a partial write, so it is discarded with an error
+    response instead of being retried forever.
+    """
+    request_id = "22222222-3333-4444-5555-666666666666"
+    head = json.dumps({"id": request_id, "method": "generate", "params": {}})
+    fake = _RequestReadSandbox(
+        raise_on_cat=False,
+        cat_stdout="truncated-tail-that-is-not-valid-json}]}",
+        file_size=SERVICE_REQUEST_READ_OUTPUT_LIMIT + 1,
+        request_head=head,
+    )
+    service = _service_with_dirs(fake)
+    request_file = f"{service._requests_dir}/{request_id}.json"
+
+    await service._handle_request(request_file)
+
+    response_path = f"{service._responses_dir}/{request_id}.json"
+    assert response_path in fake.writes
+    response = json.loads(fake.writes[response_path])
+    assert response["id"] == request_id
+    assert response["result"] is None
+    assert request_file in fake.removed
+
+
+async def test_handle_request_incomplete_write_is_retried() -> None:
+    """A still-being-written file (parse fails, size under limit) is left to retry."""
+    fake = _RequestReadSandbox(
+        raise_on_cat=False,
+        cat_stdout='{"id": "33333333-...", "meth',  # partial JSON
+        file_size=64,  # well under the read limit -> not an oversized read
+    )
+    service = _service_with_dirs(fake)
+    request_file = f"{service._requests_dir}/incomplete.json"
+
+    await service._handle_request(request_file)
+
+    # no response written and the file left in place for the next poll
+    assert fake.writes == {}
+    assert fake.removed == []
 
 
 async def test_handle_request_oversized_unrecoverable_id_removes_file() -> None:
     """If the id can't be recovered, no response is written but the file is removed."""
-    fake = _OversizedReadSandbox(request_head="garbage-with-no-id-field")
+    fake = _RequestReadSandbox(raise_on_cat=True, request_head="garbage-with-no-id")
     service = _service_with_dirs(fake)
     request_file = f"{service._requests_dir}/orphan.json"
 
