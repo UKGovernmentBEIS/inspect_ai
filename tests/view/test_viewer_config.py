@@ -265,6 +265,15 @@ def test_sample_score_view_rejects_unknown_view() -> None:
         SampleScoreView(default="table")  # type: ignore[arg-type]
 
 
+def test_sample_score_view_accepts_legacy_view_alias() -> None:
+    """Pre-rename `view` key populates `default`; output stays canonical."""
+    from_kwarg = SampleScoreView(view="chips")  # type: ignore[call-arg]
+    from_json = SampleScoreView.model_validate({"view": "grid"})
+    assert from_kwarg.default == "chips"
+    assert from_json.default == "grid"
+    assert from_kwarg.model_dump() == {"default": "chips", "sort": None}
+
+
 def test_viewer_config_sample_score_view_defaults_to_none() -> None:
     """Existing logs / unconfigured callers must keep working unchanged."""
     cfg = ViewerConfig()
