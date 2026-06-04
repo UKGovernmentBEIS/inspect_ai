@@ -287,15 +287,17 @@ class ModelAPI(abc.ABC):
         """Model name used only for capability and request-shape detection.
 
         Returns :attr:`ModelInfo.family` if one has been registered for this
-        model via :func:`set_model_info`, otherwise falls back to the model
-        name sent to the provider service. The returned name must not be used
-        as the wire model identifier.
+        model via :func:`set_model_info` under the configured or canonical
+        model name, otherwise falls back to the model name sent to the provider
+        service. The returned name must not be used as the wire model
+        identifier.
         """
         from inspect_ai.model._model_info import _get_model_info_direct
 
-        info = _get_model_info_direct(self.canonical_name())
-        if info is not None and info.family:
-            return info.family
+        for name in (self.model_name, self.canonical_name()):
+            info = _get_model_info_direct(name)
+            if info is not None and info.family:
+                return info.family
         return self.service_model_name()
 
     @abc.abstractmethod

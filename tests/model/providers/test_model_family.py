@@ -205,6 +205,20 @@ def test_openai_compatible_alias_uses_family_for_request_shape() -> None:
     assert "max_tokens" not in params
 
 
+def test_openai_compatible_provider_qualified_alias_uses_family() -> None:
+    set_model_info("service/custom-alias", ModelInfo(family="gpt-5"))
+    api = OpenAICompatibleAPI.__new__(OpenAICompatibleAPI)
+    api.model_name = "service/custom-alias"
+    api.service = "service"
+
+    assert api.canonical_name() == "custom-alias"
+    assert api.model_family() == "gpt-5"
+    params = api.completion_params(GenerateConfig(max_tokens=100), tools=False)
+    assert params["model"] == "custom-alias"
+    assert params["max_completion_tokens"] == 100
+    assert "max_tokens" not in params
+
+
 @pytest.mark.anyio
 async def test_openai_compatible_passes_family_separately_from_wire_name(
     monkeypatch: pytest.MonkeyPatch,
