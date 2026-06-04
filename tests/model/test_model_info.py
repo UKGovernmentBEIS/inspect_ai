@@ -1,14 +1,28 @@
 """Tests for model_info lookup functionality."""
 
+from typing import Any
+
 import pytest
 
-from inspect_ai.model import ModelInfo, get_model, get_model_info, set_model_info
+from inspect_ai.model import (
+    ModelAPI,
+    ModelInfo,
+    get_model,
+    get_model_info,
+    set_model_info,
+)
 from inspect_ai.model._model_data.model_data import ModelCost
 from inspect_ai.model._model_info import (
+    _get_model_info_direct,
     clear_model_info_cache,
     get_model_input_tokens,
     set_model_cost,
 )
+
+
+class _TestModelAPI(ModelAPI):
+    async def generate(self, *args: Any, **kwargs: Any) -> Any:
+        raise NotImplementedError
 
 
 @pytest.fixture(autouse=True)
@@ -41,6 +55,42 @@ class TestGetModelInfo:
         """Test that unknown models return None."""
         info = get_model_info("unknown-provider/unknown-model-xyz")
         assert info is None
+
+    def test_set_model_info_family(self):
+        """Test that set_model_info with family is retrievable."""
+        set_model_info("custom/aliased-model", ModelInfo(family="gpt-5"))
+        info = get_model_info("custom/aliased-model")
+        assert info is not None
+        assert info.family == "gpt-5"
+
+    def test_model_family_does_not_instantiate_provider(self, monkeypatch):
+        """Unknown model-family lookups must not recursively resolve a provider."""
+
+        def fail_provider_resolution(*args: Any, **kwargs: Any) -> None:
+            raise AssertionError("model_family() attempted provider resolution")
+
+        monkeypatch.setattr(
+            "inspect_ai.model._model.get_model", fail_provider_resolution
+        )
+        api = _TestModelAPI("unknown-provider/custom-alias")
+        assert api.model_family() == "unknown-provider/custom-alias"
+
+    def test_direct_lookup_does_not_poison_provider_resolved_lookup(self, monkeypatch):
+        """A direct miss must not prevent normal lookup from resolving a provider."""
+
+        class _ResolvedModel:
+            def canonical_name(self) -> str:
+                return "resolved-provider/resolved-model"
+
+        resolved_info = ModelInfo(family="resolved-family")
+        set_model_info("resolved-provider/resolved-model", resolved_info)
+        monkeypatch.setattr(
+            "inspect_ai.model._model.get_model",
+            lambda *args, **kwargs: _ResolvedModel(),
+        )
+
+        assert _get_model_info_direct("unknown-provider/nonmatching-alias") is None
+        assert get_model_info("unknown-provider/nonmatching-alias") is resolved_info
 
     def test_case_insensitive_lookup(self):
         """Test that model name lookups are case-insensitive.
