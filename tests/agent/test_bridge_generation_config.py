@@ -45,6 +45,7 @@ def test_generation_param_fields_match_expected():
     # expectations in either direction
     assert set(_GENERATION_PARAM_FIELDS) == GENERATION_FIELDS
 
+
 # structural fields that must always survive clearing
 STRUCTURAL_FIELDS = (
     "system_message",
