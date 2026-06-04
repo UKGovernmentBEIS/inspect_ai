@@ -48,6 +48,7 @@ async def sandbox_agent_bridge(
     code_execution: CodeExecutionProviders | None = None,
     bridged_tools: Sequence[BridgedToolsSpec] | None = None,
     model_event_sink: ModelEventSink | None = None,
+    forward_generation_config: bool = False,
 ) -> AsyncIterator[SandboxAgentBridge]:
     """Sandbox agent bridge.
 
@@ -95,6 +96,13 @@ async def sandbox_agent_bridge(
             emission for calls routed through the bridge. When set, the bridge
             installs it around `model.generate()` so the sink decides when and
             under which span each event is emitted to the transcript.
+        forward_generation_config: Forward client generation parameters (e.g.
+            `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
+            to `False`, in which case those parameters are dropped and the resolved
+            Inspect model config and provider defaults govern generation (structural
+            parameters like the system prompt, tools, and response format are always
+            forwarded). Set `True` for faithful-proxy behavior where the client's
+            generation parameters are authoritative.
     """
     # instance id for this bridge
     instance = f"proxy_{uuid()}"
@@ -128,6 +136,7 @@ async def sandbox_agent_bridge(
                 model=model,
                 model_aliases=model_aliases,
                 model_event_sink=model_event_sink,
+                forward_generation_config=forward_generation_config,
             )
 
             # register bridged tools with the bridge

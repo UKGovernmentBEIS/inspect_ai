@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class ScannerResultField(BaseModel):
@@ -69,9 +69,12 @@ class SampleScoreViewSort(BaseModel):
 class SampleScoreView(BaseModel):
     """How the sample-header score panel should render when there are 3 or more scores."""
 
-    default: Literal["chips", "grid"] | None = None
+    default: Literal["chips", "grid"] | None = Field(
+        default=None, validation_alias=AliasChoices("default", "view")
+    )
     """Default rendering mode. `chips` = wrapping pills; `grid` = sortable
-    table. When None, the viewer picks based on score count."""
+    table. When None, the viewer picks based on score count. (The legacy
+    `view` key is still accepted on input.)"""
 
     sort: SampleScoreViewSort | None = None
     """Default sort. When None, scores render in their natural order."""

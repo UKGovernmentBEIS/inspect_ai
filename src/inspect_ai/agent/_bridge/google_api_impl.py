@@ -50,6 +50,7 @@ from .types import AgentBridge
 from .util import (
     apply_message_ids,
     bridge_generate,
+    clear_generation_params,
     resolve_generate_config,
     resolve_inspect_model,
 )
@@ -106,6 +107,8 @@ async def inspect_google_api_request_impl(
 
     # extract generate config
     config = generate_config_from_google(generation_config)
+    if not bridge.forward_generation_config:
+        clear_generation_params(config)
 
     # try to maintain id stability
     apply_message_ids(bridge, messages)

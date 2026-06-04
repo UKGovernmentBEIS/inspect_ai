@@ -32,6 +32,7 @@ class AgentBridge:
         model: str | None = None,
         model_aliases: dict[str, str | Model] | None = None,
         model_event_sink: ModelEventSink | None = None,
+        forward_generation_config: bool = False,
     ) -> None:
         self.state = state
         self.filter = filter
@@ -39,6 +40,7 @@ class AgentBridge:
         self.model = model
         self.model_aliases: dict[str, str | Model] = model_aliases or {}
         self.model_event_sink = model_event_sink
+        self.forward_generation_config = forward_generation_config
         self._compaction = compaction
         self._compaction_prefix = state.messages.copy()
         self._compact: Compact | None = None
@@ -73,6 +75,19 @@ class AgentBridge:
     complete events to the sink instead of emitting them to the transcript.
     Use this to attribute bridge model events to externally-managed agent
     spans (e.g. spans driven by a side-channel event stream).
+    """
+
+    forward_generation_config: bool
+    """Whether to forward client generation parameters to the model.
+
+    When `False` (the default), generation-tuning parameters from the incoming
+    request (e.g. `max_tokens`, `temperature`, `top_p`/`top_k`, reasoning effort /
+    thinking budget, penalties, `n`, logprobs) are dropped; the resolved Inspect
+    model config and provider defaults govern generation. This prevents a scaffold
+    from imposing parameters it computed for a different model than the one actually
+    serving the request. Structural parameters (system prompt, tools, tool choice,
+    response format, stop sequences) are always forwarded. Set `True` to forward
+    the client's generation parameters (faithful-proxy behavior).
     """
 
     def compaction(
