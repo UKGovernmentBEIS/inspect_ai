@@ -81,7 +81,7 @@ def test_endpoint_error_becomes_structured_500(monkeypatch: pytest.MonkeyPatch) 
     """
     from inspect_ai._control import server as server_mod
 
-    async def _boom(eval_id: str) -> list:
+    async def _boom(eval_id: str, active_since: float | None = None) -> list:
         raise RuntimeError("kaboom")
 
     monkeypatch.setattr(server_mod, "current_sample_summaries", _boom)
@@ -280,3 +280,57 @@ def test_control_server_cleans_up_partial_startup_failure(
         for p in sock_dir.glob("*"):
             p.unlink(missing_ok=True)
         sock_dir.rmdir()
+
+
+async def test_sample_events_endpoint_parses_type_and_404(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sample-events route parses `type`, round-trips a reserved id, 404s.
+
+    `GET /evals/<id>/sample/events`: comma-split `type` filter, `sample_id` as a
+    query param (so reserved chars address), and a missing sample → 404. The
+    state-layer logic is integration-tested; this pins the route wiring.
+    """
+    from inspect_ai._control import server as server_mod
+
+    seen: dict[str, object] = {}
+
+    async def _fake(
+        eval_id: str,
+        sample_id: str,
+        epoch: int,
+        *,
+        since: object,
+        tail: object,
+        types: object,
+        full: object,
+        since_time: object,
+        until: object,
+    ) -> dict[str, object] | None:
+        seen["sample_id"] = sample_id
+        seen["types"] = types
+        seen["full"] = full
+        if sample_id == "missing":
+            return None
+        return {"events": [], "next": "c", "done": True, "missed": 0}
+
+    monkeypatch.setattr(server_mod, "sample_events", _fake)
+
+    app = server_mod.ControlServer(run_id="test")._build_app()
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://localhost"
+    ) as client:
+        ok = await client.get(
+            "/evals/e1/sample/events",
+            params={"sample_id": "case/001", "type": "model,tool", "full": "true"},
+        )
+        assert ok.status_code == 200, ok.text
+        assert seen["sample_id"] == "case/001"  # reserved-char id round-trips
+        assert seen["types"] == frozenset({"model", "tool"})  # comma-split
+        assert seen["full"] is True
+
+        missing = await client.get(
+            "/evals/e1/sample/events", params={"sample_id": "missing"}
+        )
+        assert missing.status_code == 404

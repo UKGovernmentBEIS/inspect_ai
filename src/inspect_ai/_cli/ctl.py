@@ -82,13 +82,24 @@ def ls_command(as_json: bool) -> None:
 @ctl_command.command("samples")
 @click.argument("task", required=False)
 @click.option(
+    "--active-since",
+    type=float,
+    default=None,
+    help=(
+        "Only samples that started or were updated at/after this unix "
+        "timestamp — the 'what changed since I last looked' delta."
+    ),
+)
+@click.option(
     "--json",
     "as_json",
     is_flag=True,
     default=False,
     help="Output as JSON (one array of sample summaries).",
 )
-def samples_command(task: str | None, as_json: bool) -> None:
+def samples_command(
+    task: str | None, active_since: float | None, as_json: bool
+) -> None:
     """List the samples (running and completed) of a running eval.
 
     TASK selects the task (as shown by `inspect ctl ls`): a task id (or
@@ -97,6 +108,9 @@ def samples_command(task: str | None, as_json: bool) -> None:
     and is retried. A name matches at the start of the task name or after
     a `/` (so `gpqa` matches `inspect_evals/gpqa_diamond`). If omitted and
     exactly one task is running, that task is used.
+
+    Pass `--active-since <ts>` to get only the samples that changed since a
+    prior poll (started or last active at/after that time).
     """
     summaries = _fetch_summaries(list_discovered_servers())
     if not summaries:
@@ -109,7 +123,7 @@ def samples_command(task: str | None, as_json: bool) -> None:
     target = _resolve_target_eval(summaries, task)
     # Query by the task's current eval id (resolved fresh each invocation,
     # so this still works after a retry minted a new one).
-    samples = _fetch_samples(target["socket_path"], target["eval_id"])
+    samples = _fetch_samples(target["socket_path"], target["eval_id"], active_since)
 
     if as_json:
         click.echo(json_lib.dumps(samples, indent=2))
@@ -214,6 +228,105 @@ def sample_command(
         return
 
     _print_sample_detail(detail, show_traceback)
+
+
+@ctl_command.command("events")
+@click.argument("task")
+@click.argument("sample_id")
+@click.argument("epoch", required=False, type=int, default=1)
+@click.option(
+    "--since",
+    default=None,
+    help="Resume after this cursor (the `next` from a prior call).",
+)
+@click.option(
+    "--tail",
+    type=int,
+    default=None,
+    help="Start this many events from the end (when --since is not given).",
+)
+@click.option(
+    "--type",
+    "types",
+    default=None,
+    help=(
+        "Comma-separated event types to include (e.g. `model,tool,error`); "
+        "`*` for all. Default: the high-signal set."
+    ),
+)
+@click.option(
+    "--full",
+    is_flag=True,
+    default=False,
+    help="Return raw events instead of the compact summary.",
+)
+@click.option(
+    "--since-time",
+    type=float,
+    default=None,
+    help="Only events at/after this unix timestamp.",
+)
+@click.option(
+    "--until",
+    type=float,
+    default=None,
+    help="Only events at/before this unix timestamp.",
+)
+@click.option(
+    "--json",
+    "as_json",
+    is_flag=True,
+    default=False,
+    help="Output as JSON (the `{events, next, done, missed}` envelope).",
+)
+def events_command(
+    task: str,
+    sample_id: str,
+    epoch: int,
+    since: str | None,
+    tail: int | None,
+    types: str | None,
+    full: bool,
+    since_time: float | None,
+    until: float | None,
+    as_json: bool,
+) -> None:
+    """Read one running sample's transcript events (cursored pull).
+
+    TASK selects the task as in `inspect ctl samples`; SAMPLE_ID is the
+    sample's id; EPOCH defaults to 1.
+
+    Returns a page of events plus a `next` cursor — pass it back via `--since`
+    to get only what's new, without re-reading what you've seen. Filter with
+    `--type`, take the tail with `--tail`, expand raw events with `--full`.
+    """
+    summaries = _fetch_summaries(list_discovered_servers())
+    if not summaries:
+        if as_json:
+            click.echo('{"events": [], "next": null, "done": true, "missed": 0}')
+            return
+        _echo_no_running_evals()
+        return
+
+    target = _resolve_target_eval(summaries, task)
+    page = _fetch_sample_events(
+        target["socket_path"],
+        target["eval_id"],
+        sample_id,
+        epoch,
+        since=since,
+        tail=tail,
+        types=types,
+        full=full,
+        since_time=since_time,
+        until=until,
+    )
+
+    if as_json:
+        click.echo(json_lib.dumps(page, indent=2))
+        return
+
+    _print_events(page)
 
 
 @ctl_command.command("release")
@@ -366,14 +479,21 @@ def _exit_ambiguous(matches: list[dict[str, Any]], prefix: str) -> NoReturn:
     raise click.exceptions.Exit(code=1)
 
 
-def _fetch_samples(socket_path: str, eval_id: str) -> list[dict[str, Any]]:
-    """Query one control server for an eval's in-flight samples."""
+def _fetch_samples(
+    socket_path: str, eval_id: str, active_since: float | None = None
+) -> list[dict[str, Any]]:
+    """Query one control server for an eval's samples.
+
+    With ``active_since`` (unix ts), restricts to samples started or updated
+    since then — the recency delta.
+    """
+    params = {} if active_since is None else {"active_since": active_since}
     try:
         transport = httpx.HTTPTransport(uds=str(socket_path))
         with httpx.Client(
             transport=transport, base_url="http://localhost", timeout=5.0
         ) as client:
-            response = client.get(f"/evals/{eval_id}/samples")
+            response = client.get(f"/evals/{eval_id}/samples", params=params)
             response.raise_for_status()
             rows = response.json()
     except (httpx.HTTPError, OSError, ValueError) as exc:
@@ -414,6 +534,111 @@ def _fetch_sample_detail(
         click.echo(f"Failed to read sample: {_error_detail(exc)}", err=True)
         raise click.exceptions.Exit(code=1) from exc
     return detail if isinstance(detail, dict) else {}
+
+
+def _fetch_sample_events(
+    socket_path: str,
+    eval_id: str,
+    sample_id: str,
+    epoch: int,
+    *,
+    since: str | None,
+    tail: int | None,
+    types: str | None,
+    full: bool,
+    since_time: float | None,
+    until: float | None,
+) -> dict[str, Any]:
+    """Query one control server for a page of a sample's transcript events."""
+    # sample_id (and all params) go in the query string so reserved-char ids
+    # address correctly; drop unset options so server defaults apply.
+    params: dict[str, Any] = {"sample_id": sample_id, "epoch": epoch, "full": full}
+    if since is not None:
+        params["since"] = since
+    if tail is not None:
+        params["tail"] = tail
+    if types is not None:
+        params["type"] = types
+    if since_time is not None:
+        params["since_time"] = since_time
+    if until is not None:
+        params["until"] = until
+    try:
+        transport = httpx.HTTPTransport(uds=str(socket_path))
+        with httpx.Client(
+            transport=transport, base_url="http://localhost", timeout=5.0
+        ) as client:
+            response = client.get(f"/evals/{eval_id}/sample/events", params=params)
+            if response.status_code == 404:
+                click.echo(
+                    f"Sample '{sample_id}' (epoch {epoch}) not found — it may "
+                    "not have started or not yet been written to the log.",
+                    err=True,
+                )
+                raise click.exceptions.Exit(code=1)
+            response.raise_for_status()
+            page = response.json()
+    except (httpx.HTTPError, OSError, ValueError) as exc:
+        click.echo(f"Failed to read events: {_error_detail(exc)}", err=True)
+        raise click.exceptions.Exit(code=1) from exc
+    return page if isinstance(page, dict) else {}
+
+
+def _print_events(page: dict[str, Any]) -> None:
+    """Render a page of transcript events (table) plus a cursor footer."""
+    events = page.get("events") or []
+    if not events:
+        click.echo("(no events)")
+    else:
+        rows: list[tuple[str, ...]] = []
+        for e in events:
+            ts = e.get("timestamp")
+            rows.append(
+                (
+                    _format_started(ts) if isinstance(ts, (int, float)) else "",
+                    str(e.get("event", "") or ""),
+                    _event_summary(e),
+                )
+            )
+        _render_table(("time", "event", "summary"), rows)
+
+    parts = [f"{len(events)} event" + ("" if len(events) == 1 else "s")]
+    if page.get("missed"):
+        parts.append(f"missed {page['missed']}")
+    parts.append("done" if page.get("done") else "more")
+    click.echo()
+    click.echo("  ·  ".join(parts))
+    nxt = page.get("next")
+    if nxt and not page.get("done"):
+        click.echo(f"next: {nxt}")
+
+
+def _event_summary(e: dict[str, Any]) -> str:
+    """One-line summary for an event row (best-effort over compact fields)."""
+    t = e.get("event")
+    if t == "model":
+        bits = [str(e.get("model") or "")]
+        if e.get("tokens") is not None:
+            bits.append(f"{e['tokens']} tok")
+        if e.get("stop_reason"):
+            bits.append(str(e["stop_reason"]))
+        if e.get("completion"):
+            bits.append(str(e["completion"]))
+        if e.get("error"):
+            bits.append(f"error: {e['error']}")
+        return _truncate(" · ".join(b for b in bits if b), 80)
+    if t == "tool":
+        s = f"{e.get('function') or '?'}({_truncate(str(e.get('arguments') or ''), 30)})"
+        if e.get("error"):
+            s += f" → error: {e['error']}"
+        elif e.get("result"):
+            s += f" → {_truncate(str(e['result']), 40)}"
+        return _truncate(s, 80)
+    if t == "error":
+        return _truncate(str(e.get("error") or ""), 80)
+    if t == "info":
+        return str(e.get("source") or "")
+    return ""
 
 
 def _print_errors_table(samples: list[dict[str, Any]]) -> None:

@@ -38,6 +38,7 @@ from inspect_ai._cli.ctl import (
 )
 from inspect_ai._control.discovery import list_discovered_servers
 from inspect_ai._control.eval_state import get_eval_states
+from inspect_ai._control.events import sample_events
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_summaries,
@@ -1559,3 +1560,116 @@ def test_ctl_eval_finishes_when_limit_selects_zero_samples(
     assert entry["samples"]["total"] == 0
     assert entry["status"] == "completed", entry
     assert entry["completed_at"] is not None
+
+
+# --- events / GET /evals/<id>/sample/events --------------------------------
+
+
+def test_ctl_events_streams_running_sample_transcript(short_data_dir: Path) -> None:
+    """A running sample's transcript events are readable, filterable, cursored.
+
+    A solver runs ``generate()`` (producing a ``model`` event) then is held in
+    flight; the events page must surface it, the cursor must be exclusive
+    (resuming with ``next`` re-delivers nothing), the ``--type`` filter must
+    narrow, and the ``samples?active_since`` recency filter must be wired.
+    """
+
+    @solver
+    def gen_then_park() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            state = await generate(state)
+            await park_now()  # hold the sample in flight after a model call
+            return state
+
+        return solve
+
+    @task
+    def task_one() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="hi", target="ok")],
+            solver=[gen_then_park()],
+            name="task_one",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    def ready() -> bool:
+        evals = current_eval_summaries(0.0)
+        return bool(evals) and evals[0]["samples"]["in_flight"] == 1
+
+    async def capture() -> dict:
+        import time as _time
+
+        eid = current_eval_summaries(0.0)[0]["eval_id"]
+        page = await sample_events(eid, "1", 1)
+        assert page is not None
+        return {
+            "page": page,
+            "model_only": await sample_events(eid, "1", 1, types=frozenset({"model"})),
+            "resumed": await sample_events(eid, "1", 1, since=page["next"]),
+            "active_future": await current_sample_summaries(
+                eid, active_since=_time.time() + 1000
+            ),
+            "active_all": await current_sample_summaries(eid, active_since=0.0),
+        }
+
+    with probe(ready, capture) as p:
+        eval_set(
+            tasks=[task_one()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+        )
+
+    res = p.result
+    assert res is not None, "sample never reached in-flight after generate()"
+
+    page = res["page"]
+    assert set(page) >= {"events", "next", "done", "missed"}
+    assert page["done"] is False  # still running (parked)
+    assert page["missed"] == 0  # non-bounded transcript
+    assert len(page["events"]) >= 1
+
+    # type filter: model-only page is non-empty and exclusively model events
+    model_only = res["model_only"]
+    assert len(model_only["events"]) >= 1
+    assert all(e["event"] == "model" for e in model_only["events"])
+
+    # cursor is exclusive: resuming from `next` never re-delivers seen events
+    seen = {e["uuid"] for e in page["events"]}
+    assert seen.isdisjoint(e["uuid"] for e in res["resumed"]["events"])
+
+    # samples recency filter wiring: nothing is active in the future; the
+    # running sample shows up for active_since=0
+    assert res["active_future"] == []
+    assert any(r["sample_id"] == 1 for r in res["active_all"])
+
+
+def test_ctl_events_reads_completed_sample_from_log(short_data_dir: Path) -> None:
+    """Once a sample is terminal, its events come from the log with done=True."""
+
+    @task
+    def task_done() -> Task:
+        return Task(
+            dataset=[Sample(id=1, input="hi", target="ok")],
+            solver=[generate()],
+            name="task_done",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    with capturing() as cap:
+        eval_set(
+            tasks=[task_done()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+        )
+
+    page = cap.events_page("task_done", 1)
+    assert page is not None, "no events page captured for the completed sample"
+    assert page["done"] is True
+    assert len(page["events"]) >= 1
+    assert any(e["event"] == "model" for e in page["events"])

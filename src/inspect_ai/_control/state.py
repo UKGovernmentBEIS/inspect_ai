@@ -161,7 +161,9 @@ def current_eval_summaries(started_at: float) -> list[dict[str, Any]]:
     return summaries
 
 
-async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
+async def current_sample_summaries(
+    eval_id: str, active_since: float | None = None
+) -> list[dict[str, Any]]:
     """Per-sample summaries for one eval (``GET /evals/<eval_id>/samples``).
 
     Lists *all* of the eval's samples — running, completed, and pending —
@@ -190,6 +192,12 @@ async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     stall signal), ``events`` (live transcript event count; ``None`` for
     terminal / pending samples), ``scores`` (``{scorer: value}``, empty
     until scored), ``error``, ``retries``, ``limit``.
+
+    ``active_since`` (unix ts) restricts the result to samples that started or
+    were updated at/after that time — i.e. ``last_activity_at >= active_since``
+    — the cheap "what changed since I last looked" delta. Pending samples (no
+    activity) are excluded. It's a wall-clock *filter*, not a resume cursor (it
+    returns current state of whatever changed, not an exactly-once stream).
     """
     by_key: dict[tuple[Any, int], dict[str, Any]] = {}
 
@@ -214,7 +222,15 @@ async def current_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     # holds these, so synthesize them from the registered planned ids.
     _add_pending_samples(eval_id, by_key)
 
-    return _sorted_samples(list(by_key.values()))
+    summaries = list(by_key.values())
+    if active_since is not None:
+        summaries = [
+            s
+            for s in summaries
+            if s["last_activity_at"] is not None
+            and s["last_activity_at"] >= active_since
+        ]
+    return _sorted_samples(summaries)
 
 
 def _add_pending_samples(

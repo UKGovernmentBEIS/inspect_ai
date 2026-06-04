@@ -39,6 +39,7 @@ from typing import Any
 
 import anyio
 
+from inspect_ai._control.events import sample_events
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_summaries,
@@ -137,6 +138,7 @@ class Capture(_Coordinator):
         self.evals: list[dict[str, Any]] = []
         self.samples: dict[str, list[dict[str, Any]]] = {}
         self.errors: dict[tuple[str, str, int], dict[str, Any] | None] = {}
+        self.events: dict[tuple[str, str, int], dict[str, Any] | None] = {}
 
     async def gate_wait(self) -> None:
         """Hold a sample in-flight until the eval tears it down.
@@ -162,6 +164,9 @@ class Capture(_Coordinator):
                 self.errors[(eval_id, sid, epoch)] = await sample_error_detail(
                     eval_id, sid, epoch
                 )
+                self.events[(eval_id, sid, epoch)] = await sample_events(
+                    eval_id, sid, epoch
+                )
 
     # query helpers -------------------------------------------------------
 
@@ -179,6 +184,14 @@ class Capture(_Coordinator):
         if entry is None:
             return None
         return self.errors.get((entry["eval_id"], str(sample_id), epoch))
+
+    def events_page(
+        self, task: str, sample_id: Any, epoch: int = 1
+    ) -> dict[str, Any] | None:
+        entry = self.eval(task)
+        if entry is None:
+            return None
+        return self.events.get((entry["eval_id"], str(sample_id), epoch))
 
 
 @contextlib.contextmanager

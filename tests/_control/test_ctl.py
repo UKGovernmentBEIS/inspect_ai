@@ -276,3 +276,53 @@ def test_errors_table_lists_retried_and_errored(
     assert "recABC" in out
     assert "TimeoutError('slow')" in out
     assert "retries" in out.splitlines()[0]
+
+
+def test_print_events_table_and_footer(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from inspect_ai._cli.ctl import _print_events
+
+    page = {
+        "events": [
+            {
+                "event": "model",
+                "timestamp": 1000.0,
+                "model": "openai/gpt",
+                "tokens": 42,
+                "stop_reason": "stop",
+                "completion": "hello",
+            },
+            {
+                "event": "tool",
+                "timestamp": 1001.0,
+                "function": "bash",
+                "arguments": "ls",
+                "result": "files",
+            },
+            {"event": "error", "timestamp": 1002.0, "error": "boom"},
+        ],
+        "next": "CURSORX",
+        "done": False,
+        "missed": 3,
+    }
+    _print_events(page)
+    out = capsys.readouterr().out
+    assert "event" in out.splitlines()[0]  # table header
+    # per-type summaries
+    assert "openai/gpt" in out and "bash" in out and "boom" in out
+    # footer: count, missed gap, "more" (not done), and the resume cursor
+    assert "3 events" in out
+    assert "missed 3" in out
+    assert "more" in out
+    assert "next: CURSORX" in out
+
+
+def test_print_events_empty_and_done(capsys: pytest.CaptureFixture[str]) -> None:
+    from inspect_ai._cli.ctl import _print_events
+
+    _print_events({"events": [], "next": "X", "done": True, "missed": 0})
+    out = capsys.readouterr().out
+    assert "(no events)" in out
+    assert "done" in out
+    assert "next:" not in out  # a done stream offers no resume cursor

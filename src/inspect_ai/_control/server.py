@@ -32,6 +32,7 @@ from typing import Any, AsyncIterator
 import anyio
 
 from inspect_ai._control.discovery import default_socket_path, discovery_dir
+from inspect_ai._control.events import sample_events
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_summaries,
@@ -116,12 +117,17 @@ class ControlServer:
             return current_eval_summaries(started_at)
 
         @app.get("/evals/{eval_id}/samples")
-        async def list_eval_samples(eval_id: str) -> list[dict[str, Any]]:
-            return await current_sample_summaries(eval_id)
+        async def list_eval_samples(
+            eval_id: str, active_since: float | None = None
+        ) -> list[dict[str, Any]]:
+            # `active_since` (unix ts) is the recency delta: only samples that
+            # started or updated since then. A filter, not a cursor.
+            return await current_sample_summaries(eval_id, active_since)
 
-        # `sample_id` is a query parameter (not a path segment): sample ids
-        # are arbitrary strings and may contain `/`, `?`, `#`, etc., which a
-        # path segment can't carry. A query param is URL-encoded end to end.
+        # `sample_id` is a query parameter (not a path segment) here and on
+        # `/sample/events`: sample ids are arbitrary strings and may contain
+        # `/`, `?`, `#`, etc., which a path segment can't carry. A query param
+        # is URL-encoded end to end.
         @app.get("/evals/{eval_id}/sample")
         async def get_sample_errors(
             eval_id: str, sample_id: str, epoch: int = 1
@@ -133,6 +139,43 @@ class ControlServer:
                     content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
                 )
             return detail
+
+        # Per-sample transcript events, cursored pull (phase 2). `type` is a
+        # comma-separated event-type filter (`*` = all; omitted = high-signal
+        # tier); `since` is an opaque cursor, `tail` an int, `full` a bool,
+        # `since_time`/`until` a wall-clock window.
+        @app.get("/evals/{eval_id}/sample/events")
+        async def get_sample_events(
+            eval_id: str,
+            sample_id: str,
+            epoch: int = 1,
+            since: str | None = None,
+            tail: int | None = None,
+            type: str | None = None,
+            full: bool = False,
+            since_time: float | None = None,
+            until: float | None = None,
+        ) -> Any:
+            types = (
+                frozenset(t for t in type.split(",") if t) if type is not None else None
+            )
+            page = await sample_events(
+                eval_id,
+                sample_id,
+                epoch,
+                since=since,
+                tail=tail,
+                types=types,
+                full=full,
+                since_time=since_time,
+                until=until,
+            )
+            if page is None:
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": f"sample {sample_id} (epoch {epoch}) not found"},
+                )
+            return page
 
         # Releases a --keep-alive park (sets the shutdown event the park
         # awaits); the process then exits. Named "release" rather than
