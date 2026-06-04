@@ -1,11 +1,21 @@
 from typing import cast
 
 import pytest
-from openai import AsyncBedrockOpenAI
+from openai import (
+    AsyncBedrockOpenAI,
+    AuthenticationError,
+    NotFoundError,
+    PermissionDeniedError,
+)
 from test_helpers.utils import skip_if_no_openai_bedrock
 
 from inspect_ai.model import GenerateConfig, get_model
 from inspect_ai.model._providers.openai import OpenAIAPI
+
+# Errors that indicate a model isn't enabled/available for the tester's account
+# or region (as opposed to a real integration failure). Bedrock gates frontier
+# models like gpt-5.5 per account, so we skip rather than fail on these.
+MODEL_UNAVAILABLE_ERRORS = (AuthenticationError, PermissionDeniedError, NotFoundError)
 
 # Bedrock auth/region env vars that must be cleared so tests don't pick up a
 # developer's real environment.
@@ -137,26 +147,33 @@ def test_bedrock_base_url_env(
 
 @pytest.mark.anyio
 @skip_if_no_openai_bedrock
-@pytest.mark.parametrize(
-    "model_name,aws_region",
-    [
-        # open-weight model: served on the /v1 path, broadly available across
-        # regions, so use the tester's own region resolution
-        ("openai/bedrock/gpt-oss-120b", None),
-        # frontier model: served on the /openai/v1 path via the Responses API;
-        # gpt-5.5 is currently only available in us-east-2, so pin the region
-        ("openai/bedrock/gpt-5.5", "us-east-2"),
-    ],
-)
-async def test_bedrock_generate(model_name: str, aws_region: str | None) -> None:
-    # We assert on output token usage rather than completion text: some models
-    # (e.g. gpt-oss) can route their entire response through a reasoning channel,
-    # leaving completion text empty even on a successful call. Bedrock bearer
-    # keys are region-bound, so the tester's key must be valid for the region.
-    kwargs: dict = dict(config=GenerateConfig(max_tokens=200))
-    if aws_region is not None:
-        kwargs["aws_region"] = aws_region
-    model = get_model(model_name, **kwargs)
+async def test_bedrock_generate_open_weight() -> None:
+    # gpt-oss-120b: served on the /v1 path, broadly available across regions, so
+    # use the tester's own region resolution. We assert on output token usage
+    # rather than completion text because gpt-oss can route its entire response
+    # through a reasoning channel, leaving completion text empty on success.
+    model = get_model(
+        "openai/bedrock/gpt-oss-120b", config=GenerateConfig(max_tokens=200)
+    )
     response = await model.generate(input="Say hello in three words.")
+    assert response.usage is not None
+    assert response.usage.output_tokens > 0
+
+
+@pytest.mark.anyio
+@skip_if_no_openai_bedrock
+async def test_bedrock_generate_frontier() -> None:
+    # gpt-5.5: served on the /openai/v1 path via the Responses API. gpt-5.5 is
+    # only available in us-east-2, and access is gated per account, so skip (not
+    # fail) if the tester's account/region can't invoke it.
+    model = get_model(
+        "openai/bedrock/gpt-5.5",
+        config=GenerateConfig(max_tokens=200),
+        aws_region="us-east-2",
+    )
+    try:
+        response = await model.generate(input="Say hello in three words.")
+    except MODEL_UNAVAILABLE_ERRORS as ex:
+        pytest.skip(f"gpt-5.5 not available for this account/region: {ex}")
     assert response.usage is not None
     assert response.usage.output_tokens > 0

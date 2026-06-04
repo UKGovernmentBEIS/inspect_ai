@@ -106,7 +106,6 @@ from openai.types.responses.response_output_text import (
 from openai.types.responses.response_output_text_param import (
     Annotation as AnnotationParam,
 )
-from openai.types.responses.response_reasoning_item_param import Content as ContentParam
 from openai.types.responses.response_reasoning_item_param import Summary as SummaryParam
 from openai.types.responses.response_tool_search_output_item_param_param import (
     ResponseToolSearchOutputItemParamParam,
@@ -959,12 +958,6 @@ def responses_reasoning_from_reasoning(
         if isinstance(stashed, str):
             encrypted_content = stashed
 
-    content_params: list[ContentParam] = []
-    if not content.redacted and content.reasoning:
-        content_params.append(
-            ContentParam(type="reasoning_text", text=content.reasoning)
-        )
-
     summary_params: list[SummaryParam] = []
     if not content.redacted and content.summary:
         summary_params.append(SummaryParam(type="summary_text", text=content.summary))
@@ -973,7 +966,9 @@ def responses_reasoning_from_reasoning(
         type="reasoning",
         # OpenAI returns 'None' when store=False even though the schema requires the id
         id=content.signature,  # type: ignore[typeddict-item]
-        content=content_params,
+        # Responses API rejects non-empty content on reasoning input items
+        # (array_above_max_length); reasoning replays via encrypted_content.
+        content=[],
         summary=summary_params,
         encrypted_content=encrypted_content,
     )

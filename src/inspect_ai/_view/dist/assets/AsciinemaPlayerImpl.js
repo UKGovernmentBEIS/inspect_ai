@@ -4836,12 +4836,12 @@ function getVectorSymbolDef(codepoint) {
 			const halfVerticalGap = verticalGap / 2;
 			const toViewBoxY = (offset) => .5 + offset * CELL_RATIO;
 			const leftX1 = .5 - halfHorizontalGap;
-			const rightX0 = .5 + halfHorizontalGap;
+			const rightX0 = .575;
 			const rightX1 = 1.02;
-			const topY0 = toViewBoxY(-halfVerticalGap - lineHeight);
-			const topY1 = toViewBoxY(-halfVerticalGap);
+			const topY0 = toViewBoxY(-.1 - lineHeight);
+			const topY1 = toViewBoxY(-.1);
 			const bottomY0 = toViewBoxY(halfVerticalGap);
-			const bottomY1 = toViewBoxY(halfVerticalGap + lineHeight);
+			const bottomY1 = toViewBoxY(.27);
 			const rect = (x0, x1, y0, y1) => `M${x0},${y0} L${x1},${y0} L${x1},${y1} L${x0},${y1} Z`;
 			return `<path d="${rect(0, leftX1, topY0, topY1)} ${rect(rightX0, rightX1, topY0, topY1)} ${rect(0, leftX1, bottomY0, bottomY1)} ${rect(rightX0, rightX1, bottomY0, bottomY1)}" fill="currentColor"/>`;
 		}

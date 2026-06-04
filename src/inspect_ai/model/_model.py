@@ -275,9 +275,30 @@ class ModelAPI(abc.ABC):
         """Canonical model name for querying results."""
         return self.model_name
 
+    def service_model_name(self) -> str:
+        """Model name used by the provider service."""
+        return self.model_name
+
     def input_tokens_name(self) -> str:
         """Model name used for looking up model input tokens."""
         return self.canonical_name()
+
+    def model_family(self) -> str:
+        """Model name used only for capability and request-shape detection.
+
+        Returns :attr:`ModelInfo.family` if one has been registered for this
+        model via :func:`set_model_info` under the configured or canonical
+        model name, otherwise falls back to the model name sent to the provider
+        service. The returned name must not be used as the wire model
+        identifier.
+        """
+        from inspect_ai.model._model_info import _get_model_info_direct
+
+        for name in (self.model_name, self.canonical_name()):
+            info = _get_model_info_direct(name)
+            if info is not None and info.family:
+                return info.family
+        return self.service_model_name()
 
     @abc.abstractmethod
     async def generate(
