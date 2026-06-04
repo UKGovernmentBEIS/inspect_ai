@@ -2,11 +2,12 @@
 
 ## Unreleased
 
-- OpenAI: Support [OpenAI models on AWS Bedrock](https://inspect.aisi.org.uk/providers.html#openai-on-aws-bedrock) via the `openai/bedrock/<model>` qualifier.
+- Model API: Add `ModelInfo.family` and `ModelAPI.model_family()`. Provider capability and request-shape checks now consult a registered `ModelInfo.family` before falling back to model-name matching, while preserving the configured model name for provider requests.
 - Together: Support the `stream` model arg (e.g. `-M stream=true`) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to `stop_reason="max_tokens"` instead of raising.
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
 - Deep Agent: Subagent `submit()` calls are retained in the subagent transcript (previously stripped) and rendered as markdown, so a submit is distinguishable from a normal assistant message. The parent’s result is unchanged.
 - Sandbox: Allow [sandbox_service()](./reference/inspect_ai.util.html.md#sandbox_service) instances running as different users in the same sandbox to share `/var/tmp/sandbox-services`.
+- Agent Bridge: By default the bridge no longer forwards client generation-tuning parameters (e.g. `max_tokens`, `temperature`, reasoning effort/tokens) to the resolved Inspect model, leaving these parameters entirely determined by the evaluation config. Pass `forward_generation_config=True` to [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge)/[sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) to restore previous behavior.
 - Agent Intervention: Support connecting to all samples (disabling interruption and user messages if the agent doesn’t explicitly support ACP).
 - Docker Compose: accept `platform`, `extra_hosts`, `cap_add`, `cap_drop`, `security_opt`, and `tmpfs` in ComposeService.
 - Docker Sandbox: `SandboxTimeoutError` now carries `truncated_output` with the partial command output captured before a timeout (surfaced to tool callers), instead of discarding it.
@@ -16,6 +17,12 @@
 - Inspect View: Migrated the sample transcript to a virtualized list for smoother rendering of long transcripts.
 - Bugfix: Inspect View sample-list columns now expand to fill the available width.
 - Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.
+- Bugfix: Preserve OpenAI Responses API encrypted reasoning through agent bridge round-trips and replay reasoning input items with empty `content` to avoid server validation errors.
+
+## 0.3.235 (03 June 2026)
+
+- OpenAI: Don’t filter `tool_search` tool in agent bridge for providers derived from OpenAIAPI.
+- Model Info: Defer to explicit calls to [set_model_info()](./reference/inspect_ai.model.html.md#set_model_info) when computing input tokens for unknown models.
 
 ## 0.3.234 (02 June 2026)
 

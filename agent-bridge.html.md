@@ -187,6 +187,23 @@ For example, in a LangChain agent, you would do this to utilise the Inspect inte
 model = ChatOpenAI(model="inspect/google/gemini-1.5-pro")
 ```
 
+## Generation Config
+
+Bridged agents typically tune their requests (e.g. `max_tokens`, `temperature`, reasoning effort) for the model named in their own configuration, which is *not* the Inspect model actually serving the request. Those values are therefore targeted for the wrong model, and forwarding them can produce incorrect or even failing requests (for example a small `max_tokens` combined with reasoning being enabled on the real model).
+
+For this reason, by default the bridge does not forward client generation parameters. Instead, the resolved Inspect model configuration and the provider’s defaults govern generation. Structural parameters that express the agent’s intent — the system prompt, tools, tool choice, response format, `stop` sequences, and `seed` — are always forwarded.
+
+The generation parameters dropped by default are: `max_tokens`, `temperature`, `top_p`, `top_k`, `frequency_penalty`, `presence_penalty`, `n`/`num_choices`, `logprobs`, `top_logprobs`, `logit_bias`, and reasoning effort/tokens/summary.
+
+If you want the bridge to act as a faithful proxy where the agent’s generation parameters are authoritative, pass `forward_generation_config=True`:
+
+``` python
+async with agent_bridge(state, forward_generation_config=True) as bridge:
+    ...
+```
+
+This option is available on both [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge) and [sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge).
+
 ## Transcript
 
 Custom agents run through a bridge still get most of the benefit of the Inspect transcript and log viewer. All model calls are captured and produce the same transcript output as when using conventional agents.
