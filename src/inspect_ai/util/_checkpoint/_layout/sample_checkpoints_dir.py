@@ -168,8 +168,10 @@ async def _load_model_json(path: str, model_cls: type[_M]) -> _M:
 async def _write_model_json(path: str, model: BaseModel) -> None:
     """Write a pydantic model to a JSON file via ``AsyncFilesystem``.
 
-    Pretty-printed (``indent=2``); non-atomic.
+    Pretty-printed (``indent=2``); non-atomic. ``exclude_none`` keeps
+    opt-in fields (e.g. ``SnapshotDetails.files``) out of the file when
+    unset — no other field is ever ``None``.
     """
     await get_async_filesystem().write_file(
-        path, model.model_dump_json(indent=2).encode()
+        path, model.model_dump_json(indent=2, exclude_none=True).encode()
     )

@@ -92,7 +92,7 @@ from inspect_ai.model._internal import (
     content_internal_tag,
     parse_content_with_internal,
 )
-from inspect_ai.model._model import ModelName
+from inspect_ai.model._model import Model, ModelName
 from inspect_ai.model._model_output import StopReason
 from inspect_ai.model._openai_responses import (
     TOOL_SEARCH_NAME,
@@ -178,6 +178,23 @@ from .util import (
 logger = getLogger(__name__)
 
 
+def _is_openai_responses_provider(model: Model) -> bool:
+    """Whether the resolved model is served by an OpenAI (or OpenAI-derived) provider.
+
+    Matches the literal OpenAI provider and any subclass of ``OpenAIAPI`` (e.g. a
+    custom or pre-deployment provider registered under a different name that speaks
+    the OpenAI Responses wire format). Such providers accept Responses-only
+    features (``tool_search``, custom tools, computer use), so the bridge passes
+    those through rather than dropping them. Falls back to the provider-name check
+    when the OpenAI provider class can't be imported (e.g. SDK not installed).
+    """
+    try:
+        from inspect_ai.model._providers.openai import OpenAIAPI
+    except Exception:
+        return ModelName(model).api == "openai"
+    return isinstance(model.api, OpenAIAPI)
+
+
 async def inspect_responses_api_request_impl(
     json_data: dict[str, Any],
     headers: dict[str, str] | None,
@@ -189,7 +206,7 @@ async def inspect_responses_api_request_impl(
     bridge_model_name = str(json_data["model"])
     model = resolve_inspect_model(bridge_model_name, bridge.model_aliases, bridge.model)
     model_name = model.api.model_name
-    is_openai = ModelName(model).api == "openai"
+    is_openai = _is_openai_responses_provider(model)
 
     # record parallel tool calls
     parallel_tool_calls = json_data.get("parallel_tool_calls", True)
@@ -687,6 +704,9 @@ def messages_from_responses_input(
                                         signature=reasoning_capsule.signature,
                                         redacted=reasoning_capsule.redacted,
                                         summary=reasoning_capsule.summary,
+                                        # Preserve the stashed encrypted_content
+                                        # blob so it can be replayed next turn.
+                                        internal=reasoning_capsule.internal,
                                     )
                                 )
                                 asst_content = remaining_text
@@ -731,6 +751,9 @@ def messages_from_responses_input(
                                         signature=reasoning_capsule.signature,
                                         redacted=reasoning_capsule.redacted,
                                         summary=reasoning_capsule.summary,
+                                        # Preserve the stashed encrypted_content
+                                        # blob so it can be replayed next turn.
+                                        internal=reasoning_capsule.internal,
                                     )
                                 )
                                 asst_content = remaining_text

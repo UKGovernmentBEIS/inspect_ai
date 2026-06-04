@@ -143,16 +143,16 @@ class GrokAPI(ModelAPI):
         self.initialize()
 
     def is_grok_2(self) -> bool:
-        return "grok-2" in self.model_name
+        return "grok-2" in self.model_family()
 
     def is_grok_3(self) -> bool:
-        return "grok-3" in self.model_name
+        return "grok-3" in self.model_family()
 
     def is_grok_3_mini(self) -> bool:
-        return "grok-3-mini" in self.model_name
+        return "grok-3-mini" in self.model_family()
 
     def is_grok_4(self) -> bool:
-        return "grok-4" in self.model_name
+        return "grok-4" in self.model_family()
 
     def is_grok_4_original(self) -> bool:
         """The original grok-4 release (deprecated 2026-05-15).
@@ -163,10 +163,11 @@ class GrokAPI(ModelAPI):
         xAI API returns an error when it's set.
         https://docs.x.ai/developers/model-capabilities/text/reasoning
         """
+        family = self.model_family()
         return (
-            self.model_name == "grok-4"
-            or self.model_name == "grok-4-latest"
-            or self.model_name.startswith("grok-4-0709")
+            family == "grok-4"
+            or family == "grok-4-latest"
+            or family.startswith("grok-4-0709")
         )
 
     def is_at_least_grok_4(self) -> bool:
@@ -184,7 +185,7 @@ class GrokAPI(ModelAPI):
     async def count_text_tokens(self, text: str) -> int:
         async with self.model_client() as client:
             tokens = await client.tokenize.tokenize_text(
-                text=text, model=self.model_name
+                text=text, model=self.service_model_name()
             )
             return len(tokens)
 
@@ -215,7 +216,7 @@ class GrokAPI(ModelAPI):
         grok_params = self._grok_params(config)
 
         request = dict(
-            model=self.model_name,
+            model=self.service_model_name(),
             messages=[MessageToDict(m) for m in grok_messages],
             tools=[MessageToDict(t) for t in grok_tools],
             tool_choice=MessageToDict(grok_tool_choice)
@@ -248,7 +249,7 @@ class GrokAPI(ModelAPI):
                 async with self.model_client() as client:
                     # chat call
                     chat = client.chat.create(
-                        model=self.model_name,
+                        model=self.service_model_name(),
                         messages=grok_messages,
                         tools=grok_tools,
                         tool_choice=grok_tool_choice,
@@ -326,7 +327,7 @@ class GrokAPI(ModelAPI):
         Per-model scoping avoids that, at the cost of slight over-fragmentation
         when models actually share an upstream rate-limit budget.
         """
-        return f"{self.api_key}:{self.model_name}"
+        return f"{self.api_key}:{self.service_model_name()}"
 
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
         if isinstance(ex, grpc.RpcError):
@@ -354,7 +355,7 @@ class GrokAPI(ModelAPI):
     @override
     def canonical_name(self) -> str:
         """Canonical model name for model info database lookup."""
-        return f"grok/{self.model_name}"
+        return f"grok/{self.service_model_name()}"
 
     def _handle_grpc_bad_request(self, ex: grpc.RpcError) -> ModelOutput | Exception:
         details = ex.details() or ""

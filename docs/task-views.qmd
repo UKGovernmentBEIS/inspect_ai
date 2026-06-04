@@ -1,8 +1,16 @@
 ---
-title: Custom Views
+title: Task Views
 llms-description: Use ViewerConfig to customize how a task's samples, scores, and scanner results render in the Inspect log viewer.
 code-annotations: select
 ---
+
+::: {.callout-note appearance="simple"}
+The task views feature described below requires the development version of Inspect. You can install the development version from GitHub with:
+
+```bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
 
 ## Overview
 

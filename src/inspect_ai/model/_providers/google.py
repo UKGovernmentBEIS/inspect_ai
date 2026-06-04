@@ -660,22 +660,22 @@ class GoogleGenAIAPI(ModelAPI):
         return f"google/{self.service_model_name()}"
 
     def is_gemini(self) -> bool:
-        return "gemini-" in self.service_model_name()
+        return "gemini-" in self.model_family()
 
     def is_gemini_flash(self) -> bool:
-        return "flash" in self.service_model_name()
+        return "flash" in self.model_family()
 
     def is_gemini_1_5(self) -> bool:
-        return "gemini-1.5" in self.service_model_name()
+        return "gemini-1.5" in self.model_family()
 
     def is_gemini_2_0(self) -> bool:
-        return "gemini-2.0" in self.service_model_name()
+        return "gemini-2.0" in self.model_family()
 
     def is_gemini_2_5(self) -> bool:
-        return "gemini-2.5" in self.service_model_name()
+        return "gemini-2.5" in self.model_family()
 
     def is_gemini_3(self) -> bool:
-        return "gemini-3" in self.service_model_name()
+        return "gemini-3" in self.model_family()
 
     def is_gemini_3_flash(self) -> bool:
         return self.is_gemini_3() and self.is_gemini_flash()
@@ -694,7 +694,7 @@ class GoogleGenAIAPI(ModelAPI):
     def is_gemini_thinking_only(self) -> bool:
         return (
             self.is_gemini_2_5() or self.is_gemini_3()
-        ) and "-pro" in self.service_model_name()
+        ) and "-pro" in self.model_family()
 
     @override
     def should_retry(self, ex: BaseException) -> bool | RetryDecision:
@@ -899,7 +899,7 @@ class GoogleGenAIAPI(ModelAPI):
         elif tool.options and self._use_native_code_execution(tool):
             return acc._replace(code_execution=ToolCodeExecution())
         else:
-            computer_use = maybe_computer_use_tool(self.model_name, tool)
+            computer_use = maybe_computer_use_tool(self.model_family(), tool)
             if computer_use is not None:
                 return acc._replace(computer_use=computer_use)
             else:
