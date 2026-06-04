@@ -20192,30 +20192,46 @@ a._citationLink_1ggvf_9:hover {
   flex: none;
   opacity: 0.85;
 }
-._panel_1dnhl_1 {
+._panel_xm787_1 {
   margin: 0.2em 0;
 }
 
-._metric_1dnhl_5 {
+._metric_xm787_5 {
   display: flex;
   gap: 0.5em;
 }
 
-._label_1dnhl_10 {
+._label_xm787_10 {
   font-weight: 600;
   min-width: 5em;
 }
 
-._section_1dnhl_15 {
+._section_xm787_15 {
   margin-top: 0.5em;
 }
 
-._sectionTitle_1dnhl_19 {
+._sectionTitle_xm787_19 {
   font-weight: 600;
 }
 
-._indented_1dnhl_23 {
+._indented_xm787_23 {
   padding-left: 1.5em;
+}
+
+._files_xm787_27 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  font-family: var(--bs-font-monospace);
+}
+
+._file_xm787_27 {
+  overflow-wrap: anywhere;
+}
+
+._fileOverflow_xm787_38 {
+  font-style: italic;
+  opacity: 0.7;
 }
 ._panel_8zdtn_1 {
   margin: 0.5em 0;

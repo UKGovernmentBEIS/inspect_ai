@@ -58,7 +58,7 @@ async def generate_completions(
     # unlike text models, vision models require a max_tokens (and set it to a very low
     # default, see https://community.openai.com/t/gpt-4-vision-preview-finish-details/475911/10)
     OPENAI_IMAGE_DEFAULT_TOKENS = 4096
-    if "vision" in openai_api.service_model_name():
+    if "vision" in openai_api.model_family():
         if isinstance(config.max_tokens, int):
             config.max_tokens = max(config.max_tokens, OPENAI_IMAGE_DEFAULT_TOKENS)
         else:

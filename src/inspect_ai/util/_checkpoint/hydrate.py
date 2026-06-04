@@ -83,6 +83,7 @@ from ._layout.staging_dir import (
 from ._sandbox_restic import ingress_sandbox, init_sandbox_repo, inject_restic
 from .checkpointer import ResumeCheckpoint
 from .config import ResolvedCheckpointConfig
+from .sandbox_paths import SandboxBackupPaths, resolve_sandbox_backup_paths
 
 logger = getLogger(__name__)
 _DISABLE_ENV_VAR = "INSPECT_CHECKPOINT_VALIDATE_DISABLE"
@@ -140,6 +141,12 @@ class HydrationResult:
 
     restic_password: str
     host: _HostHydrationResult
+
+    sandbox_backup_paths: dict[str, SandboxBackupPaths] = field(default_factory=dict)
+    """Effective sandbox name → backup spec (include + exclude) used for
+    backup: each live sandbox's default-user home dir (XDG cache excluded),
+    with ``sandbox_paths`` config entries replacing the default (empty-list
+    entries opt out). See ``sandbox_paths``."""
 
 
 async def hydrate(
@@ -221,6 +228,14 @@ async def hydrate(
     # host branch produces a result that flows to `_EnteredCheckpointer`.
     host_result: _HostHydrationResult | None = None
 
+    # Effective sandbox backup map: explicit config entries plus the
+    # default-user home dir auto-included for every other live sandbox.
+    # Computed once here so backup (every fire) and hydration agree on the
+    # same name set.
+    sandbox_backup_paths = await resolve_sandbox_backup_paths(
+        config.sandbox_paths or {}
+    )
+
     async def _run_host() -> None:
         nonlocal host_result
         host_result = await _hydrate_host(
@@ -239,7 +254,7 @@ async def hydrate(
         tg.start_soon(
             _hydrate_sandboxes,
             resume_checkpoint,
-            config.sandbox_paths or {},
+            sandbox_backup_paths,
             restic_config.restic_password,
             sample_root,
             host_restic,
@@ -270,6 +285,7 @@ async def hydrate(
         host_repo=host_repo,
         restic_password=restic_config.restic_password,
         host=host_result,
+        sandbox_backup_paths=sandbox_backup_paths,
     )
 
 
@@ -320,7 +336,7 @@ async def _hydrate_host(
 
 async def _hydrate_sandboxes(
     resume: ResumeCheckpoint | None,
-    sandbox_paths: dict[str, list[str]],
+    sandbox_paths: dict[str, SandboxBackupPaths],
     restic_password: str,
     sample_root: str,
     host_restic: Path,
@@ -334,7 +350,6 @@ async def _hydrate_sandboxes(
             partial(
                 _hydrate_sandbox,
                 name=name,
-                paths=paths,
                 resume=resume,
                 restic_password=restic_password,
                 sample_root=sample_root,
@@ -342,7 +357,7 @@ async def _hydrate_sandboxes(
                 latest_committed_id=latest_committed_id,
                 action=action,
             )
-            for name, paths in sandbox_paths.items()
+            for name in sandbox_paths
         ]
     )
 
@@ -350,7 +365,6 @@ async def _hydrate_sandboxes(
 async def _hydrate_sandbox(
     *,
     name: str,
-    paths: list[str],
     resume: ResumeCheckpoint | None,
     restic_password: str,
     sample_root: str,
