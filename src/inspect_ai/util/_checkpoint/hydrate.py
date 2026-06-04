@@ -63,6 +63,7 @@ from inspect_ai.solver._task_state import sample_state
 from inspect_ai.util._restic import init_repo, resolve_restic, restore_repo
 from inspect_ai.util._restic.ops import restic_env
 from inspect_ai.util._sandbox.context import sandbox
+from inspect_ai.util._span import current_span_id
 
 from ._host_egress import seed_manifest
 from ._layout import host_context
@@ -322,12 +323,16 @@ async def _hydrate_host(
         )
     with trace_action(logger, action, "host restore"):
         await restore_repo(host_restic, host_repo, restic_password, context_dir)
+    # Capture the live span id here (loop thread); the `_current_span_id`
+    # ContextVar isn't propagated into the worker thread below.
+    parent_span_id = current_span_id()
     result = await anyio.to_thread.run_sync(
         partial(
             _load_host_state,
             context_dir,
             sample_root,
             latest_committed_id,
+            parent_span_id,
         )
     )
     result = _push_host_state(result, sample_root, latest_committed_id)
@@ -520,6 +525,7 @@ def _load_host_state(
     context_dir: str,
     sample_root: str,
     latest_committed_id: int | None,
+    parent_span_id: str | None,
 ) -> _HostHydrationResult:
     """Read restored host context and prepare resume state.
 
@@ -555,7 +561,7 @@ def _load_host_state(
     # session ends up as a sibling wrap inside this attempt's events.
     # See `_wrap_prior_run` for the slicing + reparenting
     # mechanics.
-    pushed_events = _wrap_prior_run(rehydrated_events)
+    pushed_events = _wrap_prior_run(rehydrated_events, parent_span_id)
 
     return _HostHydrationResult(
         agent_state=ctx.agent_state,
@@ -594,7 +600,7 @@ def _push_host_state(
     return result
 
 
-def _wrap_prior_run(events: list[Event]) -> list[Event]:
+def _wrap_prior_run(events: list[Event], parent_span_id: str | None) -> list[Event]:
     """Wrap the trailing unwrapped checkpoint spans in a new ``prior_run`` span.
 
     The "tail" is the slice of ``events`` after the last existing
@@ -609,9 +615,9 @@ def _wrap_prior_run(events: list[Event]) -> list[Event]:
     hierarchy reflects the new structure rather than carrying stale
     parent ids from the prior session's transcript. ``span_end`` events
     carry no ``parent_id``, so they pass through unchanged. The wrap's
-    own ``parent_id`` is ``None`` (sibling at the sample root,
-    alongside other prior wraps and the current session's checkpoint
-    spans).
+    own ``parent_id`` is ``parent_span_id`` — the live span id captured
+    at hydrate time — so the wrap nests under the current session's
+    span rather than dangling at the transcript root.
 
     Wrap numbering (``checkpoint restore 1``, ``2``, …) is the count
     of existing wraps plus one, so each resume adds one numbered
@@ -640,7 +646,7 @@ def _wrap_prior_run(events: list[Event]) -> list[Event]:
     wrap_id = shortuuid()
     wrap_begin = SpanBeginEvent(
         id=wrap_id,
-        parent_id=None,
+        parent_id=parent_span_id,
         type="prior_run",
         name=f"checkpoint restore {next_n}",
     )
