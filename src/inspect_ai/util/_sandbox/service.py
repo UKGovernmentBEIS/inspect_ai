@@ -42,10 +42,12 @@ POLLING_INTERVAL = 0.1
 # Output limit applied when reading a service request file. A service request
 # payload (e.g. a model generate request carrying base64 images) can be far
 # larger than a normal command's output, so we read it with a higher limit than
-# the default exec output cap. 100 MiB is 2x the bridge proxy's 50 MiB request
-# body cap, which covers every request that can reach us -- including the worst
-# case where the proxy's ensure_ascii re-serialization inflates a non-ASCII body.
-SERVICE_REQUEST_READ_OUTPUT_LIMIT = 100 * 1024**2
+# the default exec output cap. 150 MiB is 3x the bridge proxy's 50 MiB request
+# body cap -- 3x because the proxy re-serializes the body with ensure_ascii=True,
+# which in the worst case triples the byte size of a non-ASCII body (a 2-byte
+# UTF-8 char -> "\uXXXX" = 6 bytes; a non-BMP char -> a 12-byte surrogate pair).
+# So this covers every request the proxy can accept.
+SERVICE_REQUEST_READ_OUTPUT_LIMIT = 150 * 1024**2
 
 SandboxServiceMethod = Callable[..., Awaitable[JsonValue]]
 
@@ -308,24 +310,40 @@ class SandboxService:
             with override_max_exec_output_size(SERVICE_REQUEST_READ_OUTPUT_LIMIT):
                 result = await self._exec(["bash", "-c", read_request])
         except OutputLimitExceededError as ex:
-            # The request is too large to ever read, so it would otherwise sit in
-            # the queue and be retried (and re-logged) on every poll forever while
-            # the client blocks waiting for a response. Discard it and deliver an
-            # error response to unblock the client.
-            await self._fail_oversized_request(request_file, ex)
+            # Provider raised on overflow (e.g. k8s). The request is too large to
+            # ever read, so it would otherwise sit in the queue and be retried (and
+            # re-logged) on every poll forever while the client blocks. Discard it
+            # and deliver an error response to unblock the client.
+            await self._discard_unreadable_request(
+                request_file, f"exceeded the {ex.limit_str} sandbox exec output limit"
+            )
             return None
         if not result.success:
             raise RuntimeError(
                 f"Error reading request for service {self._name}: '{read_request}' ({result.stderr})"
             )
 
-        # parse request (decode error could occur if its incomplete so bypass this)
+        # parse request
         try:
             request_data = json.loads(result.stdout)
         except json.JSONDecodeError:
-            logger.warning(
-                f"JSON decoding error reading service request: {result.stdout}"
-            )
+            # A decode error means either (a) the file is still being written --
+            # retry on the next poll -- or (b) the provider silently TRUNCATED an
+            # oversized read instead of raising (e.g. docker/local, whose service
+            # execs bypass the output-size verifier), leaving a partial tail that
+            # can never parse. Distinguish via the on-disk size: if the file
+            # exceeds the read limit it can never be read, so discard it; otherwise
+            # treat it as an incomplete write and retry.
+            if await self._request_exceeds_read_limit(request_file):
+                limit_mib = SERVICE_REQUEST_READ_OUTPUT_LIMIT // 1024**2
+                await self._discard_unreadable_request(
+                    request_file,
+                    f"exceeds the {limit_mib} MiB service request read limit",
+                )
+            else:
+                logger.warning(
+                    f"JSON decoding error reading service request: {result.stdout}"
+                )
             return None
         if not isinstance(request_data, dict):
             raise TypeError(f"Service request is not a dict (type={request_data})")
@@ -404,19 +422,34 @@ class SandboxService:
                     f"Error calling method {method_name}: {err}: {err_traceback}"
                 )
 
-    async def _fail_oversized_request(
-        self, request_file: str, ex: OutputLimitExceededError
-    ) -> None:
-        """Discard a request that is too large to read and notify the client.
+    async def _request_exceeds_read_limit(self, request_file: str) -> bool:
+        """Whether the request file is larger than the read limit.
 
-        The request id is the first key written by the client, so we recover it
-        with a small bounded read (which can't re-trip the output limit) in order
-        to write an error response. The request file is then removed so it is not
-        retried on subsequent polls.
+        Used to tell an unreadable oversized request (which a provider may signal
+        by silently truncating the read) apart from a still-being-written file.
+        The size is read with a bounded command whose output is just a number, so
+        it can't itself trip the output limit.
+        """
+        result = await self._exec(["bash", "-c", f"wc -c < {request_file}"])
+        if not result.success:
+            return False
+        try:
+            return int(result.stdout.strip()) > SERVICE_REQUEST_READ_OUTPUT_LIMIT
+        except ValueError:
+            return False
+
+    async def _discard_unreadable_request(self, request_file: str, detail: str) -> None:
+        """Discard a request that can't be read and notify the client.
+
+        Reading the full payload failed -- the provider either raised or silently
+        truncated an oversized read. The request id is the first key the client
+        writes, so we recover it with a small bounded read (which can't re-trip
+        the output limit) in order to deliver an error response, then remove the
+        request file so it isn't retried (and re-logged) on subsequent polls.
         """
         error = (
-            f"Service '{self._name}' request payload exceeded the maximum "
-            f"readable size of {ex.limit_str} and was discarded."
+            f"Service '{self._name}' request payload could not be read "
+            f"({detail}); the request was discarded."
         )
         logger.warning(f"{error} (request_file='{request_file}')")
 
