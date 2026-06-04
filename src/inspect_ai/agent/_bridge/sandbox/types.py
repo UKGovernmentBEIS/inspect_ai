@@ -21,6 +21,7 @@ class SandboxAgentBridge(AgentBridge):
         mcp_server_configs: list[MCPServerConfigHTTP] | None = None,
         bridged_tools: dict[str, dict[str, Tool]] | None = None,
         model_event_sink: ModelEventSink | None = None,
+        forward_generation_config: bool = False,
     ) -> None:
         super().__init__(
             state,
@@ -30,6 +31,7 @@ class SandboxAgentBridge(AgentBridge):
             model=model,
             model_aliases=model_aliases,
             model_event_sink=model_event_sink,
+            forward_generation_config=forward_generation_config,
         )
         self.port = port
         self.mcp_server_configs = mcp_server_configs or []

@@ -91,6 +91,7 @@ async def agent_bridge(
     web_search: WebSearchProviders | None = None,
     code_execution: CodeExecutionProviders | None = None,
     model_event_sink: ModelEventSink | None = None,
+    forward_generation_config: bool = False,
 ) -> AsyncGenerator[AgentBridge, None]:
     """Agent bridge.
 
@@ -126,6 +127,13 @@ async def agent_bridge(
           emission for calls routed through the bridge. When set, the bridge
           installs it around `model.generate()` so the sink decides when and
           under which span each event is emitted to the transcript.
+       forward_generation_config: Forward client generation parameters (e.g.
+          `max_tokens`, `temperature`, reasoning effort) to the model. Defaults
+          to `False`, in which case those parameters are dropped and the resolved
+          Inspect model config and provider defaults govern generation (structural
+          parameters like the system prompt, tools, and response format are always
+          forwarded). Set `True` for faithful-proxy behavior where the client's
+          generation parameters are authoritative.
     """
     # ensure one time init
     init_bridge_request_patch()
@@ -144,6 +152,7 @@ async def agent_bridge(
         retry_refusals,
         compaction,
         model_event_sink=model_event_sink,
+        forward_generation_config=forward_generation_config,
     )
 
     # set the patch config for this context and child coroutines
