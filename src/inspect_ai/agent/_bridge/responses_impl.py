@@ -704,6 +704,9 @@ def messages_from_responses_input(
                                         signature=reasoning_capsule.signature,
                                         redacted=reasoning_capsule.redacted,
                                         summary=reasoning_capsule.summary,
+                                        # Preserve the stashed encrypted_content
+                                        # blob so it can be replayed next turn.
+                                        internal=reasoning_capsule.internal,
                                     )
                                 )
                                 asst_content = remaining_text
@@ -748,6 +751,9 @@ def messages_from_responses_input(
                                         signature=reasoning_capsule.signature,
                                         redacted=reasoning_capsule.redacted,
                                         summary=reasoning_capsule.summary,
+                                        # Preserve the stashed encrypted_content
+                                        # blob so it can be replayed next turn.
+                                        internal=reasoning_capsule.internal,
                                     )
                                 )
                                 asst_content = remaining_text
