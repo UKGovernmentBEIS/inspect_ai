@@ -1675,8 +1675,9 @@ def test_ctl_events_reads_completed_sample_from_log(short_data_dir: Path) -> Non
     assert any(e["event"] == "model" for e in page["events"])
 
 
+@pytest.mark.parametrize("log_format", ["eval", "json"])
 def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
-    short_data_dir: Path,
+    short_data_dir: Path, log_format: str
 ) -> None:
     """`sample` / `events` must find a sample the recorder reports completed.
 
@@ -1692,6 +1693,11 @@ def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
     `sample` / `events`. A retry makes this acute: reused samples are re-logged
     into the new attempt with `complete_sample(..., flush=False)`, so they sit
     unflushed in the recorder for an extended window.
+
+    Parametrized over both log formats: the fix routes per-sample reads through
+    the recorder's gap-free buffer (`buffered_sample`), which each recorder
+    implements over its own in-memory store (`.eval`'s `_samples` /
+    `_streaming_samples`, JSON's `log.data.samples`).
 
     Setup mirrors `test_ctl_samples_recorder_ahead_of_disk`: 9 samples, ids 1–2
     complete (and leave `active_samples`) while 3–9 are held, with too few
@@ -1748,6 +1754,7 @@ def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
             model="mockllm/model",
             retry_attempts=0,
             max_samples=9,
+            log_format=log_format,  # type: ignore[arg-type]
         )
 
     res = p.result

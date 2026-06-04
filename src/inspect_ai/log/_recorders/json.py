@@ -118,6 +118,21 @@ class JSONRecorder(FileRecorder):
         return [sample.summary() for sample in (log.data.samples or [])]
 
     @override
+    async def buffered_sample(
+        self, eval: EvalSpec, id: str | int, epoch: int
+    ) -> EvalSample | None:
+        # The whole in-memory log (full samples, events included) is retained
+        # until log_finish, so this is gap-free and ahead of disk for the entire
+        # run — the counterpart to sample_summaries for whole samples.
+        log = self.data.get(self._log_file_key(eval))
+        if log is None or log.data.samples is None:
+            return None
+        for sample in log.data.samples:
+            if sample.id == id and sample.epoch == epoch:
+                return sample
+        return None
+
+    @override
     async def log_finish(
         self,
         eval: EvalSpec,
