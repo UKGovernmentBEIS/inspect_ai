@@ -334,15 +334,21 @@ class SandboxService:
             # can never parse. Distinguish via the on-disk size: if the file
             # exceeds the read limit it can never be read, so discard it; otherwise
             # treat it as an incomplete write and retry.
-            if await self._request_exceeds_read_limit(request_file):
+            size = await self._request_size(request_file)
+            if size is not None and size > SERVICE_REQUEST_READ_OUTPUT_LIMIT:
                 limit_mib = SERVICE_REQUEST_READ_OUTPUT_LIMIT // 1024**2
                 await self._discard_unreadable_request(
                     request_file,
                     f"exceeds the {limit_mib} MiB service request read limit",
                 )
             else:
+                # log metadata only -- never the payload, which can be large and
+                # may contain sensitive request content
                 logger.warning(
-                    f"JSON decoding error reading service request: {result.stdout}"
+                    "JSON decoding error reading service request "
+                    f"'{request_file}' ({len(result.stdout)} chars read, on-disk "
+                    f"size {size if size is not None else 'unknown'} bytes); "
+                    "treating as an incomplete write and retrying."
                 )
             return None
         if not isinstance(request_data, dict):
@@ -422,8 +428,8 @@ class SandboxService:
                     f"Error calling method {method_name}: {err}: {err_traceback}"
                 )
 
-    async def _request_exceeds_read_limit(self, request_file: str) -> bool:
-        """Whether the request file is larger than the read limit.
+    async def _request_size(self, request_file: str) -> int | None:
+        """On-disk size of the request file in bytes (None if it can't be read).
 
         Used to tell an unreadable oversized request (which a provider may signal
         by silently truncating the read) apart from a still-being-written file.
@@ -432,11 +438,11 @@ class SandboxService:
         """
         result = await self._exec(["bash", "-c", f"wc -c < {request_file}"])
         if not result.success:
-            return False
+            return None
         try:
-            return int(result.stdout.strip()) > SERVICE_REQUEST_READ_OUTPUT_LIMIT
+            return int(result.stdout.strip())
         except ValueError:
-            return False
+            return None
 
     async def _discard_unreadable_request(self, request_file: str, detail: str) -> None:
         """Discard a request that can't be read and notify the client.

@@ -1,4 +1,5 @@
 import json
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import dedent
@@ -399,21 +400,28 @@ async def test_handle_request_oversized_truncated_writes_error_and_removes_file(
     assert request_file in fake.removed
 
 
-async def test_handle_request_incomplete_write_is_retried() -> None:
-    """A still-being-written file (parse fails, size under limit) is left to retry."""
+async def test_handle_request_incomplete_write_is_retried(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Incomplete-write file is retried; the warning logs metadata, not the payload."""
+    secret = "SENSITIVE-PAYLOAD-DO-NOT-LOG"
     fake = _RequestReadSandbox(
         raise_on_cat=False,
-        cat_stdout='{"id": "33333333-...", "meth',  # partial JSON
+        cat_stdout=f'{{"id": "x", "params": {{"k": "{secret}"',  # partial JSON
         file_size=64,  # well under the read limit -> not an oversized read
     )
     service = _service_with_dirs(fake)
     request_file = f"{service._requests_dir}/incomplete.json"
 
-    await service._handle_request(request_file)
+    with caplog.at_level(logging.WARNING):
+        await service._handle_request(request_file)
 
     # no response written and the file left in place for the next poll
     assert fake.writes == {}
     assert fake.removed == []
+    # the warning must carry metadata but never the payload itself
+    assert secret not in caplog.text
+    assert request_file in caplog.text
 
 
 async def test_handle_request_oversized_unrecoverable_id_removes_file() -> None:
