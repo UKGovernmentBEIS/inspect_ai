@@ -550,6 +550,14 @@ def _load_host_state(
         synthesized = _synthesize_trailing_checkpoint_event(
             sample_root, latest_committed_id
         )
+        # Stamp the synthesized event with the restored session's active
+        # span (the innermost still-open span), matching the span the
+        # prior checkpoint events carry. Constructing the event live
+        # otherwise stamps `current_span_id()` — the *resuming* session's
+        # span, which lives outside the `prior_run` wrap and would dangle
+        # the checkpoint under the current agent instead of nesting it as
+        # a peer of the other restored checkpoints.
+        synthesized.span_id = _innermost_open_span_id(rehydrated_events)
         rehydrated_events.append(synthesized)
 
     rehydrated_events = materialize_pooled_events(
@@ -703,6 +711,21 @@ def _synthesize_trailing_checkpoint_event(
     return CheckpointEvent.from_details(checkpoint).model_copy(
         update={"timestamp": checkpoint.created_at}
     )
+
+
+def _innermost_open_span_id(events: list[Event]) -> str | None:
+    """Return the id of the innermost span still open at the end of ``events``.
+
+    This is the restored session's active span at context-write time — the
+    agent span the checkpoints fire within. ``None`` if no span is open.
+    """
+    open_span_ids: list[str] = []
+    for e in events:
+        if isinstance(e, SpanBeginEvent):
+            open_span_ids.append(e.id)
+        elif isinstance(e, SpanEndEvent) and e.id in open_span_ids:
+            open_span_ids.remove(e.id)
+    return open_span_ids[-1] if open_span_ids else None
 
 
 def _validate_resume_state(
