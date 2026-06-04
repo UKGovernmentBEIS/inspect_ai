@@ -1,4 +1,6 @@
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from pathlib import Path
 
@@ -100,6 +102,25 @@ def reset_sandbox_limits(tokens: list[Token[int]]) -> None:
     """Restore sandbox limits from tokens returned by `set_sandbox_limits()`."""
     for token in tokens:
         token.var.reset(token)
+
+
+@contextmanager
+def override_max_exec_output_size(limit: int) -> Iterator[None]:
+    """Temporarily override the max exec output size for the current context.
+
+    Use this to read output that is legitimately larger than the default exec
+    output cap (e.g. a sandbox service request payload) without raising the
+    limit for unrelated exec calls. The override is scoped to the current
+    async context and restored on exit.
+
+    Args:
+        limit: Output size limit (in bytes) to apply within the context.
+    """
+    token = _max_exec_output_size_var.set(limit)
+    try:
+        yield
+    finally:
+        _max_exec_output_size_var.reset(token)
 
 
 class OutputLimitExceededError(Exception):

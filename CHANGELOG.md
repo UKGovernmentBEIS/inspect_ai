@@ -5,6 +5,7 @@
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
 - Deep Agent: Subagent `submit()` calls are retained in the subagent transcript (previously stripped) and rendered as markdown, so a submit is distinguishable from a normal assistant message. The parent's result is unchanged.
 - Sandbox: Allow `sandbox_service()` instances running as different users in the same sandbox to share `/var/tmp/sandbox-services`.
+- Sandbox: Read `sandbox_service()` request payloads with a higher output limit (150 MiB) than the default exec output cap.
 - Agent Bridge: By default the bridge no longer forwards client generation-tuning parameters (e.g. `max_tokens`, `temperature`, reasoning effort/tokens) to the resolved Inspect model, leaving these parameters entirely determined by the evaluation config. Pass `forward_generation_config=True` to `agent_bridge()`/`sandbox_agent_bridge()` to restore previous behavior.
 - Agent Intervention: Support connecting to all samples (disabling interruption and user messages if the agent doesn't explicitly support ACP).
 - Docker Compose: accept `platform`, `extra_hosts`, `cap_add`, `cap_drop`, `security_opt`, and `tmpfs` in ComposeService.
