@@ -173,27 +173,62 @@ def _running_source(
 async def _logged_source(
     eval_id: str, sample_id: str, epoch: int
 ) -> tuple[str, list["Event"], int, int, bool] | None:
-    """The terminal (on-disk log) source for a sample, or ``None``.
+    """The terminal source for a sample (recorder buffer, then on-disk log).
 
     Returns ``(nonce, events, 0, total, True)``; ``None`` when the eval/sample
-    isn't available here (not in this process, or not yet logged).
+    isn't available here (not in this process, or not yet readable). Reads via
+    :func:`inspect_ai._control.state._full_sample` so a just-completed (or
+    reused-on-retry) sample's events are visible the moment the samples listing
+    shows it — the same gap-free recorder source, not just the on-disk log.
+
+    The streaming completion path retains only an *event-less* sample in the
+    recorder (its events live in the buffer database, not on the sample), so
+    when the resolved sample carries no events we read them from the buffer —
+    keeping the page gap-free for that window too.
+    """
+    from inspect_ai._control.state import _full_sample
+
+    sid: str | int = int(sample_id) if sample_id.lstrip("-").isdigit() else sample_id
+    sample = await _full_sample(eval_id, sid, epoch)
+    if sample is None:
+        return None
+
+    events = list(sample.events)
+    if not events:
+        buffered = _buffer_events(eval_id, sid, epoch)
+        if buffered is not None:
+            events = buffered
+
+    nonce = sample.uuid or f"{sample_id}:{epoch}"
+    return nonce, events, 0, len(events), True
+
+
+def _buffer_events(
+    eval_id: str, sample_id: str | int, epoch: int
+) -> list["Event"] | None:
+    """The sample's events from the buffer database, or ``None``.
+
+    The gap-free events source for a streaming-path sample whose recorder copy
+    is event-less and which hasn't yet been flushed to disk (the same buffer
+    the view server reads in-progress samples from). ``None`` when there's no
+    buffer (eval finished / no streaming) or it doesn't hold the sample, so the
+    caller keeps whatever the recorder/on-disk sample provided.
     """
     from inspect_ai._control.eval_state import get_eval_state
-    from inspect_ai.log._file import read_eval_log_sample_async
 
     state = get_eval_state(eval_id)
     if state is None or not state.log_location:
         return None
 
-    sid: str | int = int(sample_id) if sample_id.lstrip("-").isdigit() else sample_id
-    try:
-        sample = await read_eval_log_sample_async(state.log_location, sid, epoch)
-    except IndexError:
-        return None  # terminal but not yet flushed to the log
+    from inspect_ai.log._recorders.buffer import sample_buffer
 
-    events = list(sample.events)
-    nonce = sample.uuid or f"{sample_id}:{epoch}"
-    return nonce, events, 0, len(events), True
+    data = sample_buffer(state.log_location).get_sample_data(sample_id, epoch)
+    if data is None:
+        return None
+
+    from inspect_ai.event._validate import validate_events
+
+    return validate_events([event_data.event for event_data in data.events])
 
 
 # --- filtering + projection ------------------------------------------------

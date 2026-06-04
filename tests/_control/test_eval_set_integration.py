@@ -1673,3 +1673,100 @@ def test_ctl_events_reads_completed_sample_from_log(short_data_dir: Path) -> Non
     assert page["done"] is True
     assert len(page["events"]) >= 1
     assert any(e["event"] == "model" for e in page["events"])
+
+
+def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
+    short_data_dir: Path,
+) -> None:
+    """`sample` / `events` must find a sample the recorder reports completed.
+
+    Reproduces the demo bug where, during a retried eval, `ctl sample` /
+    `ctl events` reported a sample "not found" while `ctl samples` showed it
+    completed (flapping found → not-found → found across attempts).
+
+    Root cause: `current_sample_summaries` (→ `ctl samples`) sources completed
+    samples from the recorder via `summaries_provider` (gap-free / ahead of
+    disk), but `sample_error_detail` (→ `ctl sample`) and `sample_events`
+    (→ `ctl events`) read only the on-disk `log_location`. A completed sample
+    not yet flushed to disk is therefore visible to `samples` but missing from
+    `sample` / `events`. A retry makes this acute: reused samples are re-logged
+    into the new attempt with `complete_sample(..., flush=False)`, so they sit
+    unflushed in the recorder for an extended window.
+
+    Setup mirrors `test_ctl_samples_recorder_ahead_of_disk`: 9 samples, ids 1–2
+    complete (and leave `active_samples`) while 3–9 are held, with too few
+    completions to trigger a flush — so sample 1 is in the recorder but not on
+    disk and not in `active_samples`. It must still be reachable by `sample`
+    and `events`, not just `samples`.
+    """
+
+    @task
+    def task_nine() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="x", target="y") for i in range(1, 10)],
+            solver=[gate()],
+            name="task_nine",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    def ready() -> bool:
+        evals = current_eval_summaries(0.0)
+        if not evals:
+            return False
+        eid = evals[0]["eval_id"]
+        in_active = {str(s.sample.id) for s in active_samples() if s.eval_id == eid}
+        samples = evals[0]["samples"]
+        # samples 1 & 2 completed (and gone from active_samples); 7 still held
+        return (
+            samples["completed"] == 2
+            and samples["in_flight"] == 7
+            and "1" not in in_active
+        )
+
+    async def capture() -> dict:
+        from inspect_ai.log._file import read_eval_log_sample_summaries_async
+
+        eid = current_eval_summaries(0.0)[0]["eval_id"]
+        location = next(s.log_location for s in get_eval_states() if s.log_location)
+        try:
+            on_disk = await read_eval_log_sample_summaries_async(location)
+        except (OSError, ValueError):
+            on_disk = []
+        return {
+            "rows": await current_sample_summaries(eid),
+            "on_disk_completed": {s.id for s in on_disk if s.completed},
+            "detail": await sample_error_detail(eid, "1", 1),
+            "events": await sample_events(eid, "1", 1),
+        }
+
+    with probe(ready, capture, park=lambda sid: int(sid) not in (1, 2)) as p:
+        eval_set(
+            tasks=[task_nine()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            max_samples=9,
+        )
+
+    res = p.result
+    assert res is not None, "never reached 2-completed + 7-running"
+
+    # Precondition: sample 1 is recorder-completed but NOT yet on disk.
+    done_row = next((r for r in res["rows"] if r["sample_id"] == 1), None)
+    assert done_row is not None and done_row["status"] == "completed", res["rows"]
+    assert 1 not in res["on_disk_completed"], (
+        "test premise broken: sample 1 was flushed to disk, so the recorder/"
+        "disk gap isn't exercised"
+    )
+
+    # The bug: `sample` / `events` read only the on-disk log and miss it.
+    assert res["detail"] is not None, (
+        "sample_error_detail lost a recorder-completed sample (reads the on-disk "
+        "log only, not the recorder)"
+    )
+    assert res["events"] is not None, (
+        "sample_events lost a recorder-completed sample (reads the on-disk log "
+        "only, not the recorder)"
+    )

@@ -40,6 +40,11 @@ from typing import Any
 # ``EvalSampleSummary``, typed loosely to keep this module dependency-free).
 SummariesProvider = Callable[[], Awaitable[list[Any] | None]]
 
+# Async accessor for one full sample by ``(id, epoch)`` (an ``EvalSample`` or
+# None), accepting an optional ``exclude_fields`` keyword. Typed loosely (and
+# with ``...`` args) to keep this module dependency-free.
+SampleProvider = Callable[..., Awaitable[Any | None]]
+
 
 @dataclass
 class EvalState:
@@ -100,6 +105,14 @@ class EvalState:
     The per-sample listing prefers this and falls back to
     :attr:`log_location` when it's ``None`` (reused/synthetic eval) or
     returns ``None`` (recorder torn down)."""
+
+    sample_provider: SampleProvider | None = None
+    """Live accessor for one full sample (``EvalSample``) from the recorder.
+    The whole-sample analogue of :attr:`summaries_provider`: per-sample
+    reads (error detail, event pages) prefer this gap-free source so they
+    agree with the samples listing, falling back to the on-disk
+    :attr:`log_location` when it's ``None`` (reused/synthetic eval) or the
+    recorder no longer holds the sample (flushed / torn down)."""
 
     sample_ids: list[str | int] = field(default_factory=list)
     """The eval's planned sample ids (after slicing). With :attr:`epochs`,
@@ -168,6 +181,7 @@ def register_eval(
     model: str = "",
     log_location: str = "",
     summaries_provider: SummariesProvider | None = None,
+    sample_provider: SampleProvider | None = None,
     sample_ids: list[str | int] | None = None,
     epochs: int = 1,
     run_id: str | None = None,
@@ -191,6 +205,7 @@ def register_eval(
             model=model,
             log_location=log_location,
             summaries_provider=summaries_provider,
+            sample_provider=sample_provider,
             sample_ids=sample_ids or [],
             epochs=epochs,
             run_id=run_id,

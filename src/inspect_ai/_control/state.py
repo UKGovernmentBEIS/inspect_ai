@@ -310,6 +310,50 @@ async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
     return []
 
 
+async def _full_sample(
+    eval_id: str,
+    sample_id: str | int,
+    epoch: int,
+    *,
+    exclude_fields: set[str] | None = None,
+) -> Any | None:
+    """One sample's full ``EvalSample``, gap-free — the shared terminal source.
+
+    The single place the per-sample control reads (error detail, event pages)
+    source a sample that is no longer running, so they can't disagree: prefer
+    the live recorder's not-yet-flushed in-memory sample
+    (``EvalState.sample_provider`` — the same gap-free source
+    :func:`current_sample_summaries` lists from), falling back to the finalized
+    on-disk log when there's no provider (a reused/synthetic eval) or the
+    recorder no longer holds it. ``None`` when the eval isn't in this process or
+    the sample is in neither source.
+    """
+    from inspect_ai._control.eval_state import get_eval_state
+
+    state = get_eval_state(eval_id)
+    if state is None:
+        return None
+
+    # The provider already does recorder-then-disk; only when there's no
+    # provider (reused/synthetic eval) do we read the on-disk log directly.
+    if state.sample_provider is not None:
+        return await state.sample_provider(
+            sample_id, epoch, exclude_fields=exclude_fields
+        )
+
+    if not state.log_location:
+        return None
+
+    from inspect_ai.log._file import read_eval_log_sample_async
+
+    try:
+        return await read_eval_log_sample_async(
+            state.log_location, sample_id, epoch, exclude_fields=exclude_fields
+        )
+    except IndexError:
+        return None
+
+
 async def sample_error_detail(
     eval_id: str, sample_id: str, epoch: int
 ) -> dict[str, Any] | None:
@@ -321,41 +365,32 @@ async def sample_error_detail(
       log yet, but its prior-attempt errors (task-level seed + sample-level
       retries so far) are carried on the ``ActiveSample``. There is no current
       error while it runs.
-    - **completed / finished** ← the on-disk log: the full ``EvalSample`` is the
-      only place the prior-attempt errors live in detail (``error_retries``);
-      per-sample summaries carry just a retry *count*. Heavy fields (messages,
-      events, store, attachments, output) are excluded — only error data is
-      needed.
+    - **completed / finished** ← :func:`_full_sample` (recorder, then on-disk
+      log): the full ``EvalSample`` is the only place the prior-attempt errors
+      live in detail (``error_retries``); per-sample summaries carry just a
+      retry *count*. Heavy fields (messages, events, store, attachments, output)
+      are excluded — only error data is needed.
 
     Returns ``None`` when the eval isn't in this process, or the sample isn't
-    running and isn't in the log yet — the endpoint turns that into a 404.
+    running and isn't readable yet — the endpoint turns that into a 404.
     """
-    from inspect_ai._control.eval_state import get_eval_state
-    from inspect_ai.log._file import read_eval_log_sample_async
-
     # Running sample first: it isn't in the log yet, and active_samples is the
     # only place its in-flight error history lives.
     running = _running_sample_error_detail(eval_id, sample_id, epoch)
     if running is not None:
         return running
 
-    state = get_eval_state(eval_id)
-    if state is None or not state.log_location:
-        return None
-
     # The id arrives as a path string; coerce a numeric id back to int so it
     # matches an integer sample id stored in the log.
     sid: str | int = int(sample_id) if sample_id.lstrip("-").isdigit() else sample_id
 
-    try:
-        sample = await read_eval_log_sample_async(
-            state.log_location,
-            sid,
-            epoch,
-            exclude_fields={"messages", "events", "store", "attachments", "output"},
-        )
-    except IndexError:
-        # sample not found in the log (terminal but not yet flushed)
+    sample = await _full_sample(
+        eval_id,
+        sid,
+        epoch,
+        exclude_fields={"messages", "events", "store", "attachments", "output"},
+    )
+    if sample is None:
         return None
 
     return {

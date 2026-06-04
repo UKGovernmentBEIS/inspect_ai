@@ -443,6 +443,7 @@ async def task_run(options: TaskRunOptions, task_cancel: TaskCancel | None) -> E
                 model=str(model),
                 log_location=logger.location,
                 summaries_provider=logger.sample_summaries,
+                sample_provider=logger.read_sample,
                 sample_ids=sample_ids,
                 epochs=epochs,
                 run_id=logger.eval.run_id,

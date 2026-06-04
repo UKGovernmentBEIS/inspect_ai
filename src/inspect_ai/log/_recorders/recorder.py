@@ -63,6 +63,21 @@ class Recorder(abc.ABC):
         """
         return None
 
+    async def buffered_sample(
+        self, eval: EvalSpec, id: str | int, epoch: int
+    ) -> EvalSample | None:
+        """The full ``EvalSample`` for one sample, if held in-memory.
+
+        Counterpart to :meth:`sample_summaries` for whole samples: returns the
+        recorder's not-yet-flushed in-memory ``EvalSample`` (carrying the full
+        ``error_retries`` / ``events`` / ``scores`` a summary omits) — gap-free
+        and ahead of disk, so a just-completed sample is readable before it's
+        flushed. Returns ``None`` when the recorder can't serve it in-memory
+        (already flushed, eval torn down, or this recorder type doesn't buffer
+        whole samples); callers then read the on-disk log.
+        """
+        return None
+
     @abc.abstractmethod
     async def flush(self, eval: EvalSpec) -> None: ...
 
