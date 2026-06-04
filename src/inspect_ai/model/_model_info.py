@@ -355,6 +355,18 @@ def _resolve_model_info(
 def get_model_input_tokens(model: Model) -> int | None:
     from inspect_ai.model._compaction._compaction import DEFAULT_CONTEXT_WINDOW
 
+    # an explicit set_model_info() override for this model takes precedence over the
+    # frontier aliasing some providers apply in input_tokens_name() (e.g. an OpenAI
+    # pre-deployment codename aliases to the current frontier's context window; an
+    # explicit registration means the caller knows the real window). Check the
+    # custom registry under both the model string and canonical name, since
+    # set_model_info() may be keyed by either.
+    explicit = _custom_models.get(str(model)) or _custom_models.get(
+        model.canonical_name()
+    )
+    if explicit is not None and explicit.input_tokens is not None:
+        return explicit.input_tokens
+
     model_name = model.input_tokens_name()
     model_info = get_model_info(model_name)
     if model_info:
