@@ -49,6 +49,26 @@ from inspect_ai.log._samples import active_samples
 from inspect_ai.solver import Generate, Solver, TaskState, generate, solver
 
 
+@pytest.fixture(autouse=True)
+def _isolate_active_model() -> Iterator[None]:
+    """Keep ``eval_set``'s active-model contextvar from leaking across tests.
+
+    ``eval`` sets the process ``active_model`` contextvar. These tests run
+    ``eval_set`` *synchronously* in the test's own context (not a background
+    thread), so without isolation that set persists after the call and leaks
+    ``mockllm/model`` into later tests — e.g. one resolving a bare ``inspect``
+    model, which then resolves to the leaked active model instead of
+    ``INSPECT_EVAL_MODEL``. Restore the contextvar after each test.
+    """
+    from inspect_ai.model._model import active_model_context_var
+
+    token = active_model_context_var.set(active_model_context_var.get(None))
+    try:
+        yield
+    finally:
+        active_model_context_var.reset(token)
+
+
 @pytest.fixture
 def short_data_dir(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Short data dir under /tmp so AF_UNIX paths fit in 104 chars.
