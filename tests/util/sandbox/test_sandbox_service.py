@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import dedent
@@ -13,6 +14,7 @@ from inspect_ai.solver import Generate, Solver, TaskState, solver
 from inspect_ai.util import sandbox
 from inspect_ai.util._background import background
 from inspect_ai.util._sandbox.environment import SandboxEnvironment
+from inspect_ai.util._sandbox.limits import OutputLimitExceededError
 from inspect_ai.util._sandbox.service import (
     SERVICES_DIR,
     SandboxService,
@@ -284,6 +286,95 @@ async def test_ensure_service_dir_raises_runtime_when_parent_writable_but_mkdir_
 
     assert not isinstance(excinfo.value, PrerequisiteError)
     assert "diskfull" in str(excinfo.value)
+
+
+@dataclass
+class _OversizedReadSandbox:
+    """Fake sandbox where reading the request file overflows the output limit.
+
+    The bounded `head` read returns ``request_head``; ``tee`` writes and ``rm``
+    removals are recorded so a test can assert the error-response + cleanup
+    behavior of an over-limit request.
+    """
+
+    request_head: str
+    limit_str: str = "100 MiB"
+    cat_calls: int = 0
+    writes: dict[str, str] = field(default_factory=dict)
+    removed: list[str] = field(default_factory=list)
+
+    async def exec(
+        self,
+        cmd: list[str],
+        *,
+        user: str | None = None,
+        input: str | None = None,
+        timeout: int | None = None,
+        concurrency: bool = True,
+    ) -> ExecResult[str]:
+        if cmd[:2] == ["bash", "-c"]:
+            script = cmd[2]
+            if script.startswith("cat "):
+                self.cat_calls += 1
+                raise OutputLimitExceededError(
+                    limit_str=self.limit_str, truncated_output=None
+                )
+            if script.startswith("head -c"):
+                return cast(ExecResult[str], FakeExecResult(stdout=self.request_head))
+        if cmd[0] == "tee":
+            self.writes[cmd[-1]] = input or ""
+            return cast(ExecResult[str], FakeExecResult())
+        if cmd[0] == "rm":
+            self.removed.append(cmd[-1])
+            return cast(ExecResult[str], FakeExecResult())
+        return cast(ExecResult[str], FakeExecResult())
+
+
+def _service_with_dirs(
+    fake: object, name: str = "bridge_model_service"
+) -> SandboxService:
+    service = SandboxService(name=name, sandbox=cast(SandboxEnvironment, fake))
+    service._requests_dir = f"{SERVICES_DIR}/{name}/requests"
+    service._responses_dir = f"{SERVICES_DIR}/{name}/responses"
+    return service
+
+
+async def test_handle_request_oversized_writes_error_and_removes_file() -> None:
+    """An over-limit request gets an error response and is removed (no cycling)."""
+    request_id = "11111111-2222-3333-4444-555555555555"
+    head = json.dumps({"id": request_id, "method": "generate", "params": {}})
+    fake = _OversizedReadSandbox(request_head=head)
+    service = _service_with_dirs(fake)
+    request_file = f"{service._requests_dir}/{request_id}.json"
+
+    await service._handle_request(request_file)
+
+    # an error response was written for the recovered id (unblocks the client)
+    response_path = f"{service._responses_dir}/{request_id}.json"
+    assert response_path in fake.writes
+    response = json.loads(fake.writes[response_path])
+    assert response["id"] == request_id
+    assert response["result"] is None
+    assert "100 MiB" in response["error"]
+
+    # the request file was removed so it isn't retried/re-logged forever ...
+    assert request_file in fake.removed
+    # ... and the read was attempted exactly once (no in-handler cycling)
+    assert fake.cat_calls == 1
+
+
+async def test_handle_request_oversized_unrecoverable_id_removes_file() -> None:
+    """If the id can't be recovered, no response is written but the file is removed."""
+    fake = _OversizedReadSandbox(request_head="garbage-with-no-id-field")
+    service = _service_with_dirs(fake)
+    request_file = f"{service._requests_dir}/orphan.json"
+
+    await service._handle_request(request_file)
+
+    # no response could be written (id not recoverable) ...
+    assert fake.writes == {}
+    # ... but the poison file is still removed so the poll loop stops cycling
+    assert request_file in fake.removed
 
 
 @pytest.mark.parametrize("bad_instance", ["", ".", "..", "../etc", "foo/bar"])

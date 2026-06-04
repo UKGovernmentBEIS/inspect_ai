@@ -1,4 +1,5 @@
 import json
+import re
 import traceback
 from logging import getLogger
 from pathlib import PurePosixPath
@@ -19,6 +20,7 @@ from inspect_ai._util.error import PrerequisiteError
 from inspect_ai.util._subprocess import ExecResult
 
 from .environment import SandboxEnvironment
+from .limits import OutputLimitExceededError, override_max_exec_output_size
 
 logger = getLogger(__name__)
 
@@ -36,6 +38,14 @@ ERROR = "error"
 RESULT = "result"
 
 POLLING_INTERVAL = 0.1
+
+# Output limit applied when reading a service request file. A service request
+# payload (e.g. a model generate request carrying base64 images) can be far
+# larger than a normal command's output, so we read it with a higher limit than
+# the default exec output cap. 100 MiB is 2x the bridge proxy's 50 MiB request
+# body cap, which covers every request that can reach us -- including the worst
+# case where the proxy's ensure_ascii re-serialization inflates a non-ASCII body.
+SERVICE_REQUEST_READ_OUTPUT_LIMIT = 100 * 1024**2
 
 SandboxServiceMethod = Callable[..., Awaitable[JsonValue]]
 
@@ -142,10 +152,12 @@ async def sandbox_service(
     await service.start()
 
     # function to handle requests catching errors and logging a warning
+    # (catch broadly so an unexpected error reading the request queue can't
+    # escape and tear down the polling loop)
     async def safe_handle_requests() -> None:
         try:
             await service.handle_requests()
-        except RuntimeError as ex:
+        except Exception as ex:
             logger.warning(f"Error waiting for sandbox rpc: {ex}")
 
     # wait for and process methods
@@ -288,9 +300,20 @@ class SandboxService:
                         )
 
     async def _handle_request(self, request_file: str) -> None:
-        # read request
+        # read request -- raise the exec output limit for this read only, since a
+        # service request payload can legitimately be much larger than a normal
+        # command's output (see SERVICE_REQUEST_READ_OUTPUT_LIMIT).
         read_request = f"cat {request_file}"
-        result = await self._exec(["bash", "-c", read_request])
+        try:
+            with override_max_exec_output_size(SERVICE_REQUEST_READ_OUTPUT_LIMIT):
+                result = await self._exec(["bash", "-c", read_request])
+        except OutputLimitExceededError as ex:
+            # The request is too large to ever read, so it would otherwise sit in
+            # the queue and be retried (and re-logged) on every poll forever while
+            # the client blocks waiting for a response. Discard it and deliver an
+            # error response to unblock the client.
+            await self._fail_oversized_request(request_file, ex)
+            return None
         if not result.success:
             raise RuntimeError(
                 f"Error reading request for service {self._name}: '{read_request}' ({result.stderr})"
@@ -380,6 +403,42 @@ class SandboxService:
                 await write_error_response(
                     f"Error calling method {method_name}: {err}: {err_traceback}"
                 )
+
+    async def _fail_oversized_request(
+        self, request_file: str, ex: OutputLimitExceededError
+    ) -> None:
+        """Discard a request that is too large to read and notify the client.
+
+        The request id is the first key written by the client, so we recover it
+        with a small bounded read (which can't re-trip the output limit) in order
+        to write an error response. The request file is then removed so it is not
+        retried on subsequent polls.
+        """
+        error = (
+            f"Service '{self._name}' request payload exceeded the maximum "
+            f"readable size of {ex.limit_str} and was discarded."
+        )
+        logger.warning(f"{error} (request_file='{request_file}')")
+
+        # recover the request id from a bounded read so we can unblock the client
+        request_id: str | None = None
+        head = await self._exec(["bash", "-c", f"head -c 4096 {request_file}"])
+        if head.success:
+            match = re.search(r'"id"\s*:\s*"([^"]+)"', head.stdout)
+            if match:
+                request_id = match.group(1)
+
+        # write an error response if we recovered an id (otherwise the client
+        # will fall back to its own timeout / cancellation handling)
+        if request_id is not None:
+            response_path = PurePosixPath(
+                self._responses_dir, f"{request_id}.json"
+            ).as_posix()
+            response_data = {ID: request_id, RESULT: None, ERROR: error}
+            await self._write_text_file(response_path, json.dumps(response_data))
+
+        # remove the request file so it isn't retried (and re-logged) forever
+        await self._exec(["rm", "-f", request_file])
 
     async def _ensure_service_dir(self) -> None:
         # Make the shared parent 1777 so users other than the one that

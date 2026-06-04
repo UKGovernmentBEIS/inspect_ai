@@ -5,6 +5,7 @@ from inspect_ai.util._sandbox.limits import (
     SandboxEnvironmentLimits,
     _human_readable_size,
     _parse_limit_env_var,
+    override_max_exec_output_size,
     reset_sandbox_limits,
     set_sandbox_limits,
     verify_read_file_size,
@@ -78,6 +79,21 @@ def test_parse_limit_env_var_zero():
 def test_parse_limit_env_var_negative():
     with pytest.raises(ValueError, match="must be a positive integer"):
         _parse_limit_env_var("TEST_VAR", "-1")
+
+
+def test_override_max_exec_output_size():
+    assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 10 * 1024**2
+    with override_max_exec_output_size(100 * 1024**2):
+        assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 100 * 1024**2
+    assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 10 * 1024**2
+
+
+def test_override_max_exec_output_size_restores_on_error():
+    with pytest.raises(RuntimeError):
+        with override_max_exec_output_size(100 * 1024**2):
+            assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 100 * 1024**2
+            raise RuntimeError("boom")
+    assert SandboxEnvironmentLimits.MAX_EXEC_OUTPUT_SIZE == 10 * 1024**2
 
 
 def test_verify_read_file_size_under_limit(tmp_path):
