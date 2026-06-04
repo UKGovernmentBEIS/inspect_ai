@@ -1,9 +1,9 @@
 import json
-import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from textwrap import dedent
 from typing import Any, cast
+from unittest.mock import patch
 
 import anyio
 import pytest
@@ -400,9 +400,7 @@ async def test_handle_request_oversized_truncated_writes_error_and_removes_file(
     assert request_file in fake.removed
 
 
-async def test_handle_request_incomplete_write_is_retried(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
+async def test_handle_request_incomplete_write_is_retried() -> None:
     """Incomplete-write file is retried; the warning logs metadata, not the payload."""
     secret = "SENSITIVE-PAYLOAD-DO-NOT-LOG"
     fake = _RequestReadSandbox(
@@ -413,15 +411,17 @@ async def test_handle_request_incomplete_write_is_retried(
     service = _service_with_dirs(fake)
     request_file = f"{service._requests_dir}/incomplete.json"
 
-    with caplog.at_level(logging.WARNING):
+    # patch the module logger so the assertion doesn't depend on log propagation
+    with patch("inspect_ai.util._sandbox.service.logger") as mock_logger:
         await service._handle_request(request_file)
 
     # no response written and the file left in place for the next poll
     assert fake.writes == {}
     assert fake.removed == []
-    # the warning must carry metadata but never the payload itself
-    assert secret not in caplog.text
-    assert request_file in caplog.text
+    # a warning was logged with metadata but never the payload itself
+    logged = " ".join(str(c.args[0]) for c in mock_logger.warning.call_args_list)
+    assert request_file in logged
+    assert secret not in logged
 
 
 async def test_handle_request_oversized_unrecoverable_id_removes_file() -> None:
