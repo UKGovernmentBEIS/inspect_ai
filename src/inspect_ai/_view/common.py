@@ -5,6 +5,7 @@ import os
 import urllib.parse
 from collections.abc import AsyncIterable
 from functools import partial
+from importlib.metadata import PackageNotFoundError, version
 from io import BytesIO
 from logging import getLogger
 from typing import Any, AsyncIterator, Literal, NamedTuple, Tuple, cast
@@ -18,6 +19,7 @@ from s3fs import S3FileSystem  # type: ignore
 from s3fs.core import _error_wrapper, version_id_kw  # type: ignore
 
 from inspect_ai._util._async import tg_collect
+from inspect_ai._util.constants import PKG_NAME
 from inspect_ai._util.file import default_fs_options, dirname, filesystem, size_in_mb
 from inspect_ai._view.azure import (
     azure_warning_hint,
@@ -63,6 +65,29 @@ def normalize_uri(uri: str) -> str:
             path = path[1:]
 
         return f"file://{path}"
+
+
+class AppConfig(BaseModel):
+    """Application configuration returned by GET /app-config."""
+
+    inspect_version: str
+    scout_version: str | None = None
+
+
+def get_app_config() -> AppConfig:
+    """Return app config, including installed inspect and scout versions.
+
+    `inspect_scout` is an optional dependency, so `scout_version` is None when
+    it isn't installed.
+    """
+    try:
+        scout_version: str | None = version("inspect_scout")
+    except PackageNotFoundError:
+        scout_version = None
+    return AppConfig(
+        inspect_version=version(PKG_NAME),
+        scout_version=scout_version,
+    )
 
 
 class LogDirResponse(BaseModel):
