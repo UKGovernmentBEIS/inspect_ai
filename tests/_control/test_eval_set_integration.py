@@ -1676,6 +1676,49 @@ def test_ctl_events_reads_completed_sample_from_log(short_data_dir: Path) -> Non
 
 
 @pytest.mark.parametrize("log_format", ["eval", "json"])
+def test_ctl_addresses_terminal_sample_by_digit_string_id(
+    short_data_dir: Path, log_format: str
+) -> None:
+    """A digit-looking string id (e.g. "001") stays addressable once terminal.
+
+    The endpoints take arbitrary string ids, and a sample defined with id
+    "001" is stored — and keyed on disk — as the string "001". Coercing it to
+    the int ``1`` before the terminal read addressed the wrong sample, so
+    `ctl samples` listed "001" while `ctl sample 001` / `ctl events 001`
+    returned not-found. The read must match the id verbatim first.
+    """
+
+    @task
+    def task_zero_padded() -> Task:
+        return Task(
+            dataset=[Sample(id="001", input="hi", target="ok")],
+            solver=[generate()],
+            name="zero_padded",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    with capturing() as cap:
+        eval_set(
+            tasks=[task_zero_padded()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+            log_format=log_format,  # type: ignore[arg-type]
+        )
+
+    # the listing surfaces the sample under its string id ...
+    assert any(str(r["sample_id"]) == "001" for r in cap.eval_samples("zero_padded"))
+
+    # ... and addressing it by that same string finds detail + events (it would
+    # be None if "001" had been coerced to the int 1 for the lookup).
+    assert cap.error_detail("zero_padded", "001", 1) is not None
+    page = cap.events_page("zero_padded", "001", 1)
+    assert page is not None and len(page["events"]) >= 1
+
+
+@pytest.mark.parametrize("log_format", ["eval", "json"])
 def test_ctl_sample_detail_and_events_find_recorder_completed_sample(
     short_data_dir: Path, log_format: str
 ) -> None:

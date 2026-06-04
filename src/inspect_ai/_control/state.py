@@ -312,7 +312,7 @@ async def _completed_sample_summaries(eval_id: str) -> list[dict[str, Any]]:
 
 async def _full_sample(
     eval_id: str,
-    sample_id: str | int,
+    sample_id: str,
     epoch: int,
     *,
     exclude_fields: set[str] | None = None,
@@ -327,6 +327,12 @@ async def _full_sample(
     on-disk log when there's no provider (a reused/synthetic eval) or the
     recorder no longer holds it. ``None`` when the eval isn't in this process or
     the sample is in neither source.
+
+    ``sample_id`` arrives as a path string. It is matched verbatim first: a
+    digit-looking id such as ``"001"`` is stored (and keyed on disk) as the
+    string ``"001"``, so coercing it to ``1`` would address the wrong sample.
+    Only if the verbatim match misses do we retry with the integer form, which
+    a genuinely-int id needs (the recorder's in-memory lookup is type-strict).
     """
     from inspect_ai._control.eval_state import get_eval_state
 
@@ -334,6 +340,19 @@ async def _full_sample(
     if state is None:
         return None
 
+    sample = await _read_full_sample(state, sample_id, epoch, exclude_fields)
+    if sample is None and sample_id.lstrip("-").isdigit():
+        sample = await _read_full_sample(state, int(sample_id), epoch, exclude_fields)
+    return sample
+
+
+async def _read_full_sample(
+    state: "EvalState",
+    sample_id: str | int,
+    epoch: int,
+    exclude_fields: set[str] | None,
+) -> Any | None:
+    """Read one concrete ``(sample_id, epoch)`` — recorder, else on-disk log."""
     # The provider already does recorder-then-disk; only when there's no
     # provider (reused/synthetic eval) do we read the on-disk log directly.
     if state.sample_provider is not None:
@@ -380,13 +399,9 @@ async def sample_error_detail(
     if running is not None:
         return running
 
-    # The id arrives as a path string; coerce a numeric id back to int so it
-    # matches an integer sample id stored in the log.
-    sid: str | int = int(sample_id) if sample_id.lstrip("-").isdigit() else sample_id
-
     sample = await _full_sample(
         eval_id,
-        sid,
+        sample_id,
         epoch,
         exclude_fields={"messages", "events", "store", "attachments", "output"},
     )

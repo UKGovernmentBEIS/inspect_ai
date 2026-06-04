@@ -188,18 +188,20 @@ async def _logged_source(
     """
     from inspect_ai._control.state import _full_sample
 
-    sid: str | int = int(sample_id) if sample_id.lstrip("-").isdigit() else sample_id
-    sample = await _full_sample(eval_id, sid, epoch)
+    sample = await _full_sample(eval_id, sample_id, epoch)
     if sample is None:
         return None
 
     events = list(sample.events)
     if not events:
-        buffered = _buffer_events(eval_id, sid, epoch)
+        # Use the resolved sample's stored id (not the request string) so the
+        # buffer lookup matches exactly — `_full_sample` already reconciled a
+        # digit-looking id (e.g. "001") to however it's actually stored.
+        buffered = _buffer_events(eval_id, sample.id, epoch)
         if buffered is not None:
             events = buffered
 
-    nonce = sample.uuid or f"{sample_id}:{epoch}"
+    nonce = sample.uuid or f"{sample.id}:{epoch}"
     return nonce, events, 0, len(events), True
 
 
