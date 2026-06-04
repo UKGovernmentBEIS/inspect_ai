@@ -24,6 +24,7 @@ See ``tests/_control/control_probe.py`` for the observation primitives.
 import tempfile
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import click
 import pytest
@@ -38,7 +39,7 @@ from inspect_ai._cli.ctl import (
 )
 from inspect_ai._control.discovery import list_discovered_servers
 from inspect_ai._control.eval_state import get_eval_states
-from inspect_ai._control.events import sample_events
+from inspect_ai._control.events import decode_cursor, sample_events
 from inspect_ai._control.state import (
     current_eval_summaries,
     current_sample_summaries,
@@ -1644,6 +1645,111 @@ def test_ctl_events_streams_running_sample_transcript(short_data_dir: Path) -> N
     # running sample shows up for active_since=0
     assert res["active_future"] == []
     assert any(r["sample_id"] == 1 for r in res["active_all"])
+
+
+# Cross-sample channel for the transition test below: the subject sample (id 1)
+# stashes the cursor it was handed while running; the observer (id 2) resumes it
+# once the subject is terminal. Module-level because the two run as separate
+# sample tasks in one eval.
+_transition_cursor: dict[str, Any] = {}
+
+
+def test_event_cursor_survives_running_to_terminal_transition(
+    short_data_dir: Path,
+) -> None:
+    """A cursor issued while running resumes cleanly after the sample is logged.
+
+    The running source keyed its cursor on the throwaway ``ActiveSample.id``
+    while the terminal source keys on ``EvalSample.uuid``; those are generated
+    independently, so a cursor handed out mid-run looked *stale* once the sample
+    completed and the resume silently restarted from offset 0 — re-delivering
+    every already-seen event. Both sources must key on the same durable id (the
+    sample uuid), so the cursor stays valid across the transition.
+
+    End-to-end: sample 1 records the ``next`` cursor it gets while running, then
+    completes; the parked observer (sample 2) resumes from that cursor once
+    sample 1 is terminal and asserts continuity (matched nonce, no duplicates).
+    """
+    _transition_cursor.clear()
+
+    @solver
+    def subject_or_observer() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            if int(state.sample_id) == 1:
+                # subject: produce some events, then snapshot the running cursor
+                state = await generate(state)
+                eid = current_eval_summaries(0.0)[0]["eval_id"]
+                page = await sample_events(eid, "1", state.epoch)
+                assert page is not None and page["done"] is False
+                _transition_cursor.update(
+                    eid=eid,
+                    cursor=page["next"],
+                    seen=[e["uuid"] for e in page["events"]],
+                )
+                return state
+            await park_now()  # observer: hold in flight until the probe fires
+            return state
+
+        return solve
+
+    @task
+    def task_two() -> Task:
+        return Task(
+            dataset=[Sample(id=i, input="hi", target="ok") for i in (1, 2)],
+            solver=[subject_or_observer()],
+            name="task_two",
+        )
+
+    log_dir = str(short_data_dir / "logs")
+    Path(log_dir).mkdir()
+
+    async def ready() -> bool:
+        evals = current_eval_summaries(0.0)
+        if not evals or "cursor" not in _transition_cursor:
+            return False
+        eid = evals[0]["eval_id"]
+        # subject terminal (and readable as such), observer still in flight
+        if evals[0]["samples"]["completed"] < 1:
+            return False
+        return await sample_error_detail(eid, "1", 1) is not None
+
+    async def capture() -> dict:
+        eid = _transition_cursor["eid"]
+        return {
+            "resumed": await sample_events(
+                eid, "1", 1, since=_transition_cursor["cursor"]
+            ),
+            "full": await sample_events(eid, "1", 1),
+        }
+
+    with probe(ready, capture, park=lambda sid: int(sid) == 2) as p:
+        eval_set(
+            tasks=[task_two()],
+            log_dir=log_dir,
+            model="mockllm/model",
+            retry_attempts=0,
+        )
+
+    res = p.result
+    assert res is not None, "subject never went terminal while observer was held"
+
+    running_cursor = _transition_cursor["cursor"]
+    seen = set(_transition_cursor["seen"])
+    assert seen, "subject produced no events to resume past"
+
+    resumed, full = res["resumed"], res["full"]
+    assert resumed is not None and full is not None
+
+    # the running cursor's nonce matches the terminal page's nonce — the resume
+    # recognizes it instead of treating it as stale and restarting from 0
+    assert decode_cursor(running_cursor)[0] == decode_cursor(full["next"])[0]
+
+    # the sample is fully drained, and resuming the mid-run cursor delivers only
+    # events past it — never the already-seen ones (the duplicate-on-resume bug)
+    assert resumed["done"] is True
+    assert seen.isdisjoint(e["uuid"] for e in resumed["events"])
+    # and it genuinely resumed mid-stream rather than replaying the whole log
+    assert len(resumed["events"]) < len(full["events"])
 
 
 def test_ctl_events_reads_completed_sample_from_log(short_data_dir: Path) -> None:

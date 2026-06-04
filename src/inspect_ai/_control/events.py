@@ -8,10 +8,12 @@ The cursor is an opaque token = ``(source nonce, absolute event offset)``.
 The offset indexes the *unfiltered* event sequence; type / time filters are
 applied to the page *after* slicing, and ``next`` advances past every event
 *scanned* (not just matched) so a sparse filter never re-walks or skips. The
-nonce identifies the specific source (a sample attempt's ``ActiveSample`` while
-running, the log sample's uuid once terminal); a token whose nonce no longer
-matches — e.g. carried across a retry that minted a fresh transcript — restarts
-from the beginning rather than silently serving a stale position.
+nonce is the sample's uuid (``EvalSample.uuid`` == ``TaskState.uuid``), which
+both the running and terminal sources share — so a cursor issued mid-run stays
+valid once the sample is logged, rather than looking stale and restarting. A
+retry mints a fresh uuid (and transcript), so a cursor carried across one no
+longer matches and correctly restarts from the beginning instead of silently
+serving a stale position.
 
 See ``design/control-channel.md`` (phase 2) for the full rationale.
 """
@@ -161,7 +163,10 @@ def _running_source(
             total = history.event_count
             resident = list(history.resident_events)
             return (
-                s.id,  # nonce: ActiveSample id — fresh per attempt
+                # Nonce: the uuid the logged sample will carry (== EvalSample
+                # .uuid), so a cursor issued while running stays valid once the
+                # sample is terminal — both sources key on the same id.
+                s.sample_uuid,
                 resident,
                 total - len(resident),
                 total,

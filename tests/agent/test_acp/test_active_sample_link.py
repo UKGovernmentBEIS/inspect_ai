@@ -40,6 +40,7 @@ def _make_active_sample() -> ActiveSample:
         sandboxes={},
         checkpointer=_NoopCheckpointer(),
         eval_id="eval-1",
+        sample_uuid="sample-uuid-1",
     )
 
 

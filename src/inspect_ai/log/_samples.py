@@ -62,8 +62,15 @@ class ActiveSample:
         run_id: str | None = None,
         agent_name: str | None = None,
         error_retries: "list[EvalRetryError] | None" = None,
+        sample_uuid: str,
     ) -> None:
         self.id = uuid()
+        # The uuid the logged `EvalSample` will carry (== `TaskState.uuid`).
+        # Distinct from `self.id` (this attempt's `ActiveSample` identity):
+        # `sample_uuid` is stable across the running→terminal transition, so
+        # the control channel uses it as the event-cursor nonce — a cursor
+        # handed out while running stays valid once the sample is logged.
+        self.sample_uuid = sample_uuid
         self.started: float | None = None
         self.tg: TaskGroup | None = None
         self.completed: float | None = None
@@ -264,6 +271,7 @@ async def active_sample(
     run_id: str | None = None,
     agent_name: str | None = None,
     error_retries: "list[EvalRetryError] | None" = None,
+    sample_uuid: str,
 ) -> AsyncGenerator[ActiveSample, None]:
     if sample.id is None:
         raise ValueError("active_sample requires sample.id to be set")
@@ -294,6 +302,7 @@ async def active_sample(
         eval_id=eval_id,
         agent_name=agent_name,
         error_retries=error_retries,
+        sample_uuid=sample_uuid,
     )
 
     _active_samples.append(active)

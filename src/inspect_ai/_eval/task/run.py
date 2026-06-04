@@ -1113,6 +1113,9 @@ async def task_run_sample(
             # prior failed attempts (task-level seed + sample-level retries),
             # surfaced as the running sample's error history by the control channel
             error_retries=previous_attempt_errors + error_retries,
+            # the uuid the logged EvalSample will carry — lets the control
+            # channel keep one event cursor valid across running→terminal
+            sample_uuid=state.uuid,
         ) as active:
             # check for early stopping
             if early_stopping is not None and logger is not None:
