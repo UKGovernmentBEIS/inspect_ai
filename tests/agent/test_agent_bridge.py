@@ -39,7 +39,7 @@ from inspect_ai.util._json import json_schema
 @agent
 def completions_agent(tools: bool) -> Agent:
     async def execute(state: AgentState) -> AgentState:
-        async with agent_bridge():
+        async with agent_bridge(forward_generation_config=True):
 
             class Message(BaseModel):
                 text: str
@@ -141,7 +141,7 @@ def bridge_filter_agent(type: Literal["output", "config"]) -> Agent:
 @agent
 def responses_agent(tools: bool) -> Agent:
     async def execute(state: AgentState) -> AgentState:
-        async with agent_bridge():
+        async with agent_bridge(forward_generation_config=True):
             async with AsyncOpenAI() as client:
                 responses_tools = (
                     [
@@ -372,7 +372,7 @@ def anthropic_agent(tools: bool) -> Agent:
             else:
                 return None
 
-        async with agent_bridge(state) as bridge:
+        async with agent_bridge(state, forward_generation_config=True) as bridge:
             async with AsyncAnthropic() as client:
                 await client.messages.create(  # type: ignore[call-overload]
                     model="inspect",
@@ -514,7 +514,7 @@ def google_agent(tools: bool) -> Agent:
             else:
                 return None
 
-        async with agent_bridge(state) as bridge:
+        async with agent_bridge(state, forward_generation_config=True) as bridge:
             client = genai.Client(api_key="inspect")
 
             generation_config: dict[str, Any] = {

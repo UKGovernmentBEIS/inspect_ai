@@ -171,6 +171,7 @@ from inspect_ai.util._json import JSONSchema
 from .util import (
     apply_message_ids,
     bridge_generate,
+    clear_generation_params,
     resolve_generate_config,
     resolve_inspect_model,
 )
@@ -263,6 +264,8 @@ async def inspect_responses_api_request_impl(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_openai_responses(json_data)
+    if not bridge.forward_generation_config:
+        clear_generation_params(config)
     config.extra_headers = headers
     if config.system_message:
         messages.insert(0, ChatMessageSystem(content=config.system_message))
