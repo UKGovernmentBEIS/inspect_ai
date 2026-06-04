@@ -481,7 +481,7 @@ def test_wrap_prior_run_closes_restored_open_spans() -> None:
         SpanEndEvent(id="checkpoint-1", timestamp=last_restored_timestamp),
     ]
 
-    wrapped = _wrap_prior_run(restored_events)
+    wrapped = _wrap_prior_run(restored_events, parent_span_id=None)
 
     assert isinstance(wrapped[0], SpanBeginEvent)
     assert wrapped[0].type == "prior_run"
