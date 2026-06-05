@@ -47,6 +47,13 @@ def test_database_initialization(db: SampleBufferDatabase) -> None:
     assert bool(re.search(r"test_location\.\d+\.db$", db.db_path.as_posix()))
 
 
+def test_wal_journal_mode(db: SampleBufferDatabase) -> None:
+    """Buffer db should use WAL so readers and the writer don't block."""
+    with db._get_connection() as conn:
+        mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+    assert str(mode).lower() == "wal"
+
+
 def test_start_sample(db: SampleBufferDatabase, sample: EvalSampleSummary) -> None:
     """Test starting a new sample."""
     db.start_sample(sample=sample)
@@ -466,8 +473,10 @@ def test_cleanup(db: SampleBufferDatabase, sample: EvalSampleSummary) -> None:
     # Cleanup
     db.cleanup()
 
-    # Verify file is gone
+    # Verify file (and any WAL sidecar files) are gone
     assert not os.path.exists(db.db_path)
+    assert not os.path.exists(f"{db.db_path}-wal")
+    assert not os.path.exists(f"{db.db_path}-shm")
 
     # Verify cleanup is idempotent
     db.cleanup()  # Should not raise any errors
