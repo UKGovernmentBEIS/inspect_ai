@@ -146,6 +146,7 @@ inspect-docs:
 format:
   inspect-docs-html:
     code-annotations: select
+    css: styles.css
 
 execute:
   enabled: false
