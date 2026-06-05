@@ -2,6 +2,7 @@
 
 - Model API: Add `ModelInfo.family` and `ModelAPI.model_family()`. Provider capability and request-shape checks now consult a registered `ModelInfo.family` before falling back to model-name matching, while preserving the configured model name for provider requests.
 - Together: Support the `stream` model arg (e.g. `-M stream=true`) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to `stop_reason="max_tokens"` instead of raising.
+- Groq: Map tool_choice="any" to "required" for forced tool calls.
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
 - Deep Agent: Subagent `submit()` calls are retained in the subagent transcript (previously stripped) and rendered as markdown, so a submit is distinguishable from a normal assistant message. The parent's result is unchanged.
 - Sandbox: Allow `sandbox_service()` instances running as different users in the same sandbox to share `/var/tmp/sandbox-services`.
