@@ -9,6 +9,13 @@ def test_eval_checkpoints_dir_strips_eval_suffix() -> None:
     assert eval_checkpoints_dir("/logs/foo.eval", None) == "/logs/foo.checkpoints"
 
 
+def test_eval_checkpoints_dir_strips_recovered_suffix() -> None:
+    assert (
+        eval_checkpoints_dir("/logs/foo-recovered.eval", None)
+        == "/logs/foo.checkpoints"
+    )
+
+
 def test_eval_checkpoints_dir_passthrough_when_no_eval_suffix() -> None:
     assert eval_checkpoints_dir("/logs/raw_name", None) == "/logs/raw_name.checkpoints"
 
@@ -20,10 +27,24 @@ def test_eval_checkpoints_dir_handles_s3_uri() -> None:
     )
 
 
+def test_eval_checkpoints_dir_handles_recovered_s3_uri() -> None:
+    assert (
+        eval_checkpoints_dir("s3://bucket/path/foo-recovered.eval", None)
+        == "s3://bucket/path/foo.checkpoints"
+    )
+
+
 def test_eval_checkpoints_dir_with_override_root() -> None:
     """Override repoints the parent; the per-eval subdir name is unchanged."""
     assert (
         eval_checkpoints_dir("/logs/foo.eval", "/scratch/ckpts")
+        == "/scratch/ckpts/foo.checkpoints"
+    )
+
+
+def test_eval_checkpoints_dir_with_recovered_override_root() -> None:
+    assert (
+        eval_checkpoints_dir("/logs/foo-recovered.eval", "/scratch/ckpts")
         == "/scratch/ckpts/foo.checkpoints"
     )
 
