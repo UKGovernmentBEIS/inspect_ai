@@ -211,7 +211,7 @@ To learn more about using Inspect see the following documentation sections:
 
 -   [Tutorial](tutorial.qmd) includes several annotated examples demonstrating various features an capabilities.
 
--   [Components](tasks.qmd) are the building blocks of an evaluation: tasks, datasets, solvers, scorers, and scanners.
+-   [Components](tasks.qmd) are the building blocks of an evaluation: tasks, datasets, solvers, and scorers.
 
 -   [Models](models.qmd) covers specifying models and providers, along with caching, multimodal input, reasoning, batch mode, and concurrency.
 
@@ -221,7 +221,7 @@ To learn more about using Inspect see the following documentation sections:
 
 -   [Running](running.qmd) covers running larger eval sets, with error handling, limits, parallelism, and early stopping.
 
--   [Analysis](analysis.qmd) explains how to read eval logs and extract data frames for analysis.
+-   [Analysis](analysis.qmd) explains how to read eval logs, extract data frames, and scan transcripts for issues.
 
 -   [Extensions](extensions.qmd) shows how to extend Inspect with new model APIs, components, sandboxes, approvers, hooks, and filesystems.
 

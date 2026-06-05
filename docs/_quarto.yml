@@ -62,8 +62,7 @@ inspect-docs:
         - href: datasets.qmd
         - href: solvers.qmd
         - href: scorers.qmd
-        - href: scanners.qmd
-    - text: Models 
+    - text: Models
       contents:
         - href: models.qmd
         - text: Providers
@@ -111,7 +110,10 @@ inspect-docs:
       href: analysis.qmd
       contents:
         - href: eval-logs.qmd
-        - href: dataframe.qmd
+        - text: Dataframes
+          href: dataframe.qmd
+        - href: scanners.qmd
+        - href: inspect-viz.qmd
         - href: task-views.qmd
     - text: Extensions
       href: extensions.qmd
