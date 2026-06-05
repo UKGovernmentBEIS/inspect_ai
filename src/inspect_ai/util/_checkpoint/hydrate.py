@@ -611,21 +611,37 @@ def _push_host_state(
 def _wrap_prior_run(events: list[Event], parent_span_id: str | None) -> list[Event]:
     """Wrap the trailing unwrapped checkpoint spans in a new ``prior_run`` span.
 
-    The "tail" is the slice of ``events`` after the last existing
-    ``prior_run`` ``span_end`` (or the whole list if there are
-    no prior wraps). That tail is the most-recent prior session's
-    checkpoint spans, which haven't been wrapped yet — the current
-    session wraps them at hydrate time.
+    The buffer stores the full cumulative transcript (``init`` /
+    ``solvers`` / ``solver`` / ``agent`` structural spans plus setup
+    execs), but a ``prior_run`` wrap should contain only checkpoint
+    work — checkpoint spans as its direct children. We reproduce that by
+    discarding the resumed session's structural scaffolding in two
+    places:
 
-    Top-level ``span_begin`` events in the tail (depth 0 relative to the
-    new wrap — in practice the checkpoint span_begins) get their
-    ``parent_id`` rewritten to point at the new wrap's id, so the span
-    hierarchy reflects the new structure rather than carrying stale
-    parent ids from the prior session's transcript. ``span_end`` events
-    carry no ``parent_id``, so they pass through unchanged. The wrap's
-    own ``parent_id`` is ``parent_span_id`` — the live span id captured
-    at hydrate time — so the wrap nests under the current session's
-    span rather than dangling at the transcript root.
+    - A leading slice drops everything before the first
+      checkpoint-related ``span_begin`` — an existing ``prior_run`` wrap
+      (from an earlier resume) or this session's first ``checkpoint``
+      span.
+    - A tail slice drops the resumed session's own ancestor spans that
+      sit between the last prior wrap and its first *new* checkpoint
+      span. The cumulative buffer records seeded prior wraps *before*
+      the live session's ancestor spans, so that scaffolding lands in
+      the tail rather than ahead of the leading slice.
+
+    Re-parenting fixes the stale parent ids the slices expose:
+
+    - Surviving ``prior_run`` wraps in the head pointed at a prior
+      session's (now-sliced) ``agent`` span; rewrite them to
+      ``parent_span_id`` so they sit as siblings under the current span.
+    - Depth-0 ``span_begin`` events in the tail (the checkpoint spans)
+      get ``parent_id`` rewritten to the new wrap; other depth-0 events
+      (``CheckpointEvent``s, inter-checkpoint execs) get ``span_id``
+      rewritten to it. ``span_end`` events carry no ``parent_id`` and
+      pass through unchanged.
+
+    The new wrap's own ``parent_id`` is ``parent_span_id`` — the live
+    span id captured at hydrate time — so the wrap nests under the
+    current session's span rather than dangling at the transcript root.
 
     Wrap numbering (``checkpoint restore 1``, ``2``, …) is the count
     of existing wraps plus one, so each resume adds one numbered
@@ -636,6 +652,22 @@ def _wrap_prior_run(events: list[Event], parent_span_id: str | None) -> list[Eve
     rehydrating rather than the work being rehydrated; the contained
     checkpoint spans carry their original timestamps.
     """
+    # Slice away the live session's scaffolding ahead of the first
+    # `prior_run` wrap or `checkpoint` span.
+    first_relevant = next(
+        (
+            i
+            for i, e in enumerate(events)
+            if isinstance(e, SpanBeginEvent) and e.type in ("prior_run", "checkpoint")
+        ),
+        None,
+    )
+    if first_relevant is None:
+        # Degenerate resume with no checkpoint structure; leave the events
+        # untouched and let `_validate_resume_state` surface the problem.
+        return list(events)
+    events = events[first_relevant:]
+
     prior_ids: set[str] = set()
     last_prior_end_idx = -1
     for i, e in enumerate(events):
@@ -644,11 +676,33 @@ def _wrap_prior_run(events: list[Event], parent_span_id: str | None) -> list[Eve
         elif isinstance(e, SpanEndEvent) and e.id in prior_ids:
             last_prior_end_idx = i
 
-    head = events[: last_prior_end_idx + 1]
+    # Re-parent surviving `prior_run` wraps onto the current session's span;
+    # their stored `parent_id` pointed at the now-sliced prior `agent` span.
+    head = [
+        e.model_copy(update={"parent_id": parent_span_id})
+        if isinstance(e, SpanBeginEvent) and e.type == "prior_run"
+        else e
+        for e in events[: last_prior_end_idx + 1]
+    ]
     tail = events[last_prior_end_idx + 1 :]
 
-    if not tail:
+    # Slice the tail to its first *new* `checkpoint` span, dropping the
+    # resumed session's own structural scaffolding (`init` / `solvers` /
+    # `solver` / `agent` spans + setup execs). The new checkpoint span's
+    # `parent_id` points at the (now-dropped) `agent` span; the depth-0
+    # reparenting below rewrites it to the new wrap.
+    first_new_ckpt = next(
+        (
+            i
+            for i, e in enumerate(tail)
+            if isinstance(e, SpanBeginEvent) and e.type == "checkpoint"
+        ),
+        None,
+    )
+    if first_new_ckpt is None:
+        # No unwrapped checkpoint spans; nothing new to wrap this resume.
         return list(head)
+    tail = tail[first_new_ckpt:]
 
     next_n = len(prior_ids) + 1
     wrap_id = shortuuid()

@@ -4,7 +4,7 @@ Drives a ``react()`` agent through tool-calling turns with
 ``TurnInterval(every=1)``, so a checkpoint fires at the start of each turn
 after the first; the agent then calls a ``cancel`` tool that interrupts the
 sample mid-run, leaving committed checkpoints on disk.
-``test_checkpoint_resume_runs_to_completion`` then ``eval_retry``s the
+``test_checkpoint_resume_rehydrated_event_layout`` then ``eval_retry``s the
 cancelled run and asserts it resumes and completes successfully. It checks,
 via the public ``.eval`` log: the restored checkpoints appear as
 ``CheckpointEvent``s inside the ``prior_run`` ("checkpoint restore") span, a
@@ -20,6 +20,7 @@ binary inside the sandbox, which only works with a Linux container
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -89,19 +90,48 @@ def assert_spans_balanced(events: list[Event]) -> None:
 class _ResumeState:
     """Module-level state shared by the scripted provider and the cancel tool.
 
-    ``cancelled`` lets the scripted model emit a ``cancel`` call on the
-    first attempt and continue past it on resume (the cancel leaves no trace
-    in the restored conversation, so an out-of-band flag is needed to
-    distinguish the two). ``generates`` counts model calls so the resume test
-    can prove the conversation was restored (only the remaining turns run)
-    rather than re-run from scratch.
+    ``generates`` counts model calls so the resume test can prove the
+    conversation was restored (only the remaining turns run) rather than
+    re-run from scratch.
+
+    The cancel *count* and *target* deliberately do NOT live here: on
+    ``eval_retry`` the cancel tool is rebuilt from a re-imported copy of
+    this module, so a module-global counter mutated by the tool and read
+    by the model would be two different instances. They're kept in a host
+    file / env var instead (process-global, re-import-proof) — see
+    ``_cancels_done`` / ``_bump_cancels`` / ``_target_cancels``.
     """
 
-    cancelled: bool = False
     generates: int = 0
+
+    @property
+    def cancelled(self) -> bool:
+        return _cancels_done() > 0
 
 
 _resume_state = _ResumeState()
+
+# Env vars set per test. The cancel count is persisted to the file named by
+# `_CANCEL_FILE_ENV` so it survives `eval_retry`'s module re-import.
+_CANCEL_FILE_ENV = "INSPECT_TEST_RESUME_CANCEL_FILE"
+_TARGET_ENV = "INSPECT_TEST_RESUME_TARGET_CANCELS"
+
+
+def _cancels_done() -> int:
+    f = os.environ.get(_CANCEL_FILE_ENV)
+    return int(Path(f).read_text() or "0") if f and Path(f).exists() else 0
+
+
+def _bump_cancels() -> int:
+    n = _cancels_done() + 1
+    f = os.environ.get(_CANCEL_FILE_ENV)
+    if f:
+        Path(f).write_text(str(n))
+    return n
+
+
+def _target_cancels() -> int:
+    return int(os.environ.get(_TARGET_ENV, "1"))
 
 
 @tool
@@ -128,7 +158,7 @@ def cancel() -> Tool:
         """Cancel the run immediately (interrupts the sample)."""
         active = sample_active()
         assert active is not None, "expected an active sample"
-        _resume_state.cancelled = True
+        _bump_cancels()
         active.interrupt("error")
         # interrupt cancels the surrounding scope; never return normally.
         await anyio.sleep_forever()
@@ -163,18 +193,23 @@ def _scripted_outputs(
     config: GenerateConfig,
 ) -> ModelOutput:
     _resume_state.generates += 1
-    completed_tool_turns = sum(1 for m in input if isinstance(m, ChatMessageTool))
-    if completed_tool_turns == 0:
+    n = sum(1 for m in input if isinstance(m, ChatMessageTool))
+    cancels_done = _cancels_done()
+    target = _target_cancels()
+    if n == 0:
         return ModelOutput.for_tool_call(SCRIPTED_MODEL, "bash", {"command": WRITE_CMD})
-    if completed_tool_turns == 1:
+    if n == 1:
         return ModelOutput.for_tool_call(
             SCRIPTED_MODEL, "remember", {"key": STORE_KEY, "value": LAYER1_CONTENT}
         )
-    if completed_tool_turns == 2 and not _resume_state.cancelled:
+    # Each resume cycle does one work turn (commits a fresh checkpoint) and
+    # then cancels, until `target` cancels are reached. The k-th cancel
+    # (k = cancels_done) lands at turn `2 + cancels_done`; the work turn for
+    # the cycle that *doesn't* cancel writes a new sandbox file (so the new
+    # checkpoint has a non-empty diff vs its parent).
+    if cancels_done < target and n == 2 + cancels_done:
         return ModelOutput.for_tool_call(SCRIPTED_MODEL, "cancel", {})
-    if completed_tool_turns == 2:
-        # post-resume turn: write a new sandbox file so ckpt-3 commits on
-        # retry with a non-empty diff vs its parent.
+    if n < 2 + target:
         return ModelOutput.for_tool_call(
             SCRIPTED_MODEL, "bash", {"command": RESUME_WRITE_CMD}
         )
@@ -214,7 +249,7 @@ def resume_decode_task() -> Task:
 
 @skip_if_no_docker
 @pytest.mark.slow
-def test_checkpoint_resume_runs_to_completion(
+def test_checkpoint_resume_rehydrated_event_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
@@ -222,7 +257,8 @@ def test_checkpoint_resume_runs_to_completion(
     # sandbox file paths (exercises host-side `restic ls` on the egressed
     # sandbox repo).
     monkeypatch.setenv("INSPECT_CHECKPOINT_LIST_FILES", "1")
-    _resume_state.cancelled = False
+    monkeypatch.setenv(_CANCEL_FILE_ENV, str(tmp_path / "cancels.txt"))
+    monkeypatch.setenv(_TARGET_ENV, "1")
     _resume_state.generates = 0
 
     log_dir = str(tmp_path / "logs")
@@ -330,32 +366,27 @@ def test_checkpoint_resume_runs_to_completion(
 
 @skip_if_no_docker
 @pytest.mark.slow
-@pytest.mark.xfail(
-    reason="resume rehydrates the prior run's still-open structural spans "
-    "(solvers/react, open at checkpoint-fire time) as raw span_begins with "
-    "no matching span_end, so the `prior_run` wrap closes out of order. "
-    "Regressed in #4062 (bounded transcript store dropped the "
-    "checkpoint-spans-only capture boundary). Remove xfail once the "
-    "rehydrated wrap is span-balanced again.",
-    strict=True,
-)
 def test_checkpoint_resume_spans_balanced(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The resumed run's committed transcript must be span-balanced.
+    """Two resume cycles must yield a span-balanced final transcript.
 
-    Same cancel-then-retry flow as
-    ``test_checkpoint_resume_runs_to_completion``, but asserts structural
-    well-formedness of the event stream rather than content presence — the
-    one check that catches the rehydration regression.
+    Like ``test_checkpoint_resume_rehydrated_event_layout`` but cancels
+    *twice*: cancel mid-run, resume (work one turn, cancel again), resume
+    again to completion. The second resume hydrates a buffer that already
+    contains the first resume's ``prior_run`` wrap, so it exercises the
+    wrap-reparenting path — the case that catches the rehydration
+    regression. Asserts structural balance plus two sequentially-numbered
+    sibling restore wraps.
     """
     monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
-    _resume_state.cancelled = False
+    monkeypatch.setenv(_CANCEL_FILE_ENV, str(tmp_path / "cancels.txt"))
+    monkeypatch.setenv(_TARGET_ENV, "2")
     _resume_state.generates = 0
 
     log_dir = str(tmp_path / "logs")
 
-    # initial attempt: cancels mid-run after checkpoints commit
+    # initial attempt: cancels mid-run after ckpt-1/ckpt-2 commit
     log = eval(resume_decode_task(), model=SCRIPTED_MODEL, log_dir=log_dir)[0]
     assert log.status == "error"
 
@@ -364,12 +395,25 @@ def test_checkpoint_resume_spans_balanced(
     assert initial.samples is not None
     assert_spans_balanced(initial.samples[0].events)
 
-    # retry: resume from checkpoint and run to completion
-    retry_log = eval_retry(log, log_dir=log_dir)[0]
-    assert retry_log.status == "success"
+    # first resume: one work turn commits a fresh checkpoint, then cancels
+    resume1 = eval_retry(log, log_dir=log_dir)[0]
+    assert resume1.status == "error"
 
-    # the rehydrated `prior_run` wrap must be a self-contained, balanced
-    # subtree — not closed while restored structural spans are still open
-    completed = read_eval_log(retry_log.location)
+    # second resume: hydrates a buffer that already holds the first wrap
+    resume2 = eval_retry(resume1, log_dir=log_dir)[0]
+    assert resume2.status == "success"
+
+    # the rehydrated `prior_run` wraps must form self-contained, balanced
+    # subtrees — not closed while restored structural spans are still open
+    completed = read_eval_log(resume2.location)
     assert completed.samples is not None
-    assert_spans_balanced(completed.samples[0].events)
+    events = completed.samples[0].events
+    assert_spans_balanced(events)
+
+    # two sibling restore wraps, sequentially numbered
+    wrap_names = [
+        e.name
+        for e in events
+        if isinstance(e, SpanBeginEvent) and e.type == "prior_run"
+    ]
+    assert wrap_names == ["checkpoint restore 1", "checkpoint restore 2"]
