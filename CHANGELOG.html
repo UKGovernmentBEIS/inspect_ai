@@ -439,6 +439,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Bedrock: Support <code>response_schema</code> (structured output) for Claude models via <code>output_config.format</code>.</li>
 <li>Deep Agent: Subagent <code>submit()</code> calls are retained in the subagent transcript (previously stripped) and rendered as markdown, so a submit is distinguishable from a normal assistant message. The parent’s result is unchanged.</li>
 <li>Sandbox: Allow <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox_service">sandbox_service()</a></span> instances running as different users in the same sandbox to share <code>/var/tmp/sandbox-services</code>.</li>
+<li>Sandbox: Read <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox_service">sandbox_service()</a></span> request payloads with a higher output limit (150 MiB) than the default exec output cap.</li>
 <li>Agent Bridge: By default the bridge no longer forwards client generation-tuning parameters (e.g.&nbsp;<code>max_tokens</code>, <code>temperature</code>, reasoning effort/tokens) to the resolved Inspect model, leaving these parameters entirely determined by the evaluation config. Pass <code>forward_generation_config=True</code> to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#agent_bridge">agent_bridge()</a></span>/<span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.agent.html#sandbox_agent_bridge">sandbox_agent_bridge()</a></span> to restore previous behavior.</li>
 <li>Agent Intervention: Support connecting to all samples (disabling interruption and user messages if the agent doesn’t explicitly support ACP).</li>
 <li>Docker Compose: accept <code>platform</code>, <code>extra_hosts</code>, <code>cap_add</code>, <code>cap_drop</code>, <code>security_opt</code>, and <code>tmpfs</code> in ComposeService.</li>
@@ -446,10 +447,14 @@ ul.task-list li input[type="checkbox"] {
 <li>Transcript: Bound resident memory for long-running samples by evicting older events to a history provider (opt-in via the <code>INSPECT_TRANSCRIPT_BOUNDED</code> environment variable). <code>transcript().events</code> remains a full, compatible view; use <code>transcript().history</code> for memory-aware access.</li>
 <li>Inspect View: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.viewer.html#viewerconfig">ViewerConfig</a></span> (passed via <code>Task(viewer=...)</code>) lets eval authors customize how a task’s sample list, score panel, and scanner results render in the log viewer — including sample-list columns, default sort, score labels, and color scales. See <a href="https://inspect.aisi.org.uk/task-views.html">Custom Views</a>.</li>
 <li>Transcript: Revert disabling of buffer history database when running tests.</li>
+<li>Inspect View: Dark mode, event and message color support</li>
 <li>Inspect View: Migrated the sample transcript to a virtualized list for smoother rendering of long transcripts.</li>
+<li>Inspect View: Collapse same-name nested solver/agent spans in transcripts</li>
+<li>Inspect View: Fix truncation of long transcript outlines when scrolling</li>
 <li>Bugfix: Inspect View sample-list columns now expand to fill the available width.</li>
 <li>Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.</li>
 <li>Bugfix: Preserve OpenAI Responses API encrypted reasoning through agent bridge round-trips and replay reasoning input items with empty <code>content</code> to avoid server validation errors.</li>
+<li>Bugfix: Agent bridge checks for google.genai more defensively (ensure that module not found is raised).</li>
 </ul>
 </section>
 <section id="june-2026" class="level2">

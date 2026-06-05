@@ -5,7 +5,7 @@
 ## Basics
 
 - [Welcome](https://inspect.aisi.org.uk/index.html.md): Welcome and overview of Inspect AI.
-- [Tutorial](https://inspect.aisi.org.uk/tutorial.html.md): Step-by-step walkthroughs of several basic examples of Inspect evaluations.
+- [Tutorial](https://inspect.aisi.org.uk/tutorial.html.md): Step-by-step walkthrough of Inspect, from a first eval through agents, analysis, and the broader feature set.
 - [Options](https://inspect.aisi.org.uk/options.html.md): Covers the various options available for evaluations as well as how to manage model credentials.
 - [Log Viewer](https://inspect.aisi.org.uk/log-viewer.html.md): How to use Inspect View to develop and debug evaluations, including how to provide additional log metadata and integrate it with Python logging.
 - [VS Code](https://inspect.aisi.org.uk/vscode.html.md): Using the Inspect VS Code Extension to run, tune, debug, and visualise evaluations.

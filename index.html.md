@@ -4,14 +4,14 @@
 
 Inspect is a framework for frontier AI evaluations developed by the [UK AI Security Institute](https://aisi.gov.uk) and [Meridian Labs](https://meridianlabs.ai). Inspect can be used for a broad range of evaluations that measure coding, agentic tasks, reasoning, knowledge, behavior, and multi-modal understanding. Core features of Inspect include:
 
-- A set of straightforward interfaces for implementing evaluations and re-using components across evaluations.
+- Composable building blocks—datasets, agents, tools, and scorers—that make evaluations easy to write and reuse.
 - A collection of over 200 pre-built evaluations ready to run on any model.
 - Extensive tooling, including a web-based Inspect View tool for monitoring and visualizing evaluations and a VS Code Extension that assists with authoring and debugging.
 - Flexible support for tool calling—custom and MCP tools, as well as built-in bash, python, text editing, web search, web browsing, and computer tools.
-- Support for agent evaluations, including flexible built-in agents, multi-agent primitives, the ability to run arbitrary external agents like Claude Code, Codex CLI, and Gemini CLI.
+- Support for agent evaluations, including flexible built-in agents, multi-agent primitives, and the ability to run arbitrary external agents like Claude Code, Codex CLI, and Gemini CLI.
 - A sandboxing system that supports running untrusted model code in Docker, Kubernetes, Modal, Proxmox, and other systems via an extension API.
 
-We’ll walk through a fairly trivial “Hello, Inspect” example below. Read on to learn the basics, then read the documentation on [Datasets](./datasets.html.md), [Solvers](./solvers.html.md), [Scorers](./scorers.html.md), [Tools](./tools.html.md), and [Agents](./agents.html.md) to learn how to create more advanced evaluations.
+We’ll walk through two short “Hello, Inspect” examples below. Read on to learn the basics, then read the documentation on [Datasets](./datasets.html.md), [Solvers](./solvers.html.md), [Scorers](./scorers.html.md), [Tools](./tools.html.md), and [Agents](./agents.html.md) to learn how to create more advanced evaluations.
 
 If you are primarily interested in running evaluations rather than developing new ones, see the [Evals](./evals/index.html.md) listing where you’ll find implementations for over 200 popular benchmarks.
 
@@ -27,110 +27,137 @@ To get started using Inspect:
 
 2.  If you are using VS Code, install the [Inspect VS Code Extension](./vscode.html.md) (not required but highly recommended).
 
-To develop and run evaluations, you’ll also need access to a model, which typically requires installation of a Python package as well as ensuring that the appropriate API key is available in the environment.
-
-Assuming you had written an evaluation in a script named `arc.py`, here’s how you would setup and run the eval for a few different model providers:
+To develop and run evaluations, you’ll also need access to a model, which typically requires installation of a Python package as well as ensuring that the appropriate API key is available in the environment. For example:
 
 ``` bash
 pip install openai
 export OPENAI_API_KEY=your-openai-api-key
-inspect eval arc.py --model openai/gpt-4o
+inspect eval simpleqa.py --model openai/gpt-4o
 ```
 
 ``` bash
 pip install anthropic
 export ANTHROPIC_API_KEY=your-anthropic-api-key
-inspect eval arc.py --model anthropic/claude-sonnet-4-0
+inspect eval simpleqa.py --model anthropic/claude-sonnet-4-0
 ```
 
 ``` bash
 pip install google-genai
 export GOOGLE_API_KEY=your-google-api-key
-inspect eval arc.py --model google/gemini-2.5-pro
-```
-
-``` bash
-pip install openai
-export GROK_API_KEY=your-grok-api-key
-inspect eval arc.py --model grok/grok-3-mini
-```
-
-``` bash
-pip install mistralai
-export MISTRAL_API_KEY=your-mistral-api-key
-inspect eval arc.py --model mistral/mistral-large-latest
+inspect eval simpleqa.py --model google/gemini-2.5-pro
 ```
 
 ``` bash
 pip install torch transformers
 export HF_TOKEN=your-hf-token
-inspect eval arc.py --model hf/meta-llama/Llama-2-7b-chat-hf
+inspect eval simpleqa.py --model hf/meta-llama/Llama-2-7b-chat-hf
 ```
 
-In addition to the model providers shown above, Inspect also supports models hosted on AWS Bedrock, Azure AI, TogetherAI, Groq, Cloudflare, and Goodfire as well as local models with vLLM, Ollama, llama-cpp-python, TransformerLens, and nnterp. See the documentation on [Model Providers](./providers.html.md) for additional details.
+Inspect has built-in support for over 20 model providers as well as support for local inference with HuggingFace, vLLM, and SGLang. See the documentation on [Model Providers](./providers.html.md) for details on all supported providers.
 
 ## Hello, Inspect
 
-Inspect evaluations have three main components:
+An Inspect evaluation is a [Task](./tasks.html.md) that brings together three things:
 
-1.  **Datasets** contain a set of labelled samples. Datasets are typically just a table with `input` and `target` columns, where `input` is a prompt and `target` is either literal value(s) or grading guidance.
+1.  [Dataset](./datasets.html.md) that provides labelled samples—typically a table with `input` and `target` columns, where `input` is the prompt and `target` is the ideal answer or grading guidance.
 
-2.  **Solvers** are chained together to evaluate the `input` in the dataset and produce a final result. The most elemental solver, [generate()](./reference/inspect_ai.solver.html.md#generate), just calls the model with a prompt and collects the output. Other solvers might do prompt engineering, multi-turn dialog, critique, or provide an agent scaffold.
+2.  [Solver](./solvers.html.md) that produces an answer for each sample. This can be as simple as a single [generate()](./reference/inspect_ai.solver.html.md#generate) call to the model, or as sophisticated as a full agent that uses tools over many turns.
 
-3.  **Scorers** evaluate the final output of solvers. They may use text comparisons, model grading, or other custom schemes
+3.  [Scorer](./scorers.html.md) that evaluates the output—using text comparisons, model grading, or other custom schemes.
 
-Let’s take a look at a simple evaluation that aims to see how models perform on the [Sally-Anne](https://en.wikipedia.org/wiki/Sally%E2%80%93Anne_test) test, which assesses the ability of a person to infer false beliefs in others. Here are some samples from the dataset:
+Let’s look at two short examples: a question-answering benchmark and a capture the flag challenge.
 
-| input | target |
-|----|----|
-| Jackson entered the hall. Chloe entered the hall. The boots is in the bathtub. Jackson exited the hall. Jackson entered the dining_room. Chloe moved the boots to the pantry. Where was the boots at the beginning? | bathtub |
-| Hannah entered the patio. Noah entered the patio. The sweater is in the bucket. Noah exited the patio. Ethan entered the study. Ethan exited the study. Hannah moved the sweater to the pantry. Where will Hannah look for the sweater? | pantry |
+### Benchmark: SimpleQA
 
-Here’s the code for the evaluation (click on the numbers at right for further explanation):
+This task evaluates a model on [SimpleQA](https://openai.com/index/introducing-simpleqa/), a benchmark of short, fact-seeking questions(click on the numbers at right for further explanation):
 
-    theory.py
+    simpleqa.py
 
 ``` python
 from inspect_ai import Task, task
-from inspect_ai.dataset import example_dataset
-from inspect_ai.scorer import model_graded_fact
-from inspect_ai.solver import (               
-  chain_of_thought, generate, self_critique   
-)                                             
+from inspect_ai.dataset import FieldSpec, hf_dataset
+from inspect_ai.scorer import model_graded_qa
+from inspect_ai.solver import generate
 
-@task
-def theory_of_mind():
-1    return Task(
-        dataset=example_dataset("theory_of_mind"),
-2        solver=[
-          chain_of_thought(),
-          generate(),
-          self_critique()
-        ],
-3        scorer=model_graded_fact()
+1@task
+def simpleqa():
+    return Task(
+2        dataset=hf_dataset(
+            "codelion/SimpleQA-Verified",
+            split="train",
+3            sample_fields=FieldSpec(
+                input="problem",
+                target="answer",
+            ),
+        ),
+4        solver=generate(),
+5        scorer=model_graded_qa(),
     )
 ```
 
 1  
-The [Task](./reference/inspect_ai.html.md#task) object brings together the dataset, solvers, and scorer, and is then evaluated using a model.
+The `@task` decorator registers the function with Inspect so that `inspect eval` can discover and run it by name.
 
 2  
-In this example we are chaining together three standard solver components. It’s also possible to create a more complex custom solver that manages state and interactions internally.
+[hf_dataset()](./reference/inspect_ai.dataset.html.md#hf_dataset) loads samples directly from Hugging Face. Inspect also reads CSV, JSON, and in-memory datasets.
 
 3  
-Since the output is likely to have natural, nuanced language, we use a model for scoring.
+[FieldSpec](./reference/inspect_ai.dataset.html.md#fieldspec) declaratively maps the dataset’s `problem` and `answer` columns onto the sample’s `input` and `target`—no custom conversion function required.
 
-Note that you can provide a *single* solver or multiple solvers chained together as we did here.
+4  
+The [generate()](./reference/inspect_ai.solver.html.md#generate) solver simply sends each `input` to the model and collects its response.
 
-The `@task` decorator applied to the `theory_of_mind()` function is what enables `inspect eval` to find and run the eval in the source file passed to it. For example, here we run the eval against GPT-4:
+5  
+Because the answers are free-form text, [model_graded_qa()](./reference/inspect_ai.scorer.html.md#model_graded_qa) uses a model to grade each response against the `target`.
+
+Run it from the command line with `inspect eval`, choosing a model with `--model`:
 
 ``` bash
-inspect eval theory.py --model openai/gpt-4
+inspect eval simpleqa.py --model openai/gpt-5
 ```
 
-[![The Inspect task results displayed in the terminal. A progress bar indicates that the evaluation is about 60% complete.](images/running-theory.png)](images/running-theory.png)
+### Agent: CTF Challenge
 
-## Evaluation Logs
+Agent evaluuations require the model take actions rather than just answer a question. Here’s a Capture the Flag (CTF) task where the [react()](./agents.html.md) agent explores a sandboxed system using [bash()](./reference/inspect_ai.tool.html.md#bash) and [todo_write()](./reference/inspect_ai.tool.html.md#todo_write) tools to find a hidden flag:
+
+    ctf.py
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.agent import react
+from inspect_ai.dataset import json_dataset
+from inspect_ai.scorer import includes
+from inspect_ai.tool import bash, todo_write
+
+@task
+def ctf():
+    return Task(
+        dataset=json_dataset("challenges.json"),
+1        solver=react(
+            prompt=(
+                "You are a Capture the Flag player.
+                Explore the system and find the flag."
+            ),
+            tools=[bash(), todo_write()],
+            attempts=3,
+        ),
+2        scorer=includes(),
+3        sandbox="docker",
+    )
+```
+
+1  
+[react()](./reference/inspect_ai.agent.html.md#react) is a built-in agent that runs a reason-act-observe loop, giving the model the supplied `tools` until it submits an answer (here allowing up to 3 attempts).
+
+2  
+The [includes()](./reference/inspect_ai.scorer.html.md#includes) scorer passes if the target flag appears in the agent’s submitted answer.
+
+3  
+`sandbox="docker"` runs all tool calls inside an isolated Docker container (configured by a `Dockerfile` or `compose.yaml` alongside the task).
+
+See the [Tutorial](./tutorial.html.md) to explore more in-depth examples that demonstrate additional Inspect features and techniques.
+
+## Eval Logs
 
 By default, eval logs are written to the `./logs` sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.
 
@@ -146,20 +173,32 @@ inspect view
 
 See the [Log Viewer](./log-viewer.html.md) section for additional details on using Inspect View.
 
-## Eval from Python
+## Python API
 
 Above we demonstrated using `inspect eval` from CLI to run evaluations—you can perform all of the same operations from directly within Python using the [eval()](./reference/inspect_ai.html.md#eval) function. For example:
 
 ``` python
 from inspect_ai import eval
-from .tasks import theory_of_mind
+from simpleqa import simpleqa
 
-eval(theory_of_mind(), model="openai/gpt-4o")
+eval(simpleqa(), model="openai/gpt-5")
 ```
+
+## LLM Assistance
+
+As you learn and use Inspect we recommend you provide an LLM with the documentation required for it to assist. There are two versions of LLM friendly markdown documentation available:
+
+- [llms.txt](llms.txt): Documentation index, articles fetched as required (~2k tokens).
+
+- [llms-guide.txt](llms-guide.txt): Full contents of all documentation (~185k tokens).
+
+There is also a **Copy Page** button at the top of every page that provides a markdown version of the page.
 
 ## Learning More
 
-The best way to get familiar with Inspect’s core features is the [Tutorial](./tutorial.html.md), which includes several annotated examples. From there, the documentation is organised into the sections below—each link goes to the section’s overview, with more specialised articles available alongside it in the sidebar.
+To learn more about using Inspect see the following documentation sections:
+
+- [Tutorial](./tutorial.html.md) includes several annotated examples demonstrating various features an capabilities.
 
 - [Components](./tasks.html.md) are the building blocks of an evaluation: tasks, datasets, solvers, scorers, and scanners.
 

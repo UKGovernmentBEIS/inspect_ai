@@ -7,6 +7,7 @@
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
 - Deep Agent: Subagent `submit()` calls are retained in the subagent transcript (previously stripped) and rendered as markdown, so a submit is distinguishable from a normal assistant message. The parent’s result is unchanged.
 - Sandbox: Allow [sandbox_service()](./reference/inspect_ai.util.html.md#sandbox_service) instances running as different users in the same sandbox to share `/var/tmp/sandbox-services`.
+- Sandbox: Read [sandbox_service()](./reference/inspect_ai.util.html.md#sandbox_service) request payloads with a higher output limit (150 MiB) than the default exec output cap.
 - Agent Bridge: By default the bridge no longer forwards client generation-tuning parameters (e.g. `max_tokens`, `temperature`, reasoning effort/tokens) to the resolved Inspect model, leaving these parameters entirely determined by the evaluation config. Pass `forward_generation_config=True` to [agent_bridge()](./reference/inspect_ai.agent.html.md#agent_bridge)/[sandbox_agent_bridge()](./reference/inspect_ai.agent.html.md#sandbox_agent_bridge) to restore previous behavior.
 - Agent Intervention: Support connecting to all samples (disabling interruption and user messages if the agent doesn’t explicitly support ACP).
 - Docker Compose: accept `platform`, `extra_hosts`, `cap_add`, `cap_drop`, `security_opt`, and `tmpfs` in ComposeService.
@@ -14,10 +15,14 @@
 - Transcript: Bound resident memory for long-running samples by evicting older events to a history provider (opt-in via the `INSPECT_TRANSCRIPT_BOUNDED` environment variable). `transcript().events` remains a full, compatible view; use `transcript().history` for memory-aware access.
 - Inspect View: New [ViewerConfig](./reference/inspect_ai.viewer.html.md#viewerconfig) (passed via `Task(viewer=...)`) lets eval authors customize how a task’s sample list, score panel, and scanner results render in the log viewer — including sample-list columns, default sort, score labels, and color scales. See [Custom Views](https://inspect.aisi.org.uk/task-views.html).
 - Transcript: Revert disabling of buffer history database when running tests.
+- Inspect View: Dark mode, event and message color support
 - Inspect View: Migrated the sample transcript to a virtualized list for smoother rendering of long transcripts.
+- Inspect View: Collapse same-name nested solver/agent spans in transcripts
+- Inspect View: Fix truncation of long transcript outlines when scrolling
 - Bugfix: Inspect View sample-list columns now expand to fill the available width.
 - Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.
 - Bugfix: Preserve OpenAI Responses API encrypted reasoning through agent bridge round-trips and replay reasoning input items with empty `content` to avoid server validation errors.
+- Bugfix: Agent bridge checks for google.genai more defensively (ensure that module not found is raised).
 
 ## 0.3.235 (03 June 2026)
 
