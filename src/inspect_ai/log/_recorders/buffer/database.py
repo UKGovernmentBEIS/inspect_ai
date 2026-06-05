@@ -207,94 +207,107 @@ class SampleBufferDatabase(SampleBuffer):
         self._sync_requested = False
 
     def start_sample(self, sample: EvalSampleSummary) -> None:
-        with self._get_connection(write=True) as conn:
-            sample = self._condense_sample(conn, sample)
-            conn.execute(
-                """
-                INSERT INTO samples (id, epoch, data)
-                VALUES (?, ?, ?)
-            """,
-                (str(sample.id), sample.epoch, to_json_str_safe(sample)),
-            )
-
-    def log_events(self, events: list[SampleEvent]) -> None:
-        index_snapshots: dict[
-            tuple[str, int], tuple[dict[str, int] | None, dict[str, int] | None]
-        ] = {}
-
-        def restore_index_snapshots() -> None:
-            for key, (msg_index, call_index) in index_snapshots.items():
-                if msg_index is None:
-                    self._msg_indices.pop(key, None)
-                else:
-                    self._msg_indices[key] = msg_index
-
-                if call_index is None:
-                    self._call_indices.pop(key, None)
-                else:
-                    self._call_indices[key] = call_index
-
-        with self._get_connection(
-            write=True, on_rollback=restore_index_snapshots
-        ) as conn:
-            # collect the values for all events
-            values: list[str | int] = []
-            for event in events:
-                if isinstance(event.event, ModelEvent):
-                    key = (str(event.id), event.epoch)
-                    if key not in index_snapshots:
-                        msg_index = self._msg_indices.get(key)
-                        call_index = self._call_indices.get(key)
-                        index_snapshots[key] = (
-                            None if msg_index is None else dict(msg_index),
-                            None if call_index is None else dict(call_index),
-                        )
-
-                event = self._condense_event(conn, event)
-                values.extend(
-                    (
-                        event.event.uuid or uuid(),
-                        str(event.id),
-                        event.epoch,
-                        to_json_str_safe(event.event),
-                    )
+        def _op() -> None:
+            with self._get_connection(write=True) as conn:
+                condensed = self._condense_sample(conn, sample)
+                conn.execute(
+                    """
+                    INSERT INTO samples (id, epoch, data)
+                    VALUES (?, ?, ?)
+                """,
+                    (str(condensed.id), condensed.epoch, to_json_str_safe(condensed)),
                 )
 
-            # dynamically create the SQL query
-            placeholders = ", ".join(["(?, ?, ?, ?)"] * len(events))
-            sql = f"""
-            INSERT INTO events (event_id, sample_id, sample_epoch, data)
-            VALUES {placeholders}
-            """
+        self._retry_on_locked(_op)
 
-            # Insert all rows
-            conn.execute(sql, values)
+    def log_events(self, events: list[SampleEvent]) -> None:
+        def _op() -> None:
+            index_snapshots: dict[
+                tuple[str, int], tuple[dict[str, int] | None, dict[str, int] | None]
+            ] = {}
+
+            def restore_index_snapshots() -> None:
+                for key, (msg_index, call_index) in index_snapshots.items():
+                    if msg_index is None:
+                        self._msg_indices.pop(key, None)
+                    else:
+                        self._msg_indices[key] = msg_index
+
+                    if call_index is None:
+                        self._call_indices.pop(key, None)
+                    else:
+                        self._call_indices[key] = call_index
+
+            with self._get_connection(
+                write=True, on_rollback=restore_index_snapshots
+            ) as conn:
+                # collect the values for all events
+                values: list[str | int] = []
+                for event in events:
+                    if isinstance(event.event, ModelEvent):
+                        key = (str(event.id), event.epoch)
+                        if key not in index_snapshots:
+                            msg_index = self._msg_indices.get(key)
+                            call_index = self._call_indices.get(key)
+                            index_snapshots[key] = (
+                                None if msg_index is None else dict(msg_index),
+                                None if call_index is None else dict(call_index),
+                            )
+
+                    event = self._condense_event(conn, event)
+                    values.extend(
+                        (
+                            event.event.uuid or uuid(),
+                            str(event.id),
+                            event.epoch,
+                            to_json_str_safe(event.event),
+                        )
+                    )
+
+                # dynamically create the SQL query
+                placeholders = ", ".join(["(?, ?, ?, ?)"] * len(events))
+                sql = f"""
+                INSERT INTO events (event_id, sample_id, sample_epoch, data)
+                VALUES {placeholders}
+                """
+
+                # Insert all rows
+                conn.execute(sql, values)
+
+        self._retry_on_locked(_op)
 
     def complete_sample(self, summary: EvalSampleSummary) -> None:
-        with self._get_connection(write=True) as conn:
-            summary = self._condense_sample(conn, summary)
-            conn.execute(
-                """
-                UPDATE samples SET data = ? WHERE id = ? and epoch = ?
-            """,
-                (to_json_str_safe(summary), str(summary.id), summary.epoch),
-            )
+        def _op() -> None:
+            with self._get_connection(write=True) as conn:
+                condensed = self._condense_sample(conn, summary)
+                conn.execute(
+                    """
+                    UPDATE samples SET data = ? WHERE id = ? and epoch = ?
+                """,
+                    (to_json_str_safe(condensed), str(condensed.id), condensed.epoch),
+                )
 
-            key = (str(summary.id), summary.epoch)
-            self._msg_indices.pop(key, None)
-            self._call_indices.pop(key, None)
-            self._completed_samples.add(key)
+        self._retry_on_locked(_op)
+
+        # mark the sample complete only once the write has committed
+        key = (str(summary.id), summary.epoch)
+        self._msg_indices.pop(key, None)
+        self._call_indices.pop(key, None)
+        self._completed_samples.add(key)
 
     def update_metrics(self, metrics: list[TaskDisplayMetric]) -> None:
-        with self._get_connection(write=True) as conn:
-            conn.execute(
-                """
-                UPDATE task_database
-                SET metrics = ?,
-                    last_updated = CURRENT_TIMESTAMP;
-                """,
-                [to_json_str_safe(metrics)],
-            )
+        def _op() -> None:
+            with self._get_connection(write=True) as conn:
+                conn.execute(
+                    """
+                    UPDATE task_database
+                    SET metrics = ?,
+                        last_updated = CURRENT_TIMESTAMP;
+                    """,
+                    [to_json_str_safe(metrics)],
+                )
+
+        self._retry_on_locked(_op)
 
     def remove_samples(self, samples: list[tuple[str | int, int]]) -> None:
         ready: list[tuple[str, int]] = []
@@ -734,6 +747,21 @@ class SampleBufferDatabase(SampleBuffer):
             if cleanup_ready:
                 self._cleanup_now()
 
+    def _retry_on_locked(self, op: Callable[[], None]) -> None:
+        # _get_connection only retries opening the connection; the lock can also
+        # surface at commit, so retry the whole write (each attempt rolls back).
+        max_retries = 5
+        retry_delay = 0.1
+        for attempt in range(max_retries):
+            try:
+                op()
+                return
+            except OperationalError as e:
+                if "locked" in str(e).lower() and attempt < max_retries - 1:
+                    time.sleep(retry_delay * (2**attempt))
+                    continue
+                raise
+
     @contextmanager
     def _get_connection(
         self,
@@ -753,12 +781,19 @@ class SampleBufferDatabase(SampleBuffer):
                 conn = sqlite3.connect(self.db_path, timeout=30)
                 conn.row_factory = sqlite3.Row  # enable row factory for named columns
 
+                # wait for a held lock rather than failing immediately; set
+                # first so the WAL switch below also honors it
+                conn.execute("PRAGMA busy_timeout=30000")
+
                 # Enable foreign key constraints
                 conn.execute("PRAGMA foreign_keys = ON")
 
-                # concurrency setup
-                conn.execute("PRAGMA busy_timeout=30000")
-                conn.execute("PRAGMA synchronous=OFF")
+                # WAL lets readers (the sync thread and the view process) read
+                # without blocking writes. Set it outside any transaction.
+                conn.execute("PRAGMA journal_mode=WAL")
+
+                # concurrency setup (NORMAL is the durable pairing for WAL)
+                conn.execute("PRAGMA synchronous=NORMAL")
                 conn.execute("PRAGMA cache_size=-64000")
                 conn.execute("PRAGMA temp_store=MEMORY")
 
@@ -1461,7 +1496,13 @@ def cleanup_sample_buffer_databases(db_dir: Path | None = None) -> None:
 
 def cleanup_sample_buffer_db(path: Path) -> None:
     try:
-        path.unlink(missing_ok=True)
+        # also remove the WAL sidecars, else the rmdir below fails
+        for p in (
+            path,
+            path.with_name(f"{path.name}-wal"),
+            path.with_name(f"{path.name}-shm"),
+        ):
+            p.unlink(missing_ok=True)
         try:
             # Remove the directory if it's empty
             path.parent.rmdir()
