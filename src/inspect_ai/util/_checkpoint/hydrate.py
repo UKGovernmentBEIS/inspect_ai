@@ -39,6 +39,7 @@ using the returned :class:`_HydrationResult`.
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass, field
 from functools import partial
 from logging import getLogger
@@ -79,13 +80,13 @@ from ._layout.staging_dir import (
     is_remote_destination,
     sandbox_repo_dir,
 )
-from ._logging import debug as _debug
-from ._logging import debug_enabled as _validation_enabled
 from ._sandbox_restic import ingress_sandbox, init_sandbox_repo, inject_restic
 from .checkpointer import ResumeCheckpoint
 from .config import ResolvedCheckpointConfig
+from .sandbox_paths import SandboxBackupPaths, resolve_sandbox_backup_paths
 
 logger = getLogger(__name__)
+_DISABLE_ENV_VAR = "INSPECT_CHECKPOINT_VALIDATE_DISABLE"
 
 
 @dataclass
@@ -140,6 +141,12 @@ class HydrationResult:
 
     restic_password: str
     host: _HostHydrationResult
+
+    sandbox_backup_paths: dict[str, SandboxBackupPaths] = field(default_factory=dict)
+    """Effective sandbox name → backup spec (include + exclude) used for
+    backup: each live sandbox's default-user home dir (XDG cache excluded),
+    with ``sandbox_paths`` config entries replacing the default (empty-list
+    entries opt out). See ``sandbox_paths``."""
 
 
 async def hydrate(
@@ -221,6 +228,14 @@ async def hydrate(
     # host branch produces a result that flows to `_EnteredCheckpointer`.
     host_result: _HostHydrationResult | None = None
 
+    # Effective sandbox backup map: explicit config entries plus the
+    # default-user home dir auto-included for every other live sandbox.
+    # Computed once here so backup (every fire) and hydration agree on the
+    # same name set.
+    sandbox_backup_paths = await resolve_sandbox_backup_paths(
+        config.sandbox_paths or {}
+    )
+
     async def _run_host() -> None:
         nonlocal host_result
         host_result = await _hydrate_host(
@@ -239,7 +254,7 @@ async def hydrate(
         tg.start_soon(
             _hydrate_sandboxes,
             resume_checkpoint,
-            config.sandbox_paths or {},
+            sandbox_backup_paths,
             restic_config.restic_password,
             sample_root,
             host_restic,
@@ -270,6 +285,7 @@ async def hydrate(
         host_repo=host_repo,
         restic_password=restic_config.restic_password,
         host=host_result,
+        sandbox_backup_paths=sandbox_backup_paths,
     )
 
 
@@ -315,19 +331,12 @@ async def _hydrate_host(
         )
     )
     result = _push_host_state(result, sample_root, latest_committed_id)
-    _debug(
-        f"[hydrate.host] resume done: "
-        f"events={len(result.condensed_events)} "
-        f"msgs={len(result.msg_pool)} "
-        f"calls={len(result.call_pool)} "
-        f"agent_state={'yes' if result.agent_state else 'no'}"
-    )
     return result
 
 
 async def _hydrate_sandboxes(
     resume: ResumeCheckpoint | None,
-    sandbox_paths: dict[str, list[str]],
+    sandbox_paths: dict[str, SandboxBackupPaths],
     restic_password: str,
     sample_root: str,
     host_restic: Path,
@@ -341,7 +350,6 @@ async def _hydrate_sandboxes(
             partial(
                 _hydrate_sandbox,
                 name=name,
-                paths=paths,
                 resume=resume,
                 restic_password=restic_password,
                 sample_root=sample_root,
@@ -349,7 +357,7 @@ async def _hydrate_sandboxes(
                 latest_committed_id=latest_committed_id,
                 action=action,
             )
-            for name, paths in sandbox_paths.items()
+            for name in sandbox_paths
         ]
     )
 
@@ -357,7 +365,6 @@ async def _hydrate_sandboxes(
 async def _hydrate_sandbox(
     *,
     name: str,
-    paths: list[str],
     resume: ResumeCheckpoint | None,
     restic_password: str,
     sample_root: str,
@@ -567,10 +574,6 @@ def _push_host_state(
 ) -> _HostHydrationResult:
     """Push restored host state into loop-owned Transcript and Store."""
     ts = transcript()
-    pre = [_event_label(e) for e in ts._events]
-    restored = [_event_label(e) for e in result.condensed_events]
-    _debug(f"[hydrate.host] pre-hydration transcript.events (n={len(pre)}): {pre}")
-    _debug(f"[hydrate.host] restored events to push (n={len(restored)}): {restored}")
     result.condensed_events = materialize_pooled_events(
         result.condensed_events,
         result.msg_pool,
@@ -586,11 +589,6 @@ def _push_host_state(
         raise RuntimeError("_hydrate_host: no active sample state to populate Store")
     for key, value in result.store.items():
         state.store.set(key, value)
-    _debug(
-        f"[hydrate.host] pushed: transcript.events={len(ts._events)} "
-        f"transcript.attachments={len(ts._attachments)} "
-        f"store_keys={len(list(state.store.keys()))}"
-    )
 
     _validate_resume_state(result.condensed_events, sample_root, latest_committed_id)
     return result
@@ -726,25 +724,16 @@ def _validate_resume_state(
       (the highest cleanly-parsing checkpoint id — the true commit
       point).
 
-    Console-prints a readable summary either way so the resume flow
-    is easy to follow.
-
-    No-op unless ``INSPECT_CHECKPOINT_VALIDATE`` is set — the body is
-    kept in the tree for the next time something looks off on resume.
+    Runs by default while the checkpoint code stabilizes. Set
+    ``INSPECT_CHECKPOINT_VALIDATE_DISABLE`` to skip it — a surgical escape
+    hatch for tests that drive the resume push with non-resume-shaped stub
+    data.
     """
-    if not _validation_enabled():
+    if bool(os.environ.get(_DISABLE_ENV_VAR)):
         return
-
-    _debug("[hydrate.validate] === resume sanity check ===")
 
     sample_dir = Path(local_path(sample_root))
     checkpoint_files = sorted(p.name for p in sample_dir.glob("ckpt-*.json"))
-    _debug(
-        f"[hydrate.validate] checkpoint files in {sample_dir.name}/ "
-        f"(n={len(checkpoint_files)}, latest committed id={latest_committed_id}): "
-        f"{checkpoint_files}"
-    )
-    _debug(f"[hydrate.validate] events.json event count: {len(events)}")
 
     # Walk events: collect checkpoint + prior_run span_begins,
     # CheckpointEvents, and all span_ends (span_end has no type attr —
@@ -765,24 +754,6 @@ def _validate_resume_state(
             ckpt_id = getattr(e, "checkpoint_id", None)
             if ckpt_id is not None:
                 checkpoint_events.append((i, ckpt_id))
-
-    _debug(f"[hydrate.validate] prior_run wraps (n={len(wrap_begins)}):")
-    for idx, name, id_ in wrap_begins:
-        end_idx = end_by_id.get(id_)
-        end_str = f"span_end@{end_idx}" if end_idx is not None else "UNPAIRED"
-        _debug(f"  [{idx:4d}] name={name!r:24} id={id_:24} -> {end_str}")
-
-    _debug(
-        f"[hydrate.validate] checkpoint span_begin events (n={len(checkpoint_begins)}):"
-    )
-    for idx, name, id_ in checkpoint_begins:
-        end_idx = end_by_id.get(id_)
-        end_str = f"span_end@{end_idx}" if end_idx is not None else "UNPAIRED"
-        _debug(f"  [{idx:4d}] name={name!r:18} id={id_:24} -> {end_str}")
-
-    _debug(f"[hydrate.validate] CheckpointEvents (n={len(checkpoint_events)}):")
-    for idx, ckpt_id in checkpoint_events:
-        _debug(f"  [{idx:4d}] checkpoint_id={ckpt_id}")
 
     # --- assertions ---
     if not events:
@@ -876,14 +847,6 @@ def _validate_resume_state(
             f"mismatch. expected {expected_event_ids}, "
             f"got {actual_event_ids}"
         )
-
-    _debug("[hydrate.validate] ✓ resume sanity checks passed")
-    _debug(
-        f"[hydrate.validate] === ready for checkpoint "
-        f"{len(checkpoint_begins) + 1} "
-        f"(prior checkpoints: {len(checkpoint_begins)}, "
-        f"prior sessions: {len(wrap_begins)}) ==="
-    )
 
 
 def _event_label(e: Event) -> str:

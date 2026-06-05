@@ -124,6 +124,38 @@ def needs_max_completion_tokens(model_name: str) -> bool:
     return is_gpt_5_model(model_name) or is_o_series_model(model_name)
 
 
+# OpenAI model-name tokens that identify non-generative models (embeddings,
+# audio, image, moderation). These must never be treated as a "latest"/frontier
+# chat model by is_latest_model().
+_NON_GENERATIVE_TOKENS = (
+    "embedding",
+    "whisper",
+    "dall-e",
+    "tts",
+    "moderation",
+    "image-1",
+    "sora",
+)
+
+
+def is_latest_model(model_name: str) -> bool:
+    """Detect an OpenAI predeployment/codename model as the current frontier.
+
+    OpenAI sometimes exposes pre-release models under internal code names (e.g.
+    `foo-bar-22`) that match none of the known naming conventions. Treat any such
+    unrecognized name as the latest model so it gets frontier behavior. Mirrors
+    the Anthropic provider's `is_claude_latest()`.
+    """
+    name = model_name.lower().removeprefix("openai.")  # bedrock api_model_name prefix
+    if any(token in name for token in _NON_GENERATIVE_TOKENS):
+        return False
+    if is_gpt_5_model(name) or is_o_series_model(name):
+        return False
+    if "gpt" in name or "codex" in name or "deep-research" in name:
+        return False
+    return True
+
+
 def openai_chat_tool_call(tool_call: ToolCall) -> ChatCompletionMessageToolCallUnion:
     return ChatCompletionMessageFunctionToolCall(
         type="function",
@@ -509,6 +541,8 @@ async def messages_from_openai(
         elif message["role"] == "assistant":
             # resolve content
             refusal: Literal[True] | None = None
+            smuggled_reasoning = None
+            parsed_reasoning_content = False
             asst_content = message.get("content", None)
             if isinstance(asst_content, str):
                 asst_content, smuggled_reasoning = parse_content_with_reasoning(
@@ -525,8 +559,11 @@ async def messages_from_openai(
                             redacted=smuggled_reasoning.redacted,
                             summary=smuggled_reasoning.summary,
                         ),
-                        ContentText(text=asst_content, internal=content_internal),
                     ]
+                    if asst_content:
+                        content.append(
+                            ContentText(text=asst_content, internal=content_internal)
+                        )
                 else:
                     content = asst_content
             elif asst_content is None:
@@ -536,13 +573,26 @@ async def messages_from_openai(
             else:
                 content = []
                 for ac in asst_content:
-                    content.extend(content_from_openai(ac, parse_reasoning=True))
+                    parsed_content = content_from_openai(ac, parse_reasoning=True)
+                    parsed_reasoning_content = parsed_reasoning_content or any(
+                        isinstance(c, ContentReasoning) for c in parsed_content
+                    )
+                    content.extend(parsed_content)
+                if parsed_reasoning_content:
+                    content = [
+                        c
+                        for c in content
+                        if not (isinstance(c, ContentText) and c.text == "")
+                    ]
 
             # resolve reasoning (OpenAI doesn't suport this however OpenAI-compatible
             # interfaces e.g. DeepSeek do include this field so we pluck it out)
             # note that we already handled <think> tags so we only care about the
             # other sources
-            parse_result = parse_reasoning_content(message)
+            parse_result = parse_reasoning_content(
+                message,
+                parse_think=smuggled_reasoning is None and not parsed_reasoning_content,
+            )
             if parse_result is not None:
                 reasoning: ContentReasoning | None = (
                     content_reasoning_from_openai_reasoning(parse_result[0])
@@ -773,6 +823,7 @@ def chat_message_assistant_from_openai(
 
 def parse_reasoning_content(
     message: ChatCompletionMessage | ChatCompletionAssistantMessageParam,
+    parse_think: bool = True,
 ) -> tuple[CompletionsReasoningContent, str | None] | None:
     # look in various fields where reasoning lives
     for source in cast(
@@ -790,6 +841,9 @@ def parse_reasoning_content(
                 ),
                 None,
             )
+
+    if not parse_think:
+        return None
 
     # not found, look for <think> tag
     content = (

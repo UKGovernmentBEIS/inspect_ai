@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import tempfile
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -767,7 +768,7 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
     work.mkdir()
     cp = _EnteredCheckpointer(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
-        hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
+        hydration=_fake_hydration(str(tmp_path / "ckpts"), str(work)),
         resume_checkpoint=None,
         reset_transcript_store=True,
     )
@@ -794,7 +795,9 @@ async def test_write_host_context_condenses_and_round_trips(tmp_path: Path) -> N
 
 
 def _make_cp(**kwargs: object) -> _EnteredCheckpointer:
-    base = Path("/tmp/cp-test")
+    # Unique per call so parallel xdist workers (and successive calls) don't
+    # collide on the same SQLite transcript store under context_dir.
+    base = Path(tempfile.mkdtemp(prefix="cp-test-"))
     defaults: dict[str, object] = {
         "config": ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
         "hydration": _fake_hydration(str(base / "ckpts"), str(base / "work")),
@@ -918,9 +921,23 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
         epoch=0,
     )
 
+    from inspect_ai.util._subprocess import ExecResult
+
     fake_env = MagicMock()
+    # Even a config-specified sandbox runs one resolution exec (home + XDG
+    # cache) so the cache dir can be excluded; canned `home\ncache` output.
+    fake_env.exec = AsyncMock(
+        return_value=ExecResult(
+            success=True, returncode=0, stdout="/root\n/root/.cache", stderr=""
+        )
+    )
     fake_sample_state = MagicMock(restic_password="pwd")
     sample_ckpt_path = str(tmp_path / "ckpts" / "s__0")
+
+    # Live-sandbox set drives hydration; "web" has an explicit config entry.
+    from inspect_ai.util._sandbox.context import sandbox_environments_context_var
+
+    sandbox_token = sandbox_environments_context_var.set({"web": fake_env})
 
     with (
         patch(
@@ -986,6 +1003,8 @@ async def test_setup_aenter_defers_io_setup(tmp_path: Path) -> None:
             assert cp2 is cp
             assert [m.call_count for m in io_mocks] == call_counts
 
+    sandbox_environments_context_var.reset(sandbox_token)
+
 
 async def test_write_host_context_exports_transcript_store_attachments(
     tmp_path: Path,
@@ -996,7 +1015,7 @@ async def test_write_host_context_exports_transcript_store_attachments(
     work.mkdir()
     cp = _EnteredCheckpointer(
         config=ResolvedCheckpointConfig(trigger=TurnInterval(every=1)),
-        hydration=_fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work"),
+        hydration=_fake_hydration(str(tmp_path / "ckpts"), str(work)),
         resume_checkpoint=None,
         reset_transcript_store=True,
     )
@@ -1074,8 +1093,8 @@ async def test_write_host_context_accumulates_across_fires(tmp_path: Path) -> No
     assert [len(e.input) for e in model_events] == [2, 3, 4]
 
 
-def test_track_consumes_hydrated_agent_state() -> None:
-    hydration = _fake_hydration("/tmp/cp-test/ckpts", "/tmp/cp-test/work")
+def test_track_consumes_hydrated_agent_state(tmp_path: Path) -> None:
+    hydration = _fake_hydration(str(tmp_path / "ckpts"), str(tmp_path / "work"))
     hydration.host.agent_state = {"phase": "resume", "other": "kept"}
     cp = _make_cp(hydration=hydration)
 
@@ -1134,7 +1153,9 @@ def test_checkpointer_closes_store_when_transcript_seed_fails(tmp_path: Path) ->
     ):
         with pytest.raises(RuntimeError, match="Cannot seed transcript events"):
             _make_cp(
-                hydration=_fake_hydration("/tmp/cp-test/ckpts", str(tmp_path / "work")),
+                hydration=_fake_hydration(
+                    str(tmp_path / "ckpts"), str(tmp_path / "work")
+                ),
             )
 
 
@@ -1394,6 +1415,15 @@ def test_resume_seed_skips_restored_resident_events(
 def test_push_host_state_notifies_transcript_subscribers(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # FIXME(rasmus): stopgap. Resume validation (`_validate_resume_state`) now
+    # runs by default. This test calls the private `_push_host_state` helper
+    # directly with stub data (latest_committed_id=None, a single non-span
+    # event) — not a valid resume shape — so the validator rejects it ("no
+    # checkpoint span_begin events found"). The proper fix is to restructure
+    # this to exercise the public `checkpointer()` resume round-trip (real host
+    # restic, no Docker) so a real resume shape is produced and validation
+    # passes — then delete this. Until then, surgically disable validation.
+    monkeypatch.setenv("INSPECT_CHECKPOINT_VALIDATE_DISABLE", "1")
     restored = InfoEvent(uuid="restored", data="committed")
     fake_transcript = Transcript(bounded=False)
     subscriber_events: list[Event] = []
@@ -1527,6 +1557,13 @@ async def test_resume_seed_preserves_message_pool_positions(tmp_path: Path) -> N
 async def test_resume_materializes_pooled_model_event_and_seeds_transcript(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # FIXME(rasmus): stopgap — same issue as
+    # test_push_host_state_notifies_transcript_subscribers above. Calls private
+    # `_push_host_state` with stub data (latest_committed_id=None), so the
+    # now-default `_validate_resume_state` rejects the non-resume shape. Proper
+    # fix is a public-facade resume round-trip; surgically disable validation
+    # here until then.
+    monkeypatch.setenv("INSPECT_CHECKPOINT_VALIDATE_DISABLE", "1")
     msg_sys: ChatMessage = ChatMessageSystem(content="sys")
     msg_user: ChatMessage = ChatMessageUser(content="question")
     call_request = {"messages": [{"role": "user", "content": "question"}]}

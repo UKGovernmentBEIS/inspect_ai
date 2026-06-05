@@ -8789,9 +8789,34 @@
         "additionalProperties": true,
         "description": "Per-backup stats captured in the checkpoint file.\n\nOne per repo (host repo + one per active sandbox repo). Values come\nfrom restic's backup summary \u2014 see :class:`ResticBackupSummary`.",
         "properties": {
+          "additional_files": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Additional Files"
+          },
           "duration_ms": {
             "title": "Duration Ms",
             "type": "integer"
+          },
+          "files": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files"
           },
           "size_bytes": {
             "title": "Size Bytes",

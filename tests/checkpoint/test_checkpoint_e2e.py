@@ -30,7 +30,7 @@ from test_helpers.utils import skip_if_no_docker
 from inspect_ai import Task, eval, eval_retry, task
 from inspect_ai.agent import react
 from inspect_ai.dataset import Sample
-from inspect_ai.event import SpanBeginEvent, SpanEndEvent, ToolEvent
+from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent, ToolEvent
 from inspect_ai.event._checkpoint import CheckpointEvent
 from inspect_ai.log import read_eval_log
 from inspect_ai.log._samples import sample_active
@@ -48,12 +48,42 @@ from inspect_ai.util import CheckpointConfig, TurnInterval, store
 
 LAYER1_CONTENT = "plain1"
 STORE_KEY = "answer"
-RESUMED_KEY = "resumed"
+# Write under $HOME (not /workspace) so the default-user home-dir auto-backup
+# captures it — the task declares no `sandbox_paths`, exercising
+# `resolve_sandbox_backup_paths` / `_resolve_home_and_cache`. Also drop a file
+# under the XDG cache dir ($HOME/.cache) to prove auto-home mode excludes it.
 WRITE_CMD = (
-    "mkdir -p /workspace/decoded && "
-    f"printf '{LAYER1_CONTENT}' > /workspace/decoded/layer1.txt"
+    'mkdir -p "$HOME/workspace/decoded" "$HOME/.cache" && '
+    f"printf '{LAYER1_CONTENT}' > \"$HOME/workspace/decoded/layer1.txt\" && "
+    'printf cache > "$HOME/.cache/junk.txt"'
 )
+# Written on the post-resume turn so the ckpt-3 snapshot has a non-empty
+# diff vs its parent (ckpt-2) — used to assert file listing records the
+# *changed* file, not the unchanged `layer1.txt`.
+RESUME_WRITE_CMD = 'printf resumed > "$HOME/workspace/resumed.txt"'
 SCRIPTED_MODEL = "scripteddecode/model"
+
+
+def assert_spans_balanced(events: list[Event]) -> None:
+    """Assert the event stream's spans are well-formed (LIFO-nested).
+
+    Treats ``span_begin``/``span_end`` as brackets: every end must close
+    the innermost open span, and nothing may be left open at the end.
+    Presence/membership assertions can't catch an *additive* structural
+    corruption (extra unbalanced spans wrapped around otherwise-correct
+    content) — this can. See ``test_checkpoint_resume_spans_balanced``.
+    """
+    stack: list[str] = []
+    for e in events:
+        if isinstance(e, SpanBeginEvent):
+            stack.append(e.id)
+        elif isinstance(e, SpanEndEvent):
+            assert stack, f"span_end {e.id} with no open span"
+            top = stack.pop()
+            assert top == e.id, (
+                f"span_end {e.id} closes out of order; innermost open span is {top}"
+            )
+    assert not stack, f"{len(stack)} unclosed span(s): {stack}"
 
 
 class _ResumeState:
@@ -117,12 +147,13 @@ def cancel() -> Tool:
 #   turn 0: bash (write a sandbox file)          -> ckpt-1 fires next turn
 #   turn 1: remember (write the store)           -> ckpt-2 fires next turn
 #   turn 2: cancel (first attempt) ............... interrupt, then resume
-#           remember again (after resume)        -> ckpt-3 fires next turn
+#           bash (write a *new* sandbox file)    -> ckpt-3 fires next turn
 #   turn 3: submit
 #
-# The post-resume `remember` turn exists so a *new* checkpoint (ckpt-3) fires
-# during the retry — the trigger resets on resume, so a single submit turn
-# alone would commit nothing.
+# The post-resume bash turn exists so a *new* checkpoint (ckpt-3) fires during
+# the retry — the trigger resets on resume, so a single submit turn alone would
+# commit nothing. It writes a new file (not the one from turn 0) so ckpt-3's
+# diff-vs-parent file listing has a deterministic changed file to assert on.
 
 
 def _scripted_outputs(
@@ -142,9 +173,10 @@ def _scripted_outputs(
     if completed_tool_turns == 2 and not _resume_state.cancelled:
         return ModelOutput.for_tool_call(SCRIPTED_MODEL, "cancel", {})
     if completed_tool_turns == 2:
-        # post-resume turn: a second store write so ckpt-3 commits on retry
+        # post-resume turn: write a new sandbox file so ckpt-3 commits on
+        # retry with a non-empty diff vs its parent.
         return ModelOutput.for_tool_call(
-            SCRIPTED_MODEL, "remember", {"key": RESUMED_KEY, "value": LAYER1_CONTENT}
+            SCRIPTED_MODEL, "bash", {"command": RESUME_WRITE_CMD}
         )
     return ModelOutput.for_tool_call(
         SCRIPTED_MODEL, "submit", {"answer": LAYER1_CONTENT}
@@ -168,10 +200,13 @@ def resume_decode_task() -> Task:
         dataset=[Sample(id="resume", input="decode the layers", target=LAYER1_CONTENT)],
         solver=react(tools=[bash(timeout=60), remember(), cancel()]),
         scorer=includes(),
+        # Default sandbox image: its ~955 MB /root is mostly /root/.cache,
+        # which auto-home mode excludes — so the egress stays small without a
+        # custom small-home image, and this exercises that exclude for real.
         sandbox="docker",
         checkpoint=CheckpointConfig(
             trigger=TurnInterval(every=1),
-            sandbox_paths={"default": ["/workspace"]},
+            # No sandbox_paths: the default sandbox's $HOME is auto-captured.
             retention="retain",
         ),
     )
@@ -183,6 +218,10 @@ def test_checkpoint_resume_runs_to_completion(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
+    # Opt into per-snapshot file listing so the ckpt JSON records the
+    # sandbox file paths (exercises host-side `restic ls` on the egressed
+    # sandbox repo).
+    monkeypatch.setenv("INSPECT_CHECKPOINT_LIST_FILES", "1")
     _resume_state.cancelled = False
     _resume_state.generates = 0
 
@@ -204,8 +243,8 @@ def test_checkpoint_resume_runs_to_completion(
     assert sample.error is None
 
     # resume restored the prior conversation, so only the remaining turns ran
-    # (one more remember + submit = 2 generates; a fresh re-run would have
-    # redone bash + remember as well).
+    # (one bash + submit = 2 generates; a fresh re-run would have redone the
+    # turn-0 bash + turn-1 remember as well).
     assert _resume_state.generates == 2
 
     # the restored + completed run scored correct
@@ -260,3 +299,77 @@ def test_checkpoint_resume_runs_to_completion(
         if isinstance(e, CheckpointEvent) and not (begin_idx < i < end_idx)
     }
     assert new_checkpoint_ids == {3}
+
+    # File listing (opt-in) records each sandbox snapshot's added/changed
+    # files (diff vs parent), not the whole tree.
+    def _ckpt(checkpoint_id: int) -> CheckpointEvent:
+        return next(
+            e
+            for e in events
+            if isinstance(e, CheckpointEvent) and e.checkpoint_id == checkpoint_id
+        )
+
+    # ckpt-1 is the first sandbox snapshot (no parent) → full listing, which
+    # includes the turn-0 write but NOT the XDG cache dir (auto-home excludes
+    # $HOME/.cache).
+    ckpt1_files = _ckpt(1).sandboxes["default"].files
+    assert ckpt1_files is not None
+    assert any(p.endswith("workspace/decoded/layer1.txt") for p in ckpt1_files)
+    assert not any("/.cache/" in p for p in ckpt1_files)
+
+    # ckpt-3 diffs against its parent (ckpt-2): it lists the post-resume write
+    # but NOT the unchanged turn-0 file — proving it's a delta, not the tree.
+    ckpt3_details = _ckpt(3).sandboxes["default"]
+    assert ckpt3_details.files is not None
+    assert any(p.endswith("workspace/resumed.txt") for p in ckpt3_details.files)
+    assert not any(
+        p.endswith("workspace/decoded/layer1.txt") for p in ckpt3_details.files
+    )
+    assert ckpt3_details.additional_files is None
+
+
+@skip_if_no_docker
+@pytest.mark.slow
+@pytest.mark.xfail(
+    reason="resume rehydrates the prior run's still-open structural spans "
+    "(solvers/react, open at checkpoint-fire time) as raw span_begins with "
+    "no matching span_end, so the `prior_run` wrap closes out of order. "
+    "Regressed in #4062 (bounded transcript store dropped the "
+    "checkpoint-spans-only capture boundary). Remove xfail once the "
+    "rehydrated wrap is span-balanced again.",
+    strict=True,
+)
+def test_checkpoint_resume_spans_balanced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The resumed run's committed transcript must be span-balanced.
+
+    Same cancel-then-retry flow as
+    ``test_checkpoint_resume_runs_to_completion``, but asserts structural
+    well-formedness of the event stream rather than content presence — the
+    one check that catches the rehydration regression.
+    """
+    monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
+    _resume_state.cancelled = False
+    _resume_state.generates = 0
+
+    log_dir = str(tmp_path / "logs")
+
+    # initial attempt: cancels mid-run after checkpoints commit
+    log = eval(resume_decode_task(), model=SCRIPTED_MODEL, log_dir=log_dir)[0]
+    assert log.status == "error"
+
+    # the cancelled run's own transcript closes its spans on interrupt unwind
+    initial = read_eval_log(log.location)
+    assert initial.samples is not None
+    assert_spans_balanced(initial.samples[0].events)
+
+    # retry: resume from checkpoint and run to completion
+    retry_log = eval_retry(log, log_dir=log_dir)[0]
+    assert retry_log.status == "success"
+
+    # the rehydrated `prior_run` wrap must be a self-contained, balanced
+    # subtree — not closed while restored structural spans are still open
+    completed = read_eval_log(retry_log.location)
+    assert completed.samples is not None
+    assert_spans_balanced(completed.samples[0].events)

@@ -239,6 +239,11 @@ class NoOpAcpTransport:
         return None
 
     @property
+    def is_interactive(self) -> bool:
+        """No-op sessions are never interactive (no turn loop to drive)."""
+        return False
+
+    @property
     def is_attachable(self) -> bool:
         """No-op sessions are never attachable."""
         return False

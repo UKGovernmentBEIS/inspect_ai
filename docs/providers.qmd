@@ -145,6 +145,59 @@ inspect eval math.py --model openai/azure/gpt-4o-mini
 
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
 
+### OpenAI on AWS Bedrock {#openai-on-aws-bedrock}
+
+::: {.callout-note appearance="simple"}
+OpenAI models on Amazon Bedrock require the development version of Inspect. You can install the development version from GitHub with:
+
+```bash
+pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
+```
+:::
+
+The `openai` provider supports OpenAI models served through [Amazon Bedrock](https://aws.amazon.com/bedrock/). Use the normal `openai` provider with the `bedrock` qualifier, and use a standard OpenAI model identifier (Inspect automatically adds prefixes and suffixes required by Bedrock). For example:
+
+``` bash
+export AWS_BEARER_TOKEN_BEDROCK=your-bedrock-api-key
+inspect eval arc.py --model openai/bedrock/gpt-5.5
+```
+
+You don't need to set a region for the example above — Inspect defaults to `us-east-2`. The available model ids (e.g. `gpt-5.5`, `gpt-oss-120b`) and the regions they're offered in vary over time and by account; the [`bedrock-mantle` documentation](https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html) lists the supported regions.
+
+#### Region
+
+The AWS region is resolved with the following precedence: the `aws_region` model arg (`-M aws_region`), then `AWS_REGION`, then `AWS_DEFAULT_REGION`, and finally a default of `us-east-2`. Region availability varies by model (for example, at the time of writing `gpt-5.5` is only offered in `us-east-2`. Note that Bedrock API keys are region-bound (a key only works in the region it was created in).
+
+If your environment sets a global `AWS_REGION` for other AWS services, you can target a specific region for this model only — without changing that global — using the model arg:
+
+``` bash
+inspect eval arc.py --model openai/bedrock/gpt-5.5 -M aws_region=us-east-2
+```
+
+#### Authentication
+
+Authentication uses an AWS Bedrock bearer token. There are two ways to provide one:
+
+| Variable | Description |
+|---------------------------|---------------------------------------------|
+| `AWS_BEARER_TOKEN_BEDROCK` | Bedrock bearer API key — the AWS-standard name, as used in the AWS and OpenAI documentation. |
+| `BEDROCK_OPENAI_API_KEY` | Bedrock bearer API key — Inspect-convention alias (takes precedence if both are set). |
+| `BEDROCK_OPENAI_BASE_URL` | Custom endpoint override (optional; the AWS-standard `AWS_BEDROCK_BASE_URL` is also accepted). By default Inspect targets the region's Mantle endpoint, choosing the model-appropriate path automatically (`/openai/v1` for frontier models like GPT-5.x and Codex, `/v1` for open-weight models like gpt-oss). |
+| `AWS_REGION` / `AWS_DEFAULT_REGION` | AWS region (optional; defaults to `us-east-2`). |
+
+The first option is a static bearer key. Generate an [Amazon Bedrock API key](https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html) and set it via `AWS_BEARER_TOKEN_BEDROCK` (the name used in the AWS and OpenAI docs; Inspect also accepts `BEDROCK_OPENAI_API_KEY`).
+
+The second option uses your standard AWS credentials (IAM roles, instance profiles, SSO, AssumeRole, `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`, or a configured `AWS_PROFILE`). If no bearer key is set, Inspect generates short-lived bearer tokens from these credentials. This requires the `aws-bedrock-token-generator` package:
+
+``` bash
+pip install aws-bedrock-token-generator
+export AWS_PROFILE=your-profile           # or any standard AWS credential source
+inspect eval arc.py --model openai/bedrock/gpt-5.5
+```
+
+If the package is not installed and no bearer key is available, Inspect raises an error explaining how to proceed.
+
+
 ## Anthropic {#anthropic}
 
 To use the [Anthropic](https://www.anthropic.com/api) provider, install the `anthropic` package, set your credentials, and specify a model using the `--model` option:
@@ -440,7 +493,7 @@ Note that all models on AWS Bedrock require that you [request model access](http
 
 You should be also sure that you have the appropriate AWS credentials before accessing models on Bedrock. You aren't likely to need to, but you can also specify a custom base URL for AWS Bedrock using the `BEDROCK_BASE_URL` environment variable.
 
-If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access.
+If you are using Anthropic models on Bedrock, you can alternatively use the [Anthropic provider](#anthropic-on-aws-bedrock) as your means of access. If you are using OpenAI models on Bedrock, access them via the `openai` provider with the `bedrock` qualifier — see [OpenAI on AWS Bedrock](#openai-on-aws-bedrock).
 
 ## AWS SageMaker {#aws-sagemaker}
 
@@ -1379,4 +1432,4 @@ inspect eval arc.py --model hf-inference-providers/openai/gpt-oss-120b -M stream
 
 ## Custom Models
 
-If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions.qmd#sec-model-api-extensions) for additional details.
+If you want to support another model hosting service or local model source, you can add a custom model API. See the documentation on [Model API Extensions](extensions-model-api.qmd#sec-model-api-extensions) for additional details.

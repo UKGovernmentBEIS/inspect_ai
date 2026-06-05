@@ -80,13 +80,16 @@ async def run_sandbox_backup(
     password: str,
     paths: list[str],
     tag: str,
+    exclude: list[str] | None = None,
 ) -> ResticBackupSummary:
     """Run ``restic backup`` inside the sandbox; return the parsed summary.
 
     ``--compression max`` (zstd level 22) for parity with the host
     backup. Mixed sandbox content (text, configs, sometimes binaries)
     benefits less than pure JSON, but the per-cycle CPU cost is small
-    relative to the network/IO savings on the egress path.
+    relative to the network/IO savings on the egress path. ``exclude``
+    paths become ``--exclude`` patterns (used to drop the XDG cache dir
+    in auto-home mode); a pattern matching nothing is a harmless no-op.
     """
     cmd = [
         _SANDBOX_RESTIC_PATH,
@@ -94,6 +97,7 @@ async def run_sandbox_backup(
         _SANDBOX_RESTIC_REPO,
         "backup",
         *paths,
+        *[arg for path in (exclude or []) for arg in ("--exclude", path)],
         "--compression",
         "max",
         "--tag",

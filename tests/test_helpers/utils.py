@@ -216,6 +216,20 @@ def skip_if_no_openai_azure(func):
     )(func)
 
 
+def skip_if_no_openai_bedrock(func):
+    func._needs_flaky_retry = True
+    return pytest.mark.api(
+        pytest.mark.skipif(
+            importlib.util.find_spec("openai") is None
+            or (
+                os.environ.get("BEDROCK_OPENAI_API_KEY") is None
+                and os.environ.get("AWS_BEARER_TOKEN_BEDROCK") is None
+            ),
+            reason="Test requires the OpenAI package and a Bedrock bearer key (BEDROCK_OPENAI_API_KEY or AWS_BEARER_TOKEN_BEDROCK)",
+        )(func)
+    )
+
+
 def skip_if_no_mistral_azure(func):
     func._needs_flaky_retry = True
     return pytest.mark.skipif(
