@@ -1,15 +1,16 @@
-"""Importable harness for the checkpoint resume-after-hard-kill e2e test.
+"""Harness for the checkpoint resume-after-hard-kill e2e test.
 
-Lives in ``test_helpers`` (not the test file) so it can be both imported by
-the test — registering the ``@task`` / ``@modelapi`` so the final in-process
-resume works, and exposing shared constants — and run as a **subprocess**::
+Lives alongside the e2e test in ``tests/checkpoint/`` and serves two roles:
 
-    python -c "from test_helpers.checkpoint_resume_kill import main; main()" <log_dir> [<retry_from>]
+1. **Importable** by the test — registering the ``@task`` / ``@modelapi`` so
+   the final in-process resume works, and exposing shared constants.
+2. **Runnable as a script** by the test for each killed attempt::
+
+       python resume_kill_harness.py <log_dir> [<retry_from>]
 
 Running the killed attempts in child processes is what lets the test issue a
 *real* ``SIGKILL`` of the eval without taking down pytest. The ``crash`` tool
-``os.kill``s its own (child) process at the same point the cooperative
-``cancel`` tool used to ``interrupt`` — abruptly, with no graceful unwind, no
+``os.kill``s its own (child) process — abruptly, with no graceful unwind, no
 ``finally``, no log finalize — exercising recovery from an unanticipated death
 (power loss / OOM / preemption), which is the whole point of checkpointing.
 

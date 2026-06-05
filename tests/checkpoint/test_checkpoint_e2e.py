@@ -10,7 +10,7 @@ the point of checkpointing.
 
 Because a real ``SIGKILL`` can't kill the pytest process and let it continue,
 each killed attempt runs in a **child process** (the harness in
-``test_helpers/checkpoint_resume_kill.py``, run via ``python -c``); the
+``tests/checkpoint/resume_kill_harness.py``, run as a script); the
 ``crash`` tool kills that child. ``test_checkpoint_resume_rehydrated_event_layout``
 kills a fresh attempt (after ck1/ck2 commit), resumes and kills again (after
 ck3), then resumes a final time *in-process* to completion. It checks, via
@@ -31,22 +31,21 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import signal
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-from test_helpers.checkpoint_resume_kill import (
+from test_helpers.utils import skip_if_no_docker
+
+from checkpoint.resume_kill_harness import (
     CANCEL_FILE_ENV,
     LAYER1_CONTENT,
     TARGET_ENV,
     generates,
     reset_generates,
 )
-from test_helpers.utils import skip_if_no_docker
-
 from inspect_ai import eval_retry
 from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent, ToolEvent
 from inspect_ai.event._checkpoint import CheckpointEvent
@@ -93,19 +92,13 @@ def _run_killed_attempt(log_dir: str, retry_from: str | None, tests_dir: Path) -
     """
     env = {
         **os.environ,
-        # the child needs `tests/` on the path to import `test_helpers`
         "PYTHONPATH": os.pathsep.join(
             p for p in (str(tests_dir), os.environ.get("PYTHONPATH", "")) if p
         ),
     }
+    harness = str(tests_dir / "checkpoint" / "resume_kill_harness.py")
     proc = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            "from test_helpers.checkpoint_resume_kill import main; main()",
-            log_dir,
-            retry_from or "",
-        ],
+        [sys.executable, harness, log_dir, retry_from or ""],
         env=env,
         timeout=600,
     )
@@ -113,13 +106,6 @@ def _run_killed_attempt(log_dir: str, retry_from: str | None, tests_dir: Path) -
         f"expected the child to die by SIGKILL (-{signal.SIGKILL}); "
         f"got returncode {proc.returncode}"
     )
-    # The hard kill orphans the realtime-view sample buffer (`<log_dir>/.buffer`,
-    # a streaming UI cache distinct from the durable .eval log + checkpoints).
-    # inspect only auto-prunes buffers of *finished* evals, so this killed
-    # ("started") one lingers and its stale recovery data shadows checkpoint
-    # resume on the next attempt. A real crash-recovery orchestrator restores
-    # from the log + checkpoints, not this cache, so drop it before resuming.
-    shutil.rmtree(Path(log_dir) / ".buffer", ignore_errors=True)
 
 
 def _inspect_projects() -> set[str]:
@@ -167,12 +153,6 @@ def test_checkpoint_resume_rehydrated_event_layout(
 
     log_dir = str(tmp_path / "logs")
     tests_dir = Path(__file__).parent.parent
-
-    # This test is auto-wrapped in flaky_retry (docker), which re-invokes it
-    # with the *same* tmp_path. Reset the per-run state so a retry starts clean
-    # (a stale crash count would make the fresh attempt never crash).
-    shutil.rmtree(tmp_path / "logs", ignore_errors=True)
-    (tmp_path / "cancels.txt").unlink(missing_ok=True)
 
     # A hard kill skips sandbox teardown, so each killed attempt leaks its
     # sandbox container. Track inspect projects before/after and force-remove
