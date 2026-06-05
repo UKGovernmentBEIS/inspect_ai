@@ -21,9 +21,9 @@ First we'll talk about the core `Score` and `Value` objects, then provide some e
 Note that `score` above is declared as an `async` function. When creating custom scorers, it's critical that you understand Inspect's concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](parallelism.qmd#sec-parallel-solvers-and-scorers) before proceeding.
 :::
 
-## A Complete Example
+## Example
 
-Here is a complete, runnable custom scorer. It extracts the last number from the model's output and marks the sample correct when that number falls within a relative tolerance of the `target`. Note how it registers metrics with `@scorer`, reads the model output from `state`, compares against `target.text`, and returns a `Score` carrying an `answer` and `explanation`:
+This scorer extracts the last number from the model's output and marks the sample correct when it falls within a relative tolerance of the `target`. It registers metrics with `@scorer`, reads the model output from `state`, compares against `target.text`, and returns a `Score` with an `answer` and `explanation`:
 
 ``` python
 import re
@@ -78,7 +78,7 @@ Run it with `inspect eval` like any other task:
 inspect eval arithmetic.py --model openai/gpt-4o
 ```
 
-The remainder of this page breaks down the pieces this example relies on.
+The sections below describe the pieces this example relies on.
 
 ## Score
 
@@ -254,7 +254,7 @@ def model_graded_qa(
     return score
 ```
 
-Note that the call to `model_grader.generate()` is done with `await`—this is critical to ensure that the scorer participates correctly in the scheduling of generation work.
+Note that the call to `model_grader.generate()` is done with `await`. This is critical to ensure that the scorer participates correctly in the scheduling of generation work.
 
 Note also we use the `input_text` property of the `TaskState` to access a string version of the original user input to substitute it into the grading template. Using the `input_text` has two benefits: (1) It is guaranteed to cover the original input from the dataset (rather than a transformed prompt in `messages`); and (2) It normalises the input to a string (as it could have been a message list).
 

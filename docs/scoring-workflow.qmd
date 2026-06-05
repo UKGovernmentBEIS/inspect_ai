@@ -69,7 +69,7 @@ When rescoring a previously scored log file you have two options:
 You can choose which mode to use based on whether you want to preserve or discard the previous scoring data.
 
 ::: {.callout-note appearance="simple"}
-When using append mode, the new scorer uses its own metrics independently—the original eval's metric configuration is not applied to the appended scorer. This means append works even when the original eval used metrics from packages that are not available in the current environment.
+When using append mode, the new scorer uses its own metrics independently; the original eval's metric configuration is not applied to the appended scorer. This means append works even when the original eval used metrics from packages that are not available in the current environment.
 :::
 
 To control this, use the `--action` arg:
@@ -129,4 +129,4 @@ for model, scored_log in zip(grader_models, scoring_logs):
 
 ## Editing Scores
 
-You may need to modify the results—for example, correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails. Learn more about modifying scores in [Editing Logs](eval-logs.qmd#sec-eval-log-modification).
+You may need to modify the results, for example correcting scoring errors or adjusting sample scores based on manual review. Inspect provides functions for modifying logs while maintaining data integrity and audit trails. Learn more about modifying scores in [Editing Logs](eval-logs.qmd#sec-eval-log-modification).

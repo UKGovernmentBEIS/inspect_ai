@@ -29,7 +29,7 @@ metrics=[accuracy(), stderr(), custom_metric()]
 
 ## Built-In Metrics
 
-Inspect includes some simple built in metrics for calculating accuracy, mean, etc. Built in metrics can be imported from the `inspect_ai.scorer` module. Below is a summary of these metrics—see the [`inspect_ai.scorer`](reference/inspect_ai.scorer.qmd) reference for complete function signatures and options.
+Inspect includes some simple built in metrics for calculating accuracy, mean, etc. Built in metrics can be imported from the `inspect_ai.scorer` module. Below is a summary of these metrics. See the [`inspect_ai.scorer`](reference/inspect_ai.scorer.qmd) reference for complete function signatures and options.
 
 -   `accuracy()`
 
@@ -138,9 +138,9 @@ def mean() -> Metric:
 
 Note that the `Score` class contains a `Value` that is a union over several scalar and collection types. As a convenience, `Score` includes a set of accessor methods to treat the value as a simpler form (e.g. above we use the `score.as_float()` accessor).
 
-## A Complete Example
+## Example
 
-This task pairs a float-valued scorer with a custom `pass_rate()` metric—the fraction of samples scoring at or above a threshold—reported alongside the built-in `mean()` and `stderr()`:
+This task pairs a float-valued scorer with a custom `pass_rate()` metric (the fraction of samples scoring at or above a threshold), reported alongside the built-in `mean()` and `stderr()`:
 
 ``` python
 from inspect_ai import Task, task

@@ -17,7 +17,7 @@ Scorers evaluate whether solvers were successful in finding the right `output` f
 
 Scorers also define one or more metrics which are used to aggregate scores (e.g. `accuracy()` which computes what percentage of scores are correct, or `mean()` which provides an average for scores that exist on a continuum).
 
-This page covers the built-in scorers that ship with Inspect. For everything beyond them—writing your own scorers, defining and customising metrics, combining multiple scorers, and the offline scoring workflow—see the [Scoring](scoring.qmd) section.
+This page covers the built-in scorers that ship with Inspect. The [Scoring](scoring.qmd) section covers everything else: writing your own scorers, defining and customising metrics, combining multiple scorers, and the offline scoring workflow.
 
 {{< include _builtin-scorers.md >}}
 
@@ -25,14 +25,14 @@ This page covers the built-in scorers that ship with Inspect. For everything bey
 
 The [Scoring](scoring.qmd) section covers the rest of the scoring system in depth:
 
--   [Custom Scorers](custom-scorers.qmd) — write your own scorers using the `Score`, `Value`, and `Target` types.
+-   [Custom Scorers](custom-scorers.qmd): write your own scorers using the `Score`, `Value`, and `Target` types.
 
--   [Model Grading](model-graded.qmd) — customise the model graders, use multiple grader models, and present chat history.
+-   [Model Grading](model-graded.qmd): customise the model graders, use multiple grader models, and present chat history.
 
--   [Multiple Scorers](multiple-scorers.qmd) — use several scorers together, emit multiple scores, and reduce them.
+-   [Multiple Scorers](multiple-scorers.qmd): use several scorers together, emit multiple scores, and reduce them.
 
--   [Scoring Workflow](scoring-workflow.qmd) — defer scoring, re-score logs with `inspect score`, and edit scores.
+-   [Scoring Workflow](scoring-workflow.qmd): defer scoring, re-score logs with `inspect score`, and edit scores.
 
--   [Perplexity](perplexity.qmd) — score how well a model predicts text using prompt log probabilities.
+-   [Perplexity](perplexity.qmd): score how well a model predicts text using prompt log probabilities.
 
-You can also customise how scores are displayed in the log viewer—see [Task Views](task-views.qmd).
+You can also customise how scores are displayed in the log viewer. See [Task Views](task-views.qmd).

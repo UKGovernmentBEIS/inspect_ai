@@ -1,6 +1,6 @@
 ---
 title: Perplexity
-llms-description: Perplexity-based scorers—perplexity() and target_perplexity()—for evaluating how well a model predicts text using prompt log probabilities.
+llms-description: Perplexity-based scorers (perplexity() and target_perplexity()) for evaluating how well a model predicts text using prompt log probabilities.
 ---
 
 ## Overview
@@ -13,8 +13,8 @@ Inspect includes two perplexity-based scorers for evaluating how well a model pr
 
 Both scorers provide two built-in metrics:
 
--   `perplexity_per_token()` — standard corpus-level perplexity weighted by token count. Longer samples contribute proportionally more.
--   `perplexity_per_seq()` — equal weight per sample regardless of length (geometric mean of per-sample perplexities).
+-   `perplexity_per_token()`: standard corpus-level perplexity weighted by token count. Longer samples contribute proportionally more.
+-   `perplexity_per_seq()`: equal weight per sample regardless of length (geometric mean of per-sample perplexities).
 
 ## Model Provider
 

@@ -12,9 +12,9 @@ There are several ways to use multiple scorers in an evaluation:
 2.  You can yield multiple scores from a `Scorer` (this is the best option when scores share code and/or expensive computations).
 3.  You can use multiple scorers and then aggregate them into a single scorer (e.g. majority voting).
 
-## A Complete Example
+## Example
 
-A single scorer can return several named scores at once—useful when the scores share work or a model call. The scorer below returns both whether the `target` appears in the output and whether the response stayed within a word budget, attaching metrics per score key:
+A single scorer can return several named scores at once, which is useful when the scores share work or a model call. The scorer below returns both whether the `target` appears in the output and whether the response stayed within a word budget, attaching metrics per score key:
 
 ``` python
 from inspect_ai import Task, task
@@ -49,7 +49,7 @@ def capitals():
     )
 ```
 
-This produces two scores per sample—`correct` and `concise`—each aggregated by its own metrics. The sections below break down the individual patterns for combining scorers and scores.
+This produces two scores per sample, `correct` and `concise`, each aggregated by its own metrics. The sections below cover the individual patterns for combining scorers and scores.
 
 ## List of Scorers
 
@@ -100,8 +100,8 @@ task = Task(
 )
 ```
 
-1.  The metrics for this scorer are a dictionary—this defines metrics to be applied to scores (by name).
-2.  The score value itself is a dictionary—the keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
+1.  The metrics for this scorer are a dictionary that defines metrics to be applied to scores (by name).
+2.  The score value itself is a dictionary, with keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
 
 The above example will produce two scores, `a_count` and `e_count`, each of which will have metrics for `mean` and `stderr`.
 
@@ -167,8 +167,8 @@ task = Task(
 )
 ```
 
-1.  The metrics for this scorer are a list, one element is a dictionary—this defines metrics to be applied to scores (by name), the other element is a Metric which will receive the entire score dictionary.
-2.  The score value itself is a dictionary—the keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
+1.  The metrics for this scorer are a list. One element is a dictionary that defines metrics to be applied to scores (by name); the other element is a Metric which will receive the entire score dictionary.
+2.  The score value itself is a dictionary, with keys corresponding to the keys defined in the metrics on the `@scorer` decorator.
 3.  The `total_count` metric will compute a metric based upon the entire score dictionary (since it isn't being mapped onto the dictionary by key)
 
 ## Reducing Multiple Scores
