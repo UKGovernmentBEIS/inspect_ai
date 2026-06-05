@@ -333,26 +333,22 @@ class TaskLogger:
         *,
         exclude_fields: set[str] | None = None,
     ) -> EvalSample | None:
-        """A full sample for the control channel — gap-free (recorder, then disk).
-
-        The whole-sample counterpart to :meth:`sample_summaries`, handed to the
-        control channel via ``register_eval`` so per-sample reads (error detail,
-        event pages) source from the *same* place the samples listing does:
-        the recorder's not-yet-flushed in-memory sample, falling back to the
-        finalized on-disk log once it's flushed / the recorder is torn down.
-        Without this, those reads saw only the on-disk log and so couldn't find
-        a just-completed (or reused-on-retry) sample the listing already showed.
-
-        ``exclude_fields`` is applied only to the on-disk read (the in-memory
-        sample is already resident — returning it whole costs nothing). Returns
-        ``None`` when the sample is in neither source.
-        """
+        """Read one full sample (recorder buffer, then on-disk log), or None."""
+        # The whole-sample counterpart to `sample_summaries`, handed to the
+        # control channel via `register_eval` so per-sample reads (error detail,
+        # event pages) source from the *same* place the samples listing does.
+        # Prefer the recorder's not-yet-flushed in-memory sample, falling back
+        # to the finalized on-disk log once it's flushed / the recorder is torn
+        # down — otherwise those reads see only the on-disk log and miss a
+        # just-completed (or reused-on-retry) sample the listing already shows.
         buffered = await self.recorder.buffered_sample(self.eval, id, epoch)
         if buffered is not None:
             return buffered
 
         from inspect_ai.log._file import read_eval_log_sample_async
 
+        # `exclude_fields` applies only here: the in-memory sample above is
+        # already resident, so returning it whole costs nothing.
         try:
             return await read_eval_log_sample_async(
                 self.location, id, epoch, exclude_fields=exclude_fields

@@ -8,7 +8,7 @@ This is **separate from** the [`agent-acp`](acp/agent-acp.md) work, even though 
 
 The rudimentary control surface that fell out of the ACP work (per-sample cancellation, socket discovery via `--acp-server`) is a useful precedent but not the foundation — the control channel deserves its own protocol choice.
 
-> **Status (phase 1 shipped).** The read surface and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` / `GET /evals/<id>/sample` read endpoints, `POST /release`, the `inspect ctl ls` / `samples` / `sample` / `errors` / `release` commands, and `--keep-alive`. **Phase 2** adds the cursored-pull per-sample transcript `events` API plus a recency-delta filter on `samples`; **phase 3** adds the state-mutating directives (cancel / drain / requeue / modify-limits); **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
+> **Status (phases 1–2 shipped).** The read surface, per-sample events, and process keep-alive are implemented: the embedded FastAPI server on AF_UNIX, discovery, the `GET /evals` / `GET /evals/<id>/samples` (with an `active_since` recency delta) / `GET /evals/<id>/sample` / `GET /evals/<id>/sample/events` read endpoints, `POST /release`, the `inspect ctl ls` / `samples` / `sample` / `errors` / `events` / `release` commands, and `--keep-alive`. **Phase 2** added the cursored-pull per-sample transcript `events` API plus the recency-delta filter on `samples`. **Phase 3** adds the state-mutating directives (cancel / drain / requeue / modify-limits); **phase 4** adds the push (SSE / `--follow`) shape, including the eval-wide fan-in. Much of the prose below describes the full target surface — see [Implementation](#implementation) for what's built vs planned, which is the source of truth for phasing.
 
 ## Goals
 
@@ -68,18 +68,20 @@ Same surface as scenario 1 — either via the CLI (Bash from a shell script) or 
 
 ### 3. CLI commands to cancel or modify a running eval
 
-Single-purpose human-driven CLI commands, all under the `inspect ctl` subcommand (see "CLI grouping" below). Phase-1 commands are shipped; the rest land with their phases (events → phase 2, the directives → phase 3):
+Single-purpose human-driven CLI commands, all under the `inspect ctl` subcommand (see "CLI grouping" below). Phase-1 and phase-2 commands are shipped; the rest land with their phases (the directives → phase 3):
 
 ```
 # phase 1 (shipped)
 inspect ctl ls                              # list running evals
-inspect ctl samples [TASK]                  # per-sample table (status / retries / score / timing)
+inspect ctl samples [TASK] [--active-since TS]  # per-sample table (status / retries / score / timing / idle)
 inspect ctl sample TASK SID [EPOCH] [-t]    # one sample's error history (--traceback for full)
 inspect ctl errors [TASK]                   # triage: samples that errored or were retried
 inspect ctl release [--pid PID]            # release a lingering --keep-alive process
 
-# phase 2 (events)
-inspect ctl events TASK [SID [EPOCH]]       # lifecycle (eval) or transcript (sample) events; --since / -f
+# phase 2 (shipped)
+inspect ctl events TASK SID [EPOCH]         # one sample's transcript events (cursored pull)
+                                            #   --since CURSOR / --tail N / --type / --full / --since-time / --until
+                                            #   (-f / --follow push is phase 4)
 
 # phase 3 (directives)
 inspect ctl cancel <eval-id> [--force]      # cancel an eval (current sample drains; scoring runs)
@@ -134,7 +136,7 @@ Concentrated in `src/inspect_ai/agent/_acp/` and detailed in [`agent-acp.md`](ac
 | `inspect/event` (opt-in) | Raw transcript event firehose, per sample |
 | `session/prompt`, `session/cancel`, `session/request_permission` | Per-sample ACP interaction — message the agent, interrupt it, answer approval requests |
 
-**What was missing (the gap this work fills).** Everything ACP provides is *per-sample*; before the control channel there was nothing at the eval or eval-set layer. Operations like "cancel the eval", "list eval-set state", "modify the eval's per-sample limit" didn't exist. Discovery was per-eval. The TUI ran in-process. CLI surface was limited to `inspect acp [--stdio]` (the editor bridge). Phase 1 (shipped) now provides the eval-level **read** layer (`inspect ctl ls` / `samples` / `sample` / `errors`, the `control/` discovery dir, eval-level `EvalState`); the eval-level **direct** operations and eval-set-level surface remain future work (phases 3 / later).
+**What was missing (the gap this work fills).** Everything ACP provides is *per-sample*; before the control channel there was nothing at the eval or eval-set layer. Operations like "cancel the eval", "list eval-set state", "modify the eval's per-sample limit" didn't exist. Discovery was per-eval. The TUI ran in-process. CLI surface was limited to `inspect acp [--stdio]` (the editor bridge). Phases 1–2 (shipped) now provide the eval-level **read** layer (`inspect ctl ls` / `samples` / `sample` / `errors` / `events`, the `control/` discovery dir, eval-level `EvalState`, and the cursored per-sample transcript `events` pull); the eval-level **direct** operations and eval-set-level surface remain future work (phases 3 / later).
 
 **What's reusable.** Even though ACP isn't the right shape for the control channel, the *plumbing* developed for it is:
 
@@ -215,7 +217,7 @@ This endpoint is **separate from** both the existing ACP socket (`<inspect_data_
 
 ### Endpoint table
 
-Phase annotations reflect the [Implementation](#implementation) plan; phase 1 is built.
+Phase annotations reflect the [Implementation](#implementation) plan; phases 1–2 are built.
 
 | Operation | Endpoint | Phase |
 |---|---|---|
@@ -223,8 +225,8 @@ Phase annotations reflect the [Implementation](#implementation) plan; phase 1 is
 | List samples (running + completed + pending) | `GET /evals/<id>/samples` | 1 ✅ |
 | Sample error detail | `GET /evals/<id>/sample?sample_id=<sid>&epoch=<n>` | 1 ✅ |
 | Release a `--keep-alive` park | `POST /release` | 1 ✅ |
-| Samples changed since (recency delta) | `GET /evals/<id>/samples?active_since=<ts>` | 2 |
-| Sample transcript events (pull) | `GET /evals/<id>/samples/<sid>/events?since=<cursor>&epoch=<n>` (JSON) | 2 |
+| Samples changed since (recency delta) | `GET /evals/<id>/samples?active_since=<ts>` | 2 ✅ |
+| Sample transcript events (pull) | `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>&since=<cursor>` (JSON) | 2 ✅ |
 | Sample transcript events (push) | `GET /evals/<id>/samples/<sid>/events` (SSE) | 4 |
 | Eval-wide transcript fan-in (push only) | `GET /evals/<id>/samples/events` (SSE) | 4 |
 | Cancel eval | `POST /evals/<id>/cancel` | 3 |
@@ -283,7 +285,7 @@ What's missing for the eval-set scenarios:
 
 The one true *stream* is **per-sample transcript events** — fine-grained, sample-scoped, high-volume: the firehose of `model` / `tool` / `error` / `score` / … events sourced from a sample's `Transcript` (the same live subscription the ACP raw-event extension uses — see [Phase 2](#phase-2--per-sample-events--samples-deltas)). It's the one thing polling can't reconstruct, so it gets a real subscription, in two shapes by phase:
 
-- **Pull (cursored) for agent clients** — *phase 2*: `GET /evals/<id>/samples/<sid>/events?since=<cursor>`, returning a page plus a `next` cursor. Agent runtimes are request/response loops; SSE is awkward from a Bash tool call.
+- **Pull (cursored) for agent clients** — *phase 2 (shipped)*: `GET /evals/<id>/sample/events?sample_id=<sid>&since=<cursor>`, returning a page plus a `next` cursor. Agent runtimes are request/response loops; SSE is awkward from a Bash tool call.
 - **Push (SSE) for TUIs and long-lived clients** — *phase 4*: the same URL with `Accept: text/event-stream`, reusing the phase-2 cursor (stamped per event) for resumable reconnect.
 
 **Eval-*level* monitoring does not need its own event stream.** Current state — which samples are running / done / errored, what's stalled (`last_activity_at`), retry history, whether the eval finished — is already a poll of the phase-1 reads (`ls`, `samples`, `errors` / `sample`). The only thing a poll lacks is a cheap *delta*, which a recency filter on `samples` supplies (`?active_since=<ts>` — "samples started or updated since T"; see Phase 2). An *ordered* eval-level transition log (every intermediate state, in order) is an audit / replay / TUI need, not an agent-monitoring one — deferred to [later](#later-beyond-phase-4).
@@ -517,7 +519,7 @@ The graceful-fallback policy means worst-case is "test logs have warning lines";
 
 ## Implementation
 
-Three phases, with HTTP/H1 as the chosen wire. **Phase 1 (read surface + keep-alive) is implemented**; phases 2 (events) and 3 (modification) are planned.
+Phased delivery, with HTTP/H1 as the chosen wire. **Phases 1 (read surface + keep-alive) and 2 (per-sample events + `samples` deltas) are implemented**; phase 3 (modification) and phase 4 (push / SSE) are planned.
 
 ### Phase 1 — read surface + keep-alive (done)
 
@@ -534,11 +536,11 @@ The always-on read surface plus the process-lifecycle plumbing agents need. Give
 - **Retry + cancellation surfacing.** Sample retry counts — both sample-level `retry_on_error` and task-level retries (the latter seeded onto the re-run via the sample source, and carried across attempts that tear a sample down before it re-runs) — appear in `samples`; prior-attempt errors in `sample` / `errors`. A cancellation (a sibling failure tore the attempt down) is **not** a genuine error: it renders as `pending` when a retry will re-run the sample, `cancelled` when terminal — never `error`. This avoids the misleading "all samples error" snapshot during a retry teardown.
 - **`--keep-alive`** on `inspect eval` / `inspect eval-set` (see Implementation notes).
 
-### Phase 2 — per-sample events + `samples` deltas
+### Phase 2 — per-sample events + `samples` deltas (done)
 
 Two additions, both **cursored-pull** (push / `--follow` is deferred to [phase 4](#phase-4--push-sse) — pull is the agent-primary shape, needs no streaming infrastructure, and the cursor designed here is exactly what phase-4 push reuses):
 
-- **Per-sample transcript `events`** — `GET /evals/<id>/samples/<sid>/events`. The firehose of `model` / `tool` / `error` / `score` / … events for one running sample. This is the genuine stream — the one thing polling the reads can't reconstruct.
+- **Per-sample transcript `events`** — `GET /evals/<id>/sample/events?sample_id=<sid>&epoch=<n>` (`sample_id` a query param, as in `sample`, so ids with reserved chars address correctly). The firehose of `model` / `tool` / `error` / `score` / … events for one running sample. This is the genuine stream — the one thing polling the reads can't reconstruct.
 - **A recency delta on `samples`** — `GET /evals/<id>/samples?active_since=<ts>`. "Samples started or updated since T," so a monitoring agent gets *what changed* in one read without diffing snapshots client-side. This subsumes what a separate eval-level "lifecycle updates" stream would have provided (see below).
 
 There is deliberately **no** eval-level lifecycle event stream. Eval-level current state is already a poll of the phase-1 reads (`ls` counts + status, `samples` status + `last_activity_at`, `errors` / `sample` retry history); the `samples` recency delta covers the "what changed" gap. An *ordered* eval-level transition log is an audit / replay / TUI concern, deferred to [later](#later-beyond-phase-4) — see "Why no lifecycle stream" below.
@@ -568,7 +570,7 @@ A cursor's one job is exactly-once incremental resume, so it must be a monotonic
 - **Not a uuid** — locating an event by uuid is an O(n) scan, and once an event is evicted (bounded transcripts) you can't compute how far behind you are. The index makes "how many did I miss" arithmetic.
 - **Not a timestamp** — wall-clock `timestamp`s collide across concurrent samples (exclusive `>` skips boundary events, inclusive `>=` duplicates them) and aren't strictly monotonic (NTP), so they can't guarantee no-skip/no-dup resume. Timestamps are a *filter*, not a cursor (below).
 
-Wire it as an **opaque token** (core = the index) carrying the sample's run identity (the `ActiveSample` / sample uuid). The client round-trips it (`--since <token>`); the server rejects a token from a *different run* of the sample — a retried sample gets a fresh transcript whose indices reset — and signals a reset instead of silently serving a stale position. Opaque also lets the encoding evolve. Response is an **envelope**:
+Wire it as an **opaque token** (core = the index) carrying the sample's **attempt identity**: the sample uuid (`EvalSample.uuid` == `TaskState.uuid`) plus the attempt count (the number of prior failed attempts, read off `error_retries`). The running source and the terminal (logged) source derive this identically, so a cursor handed out *while the sample runs* stays valid once it's logged — the running→terminal transition does not look like a different run. A retry, on the other hand, runs on a **fresh transcript**: a task-level retry mints a fresh uuid, and an in-process `retry_on_error` reuses the uuid but increments the attempt count — so a cursor carried across either no longer matches and the server signals a reset instead of silently applying a stale index to unrelated events. The client round-trips the token (`--since <token>`); opaque also lets the encoding evolve. Response is an **envelope**:
 
 ```json
 { "events": [...], "next": "<cursor>", "done": false, "missed": 0 }
