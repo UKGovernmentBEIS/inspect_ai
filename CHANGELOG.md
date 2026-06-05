@@ -20,6 +20,7 @@
 - Bugfix: Inspect View sample-list columns now expand to fill the available width.
 - Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.
 - Bugfix: Preserve OpenAI Responses API encrypted reasoning through agent bridge round-trips and replay reasoning input items with empty `content` to avoid server validation errors.
+- Bugfix: Agent bridge checks for google.genai more defensively (ensure that module not found is raised).
 
 ## 0.3.235 (03 June 2026)
 
