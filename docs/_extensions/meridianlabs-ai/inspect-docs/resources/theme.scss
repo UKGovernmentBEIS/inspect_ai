@@ -134,6 +134,21 @@ img.navbar-logo {
     font-size: 1.3em;
 }
 
+// Built-in scorers catalog (docs/_builtin-scorers.md): give the scorer-name
+// terms a touch more presence than the default shrunk code-chip size, and
+// open up the spacing between entries.
+.builtin-scorers dl dt .element-type-name {
+    font-size: 1em;
+}
+
+.builtin-scorers dl dt {
+    margin-top: 1rem;
+}
+
+.builtin-scorers dl dt:first-child {
+    margin-top: 0;
+}
+
 .ref-definition {
     font-weight: normal;
 }

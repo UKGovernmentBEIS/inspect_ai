@@ -44,12 +44,12 @@ While many tasks can be defined with only a dataset, solver, and scorer, there a
 
 | Option | Description | Docs |
 |--------|-------------|------|
-| `epochs` | Epochs to run for each dataset sample. | [Epochs](scorers.qmd#reducing-epochs) |
+| `epochs` | Epochs to run for each dataset sample. | [Epochs](metrics.qmd#reducing-epochs) |
 | `setup` | Setup solver(s) to run prior to the main solver. | [Sample Setup](#setup-parameter) |
 | `cleanup` | Cleanup function to call at task completion. | [Task Cleanup](#task-cleanup) |
 | `sandbox` | Sandbox configuration for un-trusted code execution. | [Sandboxing](sandboxing.qmd) |
 | `approval` | Approval policy for tool calls. | [Tool Approval](approval.qmd) |
-| `metrics` | Metrics to use in place of scorer metrics. | [Scoring Metrics](scorers.qmd#scoring-metrics) |
+| `metrics` | Metrics to use in place of scorer metrics. | [Metrics](metrics.qmd) |
 | `model` | Model for evaluation (typically specified by `eval` rather than the task). | [Models](models.qmd) |
 | `model_roles` | Named models for use with `get_model()` (e.g. a grader). | [Model Roles](models.qmd#model-roles) |
 | `config` | Config for model generation (also typically specified in `eval`). | [Generate Config](options.qmd#model-generation) |
@@ -632,7 +632,7 @@ This is a convention rather than a framework feature: the `@task` function must 
 ::: {.callout-tip}
 #### Re-scoring existing logs
 
-You can re-score an existing log file with a different scorer using `inspect score`. The `--scorer` flag accepts a name (any function decorated with `@scorer`, see [Custom Scorers](scorers.qmd#custom-scorers)) or a `file.py@name` reference:
+You can re-score an existing log file with a different scorer using `inspect score`. The `--scorer` flag accepts a name (any function decorated with `@scorer`, see [Custom Scorers](custom-scorers.qmd)) or a `file.py@name` reference:
 
 ``` bash
 # scorer registered via @scorer decorator

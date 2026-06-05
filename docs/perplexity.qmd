@@ -1,0 +1,66 @@
+---
+title: Perplexity
+llms-description: Perplexity-based scorers—perplexity() and target_perplexity()—for evaluating how well a model predicts text using prompt log probabilities.
+---
+
+## Overview
+
+Inspect includes two perplexity-based scorers for evaluating how well a model predicts text, using prompt log probabilities. These scorers require the `prompt_logprobs` configuration option, which is currently supported by the [vLLM](providers.qmd#vllm) and [SageMaker](providers.qmd#aws-sagemaker) providers (SageMaker requires a vLLM-backed endpoint).
+
+-   `perplexity()` scores all prompt tokens by computing per-token negative log-likelihood (NLL). This is used for full-text perplexity benchmarks (WikiText, C4) where the entire input is evaluated. It corresponds to the evaluation approach described in the [HuggingFace Transformers documentation](https://huggingface.co/docs/transformers/en/perplexity).
+
+-   `target_perplexity()` scores only the trailing target tokens, given a prompt context. This corresponds to the `loglikelihood` evaluation pattern in the [EleutherAI lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness). The number of target tokens is resolved in order from: the `num_target_tokens` argument, `state.metadata["num_target_tokens"]`, auto-tokenization of `state.metadata["target_text"]` (the metadata key is configurable via the `target_text_key` argument), or a default of 1.
+
+Both scorers provide two built-in metrics:
+
+-   `perplexity_per_token()` — standard corpus-level perplexity weighted by token count. Longer samples contribute proportionally more.
+-   `perplexity_per_seq()` — equal weight per sample regardless of length (geometric mean of per-sample perplexities).
+
+## Model Provider
+
+Use the `vllm-completions` provider for perplexity evaluation. It routes through the `/v1/completions` endpoint, sending raw text without any chat template. This avoids contamination from role markers and special tokens that would distort logprob-based metrics.
+
+## Examples
+
+``` python
+from inspect_ai import Task
+from inspect_ai.dataset import MemoryDataset, Sample
+from inspect_ai.scorer import perplexity, target_perplexity
+from inspect_ai.solver import generate
+
+# Full-text perplexity (WikiText, C4)
+Task(
+    dataset=dataset,
+    solver=generate(),
+    scorer=perplexity(),
+    model="vllm-completions/your-model-name",
+    max_tokens=1,
+    prompt_logprobs=1,
+)
+
+# Target-completion perplexity (ARC-C, MMLU)
+Task(
+    dataset=MemoryDataset(samples=[
+        Sample(
+            input="The capital of France is Paris",
+            target="Paris",
+            metadata={"num_target_tokens": 1},
+        ),
+    ]),
+    solver=generate(),
+    scorer=target_perplexity(),
+    model="vllm-completions/your-model-name",
+    max_tokens=1,
+    prompt_logprobs=1,
+)
+```
+
+For example, if your model is `EleutherAI/pythia-70m`, the equivalent CLI invocation is:
+
+``` bash
+inspect eval task.py --model vllm-completions/EleutherAI/pythia-70m --max-tokens 1 --prompt-logprobs 1
+```
+
+::: {.callout-note}
+Prompt log probabilities are not available when streaming is enabled. Ensure streaming is disabled when using perplexity scorers.
+:::

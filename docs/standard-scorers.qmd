@@ -1,0 +1,37 @@
+---
+title: Standard Scorers
+llms-description: The built-in scorers that ship with Inspect—text matching, multiple choice, model grading, math, and perplexity—with a grounding example, the metrics they report, and where to go next.
+---
+
+A scorer compares a model's `output` against the `target` for each sample and returns a `Score`. You attach one to a task with the `scorer` argument—here `match()` checks that the model's answer ends with the target:
+
+``` python
+from inspect_ai import Task, task
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import match
+from inspect_ai.solver import generate
+
+@task
+def capitals():
+    return Task(
+        dataset=[Sample(input="What is the capital of France?", target="Paris")],
+        solver=generate(),
+        scorer=match(),
+    )
+```
+
+{{< include _builtin-scorers.md >}}
+
+## Learn More
+
+The rest of the [Scoring](scoring.qmd) section covers everything beyond the standard scorers:
+
+-   [Custom Scorers](custom-scorers.qmd) — write your own scorers using the `Score`, `Value`, and `Target` types.
+
+-   [Model Grading](model-graded.qmd) — customise the model graders, use multiple grader models, and present chat history.
+
+-   [Multiple Scorers](multiple-scorers.qmd) — use several scorers together, emit multiple scores, and reduce them.
+
+-   [Scoring Workflow](scoring-workflow.qmd) — defer scoring, re-score logs with `inspect score`, and edit scores.
+
+-   [Perplexity](perplexity.qmd) — score how well a model predicts text using prompt log probabilities.

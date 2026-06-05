@@ -28,6 +28,8 @@ inspect-docs:
             href: tasks.qmd
           - text: Models
             href: models.qmd
+          - text: Scoring
+            href: scoring.qmd
           - text: Agents
             href: agents.qmd
           - text: Tools
@@ -73,6 +75,18 @@ inspect-docs:
         - href: reasoning.qmd
         - href: structured.qmd
         - href: models-batch.qmd
+    - text: Scoring
+      href: scoring.qmd
+      contents:
+        - href: standard-scorers.qmd
+        - href: custom-scorers.qmd
+        - text: Model Grading
+          href: model-graded.qmd
+        - text: Scoring Metrics
+          href: metrics.qmd
+        - href: multiple-scorers.qmd
+        - href: scoring-workflow.qmd
+        - href: perplexity.qmd
     - text: Agents
       contents:
         - href: agents.qmd
