@@ -57,8 +57,6 @@ inspect-docs:
     - text: Components
       contents:
         - href: tasks.qmd
-        - text: Task Config
-          href: task-configuration.qmd
         - href: datasets.qmd
         - href: solvers.qmd
         - href: scorers.qmd
