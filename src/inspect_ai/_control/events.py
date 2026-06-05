@@ -8,12 +8,14 @@ The cursor is an opaque token = ``(source nonce, absolute event offset)``.
 The offset indexes the *unfiltered* event sequence; type / time filters are
 applied to the page *after* slicing, and ``next`` advances past every event
 *scanned* (not just matched) so a sparse filter never re-walks or skips. The
-nonce is the sample's uuid (``EvalSample.uuid`` == ``TaskState.uuid``), which
-both the running and terminal sources share — so a cursor issued mid-run stays
-valid once the sample is logged, rather than looking stale and restarting. A
-retry mints a fresh uuid (and transcript), so a cursor carried across one no
-longer matches and correctly restarts from the beginning instead of silently
-serving a stale position.
+nonce identifies one *attempt* of a sample — the sample uuid (``EvalSample
+.uuid`` == ``TaskState.uuid``) plus the attempt count (see :func:`_attempt_
+nonce`). Both the running and terminal sources derive it the same way, so a
+cursor issued mid-run stays valid once the sample is logged rather than looking
+stale and restarting. A retry runs on a fresh transcript, so its nonce differs
+(a fresh uuid for a task-level retry, an incremented attempt count for an
+in-process ``retry_on_error``); a cursor carried across one no longer matches
+and correctly restarts from the beginning instead of serving a stale position.
 
 See ``design/control-channel.md`` (phase 2) for the full rationale.
 """
@@ -148,6 +150,31 @@ async def sample_events(
 # --- sources ---------------------------------------------------------------
 
 
+def _attempt_nonce(
+    sample_uuid: str | None, sample_id: str | int | None, epoch: int, attempts: int
+) -> str:
+    """Cursor nonce identifying one *attempt* of a sample's transcript.
+
+    The sample uuid alone isn't enough: ``retry_on_error`` re-runs a sample with
+    a fresh transcript but reuses ``state.uuid`` (so the logged sample keeps a
+    stable identity across attempts). Keying the cursor on the uuid alone would
+    let an earlier attempt's cursor resume against the retry's unrelated
+    transcript, skipping events. Folding in the attempt count — the number of
+    prior failed attempts, which both sources read off ``error_retries`` and
+    which the final logged sample preserves — gives each attempt a distinct
+    nonce while still aligning the running and terminal views of the *same*
+    attempt.
+
+    The ``id:epoch`` fallback only applies to the terminal source: a running
+    sample always carries its ``sample_uuid`` (``ActiveSample.sample_uuid`` is a
+    required ``str`` from ``state.uuid``), but a terminal ``EvalSample.uuid`` is
+    ``Optional`` and reads back ``None`` for a sample logged by an inspect
+    version predating the uuid field (reachable only via a reused log).
+    """
+    base = sample_uuid or f"{sample_id}:{epoch}"
+    return f"{base}:{attempts}"
+
+
 def _running_source(
     eval_id: str, sample_id: str, epoch: int
 ) -> tuple[str, list["Event"], int, int, bool] | None:
@@ -163,10 +190,7 @@ def _running_source(
             total = history.event_count
             resident = list(history.resident_events)
             return (
-                # Nonce: the uuid the logged sample will carry (== EvalSample
-                # .uuid), so a cursor issued while running stays valid once the
-                # sample is terminal — both sources key on the same id.
-                s.sample_uuid,
+                _attempt_nonce(s.sample_uuid, s.sample.id, epoch, len(s.error_retries)),
                 resident,
                 total - len(resident),
                 total,
@@ -206,7 +230,9 @@ async def _logged_source(
         if buffered is not None:
             events = buffered
 
-    nonce = sample.uuid or f"{sample.id}:{epoch}"
+    nonce = _attempt_nonce(
+        sample.uuid, sample.id, epoch, len(sample.error_retries or [])
+    )
     return nonce, events, 0, len(events), True
 
 
