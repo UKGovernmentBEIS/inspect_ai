@@ -18,7 +18,7 @@
 - Inspect View: Collapse same-name nested solver/agent spans in transcripts
 - Inspect View: Fix truncation of long transcript outlines when scrolling
 - Inspect View: Switch to dev dependencies for scout and inspect apps
-- Isnpect View: Fixes to live sample following behavior
+- Inspect View: Fixes to live sample following behavior
 - Inspect View: Properly clear log/sample before paint when viewing log (#284)
 - Inspect View: don't render primitive solvers as sub-agents (#287)
 - Bugfix: Inspect View sample-list columns now expand to fill the available width.
