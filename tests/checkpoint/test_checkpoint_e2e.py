@@ -1,16 +1,18 @@
-"""End-to-end checkpoint resume test: cancel an attempt, then retry it.
+"""End-to-end checkpoint resume test: cancel an attempt, then retry — twice.
 
 Drives a ``react()`` agent through tool-calling turns with
 ``TurnInterval(every=1)``, so a checkpoint fires at the start of each turn
 after the first; the agent then calls a ``cancel`` tool that interrupts the
 sample mid-run, leaving committed checkpoints on disk.
-``test_checkpoint_resume_rehydrated_event_layout`` then ``eval_retry``s the
-cancelled run and asserts it resumes and completes successfully. It checks,
-via the public ``.eval`` log: the restored checkpoints appear as
-``CheckpointEvent``s inside the ``prior_run`` ("checkpoint restore") span, a
-new checkpoint commits *during* the retry (a ``CheckpointEvent`` outside that
-span, continuing the numbering), and resume restored the prior conversation
-(only the remaining turns run, not a replay from scratch).
+``test_checkpoint_resume_rehydrated_event_layout`` ``eval_retry``s the
+cancelled run, has it work one turn and cancel again, then ``eval_retry``s a
+second time to completion. It checks, via the public ``.eval`` log: each
+resume's restored checkpoints appear as ``CheckpointEvent``s inside its own
+``prior_run`` ("checkpoint restore N") span; the wraps are sequentially
+numbered, span-balanced siblings; a new checkpoint commits *during* the final
+resume (a ``CheckpointEvent`` outside the wraps, continuing the numbering);
+and resume restored the prior conversation (only the remaining turns run, not
+a replay from scratch).
 
 Requires Docker: the sandbox backup path injects/execs a Linux restic
 binary inside the sandbox, which only works with a Linux container
@@ -72,7 +74,7 @@ def assert_spans_balanced(events: list[Event]) -> None:
     the innermost open span, and nothing may be left open at the end.
     Presence/membership assertions can't catch an *additive* structural
     corruption (extra unbalanced spans wrapped around otherwise-correct
-    content) — this can. See ``test_checkpoint_resume_spans_balanced``.
+    content) — this can.
     """
     stack: list[str] = []
     for e in events:
@@ -92,14 +94,15 @@ class _ResumeState:
 
     ``generates`` counts model calls so the resume test can prove the
     conversation was restored (only the remaining turns run) rather than
-    re-run from scratch.
+    re-run from scratch. ``cancelled`` reflects whether the cancel tool has
+    fired.
 
-    The cancel *count* and *target* deliberately do NOT live here: on
-    ``eval_retry`` the cancel tool is rebuilt from a re-imported copy of
-    this module, so a module-global counter mutated by the tool and read
-    by the model would be two different instances. They're kept in a host
-    file / env var instead (process-global, re-import-proof) — see
-    ``_cancels_done`` / ``_bump_cancels`` / ``_target_cancels``.
+    The cancel *count* and *target* do NOT live here: on ``eval_retry`` the
+    cancel tool is rebuilt from a re-imported copy of this module, so a
+    module-global counter mutated by the tool and read by the model would be
+    two different instances. They're kept in a host file / env var instead
+    (process-global, re-import-proof) — see ``_cancels_done`` /
+    ``_bump_cancels`` / ``_target_cancels``.
     """
 
     generates: int = 0
@@ -111,8 +114,6 @@ class _ResumeState:
 
 _resume_state = _ResumeState()
 
-# Env vars set per test. The cancel count is persisted to the file named by
-# `_CANCEL_FILE_ENV` so it survives `eval_retry`'s module re-import.
 _CANCEL_FILE_ENV = "INSPECT_TEST_RESUME_CANCEL_FILE"
 _TARGET_ENV = "INSPECT_TEST_RESUME_TARGET_CANCELS"
 
@@ -258,29 +259,33 @@ def test_checkpoint_resume_rehydrated_event_layout(
     # sandbox repo).
     monkeypatch.setenv("INSPECT_CHECKPOINT_LIST_FILES", "1")
     monkeypatch.setenv(_CANCEL_FILE_ENV, str(tmp_path / "cancels.txt"))
-    monkeypatch.setenv(_TARGET_ENV, "1")
+    monkeypatch.setenv(_TARGET_ENV, "2")
     _resume_state.generates = 0
 
     log_dir = str(tmp_path / "logs")
 
-    # --- initial attempt: cancels mid-run after checkpoints commit ---------
+    # --- initial attempt: ckpt-1/ckpt-2 commit, then cancels mid-run -------
     log = eval(resume_decode_task(), model=SCRIPTED_MODEL, log_dir=log_dir)[0]
     assert log.status == "error"
     assert _resume_state.cancelled is True
     assert _resume_state.generates >= 3  # bash, remember, cancel
 
-    # --- retry: resume from checkpoint and run to completion ---------------
-    _resume_state.generates = 0
-    retry_log = eval_retry(log, log_dir=log_dir)[0]
+    # --- first resume: one work turn commits ckpt-3, then cancels again ----
+    resume1 = eval_retry(log, log_dir=log_dir)[0]
+    assert resume1.status == "error"
 
-    assert retry_log.status == "success"
-    assert retry_log.samples is not None and len(retry_log.samples) == 1
-    sample = retry_log.samples[0]
+    # --- second resume: commits ckpt-4, then runs to completion ------------
+    _resume_state.generates = 0
+    resume2 = eval_retry(resume1, log_dir=log_dir)[0]
+
+    assert resume2.status == "success"
+    assert resume2.samples is not None and len(resume2.samples) == 1
+    sample = resume2.samples[0]
     assert sample.error is None
 
-    # resume restored the prior conversation, so only the remaining turns ran
-    # (one bash + submit = 2 generates; a fresh re-run would have redone the
-    # turn-0 bash + turn-1 remember as well).
+    # the final resume restored the full prior conversation, so only the
+    # remaining turns ran (one bash + submit = 2 generates; a fresh re-run
+    # would have redone the earlier turns as well).
     assert _resume_state.generates == 2
 
     # the restored + completed run scored correct
@@ -288,53 +293,69 @@ def test_checkpoint_resume_rehydrated_event_layout(
     assert sample.scores["includes"].value == CORRECT
     assert LAYER1_CONTENT in sample.output.completion
 
-    # --- examine the completed .eval: restore span + checkpoint events -----
-    completed = read_eval_log(retry_log.location)
+    # --- examine the completed .eval: restore spans + checkpoint events ----
+    completed = read_eval_log(resume2.location)
     assert completed.samples is not None
     events = completed.samples[0].events
 
-    # the rehydrated history is wrapped in a single "checkpoint restore" span
-    # (type "prior_run")
+    # the rehydrated wraps must be self-contained, balanced subtrees — not
+    # closed while restored structural spans are still open (the regression)
+    assert_spans_balanced(events)
+
+    # each resume contributed one "checkpoint restore" (prior_run) wrap,
+    # sequentially numbered
     restore_spans = [
         e for e in events if isinstance(e, SpanBeginEvent) and e.type == "prior_run"
     ]
-    assert len(restore_spans) == 1
-    restore_span = restore_spans[0]
-    assert restore_span.name.startswith("checkpoint restore")
+    assert [s.name for s in restore_spans] == [
+        "checkpoint restore 1",
+        "checkpoint restore 2",
+    ]
 
-    # events contained by that span (between its begin and matching end)
-    begin_idx = next(
-        i
-        for i, e in enumerate(events)
-        if isinstance(e, SpanBeginEvent) and e.id == restore_span.id
-    )
-    end_idx = next(
-        i
-        for i, e in enumerate(events)
-        if isinstance(e, SpanEndEvent) and e.id == restore_span.id
-    )
-    restored = events[begin_idx + 1 : end_idx]
+    # index range each wrap spans (begin..matching end)
+    def _span_range(span_id: str) -> tuple[int, int]:
+        begin_idx = next(
+            i
+            for i, e in enumerate(events)
+            if isinstance(e, SpanBeginEvent) and e.id == span_id
+        )
+        end_idx = next(
+            i
+            for i, e in enumerate(events)
+            if isinstance(e, SpanEndEvent) and e.id == span_id
+        )
+        return begin_idx, end_idx
 
-    # a CheckpointEvent for each checkpoint that fired in the initial attempt,
-    # all rehydrated inside the restore span
+    wrap_ranges = [_span_range(s.id) for s in restore_spans]
+
+    def _in_wrap(i: int) -> bool:
+        return any(begin < i < end for begin, end in wrap_ranges)
+
+    # every checkpoint that fired before a cancel is rehydrated inside a wrap:
+    # ckpt-1/ckpt-2 (initial attempt) and ckpt-3 (first resume).
     restored_checkpoint_ids = {
-        e.checkpoint_id for e in restored if isinstance(e, CheckpointEvent)
+        e.checkpoint_id
+        for i, e in enumerate(events)
+        if isinstance(e, CheckpointEvent) and _in_wrap(i)
     }
-    assert restored_checkpoint_ids == {1, 2}
+    assert restored_checkpoint_ids == {1, 2, 3}
 
-    # the prior tool activity was rehydrated inside the span too
-    restored_tools = {e.function for e in restored if isinstance(e, ToolEvent)}
+    # the prior tool activity was rehydrated inside the wraps too
+    restored_tools = {
+        e.function
+        for i, e in enumerate(events)
+        if isinstance(e, ToolEvent) and _in_wrap(i)
+    }
     assert {"bash", "remember"} <= restored_tools
 
-    # a checkpoint committed *during* the retry shows up as a CheckpointEvent
-    # outside the restore span (the live resumed session), continuing the
-    # numbering past the restored ones.
+    # the checkpoint committed *during* the final resume is live — outside any
+    # wrap — and continues the numbering past the restored ones.
     new_checkpoint_ids = {
         e.checkpoint_id
         for i, e in enumerate(events)
-        if isinstance(e, CheckpointEvent) and not (begin_idx < i < end_idx)
+        if isinstance(e, CheckpointEvent) and not _in_wrap(i)
     }
-    assert new_checkpoint_ids == {3}
+    assert new_checkpoint_ids == {4}
 
     # File listing (opt-in) records each sandbox snapshot's added/changed
     # files (diff vs parent), not the whole tree.
@@ -362,58 +383,3 @@ def test_checkpoint_resume_rehydrated_event_layout(
         p.endswith("workspace/decoded/layer1.txt") for p in ckpt3_details.files
     )
     assert ckpt3_details.additional_files is None
-
-
-@skip_if_no_docker
-@pytest.mark.slow
-def test_checkpoint_resume_spans_balanced(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Two resume cycles must yield a span-balanced final transcript.
-
-    Like ``test_checkpoint_resume_rehydrated_event_layout`` but cancels
-    *twice*: cancel mid-run, resume (work one turn, cancel again), resume
-    again to completion. The second resume hydrates a buffer that already
-    contains the first resume's ``prior_run`` wrap, so it exercises the
-    wrap-reparenting path — the case that catches the rehydration
-    regression. Asserts structural balance plus two sequentially-numbered
-    sibling restore wraps.
-    """
-    monkeypatch.setenv("INSPECT_CHECKPOINTING", "1")
-    monkeypatch.setenv(_CANCEL_FILE_ENV, str(tmp_path / "cancels.txt"))
-    monkeypatch.setenv(_TARGET_ENV, "2")
-    _resume_state.generates = 0
-
-    log_dir = str(tmp_path / "logs")
-
-    # initial attempt: cancels mid-run after ckpt-1/ckpt-2 commit
-    log = eval(resume_decode_task(), model=SCRIPTED_MODEL, log_dir=log_dir)[0]
-    assert log.status == "error"
-
-    # the cancelled run's own transcript closes its spans on interrupt unwind
-    initial = read_eval_log(log.location)
-    assert initial.samples is not None
-    assert_spans_balanced(initial.samples[0].events)
-
-    # first resume: one work turn commits a fresh checkpoint, then cancels
-    resume1 = eval_retry(log, log_dir=log_dir)[0]
-    assert resume1.status == "error"
-
-    # second resume: hydrates a buffer that already holds the first wrap
-    resume2 = eval_retry(resume1, log_dir=log_dir)[0]
-    assert resume2.status == "success"
-
-    # the rehydrated `prior_run` wraps must form self-contained, balanced
-    # subtrees — not closed while restored structural spans are still open
-    completed = read_eval_log(resume2.location)
-    assert completed.samples is not None
-    events = completed.samples[0].events
-    assert_spans_balanced(events)
-
-    # two sibling restore wraps, sequentially numbered
-    wrap_names = [
-        e.name
-        for e in events
-        if isinstance(e, SpanBeginEvent) and e.type == "prior_run"
-    ]
-    assert wrap_names == ["checkpoint restore 1", "checkpoint restore 2"]
