@@ -8,8 +8,9 @@ This article documents both basic and advanced use of Inspect tasks, which are t
 - [Parameters](#parameters) covers adding parameters to tasks to make them flexible and adaptable.
 - [Solvers](#solvers) describes how to create tasks that can be used with many different solvers.
 - [Task Reuse](#task-reuse) documents how to flexibly derive new tasks from existing task definitions.
+- [Configuration](#configuration) explains how to override task options at runtime with [task_with()](./reference/inspect_ai.html.md#task_with), environment variables, [eval()](./reference/inspect_ai.html.md#eval), and the CLI.
 - [Packaging](#packaging) illustrates how you can distribute tasks within Python packages.
-- [Exploratory](#exploratory) provides guidance on doing exploratory task and solver development.
+- [Exploratory](#exploratory) provides guidance on doing exploratory task development.
 
 ## Task Basics
 
@@ -36,9 +37,24 @@ For convenience, tasks always define a default solver. That said, it is often de
 
 While many tasks can be defined with only a dataset, solver, and scorer, there are lots of other useful [Task](./reference/inspect_ai.html.md#task) options. We won’t describe these options in depth here, but rather provide a list along with links to other sections of the documentation that cover their usage:
 
-[TABLE]
-
-{tbl-colwidths='\[25,50,25\]'} {.caption-top .table}
+| Option | Description | Docs |
+|----|----|----|
+| `epochs` | Epochs to run for each dataset sample. | [Epochs](./metrics.html.md#reducing-epochs) |
+| `setup` | Setup solver(s) to run prior to the main solver. | [Sample Setup](#setup-parameter) |
+| `cleanup` | Cleanup function to call at task completion. | [Task Cleanup](#task-cleanup) |
+| `sandbox` | Sandbox configuration for un-trusted code execution. | [Sandboxing](./sandboxing.html.md) |
+| `approval` | Approval policy for tool calls. | [Tool Approval](./approval.html.md) |
+| `metrics` | Metrics to use in place of scorer metrics. | [Metrics](./metrics.html.md) |
+| `model` | Model for evaluation (typically specified by `eval` rather than the task). | [Models](./models.html.md) |
+| `model_roles` | Named models for use with [get_model()](./reference/inspect_ai.model.html.md#get_model) (e.g. a grader). | [Model Roles](./models.html.md#model-roles) |
+| `config` | Config for model generation (also typically specified in `eval`). | [Generate Config](./options.html.md#model-generation) |
+| `fail_on_error` | Failure tolerance for samples. | [Failure Threshold](./handling-errors.html.md#failure-threshold) |
+| `continue_on_fail` | Continue running after sample errors, failing only at the end. | [Handling Errors](./handling-errors.html.md) |
+| `score_on_error` | Score samples that error rather than failing the run. | [Handling Errors](./handling-errors.html.md) |
+| `message_limit`, `token_limit`, `time_limit`, `working_limit`, `cost_limit` | Limits to apply to sample execution. | [Sample Limits](./setting-limits.html.md#sample-limits) |
+| `early_stopping` | Stop a task early based on previously scored samples. | [Early Stopping](./early-stopping.html.md) |
+| `name`, `display_name`, `version`, `metadata`, `tags` | Identifying attributes recorded in the eval log. | [Eval Logs](./eval-logs.html.md) |
+| `viewer` | Log viewer config (e.g. how scanner results render). | [Task Views](./task-views.html.md) |
 
 You by and large don’t need to worry about these options until you want to use the features they are linked to.
 
@@ -56,7 +72,7 @@ from inspect_ai.solver import generate, system_message
 
 @task
 def security_guide(
-    system="devops.txt", 
+    system="devops.txt",
     grader="expert.txt",
     grader_model="openai/gpt-4o"
 ):
@@ -97,9 +113,9 @@ Reference this file from the CLI with:
 inspect eval security.py --task-config=config.yaml
 ```
 
-If you want to bundle task parameters together with model, generation, and solver settings in a single file, use `--run-config` instead. See [Run Config File](./task-configuration.html.md#run-config).
+If you want to bundle task parameters together with model, generation, and solver settings in a single file, use `--run-config` instead. See [Run Config File](#run-config).
 
-For a broader view of how task parameters relate to [task_with()](./reference/inspect_ai.html.md#task_with), environment variables, [eval()](./reference/inspect_ai.html.md#eval), and CLI overrides, see [Task Configuration](./task-configuration.html.md).
+For a broader view of how task parameters relate to [task_with()](./reference/inspect_ai.html.md#task_with), environment variables, [eval()](./reference/inspect_ai.html.md#eval), and CLI overrides, see [Configuration](#configuration).
 
 ## Solvers
 
@@ -123,7 +139,7 @@ def ctf():
         dataset=read_dataset(),
         solver=[
             use_tools([
-                bash(timeout=180), 
+                bash(timeout=180),
                 python(timeout=180)
             ]),
             generate()
@@ -148,7 +164,7 @@ from inspect_ai.tool import bash, python
 def ctf_tool_loop():
     return chain([
         use_tools([
-            bash(timeout=180), 
+            bash(timeout=180),
             python(timeout=180)
         ]),
         generate()
@@ -161,7 +177,7 @@ def ctf_agent(attempts: int = 3):
         attempts=attempts,
     )
 
- 
+
 @task
 def ctf():
     # return task
@@ -211,7 +227,7 @@ def ctf(solver: Solver | None = None):
     # use default tool loop solver if no solver specified
     if solver is None:
         solver = ctf_tool_loop()
-   
+
     # return task
     return Task(
         dataset=read_dataset(),
@@ -246,11 +262,7 @@ Note that like solvers, cleanup functions should be `async`.
 
 The basic mechanism for task re-use is to create flexible and adaptable base `@task` functions (which often have many parameters) and then derive new higher-level tasks from them by creating additional `@task` functions that call the base function.
 
-In some cases though you might not have full control over the base `@task` function (e.g. it’s published in a Python package you aren’t the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the [task_with()](./reference/inspect_ai.html.md#task_with) function, which provides a straightforward way to modify the properties of an existing task.
-
-> **TIP: Tip**
->
-> For a comprehensive reference on all configuration and override mechanisms — including [task_with()](./reference/inspect_ai.html.md#task_with), [eval()](./reference/inspect_ai.html.md#eval) overrides, CLI flags, and precedence rules — see [Task Configuration](./task-configuration.html.md).
+In some cases though you might not have full control over the base `@task` function (e.g. it’s published in a Python package you aren’t the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the [task_with()](./reference/inspect_ai.html.md#task_with) function, which provides a straightforward way to modify the properties of an existing task. The [Configuration](#configuration) section below covers [task_with()](./reference/inspect_ai.html.md#task_with) alongside the other ways to override task options at runtime.
 
 For example, imagine you are dealing with a [Task](./reference/inspect_ai.html.md#task) that hard-codes its `sandbox` to a particular Dockerfile included with the task, and further hard codes its `solver` to a simple agent:
 
@@ -302,6 +314,307 @@ adapted1 = task_with(hard_coded(), ...)
 adapted2 = task_with(hard_coded(), ...)
 ```
 
+## Configuration
+
+A task definition provides defaults for everything an evaluation needs, but you will often want to run a task with different settings without editing its source. Task options can be set or overridden at four layers, each taking precedence over the ones before it:
+
+1.  Task definition: defaults baked into the `@task` function and `Task()` constructor.
+2.  [task_with()](./reference/inspect_ai.html.md#task_with): programmatic overrides applied to a task before passing it to [eval()](./reference/inspect_ai.html.md#eval).
+3.  Environment variables / `.env` files: project or session defaults set outside code.
+4.  [eval()](./reference/inspect_ai.html.md#eval) / CLI: runtime overrides, which take highest precedence.
+
+| Lowest |  |  | Highest |
+|----|----|----|----|
+| Task definition | [task_with()](./reference/inspect_ai.html.md#task_with) | `.env` / env vars | [eval()](./reference/inspect_ai.html.md#eval) / CLI |
+
+Precedence order, with each layer overriding those to its left {.caption-top .table}
+
+The first two layers are described earlier in this article: defaults and [parameters](#parameters) in the task definition, and [task_with()](#task-reuse) for adapting a task you don’t control. The sections below cover the remaining two layers, then provide a reference for what can be set where.
+
+### Environment Variables
+
+Every CLI flag can be set as an environment variable using the `INSPECT_EVAL_` prefix (with hyphens converted to underscores). Set these in the shell, or place them in a `.env` file that Inspect reads automatically from the current directory (searching parent directories if not found). Use this layer for project or session defaults you want applied across runs without specifying them each time:
+
+    .env
+
+``` makefile
+INSPECT_EVAL_MODEL=anthropic/claude-sonnet-4-5
+INSPECT_EVAL_TEMPERATURE=0.0
+INSPECT_EVAL_MAX_CONNECTIONS=20
+INSPECT_EVAL_MAX_RETRIES=5
+```
+
+Variables set in the shell take precedence over values in a `.env` file. See [Options](./options.html.md#env-files) for details on `.env` file handling.
+
+### eval() and CLI
+
+Parameters passed to [eval()](./reference/inspect_ai.html.md#eval) or on the `inspect eval` command line take highest precedence, and apply to all tasks being evaluated in the call.
+
+``` python
+from inspect_ai import eval
+
+eval(
+    simpleqa(),
+    model="anthropic/claude-sonnet-4-5",
+    temperature=0.0,
+    max_tokens=4096,
+    epochs=5,
+    limit=100,
+    message_limit=50,
+    model_roles={"grader": "google/gemini-2.0-flash"},
+)
+```
+
+The same overrides on the command line:
+
+``` bash
+inspect eval inspect_evals/simpleqa \
+    --model anthropic/claude-sonnet-4-5 \
+    --temperature 0.0 \
+    --max-tokens 4096 \
+    --epochs 5 \
+    --limit 100 \
+    --message-limit 50 \
+    --model-role grader=google/gemini-2.0-flash
+```
+
+See [Eval Options](./options.html.md) for the full list of CLI flags.
+
+### Override Reference
+
+The table below lists task and runtime parameters and the layers at which each can be set:
+
+| Parameter | [Task](./reference/inspect_ai.html.md#task) | `task_with` | `eval` | CLI flag |
+|----|----|----|----|----|
+| **Task structure** |  |  |  |  |
+| `dataset` | yes | yes |  |  |
+| `setup` | yes | yes |  |  |
+| `solver` | yes | yes | yes | `--solver` (name or `file.py@name`) |
+| `cleanup` | yes | yes |  |  |
+| `scorer` | yes | yes |  |  |
+| `metrics` | yes | yes |  |  |
+| **Model** |  |  |  |  |
+| `model` | yes | yes | yes | `--model` |
+| `config` (includes `temperature`, `max_tokens`, etc.) | yes | yes | yes (via `**kwargs`) | individual flags or `--generate-config` |
+| `model_roles` | yes | yes | yes | `--model-role` |
+| **Execution limits** |  |  |  |  |
+| `epochs` | yes | yes | yes | `--epochs` |
+| `message_limit` | yes | yes | yes | `--message-limit` |
+| `token_limit` | yes | yes | yes | `--token-limit` |
+| `time_limit` | yes | yes | yes | `--time-limit` |
+| `working_limit` | yes | yes | yes | `--working-limit` |
+| `cost_limit` | yes | yes | yes | `--cost-limit` |
+| `early_stopping` | yes | yes |  |  |
+| **Error handling** |  |  |  |  |
+| `fail_on_error` | yes | yes | yes | `--fail-on-error` |
+| `continue_on_fail` | yes | yes | yes | `--continue-on-fail` |
+| `retry_on_error` |  |  | yes | `--retry-on-error` |
+| `score_on_error` | yes | yes | yes | `--score-on-error` |
+| `debug_errors` |  |  | yes | `--debug-errors` |
+| **Environment** |  |  |  |  |
+| `sandbox` | yes | yes | yes | `--sandbox` |
+| `sandbox_cleanup` |  | yes | yes | `--no-sandbox-cleanup` |
+| `approval` | yes | yes | yes | `--approval` |
+| **Task identity** |  |  |  |  |
+| `name` | yes | yes |  |  |
+| `version` | yes | yes |  |  |
+| `metadata` | yes | yes (overwrites) | yes (merges) | `--metadata` |
+| `tags` | yes | yes (overwrites) | yes (merges) | `--tags` |
+| **Sample selection** |  |  |  |  |
+| `limit` |  |  | yes | `--limit` |
+| `sample_id` |  |  | yes | `--sample-id` |
+| `sample_shuffle` |  |  | yes | `--sample-shuffle` |
+| **Eval-level controls** |  |  |  |  |
+| `task_args` | args/kwargs |  | yes | `-T key=value` |
+| `score` |  |  | yes | `--no-score` |
+| `score_display` |  |  | yes | `--no-score-display` |
+| `trace` |  |  | yes | `--trace` |
+
+Blank cells indicate that a parameter cannot be set at that layer. The `task_args` row refers to setting these fields as arguments of the [Task](./reference/inspect_ai.html.md#task) object, as opposed to passing a `task_args` dictionary.
+
+### Generation Config
+
+[GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) parameters (`temperature`, `max_tokens`, `top_p`, and so on) can be set at every layer.
+
+In the task definition via `config`:
+
+``` python
+Task(
+    ...,
+    config=GenerateConfig(temperature=0.5, max_tokens=2048)
+)
+```
+
+With [task_with()](./reference/inspect_ai.html.md#task_with) via `config`:
+
+``` python
+task_with(my_task(), config=GenerateConfig(temperature=0.0))
+```
+
+With [eval()](./reference/inspect_ai.html.md#eval) as keyword arguments:
+
+``` python
+eval(my_task(), temperature=0.0, max_tokens=4096)
+```
+
+On the CLI as individual flags:
+
+``` bash
+inspect eval my_task.py --temperature 0.0 --max-tokens 4096
+```
+
+Or from a YAML/JSON file using `--generate-config`:
+
+``` bash
+inspect eval my_task.py --generate-config config.yaml
+```
+
+where `config.yaml` contains [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) fields:
+
+    config.yaml
+
+``` yaml
+temperature: 0.5
+max_tokens: 2048
+```
+
+Individual CLI flags (e.g. `--temperature`) take precedence over values in the config file. To bundle generation parameters alongside a full eval configuration (task, model, model roles, solver), use `--run-config` instead (see [Run Config File](#run-config)).
+
+### Model Roles
+
+Model roles assign models to named purposes within a task (for example, a “grader” model for scoring). They can be set on [Task](./reference/inspect_ai.html.md#task), with [task_with()](./reference/inspect_ai.html.md#task_with), with [eval()](./reference/inspect_ai.html.md#eval), or on the CLI with `--model-role` (see the [override reference](#override-reference) for where each form fits). The most common pattern:
+
+``` python
+Task(..., model_roles={"grader": "openai/gpt-4o"})
+eval(my_task(), model_roles={"grader": "google/gemini-2.0-flash"})
+```
+
+Inside a solver or scorer, resolve the role with [get_model()](./reference/inspect_ai.model.html.md#get_model):
+
+``` python
+model = get_model(role="grader", default="openai/gpt-4o")
+```
+
+For inline YAML/JSON examples and role-resolution details, see [Model Roles](./models.html.md#model-roles).
+
+### Run Config File
+
+The `--run-config` option specifies a single YAML or JSON file that captures a full eval configuration (task, model, model roles, generation parameters, solver, and eval settings) in one place. CLI flags still override values from the file.
+
+``` bash
+inspect eval --run-config run.yaml
+```
+
+The file schema mirrors the structure of the corresponding [eval()](./reference/inspect_ai.html.md#eval) parameters:
+
+    run.yaml
+
+``` yaml
+task:
+  task: inspect_evals/simpleqa
+  args:
+    split: test
+
+model:
+  model: anthropic/claude-sonnet-4-5
+  args:
+    max_retries: 3
+
+model_roles:
+  grader:
+    model: openai/gpt-4o
+    config:
+      temperature: 0.0
+
+generate_config:
+  temperature: 0.5
+  max_tokens: 4096
+  seed: 42
+
+solver:
+  solver: my_solvers.py@chain_of_thought
+  args:
+    cot_template: detailed
+
+eval_config:
+  limit: 100
+  epochs: 3
+  message_limit: 50
+```
+
+All top-level keys are optional. This lets you create “paper config” files that record the generation and eval settings from a paper without hard-coding a specific model, leaving the model to be supplied on the CLI:
+
+``` bash
+# paper_config.yaml specifies only generate_config, eval_config, and model_roles
+inspect eval inspect_evals/simpleqa \
+    --model anthropic/claude-sonnet-4-5 \
+    --run-config paper_config.yaml
+```
+
+To run with a different value than the file specifies, pass the corresponding flag:
+
+``` bash
+inspect eval --run-config run.yaml --temperature 0.9
+```
+
+`--run-config` cannot be combined with `--generate-config`, `--task-config`, or `--solver-config`. Use `--run-config` for a single file; use the individual options to compose configuration from multiple files.
+
+To generate a run config from an existing eval log, use `inspect log export-config`, which writes the realised configuration as `--run-config`-compatible YAML:
+
+``` bash
+inspect log export-config logs/my_run.eval > run.yaml
+inspect eval --run-config run.yaml
+```
+
+See [Exporting Run Config](./eval-logs.html.md#exporting-run-config) for details.
+
+### Scorer Override
+
+The scorer can only be overridden with [task_with()](./reference/inspect_ai.html.md#task_with) during a live eval; there is no [eval()](./reference/inspect_ai.html.md#eval) parameter or CLI flag for it:
+
+``` python
+task_with(my_task(), scorer=my_custom_scorer())
+```
+
+Some task authors expose scorer selection as a [task parameter](#parameters), which can then be set with `-T`:
+
+``` bash
+inspect eval my_task.py -T scorer=original
+```
+
+This is a convention rather than a framework feature: the `@task` function must explicitly handle the parameter.
+
+> **TIP: TipRe-scoring existing logs**
+>
+> You can re-score an existing log file with a different scorer using `inspect score`. The `--scorer` flag accepts a name (any function decorated with `@scorer`, see [Custom Scorers](./custom-scorers.html.md)) or a `file.py@name` reference:
+>
+> ``` bash
+> # scorer registered via @scorer decorator
+> inspect score log_file.eval --scorer my_scorer
+>
+> # scorer defined in a file
+> inspect score log_file.eval --scorer scorers.py@custom_scorer
+> ```
+
+### Common Patterns
+
+When consuming a task from a package (such as `inspect_evals`) and customising it, here is a recommended approach for each scenario:
+
+| Need | How |
+|----|----|
+| Different model | [eval()](./reference/inspect_ai.html.md#eval) / `--model` |
+| Different temperature or max_tokens | [eval()](./reference/inspect_ai.html.md#eval) / `--temperature` / `--max-tokens` |
+| Bundle of generation params | `--generate-config config.yaml` |
+| Full run config (paper reproduction) | `--run-config run.yaml` |
+| Different solver | `eval(solver=...)` / `--solver` / [task_with()](./reference/inspect_ai.html.md#task_with) |
+| Different scorer | `task_with(task, scorer=...)` |
+| Different grader model | `--model-role grader=...` / `eval(model_roles=)` |
+| Different metrics | `task_with(task, metrics=[...])` |
+| Subset of samples | `--limit` / `--sample-id` |
+| Different epochs | `--epochs` |
+
+Every component except `scorer`, `dataset`, and `metrics` can be overridden without modifying the task’s source. If the task author uses `get_model(role="grader")` for model-graded scoring, the grader model is also overridable at runtime via `--model-role`.
+
 ## Packaging
 
 A convenient way to distribute tasks is to include them in a Python package. This makes it very easy for others to run your task and ensure they have all of the required dependencies.
@@ -309,7 +622,7 @@ A convenient way to distribute tasks is to include them in a Python package. Thi
 Tasks in packages can be *registered* such that users can easily refer to them by name from the CLI. For example, the [Inspect Evals](https://github.com/UKGovernmentBEIS/inspect_ai) package includes a suite of tasks that can be run as follows:
 
 ``` bash
-inspect eval inspect_evals/gaia 
+inspect eval inspect_evals/gaia
 inspect eval inspect_evals/swe_bench
 ```
 
@@ -317,7 +630,7 @@ inspect eval inspect_evals/swe_bench
 
 Here’s an example that walks through all of the requirements for registering tasks in packages. Let’s say your package is named `evals` and has a task named `mytask` in the `tasks.py` file:
 
-    evals/       
+    evals/
       evals/
         tasks.py
         _registry.py
@@ -445,3 +758,7 @@ plot_results(logs)
 Note that we also pass a list of `model` to try out the task on multiple models. This eval set will produce in total 16 tasks accounting for the parameter and model variation.
 
 See the article on [Eval Sets](./eval-sets.html.md) to learn more about using eval sets. See the article on [Eval Logs](./eval-logs.html.md) for additional details on working with evaluation logs.
+
+### Inspect Flow
+
+For larger or repeated explorations, [Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/) builds on this pattern. It’s a companion package for running and managing evaluations at scale, with declarative configuration, parameter sweeps (matrix patterns across tasks, models, and hyperparameters), reusable defaults, and reuse of evaluation logs across runs.

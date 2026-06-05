@@ -12,12 +12,10 @@
 
 ## Components
 
-- [Tasks](https://inspect.aisi.org.uk/tasks.html.md): Tasks bring together datasets, solvers, and scorers to define an evaluation. Strategies for creating flexible and re-usable tasks.
-- [Task Config](https://inspect.aisi.org.uk/task-configuration.html.md): Overriding task components at runtime using task_with(), eval(), and the CLI.
+- [Tasks](https://inspect.aisi.org.uk/tasks.html.md): Tasks bring together datasets, solvers, and scorers to define an evaluation. Strategies for creating flexible, re-usable tasks and for configuring and overriding them at runtime.
 - [Datasets](https://inspect.aisi.org.uk/datasets.html.md): Datasets provide samples to evaluation tasks. How to adapt various data sources for use with Inspect, including multi-modal data.
 - [Solvers](https://inspect.aisi.org.uk/solvers.html.md): Solvers encompass prompt engineering and other elicitation strategies. Using built-in solvers and creating your own.
-- [Scorers](https://inspect.aisi.org.uk/scorers.html.md): Scorers evaluate the work of solvers and aggregate scores into metrics. How to create custom scorers including model-graded ones.
-- [Scanners](https://inspect.aisi.org.uk/scanners.html.md): Scanners review transcripts to find issues like misconfigured environments, refusals, and evaluation awareness.
+- [Scorers](https://inspect.aisi.org.uk/scorers.html.md): Scorers evaluate the work of solvers and aggregate scores into metrics. Overview of the built-in scorers and pointers to custom scorers, metrics, and the scoring workflow.
 
 ## Models
 
@@ -30,6 +28,16 @@
 - [Reasoning](https://inspect.aisi.org.uk/reasoning.html.md): Additional options and data available for reasoning models.
 - [Structured Output](https://inspect.aisi.org.uk/structured.html.md): How to constrain model output to a particular JSON schema.
 - [Batch Mode](https://inspect.aisi.org.uk/models-batch.html.md): Using batch processing APIs for model inference.
+
+## Scoring
+
+- [Standard Scorers](https://inspect.aisi.org.uk/standard-scorers.html.md): The built-in scorers that ship with Inspect (text matching, multiple choice, model grading, math, and perplexity), the metrics they report, and where to go next.
+- [Custom Scorers](https://inspect.aisi.org.uk/custom-scorers.html.md): Write your own scorers using the Score, Value, and Target types, call models from scorers, and access the sandbox.
+- [Model Grading](https://inspect.aisi.org.uk/model-graded.html.md): Use another model to grade outputs with model_graded_qa() and model_graded_fact(). Customise templates, instructions, grader models, multi-model voting, and chat history.
+- [Scoring Metrics](https://inspect.aisi.org.uk/metrics.html.md): Built-in scoring metrics, metric grouping, clustered standard errors, custom metrics, and reducing epochs.
+- [Multiple Scorers](https://inspect.aisi.org.uk/multiple-scorers.html.md): Use several scorers together, emit multiple scores from one scorer, attach complex metrics, reduce multiple scores, and access the sandbox.
+- [Scoring Workflow](https://inspect.aisi.org.uk/scoring-workflow.html.md): Defer scoring with --no-score, re-score logs with the inspect score command and the score() function, control append vs. overwrite, and edit scores.
+- [Perplexity](https://inspect.aisi.org.uk/perplexity.html.md): Perplexity-based scorers (perplexity() and target_perplexity()) for evaluating how well a model predicts text using prompt log probabilities.
 
 ## Agents
 
@@ -63,7 +71,9 @@
 ## Analysis
 
 - [Log Files](https://inspect.aisi.org.uk/eval-logs.html.md): Getting the most out of evaluation logs for developing, debugging, and analyzing evaluations.
-- [Log Dataframes](https://inspect.aisi.org.uk/dataframe.html.md): APIs for extracting dataframes of evals, samples, messages, and events from log files.
+- [Dataframes](https://inspect.aisi.org.uk/dataframe.html.md): APIs for extracting dataframes of evals, samples, messages, and events from log files.
+- [Scanners](https://inspect.aisi.org.uk/scanners.html.md): Scanners review transcripts to find issues like misconfigured environments, refusals, and evaluation awareness.
+- [Inspect Viz](https://inspect.aisi.org.uk/inspect-viz.html.md): Inspect Viz is a companion package for creating high quality, interactive visualisations from Inspect evaluation logs.
 - [Task Views](https://inspect.aisi.org.uk/task-views.html.md): Use ViewerConfig to customize how a task's samples, scores, and scanner results render in the Inspect log viewer.
 
 ## Extensions

@@ -76,6 +76,7 @@ ul.task-list li input[type="checkbox"] {
 <link rel="alternate" type="text/markdown" title="LLM-readable docs (user guide)" href="./llms-guide.txt">
 
 
+<link rel="stylesheet" href="styles.css">
 <meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
 <meta property="og:image" content="https://inspect.aisi.org.uk/images/inspect.png">
@@ -129,6 +130,10 @@ ul.task-list li input[type="checkbox"] {
  <span class="dropdown-text">Models</span></a>
   </li>  
         <li>
+    <a class="dropdown-item" href="./scoring.html">
+ <span class="dropdown-text">Scoring</span></a>
+  </li>  
+        <li>
     <a class="dropdown-item" href="./agents.html">
  <span class="dropdown-text">Agents</span></a>
   </li>  
@@ -137,11 +142,11 @@ ul.task-list li input[type="checkbox"] {
  <span class="dropdown-text">Tools</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="./eval-sets.html">
+    <a class="dropdown-item" href="./running.html">
  <span class="dropdown-text">Running</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="./eval-logs.html">
+    <a class="dropdown-item" href="./analysis.html">
  <span class="dropdown-text">Analysis</span></a>
   </li>  
         <li>
@@ -436,6 +441,7 @@ ul.task-list li input[type="checkbox"] {
 <ul>
 <li>Model API: Add <code>ModelInfo.family</code> and <code>ModelAPI.model_family()</code>. Provider capability and request-shape checks now consult a registered <code>ModelInfo.family</code> before falling back to model-name matching, while preserving the configured model name for provider requests.</li>
 <li>Together: Support the <code>stream</code> model arg (e.g.&nbsp;<code>-M stream=true</code>) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to <code>stop_reason="max_tokens"</code> instead of raising.</li>
+<li>Groq: Map tool_choice=“any” to “required” for forced tool calls.</li>
 <li>Bedrock: Support <code>response_schema</code> (structured output) for Claude models via <code>output_config.format</code>.</li>
 <li>Deep Agent: Subagent <code>submit()</code> calls are retained in the subagent transcript (previously stripped) and rendered as markdown, so a submit is distinguishable from a normal assistant message. The parent’s result is unchanged.</li>
 <li>Sandbox: Allow <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.util.html#sandbox_service">sandbox_service()</a></span> instances running as different users in the same sandbox to share <code>/var/tmp/sandbox-services</code>.</li>
@@ -451,6 +457,10 @@ ul.task-list li input[type="checkbox"] {
 <li>Inspect View: Migrated the sample transcript to a virtualized list for smoother rendering of long transcripts.</li>
 <li>Inspect View: Collapse same-name nested solver/agent spans in transcripts</li>
 <li>Inspect View: Fix truncation of long transcript outlines when scrolling</li>
+<li>Inspect View: Switch to dev dependencies for scout and inspect apps</li>
+<li>Inspect View: Fixes to live sample following behavior</li>
+<li>Inspect View: Properly clear log/sample before paint when viewing log (#284)</li>
+<li>Inspect View: don’t render primitive solvers as sub-agents (#287)</li>
 <li>Bugfix: Inspect View sample-list columns now expand to fill the available width.</li>
 <li>Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.</li>
 <li>Bugfix: Preserve OpenAI Responses API encrypted reasoning through agent bridge round-trips and replay reasoning input items with empty <code>content</code> to avoid server validation errors.</li>

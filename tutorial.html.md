@@ -288,7 +288,7 @@ def math():
     )
 ```
 
-See [Scorers](./scorers.html.md) for the full scorer and metric APIs.
+See [Scoring](./scoring.html.md) for the full scorer and metric APIs.
 
 ## Custom Tools
 

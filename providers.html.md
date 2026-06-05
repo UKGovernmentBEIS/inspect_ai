@@ -921,7 +921,7 @@ vLLM is generally much faster than the Hugging Face provider as the library is d
 
 ### Multiple Servers
 
-`VLLM_BASE_URL` sets a single global endpoint, but a vLLM server only serves one model. If you need different models for different purposes — for example, a small model for the solver and a larger one as a judge for [model-graded scoring](./scorers.html.md#model-graded) — start a vLLM server per model and pass a per-model `base_url` rather than relying on the env var.
+`VLLM_BASE_URL` sets a single global endpoint, but a vLLM server only serves one model. If you need different models for different purposes — for example, a small model for the solver and a larger one as a judge for [model-graded scoring](./model-graded.html.md) — start a vLLM server per model and pass a per-model `base_url` rather than relying on the env var.
 
 The most ergonomic path is [model roles](./models.html.md#model-roles), which lets the built-in `model_graded_*` scorers automatically resolve their judge from the `grader` role:
 
@@ -1080,7 +1080,7 @@ For vLLM reasoning models, pass the model-specific parser and chat-template kwar
 
 ### Prompt Log Probabilities
 
-vLLM supports returning log probabilities for prompt tokens via the `prompt_logprobs` configuration option. This enables [perplexity-based scoring](./scorers.html.md#perplexity) for benchmarks like WikiText, C4, ARC-C, and MMLU:
+vLLM supports returning log probabilities for prompt tokens via the `prompt_logprobs` configuration option. This enables [perplexity-based scoring](./perplexity.html.md) for benchmarks like WikiText, C4, ARC-C, and MMLU:
 
 ``` bash
 inspect eval perplexity_eval.py --model vllm/meta-llama/Meta-Llama-3-8B \

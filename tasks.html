@@ -68,7 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./task-configuration.html" rel="next">
+<link href="./datasets.html" rel="next">
 <link href="./vscode.html" rel="prev">
 <link href="./favicon.svg" rel="icon" type="image/svg+xml">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
@@ -113,6 +113,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link rel="alternate" type="text/markdown" title="LLM-readable docs (user guide)" href="./llms-guide.txt">
 
 
+<link rel="stylesheet" href="styles.css">
 <meta property="og:title" content="Inspect">
 <meta property="og:description" content="Open-source framework for large language model evaluations">
 <meta property="og:image" content="https://inspect.aisi.org.uk/images/inspect.png">
@@ -166,6 +167,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="dropdown-text">Models</span></a>
   </li>  
         <li>
+    <a class="dropdown-item" href="./scoring.html">
+ <span class="dropdown-text">Scoring</span></a>
+  </li>  
+        <li>
     <a class="dropdown-item" href="./agents.html">
  <span class="dropdown-text">Agents</span></a>
   </li>  
@@ -174,11 +179,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="dropdown-text">Tools</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="./eval-sets.html">
+    <a class="dropdown-item" href="./running.html">
  <span class="dropdown-text">Running</span></a>
   </li>  
         <li>
-    <a class="dropdown-item" href="./eval-logs.html">
+    <a class="dropdown-item" href="./analysis.html">
  <span class="dropdown-text">Analysis</span></a>
   </li>  
         <li>
@@ -291,12 +296,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./task-configuration.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Task Config</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
   <a href="./datasets.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Datasets</span></a>
   </div>
@@ -311,12 +310,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./scorers.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Scorers</span></a>
-  </div>
-</li>
-          <li class="sidebar-item">
-  <div class="sidebar-item-container"> 
-  <a href="./scanners.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Scanners</span></a>
   </div>
 </li>
       </ul>
@@ -388,13 +381,66 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false">
- <span class="menu-text">Agents</span></a>
+            <a href="./scoring.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scoring</span></a>
           <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
       <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth1 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./standard-scorers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Standard Scorers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./custom-scorers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Custom Scorers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./model-graded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model Grading</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./metrics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scoring Metrics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./multiple-scorers.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Multiple Scorers</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scoring-workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scoring Workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./perplexity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Perplexity</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+ <span class="menu-text">Agents</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./agents.html" class="sidebar-item-text sidebar-link">
@@ -447,13 +493,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
  <span class="menu-text">Tools</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./tools.html" class="sidebar-item-text sidebar-link">
@@ -494,13 +540,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+            <a href="./running.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Running</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-sets.html" class="sidebar-item-text sidebar-link">
@@ -541,13 +587,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </li>
         <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
-            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+            <a href="./analysis.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Analysis</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./eval-logs.html" class="sidebar-item-text sidebar-link">
@@ -557,7 +603,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./dataframe.html" class="sidebar-item-text sidebar-link">
- <span class="menu-text">Log Dataframes</span></a>
+ <span class="menu-text">Dataframes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./scanners.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Scanners</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./inspect-viz.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Inspect Viz</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -572,11 +630,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       <div class="sidebar-item-container"> 
             <a href="./extensions.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Extensions</span></a>
-          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
             <i class="bi bi-chevron-right ms-2"></i>
           </a> 
       </div>
-      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth1 ">  
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth1 ">  
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./extensions-model-api.html" class="sidebar-item-text sidebar-link">
@@ -638,6 +696,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   </ul></li>
   <li><a href="#task-cleanup" id="toc-task-cleanup" class="nav-link" data-scroll-target="#task-cleanup">Task Cleanup</a></li>
   <li><a href="#task-reuse" id="toc-task-reuse" class="nav-link" data-scroll-target="#task-reuse">Task Reuse</a></li>
+  <li><a href="#configuration" id="toc-configuration" class="nav-link" data-scroll-target="#configuration">Configuration</a>
+  <ul class="collapse">
+  <li><a href="#env-vars" id="toc-env-vars" class="nav-link" data-scroll-target="#env-vars">Environment Variables</a></li>
+  <li><a href="#eval-cli" id="toc-eval-cli" class="nav-link" data-scroll-target="#eval-cli">eval() and CLI</a></li>
+  <li><a href="#override-reference" id="toc-override-reference" class="nav-link" data-scroll-target="#override-reference">Override Reference</a></li>
+  <li><a href="#generate-config" id="toc-generate-config" class="nav-link" data-scroll-target="#generate-config">Generation Config</a></li>
+  <li><a href="#model-roles" id="toc-model-roles" class="nav-link" data-scroll-target="#model-roles">Model Roles</a></li>
+  <li><a href="#run-config" id="toc-run-config" class="nav-link" data-scroll-target="#run-config">Run Config File</a></li>
+  <li><a href="#scorer-override" id="toc-scorer-override" class="nav-link" data-scroll-target="#scorer-override">Scorer Override</a></li>
+  <li><a href="#common-patterns" id="toc-common-patterns" class="nav-link" data-scroll-target="#common-patterns">Common Patterns</a></li>
+  </ul></li>
   <li><a href="#packaging" id="toc-packaging" class="nav-link" data-scroll-target="#packaging">Packaging</a>
   <ul class="collapse">
   <li><a href="#example" id="toc-example" class="nav-link" data-scroll-target="#example">Example</a></li>
@@ -647,7 +716,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#multiple-tasks" id="toc-multiple-tasks" class="nav-link" data-scroll-target="#multiple-tasks">Multiple Tasks</a></li>
   <li><a href="#revisions" id="toc-revisions" class="nav-link" data-scroll-target="#revisions">Revisions</a></li>
   </ul></li>
-  <li><a href="#exploratory" id="toc-exploratory" class="nav-link" data-scroll-target="#exploratory">Exploratory</a></li>
+  <li><a href="#exploratory" id="toc-exploratory" class="nav-link" data-scroll-target="#exploratory">Exploratory</a>
+  <ul class="collapse">
+  <li><a href="#inspect-flow" id="toc-inspect-flow" class="nav-link" data-scroll-target="#inspect-flow">Inspect Flow</a></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
@@ -681,8 +753,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><a href="#parameters">Parameters</a> covers adding parameters to tasks to make them flexible and adaptable.</li>
 <li><a href="#solvers">Solvers</a> describes how to create tasks that can be used with many different solvers.</li>
 <li><a href="#task-reuse">Task Reuse</a> documents how to flexibly derive new tasks from existing task definitions.</li>
+<li><a href="#configuration">Configuration</a> explains how to override task options at runtime with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>, environment variables, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>, and the CLI.</li>
 <li><a href="#packaging">Packaging</a> illustrates how you can distribute tasks within Python packages.</li>
-<li><a href="#exploratory">Exploratory</a> provides guidance on doing exploratory task and solver development.</li>
+<li><a href="#exploratory">Exploratory</a> provides guidance on doing exploratory task development.</li>
 </ul>
 </section>
 <section id="task-basics" class="level2">
@@ -705,90 +778,98 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h3 class="anchored" data-anchor-id="task-options">Task Options</h3>
 <p>While many tasks can be defined with only a dataset, solver, and scorer, there are lots of other useful <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> options. We won’t describe these options in depth here, but rather provide a list along with links to other sections of the documentation that cover their usage:</p>
 <table class="caption-top table">
-<caption> {tbl-colwidths='[25,50,25]'}</caption>
 <colgroup>
-<col style="width: 10%">
-<col style="width: 54%">
-<col style="width: 33%">
-<col style="width: 0%">
+<col style="width: 28%">
+<col style="width: 42%">
+<col style="width: 30%">
 </colgroup>
 <thead>
 <tr class="header">
 <th>Option</th>
 <th>Description</th>
 <th>Docs</th>
-<th></th>
 </tr>
 </thead>
 <tbody>
 <tr class="odd">
 <td><code>epochs</code></td>
 <td>Epochs to run for each dataset sample.</td>
-<td><a href="./scorers.html#reducing-epochs">Epochs</a></td>
-<td></td>
+<td><a href="./metrics.html#reducing-epochs">Epochs</a></td>
 </tr>
 <tr class="even">
 <td><code>setup</code></td>
 <td>Setup solver(s) to run prior to the main solver.</td>
 <td><a href="#setup-parameter">Sample Setup</a></td>
-<td></td>
 </tr>
 <tr class="odd">
 <td><code>cleanup</code></td>
-<td>Cleanup function to call at task completion</td>
+<td>Cleanup function to call at task completion.</td>
 <td><a href="#task-cleanup">Task Cleanup</a></td>
-<td></td>
 </tr>
 <tr class="even">
 <td><code>sandbox</code></td>
 <td>Sandbox configuration for un-trusted code execution.</td>
 <td><a href="./sandboxing.html">Sandboxing</a></td>
-<td></td>
 </tr>
 <tr class="odd">
 <td><code>approval</code></td>
 <td>Approval policy for tool calls.</td>
 <td><a href="./approval.html">Tool Approval</a></td>
-<td></td>
 </tr>
 <tr class="even">
 <td><code>metrics</code></td>
 <td>Metrics to use in place of scorer metrics.</td>
-<td><a href="./scorers.html#scoring-metrics">Scoring Metrics</a></td>
-<td></td>
+<td><a href="./metrics.html">Metrics</a></td>
 </tr>
 <tr class="odd">
 <td><code>model</code></td>
-<td>Model for evaluation (note that model is typically specified by <code>eval</code> rather than in the task)</td>
+<td>Model for evaluation (typically specified by <code>eval</code> rather than the task).</td>
 <td><a href="./models.html">Models</a></td>
-<td></td>
 </tr>
 <tr class="even">
+<td><code>model_roles</code></td>
+<td>Named models for use with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span> (e.g.&nbsp;a grader).</td>
+<td><a href="./models.html#model-roles">Model Roles</a></td>
+</tr>
+<tr class="odd">
 <td><code>config</code></td>
 <td>Config for model generation (also typically specified in <code>eval</code>).</td>
 <td><a href="./options.html#model-generation">Generate Config</a></td>
-<td></td>
-</tr>
-<tr class="odd">
-<td><code>fail_on_error</code></td>
-<td>Failure tolerance for samples.</td>
-<td colspan="2"><a href="./handling-errors.html#failure-threshold">Failure Threshold</a></td>
 </tr>
 <tr class="even">
-<td><code>message_limit</code><br>
-<code>token_limit</code><br>
-<code>time_limit</code><br>
-<code>working_limit</code></td>
-<td>Limits to apply to sample execution.</td>
-<td colspan="2"><a href="./setting-limits.html#sample-limits">Sample Limits</a> | | | |</td>
+<td><code>fail_on_error</code></td>
+<td>Failure tolerance for samples.</td>
+<td><a href="./handling-errors.html#failure-threshold">Failure Threshold</a></td>
 </tr>
 <tr class="odd">
-<td><code>name</code><br>
-<code>version</code><br>
-<code>metadata</code></td>
-<td>Eval log attributes for task.</td>
+<td><code>continue_on_fail</code></td>
+<td>Continue running after sample errors, failing only at the end.</td>
+<td><a href="./handling-errors.html">Handling Errors</a></td>
+</tr>
+<tr class="even">
+<td><code>score_on_error</code></td>
+<td>Score samples that error rather than failing the run.</td>
+<td><a href="./handling-errors.html">Handling Errors</a></td>
+</tr>
+<tr class="odd">
+<td><code>message_limit</code>, <code>token_limit</code>, <code>time_limit</code>, <code>working_limit</code>, <code>cost_limit</code></td>
+<td>Limits to apply to sample execution.</td>
+<td><a href="./setting-limits.html#sample-limits">Sample Limits</a></td>
+</tr>
+<tr class="even">
+<td><code>early_stopping</code></td>
+<td>Stop a task early based on previously scored samples.</td>
+<td><a href="./early-stopping.html">Early Stopping</a></td>
+</tr>
+<tr class="odd">
+<td><code>name</code>, <code>display_name</code>, <code>version</code>, <code>metadata</code>, <code>tags</code></td>
+<td>Identifying attributes recorded in the eval log.</td>
 <td><a href="./eval-logs.html">Eval Logs</a></td>
-<td></td>
+</tr>
+<tr class="even">
+<td><code>viewer</code></td>
+<td>Log viewer config (e.g.&nbsp;how scanner results render).</td>
+<td><a href="./task-views.html">Task Views</a></td>
 </tr>
 </tbody>
 </table>
@@ -809,7 +890,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> security_guide(</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    system<span class="op">=</span><span class="st">"devops.txt"</span>, </span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    system<span class="op">=</span><span class="st">"devops.txt"</span>,</span>
 <span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    grader<span class="op">=</span><span class="st">"expert.txt"</span>,</span>
 <span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    grader_model<span class="op">=</span><span class="st">"openai/gpt-4o"</span></span>
 <span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>):</span>
@@ -836,8 +917,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 <p>Reference this file from the CLI with:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb6"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval security.py <span class="at">--task-config</span><span class="op">=</span>config.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>If you want to bundle task parameters together with model, generation, and solver settings in a single file, use <code>--run-config</code> instead. See <a href="./task-configuration.html#run-config">Run Config File</a>.</p>
-<p>For a broader view of how task parameters relate to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>, environment variables, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>, and CLI overrides, see <a href="./task-configuration.html">Task Configuration</a>.</p>
+<p>If you want to bundle task parameters together with model, generation, and solver settings in a single file, use <code>--run-config</code> instead. See <a href="#run-config">Run Config File</a>.</p>
+<p>For a broader view of how task parameters relate to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>, environment variables, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>, and CLI overrides, see <a href="#configuration">Configuration</a>.</p>
 </section>
 <section id="solvers" class="level2">
 <h2 class="anchored" data-anchor-id="solvers">Solvers</h2>
@@ -857,7 +938,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>read_dataset(),</span>
 <span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>[</span>
 <span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>            use_tools([</span>
-<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>                bash(timeout<span class="op">=</span><span class="dv">180</span>), </span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>                bash(timeout<span class="op">=</span><span class="dv">180</span>),</span>
 <span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>                python(timeout<span class="op">=</span><span class="dv">180</span>)</span>
 <span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>            ]),</span>
 <span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>            generate()</span>
@@ -878,7 +959,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ctf_tool_loop():</span>
 <span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> chain([</span>
 <span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        use_tools([</span>
-<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>            bash(timeout<span class="op">=</span><span class="dv">180</span>), </span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>            bash(timeout<span class="op">=</span><span class="dv">180</span>),</span>
 <span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>            python(timeout<span class="op">=</span><span class="dv">180</span>)</span>
 <span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>        ]),</span>
 <span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>        generate()</span>
@@ -891,7 +972,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>        attempts<span class="op">=</span>attempts,</span>
 <span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>    )</span>
 <span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a> </span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a><span class="at">@task</span></span>
 <span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> ctf():</span>
 <span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>    <span class="co"># return task</span></span>
@@ -931,7 +1012,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>    <span class="co"># use default tool loop solver if no solver specified</span></span>
 <span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> solver <span class="kw">is</span> <span class="va">None</span>:</span>
 <span id="cb10-14"><a href="#cb10-14" aria-hidden="true" tabindex="-1"></a>        solver <span class="op">=</span> ctf_tool_loop()</span>
-<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a>   </span>
+<span id="cb10-15"><a href="#cb10-15" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb10-16"><a href="#cb10-16" aria-hidden="true" tabindex="-1"></a>    <span class="co"># return task</span></span>
 <span id="cb10-17"><a href="#cb10-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> Task(</span>
 <span id="cb10-18"><a href="#cb10-18" aria-hidden="true" tabindex="-1"></a>        dataset<span class="op">=</span>read_dataset(),</span>
@@ -961,20 +1042,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="task-reuse" class="level2">
 <h2 class="anchored" data-anchor-id="task-reuse">Task Reuse</h2>
 <p>The basic mechanism for task re-use is to create flexible and adaptable base <code>@task</code> functions (which often have many parameters) and then derive new higher-level tasks from them by creating additional <code>@task</code> functions that call the base function.</p>
-<p>In some cases though you might not have full control over the base <code>@task</code> function (e.g.&nbsp;it’s published in a Python package you aren’t the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span> function, which provides a straightforward way to modify the properties of an existing task.</p>
-<div class="callout callout-style-default callout-tip callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-Tip
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>For a comprehensive reference on all configuration and override mechanisms — including <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>, <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> overrides, CLI flags, and precedence rules — see <a href="./task-configuration.html">Task Configuration</a>.</p>
-</div>
-</div>
+<p>In some cases though you might not have full control over the base <code>@task</code> function (e.g.&nbsp;it’s published in a Python package you aren’t the maintainer of) but you nevertheless want to flexibly create derivative tasks from it. To do this, you can use the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span> function, which provides a straightforward way to modify the properties of an existing task. The <a href="#configuration">Configuration</a> section below covers <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span> alongside the other ways to override task options at runtime.</p>
 <p>For example, imagine you are dealing with a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> that hard-codes its <code>sandbox</code> to a particular Dockerfile included with the task, and further hard codes its <code>solver</code> to a simple agent:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb12"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.agent <span class="im">import</span> react</span>
@@ -1013,16 +1081,591 @@ Tip
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb14"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>adapted1 <span class="op">=</span> task_with(hard_coded(), ...)</span>
 <span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>adapted2 <span class="op">=</span> task_with(hard_coded(), ...)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
+<section id="configuration" class="level2">
+<h2 class="anchored" data-anchor-id="configuration">Configuration</h2>
+<p>A task definition provides defaults for everything an evaluation needs, but you will often want to run a task with different settings without editing its source. Task options can be set or overridden at four layers, each taking precedence over the ones before it:</p>
+<ol type="1">
+<li>Task definition: defaults baked into the <code>@task</code> function and <code>Task()</code> constructor.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>: programmatic overrides applied to a task before passing it to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>.</li>
+<li>Environment variables / <code>.env</code> files: project or session defaults set outside code.</li>
+<li><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> / CLI: runtime overrides, which take highest precedence.</li>
+</ol>
+<table class="caption-top table">
+<caption>Precedence order, with each layer overriding those to its left</caption>
+<colgroup>
+<col style="width: 22%">
+<col style="width: 23%">
+<col style="width: 25%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Lowest</th>
+<th></th>
+<th></th>
+<th>Highest</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Task definition</td>
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span></td>
+<td><code>.env</code> / env vars</td>
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> / CLI</td>
+</tr>
+</tbody>
+</table>
+<p>The first two layers are described earlier in this article: defaults and <a href="#parameters">parameters</a> in the task definition, and <a href="#task-reuse"><span class="element-type-name ref-interlink"><span>task_with()</span></span></a> for adapting a task you don’t control. The sections below cover the remaining two layers, then provide a reference for what can be set where.</p>
+<section id="env-vars" class="level3">
+<h3 class="anchored" data-anchor-id="env-vars">Environment Variables</h3>
+<p>Every CLI flag can be set as an environment variable using the <code>INSPECT_EVAL_</code> prefix (with hyphens converted to underscores). Set these in the shell, or place them in a <code>.env</code> file that Inspect reads automatically from the current directory (searching parent directories if not found). Use this layer for project or session defaults you want applied across runs without specifying them each time:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>.env</strong></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15" data-filename=".env"><pre class="sourceCode makefile code-with-copy"><code class="sourceCode makefile"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_MODEL</span><span class="ch">=</span><span class="st">anthropic/claude-sonnet-4-5</span></span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_TEMPERATURE</span><span class="ch">=</span><span class="st">0.0</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_MAX_CONNECTIONS</span><span class="ch">=</span><span class="st">20</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a><span class="dt">INSPECT_EVAL_MAX_RETRIES</span><span class="ch">=</span><span class="st">5</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Variables set in the shell take precedence over values in a <code>.env</code> file. See <a href="./options.html#env-files">Options</a> for details on <code>.env</code> file handling.</p>
+</section>
+<section id="eval-cli" class="level3">
+<h3 class="anchored" data-anchor-id="eval-cli">eval() and CLI</h3>
+<p>Parameters passed to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> or on the <code>inspect eval</code> command line take highest precedence, and apply to all tasks being evaluated in the call.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb16"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> <span class="bu">eval</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    simpleqa(),</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span><span class="st">"anthropic/claude-sonnet-4-5"</span>,</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>    temperature<span class="op">=</span><span class="fl">0.0</span>,</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>    max_tokens<span class="op">=</span><span class="dv">4096</span>,</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>    epochs<span class="op">=</span><span class="dv">5</span>,</span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>    limit<span class="op">=</span><span class="dv">100</span>,</span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a>    message_limit<span class="op">=</span><span class="dv">50</span>,</span>
+<span id="cb16-11"><a href="#cb16-11" aria-hidden="true" tabindex="-1"></a>    model_roles<span class="op">=</span>{<span class="st">"grader"</span>: <span class="st">"google/gemini-2.0-flash"</span>},</span>
+<span id="cb16-12"><a href="#cb16-12" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The same overrides on the command line:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/simpleqa <span class="dt">\</span></span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model</span> anthropic/claude-sonnet-4-5 <span class="dt">\</span></span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">--temperature</span> 0.0 <span class="dt">\</span></span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">--max-tokens</span> 4096 <span class="dt">\</span></span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">--epochs</span> 5 <span class="dt">\</span></span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">--limit</span> 100 <span class="dt">\</span></span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>    <span class="at">--message-limit</span> 50 <span class="dt">\</span></span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model-role</span> grader=google/gemini-2.0-flash</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>See <a href="./options.html">Eval Options</a> for the full list of CLI flags.</p>
+</section>
+<section id="override-reference" class="level3">
+<h3 class="anchored" data-anchor-id="override-reference">Override Reference</h3>
+<p>The table below lists task and runtime parameters and the layers at which each can be set:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 23%">
+<col style="width: 11%">
+<col style="width: 18%">
+<col style="width: 18%">
+<col style="width: 30%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Parameter</th>
+<th><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span></th>
+<th><code>task_with</code></th>
+<th><code>eval</code></th>
+<th>CLI flag</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>Task structure</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>dataset</code></td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>setup</code></td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>solver</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--solver</code> (name or <code>file.py@name</code>)</td>
+</tr>
+<tr class="odd">
+<td><code>cleanup</code></td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>scorer</code></td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>metrics</code></td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><strong>Model</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>model</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--model</code></td>
+</tr>
+<tr class="even">
+<td><code>config</code> (includes <code>temperature</code>, <code>max_tokens</code>, etc.)</td>
+<td>yes</td>
+<td>yes</td>
+<td>yes (via <code>**kwargs</code>)</td>
+<td>individual flags or <code>--generate-config</code></td>
+</tr>
+<tr class="odd">
+<td><code>model_roles</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--model-role</code></td>
+</tr>
+<tr class="even">
+<td><strong>Execution limits</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>epochs</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--epochs</code></td>
+</tr>
+<tr class="even">
+<td><code>message_limit</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--message-limit</code></td>
+</tr>
+<tr class="odd">
+<td><code>token_limit</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--token-limit</code></td>
+</tr>
+<tr class="even">
+<td><code>time_limit</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--time-limit</code></td>
+</tr>
+<tr class="odd">
+<td><code>working_limit</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--working-limit</code></td>
+</tr>
+<tr class="even">
+<td><code>cost_limit</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--cost-limit</code></td>
+</tr>
+<tr class="odd">
+<td><code>early_stopping</code></td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><strong>Error handling</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>fail_on_error</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--fail-on-error</code></td>
+</tr>
+<tr class="even">
+<td><code>continue_on_fail</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--continue-on-fail</code></td>
+</tr>
+<tr class="odd">
+<td><code>retry_on_error</code></td>
+<td></td>
+<td></td>
+<td>yes</td>
+<td><code>--retry-on-error</code></td>
+</tr>
+<tr class="even">
+<td><code>score_on_error</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--score-on-error</code></td>
+</tr>
+<tr class="odd">
+<td><code>debug_errors</code></td>
+<td></td>
+<td></td>
+<td>yes</td>
+<td><code>--debug-errors</code></td>
+</tr>
+<tr class="even">
+<td><strong>Environment</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>sandbox</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--sandbox</code></td>
+</tr>
+<tr class="even">
+<td><code>sandbox_cleanup</code></td>
+<td></td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--no-sandbox-cleanup</code></td>
+</tr>
+<tr class="odd">
+<td><code>approval</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>yes</td>
+<td><code>--approval</code></td>
+</tr>
+<tr class="even">
+<td><strong>Task identity</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>name</code></td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>version</code></td>
+<td>yes</td>
+<td>yes</td>
+<td></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>metadata</code></td>
+<td>yes</td>
+<td>yes (overwrites)</td>
+<td>yes (merges)</td>
+<td><code>--metadata</code></td>
+</tr>
+<tr class="even">
+<td><code>tags</code></td>
+<td>yes</td>
+<td>yes (overwrites)</td>
+<td>yes (merges)</td>
+<td><code>--tags</code></td>
+</tr>
+<tr class="odd">
+<td><strong>Sample selection</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>limit</code></td>
+<td></td>
+<td></td>
+<td>yes</td>
+<td><code>--limit</code></td>
+</tr>
+<tr class="odd">
+<td><code>sample_id</code></td>
+<td></td>
+<td></td>
+<td>yes</td>
+<td><code>--sample-id</code></td>
+</tr>
+<tr class="even">
+<td><code>sample_shuffle</code></td>
+<td></td>
+<td></td>
+<td>yes</td>
+<td><code>--sample-shuffle</code></td>
+</tr>
+<tr class="odd">
+<td><strong>Eval-level controls</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>task_args</code></td>
+<td>args/kwargs</td>
+<td></td>
+<td>yes</td>
+<td><code>-T key=value</code></td>
+</tr>
+<tr class="odd">
+<td><code>score</code></td>
+<td></td>
+<td></td>
+<td>yes</td>
+<td><code>--no-score</code></td>
+</tr>
+<tr class="even">
+<td><code>score_display</code></td>
+<td></td>
+<td></td>
+<td>yes</td>
+<td><code>--no-score-display</code></td>
+</tr>
+<tr class="odd">
+<td><code>trace</code></td>
+<td></td>
+<td></td>
+<td>yes</td>
+<td><code>--trace</code></td>
+</tr>
+</tbody>
+</table>
+<p>Blank cells indicate that a parameter cannot be set at that layer. The <code>task_args</code> row refers to setting these fields as arguments of the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span> object, as opposed to passing a <code>task_args</code> dictionary.</p>
+</section>
+<section id="generate-config" class="level3">
+<h3 class="anchored" data-anchor-id="generate-config">Generation Config</h3>
+<p><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> parameters (<code>temperature</code>, <code>max_tokens</code>, <code>top_p</code>, and so on) can be set at every layer.</p>
+<p>In the task definition via <code>config</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>Task(</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    ...,</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>    config<span class="op">=</span>GenerateConfig(temperature<span class="op">=</span><span class="fl">0.5</span>, max_tokens<span class="op">=</span><span class="dv">2048</span>)</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>With <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span> via <code>config</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>task_with(my_task(), config<span class="op">=</span>GenerateConfig(temperature<span class="op">=</span><span class="fl">0.0</span>))</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>With <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> as keyword arguments:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(my_task(), temperature<span class="op">=</span><span class="fl">0.0</span>, max_tokens<span class="op">=</span><span class="dv">4096</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>On the CLI as individual flags:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval my_task.py <span class="at">--temperature</span> 0.0 <span class="at">--max-tokens</span> 4096</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Or from a YAML/JSON file using <code>--generate-config</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval my_task.py <span class="at">--generate-config</span> config.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>where <code>config.yaml</code> contains <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#generateconfig">GenerateConfig</a></span> fields:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>config.yaml</strong></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23" data-filename="config.yaml"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">temperature</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.5</span></span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="fu">max_tokens</span><span class="kw">:</span><span class="at"> </span><span class="dv">2048</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>Individual CLI flags (e.g.&nbsp;<code>--temperature</code>) take precedence over values in the config file. To bundle generation parameters alongside a full eval configuration (task, model, model roles, solver), use <code>--run-config</code> instead (see <a href="#run-config">Run Config File</a>).</p>
+</section>
+<section id="model-roles" class="level3">
+<h3 class="anchored" data-anchor-id="model-roles">Model Roles</h3>
+<p>Model roles assign models to named purposes within a task (for example, a “grader” model for scoring). They can be set on <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>, with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span>, with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span>, or on the CLI with <code>--model-role</code> (see the <a href="#override-reference">override reference</a> for where each form fits). The most common pattern:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a>Task(..., model_roles<span class="op">=</span>{<span class="st">"grader"</span>: <span class="st">"openai/gpt-4o"</span>})</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="bu">eval</span>(my_task(), model_roles<span class="op">=</span>{<span class="st">"grader"</span>: <span class="st">"google/gemini-2.0-flash"</span>})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Inside a solver or scorer, resolve the role with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#get_model">get_model()</a></span>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> get_model(role<span class="op">=</span><span class="st">"grader"</span>, default<span class="op">=</span><span class="st">"openai/gpt-4o"</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>For inline YAML/JSON examples and role-resolution details, see <a href="./models.html#model-roles">Model Roles</a>.</p>
+</section>
+<section id="run-config" class="level3">
+<h3 class="anchored" data-anchor-id="run-config">Run Config File</h3>
+<p>The <code>--run-config</code> option specifies a single YAML or JSON file that captures a full eval configuration (task, model, model roles, generation parameters, solver, and eval settings) in one place. CLI flags still override values from the file.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb26"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--run-config</span> run.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>The file schema mirrors the structure of the corresponding <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> parameters:</p>
+<div class="code-with-filename">
+<div class="code-with-filename-file">
+<pre><strong>run.yaml</strong></pre>
+</div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb27" data-filename="run.yaml"><pre class="sourceCode yaml code-with-copy"><code class="sourceCode yaml"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">task</span><span class="kw">:</span></span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">task</span><span class="kw">:</span><span class="at"> inspect_evals/simpleqa</span></span>
+<span id="cb27-3"><a href="#cb27-3" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">args</span><span class="kw">:</span></span>
+<span id="cb27-4"><a href="#cb27-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">split</span><span class="kw">:</span><span class="at"> test</span></span>
+<span id="cb27-5"><a href="#cb27-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-6"><a href="#cb27-6" aria-hidden="true" tabindex="-1"></a><span class="fu">model</span><span class="kw">:</span></span>
+<span id="cb27-7"><a href="#cb27-7" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">model</span><span class="kw">:</span><span class="at"> anthropic/claude-sonnet-4-5</span></span>
+<span id="cb27-8"><a href="#cb27-8" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">args</span><span class="kw">:</span></span>
+<span id="cb27-9"><a href="#cb27-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">max_retries</span><span class="kw">:</span><span class="at"> </span><span class="dv">3</span></span>
+<span id="cb27-10"><a href="#cb27-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-11"><a href="#cb27-11" aria-hidden="true" tabindex="-1"></a><span class="fu">model_roles</span><span class="kw">:</span></span>
+<span id="cb27-12"><a href="#cb27-12" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">grader</span><span class="kw">:</span></span>
+<span id="cb27-13"><a href="#cb27-13" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">model</span><span class="kw">:</span><span class="at"> openai/gpt-4o</span></span>
+<span id="cb27-14"><a href="#cb27-14" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">config</span><span class="kw">:</span></span>
+<span id="cb27-15"><a href="#cb27-15" aria-hidden="true" tabindex="-1"></a><span class="at">      </span><span class="fu">temperature</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.0</span></span>
+<span id="cb27-16"><a href="#cb27-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-17"><a href="#cb27-17" aria-hidden="true" tabindex="-1"></a><span class="fu">generate_config</span><span class="kw">:</span></span>
+<span id="cb27-18"><a href="#cb27-18" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">temperature</span><span class="kw">:</span><span class="at"> </span><span class="fl">0.5</span></span>
+<span id="cb27-19"><a href="#cb27-19" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">max_tokens</span><span class="kw">:</span><span class="at"> </span><span class="dv">4096</span></span>
+<span id="cb27-20"><a href="#cb27-20" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">seed</span><span class="kw">:</span><span class="at"> </span><span class="dv">42</span></span>
+<span id="cb27-21"><a href="#cb27-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-22"><a href="#cb27-22" aria-hidden="true" tabindex="-1"></a><span class="fu">solver</span><span class="kw">:</span></span>
+<span id="cb27-23"><a href="#cb27-23" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">solver</span><span class="kw">:</span><span class="at"> my_solvers.py@chain_of_thought</span></span>
+<span id="cb27-24"><a href="#cb27-24" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">args</span><span class="kw">:</span></span>
+<span id="cb27-25"><a href="#cb27-25" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">cot_template</span><span class="kw">:</span><span class="at"> detailed</span></span>
+<span id="cb27-26"><a href="#cb27-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb27-27"><a href="#cb27-27" aria-hidden="true" tabindex="-1"></a><span class="fu">eval_config</span><span class="kw">:</span></span>
+<span id="cb27-28"><a href="#cb27-28" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">limit</span><span class="kw">:</span><span class="at"> </span><span class="dv">100</span></span>
+<span id="cb27-29"><a href="#cb27-29" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">epochs</span><span class="kw">:</span><span class="at"> </span><span class="dv">3</span></span>
+<span id="cb27-30"><a href="#cb27-30" aria-hidden="true" tabindex="-1"></a><span class="at">  </span><span class="fu">message_limit</span><span class="kw">:</span><span class="at"> </span><span class="dv">50</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+<p>All top-level keys are optional. This lets you create “paper config” files that record the generation and eval settings from a paper without hard-coding a specific model, leaving the model to be supplied on the CLI:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb28"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="co"># paper_config.yaml specifies only generate_config, eval_config, and model_roles</span></span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/simpleqa <span class="dt">\</span></span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">--model</span> anthropic/claude-sonnet-4-5 <span class="dt">\</span></span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">--run-config</span> paper_config.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>To run with a different value than the file specifies, pass the corresponding flag:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb29"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--run-config</span> run.yaml <span class="at">--temperature</span> 0.9</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>--run-config</code> cannot be combined with <code>--generate-config</code>, <code>--task-config</code>, or <code>--solver-config</code>. Use <code>--run-config</code> for a single file; use the individual options to compose configuration from multiple files.</p>
+<p>To generate a run config from an existing eval log, use <code>inspect log export-config</code>, which writes the realised configuration as <code>--run-config</code>-compatible YAML:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb30"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> log export-config logs/my_run.eval <span class="op">&gt;</span> run.yaml</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval <span class="at">--run-config</span> run.yaml</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>See <a href="./eval-logs.html#exporting-run-config">Exporting Run Config</a> for details.</p>
+</section>
+<section id="scorer-override" class="level3">
+<h3 class="anchored" data-anchor-id="scorer-override">Scorer Override</h3>
+<p>The scorer can only be overridden with <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span> during a live eval; there is no <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> parameter or CLI flag for it:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb31"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>task_with(my_task(), scorer<span class="op">=</span>my_custom_scorer())</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Some task authors expose scorer selection as a <a href="#parameters">task parameter</a>, which can then be set with <code>-T</code>:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb32"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval my_task.py <span class="at">-T</span> scorer=original</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>This is a convention rather than a framework feature: the <code>@task</code> function must explicitly handle the parameter.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Re-scoring existing logs
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>You can re-score an existing log file with a different scorer using <code>inspect score</code>. The <code>--scorer</code> flag accepts a name (any function decorated with <code>@scorer</code>, see <a href="./custom-scorers.html">Custom Scorers</a>) or a <code>file.py@name</code> reference:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb33"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a><span class="co"># scorer registered via @scorer decorator</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score log_file.eval <span class="at">--scorer</span> my_scorer</span>
+<span id="cb33-3"><a href="#cb33-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb33-4"><a href="#cb33-4" aria-hidden="true" tabindex="-1"></a><span class="co"># scorer defined in a file</span></span>
+<span id="cb33-5"><a href="#cb33-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> score log_file.eval <span class="at">--scorer</span> scorers.py@custom_scorer</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</div>
+</div>
+</section>
+<section id="common-patterns" class="level3">
+<h3 class="anchored" data-anchor-id="common-patterns">Common Patterns</h3>
+<p>When consuming a task from a package (such as <code>inspect_evals</code>) and customising it, here is a recommended approach for each scenario:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 35%">
+<col style="width: 65%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Need</th>
+<th>How</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Different model</td>
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> / <code>--model</code></td>
+</tr>
+<tr class="even">
+<td>Different temperature or max_tokens</td>
+<td><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval">eval()</a></span> / <code>--temperature</code> / <code>--max-tokens</code></td>
+</tr>
+<tr class="odd">
+<td>Bundle of generation params</td>
+<td><code>--generate-config config.yaml</code></td>
+</tr>
+<tr class="even">
+<td>Full run config (paper reproduction)</td>
+<td><code>--run-config run.yaml</code></td>
+</tr>
+<tr class="odd">
+<td>Different solver</td>
+<td><code>eval(solver=...)</code> / <code>--solver</code> / <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task_with">task_with()</a></span></td>
+</tr>
+<tr class="even">
+<td>Different scorer</td>
+<td><code>task_with(task, scorer=...)</code></td>
+</tr>
+<tr class="odd">
+<td>Different grader model</td>
+<td><code>--model-role grader=...</code> / <code>eval(model_roles=)</code></td>
+</tr>
+<tr class="even">
+<td>Different metrics</td>
+<td><code>task_with(task, metrics=[...])</code></td>
+</tr>
+<tr class="odd">
+<td>Subset of samples</td>
+<td><code>--limit</code> / <code>--sample-id</code></td>
+</tr>
+<tr class="even">
+<td>Different epochs</td>
+<td><code>--epochs</code></td>
+</tr>
+</tbody>
+</table>
+<p>Every component except <code>scorer</code>, <code>dataset</code>, and <code>metrics</code> can be overridden without modifying the task’s source. If the task author uses <code>get_model(role="grader")</code> for model-graded scoring, the grader model is also overridable at runtime via <code>--model-role</code>.</p>
+</section>
+</section>
 <section id="packaging" class="level2">
 <h2 class="anchored" data-anchor-id="packaging">Packaging</h2>
 <p>A convenient way to distribute tasks is to include them in a Python package. This makes it very easy for others to run your task and ensure they have all of the required dependencies.</p>
 <p>Tasks in packages can be <em>registered</em> such that users can easily refer to them by name from the CLI. For example, the <a href="https://github.com/UKGovernmentBEIS/inspect_ai">Inspect Evals</a> package includes a suite of tasks that can be run as follows:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb15"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gaia </span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/swe_bench</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb34"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/gaia</span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval inspect_evals/swe_bench</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <section id="example" class="level3">
 <h3 class="anchored" data-anchor-id="example">Example</h3>
 <p>Here’s an example that walks through all of the requirements for registering tasks in packages. Let’s say your package is named <code>evals</code> and has a task named <code>mytask</code> in the <code>tasks.py</code> file:</p>
-<pre><code>evals/       
+<pre><code>evals/
   evals/
     tasks.py
     _registry.py
@@ -1032,31 +1675,31 @@ Tip
 <div class="code-with-filename-file">
 <pre><strong>_registry.py</strong></pre>
 </div>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb17" data-filename="_registry.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> .tasks <span class="im">import</span> mytask</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb36" data-filename="_registry.py"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> .tasks <span class="im">import</span> mytask</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <p>You can then register <code>mytask</code> (and anything else imported into <code>_registry.py</code>) as a <a href="https://setuptools.pypa.io/en/latest/userguide/entry_point.html">setuptools entry point</a>. This will ensure that inspect can resolve references to your package from the CLI. Here is how this looks in <code>pyproject.toml</code>:</p>
 <div class="tabset-margin-container"></div><div class="panel-tabset" data-group="entry-points">
 <ul class="nav nav-tabs" role="tablist"><li class="nav-item" role="presentation"><a class="nav-link active" id="tabset-1-1-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-1" role="tab" aria-controls="tabset-1-1" aria-selected="true" href="">Setuptools</a></li><li class="nav-item" role="presentation"><a class="nav-link" id="tabset-1-2-tab" data-bs-toggle="tab" data-bs-target="#tabset-1-2" role="tab" aria-controls="tabset-1-2" aria-selected="false" href="">Poetry</a></li></ul>
 <div class="tab-content" data-group="entry-points">
 <div id="tabset-1-1" class="tab-pane active" role="tabpanel" aria-labelledby="tabset-1-1-tab">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb18"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points.inspect_ai]</span></span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="dt">evals</span> <span class="op">=</span> <span class="st">"evals._registry"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb37"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[project.entry-points.inspect_ai]</span></span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a><span class="dt">evals</span> <span class="op">=</span> <span class="st">"evals._registry"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 <div id="tabset-1-2" class="tab-pane" role="tabpanel" aria-labelledby="tabset-1-2-tab">
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb19"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[tool.poetry.plugins.inspect_ai]</span></span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a><span class="dt">evals</span> <span class="op">=</span> <span class="st">"evals._registry"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb38"><pre class="sourceCode toml code-with-copy"><code class="sourceCode toml"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="kw">[tool.poetry.plugins.inspect_ai]</span></span>
+<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a><span class="dt">evals</span> <span class="op">=</span> <span class="st">"evals._registry"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </div>
 </div>
 </div>
 <p>Now, anyone that has installed your package can run the task as follows:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb20"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval evals/mytask</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb39"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval evals/mytask</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>The same packaging mechanism works for solvers, scorers, and tools. See <a href="./extensions-components.html">Components</a> for how to distribute and reference each component type.</p>
 </section>
 </section>
 <section id="hugging-face" class="level2">
 <h2 class="anchored" data-anchor-id="hugging-face">Hugging Face</h2>
 <p>Datasets hosted on Hugging Face Hub can include an <code>eval.yaml</code> file that provides Inspect task definitions. For example, the <a href="https://huggingface.co/datasets/OpenEvals/aime_24">OpenEvals/aime_24</a> dataset can be evaluated with:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb21"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval hf/OpenEvals/aime_24 <span class="at">--model</span> openai/gpt-5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb40"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval hf/OpenEvals/aime_24 <span class="at">--model</span> openai/gpt-5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Here are the <code>eval.yaml</code> definitions for several Hugging Face datasets:</p>
 <ul>
 <li><a href="https://huggingface.co/datasets/OpenEvals/aime_24/blob/main/eval.yaml">OpenEvals/aime_24</a></li>
@@ -1137,50 +1780,54 @@ Tip
 <section id="multiple-tasks" class="level3">
 <h3 class="anchored" data-anchor-id="multiple-tasks">Multiple Tasks</h3>
 <p>Datasets can define multiple named tasks. For example, the <a href="https://huggingface.co/datasets/OpenEvals/MuSR/blob/main/eval.yaml">OpenEvals/MuSR</a> dataset defines 3 tasks: <code>musr:murder_mysteries</code>, <code>musr:object_placements</code>, and <code>musr:team_allocation</code>. If you call <code>inspect eval</code> with no task qualification, all 3 tasks will be run. If you append a task name, only that task will be run:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb22"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="co"># run all 3 tasks defined by OpenEvals/MuSR</span></span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval hf/OpenEvals/MuSR <span class="at">--model</span> openai/gpt-5</span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a><span class="co"># run only the musr:murder_mysteries task</span></span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval hf/OpenEvals/MuSR/musr:murder_mysteries <span class="at">--model</span> openai/gpt-5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb41"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb41-1"><a href="#cb41-1" aria-hidden="true" tabindex="-1"></a><span class="co"># run all 3 tasks defined by OpenEvals/MuSR</span></span>
+<span id="cb41-2"><a href="#cb41-2" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval hf/OpenEvals/MuSR <span class="at">--model</span> openai/gpt-5</span>
+<span id="cb41-3"><a href="#cb41-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb41-4"><a href="#cb41-4" aria-hidden="true" tabindex="-1"></a><span class="co"># run only the musr:murder_mysteries task</span></span>
+<span id="cb41-5"><a href="#cb41-5" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval hf/OpenEvals/MuSR/musr:murder_mysteries <span class="at">--model</span> openai/gpt-5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that when running multiple tasks, you may want to increase <code>--max-tasks</code> for more concurrency:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb23"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval hf/OpenEvals/MuSR <span class="at">--model</span> openai/gpt-5 <span class="at">--max-tasks</span> 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb42"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval hf/OpenEvals/MuSR <span class="at">--model</span> openai/gpt-5 <span class="at">--max-tasks</span> 3</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 <section id="revisions" class="level3">
 <h3 class="anchored" data-anchor-id="revisions">Revisions</h3>
 <p>All of the examples above execute evals from the <code>main</code> branch. You can alternatively execute from a branch, tag, or revision hash by appending an <code>@</code> qualifier. For example:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb24"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval hf/OpenEvals/MuSR@df154a5 <span class="at">--model</span> openai/gpt-5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb43"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb43-1"><a href="#cb43-1" aria-hidden="true" tabindex="-1"></a><span class="ex">inspect</span> eval hf/OpenEvals/MuSR@df154a5 <span class="at">--model</span> openai/gpt-5</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </section>
 </section>
 <section id="exploratory" class="level2">
 <h2 class="anchored" data-anchor-id="exploratory">Exploratory</h2>
 <p>When developing tasks and solvers, you often want to explore how changing prompts, generation options, solvers, and models affect performance on a task. You can do this by creating multiple tasks with varying parameters and passing them all to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#eval_set">eval_set()</a></span> function.</p>
 <p>Returning to the example from above, the <code>system</code> and <code>grader</code> parameters point to files we are using as system message and grader model templates. At the outset we might want to explore every possible combination of these parameters, along with different models. We can use the <code>itertools.product</code> function to do this:</p>
-<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb25"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> itertools <span class="im">import</span> product</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 'grid' will be a permutation of all parameters</span></span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>params <span class="op">=</span> {</span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"system"</span>: [<span class="st">"devops.txt"</span>, <span class="st">"researcher.txt"</span>],</span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader"</span>: [<span class="st">"hacker.txt"</span>, <span class="st">"expert.txt"</span>],</span>
-<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader_model"</span>: [<span class="st">"openai/gpt-4o"</span>, <span class="st">"google/gemini-2.5-pro"</span>],</span>
-<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>grid <span class="op">=</span> <span class="bu">list</span>(product(<span class="op">*</span>(params[name] <span class="cf">for</span> name <span class="kw">in</span> params)))</span>
-<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a><span class="co"># run the evals and capture the logs</span></span>
-<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> eval_set(</span>
-<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>    [</span>
-<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>        security_guide(system, grader, grader_model)</span>
-<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> system, grader, grader_model <span class="kw">in</span> grid</span>
-<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>    ],</span>
-<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>[<span class="st">"google/gemini-2.5-flash"</span>, <span class="st">"mistral/mistral-large-latest"</span>],</span>
-<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>    log_dir<span class="op">=</span><span class="st">"security-tasks"</span></span>
-<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>)</span>
-<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze the logs...</span></span>
-<span id="cb25-22"><a href="#cb25-22" aria-hidden="true" tabindex="-1"></a>plot_results(logs)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb44"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> itertools <span class="im">import</span> product</span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 'grid' will be a permutation of all parameters</span></span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>params <span class="op">=</span> {</span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">"system"</span>: [<span class="st">"devops.txt"</span>, <span class="st">"researcher.txt"</span>],</span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader"</span>: [<span class="st">"hacker.txt"</span>, <span class="st">"expert.txt"</span>],</span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">"grader_model"</span>: [<span class="st">"openai/gpt-4o"</span>, <span class="st">"google/gemini-2.5-pro"</span>],</span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a>grid <span class="op">=</span> <span class="bu">list</span>(product(<span class="op">*</span>(params[name] <span class="cf">for</span> name <span class="kw">in</span> params)))</span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-11"><a href="#cb44-11" aria-hidden="true" tabindex="-1"></a><span class="co"># run the evals and capture the logs</span></span>
+<span id="cb44-12"><a href="#cb44-12" aria-hidden="true" tabindex="-1"></a>logs <span class="op">=</span> eval_set(</span>
+<span id="cb44-13"><a href="#cb44-13" aria-hidden="true" tabindex="-1"></a>    [</span>
+<span id="cb44-14"><a href="#cb44-14" aria-hidden="true" tabindex="-1"></a>        security_guide(system, grader, grader_model)</span>
+<span id="cb44-15"><a href="#cb44-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> system, grader, grader_model <span class="kw">in</span> grid</span>
+<span id="cb44-16"><a href="#cb44-16" aria-hidden="true" tabindex="-1"></a>    ],</span>
+<span id="cb44-17"><a href="#cb44-17" aria-hidden="true" tabindex="-1"></a>    model<span class="op">=</span>[<span class="st">"google/gemini-2.5-flash"</span>, <span class="st">"mistral/mistral-large-latest"</span>],</span>
+<span id="cb44-18"><a href="#cb44-18" aria-hidden="true" tabindex="-1"></a>    log_dir<span class="op">=</span><span class="st">"security-tasks"</span></span>
+<span id="cb44-19"><a href="#cb44-19" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb44-20"><a href="#cb44-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-21"><a href="#cb44-21" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze the logs...</span></span>
+<span id="cb44-22"><a href="#cb44-22" aria-hidden="true" tabindex="-1"></a>plot_results(logs)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 <p>Note that we also pass a list of <code>model</code> to try out the task on multiple models. This eval set will produce in total 16 tasks accounting for the parameter and model variation.</p>
 <p>See the article on <a href="./eval-sets.html">Eval Sets</a> to learn more about using eval sets. See the article on <a href="./eval-logs.html">Eval Logs</a> for additional details on working with evaluation logs.</p>
+<section id="inspect-flow" class="level3">
+<h3 class="anchored" data-anchor-id="inspect-flow">Inspect Flow</h3>
+<p>For larger or repeated explorations, <a href="https://meridianlabs-ai.github.io/inspect_flow/">Inspect Flow</a> builds on this pattern. It’s a companion package for running and managing evaluations at scale, with declarative configuration, parameter sweeps (matrix patterns across tasks, models, and hyperparameters), reusable defaults, and reuse of evaluation logs across runs.</p>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
@@ -1703,8 +2350,8 @@ document.addEventListener("DOMContentLoaded", function () {
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./task-configuration.html" class="pagination-link" aria-label="Task Config">
-        <span class="nav-page-text">Task Config</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./datasets.html" class="pagination-link" aria-label="Datasets">
+        <span class="nav-page-text">Datasets</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

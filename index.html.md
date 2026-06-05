@@ -118,7 +118,7 @@ inspect eval simpleqa.py --model openai/gpt-5
 
 ### Agent: CTF Challenge
 
-Agent evaluuations require the model take actions rather than just answer a question. Here’s a Capture the Flag (CTF) task where the [react()](./agents.html.md) agent explores a sandboxed system using [bash()](./reference/inspect_ai.tool.html.md#bash) and [todo_write()](./reference/inspect_ai.tool.html.md#todo_write) tools to find a hidden flag:
+Agent evaluations require the model take actions rather than just answer a question. Here’s a Capture the Flag (CTF) task where the [react()](./agents.html.md) agent explores a sandboxed system using [bash()](./reference/inspect_ai.tool.html.md#bash) and [todo_write()](./reference/inspect_ai.tool.html.md#todo_write) tools to find a hidden flag:
 
     ctf.py
 
@@ -200,7 +200,7 @@ To learn more about using Inspect see the following documentation sections:
 
 - [Tutorial](./tutorial.html.md) includes several annotated examples demonstrating various features an capabilities.
 
-- [Components](./tasks.html.md) are the building blocks of an evaluation: tasks, datasets, solvers, scorers, and scanners.
+- [Components](./tasks.html.md) are the building blocks of an evaluation: tasks, datasets, solvers, and scorers.
 
 - [Models](./models.html.md) covers specifying models and providers, along with caching, multimodal input, reasoning, batch mode, and concurrency.
 
@@ -208,9 +208,9 @@ To learn more about using Inspect see the following documentation sections:
 
 - [Tools](./tools.html.md) extend models with custom and built-in tools, MCP integrations, sandboxing, and tool-call approval.
 
-- [Running](./eval-sets.html.md) covers running larger eval sets, with error handling, limits, parallelism, and early stopping.
+- [Running](./running.html.md) covers running larger eval sets, with error handling, limits, parallelism, and early stopping.
 
-- [Analysis](./eval-logs.html.md) explains how to read eval logs and extract data frames for analysis.
+- [Analysis](./analysis.html.md) explains how to read eval logs, extract data frames, and scan transcripts for issues.
 
 - [Extensions](./extensions.html.md) shows how to extend Inspect with new model APIs, components, sandboxes, approvers, hooks, and filesystems.
 

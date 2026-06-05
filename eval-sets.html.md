@@ -138,6 +138,18 @@ You can bundle a standalone version of the log viewer for an eval set using the 
 
 The bundle directory can then be deployed to any static web server ([GitHub Pages](https://docs.github.com/en/pages), [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/WebsiteHosting.html), or [Netlify](https://docs.netlify.com/get-started/), for example) to provide a standalone version of the log viewer for the eval set. See the section on [Log Viewer Publishing](./log-viewer.html.md#sec-publishing) for additional details.
 
+## Inspect Flow
+
+Eval sets handle running, retrying, and tracking a set of tasks. As that work grows (many tasks across many models with varying parameters, then reviewing and promoting the results), you may want more structure than ad-hoc scripts provide. [Inspect Flow](https://meridianlabs-ai.github.io/inspect_flow/) is a companion package for running and managing evaluations at scale, built on top of eval sets. It provides:
+
+- Declarative, type-safe specs that define an evaluation across tasks, models, and parameters.
+- Matrix parameter sweeps for systematic exploration across tasks, models, and hyperparameters.
+- Reusable defaults with automatic inheritance, so common settings are configured once.
+- A Flow Store that indexes evaluation logs and reuses them across runs and directories.
+- Composable post-evaluation steps to tag, validate, and promote logs.
+
+See the [Inspect Flow documentation](https://meridianlabs-ai.github.io/inspect_flow/) to learn more.
+
 ## Logging Context
 
 We mentioned above that you need to specify a dedicated log directory for each eval set that you run. This requirement exists for a couple of reasons:
