@@ -1,6 +1,7 @@
 """Tests for SampleBufferDatabase WAL mode and write retry (issue #4148)."""
 
 import threading
+import time
 from pathlib import Path
 from sqlite3 import OperationalError
 
@@ -8,7 +9,6 @@ import pytest
 
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._log import EvalSampleSummary
-from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer.database import SampleBufferDatabase
 from inspect_ai.log._recorders.types import SampleEvent
 
@@ -105,7 +105,7 @@ def test_retry_on_locked_retries_then_succeeds(
     """A transient lock error is retried, then the write succeeds."""
     db = _make_db(tmp_path)
     try:
-        monkeypatch.setattr(database_module.time, "sleep", lambda *_: None)
+        monkeypatch.setattr(time, "sleep", lambda *_: None)
         calls = {"n": 0}
 
         def op() -> None:
@@ -125,7 +125,7 @@ def test_retry_on_locked_propagates_non_lock_errors(
     """Non-lock errors propagate without retrying."""
     db = _make_db(tmp_path)
     try:
-        monkeypatch.setattr(database_module.time, "sleep", lambda *_: None)
+        monkeypatch.setattr(time, "sleep", lambda *_: None)
         calls = {"n": 0}
 
         def op() -> None:
