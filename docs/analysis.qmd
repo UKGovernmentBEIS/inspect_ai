@@ -1,0 +1,14 @@
+---
+title: "Analysis"
+llms-description: Analysing evaluation results with log files, dataframes, custom task views, and transcript scanners.
+---
+
+Once an evaluation has run, Inspect provides a number of tools for inspecting, analysing, and reviewing the results:
+
+| | |
+|---|---|
+| [Log Files](eval-logs.qmd) | Read, view, and work with evaluation log files for developing, debugging, and analysing evaluations. |
+| [Log Dataframes](dataframe.qmd) | Extract dataframes of evals, samples, messages, and events from log files. |
+| [Scanning](scanners.qmd) | Review transcripts to find issues like misconfigured environments, refusals, and evaluation awareness. |
+| [Task Views](task-views.qmd) | Customise how a task's samples, scores, and scanner results render in the log viewer. |
+: {.borderless tbl-colwidths=[35,65]}

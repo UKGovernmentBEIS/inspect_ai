@@ -33,9 +33,9 @@ inspect-docs:
           - text: Tools
             href: tools.qmd
           - text: Running
-            href: eval-sets.qmd
+            href: running.qmd
           - text: Analysis
-            href: eval-logs.qmd
+            href: analysis.qmd
           - text: Extensions
             href: extensions.qmd
       - text: "Reference"
@@ -99,6 +99,7 @@ inspect-docs:
         - href: sandboxing.qmd
         - href: approval.qmd
     - text: Running
+      href: running.qmd
       contents:
         - href: eval-sets.qmd
         - href: parallelism.qmd
@@ -107,6 +108,7 @@ inspect-docs:
         - href: early-stopping.qmd
         - href: tracing.qmd   
     - text: Analysis
+      href: analysis.qmd
       contents:
         - href: eval-logs.qmd
         - href: dataframe.qmd

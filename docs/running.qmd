@@ -1,0 +1,18 @@
+---
+title: "Running Evals"
+llms-description: Running evaluations reliably and at scale with eval sets, parallelism, error handling, limits, early stopping, and tracing.
+---
+
+Once an evaluation is developed, Inspect provides a number of tools for running it reliably and at scale:
+
+| | |
+|---|---|
+| [Eval Sets](eval-sets.qmd) | Describe, run, and analyse larger sets of evaluation tasks with automatic retry and resumption. |
+| [Parallelism](parallelism.qmd) | Run multiple tasks and models in parallel and tune sandbox concurrency. |
+| [Handling Errors](handling-errors.qmd) | Deal with runtime errors and recover from crashes during evaluation. |
+| [Setting Limits](setting-limits.qmd) | Set time, message, token, and cost limits on tasks, samples, and agent execution. |
+| [Early Stopping](early-stopping.qmd) | End tasks early based on the scores of previously completed samples. |
+| [Tracing](tracing.qmd) | Diagnose runtime issues with advanced execution tracing tools. |
+: {.borderless tbl-colwidths=[35,65]}
+
+If you are just getting started running evaluations, see the [`inspect eval`](options.qmd) command line interface and the `eval()` function covered in the [Welcome](index.qmd#sec-hello-inspect) tutorial.
