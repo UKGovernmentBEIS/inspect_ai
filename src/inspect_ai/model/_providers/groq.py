@@ -407,7 +407,7 @@ def chat_tool_choice(tool_choice: ToolChoice) -> str | Dict[str, Any]:
     if isinstance(tool_choice, ToolFunction):
         return {"type": "function", "function": {"name": tool_choice.name}}
     elif tool_choice == "any":
-        return "auto"
+        return "required"
     else:
         return tool_choice
 
