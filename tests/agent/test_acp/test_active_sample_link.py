@@ -448,6 +448,7 @@ async def test_active_sample_exit_calls_on_complete_hook() -> None:
         fails_on_error=False,
         transcript=Transcript(),
         eval_id="eval-1",
+        sample_uuid="sample-uuid-1",
     ) as active:
         active.on_complete = _on_complete
         assert fired == []
@@ -483,6 +484,7 @@ async def test_active_sample_exit_on_complete_failure_is_logged_not_raised() -> 
         fails_on_error=False,
         transcript=Transcript(),
         eval_id="eval-1",
+        sample_uuid="sample-uuid-1",
     ) as active:
         active.on_complete = _bad
     # Reaching here = teardown didn't raise. `active.completed` was
