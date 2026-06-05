@@ -736,6 +736,10 @@ Inspect includes some simple built in metrics for calculating accuracy, mean, et
 
     Standard deviation of a bootstrapped estimate of the mean. 1000 samples are taken by default (modify this using the `num_samples` option).
 
+-   `ci()`
+
+    Confidence interval for the mean, reported as a mapping with `lower` and `upper` bounds. Defaults to a 95% normal-approximation interval (`mean ± z · stderr`); pass `level=` to change the confidence level, `method="bootstrap"` for a percentile bootstrap interval, or `cluster=` for clustered (and cluster-bootstrap) intervals. Useful for deciding, for example, whether two models' accuracy intervals overlap.
+
 ### Metric Grouping
 
 The `grouped()` function applies a given metric to subgroups of samples defined by a key in sample `metadata`, creating a separate metric for each group along with an `"all"` metric that aggregates across all samples or groups. Each sample must have a value for whatever key is used for grouping.

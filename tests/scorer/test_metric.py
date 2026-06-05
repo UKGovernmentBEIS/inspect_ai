@@ -28,7 +28,7 @@ from inspect_ai.scorer._metric import (
     metric_create,
 )
 from inspect_ai.scorer._metrics import grouped
-from inspect_ai.scorer._metrics.std import stderr
+from inspect_ai.scorer._metrics.std import ci, stderr
 from inspect_ai.scorer._target import Target
 from inspect_ai.solver._task_state import TaskState
 
@@ -670,3 +670,85 @@ def test_dict_metric_all_samples_unscored():
         assert r.scored_samples == 0
         assert r.unscored_samples == 3
         assert math.isnan(r.metrics["mean"].value)
+
+
+# --- ci() confidence-interval metric ----------------------------------------
+
+_Z_95 = 1.959963984540054  # NormalDist().inv_cdf(0.975)
+
+
+def test_ci_normal_matches_mean_plus_z_stderr():
+    scores = [SampleScore(score=Score(value=i)) for i in range(10)]
+    se = stderr()(scores)
+    interval = ci()(scores)  # default: 95% normal
+    mean = 4.5
+    assert interval["lower"] == pytest.approx(mean - _Z_95 * se)
+    assert interval["upper"] == pytest.approx(mean + _Z_95 * se)
+
+
+def test_ci_level_widens_interval():
+    scores = [SampleScore(score=Score(value=i)) for i in range(20)]
+    narrow = ci(level=0.80)(scores)
+    wide = ci(level=0.99)(scores)
+    assert (wide["upper"] - wide["lower"]) > (narrow["upper"] - narrow["lower"])
+
+
+def test_ci_invalid_level_raises():
+    with pytest.raises(ValueError):
+        ci(level=1.5)
+    with pytest.raises(ValueError):
+        ci(level=0.0)
+
+
+def test_ci_small_sample_collapses_to_point():
+    assert ci()([SampleScore(score=Score(value=3.0))]) == {"lower": 3.0, "upper": 3.0}
+    assert ci()([]) == {"lower": 0.0, "upper": 0.0}
+
+
+def test_ci_bootstrap_brackets_mean():
+    scores = [SampleScore(score=Score(value=i)) for i in range(50)]
+    interval = ci(method="bootstrap", num_samples=2000)(scores)
+    assert interval["lower"] < 24.5 < interval["upper"]
+    assert interval["lower"] < interval["upper"]
+
+
+def test_ci_bootstrap_close_to_normal():
+    scores = [SampleScore(score=Score(value=i)) for i in range(100)]
+    normal = ci(method="normal")(scores)
+    boot = ci(method="bootstrap", num_samples=4000)(scores)
+    # both estimate the same interval; bounds should be close
+    assert boot["lower"] == pytest.approx(normal["lower"], abs=1.5)
+    assert boot["upper"] == pytest.approx(normal["upper"], abs=1.5)
+
+
+def test_ci_unknown_method_raises():
+    with pytest.raises(ValueError):
+        ci(method="nope")([SampleScore(score=Score(value=i)) for i in range(5)])
+
+
+def test_ci_clustered_normal_uses_clustered_stderr():
+    scores = [
+        SampleScore(score=Score(value=i), sample_metadata={"my_cluster": i % 4})
+        for i in range(20)
+    ]
+    se = stderr(cluster="my_cluster")(scores)
+    interval = ci(cluster="my_cluster")(scores)
+    mean = 9.5
+    assert interval["lower"] == pytest.approx(mean - _Z_95 * se)
+    assert interval["upper"] == pytest.approx(mean + _Z_95 * se)
+
+
+def test_ci_clustered_bootstrap_runs():
+    scores = [
+        SampleScore(score=Score(value=i % 3), sample_metadata={"c": i % 5})
+        for i in range(40)
+    ]
+    interval = ci(method="bootstrap", cluster="c", num_samples=500)(scores)
+    assert interval["lower"] <= interval["upper"]
+
+
+def test_ci_clustered_missing_metadata_raises():
+    with pytest.raises(ValueError):
+        ci(cluster="c")(
+            [SampleScore(score=Score(value=1)), SampleScore(score=Score(value=0))]
+        )

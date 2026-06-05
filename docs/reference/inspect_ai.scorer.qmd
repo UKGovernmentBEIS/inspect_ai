@@ -26,6 +26,7 @@ description: Task scoring and metrics.
 ### std
 ### stderr
 ### bootstrap_stderr
+### ci
 ### perplexity_per_token
 ### perplexity_per_seq
 

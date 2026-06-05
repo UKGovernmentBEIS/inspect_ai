@@ -1,5 +1,6 @@
 ## Unreleased
 
+- Metrics: Add `ci()` metric reporting a confidence interval for the mean (as `{"lower", "upper"}`). Supports a normal-approximation interval (`mean ± z · stderr`, default 95%), a percentile `bootstrap` interval, and clustered/cluster-bootstrap intervals via `cluster=`. Complements `stderr()` for directly comparable interval bounds.
 - Model API: Add `ModelInfo.family` and `ModelAPI.model_family()`. Provider capability and request-shape checks now consult a registered `ModelInfo.family` before falling back to model-name matching, while preserving the configured model name for provider requests.
 - Together: Support the `stream` model arg (e.g. `-M stream=true`) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to `stop_reason="max_tokens"` instead of raising.
 - Bedrock: Support `response_schema` (structured output) for Claude models via `output_config.format`.
