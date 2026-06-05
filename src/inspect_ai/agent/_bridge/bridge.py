@@ -1,5 +1,5 @@
 import contextlib
-import importlib
+import importlib.util
 import re
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -355,8 +355,10 @@ def init_anthropic_request_patch() -> None:
 
 
 def init_google_request_patch() -> None:
-    # don't patch if no google genai
-    if not importlib.util.find_spec("google.genai"):
+    try:
+        if not importlib.util.find_spec("google.genai"):
+            return
+    except ModuleNotFoundError:
         return
 
     from google.genai._api_client import BaseApiClient
