@@ -18,6 +18,6 @@ Inspect Viz includes:
 -   Interactive plots with built-in filtering and tooltips, linked back to the underlying Inspect transcripts.
 -   Pre-built views for common evaluation analysis patterns, plus composable marks (dots, bars, cells, text, images, arrows) for custom plots.
 -   Data tables with sorting and filtering, along with a range of inputs for dynamic filtering.
--   Support for multiple data sources (parquet, Pandas, Polars, PyArrow) and publishing to notebooks, websites, dashboards, or PNGs.
+-   Support for multiple data sources (Parquet, Pandas, Polars, PyArrow) and publishing to notebooks, websites, and dashboards.
 
 See the [Inspect Viz documentation](https://meridianlabs-ai.github.io/inspect_viz/) for installation along with a gallery of the available plots and views.
