@@ -1,3 +1,7 @@
+## Unreleased
+
+- Transcript: Use WAL journal mode for the realtime sample buffer database so concurrent reads and writes no longer raise `OperationalError: database is locked`.
+
 ## 0.3.236 (06 June 2026)
 
 - Model API: Add `ModelInfo.family` and `ModelAPI.model_family()`. Provider capability and request-shape checks now consult a registered `ModelInfo.family` before falling back to model-name matching, while preserving the configured model name for provider requests.
@@ -12,7 +16,6 @@
 - Docker Compose: accept `platform`, `extra_hosts`, `cap_add`, `cap_drop`, `security_opt`, and `tmpfs` in ComposeService.
 - Docker Sandbox: `SandboxTimeoutError` now carries `truncated_output` with the partial command output captured before a timeout (surfaced to tool callers), instead of discarding it.
 - Transcript: Bound resident memory for long-running samples by evicting older events to a history provider (opt-in via the `INSPECT_TRANSCRIPT_BOUNDED` environment variable). `transcript().events` remains a full, compatible view; use `transcript().history` for memory-aware access.
-- Transcript: Use WAL journal mode for the realtime sample buffer database so concurrent reads and writes no longer raise `OperationalError: database is locked`.
 - Inspect View: New `ViewerConfig` (passed via `Task(viewer=...)`) lets eval authors customize how a task's sample list, score panel, and scanner results render in the log viewer — including sample-list columns, default sort, score labels, and color scales. See [Custom Views](https://inspect.aisi.org.uk/task-views.html).
 - Transcript: Revert disabling of buffer history database when running tests.
 - Inspect View: Dark mode, event and message color support.
