@@ -25,10 +25,12 @@ from inspect_ai.solver import TaskState, generate
 def answer_quality(max_words: int = 50):
     async def score(state: TaskState, target: Target) -> Score:
         completion = state.output.completion
+        correct = 1 if target.text.lower() in completion.lower() else 0
+        concise = 1 if len(completion.split()) <= max_words else 0
         return Score(
             value={
-                "correct": 1 if target.text.lower() in completion.lower() else 0,
-                "concise": 1 if len(completion.split()) <= max_words else 0,
+                "correct": correct,
+                "concise": concise,
             },
             answer=completion,
         )
@@ -40,7 +42,10 @@ def answer_quality(max_words: int = 50):
 def capitals():
     return Task(
         dataset=[
-            Sample(input="What is the capital of France? Be brief.", target="Paris"),
+            Sample(
+                input="What is the capital of France? Be brief.", 
+                target="Paris"
+            ),
         ],
         solver=generate(),
         scorer=answer_quality(),
@@ -48,6 +53,16 @@ def capitals():
 ```
 
 This produces two scores per sample, `correct` and `concise`, each aggregated by its own metrics. The sections below cover the individual patterns for combining scorers and scores.
+
+> **TIP: TipCustomise how scores are displayed**
+>
+> Once a task emits several scores per sample, the viewer’s defaults rarely show them the way you want. You can take control of the sample list — choosing which score columns appear, how they’re sorted, and shading numeric cells with a heat scale — so the scores that matter stand out:
+>
+> ![](images/petri-samples-view.png)
+>
+> A customised sample list with per-score columns and heat-scale shading.
+>
+> See [Task Views](./task-views.html.md) to configure columns, sorting, score colours, and the per-sample score panel for your own task.
 
 ## List of Scorers
 
