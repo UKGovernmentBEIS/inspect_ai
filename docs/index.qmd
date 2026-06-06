@@ -132,6 +132,14 @@ Run it from the command line with `inspect eval`, choosing a model with `--model
 inspect eval simpleqa.py --model openai/gpt-5
 ```
 
+Use `inspect view` to view the results:
+
+```bash
+inspect view
+```
+
+![](images/log-viewer-simpleqa.png){.border}
+
 ### Agent: CTF Challenge
 
 Agent evaluations require the model take actions rather than just answer a question. Here's a Capture the Flag (CTF) task where the [`react()`](agents.qmd) agent explores a sandboxed system using `bash()` and `todo_write()` tools to find a hidden flag:
@@ -166,23 +174,12 @@ def ctf():
 
 3.  `sandbox="docker"` runs all tool calls inside an isolated Docker container (configured by a `Dockerfile` or `compose.yaml` alongside the task).
 
+Use `inspect view` to view the results and look more carefully at individual transcripts:
+
+![](images/log-viewer-ctf.png){.border}
+
+
 See the [Tutorial](tutorial.qmd) to explore more in-depth examples that demonstrate additional Inspect features and techniques.
-
-## Eval Logs
-
-By default, eval logs are written to the `./logs` sub-directory of the current working directory. When the eval is complete you will find a link to the log at the bottom of the task results summary.
-
-If you are using VS Code, we recommend installing the [Inspect VS Code Extension](vscode.qmd) and using its integrated log browsing and viewing.
-
-For other editors, you can use the `inspect view` command to open a log viewer in the browser (you only need to do this once as the viewer will automatically update when new evals are run):
-
-``` bash
-inspect view
-```
-
-![](images/inspect-view-home.png){.border .lightbox fig-alt="The Inspect log viewer, displaying a summary of results for the task as well as 7 individual samples."}
-
-See the [Log Viewer](log-viewer.qmd) section for additional details on using Inspect View.
 
 ## Python API
 
