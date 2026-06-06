@@ -122,6 +122,13 @@ class TogetherBatcher(OpenAIBatcher[ChatCompletion]):
             default_headers=extra_headers,
         )
 
+        # Together only supports chat completions for batches (not the
+        # Responses API), and TogetherBatcher is always constructed with the
+        # default endpoint. Narrow the type so it matches the endpoint Literal
+        # accepted by together's batches.create.
+        assert self.endpoint == "/v1/chat/completions", (
+            f"Together batch API does not support endpoint {self.endpoint}"
+        )
         response = await client.batches.create(
             endpoint=self.endpoint, input_file_id=file_id
         )

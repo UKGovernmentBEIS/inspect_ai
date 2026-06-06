@@ -395,7 +395,8 @@ def timeline_build(
     Span type                       Result
     ==============================  =======================================
     ``type="agent"``                ``TimelineSpan(span_type="agent")``
-    ``type="solver"``               ``TimelineSpan(span_type="agent")``
+    ``type="solver"`` wrapping agent ``TimelineSpan(span_type="agent")``
+    ``type="solver"`` (primitive)   Unrolled into parent
     ``type="tool"`` + ModelEvents   ``TimelineSpan(span_type="agent")``
     ToolEvent with ``agent`` field  ``TimelineSpan(span_type="agent")``
     ``type="tool"`` (no models)     Unrolled into parent
@@ -685,8 +686,12 @@ def _is_agent_span(span: EventTreeSpan) -> bool:
 
     Agent spans are:
     - Explicit agent spans (type="agent")
-    - Solver spans (type="solver")
+    - Solver spans that wrap a genuine agent (e.g. an @agent run via as_solver)
     - Tool spans containing model events (tool-spawned agents)
+
+    Primitive solver spans (system_message, generate, use_tools, ...) wrap no
+    agent of their own, so they are not agent trajectories — they get unrolled
+    into their parent rather than occupying a swimlane.
 
     Args:
         span: The EventTreeSpan to check.
@@ -694,8 +699,10 @@ def _is_agent_span(span: EventTreeSpan) -> bool:
     Returns:
         True if the span represents an agent trajectory.
     """
-    if span.type in ("agent", "solver"):
+    if span.type == "agent":
         return True
+    if span.type == "solver":
+        return _contains_agent_span(span)
     if (
         span.type == "tool"
         and _contains_model_events(span)

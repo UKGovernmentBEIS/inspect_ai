@@ -14336,6 +14336,179 @@ pre[class*="language-"] {
   /* Inspect Glass */
   --inspect-glass-color: #000000;
   --inspect-glass-opacity: 0.3;
+
+  /* Tool messages — dedicated tokens so apps (and the vscode bridge) can
+     re-skin tool calls/outputs/errors without patching component CSS.
+     Defaults reproduce the previous hard-coded appearance. */
+  --inspect-tool-description-color: var(--bs-secondary-color);
+  --inspect-tool-output-bg: #f8f8f8;
+  --inspect-tool-output-color: inherit;
+  --inspect-tool-output-border: var(--bs-border-color);
+  --inspect-tool-error-color: var(--bs-danger);
+  --inspect-tool-error-bg: rgba(var(--bs-danger-rgb), 0.06);
+
+  /* Readable-variant role bands (light base). These tokens are DEFINED
+     always but only APPLIED under [data-theme-variant="readable"], so the
+     default design-consistent look is untouched — this is the "one small
+     override block per base mode" instead of a duplicated stylesheet. */
+  --inspect-readable-user-bg: #f1eeea;
+  --inspect-readable-user-border: #857f78;
+  --inspect-readable-assistant-bg: #f6f1fe;
+  --inspect-readable-assistant-border: #694a8a;
+  --inspect-readable-thinking-bg: #f7f2ff;
+  --inspect-readable-thinking-border: #8a74c4;
+  --inspect-readable-tool-call-bg: #edf4fb;
+  --inspect-readable-tool-call-border: #415e79;
+  --inspect-readable-system-bg: #fdfdfd;
+  --inspect-readable-system-border: #a9abaf;
+  --inspect-readable-body-color: #11181f;
+
+  /* Message-label chip. */
+  --inspect-msg-label-bg: #f3f3f6;
+  --inspect-msg-label-bg-hover: #ebebef;
+  --inspect-msg-label-border: #e4e4e9;
+  --inspect-msg-label-text: #5f5f68;
+}
+
+:root[data-bs-theme="dark"] {
+  --inspect-msg-label-bg: #2a2a2e;
+  --inspect-msg-label-bg-hover: #33333a;
+  --inspect-msg-label-border: #3a3a40;
+  --inspect-msg-label-text: #b4b4bd;
+
+  --inspect-readable-user-bg: #262421;
+  --inspect-readable-user-border: #8e8881;
+  --inspect-readable-assistant-bg: #251f2c;
+  --inspect-readable-assistant-border: #9575b9;
+  --inspect-readable-thinking-bg: #241f31;
+  --inspect-readable-thinking-border: #8c7fbf;
+  --inspect-readable-tool-call-bg: #1c232a;
+  --inspect-readable-tool-call-border: #6c8aa7;
+  --inspect-readable-system-bg: #0a0b0d;
+  --inspect-readable-system-border: #67696f;
+  --inspect-readable-body-color: #e6e8ea;
+}
+
+/* Readable variant: trade design consistency for transcript scannability —
+   each turn gets a distinct tinted band + accent rule, and the tool tokens
+   are pointed at the higher-contrast role colors. Roles are read off the
+   `data-message-role` / `data-content-kind` attributes the chat components
+   already emit (no per-role classes, no duplicated styles). */
+:root[data-theme-variant="readable"] {
+  --bs-body-color: var(--inspect-readable-body-color);
+}
+
+:root[data-theme-variant="readable"] [data-message-role] {
+  border-left: 3px solid transparent;
+}
+
+:root[data-theme-variant="readable"] [data-message-role="user"] {
+  background-color: var(--inspect-readable-user-bg);
+  border-left-color: var(--inspect-readable-user-border);
+}
+
+:root[data-theme-variant="readable"] [data-message-role="assistant"] {
+  background-color: var(--inspect-readable-assistant-bg);
+  border-left-color: var(--inspect-readable-assistant-border);
+}
+
+/* The boxed "surface" of a tool call is the raw-content pre
+   (pre.tool-call-input) or the eval-provided view container
+   (div.tool-call-input). Box the surface itself — a tinted call-out with a
+   colored left accent (standalone transcript) — so free-form custom views get
+   the same treatment as code views. */
+:root[data-theme-variant="readable"] pre.tool-call-input,
+:root[data-theme-variant="readable"] div.tool-call-input {
+  background-color: var(--inspect-readable-tool-call-bg);
+  border: 1px solid var(--bs-light-border-subtle);
+  border-left: 3px solid var(--inspect-readable-tool-call-border);
+  border-radius: var(--bs-border-radius);
+  padding: 0.5em !important;
+}
+
+/* Flatten a fenced code block inside a view — the surface carries the box. */
+:root[data-theme-variant="readable"] .tool-call-input pre[class*="language-"] {
+  background-color: transparent !important;
+  border: 0 !important;
+  border-radius: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Nested in a message band: neutral surface with a subtle (not colored) left,
+   since the surrounding band already frames the turn. The un-embedded tool box
+   and standalone transcript tool events keep the colored call surface. */
+:root[data-theme-variant="readable"] [data-message-role] pre.tool-call-input,
+:root[data-theme-variant="readable"] [data-message-role] div.tool-call-input {
+  background-color: var(--inspect-tool-output-bg);
+  border-left: 1px solid var(--bs-light-border-subtle);
+}
+
+/* The tool call is its own peer block: under readable the whole box is the blue
+   call surface (header + input). */
+:root[data-theme-variant="readable"] [data-message-kind="tool"] {
+  background-color: var(--inspect-readable-tool-call-bg);
+  border-left: 3px solid var(--inspect-readable-tool-call-border);
+}
+
+/* Flush the call input AND the output to the box padding edge in EVERY theme so
+   they line up. The input otherwise carries ToolInput's .toolView padding (and,
+   under readable, the .tool-call-input padding) plus the prism code block's own
+   padding/margin, over-indenting it relative to the output. The `:root` prefix
+   lifts specificity above the readable .tool-call-input rule. */
+:root [data-message-kind="tool"] pre.tool-call-input,
+:root [data-message-kind="tool"] div.tool-call-input {
+  border: 0;
+  border-radius: 0;
+  padding: 0 !important;
+}
+:root [data-message-kind="tool"] .tool-call-input pre[class*="language-"] {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+:root [data-message-kind="tool-result"] .tool-output {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+:root[data-theme-variant="readable"]
+  [data-message-kind="tool"]
+  pre.tool-call-input,
+:root[data-theme-variant="readable"]
+  [data-message-kind="tool"]
+  div.tool-call-input {
+  background-color: transparent;
+}
+
+/* The tool output attaches beneath its call — a light-gray box that shares the
+   call's blue left gutter so the pair reads as one connected card. */
+:root[data-theme-variant="readable"] [data-message-kind="tool-result"] {
+  background-color: var(--inspect-tool-output-bg);
+  border-left: 3px solid var(--inspect-readable-tool-call-border);
+}
+:root[data-theme-variant="readable"]
+  [data-message-kind="tool-result"]
+  .tool-output {
+  background-color: transparent;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Light subtle box around tool output (standalone transcript tool events). */
+:root[data-theme-variant="readable"] .tool-output {
+  border: 1px solid var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+}
+
+:root[data-theme-variant="readable"] [data-message-role="system"] {
+  background-color: var(--inspect-readable-system-bg);
+  border-left-color: var(--inspect-readable-system-border);
+}
+
+/* Agent thinking, nested inside an assistant turn, gets a subtle tint so
+   reasoning is visually separable from the model's actual response. No left
+   accent — nested inside the assistant band it reads as a strong double gutter.*/
+:root[data-theme-variant="readable"] [data-content-kind="reasoning"] {
+  background-color: var(--inspect-readable-thinking-bg);
 }
 
 body:not([class^="vscode-"]) button {
@@ -14460,8 +14633,15 @@ a:hover {
 }
 
 body[class^="vscode-"] {
-  --bs-border-radius: 0;
-  --bs-border-radius-lg: 0;
+  /* Tool message tokens bridged to VS Code's editor widget palette so tool
+     calls read as embedded editor panels inside the IDE. */
+  --inspect-tool-description-color: var(--vscode-descriptionForeground);
+  --inspect-tool-output-bg: var(--vscode-textCodeBlock-background);
+  --inspect-tool-output-color: var(--vscode-editor-foreground);
+  --inspect-tool-output-border: var(--vscode-editorWidget-border);
+  --inspect-tool-error-color: var(--vscode-errorForeground);
+  --inspect-tool-error-bg: var(--vscode-inputValidation-errorBackground);
+
   --bs-body-bg: var(--vscode-editor-background);
   --bs-secondary-bg-subtle: var(--vscode-editorHoverWidget-background);
   --bs-tertiary-bg: var(--vscode-list-hoverBackground);
@@ -15252,18 +15432,39 @@ table.table.table-sm td {
 }
 
 pre[class*="language-"],
-.markdown-content pre[class*="language-"],
+.markdown-content pre[class*="language-"] {
+  background-color: #f8f8f8;
+}
+
+/* The `.tool-output` family is the canonical styling hook for tool message
+   output (the CSS-module `.textOutput` also carries this class). Drive it
+   off the tokens so the vscode bridge / apps can re-skin it; defaults below
+   reproduce the previous #f8f8f8 / #333333 appearance. This rule must own
+   the color so the higher-specificity `.vscode-dark .tool-output` rule
+   that used to hard-code #333333 no longer shadows the token. */
 pre[class*="language-"].tool-output,
 .tool-output {
-  background-color: #f8f8f8;
+  background-color: var(--inspect-tool-output-bg);
+  color: var(--inspect-tool-output-color);
 }
 
 .vscode-dark pre[class*="language-"],
 .vscode-dark .model-call pre[class*="language-"],
-.vscode-dark .markdown-content pre[class*="language-"],
-.vscode-dark pre[class*="language-"].tool-output,
-.vscode-dark .tool-output {
+.vscode-dark .markdown-content pre[class*="language-"] {
   background-color: #333333;
+}
+
+/* PrismJS's stock theme (prismjs/themes/prism.css) hardcodes a light-blue
+   `#b3d4fc` selection on code blocks, which is washed out on the dark code
+   background above. Override it in dark with the editor selection token (same
+   as CodeMirror's selection) so highlighted code matches. Scoped to .vscode-dark
+   and mirroring Prism's selector set so it wins on specificity regardless of
+   stylesheet order; light mode keeps Prism's default. */
+.vscode-dark code[class*="language-"]::selection,
+.vscode-dark code[class*="language-"] ::selection,
+.vscode-dark pre[class*="language-"]::selection,
+.vscode-dark pre[class*="language-"] ::selection {
+  background: var(--vscode-editor-selectionBackground);
 }
 
 .model-call pre[class*="language-"],
@@ -17312,6 +17513,100 @@ button._segment_1d1i3_10._disabled_1d1i3_41:hover {
 ._viewerOptions_1bbut_7 {
   color: var(--bs-body-color);
 }
+._root_1jsd7_1 {
+  position: relative;
+  display: inline-flex;
+}
+
+._button_1jsd7_6 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0.25rem 0.4rem;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--bs-border-radius);
+  line-height: 1;
+}
+
+._button_1jsd7_6:hover {
+  background-color: var(--bs-secondary-bg);
+}
+
+._icon_1jsd7_23 {
+  font-size: var(--inspect-font-size-base, 0.9rem);
+}
+
+._menu_1jsd7_27 {
+  padding: 0.4rem 0.55rem;
+  min-width: 11rem;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+  color: var(--bs-body-color);
+}
+
+._headerRow_1jsd7_37 {
+  display: flex;
+  column-gap: 1.25rem;
+  border-bottom: 1px solid var(--bs-border-color);
+  margin-bottom: 0.35rem;
+  padding-bottom: 0.25rem;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--inspect-font-size-small, 0.8rem);
+}
+
+._srOnly_1jsd7_48 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+._group_1jsd7_60 {
+  margin: 0 0 0.35rem;
+  padding: 0 0 0.35rem;
+  border: none;
+  border-bottom: 1px solid var(--bs-border-color);
+}
+
+._resetButton_1jsd7_67 {
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--bs-link-color);
+  font-size: var(--inspect-font-size-small, 0.8rem);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+._resetButton_1jsd7_67:hover {
+  text-decoration: underline;
+}
+
+._option_1jsd7_82 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: var(--inspect-font-size-small, 0.8rem);
+  cursor: pointer;
+}
+
+._option_1jsd7_82 input {
+  margin: 0;
+  cursor: pointer;
+}
 ._wrapper_44dmw_1 {
   display: flex;
   align-items: center;
@@ -18268,16 +18563,16 @@ a._citationLink_1ggvf_9:hover {
 ._toolPanel_1792k_40 {
   display: contents;
 }
-._toolImage_h7uyp_1 {
+._toolImage_1cvly_1 {
   max-width: 800px;
-  border: solid var(--bs-border-color) 1px;
+  border: solid var(--inspect-tool-output-border) 1px;
 }
 
-._output_h7uyp_6 {
+._output_1cvly_6 {
   display: grid;
 }
 
-._textOutput_h7uyp_10 {
+._textOutput_1cvly_10 {
   padding-left: 2px;
   padding: 0.5em 0.5em 0.5em 0.5em;
   white-space: pre-wrap;
@@ -18286,9 +18581,13 @@ a._citationLink_1ggvf_9:hover {
   border-radius: var(--bs-border-radius);
 }
 
-._textCode_h7uyp_19 {
+._textCode_1cvly_19 {
   word-wrap: anywhere;
   color: inherit;
+}
+._submitView_1ru17_1 {
+  display: grid;
+  row-gap: 0.5em;
 }
 ._catalog_gx8eg_1 {
   display: flex;
@@ -18334,6 +18633,20 @@ a._citationLink_1ggvf_9:hover {
 ._description_gx8eg_42 {
   margin: 0.25rem 0 0.25rem 1rem;
 }
+._image_1evla_1 {
+  margin-right: 0.2rem;
+  opacity: 0.4;
+}
+
+._toolTitle_1evla_6 {
+  color: unset !important;
+  overflow-wrap: anywhere;
+}
+
+._description_1evla_11 {
+  margin-left: 0.3em;
+  color: var(--inspect-tool-description-color);
+}
 ._toolCallView_x6cus_1 {
   display: grid;
   row-gap: 0.5em;
@@ -18349,48 +18662,33 @@ a._citationLink_1ggvf_9:hover {
 ._inProgress_1t8rx_9 {
   font-weight: bold;
 }
-._outputPre_8cjqa_1 {
+._outputPre_7phrr_1 {
   padding: 0.5em;
   margin-top: 0.25em;
   margin-bottom: 0;
 }
 
-._toolView_8cjqa_7 {
-  padding: 0.5em !important;
+._toolView_7phrr_7 {
   padding-top: 0 !important;
 }
 
-._toolView_8cjqa_7 pre {
+._toolView_7phrr_7 pre {
   margin-bottom: 0;
 }
 
-._toolView_8cjqa_7 p > code {
+._toolView_7phrr_7 p > code {
   font-size: var(--inspect-text-size-small) !important;
   color: var(--bs-body-color) !important;
 }
 
-._outputCode_8cjqa_21 {
+._outputCode_7phrr_20 {
   font-size: var(--inspect-text-size-small) !important;
   overflow-wrap: anywhere !important;
   white-space: pre-wrap !important;
 }
-._image_1gmrl_1 {
-  margin-right: 0.2rem;
-  opacity: 0.4;
-}
-
-._toolTitle_1gmrl_6 {
-  color: unset !important;
-  overflow-wrap: anywhere;
-}
-
-._description_1gmrl_11 {
-  margin-left: 0.3em;
-  color: var(--bs-secondary-color);
-}
-._error_1lozs_1 {
-  color: var(--bs-danger);
-  background-color: rgba(var(--bs-danger-rgb), 0.06);
+._error_z9ujs_1 {
+  color: var(--inspect-tool-error-color);
+  background-color: var(--inspect-tool-error-bg);
   padding: 0.5em 0.7em;
   border-radius: var(--bs-border-radius);
   font-family: var(--bs-font-monospace);
@@ -18398,16 +18696,16 @@ a._citationLink_1ggvf_9:hover {
   margin: 0.5em 0;
 }
 
-._type_1lozs_11 {
+._type_z9ujs_11 {
   font-weight: 600;
   margin-bottom: 0.25em;
   text-transform: capitalize;
 }
 
-._message_1lozs_17 {
+._message_z9ujs_17 {
   white-space: pre-wrap;
 }
-._message_1kuwu_1 {
+._message_1gt9a_1 {
   font-weight: 300;
   margin-left: 0;
   margin-right: 0;
@@ -18415,17 +18713,17 @@ a._citationLink_1ggvf_9:hover {
   min-width: 0;
 }
 
-._systemRole_1kuwu_9 {
+._systemRole_1gt9a_9 {
   opacity: 0.7;
 }
 
-._timestamp_1kuwu_13 {
+._timestamp_1gt9a_13 {
   opacity: 0.5;
   font-size: var(--inspect-font-size-smaller);
   font-weight: normal;
 }
 
-._messageGrid_1kuwu_19 {
+._messageGrid_1gt9a_19 {
   display: grid;
   grid-template-columns: max-content max-content;
   column-gap: 0.5em;
@@ -18435,55 +18733,64 @@ a._citationLink_1ggvf_9:hover {
   align-items: flex-start;
 }
 
-._toolMessageGrid_1kuwu_29 {
+._toolMessageGrid_1gt9a_29 {
   border-bottom: solid 1px var(--bs-border-color);
 }
 
-._messageContents_1kuwu_33 {
+._headerEnd_1gt9a_33 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5em;
+  flex: none;
+}
+
+._messageContents_1gt9a_40 {
   margin-left: 0;
   padding-bottom: 0;
 }
 
-._messageContents_1kuwu_33._indented_1kuwu_38 {
+._messageContents_1gt9a_40._indented_1gt9a_45 {
   margin-left: 0rem;
 }
 
-._copyLink_1kuwu_42 {
+._copyLink_1gt9a_49 {
   opacity: 0;
   padding-left: 0;
   padding-right: 2em;
   margin-left: 0.2rem;
 }
 
-._copyLink_1kuwu_42:hover {
+._copyLink_1gt9a_49:hover {
   opacity: 0.75;
 }
 
-._metadataLabel_1kuwu_53 {
+._metadataLabel_1gt9a_60 {
   padding-top: 1em;
 }
 
-._hover_1kuwu_57 ._copyLink_1kuwu_42 {
+._hover_1gt9a_64 ._copyLink_1gt9a_49 {
   opacity: 0.75;
 }
-._grid_13k8p_1 {
+._grid_qa1cd_1 {
   display: grid;
-  grid-template-columns: max-content auto;
-  row-gap: 0;
+  grid-template-columns: minmax(0, 1fr);
+  /* row-gap spaces blocks within a turn (message → tool box); margin-bottom
+     spaces turns. Keep them equal so every gap reads the same. */
+  row-gap: 0.75rem;
   margin-bottom: 0.75rem;
 }
 
-._number_13k8p_8 {
+._number_qa1cd_10 {
   margin-top: 0.1em;
 }
 
-._user_13k8p_12 {
+._user_qa1cd_14 {
   background-color: var(--bs-secondary-bg);
   border-radius: var(--bs-border-radius);
   border: solid 1px var(--bs-light-border-subtle);
 }
 
-._container_13k8p_18 {
+._container_qa1cd_20 {
   padding-left: 0.7rem;
   padding-right: 0.7rem;
   padding-top: 0.5rem;
@@ -18491,39 +18798,124 @@ a._citationLink_1ggvf_9:hover {
   border-right: solid 1px var(--bs-light-border-subtle);
 }
 
-._first_13k8p_26 {
+._first_qa1cd_28 {
   border-top-left-radius: var(--bs-border-radius);
   border-top-right-radius: var(--bs-border-radius);
   border-top: solid 1px var(--bs-light-border-subtle);
   padding-top: 0.7rem;
 }
 
-._last_13k8p_33 {
+._last_qa1cd_35 {
   border-bottom-left-radius: var(--bs-border-radius);
   border-bottom-right-radius: var(--bs-border-radius);
   border-bottom: solid 1px var(--bs-light-border-subtle);
   padding-bottom: 0.7rem;
 }
 
-._label_13k8p_40 {
+._label_qa1cd_42 {
+  display: flex;
+  justify-content: flex-end;
   padding-top: 0.7rem;
   margin-left: 0.4em;
 }
 
-._highlight_13k8p_45 {
+._highlight_qa1cd_49 {
   background-color: rgba(var(--bs-info-rgb), 0.12);
 }
 
-._bottomMargin_13k8p_49 {
+/* Prototype: self-contained box (used when tool calls are un-embedded) so the
+   assistant message and each tool call read as separate cards rather than one
+   connected band. */
+._box_qa1cd_56 {
+  position: relative;
+  border: solid 1px var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+  padding: 0.7rem;
+}
+
+/* An assistant turn rendered as one connected stack: the message, its tool
+   call(s), and output(s) sit flush so they read as a single card with a
+   continuous left gutter. */
+._attachedGroup_qa1cd_66 {
+  display: flex;
+  flex-direction: column;
+}
+
+._attachedBottom_qa1cd_71 {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  /* Drop the divider so the call/output pair reads as one seamless card —
+     only the background color shifts (blue call → gray output). */
+  border-bottom: 0;
+}
+
+._attachedTop_qa1cd_79 {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: 0;
+}
+
+/* Tool-call number chip, pinned to the top-right of its box to mirror the
+   position chip on a message's role line. */
+._toolLabel_qa1cd_87 {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  z-index: 1;
+}
+
+._bottomMargin_qa1cd_94 {
   margin-bottom: 0.75rem;
 }
 
-._codeCompact_13k8p_53 {
+._codeCompact_qa1cd_98 {
   /* styles for compact code display */
 }
 
-._simple_13k8p_57 {
+._simple_qa1cd_102 {
   /* styles for simple display mode */
+}
+._badge_10sr6_1,
+._inline_10sr6_2 {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(
+    --bs-font-monospace,
+    ui-monospace,
+    "SF Mono",
+    "JetBrains Mono",
+    Menlo,
+    Consolas,
+    monospace
+  );
+  font-size: 11.5px;
+  line-height: 1;
+  font-weight: 400;
+  background: var(--inspect-msg-label-bg);
+  border: 1px solid var(--inspect-msg-label-border);
+  color: var(--inspect-msg-label-text);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+
+._badge_10sr6_1 {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 6px;
+  user-select: none;
+}
+
+._inline_10sr6_2 {
+  padding: 1px 6px;
+  border-radius: 5px;
+  white-space: nowrap;
+  text-decoration: none;
+  vertical-align: baseline;
+}
+
+._badge_10sr6_1:hover,
+._inline_10sr6_2:hover {
+  background: var(--inspect-msg-label-bg-hover);
 }
 ._scroller_qi4v2_1 {
   position: relative;
@@ -18642,26 +19034,16 @@ a._citationLink_1ggvf_9:hover {
     opacity: 0.55;
   }
 }
-._list_ejymp_1 {
+._list_zuqui_1 {
   width: 100%;
   margin-top: 1em;
   padding-bottom: 0.5rem;
 }
 
-._generatingRow_ejymp_7 {
+._generatingRow_zuqui_7 {
   display: grid;
-  grid-template-columns: max-content auto;
-  align-items: center;
-  row-gap: 0;
+  grid-template-columns: minmax(0, 1fr);
   margin-bottom: 0.75rem;
-}
-
-._generatingLabel_ejymp_15 {
-  margin-left: 0.4em;
-}
-
-._generatingContent_ejymp_19 {
-  padding-left: 0;
 }
 ._tab_1je38_1 {
   min-width: 4rem;
@@ -18783,55 +19165,57 @@ a._citationLink_1ggvf_9:hover {
   background-color: var(--bs-primary);
   filter: brightness(1.05);
 }
-._stickyWrapper_14ib7_1 {
+._stickyWrapper_2hmlz_1 {
   position: sticky;
   top: var(--inspect-event-panel-sticky-top, 0px);
   /* Full-bleed: cancel the parent card's padding so the sticky bar
      spans the entire card width, then re-apply padding internally. */
   margin: -5px -0.625rem -5px -0.625rem;
   padding: 5px 0.625rem;
-  background-color: transparent;
+  /* Opaque (matches the host card) even when unstuck so colored message bands
+     don't bleed through the header as it scrolls off during the push-off. */
+  background-color: inherit;
   z-index: 1;
   border-bottom: solid 1px transparent;
 }
 
-._stickyWrapper_14ib7_1[data-useStickyObserver-stuck] {
+._stickyWrapper_2hmlz_1[data-useStickyObserver-stuck] {
   background-color: var(--bs-light);
   border-bottom-color: var(--bs-light-border-subtle);
 }
 
-._label_14ib7_18 {
+._label_2hmlz_20 {
   margin-right: 0.2em;
   justify-self: end;
 }
 
-._title_14ib7_23 {
+._title_2hmlz_25 {
   min-width: 0;
   line-height: 1.6;
 }
 
-._titleExtra_14ib7_28 {
+._titleExtra_2hmlz_30 {
   display: inline-flex;
   align-items: center;
   vertical-align: middle;
   margin-left: 0.5em;
 }
 
-._navs_14ib7_35 {
+._navs_2hmlz_37 {
   display: flex;
   align-items: baseline;
   justify-content: flex-end;
   min-width: 0;
 }
 
-._turnLabel_14ib7_42 {
+._turnLabel_2hmlz_44 {
   margin-left: 1rem;
   margin-top: 0.2rem;
   opacity: 0.5;
   font-size: var(--inspect-font-size-smallest);
 }
 
-._card_14ib7_49 {
+._card_2hmlz_51 {
   position: relative;
   background-color: var(--bs-body-bg);
   padding: 0.625rem;
@@ -18839,20 +19223,20 @@ a._citationLink_1ggvf_9:hover {
   border-radius: var(--bs-border-radius);
 }
 
-._cardContent_14ib7_57 {
+._cardContent_2hmlz_59 {
   padding: 0;
   display: inherit;
 }
 
-._cardContent_14ib7_57._hidden_14ib7_62 {
+._cardContent_2hmlz_59._hidden_2hmlz_64 {
   display: none;
 }
 
-._hidden_14ib7_62 {
+._hidden_2hmlz_64 {
   display: none;
 }
 
-._copyLink_14ib7_70 {
+._copyLink_2hmlz_72 {
   font-size: 1.2em;
   opacity: 0;
   padding-left: 0.2em;
@@ -18862,23 +19246,23 @@ a._citationLink_1ggvf_9:hover {
   margin-left: 0.25em;
 }
 
-._hover_14ib7_80 ._copyLink_14ib7_70 {
+._hover_2hmlz_82 ._copyLink_2hmlz_72 {
   opacity: 0.75;
 }
 
 /* The event labels look like [E7], and those square brackets sit really low.
    Sliding them down a little looks more balanced 
 */
-._eventLabel_14ib7_87 {
+._eventLabel_2hmlz_89 {
   transform: translateY(-1px);
 }
 
-._root_14ib7_91 {
+._root_2hmlz_93 {
   background-color: var(--bs-light-bg-subtle);
   border-radius: unset;
 }
 
-._bottomDongle_14ib7_96 {
+._bottomDongle_2hmlz_98 {
   display: block;
   position: absolute;
   margin: 0 auto;
@@ -18894,12 +19278,12 @@ a._citationLink_1ggvf_9:hover {
   cursor: pointer;
 }
 
-._dongleIcon_14ib7_112 {
+._dongleIcon_2hmlz_114 {
   padding-right: 0.3em;
 }
 
 @media print {
-  ._card_14ib7_49 {
+  ._card_2hmlz_51 {
     break-inside: avoid;
   }
 }
@@ -20188,30 +20572,46 @@ a._citationLink_1ggvf_9:hover {
   flex: none;
   opacity: 0.85;
 }
-._panel_1dnhl_1 {
+._panel_xm787_1 {
   margin: 0.2em 0;
 }
 
-._metric_1dnhl_5 {
+._metric_xm787_5 {
   display: flex;
   gap: 0.5em;
 }
 
-._label_1dnhl_10 {
+._label_xm787_10 {
   font-weight: 600;
   min-width: 5em;
 }
 
-._section_1dnhl_15 {
+._section_xm787_15 {
   margin-top: 0.5em;
 }
 
-._sectionTitle_1dnhl_19 {
+._sectionTitle_xm787_19 {
   font-weight: 600;
 }
 
-._indented_1dnhl_23 {
+._indented_xm787_23 {
   padding-left: 1.5em;
+}
+
+._files_xm787_27 {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  font-family: var(--bs-font-monospace);
+}
+
+._file_xm787_27 {
+  overflow-wrap: anywhere;
+}
+
+._fileOverflow_xm787_38 {
+  font-style: italic;
+  opacity: 0.7;
 }
 ._panel_8zdtn_1 {
   margin: 0.5em 0;
@@ -20839,48 +21239,48 @@ a._citationLink_1ggvf_9:hover {
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
-._container_15ga9_1 {
+._container_v2zov_1 {
   margin: 0.5em 0 0 0;
   width: 100%;
 }
 
-._all_15ga9_6 {
+._all_v2zov_6 {
   display: flex;
   flex-direction: column;
   gap: 1em;
 }
 
-._tableSelection_15ga9_12 {
+._tableSelection_v2zov_12 {
   width: fit-content;
   align-self: start;
   justify-self: start;
 }
 
-._config_15ga9_18 {
+._config_v2zov_18 {
   margin-top: 0;
 }
 
-._tools_15ga9_22 {
+._tools_v2zov_22 {
   grid-column: -1/1;
 }
 
-._codePre_15ga9_26 {
+._codePre_v2zov_26 {
   background: var(--bs-light);
   width: 100%;
   padding: 0.5em;
   border-radius: var(--bs-border-radius);
 }
 
-._code_15ga9_26 {
+._code_v2zov_26 {
   white-space: pre-wrap !important;
   word-wrap: anywhere !important;
 }
 
-._progress_15ga9_38 {
+._progress_v2zov_38 {
   margin-left: 0;
 }
 
-._error_15ga9_42 {
+._error_v2zov_42 {
   color: var(--bs-danger);
   padding: 0.5em;
   border: 1px solid var(--bs-danger);
@@ -20891,27 +21291,40 @@ a._citationLink_1ggvf_9:hover {
   margin: 0.5em 0;
 }
 
-._showAllLink_15ga9_53 {
+._cancelled_v2zov_53 {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  color: var(--bs-secondary-color);
+  padding: 0.5em;
+  border: 1px solid var(--bs-border-color);
+  border-radius: var(--bs-border-radius);
+  white-space: pre-wrap;
+  font-size: var(--inspect-font-size-smaller);
+  margin: 0.5em 0;
+}
+
+._showAllLink_v2zov_66 {
   text-align: center;
   padding: 0.5em 0 0.7em;
 }
 
-._showAllLink_15ga9_53 a {
+._showAllLink_v2zov_66 a {
   cursor: pointer;
   color: var(--bs-secondary-color);
   text-decoration: none;
 }
 
-._showAllIcon_15ga9_64 {
+._showAllIcon_v2zov_77 {
   margin-right: 0.35em;
 }
 
-._showAllLink_15ga9_53 a:hover {
+._showAllLink_v2zov_66 a:hover {
   color: var(--bs-body-color);
   text-decoration: underline;
 }
 
-._toolConfig_15ga9_73 {
+._toolConfig_v2zov_86 {
   display: grid;
   grid-template-columns: max-content minmax(0, auto);
   column-gap: 1em;
@@ -20920,7 +21333,7 @@ a._citationLink_1ggvf_9:hover {
   overflow-wrap: anywhere;
 }
 
-._toolChoice_15ga9_82 {
+._toolChoice_v2zov_95 {
   border-top: solid var(--bs-light-border-subtle) 1px;
   display: grid;
   grid-template-columns: max-content minmax(0, auto);
@@ -21070,71 +21483,103 @@ a._citationLink_1ggvf_9:hover {
 ._subtaskLabel_ac4z2_17 {
   padding: 0 2em;
 }
-._summary_1xrvi_1 {
+._summary_8xr5q_1 {
   margin: 0.5em 0;
   width: 100%;
 }
 
-._labeledToolCall_1xrvi_6 {
+._labeledToolCall_8xr5q_6 {
   display: grid;
-  grid-template-columns: max-content auto;
+  grid-template-columns: auto max-content;
   row-gap: 0;
 }
 
-._label_1xrvi_6 {
+._label_8xr5q_6 {
+  display: flex;
+  justify-content: flex-end;
   padding-top: 0.7rem;
   margin-left: 0.4em;
 }
 
-._labeledToolContent_1xrvi_17 {
+._labeledToolContent_8xr5q_19 {
   min-width: 0;
 }
 
-._approvalWrap_1xrvi_21 {
+/* The call/output attached pair (colors + inner flatten come from the shared
+   [data-message-kind] theme rules; here we supply the box structure). */
+._attachedGroup_8xr5q_25 {
+  display: flex;
+  flex-direction: column;
+}
+
+._toolBox_8xr5q_30 {
+  position: relative;
+  border: 1px solid var(--bs-light-border-subtle);
+  border-radius: var(--bs-border-radius);
+  padding: 0.7rem;
+}
+
+._attachedBottom_8xr5q_37 {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: 0;
+}
+
+._attachedTop_8xr5q_43 {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: 0;
+}
+
+._approvalWrap_8xr5q_49 {
   margin-top: 0.5rem;
 }
 
-._approval_1xrvi_21 {
+._approval_8xr5q_49 {
   border: none;
   padding: 0;
   margin-bottom: 0;
 }
 
-._progress_1xrvi_31 {
+._progress_8xr5q_59 {
   margin-left: 0;
 }
-._node_miohh_1 {
+._node_t3xlr_1 {
   padding-top: 0.8rem;
 }
 
-._attached_miohh_5 {
+._attached_t3xlr_5 {
   padding-top: 0rem;
 }
 
-._attachedParent_miohh_9 {
+._attachedParent_t3xlr_9 {
   padding-bottom: 0px;
   border-bottom-left-radius: 0;
   border-bottom-right-radius: 0;
   border-bottom: none;
 }
 
-._attachedChild_miohh_16 {
+._attachedChild_t3xlr_16 {
   border-top-left-radius: 0;
   border-top-right-radius: 0;
 }
 
-._depthRoot_miohh_21 {
+._depthRoot_t3xlr_21 {
   border-left: none;
   border-right: none;
   border-radius: 0;
 }
 
-._last_miohh_27 {
+._last_t3xlr_27 {
   padding-bottom: 0.8rem;
 }
 
+._runningTool_t3xlr_31 {
+  padding: 0 0.7em;
+}
+
 @media print {
-  ._node_miohh_1 {
+  ._node_t3xlr_1 {
     break-inside: avoid;
   }
 }

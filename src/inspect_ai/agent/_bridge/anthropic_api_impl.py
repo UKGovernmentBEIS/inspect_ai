@@ -78,6 +78,7 @@ from .types import AgentBridge
 from .util import (
     apply_message_ids,
     bridge_generate,
+    clear_generation_params,
     resolve_generate_config,
     resolve_inspect_model,
 )
@@ -128,6 +129,8 @@ async def inspect_anthropic_api_request_impl(
 
     # extract generate config (hoist instructions into system_message)
     config = generate_config_from_anthropic(json_data)
+    if not bridge.forward_generation_config:
+        clear_generation_params(config)
     config.extra_headers = headers
     if config.system_message is not None:
         messages.insert(0, ChatMessageSystem(content=config.system_message))

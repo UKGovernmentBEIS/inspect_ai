@@ -27,6 +27,42 @@ from inspect_ai.tool._tools._web_search._web_search import (
     _normalize_config,
 )
 
+# Generation-tuning fields a scaffold may set on a bridged request that describe
+# *how* the underlying model generates. These are the Inspect model's province
+# (the scaffold computes them for its assumed --model, not the model actually
+# serving the request), so by default the bridge drops them and lets the model
+# config / provider defaults govern generation. Structural fields the scaffold
+# legitimately controls (system_message, stop_seqs, response_schema,
+# parallel_tool_calls, seed, extra_body/headers) are deliberately NOT listed here.
+_GENERATION_PARAM_FIELDS: tuple[str, ...] = (
+    "max_tokens",
+    "temperature",
+    "top_p",
+    "top_k",
+    "frequency_penalty",
+    "presence_penalty",
+    "num_choices",
+    "logprobs",
+    "top_logprobs",
+    "prompt_logprobs",
+    "logit_bias",
+    "reasoning_effort",
+    "reasoning_tokens",
+    "reasoning_summary",
+)
+
+
+def clear_generation_params(config: GenerateConfig) -> None:
+    """Clear generation-tuning params from a bridged request config (in place).
+
+    Used when a bridge is configured not to forward client generation parameters
+    (the default): the dropped fields then fall back to the resolved Inspect model
+    config and provider defaults during ``resolve_generate_config``.
+    """
+    for field in _GENERATION_PARAM_FIELDS:
+        setattr(config, field, None)
+
+
 _filter_type_cache: dict[int, bool] = {}
 
 

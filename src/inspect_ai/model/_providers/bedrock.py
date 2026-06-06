@@ -341,13 +341,17 @@ class BedrockAPI(ModelAPI):
 
     @override
     def max_tokens(self) -> int | None:
-        if "llama3-70" in self.model_name or "llama3-8" in self.model_name:
+        family = self.model_family().lower()
+        if any(
+            name in family
+            for name in ("llama3-70", "llama3-8", "llama-3-70", "llama-3-8")
+        ):
             return 2048
 
-        if "llama3" in self.model_name or "claude3" in self.model_name:
+        if any(name in family for name in ("llama3", "llama-3", "claude3", "claude-3")):
             return 4096
 
-        elif "mistral-large" in self.model_name:
+        elif "mistral-large" in family:
             return 8192
 
         # Other models will just the default
@@ -442,21 +446,20 @@ class BedrockAPI(ModelAPI):
         return False
 
     def is_gpt_oss(self) -> bool:
-        return "gpt-oss" in self.model_name
+        return "gpt-oss" in self.model_family().lower()
 
     def is_claude(self) -> bool:
-        return "claude" in self.model_name
+        return "claude" in self.model_family().lower()
 
     def is_nova(self) -> bool:
-        return "nova" in self.model_name
+        return "nova" in self.model_family().lower()
 
     def _is_claude_4_x(self, x: int) -> bool:
         # bedrock model ids look like
         # `anthropic.claude-opus-4-7-20260101-v1:0` or
         # `eu.anthropic.claude-opus-4-7-...` for cross-region inference profiles.
         return (
-            self.is_claude()
-            and re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.model_name) is not None
+            re.search(r"claude-[a-zA-Z]+-4-" + str(x), self.model_family()) is not None
         )
 
     def is_claude_4_7_or_later(self) -> bool:
@@ -469,7 +472,7 @@ class BedrockAPI(ModelAPI):
         if self._is_claude_4_x(7):
             return True
         # future claude 4 minor not yet recognised
-        if re.search(r"claude-[a-zA-Z]+-4-", self.model_name):
+        if re.search(r"claude-[a-zA-Z]+-4-", self.model_family()):
             recognised = any(self._is_claude_4_x(x) for x in (0, 1, 5, 6))
             if not recognised:
                 return True

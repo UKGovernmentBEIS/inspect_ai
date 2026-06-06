@@ -34,6 +34,7 @@ def _make_stub(model_name: str) -> object:
 
     stub = _Stub()
     stub.service_model_name = lambda: model_name  # type: ignore[attr-defined]
+    stub.model_family = lambda: model_name  # type: ignore[attr-defined]
 
     # Bind all detection methods (and private helpers) from AnthropicAPI
     import types
