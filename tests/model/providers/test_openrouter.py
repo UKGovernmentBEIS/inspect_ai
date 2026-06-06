@@ -8,6 +8,7 @@ from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_call import ModelCall
 from inspect_ai.model._model_output import ModelOutput, ModelUsage
 from inspect_ai.model._providers.openrouter import (
+    OPENROUTER_APP_ATTRIBUTION_HEADERS,
     OpenRouterAPI,
     _add_anthropic_cache_markers,
     _apply_cache_creation_usage,
@@ -40,6 +41,50 @@ def _make_output(
             input_tokens_cache_read=input_tokens_cache_read,
         ),
     )
+
+
+def test_app_attribution_headers_enabled_by_default() -> None:
+    api = _make_api("openrouter/openai/gpt-4o-mini")
+
+    assert api.model_args["default_headers"] == OPENROUTER_APP_ATTRIBUTION_HEADERS
+
+
+def test_app_attribution_headers_preserve_user_default_headers() -> None:
+    api = _make_api(
+        "openrouter/openai/gpt-4o-mini",
+        default_headers={
+            "HTTP-Referer": "https://example.com/evals",
+            "X-OpenRouter-Title": "Custom Eval Runner",
+            "X-Custom": "present",
+        },
+    )
+
+    assert api.model_args["default_headers"] == {
+        "HTTP-Referer": "https://example.com/evals",
+        "X-OpenRouter-Title": "Custom Eval Runner",
+        "X-Custom": "present",
+    }
+
+
+def test_app_attribution_headers_respect_legacy_title_header() -> None:
+    api = _make_api(
+        "openrouter/openai/gpt-4o-mini",
+        default_headers={
+            "HTTP-Referer": "https://example.com/evals",
+            "X-Title": "Legacy Title",
+        },
+    )
+
+    assert api.model_args["default_headers"] == {
+        "HTTP-Referer": "https://example.com/evals",
+        "X-Title": "Legacy Title",
+    }
+
+
+def test_app_attribution_headers_can_be_disabled() -> None:
+    api = _make_api("openrouter/openai/gpt-4o-mini", app_attribution=False)
+
+    assert "default_headers" not in api.model_args
 
 
 def test_add_cache_markers_system_tool_and_penultimate_block() -> None:
