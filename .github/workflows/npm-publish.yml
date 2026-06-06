@@ -77,12 +77,19 @@ jobs:
 
       - name: Run quality checks
         working-directory: src/inspect_ai/_view/ts-mono
-        run: pnpm --filter inspect check-all
+        run: pnpm --filter @meridianlabs/log-viewer check-all
 
       - name: Build library for prerelease
         if: ${{ inputs.prerelease }}
         working-directory: src/inspect_ai/_view/ts-mono
-        run: pnpm --filter inspect build:lib
+        run: pnpm --filter @meridianlabs/log-viewer build:lib
+
+      # Guard against publishing an empty package: prerelease uses
+      # --ignore-scripts (so prepublishOnly/build:lib is skipped at publish
+      # time), and `files` only ships `lib/`. If the build above ever produces
+      # nothing, fail loudly here instead of shipping a package.json-only tarball.
+      - name: Verify build output exists
+        run: test -f lib/index.js && test -f lib/styles/index.css
 
       - name: Publish to NPM (dry-run)
         if: ${{ inputs.dry-run }}
