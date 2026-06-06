@@ -111,7 +111,7 @@ eval("evals/mytask", solver=my_agent(attempts=5))
 
 ## Scorers
 
-A task normally specifies its own scorer, but you can also apply a packaged scorer to an existing log with [`inspect score`](scorers.qmd), passing [scorer arguments](scorers.qmd) with `-S`:
+A task normally specifies its own scorer, but you can also apply a packaged scorer to an existing log with [`inspect score`](scoring-workflow.qmd), passing [scorer arguments](scoring-workflow.qmd) with `-S`:
 
 ``` bash
 inspect score logs/2025-01-01-mytask.eval --scorer evals/my_scorer

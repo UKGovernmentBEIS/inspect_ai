@@ -267,7 +267,7 @@ def math():
     )
 ```
 
-See [Scorers](scorers.qmd) for the full scorer and metric APIs.
+See [Scoring](scoring.qmd) for the full scorer and metric APIs.
 
 ## Custom Tools {#sec-custom-tools}
 

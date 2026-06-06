@@ -251,6 +251,7 @@ def test_openai_responses_max_clamped_to_xhigh(effort, expected):
     model_info.is_o3_mini.return_value = False
     model_info.is_deep_research.return_value = False
     model_info.is_codex.return_value = False
+    model_info.is_latest.return_value = False
 
     params = completion_params_responses(
         "gpt-5",
