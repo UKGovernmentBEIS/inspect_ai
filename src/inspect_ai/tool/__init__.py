@@ -61,6 +61,7 @@ from ._tools._todo_write import todo_write
 from ._tools._update_plan import update_plan
 from ._tools._web_browser import web_browser
 from ._tools._web_search import WebSearchProviders, web_search
+from ._tools._codemode import codemode
 
 __all__ = [
     "ask_user",
@@ -69,6 +70,7 @@ __all__ = [
     "code_execution",
     "CodeExecutionProviders",
     "computer",
+    "codemode",
     "grep",
     "list_files",
     "memory",
