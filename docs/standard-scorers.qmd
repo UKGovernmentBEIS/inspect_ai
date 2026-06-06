@@ -3,6 +3,8 @@ title: Standard Scorers
 llms-description: The built-in scorers that ship with Inspect (text matching, multiple choice, model grading, math, and perplexity), the metrics they report, and where to go next.
 ---
 
+## Overview
+
 A scorer compares a model's `output` against the `target` for each sample and returns a `Score`. You attach one to a task with the `scorer` argument. Here `match()` checks that the model's answer ends with the target:
 
 ``` python
@@ -19,6 +21,8 @@ def capitals():
         scorer=match(),
     )
 ```
+
+## Available Scorers
 
 {{< include _builtin-scorers.md >}}
 

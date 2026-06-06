@@ -1,4 +1,4 @@
-Inspect includes some simple text matching scorers as well as a couple of model graded scorers. Built in scorers can be imported from the `inspect_ai.scorer` module. Below is a summary of these scorers. See the [`inspect_ai.scorer`](reference/inspect_ai.scorer.qmd) reference for complete function signatures and options.
+Inspect includes both text matching scorers as well as model graded scorers. Below is a summary of these scorers. See the [`inspect_ai.scorer`](reference/inspect_ai.scorer.qmd) reference for complete function signatures and options.
 
 ::: {.builtin-scorers}
 
