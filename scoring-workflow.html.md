@@ -61,6 +61,7 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --overwrite
 When rescoring a previously scored log file you have two options:
 
 1.  Append Mode (Default): The new scores will be added alongside the existing scores in the log file, keeping both the old and new results.
+
 2.  Overwrite Mode: The new scores will replace the existing scores in the log file, removing the old results.
 
 You can choose which mode to use based on whether you want to preserve or discard the previous scoring data.

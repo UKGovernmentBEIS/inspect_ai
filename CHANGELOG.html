@@ -194,10 +194,10 @@ ul.task-list li input[type="checkbox"] {
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#unreleased" id="toc-unreleased" class="nav-link active" data-scroll-target="#unreleased">Unreleased</a></li>
-  <li><a href="#june-2026" id="toc-june-2026" class="nav-link" data-scroll-target="#june-2026">0.3.235 (03 June 2026)</a></li>
-  <li><a href="#june-2026-1" id="toc-june-2026-1" class="nav-link" data-scroll-target="#june-2026-1">0.3.234 (02 June 2026)</a></li>
-  <li><a href="#june-2026-2" id="toc-june-2026-2" class="nav-link" data-scroll-target="#june-2026-2">0.3.233 (01 June 2026)</a></li>
+  <li><a href="#june-2026" id="toc-june-2026" class="nav-link active" data-scroll-target="#june-2026">0.3.236 (06 June 2026)</a></li>
+  <li><a href="#june-2026-1" id="toc-june-2026-1" class="nav-link" data-scroll-target="#june-2026-1">0.3.235 (03 June 2026)</a></li>
+  <li><a href="#june-2026-2" id="toc-june-2026-2" class="nav-link" data-scroll-target="#june-2026-2">0.3.234 (02 June 2026)</a></li>
+  <li><a href="#june-2026-3" id="toc-june-2026-3" class="nav-link" data-scroll-target="#june-2026-3">0.3.233 (01 June 2026)</a></li>
   <li><a href="#may-2026" id="toc-may-2026" class="nav-link" data-scroll-target="#may-2026">0.3.232 (31 May 2026)</a></li>
   <li><a href="#may-2026-1" id="toc-may-2026-1" class="nav-link" data-scroll-target="#may-2026-1">0.3.231 (30 May 2026)</a></li>
   <li><a href="#may-2026-2" id="toc-may-2026-2" class="nav-link" data-scroll-target="#may-2026-2">0.3.230 (30 May 2026)</a></li>
@@ -436,8 +436,8 @@ ul.task-list li input[type="checkbox"] {
 
 
 
-<section id="unreleased" class="level2">
-<h2 class="anchored" data-anchor-id="unreleased">Unreleased</h2>
+<section id="june-2026" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026">0.3.236 (06 June 2026)</h2>
 <ul>
 <li>Model API: Add <code>ModelInfo.family</code> and <code>ModelAPI.model_family()</code>. Provider capability and request-shape checks now consult a registered <code>ModelInfo.family</code> before falling back to model-name matching, while preserving the configured model name for provider requests.</li>
 <li>Together: Support the <code>stream</code> model arg (e.g.&nbsp;<code>-M stream=true</code>) to stream completions. A length-truncated streaming response (with structured output or tools) now degrades gracefully to <code>stop_reason="max_tokens"</code> instead of raising.</li>
@@ -453,37 +453,37 @@ ul.task-list li input[type="checkbox"] {
 <li>Transcript: Bound resident memory for long-running samples by evicting older events to a history provider (opt-in via the <code>INSPECT_TRANSCRIPT_BOUNDED</code> environment variable). <code>transcript().events</code> remains a full, compatible view; use <code>transcript().history</code> for memory-aware access.</li>
 <li>Inspect View: New <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.viewer.html#viewerconfig">ViewerConfig</a></span> (passed via <code>Task(viewer=...)</code>) lets eval authors customize how a task’s sample list, score panel, and scanner results render in the log viewer — including sample-list columns, default sort, score labels, and color scales. See <a href="https://inspect.aisi.org.uk/task-views.html">Custom Views</a>.</li>
 <li>Transcript: Revert disabling of buffer history database when running tests.</li>
-<li>Inspect View: Dark mode, event and message color support</li>
+<li>Inspect View: Dark mode, event and message color support.</li>
 <li>Inspect View: Migrated the sample transcript to a virtualized list for smoother rendering of long transcripts.</li>
-<li>Inspect View: Collapse same-name nested solver/agent spans in transcripts</li>
-<li>Inspect View: Fix truncation of long transcript outlines when scrolling</li>
-<li>Inspect View: Switch to dev dependencies for scout and inspect apps</li>
-<li>Inspect View: Fixes to live sample following behavior</li>
-<li>Inspect View: Properly clear log/sample before paint when viewing log (#284)</li>
-<li>Inspect View: don’t render primitive solvers as sub-agents (#287)</li>
+<li>Inspect View: Collapse same-name nested solver/agent spans in transcripts.</li>
+<li>Inspect View: Fix truncation of long transcript outlines when scrolling.</li>
+<li>Inspect View: Switch to dev dependencies for scout and inspect apps.</li>
+<li>Inspect View: Fixes to live sample following behavior.</li>
+<li>Inspect View: Properly clear log/sample before paint when viewing log (#284).</li>
+<li>Inspect View: don’t render primitive solvers as sub-agents (#287).</li>
 <li>Bugfix: Inspect View sample-list columns now expand to fill the available width.</li>
 <li>Bugfix: Avoid emitting empty assistant output messages when converting Chat Completions tool-call with reasoning into Responses API input items.</li>
 <li>Bugfix: Preserve OpenAI Responses API encrypted reasoning through agent bridge round-trips and replay reasoning input items with empty <code>content</code> to avoid server validation errors.</li>
 <li>Bugfix: Agent bridge checks for google.genai more defensively (ensure that module not found is raised).</li>
 </ul>
 </section>
-<section id="june-2026" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026">0.3.235 (03 June 2026)</h2>
+<section id="june-2026-1" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-1">0.3.235 (03 June 2026)</h2>
 <ul>
 <li>OpenAI: Don’t filter <code>tool_search</code> tool in agent bridge for providers derived from OpenAIAPI.</li>
 <li>Model Info: Defer to explicit calls to <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.model.html#set_model_info">set_model_info()</a></span> when computing input tokens for unknown models.</li>
 </ul>
 </section>
-<section id="june-2026-1" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026-1">0.3.234 (02 June 2026)</h2>
+<section id="june-2026-2" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-2">0.3.234 (02 June 2026)</h2>
 <ul>
 <li>OpenAI: Map Inspect <code>todo_write</code> tool to native OpenAI/Codex <code>update_plan</code> tool.</li>
 <li>OpenAI: Support <a href="https://inspect.aisi.org.uk/providers.html#openai-on-aws-bedrock">OpenAI models on AWS Bedrock</a> via the <code>openai/bedrock/&lt;model&gt;</code> qualifier.</li>
 <li>Bugfix: Fix crash when running <code>bash_session</code> with realtime logging enabled (the default), caused by a non-serializable sandbox object being written to the sample store. The sandbox is now re-resolved per call rather than cached in the store.</li>
 </ul>
 </section>
-<section id="june-2026-2" class="level2">
-<h2 class="anchored" data-anchor-id="june-2026-2">0.3.233 (01 June 2026)</h2>
+<section id="june-2026-3" class="level2">
+<h2 class="anchored" data-anchor-id="june-2026-3">0.3.233 (01 June 2026)</h2>
 <ul>
 <li>Anthropic: Render mid-conversation system messages as <code>&lt;system-reminder&gt;</code> user turns for pre-4.8 models.</li>
 <li>Anthropic: Accept inline <code>role: "system"</code> messages from bridged Anthropic-API clients.</li>

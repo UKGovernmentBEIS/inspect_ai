@@ -10,7 +10,7 @@ There are two types of caching available: Inspect local caching and provider lev
 
 Use the `cache` option of [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:
 
-- Model name and base URL (e.g. `openai/gpt-4-turbo`)
+- Model name and base URL (e.g. `openai/gpt-5`)
 - Model prompt (i.e. message history)
 - Epoch number (for ensuring distinct generations per epoch)
 - Generate configuration (e.g. `temperature`, `top_p`, etc.)

@@ -25,16 +25,23 @@ The default model graded QA scorer is tuned to grade answers to open ended quest
 Model selection follows this precedence:
 
 1.  If `model` is provided, it is used (if a list is provided, each model grades independently and the final grade is by majority vote).
+
 2.  Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used.
+
 3.  Else the model currently being evaluated is used.
 
 There are a few ways you can customise the default behaviour:
 
 1.  Provide alternate `instructions`. The default instructions ask the model to use chain of thought reasoning and provide grades in the format `GRADE: C` or `GRADE: I`. Note that if you provide instructions that ask the model to format grades in a different way, you will also want to customise the `grade_pattern`.
+
 2.  Specify `include_history = True` to include the full chat history in the presented question (by default only the original sample input is presented). With the default templates, the final assistant answer is also included in the submission field. You may optionally instead pass a function that enables customising the presentation of the chat history.
+
 3.  Specify `partial_credit = True` to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only valid when using the default `instructions`.
+
 4.  Specify an alternate `model` to perform the grading (e.g. a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the final grade is chosen by majority vote.
+
 5.  Bind a `model_role` (default: `"grader"`) at eval time. See [Model Roles](./models.html.md#model-roles) for details.
+
 6.  Specify a different `template`. Templates are passed these variables: `question`, `criterion`, `answer`, and `instructions.`
 
 ## Template Variables

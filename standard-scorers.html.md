@@ -1,5 +1,7 @@
 # Standard Scorers – Inspect
 
+## Overview
+
 A scorer compares a model’s `output` against the `target` for each sample and returns a [Score](./reference/inspect_ai.scorer.html.md#score). You attach one to a task with the `scorer` argument. Here [match()](./reference/inspect_ai.scorer.html.md#match) checks that the model’s answer ends with the target:
 
 ``` python
@@ -17,7 +19,9 @@ def capitals():
     )
 ```
 
-Inspect includes some simple text matching scorers as well as a couple of model graded scorers. Built in scorers can be imported from the `inspect_ai.scorer` module. Below is a summary of these scorers. See the [`inspect_ai.scorer`](./reference/inspect_ai.scorer.html.md) reference for complete function signatures and options.
+## Available Scorers
+
+Inspect includes both text matching scorers as well as model graded scorers. Below is a summary of these scorers. See the [`inspect_ai.scorer`](./reference/inspect_ai.scorer.html.md) reference for complete function signatures and options.
 
 [includes()](./reference/inspect_ai.scorer.html.md#includes)  
 Check whether the `target` appears anywhere in the model output (a substring match). Case sensitive or insensitive (defaults to insensitive).

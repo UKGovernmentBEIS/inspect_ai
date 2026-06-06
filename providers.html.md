@@ -67,6 +67,8 @@ inspect eval arc.py --model openai/gpt-4o-mini \
 Or from Python:
 
 ``` python
+from inspect_ai import eval
+
 eval(
     "arc.py", model=" openai/gpt-4o-mini", 
     model_args= { "responses_api": True }
@@ -156,14 +158,6 @@ inspect eval math.py --model openai/azure/gpt-4o-mini
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
 
 ### OpenAI on AWS Bedrock
-
-> **NOTE:**
->
-> OpenAI models on Amazon Bedrock require the development version of Inspect. You can install the development version from GitHub with:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 The `openai` provider supports OpenAI models served through [Amazon Bedrock](https://aws.amazon.com/bedrock/). Use the normal `openai` provider with the `bedrock` qualifier, and use a standard OpenAI model identifier (Inspect automatically adds prefixes and suffixes required by Bedrock). For example:
 

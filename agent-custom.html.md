@@ -265,6 +265,7 @@ Then, pass a unique id as the `instance`:
 
 ``` python
 from shortuuid import uuid
+from inspect_ai.agent import react
 
 react(..., tools=[bash_explorer(instance=uuid())])
 ```
@@ -378,7 +379,7 @@ supervisor = react(
     tools=[
         addition(), 
         handoff(web_surfer()), 
-        handoff(critic(model="openai/gpt-4o-mini"))
+        handoff(critic(model="openai/gpt-5-mini"))
     ]
 )
 ```

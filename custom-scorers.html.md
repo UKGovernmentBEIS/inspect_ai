@@ -13,10 +13,6 @@ async def score(state: TaskState, target: Target):
 
 First we’ll talk about the core [Score](./reference/inspect_ai.scorer.html.md#score) and [Value](./reference/inspect_ai.scorer.html.md#value) objects, then provide some examples of custom scorers to make things more concrete.
 
-> **NOTE:**
->
-> Note that `score` above is declared as an `async` function. When creating custom scorers, it’s critical that you understand Inspect’s concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](./parallelism.html.md#sec-parallel-solvers-and-scorers) before proceeding.
-
 ## Example
 
 This scorer extracts the last number from the model’s output and marks the sample correct when it falls within a relative tolerance of the `target`. It registers metrics with `@scorer`, reads the model output from `state`, compares against `target.text`, and returns a [Score](./reference/inspect_ai.scorer.html.md#score) with an `answer` and `explanation`:
@@ -41,9 +37,14 @@ from inspect_ai.solver import TaskState, generate
 @scorer(metrics=[accuracy(), stderr()])
 def close_enough(rel_tol: float = 0.01):
     async def score(state: TaskState, target: Target) -> Score:
-        numbers = re.findall(r"-?\d+(?:\.\d+)?", state.output.completion)
+        numbers = re.findall(
+            r"-?\d+(?:\.\d+)?", state.output.completion
+        )
         if not numbers:
-            return Score(value=INCORRECT, explanation="No number found in output.")
+            return Score(
+                value=INCORRECT, 
+                explanation="No number found in output."
+            )
 
         answer = numbers[-1]
         expected = float(target.text)
@@ -61,17 +62,14 @@ def close_enough(rel_tol: float = 0.01):
 def arithmetic():
     return Task(
         dataset=[
-            Sample(input="What is 18 * 7? Reply with just the number.", target="126"),
+            Sample(
+                input="What is 18 * 7?",
+                target="126"
+            ),
         ],
         solver=generate(),
         scorer=close_enough(),
     )
-```
-
-Run it with `inspect eval` like any other task:
-
-``` bash
-inspect eval arithmetic.py --model openai/gpt-4o
 ```
 
 The sections below describe the pieces this example relies on.
@@ -107,7 +105,9 @@ You can return other strings, but aggregate metrics need a converter that unders
 ``` python
 from inspect_ai.scorer import accuracy, value_to_float
 
-accuracy(to_float=value_to_float(correct="pass", incorrect="fail"))
+accuracy(
+    to_float=value_to_float(correct="pass", incorrect="fail")
+)
 ```
 
 If you are extracting an answer from within a completion (e.g. looking for text using a regex pattern, looking at the beginning or end of the completion, etc.) you should strive to *always* return an `answer` as part of your [Score](./reference/inspect_ai.scorer.html.md#score), as this makes it much easier to understand the details of scoring when viewing the eval log file.
@@ -126,7 +126,7 @@ return Score.unscored(
 
 Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers.
 
-## Value
+## Score Value
 
 [Value](./reference/inspect_ai.scorer.html.md#value) is union over the main scalar types as well as a `list` or `dict` of the same types:
 
@@ -159,7 +159,9 @@ Use the `config` parameter of [get_model()](./reference/inspect_ai.model.html.md
 ``` python
 grader_model = get_model(
     "google/gemini-2.5-pro",
-    config = GenerateConfig(temperature = 0.9, max_connections = 10)
+    config = GenerateConfig(
+        temperature = 0.0
+    )
 )
 ```
 

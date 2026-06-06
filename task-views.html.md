@@ -1,13 +1,5 @@
 # Task Views – Inspect
 
-> **NOTE:**
->
-> The task views feature described below requires the development version of Inspect. You can install the development version from GitHub with:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
-
 ## Overview
 
 By default the log viewer chooses sensible defaults for how a task’s samples are listed, how their scores are summarized, and how scanner results are displayed. For your own task, however you have a better idea which scores matter, which columns are worth showing, and more. Your task can customize the view directly by using the `viewer` arg of the [Task](./reference/inspect_ai.html.md#task).

@@ -16,7 +16,7 @@ Scorers also define one or more metrics which are used to aggregate scores (e.g.
 
 This page covers the built-in scorers that ship with Inspect. The [Scoring](./scoring.html.md) section covers everything else: writing your own scorers, defining and customising metrics, combining multiple scorers, and the offline scoring workflow.
 
-Inspect includes some simple text matching scorers as well as a couple of model graded scorers. Built in scorers can be imported from the `inspect_ai.scorer` module. Below is a summary of these scorers. See the [`inspect_ai.scorer`](./reference/inspect_ai.scorer.html.md) reference for complete function signatures and options.
+Inspect includes both text matching scorers as well as model graded scorers. Below is a summary of these scorers. See the [`inspect_ai.scorer`](./reference/inspect_ai.scorer.html.md) reference for complete function signatures and options.
 
 [includes()](./reference/inspect_ai.scorer.html.md#includes)  
 Check whether the `target` appears anywhere in the model output (a substring match). Case sensitive or insensitive (defaults to insensitive).

@@ -2963,7 +2963,7 @@ Scorers also define one or more metrics which are used to aggregate scores (e.g.
 
 This page covers the built-in scorers that ship with Inspect. The [Scoring](./scoring.html.md) section covers everything else: writing your own scorers, defining and customising metrics, combining multiple scorers, and the offline scoring workflow.
 
-Inspect includes some simple text matching scorers as well as a couple of model graded scorers. Built in scorers can be imported from the `inspect_ai.scorer` module. Below is a summary of these scorers. See the [`inspect_ai.scorer`](./reference/inspect_ai.scorer.html.md) reference for complete function signatures and options.
+Inspect includes both text matching scorers as well as model graded scorers. Below is a summary of these scorers. See the [`inspect_ai.scorer`](./reference/inspect_ai.scorer.html.md) reference for complete function signatures and options.
 
 [includes()](./reference/inspect_ai.scorer.html.md#includes)  
 Check whether the `target` appears anywhere in the model output (a substring match). Case sensitive or insensitive (defaults to insensitive).
@@ -3423,6 +3423,8 @@ inspect eval arc.py --model openai/gpt-4o-mini \
 Or from Python:
 
 ``` python
+from inspect_ai import eval
+
 eval(
     "arc.py", model=" openai/gpt-4o-mini", 
     model_args= { "responses_api": True }
@@ -3512,14 +3514,6 @@ inspect eval math.py --model openai/azure/gpt-4o-mini
 Note that if the `AZUREAI_OPENAI_API_VERSION` is not specified, Inspect will generally default to the latest deployed version, which as of this writing is `2025-03-01-preview`. When using managed identity for authentication, install the `azure-identity` package and leave `AZUREAI_OPENAI_API_KEY` undefined.
 
 ### OpenAI on AWS Bedrock
-
-> **NOTE:**
->
-> OpenAI models on Amazon Bedrock require the development version of Inspect. You can install the development version from GitHub with:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 The `openai` provider supports OpenAI models served through [Amazon Bedrock](https://aws.amazon.com/bedrock/). Use the normal `openai` provider with the `bedrock` qualifier, and use a standard OpenAI model identifier (Inspect automatically adds prefixes and suffixes required by Bedrock). For example:
 
@@ -4795,7 +4789,7 @@ There are two types of caching available: Inspect local caching and provider lev
 
 Use the `cache` option of [GenerateConfig](./reference/inspect_ai.model.html.md#generateconfig) to activate the use of the cache. The keys for caching (what determines if a request can be fulfilled from the cache) are as follows:
 
-- Model name and base URL (e.g. `openai/gpt-4-turbo`)
+- Model name and base URL (e.g. `openai/gpt-5`)
 - Model prompt (i.e. message history)
 - Epoch number (for ensuring distinct generations per epoch)
 - Generate configuration (e.g. `temperature`, `top_p`, etc.)
@@ -6147,6 +6141,8 @@ To review transcripts for issues that could undermine results (refusals, evaluat
 
 # Standard Scorers – Inspect
 
+## Overview
+
 A scorer compares a model’s `output` against the `target` for each sample and returns a [Score](./reference/inspect_ai.scorer.html.md#score). You attach one to a task with the `scorer` argument. Here [match()](./reference/inspect_ai.scorer.html.md#match) checks that the model’s answer ends with the target:
 
 ``` python
@@ -6164,7 +6160,9 @@ def capitals():
     )
 ```
 
-Inspect includes some simple text matching scorers as well as a couple of model graded scorers. Built in scorers can be imported from the `inspect_ai.scorer` module. Below is a summary of these scorers. See the [`inspect_ai.scorer`](./reference/inspect_ai.scorer.html.md) reference for complete function signatures and options.
+## Available Scorers
+
+Inspect includes both text matching scorers as well as model graded scorers. Below is a summary of these scorers. See the [`inspect_ai.scorer`](./reference/inspect_ai.scorer.html.md) reference for complete function signatures and options.
 
 [includes()](./reference/inspect_ai.scorer.html.md#includes)  
 Check whether the `target` appears anywhere in the model output (a substring match). Case sensitive or insensitive (defaults to insensitive).
@@ -6247,10 +6245,6 @@ async def score(state: TaskState, target: Target):
 
 First we’ll talk about the core [Score](./reference/inspect_ai.scorer.html.md#score) and [Value](./reference/inspect_ai.scorer.html.md#value) objects, then provide some examples of custom scorers to make things more concrete.
 
-> **NOTE:**
->
-> Note that `score` above is declared as an `async` function. When creating custom scorers, it’s critical that you understand Inspect’s concurrency model. More specifically, if your scorer is doing non-trivial work (e.g. calling REST APIs, executing external processes, etc.) please review [Parallelism](./parallelism.html.md#sec-parallel-solvers-and-scorers) before proceeding.
-
 ## Example
 
 This scorer extracts the last number from the model’s output and marks the sample correct when it falls within a relative tolerance of the `target`. It registers metrics with `@scorer`, reads the model output from `state`, compares against `target.text`, and returns a [Score](./reference/inspect_ai.scorer.html.md#score) with an `answer` and `explanation`:
@@ -6275,9 +6269,14 @@ from inspect_ai.solver import TaskState, generate
 @scorer(metrics=[accuracy(), stderr()])
 def close_enough(rel_tol: float = 0.01):
     async def score(state: TaskState, target: Target) -> Score:
-        numbers = re.findall(r"-?\d+(?:\.\d+)?", state.output.completion)
+        numbers = re.findall(
+            r"-?\d+(?:\.\d+)?", state.output.completion
+        )
         if not numbers:
-            return Score(value=INCORRECT, explanation="No number found in output.")
+            return Score(
+                value=INCORRECT, 
+                explanation="No number found in output."
+            )
 
         answer = numbers[-1]
         expected = float(target.text)
@@ -6295,17 +6294,14 @@ def close_enough(rel_tol: float = 0.01):
 def arithmetic():
     return Task(
         dataset=[
-            Sample(input="What is 18 * 7? Reply with just the number.", target="126"),
+            Sample(
+                input="What is 18 * 7?",
+                target="126"
+            ),
         ],
         solver=generate(),
         scorer=close_enough(),
     )
-```
-
-Run it with `inspect eval` like any other task:
-
-``` bash
-inspect eval arithmetic.py --model openai/gpt-4o
 ```
 
 The sections below describe the pieces this example relies on.
@@ -6341,7 +6337,9 @@ You can return other strings, but aggregate metrics need a converter that unders
 ``` python
 from inspect_ai.scorer import accuracy, value_to_float
 
-accuracy(to_float=value_to_float(correct="pass", incorrect="fail"))
+accuracy(
+    to_float=value_to_float(correct="pass", incorrect="fail")
+)
 ```
 
 If you are extracting an answer from within a completion (e.g. looking for text using a regex pattern, looking at the beginning or end of the completion, etc.) you should strive to *always* return an `answer` as part of your [Score](./reference/inspect_ai.scorer.html.md#score), as this makes it much easier to understand the details of scoring when viewing the eval log file.
@@ -6360,7 +6358,7 @@ return Score.unscored(
 
 Unscored samples are skipped by aggregate metrics and epoch reducers and are counted toward `EvalScore.unscored_samples` rather than included as zeros. This works for scalar, dict-valued, and list-valued scorers.
 
-## Value
+## Score Value
 
 [Value](./reference/inspect_ai.scorer.html.md#value) is union over the main scalar types as well as a `list` or `dict` of the same types:
 
@@ -6393,7 +6391,9 @@ Use the `config` parameter of [get_model()](./reference/inspect_ai.model.html.md
 ``` python
 grader_model = get_model(
     "google/gemini-2.5-pro",
-    config = GenerateConfig(temperature = 0.9, max_connections = 10)
+    config = GenerateConfig(
+        temperature = 0.0
+    )
 )
 ```
 
@@ -6525,16 +6525,23 @@ The default model graded QA scorer is tuned to grade answers to open ended quest
 Model selection follows this precedence:
 
 1.  If `model` is provided, it is used (if a list is provided, each model grades independently and the final grade is by majority vote).
+
 2.  Else if `model_role` is provided (default: `"grader"`), the model bound to that role (via `eval(..., model_roles={...})` or `--model-role grader=...`) is used.
+
 3.  Else the model currently being evaluated is used.
 
 There are a few ways you can customise the default behaviour:
 
 1.  Provide alternate `instructions`. The default instructions ask the model to use chain of thought reasoning and provide grades in the format `GRADE: C` or `GRADE: I`. Note that if you provide instructions that ask the model to format grades in a different way, you will also want to customise the `grade_pattern`.
+
 2.  Specify `include_history = True` to include the full chat history in the presented question (by default only the original sample input is presented). With the default templates, the final assistant answer is also included in the submission field. You may optionally instead pass a function that enables customising the presentation of the chat history.
+
 3.  Specify `partial_credit = True` to prompt the model to assign partial credit to answers that are not entirely right but come close (metrics by default convert this to a value of 0.5). Note that this parameter is only valid when using the default `instructions`.
+
 4.  Specify an alternate `model` to perform the grading (e.g. a more powerful model or a model fine tuned for grading). If you provide a list of models, each grades independently and the final grade is chosen by majority vote.
+
 5.  Bind a `model_role` (default: `"grader"`) at eval time. See [Model Roles](./models.html.md#model-roles) for details.
+
 6.  Specify a different `template`. Templates are passed these variables: `question`, `criterion`, `answer`, and `instructions.`
 
 ## Template Variables
@@ -6932,7 +6939,9 @@ def mean_score() -> ScoreReducer:
 There are several ways to use multiple scorers in an evaluation:
 
 1.  You can provide a list of scorers in a [Task](./reference/inspect_ai.html.md#task) definition (this is the best option when scorers are entirely independent)
+
 2.  You can yield multiple scores from a [Scorer](./reference/inspect_ai.scorer.html.md#scorer) (this is the best option when scores share code and/or expensive computations).
+
 3.  You can use multiple scorers and then aggregate them into a single scorer (e.g. majority voting).
 
 ## Example
@@ -7228,6 +7237,7 @@ inspect score ./logs/2024-02-23_task_gpt-4_TUhnCn473c6.eval --overwrite
 When rescoring a previously scored log file you have two options:
 
 1.  Append Mode (Default): The new scores will be added alongside the existing scores in the log file, keeping both the old and new results.
+
 2.  Overwrite Mode: The new scores will replace the existing scores in the log file, removing the old results.
 
 You can choose which mode to use based on whether you want to preserve or discard the previous scoring data.
@@ -9004,6 +9014,7 @@ Then, pass a unique id as the `instance`:
 
 ``` python
 from shortuuid import uuid
+from inspect_ai.agent import react
 
 react(..., tools=[bash_explorer(instance=uuid())])
 ```
@@ -9117,7 +9128,7 @@ supervisor = react(
     tools=[
         addition(), 
         handoff(web_surfer()), 
-        handoff(critic(model="openai/gpt-4o-mini"))
+        handoff(critic(model="openai/gpt-5-mini"))
     ]
 )
 ```
@@ -15668,14 +15679,6 @@ See the [Inspect Viz documentation](https://meridianlabs-ai.github.io/inspect_vi
 
 
 # Task Views – Inspect
-
-> **NOTE:**
->
-> The task views feature described below requires the development version of Inspect. You can install the development version from GitHub with:
->
-> ``` bash
-> pip install git+https://github.com/UKGovernmentBEIS/inspect_ai
-> ```
 
 ## Overview
 

@@ -683,7 +683,9 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <h2 id="toc-title">On this page</h2>
    
   <ul>
-  <li><a href="#metrics" id="toc-metrics" class="nav-link active" data-scroll-target="#metrics">Metrics</a></li>
+  <li><a href="#overview" id="toc-overview" class="nav-link active" data-scroll-target="#overview">Overview</a></li>
+  <li><a href="#available-scorers" id="toc-available-scorers" class="nav-link" data-scroll-target="#available-scorers">Available Scorers</a></li>
+  <li><a href="#metrics" id="toc-metrics" class="nav-link" data-scroll-target="#metrics">Metrics</a></li>
   <li><a href="#learn-more" id="toc-learn-more" class="nav-link" data-scroll-target="#learn-more">Learn More</a></li>
   </ul>
 </nav>
@@ -710,6 +712,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </header>
 
 
+<section id="overview" class="level2">
+<h2 class="anchored" data-anchor-id="overview">Overview</h2>
 <p>A scorer compares a model’s <code>output</code> against the <code>target</code> for each sample and returns a <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#score">Score</a></span>. You attach one to a task with the <code>scorer</code> argument. Here <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#match">match()</a></span> checks that the model’s answer ends with the target:</p>
 <div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai <span class="im">import</span> Task, task</span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> inspect_ai.dataset <span class="im">import</span> Sample</span>
@@ -723,7 +727,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        solver<span class="op">=</span>generate(),</span>
 <span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        scorer<span class="op">=</span>match(),</span>
 <span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    )</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<p>Inspect includes some simple text matching scorers as well as a couple of model graded scorers. Built in scorers can be imported from the <code>inspect_ai.scorer</code> module. Below is a summary of these scorers. See the <a href="./reference/inspect_ai.scorer.html"><code>inspect_ai.scorer</code></a> reference for complete function signatures and options.</p>
+</section>
+<section id="available-scorers" class="level2">
+<h2 class="anchored" data-anchor-id="available-scorers">Available Scorers</h2>
+<p>Inspect includes both text matching scorers as well as model graded scorers. Below is a summary of these scorers. See the <a href="./reference/inspect_ai.scorer.html"><code>inspect_ai.scorer</code></a> reference for complete function signatures and options.</p>
 <div class="builtin-scorers">
 <dl>
 <dt><span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#includes">includes()</a></span></dt>
@@ -776,6 +783,7 @@ Compute NLL of target-completion tokens only, given a prompt context, for benchm
 </dd>
 </dl>
 </div>
+</section>
 <section id="metrics" class="level2">
 <h2 class="anchored" data-anchor-id="metrics">Metrics</h2>
 <p>Each scorer provides one or more built-in metrics. Most report <code>accuracy</code> and <code>stderr</code>; <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#exact">exact()</a></span> and <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.scorer.html#f1">f1()</a></span> report <code>mean</code> and <code>stderr</code>; and the perplexity scorers report <code>perplexity_per_token</code> and <code>perplexity_per_seq</code>. You can override these by passing your own <code>metrics</code> to the <span class="element-type-name ref-interlink"><a href="./reference/inspect_ai.html#task">Task</a></span>:</p>

@@ -5,7 +5,9 @@
 There are several ways to use multiple scorers in an evaluation:
 
 1.  You can provide a list of scorers in a [Task](./reference/inspect_ai.html.md#task) definition (this is the best option when scorers are entirely independent)
+
 2.  You can yield multiple scores from a [Scorer](./reference/inspect_ai.scorer.html.md#scorer) (this is the best option when scores share code and/or expensive computations).
+
 3.  You can use multiple scorers and then aggregate them into a single scorer (e.g. majority voting).
 
 ## Example
