@@ -59,6 +59,17 @@ def transcript_bounded_enabled() -> bool:
     return value.strip().lower() not in ("0", "false", "no", "off")
 
 
+DEFAULT_RESIDENT_TAIL = 100
+"""Default number of most-recent events a bounded transcript keeps in memory.
+
+Shared source of truth for the resident window. Consumers that read a
+recent slice of history (e.g. the ACP replay-on-attach in
+``agent/_acp/session_router.py``, whose ``REPLAY_MAX_EVENTS`` is aligned to
+this value) can rely on that slice being served from resident,
+attachment-resolved memory rather than re-materialized from the buffer DB.
+"""
+
+
 class TranscriptHistoryProvider(Protocol):
     @property
     def event_count(self) -> int: ...
@@ -421,7 +432,7 @@ class Transcript:
         `history.resident_events`, `history.event_count`, `history.last_event`, or
         `history.recent_events()`.
         """
-        if self._history_provider is None:
+        if self._history_provider is None or not self._events_truncated:
             return self._events
         return self._events_view
 

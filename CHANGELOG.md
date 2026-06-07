@@ -1,6 +1,7 @@
 ## Unreleased
 
 - Model API: `ChatCompletionChoice.stop_details` (`StopDetails`/`StopCategory`) surfaces a model's refusal/safety category and explanation when available.
+- Transcript: `transcript().events` now resolves content attachments (large text, images) instead of returning bare `attachment://` references when reads are served from the bounded-history provider.
 - Transcript: Use WAL journal mode for the realtime sample buffer database so concurrent reads and writes no longer raise `OperationalError: database is locked`.
 - Remove ACP patch for connection initialization order issue (resolved in ACP 0.10.1).
 
