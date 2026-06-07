@@ -327,6 +327,40 @@ def test_cleanup_defers_while_sample_history_is_open(tmp_path):
     assert not db.db_path.exists()
 
 
+def test_buffer_database_reuses_thread_connection(tmp_path, monkeypatch):
+    connects = 0
+    original_connect = sqlite3.connect
+
+    def connect(*args, **kwargs):
+        nonlocal connects
+        connects += 1
+        return original_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", connect)
+
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+    db.log_events([SampleEvent(id="sample", epoch=1, event=InfoEvent(data="hello"))])
+    assert db.sample_event_count("sample", 1) == 1
+
+    assert connects == 1
+
+
+def test_cleanup_closes_persistent_database_connections(tmp_path):
+    db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
+
+    with db._get_connection() as conn:
+        assert conn.execute("SELECT 1").fetchone()[0] == 1
+
+    assert db._connections == [conn]
+
+    db.cleanup()
+
+    assert db._connections == []
+    assert not db.db_path.exists()
+    with pytest.raises(sqlite3.ProgrammingError, match="closed database"):
+        conn.execute("SELECT 1")
+
+
 def test_sample_history_event_rows_are_private(tmp_path):
     db = SampleBufferDatabase(str(tmp_path / "test.eval"), db_dir=tmp_path)
     db.log_events([SampleEvent(id="sample", epoch=1, event=_model("event-1", "first"))])
@@ -376,6 +410,7 @@ def test_sample_history_read_methods_use_deferred_transactions(
         return original_connect(*args, **kwargs)
 
     monkeypatch.setattr(sqlite3, "connect", connect)
+    db._close_connections()
 
     assert db.sample_event_count("sample", 1) == 1
     assert db.sample_attachment("sample", 1, "missing") is None

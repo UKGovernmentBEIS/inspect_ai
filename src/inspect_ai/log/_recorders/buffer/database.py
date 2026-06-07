@@ -155,6 +155,9 @@ class SampleBufferDatabase(SampleBuffer):
 
         # warn at most once per database if WAL journal mode can't be enabled
         self._wal_checked = False
+        self._connection_local = threading.local()
+        self._connections: list[Connection] = []
+        self._connections_lock = threading.Lock()
 
         # location subdir and file
         dir, file = location_dir_and_file(self.location)
@@ -407,6 +410,7 @@ class SampleBufferDatabase(SampleBuffer):
         return True
 
     def _cleanup_now(self) -> None:
+        self._close_connections()
         cleanup_sample_buffer_db(self.db_path)
         if self._sync_filestore is not None:
             self._sync_filestore.cleanup()
@@ -745,6 +749,46 @@ class SampleBufferDatabase(SampleBuffer):
         on_rollback: Callable[[], None] | None = None,
     ) -> Iterator[Connection]:
         """Get a database connection."""
+        conn = self._thread_connection()
+
+        try:
+            # do work
+            yield conn
+
+            # if this was for a write then bump the version
+            if write:
+                conn.execute("""
+                UPDATE task_database
+                SET version = version + 1,
+                    last_updated = CURRENT_TIMESTAMP;
+                """)
+
+            # commit
+            conn.commit()
+
+        except Exception:
+            # rollback on any error
+            try:
+                conn.rollback()
+            finally:
+                if on_rollback is not None:
+                    on_rollback()
+            raise
+        finally:
+            # if this was for write then sync (throttled)
+            if write:
+                self._sync()
+
+    def _thread_connection(self) -> Connection:
+        conn = getattr(self._connection_local, "conn", None)
+        if conn is None:
+            conn = self._open_connection()
+            self._connection_local.conn = conn
+            with self._connections_lock:
+                self._connections.append(conn)
+        return cast(Connection, conn)
+
+    def _open_connection(self) -> Connection:
         max_retries = 5
         retry_delay = 0.1
 
@@ -753,7 +797,9 @@ class SampleBufferDatabase(SampleBuffer):
 
         for attempt in range(max_retries):
             try:
-                conn = sqlite3.connect(self.db_path, timeout=30)
+                conn = sqlite3.connect(
+                    self.db_path, timeout=30, check_same_thread=False
+                )
                 conn.row_factory = sqlite3.Row  # enable row factory for named columns
 
                 # Enable foreign key constraints
@@ -808,36 +854,24 @@ class SampleBufferDatabase(SampleBuffer):
                 f"Failed to establish connection after {max_retries} attempts"
             ) from last_error
 
-        try:
-            # do work
-            yield conn
+        return conn
 
-            # if this was for a write then bump the version
-            if write:
-                conn.execute("""
-                UPDATE task_database
-                SET version = version + 1,
-                    last_updated = CURRENT_TIMESTAMP;
-                """)
+    def _close_connections(self) -> None:
+        with self._connections_lock:
+            connections = self._connections
+            self._connections = []
 
-            # commit
-            conn.commit()
-
-        except Exception:
-            # rollback on any error
+        current = getattr(self._connection_local, "conn", None)
+        for conn in connections:
             try:
-                conn.rollback()
-            finally:
-                if on_rollback is not None:
-                    on_rollback()
-            raise
-        finally:
-            # close the connection
-            conn.close()
+                conn.close()
+            except Exception as ex:
+                logger.warning(
+                    "Error closing sample buffer database connection: %s", ex
+                )
 
-            # if this was for write then sync (throttled)
-            if write:
-                self._sync()
+            if conn is current:
+                delattr(self._connection_local, "conn")
 
     def _sync(self) -> None:
         sync_filestore = self._sync_filestore
