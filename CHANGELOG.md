@@ -1,3 +1,7 @@
+## Unreleased
+
+- Transcript: Continue using the realtime sample buffer database when WAL journal mode cannot be enabled, warning once and falling back to the current journal mode.
+
 ## 0.3.237 (07 June 2026)
 
 - Model API: `ChatCompletionChoice.stop_details` (`StopDetails`/`StopCategory`) surfaces a model's refusal/safety category and explanation when available.

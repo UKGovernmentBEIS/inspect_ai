@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sqlite3
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -12,6 +13,7 @@ from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
 from inspect_ai.log._log import EvalSampleSummary
 from inspect_ai.log._recorders.buffer import SampleBufferDatabase
+from inspect_ai.log._recorders.buffer import database as database_module
 from inspect_ai.log._recorders.buffer.database import sync_to_filestore
 from inspect_ai.log._recorders.buffer.filestore import SampleBufferFilestore
 from inspect_ai.log._recorders.buffer.types import Samples
@@ -52,6 +54,43 @@ def test_wal_journal_mode(db: SampleBufferDatabase) -> None:
     with db._get_connection() as conn:
         mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
     assert str(mode).lower() == "wal"
+
+
+def test_wal_journal_mode_unavailable_warns_and_continues(
+    tmp_path: Path,
+    sample: EvalSampleSummary,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Non-lock failures enabling WAL should fall back to the current mode."""
+    original_connect = sqlite3.connect
+    warnings: list[str] = []
+
+    class WalUnavailableConnection(sqlite3.Connection):
+        def execute(self, sql: str, *args: Any, **kwargs: Any) -> sqlite3.Cursor:
+            if sql.strip().upper() == "PRAGMA JOURNAL_MODE=WAL":
+                raise sqlite3.OperationalError("disk I/O error")
+            return super().execute(sql, *args, **kwargs)
+
+    def connect(*args: Any, **kwargs: Any) -> sqlite3.Connection:
+        kwargs["factory"] = WalUnavailableConnection
+        return original_connect(*args, **kwargs)
+
+    def capture_warning(msg: object, *args: object, **_kwargs: object) -> None:
+        warnings.append(str(msg) % args if args else str(msg))
+
+    monkeypatch.setattr(sqlite3, "connect", connect)
+    monkeypatch.setattr(database_module.logger, "warning", capture_warning)
+
+    db = SampleBufferDatabase(location=str(tmp_path / "test.eval"), db_dir=tmp_path)
+    try:
+        db.start_sample(sample)
+        assert len(get_samples(db).samples) == 1
+    finally:
+        db.cleanup()
+
+    assert len(warnings) == 1
+    assert "could not enable WAL journal mode" in warnings[0]
+    assert "unavailable: disk I/O error" in warnings[0]
 
 
 def test_start_sample(db: SampleBufferDatabase, sample: EvalSampleSummary) -> None:
