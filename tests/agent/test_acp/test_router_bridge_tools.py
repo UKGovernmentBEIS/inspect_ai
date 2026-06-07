@@ -22,6 +22,7 @@ from acp.schema import (
 
 from inspect_ai.agent import AgentState
 from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
+from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
 from inspect_ai.agent._bridge.types import AgentBridge
 from inspect_ai.agent._bridge.util import bridge_generate, bridge_model_generate
@@ -324,8 +325,6 @@ def test_bridge_synth_start_marked_non_cancelable_live() -> None:
     `inspect/cancel_tool_call` can't act on them. The marker tells the TUI to
     suppress the per-tool cancel affordance rather than offer one that no-ops.
     """
-    from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
-
     tr = Transcript()
     token = _transcript.set(tr)
     try:
@@ -342,8 +341,6 @@ def test_bridge_synth_start_marked_non_cancelable_live() -> None:
 
 def test_bridge_synth_start_marked_non_cancelable_replay() -> None:
     """Replay-synthesized bridge cards are also marked non-cancelable."""
-    from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
-
     events = [
         _tool_call_event(_bash_call(command="ls")),
         _result_event(
@@ -456,14 +453,49 @@ def test_replay_does_not_synthesize_when_tool_event_present() -> None:
     assert starts[0].status == "completed"
 
 
-def test_replay_bridge_card_in_progress_without_result() -> None:
-    """A bridged call whose result isn't in the snapshot replays as in-progress."""
+def test_replay_no_card_when_no_result_in_snapshot() -> None:
+    """A tool_call with neither a ToolEvent nor a result yields no replay card.
+
+    That state is ambiguous — a react tool awaiting approval (its pending
+    ToolEvent isn't recorded until approval resolves) looks identical to an
+    in-flight bridged tool. We must NOT guess "bridged" and emit a
+    non-cancelable in-progress card; the react tool gets its real ToolEvent once
+    live forwarding resumes. See `_map_bridge_tool_replay`.
+    """
     events = [_tool_call_event(_bash_call(command="sleep 1"))]
     notifs = list(replay_transcript(events, session_id="s"))
-    starts = _starts(notifs)
+    assert _starts(notifs) == []
+    assert _progress(notifs) == []
+
+
+def test_replay_does_not_misclassify_react_tool_awaiting_approval() -> None:
+    """A react tool mid-approval (tool_calls, no ToolEvent, no result) → no card.
+
+    Regression for the misclassification where replay rendered a normal react
+    tool as a non-cancelable bridged card during the approval window. Once the
+    tool runs, its real ToolEvent (carrying the result) drives a proper,
+    cancelable card — modeled here by a follow-up snapshot that includes it.
+    """
+    # snapshot captured DURING approval: the model proposed a tool call but no
+    # ToolEvent / result exists yet.
+    mid_approval: list[Event] = [_tool_call_event(_bash_call(command="rm -rf x"))]
+    notifs = list(replay_transcript(mid_approval, session_id="s"))
+    assert _starts(notifs) == []  # not synthesized as a (non-cancelable) bridged card
+
+    # snapshot captured AFTER the tool ran: the real ToolEvent is present, so the
+    # normal react path renders it (cancelable, not via the bridge synth path).
+    after_run: list[Event] = [
+        _tool_call_event(_bash_call(command="rm -rf x")),
+        ToolEvent(
+            id="tc1", function="bash", arguments={"command": "rm -rf x"}, result="ok"
+        ),
+    ]
+    notifs2 = list(replay_transcript(after_run, session_id="s"))
+    starts = [s for s in _starts(notifs2) if s.tool_call_id == "tc1"]
     assert len(starts) == 1
-    assert starts[0].tool_call_id == "tc1"
-    assert starts[0].status == "in_progress"
+    # react card carries no non-cancelable marker (the affordance stays available)
+    meta = getattr(starts[0], "field_meta", None) or {}
+    assert TOOL_CALL_CANCELABLE_META_KEY not in meta
 
 
 def test_replay_bridge_card_failed_on_error() -> None:

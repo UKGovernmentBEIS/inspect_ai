@@ -995,36 +995,41 @@ def _map_bridge_tool_replay(
 ) -> Iterator[SessionNotification]:
     """Synthesize bridged tool-call cards from a replay snapshot (structural).
 
-    On a late attach the bridge context is gone, so calls are recognised
-    structurally: a tool call whose id has no real ``ToolEvent``
-    (``bridge.tool_event_ids``) is bridged. Its result is looked up from the
-    pre-scanned ``bridge.tool_results``, so a single completed card is emitted
-    (or in-progress, if the result isn't in the snapshot) — matching how a react
-    ``ToolEvent`` replays as one start.
+    On a late attach the bridge context is gone, so a bridged call is recognised
+    structurally — but ONLY when its result is present in the snapshot. For
+    react, the pending ``ToolEvent`` is recorded just before the tool runs and
+    well before its result is sent back to the model (see ``_call_tools.py``), so
+    a tool whose RESULT is in the snapshot but has no ``ToolEvent`` is
+    unambiguously bridged. We emit a single completed / failed card for it
+    (mirroring how a react ``ToolEvent`` replays as one start).
+
+    A tool call with neither a ``ToolEvent`` nor a result is deliberately NOT
+    synthesized: that state is ambiguous — equally a react tool still awaiting
+    operator approval (its pending ``ToolEvent`` isn't recorded until approval
+    resolves) as a genuinely in-flight bridged tool. Guessing "bridged" there
+    would render a normal react tool as a non-cancelable in-progress card. The
+    react tool instead gets its proper card from the real ``ToolEvent`` once live
+    forwarding resumes; an in-flight bridged tool's card appears once its result
+    lands. (No-guess also avoids the prior straddle bug where such a card could
+    never be settled across the replay/live boundary.)
     """
     tool_event_ids = bridge.tool_event_ids or set()
     tool_results = bridge.tool_results or {}
     for call in event.output.message.tool_calls or []:
         if call.id in tool_event_ids or call.id in seen_tool_call_ids:
             continue
-        seen_tool_call_ids.add(call.id)
         result = tool_results.get(call.id)
-        if result is not None:
-            synth = ToolEvent(
-                id=call.id,
-                function=call.function,
-                arguments=call.arguments,
-                view=call.view,
-                result=_bridge_tool_result(result),
-                error=result.error,
-                pending=False,
-            )
-        else:
-            synth = ToolEvent(
-                id=call.id,
-                function=call.function,
-                arguments=call.arguments,
-                view=call.view,
-                pending=True,
-            )
+        if result is None:
+            # Ambiguous (react awaiting approval vs in-flight bridged) — don't guess.
+            continue
+        seen_tool_call_ids.add(call.id)
+        synth = ToolEvent(
+            id=call.id,
+            function=call.function,
+            arguments=call.arguments,
+            view=call.view,
+            result=_bridge_tool_result(result),
+            error=result.error,
+            pending=False,
+        )
         yield _bridge_start_notification(session_id, synth)
