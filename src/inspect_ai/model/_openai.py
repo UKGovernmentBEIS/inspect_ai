@@ -925,12 +925,13 @@ def openai_stop_details(choice: Any) -> StopDetails | None:
         if isinstance(extra, dict):
             filter_results = extra.get("content_filter_results")
 
+    # Only categories that actually triggered filtering count — `detected` alone
+    # (e.g. protected-material/jailbreak flagged but not blocked) can appear on a
+    # normal `stop` completion and must not be reported as a stop reason.
     categories: list[StopCategory] = []
     if isinstance(filter_results, dict):
         for name, info in filter_results.items():
-            if isinstance(info, dict) and (
-                info.get("filtered") or info.get("detected")
-            ):
+            if isinstance(info, dict) and info.get("filtered"):
                 level = info.get("severity")
                 categories.append(
                     StopCategory(

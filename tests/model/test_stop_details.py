@@ -283,6 +283,27 @@ def test_openai_stop_details_from_azure_content_filter_results() -> None:
     assert details.category == "hate"
 
 
+def test_openai_stop_details_ignores_detected_but_not_filtered() -> None:
+    from types import SimpleNamespace
+
+    from inspect_ai.model._openai import openai_stop_details
+
+    # a normal `stop` completion can carry detected-but-not-filtered annotations
+    # (e.g. protected material); these must NOT produce stop_details
+    choice = SimpleNamespace(
+        message=SimpleNamespace(refusal=None),
+        finish_reason="stop",
+        content_filter_results=None,
+        model_extra={
+            "content_filter_results": {
+                "protected_material_code": {"filtered": False, "detected": True},
+                "hate": {"filtered": False, "severity": "safe"},
+            }
+        },
+    )
+    assert openai_stop_details(choice) is None
+
+
 def test_openai_stop_details_none_for_normal_stop() -> None:
     from types import SimpleNamespace
 
