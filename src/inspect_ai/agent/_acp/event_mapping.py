@@ -57,7 +57,14 @@ from acp.schema import (
     UserMessageChunk,
 )
 
-from inspect_ai._util.content import ContentReasoning, ContentText
+from inspect_ai._util.content import (
+    ContentAudio,
+    ContentDocument,
+    ContentImage,
+    ContentReasoning,
+    ContentText,
+    ContentVideo,
+)
 from inspect_ai.agent._acp.inspect_ext import (
     TOTAL_MESSAGES_META_KEY,
     assistant_complete_chunk_meta,
@@ -71,6 +78,7 @@ from inspect_ai.agent._acp.tool_content import (
     _descriptive_title,
     _tool_kind_for,
 )
+from inspect_ai.agent._bridge.util import in_bridge_model_generate
 from inspect_ai.event import Event, SpanBeginEvent, SpanEndEvent
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
@@ -78,9 +86,11 @@ from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import (
     ChatMessageAssistant,
     ChatMessageSystem,
+    ChatMessageTool,
     ChatMessageUser,
 )
 from inspect_ai.model._model_info import get_model_info
+from inspect_ai.tool._tool_call import ToolCall
 from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 if TYPE_CHECKING:
@@ -204,6 +214,14 @@ class _AcpEventRouter:
         # around in every subsequent call's input, so per-id dedup is
         # what keeps it from being emitted twice.
         self._seen_user_message_ids: set[str] = set()
+        # Bridged tool calls we've synthesized a `ToolCallStart` for and are
+        # still awaiting a result for. Bridged agents emit no `ToolEvent`, so we
+        # synthesize cards from `ModelEvent`s (start from the assistant message's
+        # tool_calls, completion from the matching `ChatMessageTool` in a later
+        # call's input). Keyed by tool_call_id; the stored `ToolCall` carries the
+        # function / arguments / view needed to render the completion. Popped
+        # when settled. See `_map_bridge_tool_starts` / `_map_bridge_tool_completions`.
+        self._bridge_tool_calls: dict[str, ToolCall] = {}
         self._unsubscribe: Callable[[], None] | None = None
 
     def attach(self) -> None:
@@ -239,6 +257,7 @@ class _AcpEventRouter:
             self._seen_model_event_ids,
             self._seen_pending_event_ids,
             self._seen_user_message_ids,
+            self._bridge_tool_calls,
         ):
             self._session.publish(notification)
 
@@ -270,6 +289,11 @@ class ReplayTranscriptor:
         self._seen_model_event_ids: set[str] = set()
         self._seen_pending_event_ids: set[str] = set()
         self._seen_user_message_ids: set[str] = set()
+        # See `_AcpEventRouter._bridge_tool_calls`. Held here too so a replay
+        # pass can synthesize bridged tool cards from its snapshot (Phase 3);
+        # in the live router this is the cross-event state for in-flight
+        # bridged calls.
+        self._bridge_tool_calls: dict[str, ToolCall] = {}
 
     def process(self, event: Event) -> list[SessionNotification]:
         """Map one event to its session notifications.
@@ -301,6 +325,7 @@ class ReplayTranscriptor:
                     self._seen_model_event_ids,
                     self._seen_pending_event_ids,
                     self._seen_user_message_ids,
+                    self._bridge_tool_calls,
                 )
             )
         except Exception:
@@ -341,6 +366,7 @@ def _map_event(
     seen_model_event_ids: set[str],
     seen_pending_event_ids: set[str],
     seen_user_message_ids: set[str],
+    bridge_tool_calls: dict[str, ToolCall],
 ) -> Iterator[SessionNotification]:
     """Map a single event to zero-or-more session notifications.
 
@@ -354,6 +380,8 @@ def _map_event(
             seen_model_event_ids,
             seen_pending_event_ids,
             seen_user_message_ids,
+            seen_tool_call_ids,
+            bridge_tool_calls,
         )
     elif isinstance(event, ToolEvent):
         yield from _map_tool_event(event, session_id, seen_tool_call_ids)
@@ -437,6 +465,8 @@ def _map_model_event(
     seen_model_event_ids: set[str],
     seen_pending_event_ids: set[str],
     seen_user_message_ids: set[str],
+    seen_tool_call_ids: set[str],
+    bridge_tool_calls: dict[str, ToolCall],
 ) -> Iterator[SessionNotification]:
     # Emit any system / user messages that landed since the previous
     # turn BEFORE the assistant chunks. Both pending and completed
@@ -445,6 +475,19 @@ def _map_model_event(
     # when generation starts rather than waiting through the full
     # round-trip.
     yield from _map_input_messages(event, session_id, seen_user_message_ids)
+    # Bridged agents (claude_code, codex, …) run their own tools, so no
+    # `ToolEvent` is ever emitted — tool calls live only on the assistant
+    # message and their results return as `ChatMessageTool` in a later call's
+    # input. `in_bridge_model_generate()` is True (live) only while inside the
+    # bridge's `model.generate()`; the transcript subscriber fires synchronously
+    # there, so it reliably tags bridged events and is False for react. Settle
+    # any prior bridged calls whose results arrived in THIS event's input first
+    # (runs on the pending phase too, so the card flips to completed the moment
+    # the next turn starts); the matching starts are synthesized at the end.
+    # Replay's bridge ctx is gone (flag False) — Phase 3 handles that path.
+    is_bridge = in_bridge_model_generate()
+    if is_bridge:
+        yield from _map_bridge_tool_completions(event, session_id, bridge_tool_calls)
     # Pending phase: emit a lightweight "generation started" signal so
     # the client can flip its status row to "generating" the moment the
     # model call begins, instead of waiting through the entire round
@@ -584,6 +627,16 @@ def _map_model_event(
                 message_id=chunk_message_id,
                 field_meta=assistant_complete_chunk_meta(event, uuid),
             ),
+        )
+    # Synthesize in-progress tool-call cards for a bridged turn. Done after the
+    # assistant content (the model "spoke" then "called tools") and only on the
+    # completed phase — `event.output.message.tool_calls` isn't populated until
+    # then. The `seen_tool_call_ids` dedup means a real `ToolEvent` arriving for
+    # the same id later (the mixed-bridge safety net) is treated as an update,
+    # not a duplicate start.
+    if is_bridge:
+        yield from _map_bridge_tool_starts(
+            event, session_id, seen_tool_call_ids, bridge_tool_calls
         )
     # Emit UsageUpdate for every non-empty model event with known usage
     # and a known context window. ACP semantics: "Tokens currently in
@@ -727,3 +780,110 @@ def _tool_call_status(event: ToolEvent) -> _ToolCallStatus:
     if event.error is not None or event.failed:
         return "failed"
     return "completed"
+
+
+def _bridge_tool_result(
+    msg: ChatMessageTool,
+) -> (
+    str
+    | list[ContentText | ContentImage | ContentAudio | ContentVideo | ContentDocument]
+):
+    """Coerce a tool-result message into a ``ToolEvent.result`` value.
+
+    ``ChatMessageTool.content`` admits content variants a ``ToolEvent`` result
+    doesn't (reasoning / tool-use / data); keep the text + media blocks the
+    renderer understands and drop the rest.
+    """
+    content = msg.content
+    if isinstance(content, str):
+        return content
+    return [
+        block
+        for block in content
+        if isinstance(
+            block,
+            (ContentText, ContentImage, ContentAudio, ContentVideo, ContentDocument),
+        )
+    ]
+
+
+def _map_bridge_tool_completions(
+    event: ModelEvent,
+    session_id: str,
+    bridge_tool_calls: dict[str, ToolCall],
+) -> Iterator[SessionNotification]:
+    """Settle bridged tool calls whose results arrived in ``event.input``.
+
+    A bridged scaffold runs its own tools and feeds each result back as a
+    ``ChatMessageTool`` in a subsequent model call's input. For every result
+    matching a call we previously synthesized a start for, emit a completed /
+    failed ``update_tool_call`` (carrying the input view + result, via the same
+    ``_content_for_update`` path the real ``ToolEvent`` flow uses) and forget
+    the call. Pop-on-settle dedups across the many later turns whose input still
+    carries the same tool message.
+    """
+    if not bridge_tool_calls:
+        return
+    for msg in event.input:
+        if not isinstance(msg, ChatMessageTool) or msg.tool_call_id is None:
+            continue
+        call = bridge_tool_calls.pop(msg.tool_call_id, None)
+        if call is None:
+            continue
+        synth = ToolEvent(
+            id=call.id,
+            function=call.function,
+            arguments=call.arguments,
+            view=call.view,
+            result=_bridge_tool_result(msg),
+            error=msg.error,
+            pending=False,
+        )
+        yield session_notification(
+            session_id,
+            update_tool_call(
+                tool_call_id=synth.id,
+                status=_tool_call_status(synth),
+                content=_content_for_update(synth),
+            ),
+        )
+
+
+def _map_bridge_tool_starts(
+    event: ModelEvent,
+    session_id: str,
+    seen_tool_call_ids: set[str],
+    bridge_tool_calls: dict[str, ToolCall],
+) -> Iterator[SessionNotification]:
+    """Synthesize in-progress ``ToolCallStart`` cards for a bridged turn.
+
+    Bridged agents emit no ``ToolEvent``; the calls live only on the assistant
+    message. Build a pending ``ToolEvent`` per call — copying ``ToolCall.view``
+    so the card renders as richly as a react one (the scaffold populates the
+    view for its built-in tools) — and remember it so its result can settle the
+    card later. Calls already started (seen) are skipped, so a real ``ToolEvent``
+    arriving for the same id is handled as an update by ``_map_tool_event``.
+    """
+    for call in event.output.message.tool_calls or []:
+        if call.id in seen_tool_call_ids:
+            continue
+        seen_tool_call_ids.add(call.id)
+        bridge_tool_calls[call.id] = call
+        synth = ToolEvent(
+            id=call.id,
+            function=call.function,
+            arguments=call.arguments,
+            view=call.view,
+            pending=True,
+        )
+        yield session_notification(
+            session_id,
+            start_tool_call(
+                tool_call_id=synth.id,
+                title=_descriptive_title(synth),
+                status=_tool_call_status(synth),
+                kind=_tool_kind_for(synth.function),
+                raw_input=synth.arguments,
+                content=_content_for_start(synth),
+            ),
+        )
