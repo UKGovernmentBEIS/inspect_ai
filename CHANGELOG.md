@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.237 (07 June 2026)
 
 - Model API: `ChatCompletionChoice.stop_details` (`StopDetails`/`StopCategory`) surfaces a model's refusal/safety category and explanation when available.
 - Transcript: `transcript().events` now resolves content attachments (large text, images) instead of returning bare `attachment://` references when reads are served from the bounded-history provider.
