@@ -35,7 +35,7 @@ from inspect_ai._util.constants import (
 )
 from inspect_ai._util.error import EvalError, WriteConflictError
 from inspect_ai._util.file import FileSystem, dirname, file, filesystem, local_path
-from inspect_ai._util.json import is_ijson_nan_inf_error, to_json_safe
+from inspect_ai._util.json import is_ijson_nan_inf_error, jsonable_dict, to_json_safe
 from inspect_ai._util.trace import trace_action
 from inspect_ai._util.zip_common import ZipEntry
 from inspect_ai._util.zipfile import zipfile_compress_kwargs
@@ -731,10 +731,13 @@ class ZipLogFile:
             attachments = _sample_history_attachments(
                 sample, history, events, events_data
             )
-            sample_data = sample.model_dump(
-                mode="json",
-                exclude_none=True,
-                exclude={"events", "events_data", "attachments"},
+            sample_data: dict[str, Any] = jsonable_dict(
+                sample.model_dump(
+                    mode="python",
+                    exclude_none=True,
+                    exclude={"events", "events_data", "attachments"},
+                    fallback=lambda _x: None,
+                )
             )
             sample_data.update(
                 {
