@@ -711,7 +711,13 @@ async def test_forwarders_uses_immutable_wire_session_id(
     captured_wire: list[str] = []
 
     class _CapturingTranscriptor:
-        def __init__(self, wire: str, *, filter_subagents: bool = True) -> None:
+        def __init__(
+            self,
+            wire: str,
+            *,
+            filter_subagents: bool = True,
+            snapshot: Any = None,
+        ) -> None:
             captured_wire.append(wire)
 
         def process(self, _event: Any) -> list[Any]:
