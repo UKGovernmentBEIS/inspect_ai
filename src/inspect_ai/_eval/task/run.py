@@ -87,6 +87,7 @@ from inspect_ai.log._samples import (
     active_sample,
 )
 from inspect_ai.log._transcript import (
+    DEFAULT_RESIDENT_TAIL,
     Transcript,
     TranscriptHistoryProvider,
     init_transcript,
@@ -924,7 +925,7 @@ async def task_run_sample(
         sample_transcript = Transcript(
             log_model_api=log_model_api,
             bounded=sample_transcript_bounded,
-            resident_tail=100,
+            resident_tail=DEFAULT_RESIDENT_TAIL,
             history_provider=history_provider,
         )
         init_transcript(sample_transcript)
