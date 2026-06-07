@@ -11,7 +11,8 @@ def codemode(
         """
         Execute code that can eventually orchestrate other tools.
 
-        Initial draft: execution/bridge not implemented yet.
+        Args:
+            code: Code to execute inside the codemode environment.
         """
         return "codemode execution is not implemented yet"
 
