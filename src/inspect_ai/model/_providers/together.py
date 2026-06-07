@@ -1,5 +1,7 @@
 import os
+from functools import partial
 from json import dumps
+from logging import getLogger
 from typing import Any, cast
 
 import httpx
@@ -25,8 +27,9 @@ from .._model_output import (
     ModelUsage,
     StopReason,
     as_stop_reason,
+    collect_stop_details,
 )
-from .._openai import chat_message_assistant_from_openai
+from .._openai import chat_message_assistant_from_openai, openai_stop_details
 from ._together_batch import TogetherBatcher
 from .openai_compatible import OpenAICompatibleAPI
 from .util import (
@@ -35,6 +38,8 @@ from .util import (
     model_base_url,
 )
 from .util.chatapi import ChatAPIHandler, classify_chat_api_error
+
+logger = getLogger(__name__)
 
 
 def chat_choices_from_response_together(
@@ -75,6 +80,9 @@ def chat_choices_from_response_together(
                 response.model, choice.message, tools
             ),
             stop_reason=as_stop_reason(choice.finish_reason),
+            stop_details=collect_stop_details(
+                "together", logger, partial(openai_stop_details, choice)
+            ),
             logprobs=logprobs,
         )
         for choice, logprobs in zip(choices, logprobs_models)

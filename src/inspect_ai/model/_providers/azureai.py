@@ -2,6 +2,7 @@ import functools
 import json
 import os
 from copy import copy
+from logging import getLogger
 from typing import Any
 
 from azure.ai.inference.aio import ChatCompletionsClient
@@ -65,14 +66,21 @@ from .._model_output import (
     ModelOutput,
     ModelUsage,
     StopReason,
+    collect_stop_details,
 )
-from .._openai import needs_max_completion_tokens, openai_media_filter
+from .._openai import (
+    needs_max_completion_tokens,
+    openai_media_filter,
+    openai_stop_details,
+)
 from .util import (
     environment_prerequisite_error,
     model_base_url,
 )
 from .util.chatapi import ChatAPIHandler
 from .util.llama31 import Llama31Handler
+
+logger = getLogger(__name__)
 
 AZUREAI_API_KEY = "AZUREAI_API_KEY"
 AZUREAI_ENDPOINT_KEY = "AZUREAI_ENDPOINT_KEY"
@@ -578,6 +586,10 @@ def chat_complection_choice(
             model, choice.message, tools, handler
         ),
         stop_reason=chat_completion_stop_reason(choice.finish_reason),
+        # best-effort: azure.ai.inference may surface content_filter_results
+        stop_details=collect_stop_details(
+            "azureai", logger, lambda: openai_stop_details(choice)
+        ),
     )
 
 
