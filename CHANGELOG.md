@@ -1,3 +1,7 @@
+## Unreleased
+
+- ACP: Render tool calls for agent-bridge agents (e.g. `claude_code`, `codex_cli`). 
+
 ## 0.3.237 (07 June 2026)
 
 - Model API: `ChatCompletionChoice.stop_details` (`StopDetails`/`StopCategory`) surfaces a model's refusal/safety category and explanation when available.
