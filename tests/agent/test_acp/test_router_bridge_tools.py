@@ -20,15 +20,20 @@ from acp.schema import (
     ToolCallStart,
 )
 
-from inspect_ai.agent._acp.event_mapping import _AcpEventRouter
+from inspect_ai.agent import AgentState
+from inspect_ai.agent._acp.event_mapping import _AcpEventRouter, replay_transcript
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
-from inspect_ai.agent._bridge.util import bridge_model_generate
+from inspect_ai.agent._bridge.types import AgentBridge
+from inspect_ai.agent._bridge.util import bridge_generate, bridge_model_generate
+from inspect_ai.event import Event
 from inspect_ai.event._model import ModelEvent
 from inspect_ai.event._tool import ToolEvent
 from inspect_ai.log._transcript import Transcript, _transcript
 from inspect_ai.model import (
     ChatMessageAssistant,
     ChatMessageTool,
+    ChatMessageUser,
+    get_model,
 )
 from inspect_ai.model._generate_config import GenerateConfig
 from inspect_ai.model._model_output import ChatCompletionChoice, ModelOutput
@@ -312,6 +317,84 @@ def test_bridge_text_only_turn_synthesizes_no_tool_cards() -> None:
         _transcript.reset(token)
 
 
+def test_bridge_synth_start_marked_non_cancelable_live() -> None:
+    """The live synth start carries the non-cancelable marker.
+
+    Bridged tools are run by the scaffold (no `ToolEvent`), so
+    `inspect/cancel_tool_call` can't act on them. The marker tells the TUI to
+    suppress the per-tool cancel affordance rather than offer one that no-ops.
+    """
+    from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
+
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        _, published = _attach_router(_new_session())
+        with bridge_model_generate():
+            tr._event(_tool_call_event(_bash_call()))
+        starts = _starts(published)
+        assert len(starts) == 1
+        meta = getattr(starts[0], "field_meta", None) or {}
+        assert meta.get(TOOL_CALL_CANCELABLE_META_KEY) is False
+    finally:
+        _transcript.reset(token)
+
+
+def test_bridge_synth_start_marked_non_cancelable_replay() -> None:
+    """Replay-synthesized bridge cards are also marked non-cancelable."""
+    from inspect_ai.agent._acp.inspect_ext import TOOL_CALL_CANCELABLE_META_KEY
+
+    events = [
+        _tool_call_event(_bash_call(command="ls")),
+        _result_event(
+            ChatMessageTool(tool_call_id="tc1", function="bash", content="total 0")
+        ),
+    ]
+    notifs = list(replay_transcript(events, session_id="s"))
+    starts = _starts(notifs)
+    assert len(starts) == 1
+    meta = getattr(starts[0], "field_meta", None) or {}
+    assert meta.get(TOOL_CALL_CANCELABLE_META_KEY) is False
+
+
+async def test_bridge_generate_live_chain_publishes_tool_start() -> None:
+    """End-to-end live: real ``bridge_generate`` → router subscriber → synth start.
+
+    Exercises the genuine context-var wiring (not the ``bridge_model_generate()``
+    simulation the other live tests use): a tool call returned through
+    ``bridge_generate`` publishes an in-progress ``ToolCallStart`` on the bus.
+    """
+    tr = Transcript()
+    token = _transcript.set(tr)
+    try:
+        _, published = _attach_router(_new_session())
+        model = get_model(
+            "mockllm/model",
+            custom_outputs=[
+                ModelOutput.for_tool_call(
+                    model="mockllm/model",
+                    tool_name="bash",
+                    tool_arguments={"command": "ls"},
+                )
+            ],
+        )
+        bridge = AgentBridge(AgentState(messages=[]))
+        await bridge_generate(
+            bridge,
+            model,
+            [ChatMessageUser(content="hi")],
+            [],
+            None,
+            GenerateConfig(),
+        )
+        starts = _starts(published)
+        assert len(starts) == 1
+        assert starts[0].status == "in_progress"
+        assert starts[0].title.startswith("bash")
+    finally:
+        _transcript.reset(token)
+
+
 def test_bridge_start_without_view_falls_back_to_title() -> None:
     """A bridged call whose scaffold attached no view still gets a titled card."""
     tr = Transcript()
@@ -327,3 +410,91 @@ def test_bridge_start_without_view_falls_back_to_title() -> None:
         assert starts[0].content is None
     finally:
         _transcript.reset(token)
+
+
+# ---------------------------------------------------------------------------
+# Replay (late-attach) — structural detection, no bridge context
+# ---------------------------------------------------------------------------
+
+
+def test_replay_synthesizes_single_completed_bridge_card() -> None:
+    """On replay a bridged call becomes ONE completed start (view + result).
+
+    Mirrors how a react ToolEvent replays as a single completed start — the tool
+    already ran, so there's no in-progress phase to show on catch-up.
+    """
+    events = [
+        _tool_call_event(_bash_call(command="ls")),
+        _result_event(
+            ChatMessageTool(tool_call_id="tc1", function="bash", content="total 0")
+        ),
+    ]
+    notifs = list(replay_transcript(events, session_id="s"))
+    starts = _starts(notifs)
+    assert len(starts) == 1
+    assert starts[0].tool_call_id == "tc1"
+    assert starts[0].status == "completed"
+    text = _content_text(starts[0])
+    assert "ls" in text  # view preserved
+    assert "total 0" in text  # result folded in
+    # single notification — no separate update on replay
+    assert _progress(notifs) == []
+
+
+def test_replay_does_not_synthesize_when_tool_event_present() -> None:
+    """A call with a real ToolEvent (react) is not duplicated by the synth path."""
+    events: list[Event] = [
+        _tool_call_event(_bash_call(command="ls")),
+        ToolEvent(
+            id="tc1", function="bash", arguments={"command": "ls"}, result="total 0"
+        ),
+    ]
+    notifs = list(replay_transcript(events, session_id="s"))
+    starts = [s for s in _starts(notifs) if s.tool_call_id == "tc1"]
+    # exactly one card — from the ToolEvent, not an extra structural synth
+    assert len(starts) == 1
+    assert starts[0].status == "completed"
+
+
+def test_replay_bridge_card_in_progress_without_result() -> None:
+    """A bridged call whose result isn't in the snapshot replays as in-progress."""
+    events = [_tool_call_event(_bash_call(command="sleep 1"))]
+    notifs = list(replay_transcript(events, session_id="s"))
+    starts = _starts(notifs)
+    assert len(starts) == 1
+    assert starts[0].tool_call_id == "tc1"
+    assert starts[0].status == "in_progress"
+
+
+def test_replay_bridge_card_failed_on_error() -> None:
+    """A bridged result carrying an error replays as a failed card."""
+    events = [
+        _tool_call_event(_bash_call()),
+        _result_event(
+            ChatMessageTool(
+                tool_call_id="tc1",
+                function="bash",
+                content="boom",
+                error=ToolCallError(type="unknown", message="boom"),
+            )
+        ),
+    ]
+    notifs = list(replay_transcript(events, session_id="s"))
+    starts = _starts(notifs)
+    assert len(starts) == 1
+    assert starts[0].status == "failed"
+
+
+def test_replay_mixed_bridge_and_react_each_once() -> None:
+    """A snapshot mixing a bridged call and a react call yields one card each."""
+    events: list[Event] = [
+        _tool_call_event(_bash_call("tc_bridge", "ls")),
+        _result_event(
+            ChatMessageTool(tool_call_id="tc_bridge", function="bash", content="ok")
+        ),
+        _tool_call_event(ToolCall(id="tc_react", function="my_tool", arguments={})),
+        ToolEvent(id="tc_react", function="my_tool", arguments={}, result="done"),
+    ]
+    notifs = list(replay_transcript(events, session_id="s"))
+    ids = sorted(s.tool_call_id for s in _starts(notifs))
+    assert ids == ["tc_bridge", "tc_react"]
