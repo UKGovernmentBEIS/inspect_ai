@@ -1,51 +1,84 @@
-"""ACP replay snapshot reads the resident, un-condensed event window.
+"""ACP replay-on-attach snapshot reads the full since-attach history.
 
-Part B / C of the attachment-resolution fix: the replay-on-attach snapshot
-reads only the resident (in-memory) event window via the history accessor,
-never the provider-backed ``events`` view. Resident events keep their message
-content un-condensed, so replay forwards real content instead of
-``attachment://`` references — and it stays off the buffer DB even on a
-bounded, already-evicted transcript. ``REPLAY_MAX_EVENTS`` is aligned to the
-resident window so capping never reaches past what is held in memory.
+The replay snapshot slices the transcript's logical event history from the
+router's attach index forward, served through the bounded-history provider
+when older events have been evicted from resident memory. It must NOT be a
+resident-only window:
+
+* the sub-agent depth filter walks the AGENT_SPAN begin/end markers from
+  attach forward, so eliding evicted SpanBegin events would surface
+  in-progress sub-agent events as top-level conversation; and
+* the per-stream ``REPLAY_MAX_EVENTS`` cap means "last N semantic events",
+  which only holds when the filter runs over the full since-attach history.
+
+Reading through the provider is content-safe because the provider resolves
+``attachment://`` references back to their underlying values, matching the
+un-condensed resident events.
 """
 
 from typing import Sequence
 
-from inspect_ai.agent._acp.session_router import REPLAY_MAX_EVENTS
+from inspect_ai.agent._acp.session_router import (
+    REPLAY_MAX_EVENTS,
+    _filter_subagent_events,
+)
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
+from inspect_ai.event import SpanBeginEvent
 from inspect_ai.event._event import Event
 from inspect_ai.event._info import InfoEvent
-from inspect_ai.log._transcript import DEFAULT_RESIDENT_TAIL, Transcript
+from inspect_ai.log._transcript import Transcript
+from inspect_ai.util._span import AGENT_SPAN_TYPE
 
 
-class _RaisingReadProvider:
-    """History provider that fails if any event-read method is touched.
+class _ListBackedProvider:
+    """In-memory history provider backed by a growing event list.
 
-    The snapshot must serve everything from the resident window, so reaching
-    the provider at all is a bug.
+    Mirrors what the buffer-DB provider hands the snapshot on a bounded
+    transcript: the full logical history (attachment-resolved), including
+    events the transcript has evicted from resident memory. Subscribe
+    ``record`` to a transcript so the provider observes every event before
+    eviction.
     """
+
+    def __init__(self) -> None:
+        self._events: list[Event] = []
+
+    def record(self, event: Event) -> None:
+        self._events.append(event)
 
     @property
     def event_count(self) -> int:
-        raise AssertionError("snapshot must not read provider.event_count")
+        return len(self._events)
 
     def iter_events(self):
-        raise AssertionError("snapshot must not read provider.iter_events")
+        return iter(self._events)
 
     def events(self) -> Sequence[Event]:
-        raise AssertionError("snapshot must not read provider.events")
+        return list(self._events)
 
     def recent_events(self, n: int | None = None) -> Sequence[Event]:
-        raise AssertionError("snapshot must not read provider.recent_events")
+        if n is None:
+            return list(self._events)
+        if n <= 0:
+            return []
+        return self._events[-n:]
 
     def events_from(self, start: int) -> Sequence[Event]:
-        raise AssertionError("snapshot must not read provider.events_from")
+        if start <= 0:
+            return list(self._events)
+        return self._events[start:]
 
     def events_since_last(self, event_type: type[Event]) -> list[Event]:
-        raise AssertionError("snapshot must not read provider.events_since_last")
+        suffix: list[Event] = []
+        for event in self._events:
+            if isinstance(event, event_type):
+                suffix = [event]
+            else:
+                suffix.append(event)
+        return suffix
 
     def contains_event(self, event_id: str) -> bool:
-        raise AssertionError("snapshot must not read provider.contains_event")
+        return any(e.uuid == event_id for e in self._events)
 
     def attachments(self):
         return {}
@@ -64,23 +97,16 @@ def _capture(transcript: Transcript, attach_index: int) -> LiveAcpTransport:
     return acp
 
 
-def test_snapshot_uses_resident_window_not_provider() -> None:
-    # Bounded transcript with only the last 2 events resident; older events
-    # are evicted and would be served (condensed) by the provider.
+def _bounded_transcript(resident_tail: int) -> tuple[Transcript, _ListBackedProvider]:
+    provider = _ListBackedProvider()
     tr = Transcript(
-        bounded=True, resident_tail=2, history_provider=_RaisingReadProvider()
+        bounded=True, resident_tail=resident_tail, history_provider=provider
     )
-    for i in range(5):
-        tr._event(InfoEvent(data=i))
-    assert tr.history.resident_events_truncated is True
-
-    snap = _capture(tr, attach_index=0).transcript_events_snapshot()
-
-    # Resident window (last 2) — read without touching the raising provider.
-    assert [e.data for e in snap] == [3, 4]
+    tr._subscribe(provider.record)
+    return tr, provider
 
 
-def test_snapshot_applies_attach_index_floor() -> None:
+def test_snapshot_applies_attach_index() -> None:
     tr = Transcript()
     for i in range(5):
         tr._event(InfoEvent(data=i))
@@ -90,22 +116,74 @@ def test_snapshot_applies_attach_index_floor() -> None:
     assert [e.data for e in snap] == [2, 3, 4]
 
 
-def test_snapshot_attach_index_predating_eviction_returns_resident() -> None:
-    # attach_index points at an event that has since been evicted; the floor
-    # clamps into the resident window rather than going negative.
-    tr = Transcript(
-        bounded=True, resident_tail=2, history_provider=_RaisingReadProvider()
-    )
+def test_snapshot_reads_full_history_from_provider_after_eviction() -> None:
+    # Bounded transcript with only the last 2 events resident; older events
+    # are evicted from memory but remain available from the provider.
+    tr, _ = _bounded_transcript(resident_tail=2)
     for i in range(5):
         tr._event(InfoEvent(data=i))
+    assert tr.history.resident_events_truncated is True
 
-    # first resident event is logical index 3; attach_index 1 predates it.
-    snap = _capture(tr, attach_index=1).transcript_events_snapshot()
+    snap = _capture(tr, attach_index=0).transcript_events_snapshot()
 
-    assert [e.data for e in snap] == [3, 4]
+    # Full since-attach history, not just the resident tail.
+    assert [e.data for e in snap] == [0, 1, 2, 3, 4]
 
 
-def test_replay_window_aligned_with_resident_tail() -> None:
-    # Replay must never need to read past the resident window (which would
-    # surface unresolved attachment refs from the provider).
-    assert REPLAY_MAX_EVENTS <= DEFAULT_RESIDENT_TAIL
+def test_snapshot_preserves_subagent_span_context_after_eviction() -> None:
+    """Evicted AGENT_SPAN markers still reach the sub-agent depth filter.
+
+    Regression: when the snapshot was a resident-only window, eviction of
+    the outer/sub-agent SpanBegin events made the depth filter classify
+    in-progress sub-agent events as top-level conversation (and misfire the
+    first-is-outer rule onto a nested span). Reading from attach_index via
+    the provider gives replay the same event stream the live router saw.
+    """
+    # resident_tail small enough that the two SpanBegins (logical indices
+    # 0 and 2) get evicted, leaving only sub-agent events resident.
+    tr, _ = _bounded_transcript(resident_tail=2)
+    tr._event(SpanBeginEvent(id="outer", type=AGENT_SPAN_TYPE, name="outer"))
+    tr._event(InfoEvent(data="top-level"))
+    tr._event(SpanBeginEvent(id="sub", type=AGENT_SPAN_TYPE, name="sub"))
+    tr._event(InfoEvent(data="inside-sub-1"))
+    tr._event(InfoEvent(data="inside-sub-2"))
+
+    # The two SpanBegins are no longer resident...
+    resident = list(tr.history.resident_events)
+    assert not any(isinstance(e, SpanBeginEvent) for e in resident)
+
+    # ...but the snapshot recovers them from attach_index forward, so the
+    # depth filter keeps only the genuinely top-level event.
+    snap = list(_capture(tr, attach_index=0).transcript_events_snapshot())
+    filtered = [
+        e.data for e in _filter_subagent_events(snap) if isinstance(e, InfoEvent)
+    ]
+    assert filtered == ["top-level"]
+
+
+def test_snapshot_resident_only_would_misclassify_subagent_events() -> None:
+    """Pin the bug the fix prevents: filtering a resident-only window wrong.
+
+    If replay fed the depth filter only the resident tail (which has lost
+    the SpanBegin markers), the sub-agent events leak through as top-level.
+    This asserts that failure mode against the resident window directly, so
+    a regression back to resident-only snapshotting is caught here too.
+    """
+    tr, _ = _bounded_transcript(resident_tail=2)
+    tr._event(SpanBeginEvent(id="outer", type=AGENT_SPAN_TYPE, name="outer"))
+    tr._event(InfoEvent(data="top-level"))
+    tr._event(SpanBeginEvent(id="sub", type=AGENT_SPAN_TYPE, name="sub"))
+    tr._event(InfoEvent(data="inside-sub-1"))
+    tr._event(InfoEvent(data="inside-sub-2"))
+
+    resident = list(tr.history.resident_events)
+    leaked = [
+        e.data for e in _filter_subagent_events(resident) if isinstance(e, InfoEvent)
+    ]
+    # Sub-agent events wrongly surface when the SpanBegins are missing.
+    assert leaked == ["inside-sub-1", "inside-sub-2"]
+
+
+def test_replay_max_events_is_a_wire_payload_cap() -> None:
+    # Decoupled from the resident window: purely bounds the replay payload.
+    assert REPLAY_MAX_EVENTS == 100

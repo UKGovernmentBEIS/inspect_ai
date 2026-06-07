@@ -265,25 +265,34 @@ class _TranscriptCapture:
     def snapshot(self) -> Sequence[Any]:
         if self._captured is None:
             return []
-        # Read ONLY the resident (in-memory) window via the history
-        # accessor — never the provider-backed `events` view. Resident
-        # events keep their message / input content un-condensed, so
-        # replay forwards real content rather than `attachment://` refs;
-        # going through the provider would re-materialize evicted history
-        # from the buffer DB with content still condensed. The resident
-        # window equals `resident_tail`, which `REPLAY_MAX_EVENTS` is
-        # aligned to (see session_router), so this loses nothing replay
-        # would have shown. `list()` snapshots a copy so a concurrent
-        # `_event` append can't change size mid-iteration downstream.
-        history = self._captured.history
-        resident = list(history.resident_events)
-        # Translate the absolute attach index into the resident window,
-        # accounting for any evicted prefix in bounded mode (the floor
-        # drops pre-attach events the live router never saw — chiefly the
-        # eval framework's outer AGENT_SPAN begin).
-        first_resident_index = history.event_count - len(resident)
-        floor = max(self._attach_index - first_resident_index, 0)
-        return resident[floor:]
+        # Read the full logical history from the router's attach index
+        # forward via the `events` view (provider-backed on a bounded,
+        # already-evicted transcript). This MUST NOT be a resident-only
+        # window, for two reasons:
+        #
+        #   * Span context. The sub-agent depth filter
+        #     (`_filter_subagent_events` / `ReplayTranscriptor`) classifies
+        #     each event by walking the AGENT_SPAN begin/end markers from
+        #     attach forward. A truncated resident window can elide the
+        #     outer/sub-agent SpanBegin events, which makes in-progress
+        #     sub-agent model events replay as top-level conversation (and
+        #     misfires the "first-is-outer" rule onto a nested span).
+        #     Starting at `attach_index` mirrors exactly what the live
+        #     router observed, so replay and live classify identically.
+        #
+        #   * Cap semantics. `_run_replay` caps each stream to the last
+        #     `REPLAY_MAX_EVENTS` of its OWN universe (filtered semantic /
+        #     full raw). The "last N semantic events" guarantee only holds
+        #     when the filter runs over the full since-attach history; over
+        #     a raw-bounded window, score/info/span noise can crowd the
+        #     conversation out.
+        #
+        # Reading through the provider is safe for content because the
+        # buffer history provider now resolves `attachment://` refs back to
+        # their underlying values (see `_materialize_events`), matching the
+        # un-condensed resident events. Slicing returns a fresh list, so a
+        # concurrent `_event` append can't change size mid-iteration.
+        return self._captured.events[self._attach_index :]
 
 
 class _CancelSnapshot:

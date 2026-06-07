@@ -35,7 +35,6 @@ from inspect_ai.agent._acp.inspect_ext import (
     PlanPolicyTransformer,
     RawEventForwarder,
 )
-from inspect_ai.log._transcript import DEFAULT_RESIDENT_TAIL
 
 if TYPE_CHECKING:
     from inspect_ai.agent._acp.connection import ConnectionState
@@ -52,13 +51,13 @@ _SESSION_UPDATE_METHOD = CLIENT_METHODS["session_update"]
 
 # ``REPLAY_MAX_EVENTS`` caps replay payload size on late attach so a
 # very long-running sample doesn't dump thousands of events on every
-# new connection. Aligned with the sample transcript's resident window
-# (``DEFAULT_RESIDENT_TAIL``): the replay snapshot is read from resident,
-# attachment-resolved memory (see ``_TranscriptCapture.snapshot``), so
-# capping at the resident size means replay never needs to reach past what
-# is held in memory (which would surface unresolved ``attachment://``
-# refs). Keep ``REPLAY_MAX_EVENTS <= DEFAULT_RESIDENT_TAIL``.
-REPLAY_MAX_EVENTS = DEFAULT_RESIDENT_TAIL
+# new connection. Applied per-stream to the respective universe (last N
+# filtered semantic events, last N raw events) — see
+# ``_run_replay``. The snapshot itself reads the full since-attach
+# history from the buffer history provider (which resolves attachment
+# content), so this cap is purely a wire-payload bound, independent of
+# the transcript's resident window.
+REPLAY_MAX_EVENTS = 100
 
 # How long :meth:`Forwarders.stop` waits for the semantic task to
 # finish its EOF cleanup naturally before falling through to cancel.
