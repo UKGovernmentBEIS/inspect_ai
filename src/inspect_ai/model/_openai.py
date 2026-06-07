@@ -93,7 +93,15 @@ from ._chat_message import (
     ChatMessageTool,
     ChatMessageUser,
 )
-from ._model_output import ModelOutput, ModelUsage, StopReason, as_stop_reason
+from ._model_output import (
+    ModelOutput,
+    ModelUsage,
+    StopCategory,
+    StopDetails,
+    StopReason,
+    as_stop_reason,
+    collect_stop_details,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -896,6 +904,52 @@ def model_output_from_openai(
     )
 
 
+def openai_stop_details(choice: Any) -> StopDetails | None:
+    """Extract refusal/content-filter detail from an OpenAI-style `Choice`.
+
+    Covers the OpenAI SDK family (OpenAI, Azure OpenAI, DeepSeek, vLLM, LM Studio,
+    Together, Groq). Refusal text comes from `message.refusal`; Azure adds a
+    `content_filter_results` object (a declared field on some SDK versions,
+    otherwise under `model_extra`).
+    """
+    message = getattr(choice, "message", None)
+    explanation = getattr(message, "refusal", None) if message is not None else None
+
+    # Azure content filtering: declared field, else under model_extra (OpenAI SDK)
+    # or additional_properties (azure.ai.inference SDK)
+    filter_results = getattr(choice, "content_filter_results", None)
+    if filter_results is None:
+        extra = getattr(choice, "model_extra", None) or getattr(
+            choice, "additional_properties", None
+        )
+        if isinstance(extra, dict):
+            filter_results = extra.get("content_filter_results")
+
+    categories: list[StopCategory] = []
+    if isinstance(filter_results, dict):
+        for name, info in filter_results.items():
+            if isinstance(info, dict) and (
+                info.get("filtered") or info.get("detected")
+            ):
+                level = info.get("severity")
+                categories.append(
+                    StopCategory(
+                        category=str(name),
+                        level=str(level) if level is not None else None,
+                    )
+                )
+
+    if not categories and not explanation:
+        return None
+
+    finish_reason = getattr(choice, "finish_reason", None)
+    return StopDetails(
+        type="content_filter" if finish_reason == "content_filter" else "refusal",
+        explanation=explanation,
+        categories=categories,
+    )
+
+
 def chat_choices_from_openai(
     response: ChatCompletion,
     tools: list[ToolInfo],
@@ -912,6 +966,9 @@ def chat_choices_from_openai(
                 response.model, choice.message, tools, reasoning_extractor
             ),
             stop_reason=as_stop_reason(choice.finish_reason),
+            stop_details=collect_stop_details(
+                "openai", logger, functools.partial(openai_stop_details, choice)
+            ),
             logprobs=(
                 Logprobs(**choice.logprobs.model_dump())
                 if choice.logprobs and choice.logprobs.content is not None
@@ -1089,6 +1146,7 @@ def openai_handle_bad_request(
 
     # narrow stop_reason
     stop_reason: StopReason | None = None
+    stop_details: StopDetails | None = None
     if e.code == "context_length_exceeded":
         stop_reason = "model_length"
     elif (
@@ -1099,10 +1157,22 @@ def openai_handle_bad_request(
         or (e.type == "invalid_request_error" and "blocked" in e.message)
     ):
         stop_reason = "content_filter"
+        if e.code == "cyber_policy":
+            stop_details = StopDetails(
+                type="refusal",
+                category="cyber",
+                explanation=content,
+                categories=[StopCategory(category="cyber")],
+            )
+        else:
+            stop_details = StopDetails(type="refusal", explanation=content)
 
     if stop_reason:
         return ModelOutput.from_content(
-            model=model_name, content=content, stop_reason=stop_reason
+            model=model_name,
+            content=content,
+            stop_reason=stop_reason,
+            stop_details=stop_details,
         )
     else:
         return e

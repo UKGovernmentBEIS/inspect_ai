@@ -1,9 +1,11 @@
 import uuid
-from typing import Any, Literal, Type, TypeVar
+from logging import Logger
+from typing import Any, Callable, Literal, Type, TypeVar
 
 from pydantic import BaseModel, Field, JsonValue, model_validator
 
 from inspect_ai._util.content import Content
+from inspect_ai._util.logger import warn_once
 from inspect_ai.tool._tool_call import ToolCall
 
 from ._chat_message import ChatMessage, ChatMessageAssistant
@@ -78,6 +80,88 @@ StopReason = Literal[
 """Reason that the model stopped or failed to generate."""
 
 
+class StopCategory(BaseModel):
+    """A single refusal/safety category reported by (or derived for) a model stop."""
+
+    category: str
+    """Category name (e.g. "cyber", "HARM_CATEGORY_DANGEROUS_CONTENT", "VIOLENCE", "hate")."""
+
+    level: str | None = Field(default=None)
+    """Severity/probability/confidence the provider reported (e.g. "high", "HIGH"), if any."""
+
+
+class StopDetails(BaseModel):
+    """Additional detail about why a model stopped generating (e.g. a content refusal).
+
+    `categories` is the canonical list (always iterable; a single-category provider
+    appears as one entry). `category` and `explanation` are a convenience high-level
+    summary derived from the same data — `category` is the primary category and
+    `explanation` is human-readable (synthesized from `categories` when the provider
+    supplies no text). Read either way; both describe the same stop.
+    """
+
+    type: str | None = Field(default=None)
+    """Kind of stop detail when reported (e.g. "refusal", or a provider finish/stop reason)."""
+
+    category: str | None = Field(default=None)
+    """Primary refusal/safety category (mirrors `categories[0]`), when available."""
+
+    explanation: str | None = Field(default=None)
+    """Human-readable description. Not guaranteed stable — do not parse programmatically."""
+
+    categories: list[StopCategory] = Field(default_factory=list)
+    """All categories that triggered the stop. Always a list (may be empty for free-text refusals)."""
+
+
+def collect_stop_details(
+    provider: str,
+    logger: Logger,
+    fn: Callable[[], StopDetails | None],
+) -> StopDetails | None:
+    """Defensively collect `StopDetails` from a provider response.
+
+    Calls `fn()` (a provider-specific extractor), catching any unexpected data
+    shape so a surprising payload warns rather than breaking generation. Also
+    normalizes the result: drops empty details and keeps the scalar `category`
+    in sync with `categories[0]`.
+
+    Args:
+        provider: Provider name (used in the warning message).
+        logger: Logger to emit a one-time warning to on failure.
+        fn: Extractor returning `StopDetails | None`.
+
+    Returns:
+        Normalized `StopDetails`, or `None` when there is nothing to report or
+        an unexpected shape was encountered.
+    """
+    try:
+        details = fn()
+    except Exception as ex:
+        warn_once(
+            logger,
+            f"Unexpected data shape collecting stop_details from {provider}: {ex}",
+        )
+        return None
+
+    # only attach when there is something to report
+    if details is None or (not details.categories and not details.explanation):
+        return None
+
+    # keep the high-level summary in sync with the canonical list
+    if details.category is None and details.categories:
+        details.category = details.categories[0].category
+    if details.explanation is None and details.categories:
+        details.explanation = _summarize_stop_categories(details.categories)
+
+    return details
+
+
+def _summarize_stop_categories(categories: list[StopCategory]) -> str:
+    """Synthesize a human-readable explanation from a list of categories."""
+    parts = [f"{c.category} ({c.level})" if c.level else c.category for c in categories]
+    return "Content filtered: " + ", ".join(parts)
+
+
 class TopLogprob(BaseModel):
     """List of the most likely tokens and their log probability, at this token position."""
 
@@ -122,6 +206,9 @@ class ChatCompletionChoice(BaseModel):
 
     stop_reason: StopReason = Field(default="unknown")
     """Reason that the model stopped generating."""
+
+    stop_details: StopDetails | None = Field(default=None)
+    """Additional detail about the stop reason (e.g. refusal category/explanation), when provided."""
 
     logprobs: Logprobs | None = Field(default=None)
     """Logprobs."""
@@ -234,6 +321,7 @@ class ModelOutput(BaseModel):
         content: str | list[Content],
         stop_reason: StopReason = "stop",
         error: str | None = None,
+        stop_details: StopDetails | None = None,
     ) -> "ModelOutput":
         """Create ModelOutput from a `str` or `list[Content]`.
 
@@ -242,6 +330,7 @@ class ModelOutput(BaseModel):
            content: Text content from generation.
            stop_reason: Stop reason for generation.
            error: Error message.
+           stop_details: Additional detail about the stop reason (e.g. refusal).
         """
         return ModelOutput(
             model=model,
@@ -251,6 +340,7 @@ class ModelOutput(BaseModel):
                         content=content, model=model, source="generate"
                     ),
                     stop_reason=stop_reason,
+                    stop_details=stop_details,
                 )
             ],
             error=error,
