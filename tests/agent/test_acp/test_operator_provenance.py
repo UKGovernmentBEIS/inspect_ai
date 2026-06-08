@@ -20,6 +20,7 @@ from __future__ import annotations
 import pytest
 from test_helpers.utils import skip_if_trio
 
+from inspect_ai._util.content import ContentText
 from inspect_ai.agent import AgentState
 from inspect_ai.agent._acp.transport import _acp_var, current_acp_transport
 from inspect_ai.agent._acp.transport_live import LiveAcpTransport
@@ -37,6 +38,25 @@ from inspect_ai.model._model_output import ModelOutput
 
 def _bridge(*messages: ChatMessageUser) -> AgentBridge:
     return AgentBridge(AgentState(messages=list(messages)))
+
+
+def _cc_user(*texts: str, source: str | None = None) -> ChatMessageUser:
+    """A Claude Code-style multi-block user message.
+
+    Claude Code returns a user turn as multiple ``ContentText`` blocks —
+    ``<system-reminder>`` / skills content as their own blocks alongside the
+    actual prompt text as a separate block — so the concatenated ``.text``
+    never equals any single block's text.
+    """
+    return ChatMessageUser(
+        content=[ContentText(text=text) for text in texts],
+        source=source,  # type: ignore[arg-type]
+    )
+
+
+_REMINDER = (
+    "<system-reminder>\nThe following skills are available...\n</system-reminder>"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +81,22 @@ def test_consume_operator_message_no_match() -> None:
     transport = LiveAcpTransport()
     transport.submit_user_message(ChatMessageUser(content="alpha"))
     assert not transport.consume_operator_message(ChatMessageUser(content="beta"))
+
+
+def test_consume_operator_message_matches_multiblock_round_trip() -> None:
+    # The pending set holds the SHORT submitted text; Claude Code re-emits the
+    # turn as multiple blocks (reminder/skills + the operator text as its own
+    # block). The concatenated ``.text`` won't match, but the per-block
+    # candidate does.
+    transport = LiveAcpTransport()
+    transport.submit_user_message(ChatMessageUser(content="let's continue working"))
+    round_tripped = _cc_user(_REMINDER, "let's continue working")
+    assert round_tripped.text.strip() != "let's continue working"  # sanity
+    assert transport.consume_operator_message(round_tripped)
+    # one-shot: the matched candidate was popped
+    assert not transport.consume_operator_message(
+        _cc_user(_REMINDER, "let's continue working")
+    )
 
 
 def test_noop_transport_never_consumes_operator_message() -> None:
@@ -89,6 +125,43 @@ def test_restore_recognizes_pending_message_first_time() -> None:
         assert redirect.source == "operator"  # recognized via pending set
         assert dataset.source is None  # non-operator user message untouched
         assert system.source is None  # system messages are never stamped
+    finally:
+        _acp_var.reset(token)
+
+
+def test_restore_recognizes_multiblock_pending_first_time() -> None:
+    # A multi-block redirect (operator text as a non-first block) is recognized
+    # via the pending set; a sibling dataset message that shares the SAME
+    # reminder block must NOT be stamped (the pending set only holds operator
+    # texts, never reminders, so per-block matching is safe here).
+    transport = LiveAcpTransport()
+    transport.submit_user_message(ChatMessageUser(content="let's continue working"))
+    token = _acp_var.set(transport)
+    try:
+        redirect = _cc_user(_REMINDER, "let's continue working")
+        dataset = _cc_user(_REMINDER, "solve the original task")  # shares reminder
+        _restore_operator_message_source(_bridge(), [dataset, redirect])
+        assert redirect.source == "operator"
+        assert dataset.source is None
+    finally:
+        _acp_var.reset(token)
+
+
+def test_restore_carry_forward_multiblock_no_reminder_false_positive() -> None:
+    # No pending entry (already consumed on a prior turn). Carry-forward matches
+    # the FULL ``.text`` of a prior operator message — Claude Code keeps a user
+    # turn's representation stable once it is history, so the same operator
+    # message re-enters with an identical whole text. A dataset message that
+    # shares only the reminder block must NOT be falsely stamped operator.
+    transport = LiveAcpTransport()
+    token = _acp_var.set(transport)
+    try:
+        prior = _cc_user(_REMINDER, "let's continue working", source="operator")
+        this_turn = _cc_user(_REMINDER, "let's continue working")  # same whole text
+        dataset = _cc_user(_REMINDER, "solve the original task")  # shares reminder
+        _restore_operator_message_source(_bridge(prior), [dataset, this_turn])
+        assert this_turn.source == "operator"
+        assert dataset.source is None
     finally:
         _acp_var.reset(token)
 

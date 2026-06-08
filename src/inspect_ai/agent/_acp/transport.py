@@ -37,6 +37,7 @@ from typing import (
 
 from anyio.streams.memory import MemoryObjectReceiveStream
 
+from inspect_ai._util.content import ContentText
 from inspect_ai.model._chat_message import ChatMessageUser
 
 if TYPE_CHECKING:
@@ -723,6 +724,28 @@ async def acp_session() -> AsyncIterator[AcpTransport]:
         finally:
             _acp_var.reset(token_var)
             _acp_live_active.reset(token_live)
+
+
+def operator_text_candidates(message: ChatMessageUser) -> set[str]:
+    """Whitespace-normalized texts a round-tripped operator message could match on.
+
+    A bridged scaffold (claude_code, codex, …) re-emits an operator
+    intervention through its own conversation store, and Claude Code in
+    particular returns the user turn as MULTIPLE ``ContentText`` blocks —
+    ``<system-reminder>`` / skills content as their own blocks alongside the
+    operator's actual text as a separate block. So the whole-message
+    ``.text`` (which concatenates all blocks) never equals the submitted
+    operator text. Match against the individual blocks as well: the candidate
+    set is the stripped whole ``.text`` (handles ``str`` content) plus each
+    ``ContentText`` block's stripped text. Empty strings are dropped.
+    """
+    candidates = {message.text.strip()}
+    content = message.content
+    if not isinstance(content, str):
+        for block in content:
+            if isinstance(block, ContentText):
+                candidates.add(block.text.strip())
+    return {candidate for candidate in candidates if candidate}
 
 
 def current_acp_transport() -> AcpTransport:

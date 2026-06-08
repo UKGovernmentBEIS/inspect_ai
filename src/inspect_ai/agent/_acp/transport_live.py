@@ -41,6 +41,7 @@ from inspect_ai.agent._acp.transport import (
     AcpUpdate,
     ApproverClient,
     ElicitationClient,
+    operator_text_candidates,
 )
 from inspect_ai.log._transcript import transcript
 from inspect_ai.model._chat_message import (
@@ -1052,12 +1053,15 @@ class LiveAcpTransport:
         recognition the bridge carries operator provenance forward from its
         own tracked conversation, so this set stays bounded by in-flight
         submissions rather than growing without bound. Matches on
-        whitespace-normalized text.
+        whitespace-normalized text, per ``ContentText`` block (Claude Code
+        re-emits the operator turn as its own block alongside reminder /
+        skills blocks, so the concatenated ``.text`` would never match) —
+        see :func:`operator_text_candidates`.
         """
-        text = message.text.strip()
-        if text in self._pending_operator_texts:
-            self._pending_operator_texts.discard(text)
-            return True
+        for candidate in operator_text_candidates(message):
+            if candidate in self._pending_operator_texts:
+                self._pending_operator_texts.discard(candidate)
+                return True
         return False
 
     @property

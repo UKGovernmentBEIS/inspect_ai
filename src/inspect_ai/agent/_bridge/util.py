@@ -163,7 +163,14 @@ def _restore_operator_message_source(
     # Local import to avoid a load-order cycle (_acp imports from _bridge).
     from inspect_ai.agent._acp.transport import current_acp_transport
 
-    # operator messages already established in the tracked conversation
+    # Operator messages already established in the tracked conversation, keyed by
+    # whole-text. Carry-forward deliberately matches the FULL ``.text`` (not the
+    # per-block candidates ``consume_operator_message`` uses): Claude Code keeps
+    # a user turn's representation stable once it is history (reminder / skills
+    # blocks included), so the same operator message re-enters every later turn
+    # with an identical, distinctive whole text. Matching per-block here instead
+    # would risk a false positive — the shared reminder / skills blocks also
+    # appear on the dataset task message, which must NOT be stamped operator.
     known_operator_text = {
         message.text.strip()
         for message in bridge.state.messages
