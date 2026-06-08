@@ -38,4 +38,3 @@ uvicorn
 zipfile-zstd>=0.0.4; python_version < "3.14"
 zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
 zstandard>=0.20.0
-
